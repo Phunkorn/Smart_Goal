@@ -1,0 +1,249 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\TaskController;
+use App\Http\Controllers\MyTaskController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\TrashController;
+use App\Models\SystemNotification;
+use Illuminate\Support\Facades\Storage;
+
+/*
+|--------------------------------------------------------------------------
+| หน้าแรก โ’ Login
+|--------------------------------------------------------------------------
+*/
+
+Route::redirect('/', '/login');
+
+/*
+|--------------------------------------------------------------------------
+| Authentication
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/login', [AuthController::class, 'showLogin'])
+    ->name('login');
+
+Route::post('/login', [AuthController::class, 'login'])
+    ->name('login.submit');
+
+Route::post('/logout', [AuthController::class, 'logout'])
+    ->name('logout');
+
+/*
+|--------------------------------------------------------------------------
+| First Login
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth')->group(function () {
+
+    Route::get('/setup-password', function () {
+        return view('auth.setup-password');
+    })->name('password.setup');
+
+    Route::post('/setup-password', [
+        AuthController::class,
+        'updateFirstPassword'
+    ])->name('password.update.first');
+
+    Route::get('/welcome', [AuthController::class, 'welcome'])
+        ->name('welcome');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Admin Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth')->group(function () {
+
+    Route::redirect('/dashboard', '/board')
+        ->name('dashboard');
+
+    Route::get('/board', [TaskController::class, 'index'])
+        ->name('board.index');
+
+    Route::get('/employees', [UserController::class, 'index'])
+        ->name('employees.index');
+
+    Route::get('/employees/{user}', [UserController::class, 'show'])
+        ->name('employees.show');
+
+    Route::post('/employees', [UserController::class, 'store'])
+        ->middleware('admin')
+        ->name('employees.store');
+
+    Route::patch('/employees/{user}', [UserController::class, 'update'])
+        ->middleware('admin')
+        ->name('employees.update');
+
+    Route::delete('/employees/{user}', [UserController::class, 'destroy'])
+        ->middleware('admin')
+        ->name('employees.destroy');
+
+    Route::patch('/admin/tasks/{id}/approval', [TaskController::class, 'updateApproval'])
+        ->middleware('admin')
+        ->name('admin.tasks.approval');
+
+    Route::delete('/admin/tasks/{id}', [TaskController::class, 'destroy'])
+        ->middleware('admin')
+        ->name('admin.tasks.destroy');
+
+    Route::patch('/admin/tasks/{id}/delete-request', [TaskController::class, 'approveDeleteRequest'])
+        ->middleware('admin')
+        ->name('admin.tasks.deleteRequest.approve');
+
+    Route::get('/admin/activity-logs', [ActivityLogController::class, 'index'])
+        ->middleware('admin')
+        ->name('admin.activity-logs.index');
+
+    Route::get('/admin/trash', [TrashController::class, 'index'])
+        ->middleware('admin')
+        ->name('admin.trash.index');
+
+    Route::get('/admin/trash/export', [TrashController::class, 'export'])
+        ->middleware('admin')
+        ->name('admin.trash.export');
+
+    Route::patch('/admin/trash/{trash}/restore', [TrashController::class, 'restore'])
+        ->middleware('admin')
+        ->name('admin.trash.restore');
+
+    Route::patch('/tasks/{id}/invitation', [TaskController::class, 'respondInvitation'])
+        ->name('tasks.invitation.respond');
+
+    Route::get('/settings', [SettingsController::class, 'index'])
+        ->name('settings.index');
+
+    Route::patch('/settings', [SettingsController::class, 'update'])
+        ->name('settings.update');
+
+    Route::get('/my-reports', [ReportController::class, 'myReport'])
+        ->name('reports.my');
+
+    Route::get('/my-reports/export.csv', [ReportController::class, 'exportMyCsv'])
+        ->name('reports.myExportCsv');
+
+    Route::get('/media/{path}', function (string $path) {
+        abort_unless(Storage::disk('public')->exists($path), 404);
+
+        return response()->file(Storage::disk('public')->path($path));
+    })->where('path', '.*')->name('media.show');
+});
+
+Route::middleware('auth')->group(function () {
+
+    Route::get('/reports', [ReportController::class, 'index'])
+        ->name('reports.index');
+
+    Route::get('/reports/export.csv', [ReportController::class, 'exportCsv'])
+        ->name('reports.exportCsv');
+
+    Route::get('/reports/employees/{user}', [ReportController::class, 'employeeReport'])
+        ->name('reports.employee');
+
+    Route::get('/reports/employees/{user}/export.csv', [ReportController::class, 'exportEmployeeCsv'])
+        ->name('reports.employeeExportCsv');
+
+    // บอร์ดงาน (Admin)
+    Route::get('/admin/tasks', [TaskController::class, 'index'])
+        ->middleware('admin')
+        ->name('admin.tasks.index');
+
+    Route::post('/admin/tasks', [TaskController::class, 'store'])
+        ->middleware('admin')
+        ->name('admin.tasks.store');
+
+    Route::get('/admin/tasks/{id}', [TaskController::class, 'show'])
+        ->middleware('admin')
+        ->name('admin.tasks.show');
+});
+
+/*
+|--------------------------------------------------------------------------
+| User Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth')->group(function () {
+
+    Route::post('/my-tasks/{job_id}/status', [MyTaskController::class, 'updateStatus'])
+        ->name('mytasks.updateStatus');
+
+    Route::post('/my-tasks/{job_id}/priority', [MyTaskController::class, 'updatePriority'])
+        ->name('mytasks.updatePriority');
+
+    Route::post('/my-tasks', [MyTaskController::class, 'storeQuickTask'])
+        ->name('mytasks.store');
+
+    Route::post('/my-tasks/lists', [MyTaskController::class, 'storeList'])
+        ->name('mytasks.lists.store');
+
+    Route::patch('/my-tasks/lists/{list}', [MyTaskController::class, 'toggleList'])
+        ->name('mytasks.lists.toggle');
+
+    Route::delete('/my-tasks/lists/{list}', [MyTaskController::class, 'destroyList'])
+        ->name('mytasks.lists.destroy');
+
+    Route::patch('/my-tasks/{job_id}/complete', [MyTaskController::class, 'toggleComplete'])
+        ->name('mytasks.complete');
+
+    Route::patch('/my-tasks/{job_id}/star', [MyTaskController::class, 'toggleStar'])
+        ->name('mytasks.star');
+
+    Route::delete('/my-tasks/{job_id}', [MyTaskController::class, 'destroy'])
+        ->name('mytasks.destroy');
+
+    Route::post('/my-tasks/{job_id}/subtasks', [MyTaskController::class, 'storeSubtask'])
+        ->name('mytasks.subtasks.store');
+
+    Route::patch('/my-tasks/subtasks/{subtask}', [MyTaskController::class, 'toggleSubtask'])
+        ->name('mytasks.subtasks.toggle');
+
+    Route::match(['post', 'patch'], '/my-tasks/{job_id}/due-date', [MyTaskController::class, 'updateDueDate'])
+        ->name('mytasks.updateDueDate');
+
+    // งานของฉัน
+    Route::get('/my-tasks', [MyTaskController::class, 'index'])
+        ->name('mytasks.index');
+
+    Route::post('/tasks', [TaskController::class, 'store'])
+        ->name('tasks.store');
+
+    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])
+        ->name('tasks.updateStatus');
+
+    Route::post('/tasks/{id}/attachments', [TaskController::class, 'uploadAttachments'])
+        ->name('tasks.attachments.store');
+
+    Route::post('/tasks/{id}/collaborators', [TaskController::class, 'addCollaborators'])
+        ->name('tasks.collaborators.store');
+
+    Route::delete('/tasks/{id}/collaborators/{user}', [TaskController::class, 'removeCollaborator'])
+        ->name('tasks.collaborators.destroy');
+
+    Route::post('/tasks/{id}/progress', [TaskController::class, 'updateProgress'])
+        ->name('tasks.progress.store');
+
+    Route::post('/tasks/{id}/delete-request', [TaskController::class, 'requestDelete'])
+        ->name('tasks.deleteRequest.store');
+
+    Route::get('/tasks/{id}', [TaskController::class, 'show'])
+        ->name('tasks.show');
+
+    Route::delete('/notifications/{notification}', function (SystemNotification $notification) {
+        abort_unless($notification->user_id === auth()->id(), 403);
+        $notification->delete();
+
+        return back()->with('success', 'ลบการแจ้งเตือนแล้ว');
+    })->name('notifications.destroy');
+});
+
+

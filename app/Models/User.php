@@ -1,0 +1,93 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable, SoftDeletes;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'phone',
+        'password',
+        'department_id',
+        'role',
+        'must_change_password',
+        'profile_image',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at'    => 'datetime',
+            'password'             => 'hashed',
+            'must_change_password' => 'boolean',
+        ];
+    }
+
+    public function jobs()
+    {
+        return $this->hasMany(WorkOrder::class, 'user_id');
+    }
+
+    public function assignedTasks(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class, 'user_id');
+    }
+
+    public function createdJobs(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class, 'created_by');
+    }
+
+    public function leadingJobs(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class, 'leader_user_id');
+    }
+
+    public function joinedJobs(): BelongsToMany
+    {
+        return $this->belongsToMany(WorkOrder::class, 'work_order_collaborators', 'user_id', 'work_order_id')
+            ->withPivot('added_by', 'status', 'responded_at')
+            ->withTimestamps();
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function taskLists(): HasMany
+    {
+        return $this->hasMany(WorkOrderList::class);
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(SystemNotification::class);
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
+
+    public function trashLogs(): HasMany
+    {
+        return $this->hasMany(TrashLog::class, 'deleted_by');
+    }
+}
