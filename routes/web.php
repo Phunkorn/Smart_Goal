@@ -88,6 +88,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('admin')
         ->name('employees.destroy');
 
+    Route::patch('/employees/{user}/reset-password', [UserController::class, 'resetPassword'])
+        ->middleware('admin')
+        ->name('employees.resetPassword');
+
     Route::patch('/admin/tasks/{id}/approval', [TaskController::class, 'updateApproval'])
         ->middleware('admin')
         ->name('admin.tasks.approval');
@@ -183,6 +187,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/my-tasks', [MyTaskController::class, 'storeQuickTask'])
         ->name('mytasks.store');
 
+    Route::post('/my-tasks/new-task', [MyTaskController::class, 'store'])
+        ->name('mytasks.create');
+
     Route::post('/my-tasks/lists', [MyTaskController::class, 'storeList'])
         ->name('mytasks.lists.store');
 
@@ -194,9 +201,6 @@ Route::middleware('auth')->group(function () {
 
     Route::patch('/my-tasks/{job_id}/complete', [MyTaskController::class, 'toggleComplete'])
         ->name('mytasks.complete');
-
-    Route::patch('/my-tasks/{job_id}/star', [MyTaskController::class, 'toggleStar'])
-        ->name('mytasks.star');
 
     Route::delete('/my-tasks/{job_id}', [MyTaskController::class, 'destroy'])
         ->name('mytasks.destroy');
@@ -245,5 +249,3 @@ Route::middleware('auth')->group(function () {
         return back()->with('success', 'ลบการแจ้งเตือนแล้ว');
     })->name('notifications.destroy');
 });
-
-

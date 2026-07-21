@@ -7,8 +7,10 @@ use App\Models\JobImage;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderList;
 use App\Models\WorkOrderUpdate;
 use App\Support\AuditTrail;
+use App\Support\Concerns\ValidatesAttachments;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +19,8 @@ use Illuminate\Support\Str;
 
 class TaskController extends Controller
 {
+    use ValidatesAttachments;
+
     private const STATUS_META = [
         1 => ['key' => 'todo', 'label' => 'รอดำเนินการ', 'tone' => 'gray', 'icon' => 'bi-clock'],
         2 => ['key' => 'inprogress', 'label' => 'กำลังทำ', 'tone' => 'blue', 'icon' => 'bi-lightning-charge-fill'],
@@ -24,6 +28,13 @@ class TaskController extends Controller
         4 => ['key' => 'done', 'label' => 'เสร็จสิ้น', 'tone' => 'green', 'icon' => 'bi-check-circle-fill'],
         5 => ['key' => 'paused', 'label' => 'พักงานชั่วคราว', 'tone' => 'gray', 'icon' => 'bi-pause-circle'],
     ];
+
+    /**
+     * ค่าคงที่ ALLOWED_ATTACHMENT_EXTENSIONS / ALLOWED_ATTACHMENT_MIMES / ATTACHMENT_MAX_KB
+     * และเมธอด assertAllowedAttachments() / storeFiles() ย้ายไปอยู่ที่ trait
+     * App\Support\Concerns\ValidatesAttachments เพื่อใช้ allow-list เดียวกันกับ
+     * MyTaskController (หน้า "งานของฉัน") ด้วย ป้องกันช่องโหว่หลุดจากจุดใดจุดหนึ่ง
+     */
 
     private const PRIORITY_META = [
         1 => ['label' => 'ต่ำ', 'tone' => 'gray'],
@@ -126,14 +137,15 @@ class TaskController extends Controller
             'user_id' => ['nullable', 'exists:users,id,role,user'],
             'department_id' => ['nullable', 'exists:departments,id'],
             'job_priority' => ['nullable', 'integer', 'in:1,2,3'],
-            'job_status' => ['nullable', 'integer', 'in:1,2,3,4,5'],
             'job_start_at' => ['required', 'date'],
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id,role,user'],
             'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:pdf,png,jpg,jpeg,xls,xlsx,csv,zip', 'max:5120'],
+            'attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ]);
+
+        $this->assertAllowedAttachments($request, 'attachments');
 
         $actor = Auth::user();
         $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
@@ -141,12 +153,24 @@ class TaskController extends Controller
 
         $job = DB::transaction(function () use ($validated, $actor, $assignee, $request) {
             $initialStatus = (int) ($validated['job_status'] ?? 1);
+            $projectList = null;
+
+            // งานที่ Admin มอบหมายคือ 1 โปรเจกต์ของผู้รับ ไม่ใช่งานย่อยในรายการเดิม
+            if ($actor->role === 'admin') {
+                $projectList = WorkOrderList::create([
+                    'user_id' => $assignee->id,
+                    'name' => $validated['job_topic'],
+                    'is_visible' => true,
+                    'sort_order' => (int) WorkOrderList::where('user_id', $assignee->id)->max('sort_order') + 1,
+                ]);
+            }
 
             $job = WorkOrder::create([
                 'user_id' => $assignee->id,
                 'created_by' => $actor->id,
                 'leader_user_id' => $actor->role === 'admin' ? $assignee->id : $actor->id,
                 'department_id' => $validated['department_id'] ?? $assignee->department_id,
+                'work_order_list_id' => $projectList?->id,
                 'job_topic' => $validated['job_topic'],
                 'job_details' => $validated['job_details'] ?? null,
                 'job_priority' => $validated['job_priority'] ?? 2,
@@ -247,7 +271,7 @@ class TaskController extends Controller
             'job_status' => ['required', 'integer', 'in:1,2,3,4,5'],
             'job_progress' => ['nullable', 'integer', 'min:0', 'max:100'],
             'completion_attachments' => ['nullable', 'array', 'max:5'],
-            'completion_attachments.*' => ['file', 'mimes:pdf,png,jpg,jpeg,xls,xlsx,csv,zip', 'max:5120'],
+            'completion_attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ]);
 
         if ((int) $job->job_status === 4 && (int) $validated['job_status'] !== 4) {
@@ -257,6 +281,8 @@ class TaskController extends Controller
         if ($request->hasFile('completion_attachments') && $job->images()->count() + count($request->file('completion_attachments', [])) > 5) {
             return $this->jsonOrBack($request, false, 'แนบไฟล์ได้สูงสุด 5 ไฟล์ต่องาน', 422);
         }
+
+        $this->assertAllowedAttachments($request, 'completion_attachments');
 
         $before = $job->attributesToArray();
 
@@ -297,13 +323,15 @@ class TaskController extends Controller
 
         $request->validate([
             'completion_attachments' => ['required', 'array', 'min:1', 'max:5'],
-            'completion_attachments.*' => ['file', 'mimes:pdf,png,jpg,jpeg,xls,xlsx,csv,zip', 'max:5120'],
+            'completion_attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ]);
 
         $incomingCount = count($request->file('completion_attachments', []));
         if ($job->images->count() + $incomingCount > 5) {
             return $this->jsonOrBack($request, false, 'แนบไฟล์ได้สูงสุด 5 ไฟล์ต่องาน', 422);
         }
+
+        $this->assertAllowedAttachments($request, 'completion_attachments');
 
         $this->storeFiles($request, $job, 'completion_attachments');
         AuditTrail::log('attachments_uploaded', $job, 'Uploaded task attachments: ' . $job->job_topic, [
@@ -428,21 +456,26 @@ class TaskController extends Controller
         }
 
         $validated = $request->validate([
-            'progress' => ['required', 'integer', 'min:0', 'max:99'],
             'note' => ['required', 'string', 'max:2000'],
         ]);
 
         $before = $job->attributesToArray();
+        $subtaskCount = $job->subtasks()->count();
+        $completedSubtaskCount = $job->subtasks()->where('is_completed', true)->count();
+        $progress = $subtaskCount > 0
+            ? (int) round(($completedSubtaskCount / $subtaskCount) * 100)
+            : (int) $job->job_progress;
 
-        DB::transaction(function () use ($job, $validated, $user) {
+        DB::transaction(function () use ($job, $validated, $user, $progress) {
             WorkOrderUpdate::create([
                 'work_order_id' => $job->job_id,
                 'user_id' => $user->id,
-                'progress' => $validated['progress'],
+                // ความคืบหน้าถูกคำนวณจากงานย่อย จึงไม่รับค่าจากผู้ใช้โดยตรง
+                'progress' => $progress,
                 'note' => $validated['note'],
             ]);
 
-            $job->job_progress = max((int) $job->job_progress, (int) $validated['progress']);
+            $job->job_progress = $progress;
             if ((int) $job->job_status === 1) {
                 $job->job_status = 2;
             }
@@ -453,7 +486,7 @@ class TaskController extends Controller
         AuditTrail::log('progress_updated', $job, 'Updated task progress: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
-            'progress' => $validated['progress'],
+            'progress' => $progress,
             'note' => Str::limit($validated['note'], 200),
         ]);
 
@@ -613,25 +646,6 @@ class TaskController extends Controller
         $message = $validated['status'] === 'accepted' ? 'รับเข้าร่วมงานแล้ว' : 'ปฏิเสธคำเชิญแล้ว';
 
         return back()->with('success', $message);
-    }
-
-    private function storeFiles(Request $request, WorkOrder $job, string $field): void
-    {
-        if (! $request->hasFile($field)) {
-            return;
-        }
-
-        foreach ($request->file($field) as $file) {
-            $path = $file->store('job-attachments/' . $job->job_id, 'public');
-
-            JobImage::create([
-                'job_id' => $job->job_id,
-                'file_path' => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'file_type' => $file->getClientMimeType(),
-                'uploaded_by' => Auth::id(),
-            ]);
-        }
     }
 
     private function notifyJobMembers(WorkOrder $job, string $type, string $title, string $message): void

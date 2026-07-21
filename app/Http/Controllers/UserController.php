@@ -145,6 +145,32 @@ class UserController extends Controller
         return redirect()->route('employees.index')->with('success', 'ลบพนักงานสำเร็จ');
     }
 
+    public function resetPassword(Request $request, User $user)
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $validated = $request->validate([
+            'password' => ['required', 'string', 'min:6'],
+        ], [
+            'password.required' => 'กรุณากรอกรหัสผ่านชั่วคราว',
+            'password.min' => 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
+        ]);
+
+        $before = $this->auditUserPayload($user);
+
+        $user->update([
+            'password' => Hash::make($validated['password']),
+            'must_change_password' => true,
+        ]);
+
+        AuditTrail::log('password_reset', $user, 'Admin reset password for employee: ' . $user->name, [
+            'before' => $before,
+            'after' => $this->auditUserPayload($user),
+        ]);
+
+        return redirect()->route('employees.index')->with('success', 'ตั้งรหัสผ่านชั่วคราวให้พนักงานสำเร็จ พนักงานต้องตั้งรหัสผ่านใหม่ในการเข้าสู่ระบบครั้งถัดไป');
+    }
+
     private function validateUser(Request $request, ?User $user = null): array
     {
         $passwordRule = $user ? ['nullable', 'string', 'min:6'] : ['required', 'string', 'min:6'];

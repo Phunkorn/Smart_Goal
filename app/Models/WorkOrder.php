@@ -25,7 +25,6 @@ class WorkOrder extends Model
         'leader_user_id',
         'department_id',
         'work_order_list_id',
-        'is_starred',
         'job_topic',
         'job_details',
         'job_priority',
@@ -50,7 +49,6 @@ class WorkOrder extends Model
             'job_completed_at' => 'datetime',
             'approved_at'      => 'datetime',
             'delete_requested_at' => 'datetime',
-            'is_starred'       => 'boolean',
 
         ];
     }

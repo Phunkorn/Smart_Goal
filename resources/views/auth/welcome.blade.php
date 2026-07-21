@@ -240,7 +240,13 @@
                 </div>
                 <div class="profile-item">
                     <div class="label"><i class="bi bi-shield-check"></i> สิทธิ์การใช้งาน</div>
-                    <div class="value">{{ $roleLabel }}</div>
+                    <div class="value" data-role-label>
+                        {{ match(old('role', $employee->role ?? 'user')) {
+                            'admin' => 'Admin',
+                            'viewer' => 'ผู้เข้าชม',
+                            default => 'พนักงาน',
+                        } }}
+                    </div>
                 </div>
                 <div class="profile-item">
                     <div class="label"><i class="bi bi-building"></i> แผนก</div>

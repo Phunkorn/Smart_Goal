@@ -18,17 +18,20 @@
 
     <style>
         :root {
-            /* ---- Light, executive-friendly palette (Monday.com-inspired) ---- */
-            --bg: #F6F7FB;
+            /* ---- Light, executive-friendly palette (Premium Care blue) ---- */
+            --bg: #F5F7FC;
             --surface: #FFFFFF;
-            --surface-2: #F1F2F8;
-            --border: #E5E7F1;
-            --text: #1A1F36;
-            --text-muted: #6B7280;
+            --surface-2: #EEF2FA;
+            --border: #DDE4F2;
+            --text: #16233D;
+            --text-muted: #64748B;
 
-            --accent: #5B47E0;
-            --accent-dim: #EEEBFD;
-            --accent-strong: #4733C9;
+            --accent: #1E4FD6;
+            --accent-dim: #E7EDFC;
+            --accent-strong: #16389E;
+
+            --brand-red: #E8352B;
+            --brand-red-dim: #FDEAE9;
 
             --green: #00C875;
             --green-dim: #E3FAEF;
@@ -44,8 +47,8 @@
             --radius: 12px;
             --radius-sm: 8px;
             --sidebar-w: 252px;
-            --shadow-sm: 0 1px 2px rgba(26, 31, 54, .04), 0 1px 6px rgba(26, 31, 54, .04);
-            --shadow-md: 0 4px 16px rgba(26, 31, 54, .08);
+            --shadow-sm: 0 1px 2px rgba(22, 35, 61, .05), 0 1px 6px rgba(22, 35, 61, .05);
+            --shadow-md: 0 4px 16px rgba(22, 35, 61, .10);
         }
 
         * {
@@ -53,6 +56,7 @@
         }
 
         body {
+            margin: 0;
             background: var(--bg);
             color: var(--text);
             font-family: 'Sarabun', sans-serif;
@@ -1024,6 +1028,9 @@
                     class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-bar-chart-line-fill"></i> รายงาน
                 </a>
+
+                <div class="nav-section-label">ระบบ</div>
+
                 <a href="{{ route('admin.trash.index') }}"
                     class="nav-item {{ request()->routeIs('admin.trash.*') ? 'active' : '' }}">
                     <i class="bi bi-trash3-fill"></i> ถังขยะ

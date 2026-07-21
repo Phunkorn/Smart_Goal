@@ -388,9 +388,14 @@
                         <a href="{{ route('employees.show', $employee->id) }}" class="mini-btn primary"><i
                                 class="bi bi-eye"></i> ดู</a>
                         @if ($canManageEmployees)
-                            <button type="button" class="mini-btn" data-bs-toggle="modal"
-                                data-bs-target="#editUserModal{{ $employee->id }}"><i class="bi bi-pencil-square"></i>
-                                แก้ไข</button>
+                        <button type="button" class="mini-btn" data-bs-toggle="modal"
+                            data-bs-target="#editUserModal{{ $employee->id }}"
+                            style="background:#eaf3ff;border-color:#bfdbfe;color:#1a66d6;"><i class="bi bi-pencil-square"></i>
+                            แก้ไข</button>
+                        <button type="button" class="mini-btn" data-bs-toggle="modal"
+                            data-bs-target="#resetPasswordModal{{ $employee->id }}"
+                            style="background:#fffbeb;border-color:#fde68a;color:#b45309;"><i class="bi bi-key-fill"></i>
+                            รีเซ็ตรหัสผ่าน</button>
                             @if ($employee->id !== auth()->id())
                                 <form method="POST" action="{{ route('employees.destroy', $employee->id) }}"
                                     class="delete-user-form">
@@ -420,12 +425,23 @@
                 'mode' => 'edit',
                 'employee' => $employee,
             ])
+            @include('employees.partials.reset-password-modal', [
+                'employee' => $employee,
+            ])
         @endforeach
     @endif
 @endsection
 
 @push('scripts')
     <script>
+        function generateTempPassword(employeeId) {
+            const words = ['Master', 'Smart', 'Goal', 'Premium', 'Care', 'Team'];
+            const word = words[Math.floor(Math.random() * words.length)];
+            const digits = Math.floor(1000 + Math.random() * 9000);
+            const input = document.getElementById('resetPasswordInput' + employeeId);
+            if (input) input.value = word + digits;
+        }
+
         function filterEmployees(value) {
             const keyword = value.trim().toLowerCase();
             document.querySelectorAll('.employee-card[data-search]').forEach((card) => {

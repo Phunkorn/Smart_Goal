@@ -8,7 +8,7 @@
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header">
                 <div>
-                    <h5 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i>{{ $isEdit ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงาน' }}</h5>
+                    <h5 class="modal-title fw-bold "><i class="bi bi-person-plus-fill"></i>{{ $isEdit ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงาน' }}</h5>
                     <div class="form-help">Admin และ Viewer ไม่ต้องเลือกแผนก ส่วนพนักงานต้องเลือกแผนก</div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -32,10 +32,6 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Email</label>
                             <input type="email" name="email" class="form-control" value="{{ old('email', $employee->email ?? '') }}" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">{{ $isEdit ? 'รหัสผ่านใหม่ (ไม่กรอก = ไม่เปลี่ยน)' : 'รหัสผ่านชั่วคราว' }}</label>
-                            <input type="text" name="password" class="form-control" {{ $isEdit ? '' : 'required' }}>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">สิทธิ์การใช้งาน</label>

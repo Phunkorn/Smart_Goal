@@ -2,20 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SystemNotification;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderSubtask;
 use App\Models\User;
 use App\Support\AuditTrail;
+use App\Support\Concerns\ValidatesAttachments;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class MyTaskController extends Controller
 {
+    use ValidatesAttachments;
+
+
     public function index(): View|RedirectResponse
     {
         $user = Auth::user();
@@ -24,6 +31,7 @@ class MyTaskController extends Controller
             return redirect()->route('board.index');
         }
 
+        $this->moveAdminAssignmentsToProjectGroups($user);
         $taskLists = $this->taskListsForCurrentUser();
         $defaultList = $taskLists->first();
 
@@ -45,6 +53,7 @@ class MyTaskController extends Controller
                 'taskList',
                 'subtasks',
                 'user.department',
+                'creator',
                 'collaborators.department',
                 'images',
                 'updates.user.department',
@@ -60,7 +69,6 @@ class MyTaskController extends Controller
 
         $visibleLists = $taskLists->where('is_visible', true)->values();
         $activeTasks = $workOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
-        $starredTasks = $activeTasks->where('is_starred', true)->values();
         $completedTasks = $workOrders->filter(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $availableCollaborators = User::with('department')
             ->where('role', 'user')
@@ -72,7 +80,6 @@ class MyTaskController extends Controller
             'taskLists',
             'visibleLists',
             'activeTasks',
-            'starredTasks',
             'completedTasks',
             'availableCollaborators'
         ));
@@ -126,6 +133,116 @@ class MyTaskController extends Controller
             'ok' => true,
             'message' => 'สร้างงานแล้ว',
             'job_id' => $workOrder->job_id,
+        ], 201);
+    }
+
+    /**
+     * สร้างงานแบบเต็มรูปแบบจากหน้า "งานของฉัน" (หัวข้อ, รายละเอียด, ผู้รับผิดชอบ,
+     * ผู้ร่วมงาน, วันเริ่ม-สิ้นสุด, ความสำคัญ, ไฟล์แนบ)
+     *
+     * กติกาการอนุมัติ:
+     * - มอบหมายให้ตัวเอง หรือมอบหมายให้พนักงานแผนกเดียวกัน => สร้างงานได้ทันที (approved)
+     * - มอบหมายให้พนักงานต่างแผนก => สถานะ "รออนุมัติ" และแจ้งเตือนไปยัง Admin ทุกคน
+     *   ให้เป็นผู้ตัดสินใจรับหรือปฏิเสธงานแทน (ผ่านปุ่มอนุมัติ/ปฏิเสธที่มีอยู่แล้วในหน้าบอร์ด)
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $actor = Auth::user();
+
+        abort_if($actor->role === 'viewer', 403);
+
+        $validated = $request->validate([
+            'job_topic' => ['required', 'string', 'max:255'],
+            'job_details' => ['nullable', 'string', 'max:2000'],
+            'user_id' => ['nullable', 'exists:users,id'],
+            'collaborators' => ['nullable', 'array'],
+            'collaborators.*' => ['integer', 'exists:users,id'],
+            'job_start_at' => ['required', 'date'],
+            'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
+            'job_priority' => ['nullable', 'integer', 'in:1,2,3'],
+            'attachments' => ['nullable', 'array', 'max:5'],
+            'attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
+        ]);
+
+        $this->assertAllowedAttachments($request, 'attachments');
+
+        $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
+        abort_unless($assignee && $assignee->role !== 'viewer', 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
+
+        $sameDepartment = (int) $assignee->id === (int) $actor->id
+            || ($assignee->department_id && $actor->department_id
+                && (int) $assignee->department_id === (int) $actor->department_id);
+
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $request) {
+            // Create a dedicated project group so the new work card is rendered beneath its group-head.
+            $list = WorkOrderList::create([
+                'user_id' => $actor->id,
+                'name' => $validated['job_topic'],
+                'is_visible' => true,
+                'sort_order' => (int) WorkOrderList::where('user_id', $actor->id)->max('sort_order') + 1,
+            ]);
+
+            $job = WorkOrder::create([
+                'user_id' => $assignee->id,
+                'created_by' => $actor->id,
+                'leader_user_id' => $actor->id,
+                'department_id' => $assignee->department_id ?? $actor->department_id,
+                'work_order_list_id' => $list->id,
+                'job_topic' => $validated['job_topic'],
+                'job_details' => $validated['job_details'] ?? null,
+                'job_priority' => $validated['job_priority'] ?? 2,
+                'job_status' => 1,
+                'approval_status' => $sameDepartment ? 'approved' : 'pending',
+                'approved_by' => $sameDepartment ? $actor->id : null,
+                'approved_at' => $sameDepartment ? now() : null,
+                'job_progress' => 0,
+                'job_start_at' => Carbon::parse($validated['job_start_at']),
+                'job_due_at' => Carbon::parse($validated['job_due_at']),
+            ]);
+
+            $collaborators = collect($validated['collaborators'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->reject(fn ($id) => $id === (int) $assignee->id)
+                ->unique()
+                ->values();
+
+            foreach ($collaborators as $userId) {
+                $job->collaborators()->syncWithoutDetaching([
+                    $userId => [
+                        'added_by' => $actor->id,
+                        'status' => 'pending',
+                    ],
+                ]);
+            }
+
+            $this->storeFiles($request, $job, 'attachments');
+
+            return $job;
+        });
+
+        $job->refresh();
+
+        AuditTrail::log('created', $job, ($sameDepartment ? 'User created task: ' : 'User requested cross-department task: ') . $job->job_topic, [
+            'after' => $job->attributesToArray(),
+        ]);
+
+        if ($sameDepartment) {
+            if ((int) $assignee->id !== (int) $actor->id) {
+                $this->notifyUsers([$assignee->id], $job, 'task_assigned', 'มีงานใหม่', $actor->name . ' มอบหมายงาน "' . $job->job_topic . '" ให้คุณ');
+            }
+            $message = 'สร้างงานสำเร็จ';
+        } else {
+            $this->notifyAdmins($job, 'cross_department_pending', 'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
+                $actor->name . ' ต้องการมอบหมายงาน "' . $job->job_topic . '" ให้ ' . $assignee->name . ' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ');
+            $message = 'ส่งคำขอเปิดงานข้ามแผนกแล้ว รอผู้ดูแลระบบตรวจสอบก่อนเริ่มงาน';
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => $message,
+            'job_id' => $job->job_id,
+            'list_id' => $job->work_order_list_id,
+            'requires_admin_review' => ! $sameDepartment,
         ], 201);
     }
 
@@ -206,24 +323,6 @@ class MyTaskController extends Controller
         ]);
     }
 
-    public function toggleStar(Request $request, int $job_id): JsonResponse
-    {
-        $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorizeWorkOrderAccess($workOrder);
-
-        $validated = $request->validate([
-            'is_starred' => 'required|boolean',
-        ]);
-
-        $workOrder->update(['is_starred' => $validated['is_starred']]);
-
-        return response()->json([
-            'ok' => true,
-            'message' => $validated['is_starred'] ? 'ติดดาวแล้ว' : 'ยกเลิกติดดาวแล้ว',
-            'is_starred' => (bool) $validated['is_starred'],
-        ]);
-    }
-
     public function destroy(int $job_id): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
@@ -252,6 +351,20 @@ class MyTaskController extends Controller
             'completed' => 'required|boolean',
         ]);
 
+        if ((int) $workOrder->job_status === 4 && ! $validated['completed']) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'โปรเจกต์นี้ปิดแล้ว ไม่สามารถเปิดกลับได้',
+            ], 422);
+        }
+
+        if ($validated['completed'] && ! $this->hasCompletedAllSubtasks($workOrder)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'กรุณาติ๊กงานย่อยให้ครบทุกข้อก่อนปิดโปรเจกต์',
+            ], 422);
+        }
+
         $workOrder->update($validated['completed']
             ? [
                 'job_status' => 4,
@@ -278,13 +391,12 @@ class MyTaskController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'details' => 'nullable|string|max:1000',
         ]);
 
         $subtask = $workOrder->subtasks()->create([
             'created_by' => Auth::id(),
             'title' => $validated['title'],
-            'details' => $validated['details'] ?? null,
+            'details' => null,
             'sort_order' => (int) $workOrder->subtasks()->max('sort_order') + 1,
         ]);
 
@@ -326,6 +438,13 @@ class MyTaskController extends Controller
             return response()->json([
                 'ok' => false,
                 'message' => 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะกลับได้',
+            ], 422);
+        }
+
+        if ((int) $validated['job_status'] === 4 && ! $this->hasCompletedAllSubtasks($workOrder)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'กรุณาติ๊กงานย่อยให้ครบทุกข้อก่อนปิดโปรเจกต์',
             ], 422);
         }
 
@@ -403,6 +522,38 @@ class MyTaskController extends Controller
         ]);
     }
 
+    private function notifyUsers(array $userIds, WorkOrder $job, string $type, string $title, string $message): void
+    {
+        $safeTitle = Str::limit(strip_tags($title), 120, '');
+        $safeMessage = Str::limit(strip_tags($message), 1000, '');
+
+        foreach (collect($userIds)->filter()->unique() as $userId) {
+            SystemNotification::create([
+                'user_id' => $userId,
+                'work_order_id' => $job->job_id,
+                'type' => $type,
+                'title' => $safeTitle,
+                'message' => $safeMessage,
+            ]);
+        }
+    }
+
+    /** โปรเจกต์ปิดได้ต่อเมื่องานย่อยอย่างน้อยหนึ่งข้อถูกทำครบทั้งหมด */
+    private function hasCompletedAllSubtasks(WorkOrder $workOrder): bool
+    {
+        $total = $workOrder->subtasks()->count();
+
+        return $total > 0
+            && $workOrder->subtasks()->where('is_completed', false)->doesntExist();
+    }
+
+    private function notifyAdmins(WorkOrder $job, string $type, string $title, string $message): void
+    {
+        $adminIds = User::where('role', 'admin')->pluck('id')->all();
+
+        $this->notifyUsers($adminIds, $job, $type, $title, $message);
+    }
+
     /**
      * ดึงรายการ (list) ของผู้ใช้ปัจจุบันเท่านั้น
      * หมายเหตุ: ตั้งใจไม่สร้าง "งานของฉัน" อัตโนมัติอีกต่อไป
@@ -416,6 +567,54 @@ class MyTaskController extends Controller
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * ย้ายงานเก่าที่ Admin เคยมอบหมายและยังปะปนอยู่ในรายการเดิม
+     * ให้เป็นโปรเจกต์แยกของผู้รับเพียงครั้งเดียว
+     */
+    private function moveAdminAssignmentsToProjectGroups(User $user): void
+    {
+        $adminAssignments = WorkOrder::query()
+            ->where('user_id', $user->id)
+            ->whereHas('creator', fn ($query) => $query->where('role', 'admin'))
+            ->get();
+
+        if ($adminAssignments->isEmpty()) {
+            return;
+        }
+
+        $listIds = $adminAssignments->pluck('work_order_list_id')->filter()->unique();
+        $lists = WorkOrderList::where('user_id', $user->id)
+            ->whereIn('id', $listIds)
+            ->get()
+            ->keyBy('id');
+        $tasksPerList = WorkOrder::whereIn('work_order_list_id', $listIds)
+            ->selectRaw('work_order_list_id, count(*) as total')
+            ->groupBy('work_order_list_id')
+            ->pluck('total', 'work_order_list_id');
+
+        DB::transaction(function () use ($adminAssignments, $lists, $tasksPerList, $user) {
+            foreach ($adminAssignments as $job) {
+                $currentList = $lists->get($job->work_order_list_id);
+                $isDedicatedProject = $currentList
+                    && $currentList->name === $job->job_topic
+                    && (int) ($tasksPerList[$currentList->id] ?? 0) === 1;
+
+                if ($isDedicatedProject) {
+                    continue;
+                }
+
+                $projectList = WorkOrderList::create([
+                    'user_id' => $user->id,
+                    'name' => $job->job_topic,
+                    'is_visible' => true,
+                    'sort_order' => (int) WorkOrderList::where('user_id', $user->id)->max('sort_order') + 1,
+                ]);
+
+                $job->update(['work_order_list_id' => $projectList->id]);
+            }
+        });
     }
 
     private function baseWorkOrderQuery()
