@@ -15,6 +15,20 @@
         'created_at' => 'สร้างเมื่อ',
         'updated_at' => 'แก้ไขล่าสุด',
         'deleted_at' => 'ลบเมื่อ',
+        'title' => 'ชื่องาน',
+        'description' => 'รายละเอียด',
+        'detail' => 'รายละเอียด',
+        'comment' => 'ความคิดเห็น',
+        'job_status' => 'สถานะงาน',
+        'status' => 'สถานะ',
+        'priority_level' => 'ความสำคัญ',
+        'due_date' => 'กำหนดส่ง',
+        'progress' => 'ความคืบหน้า',
+        'project_leader_id' => 'หัวหน้าโปรเจกต์',
+        'delete_request_reason' => 'เหตุผลขอลบ',
+        'delete_requested_at' => 'วันที่ส่งคำขอลบ',
+        'delete_rejected_reason' => 'เหตุผลปฏิเสธ',
+        'attachments' => 'ไฟล์อ้างอิงงาน',
     ];
 
     $roleLabels = [
@@ -34,6 +48,17 @@
         'restore' => 'กู้คืน',
         'login' => 'เข้าสู่ระบบ',
         'logout' => 'ออกจากระบบ',
+        'status_changed' => 'เปลี่ยนสถานะงาน',
+        'priority_changed' => 'เปลี่ยนความสำคัญ',
+        'due_date_changed' => 'เปลี่ยนกำหนดส่ง',
+        'progress_updated' => 'เพิ่มความคิดเห็น/อัปเดตงาน',
+        'attachments_uploaded' => 'เพิ่มไฟล์อ้างอิงงาน',
+        'delete_requested' => 'ส่งคำขอลบงาน',
+        'delete_request_rejected' => 'ปฏิเสธคำขอลบงาน',
+        'approval_updated' => 'อัปเดตการอนุมัติ',
+        'collaborator_added' => 'เพิ่มผู้ร่วมโปรเจกต์',
+        'collaborator_removed' => 'นำผู้ร่วมโปรเจกต์ออก',
+        'project_leader_assigned' => 'กำหนดหัวหน้าโปรเจกต์',
     ];
 
     $subjectLabels = [
@@ -43,9 +68,27 @@
         'Task' => 'งาน',
         'Job' => 'โปรเจกต์',
         'Subtask' => 'งานย่อย',
+        'WorkOrder' => 'งานย่อย',
+        'WorkOrderList' => 'โปรเจกต์',
     ];
 
-    $formatLogValue = function ($field, $value) use ($roleLabels) {
+    $statusLabels = [
+        1 => 'รอดำเนินการ',
+        2 => 'กำลังดำเนินการ',
+        3 => 'พักงาน',
+        4 => 'เสร็จสิ้น',
+        5 => 'ล่าช้า',
+    ];
+
+    $priorityLabels = [
+        'low' => 'ต่ำ',
+        'normal' => 'ปกติ',
+        'medium' => 'ปกติ',
+        'high' => 'สูง',
+        'critical' => 'เร่งด่วน',
+    ];
+
+    $formatLogValue = function ($field, $value) use ($roleLabels, $statusLabels, $priorityLabels) {
         if ($value === null || $value === '') {
             return '-';
         }
@@ -58,11 +101,21 @@
             return (bool) $value ? 'ใช่' : 'ไม่ใช่';
         }
 
+        if ($field === 'job_status' || $field === 'status') {
+            return $statusLabels[$value] ?? $value;
+        }
+
+        if ($field === 'priority_level') {
+            return $priorityLabels[strtolower((string) $value)] ?? $value;
+        }
+
         if (in_array($field, [
             'created_at',
             'updated_at',
             'deleted_at',
-            'email_verified_at'
+            'email_verified_at',
+            'due_date',
+            'delete_requested_at',
         ])) {
             try {
                 return \Carbon\Carbon::parse($value)
@@ -217,7 +270,7 @@
 <div class="admin-log-page">
     <section class="admin-log-head">
         <div>
-            <span class="admin-log-kicker"><i class="bi bi-clock-history"></i> Audit Log</span>
+            <span class="admin-log-kicker"><i class="bi bi-clock-history"></i> บันทึกการใช้งาน</span>
             <h1>บันทึกระบบ</h1>
             <p>ดูประวัติการทำงานของระบบ เช่น การสร้าง แก้ไข ลบ และเปลี่ยนสถานะ</p>
         </div>
@@ -227,14 +280,17 @@
         <div class="filter-grid">
             <label>
                 ค้นหา
-                <input type="search" name="q" value="{{ request('q') }}" placeholder="ค้นหารายละเอียด, object, IP">
+                <input type="search" name="q" value="{{ request('q') }}" placeholder="ค้นหารายละเอียด, ประเภทข้อมูล, IP">
             </label>
             <label>
-                Action
+                ประเภทการทำรายการ
                 <select name="action">
                     <option value="">ทั้งหมด</option>
                     @foreach ($actions as $action)
-                        <option value="{{ $action }}" @selected(request('action') === $action)>{{ $action }}</option>
+                        @php $actionKey = strtolower($action); @endphp
+                        <option value="{{ $action }}" @selected(request('action') === $action)>
+                            {{ $actionLabels[$actionKey] ?? $action }}
+                        </option>
                     @endforeach
                 </select>
             </label>
@@ -260,7 +316,7 @@
                     <tr>
                         <th>เวลา</th>
                         <th>ผู้ทำรายการ</th>
-                        <th>Action</th>
+                        <th>ประเภทการทำรายการ</th>
                         <th>รายละเอียด</th>
                         <!-- <th>IP</th> -->
                     </tr>
@@ -327,7 +383,7 @@
                                                         {{ $log->user?->name ?? 'ระบบ' }}
                                                         {{ $actionLabel }}{{ $subjectLabel }}
                                                     </h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
                                                 </div>
                                                 <div class="modal-body">
                                                     <div class="log-change-content">
@@ -347,7 +403,7 @@
                                                                         <div class="log-change-field">{{ $fieldLabel }}</div>
                                                                         <div class="log-change-value">
                                                                             @if ($isImageField && $oldValue)
-                                                                                <img src="{{ asset('storage/' . $oldValue) }}" alt="profile" class="log-avatar">
+                                                                                <img src="{{ asset('storage/' . $oldValue) }}" alt="รูปโปรไฟล์" class="log-avatar">
                                                                             @else
                                                                                 {{ $formattedOld }}
                                                                             @endif
@@ -360,7 +416,7 @@
                                                                         <div class="log-change-field">{{ $fieldLabel }}</div>
                                                                         <div class="log-change-value">
                                                                             @if ($isImageField && $newValue)
-                                                                                <img src="{{ asset('storage/' . $newValue) }}" alt="profile" class="log-avatar">
+                                                                                <img src="{{ asset('storage/' . $newValue) }}" alt="รูปโปรไฟล์" class="log-avatar">
                                                                             @else
                                                                                 {{ $formattedNew }}
                                                                             @endif
@@ -374,13 +430,13 @@
                                                                         @if ($isImageField)
                                                                             <div class="log-avatar-group">
                                                                                 @if ($oldValue)
-                                                                                    <img src="{{ asset('storage/' . $oldValue) }}" alt="old profile" class="log-avatar log-avatar-old">
+                                                                                    <img src="{{ asset('storage/' . $oldValue) }}" alt="รูปโปรไฟล์เดิม" class="log-avatar log-avatar-old">
                                                                                 @else
                                                                                     <span class="log-value-old">{{ $formattedOld }}</span>
                                                                                 @endif
                                                                                 <i class="bi bi-arrow-right log-change-arrow"></i>
                                                                                 @if ($newValue)
-                                                                                    <img src="{{ asset('storage/' . $newValue) }}" alt="new profile" class="log-avatar log-avatar-new">
+                                                                                    <img src="{{ asset('storage/' . $newValue) }}" alt="รูปโปรไฟล์ใหม่" class="log-avatar log-avatar-new">
                                                                                 @else
                                                                                     <span class="log-value-new">{{ $formattedNew }}</span>
                                                                                 @endif

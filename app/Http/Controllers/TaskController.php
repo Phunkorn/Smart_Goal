@@ -209,12 +209,12 @@ class TaskController extends Controller
         });
 
         $job->refresh();
-        AuditTrail::log('created', $job, ($actor->role === 'admin' ? 'Admin created task: ' : 'User requested task: ') . $job->job_topic, [
+        AuditTrail::log('created', $job, ($actor->role === 'admin' ? 'Admin สร้างงาน: ' : 'ผู้ใช้ส่งคำขอเปิดงาน: ') . $job->job_topic, [
             'after' => $job->attributesToArray(),
         ]);
 
         $message = Auth::user()->role === 'admin'
-            ? 'สร้างงานสำเร็จ'
+            ? 'เพิ่มงานสำเร็จ'
             : 'ส่งคำขอเปิดงานแล้ว รอผู้ดูแลระบบอนุมัติ';
 
         return redirect()->route(Auth::user()->role === 'admin' ? 'board.index' : 'mytasks.index')
@@ -274,12 +274,12 @@ class TaskController extends Controller
             'completion_attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ]);
 
-        if ((int) $job->job_status === 4 && (int) $validated['job_status'] !== 4) {
+        if ((int) $job->job_status === 4 && (int) $validated['job_status'] !== 4 && $user?->role !== 'admin') {
             return $this->jsonOrBack($request, false, 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะกลับได้', 422);
         }
 
         if ($request->hasFile('completion_attachments') && $job->images()->count() + count($request->file('completion_attachments', [])) > 5) {
-            return $this->jsonOrBack($request, false, 'แนบไฟล์ได้สูงสุด 5 ไฟล์ต่องาน', 422);
+            return $this->jsonOrBack($request, false, 'เพิ่มไฟล์อ้างอิงงานได้สูงสุด 5 ไฟล์ต่องาน', 422);
         }
 
         $this->assertAllowedAttachments($request, 'completion_attachments');
@@ -300,7 +300,7 @@ class TaskController extends Controller
         });
 
         $job->refresh();
-        AuditTrail::log('status_changed', $job, 'Changed task status: ' . $job->job_topic, [
+        AuditTrail::log('status_changed', $job, 'เปลี่ยนสถานะงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
         ]);
@@ -320,6 +320,7 @@ class TaskController extends Controller
             || $job->collaborators->contains(fn ($person) => $person->id === $user?->id && $person->pivot?->status === 'accepted');
 
         abort_unless($canUpload, 403);
+        abort_if((int) $job->job_status === 4 && $user?->role !== 'admin', 403);
 
         $request->validate([
             'completion_attachments' => ['required', 'array', 'min:1', 'max:5'],
@@ -328,24 +329,25 @@ class TaskController extends Controller
 
         $incomingCount = count($request->file('completion_attachments', []));
         if ($job->images->count() + $incomingCount > 5) {
-            return $this->jsonOrBack($request, false, 'แนบไฟล์ได้สูงสุด 5 ไฟล์ต่องาน', 422);
+            return $this->jsonOrBack($request, false, 'เพิ่มไฟล์อ้างอิงงานได้สูงสุด 5 ไฟล์ต่องาน', 422);
         }
 
         $this->assertAllowedAttachments($request, 'completion_attachments');
 
         $this->storeFiles($request, $job, 'completion_attachments');
-        AuditTrail::log('attachments_uploaded', $job, 'Uploaded task attachments: ' . $job->job_topic, [
+        AuditTrail::log('attachments_uploaded', $job, 'เพิ่มไฟล์อ้างอิงงาน: ' . $job->job_topic, [
             'field' => 'completion_attachments',
             'count' => count($request->file('completion_attachments', [])),
         ]);
 
-        return $this->jsonOrBack($request, true, 'แนบไฟล์สำเร็จ');
+        return $this->jsonOrBack($request, true, 'เพิ่มไฟล์อ้างอิงงานสำเร็จ');
     }
 
     public function addCollaborators(Request $request, $id)
     {
         $job = WorkOrder::with(['collaborators', 'user.department', 'leader.department'])->findOrFail($id);
         abort_unless($this->canManageTeam($job, Auth::user()), 403);
+        abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
 
         $validated = $request->validate([
             'collaborators' => ['required', 'array', 'min:1'],
@@ -384,7 +386,7 @@ class TaskController extends Controller
                 ],
             ]);
 
-            AuditTrail::log('collaborator_added', $job, 'Added collaborator to task: ' . $job->job_topic, [
+            AuditTrail::log('collaborator_added', $job, 'เพิ่มผู้ร่วมโปรเจกต์ในงาน: ' . $job->job_topic, [
                 'user_id' => $candidate->id,
                 'status' => $pivotStatus,
             ]);
@@ -419,11 +421,12 @@ class TaskController extends Controller
     {
         $job = WorkOrder::with(['collaborators', 'user', 'leader'])->findOrFail($id);
         abort_unless($this->canManageTeam($job, Auth::user()), 403);
+        abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
         abort_if(in_array($user->id, [$job->user_id, $job->created_by, $job->leader_user_id], true), 422, 'ไม่สามารถลบผู้รับผิดชอบหลักหรือหัวหน้างานออกจากทีมได้');
 
         $job->collaborators()->detach($user->id);
 
-        AuditTrail::log('collaborator_removed', $job, 'Removed collaborator from task: ' . $job->job_topic, [
+        AuditTrail::log('collaborator_removed', $job, 'นำผู้ร่วมโปรเจกต์ออกจากงาน: ' . $job->job_topic, [
             'user_id' => $user->id,
             'user_name' => $user->name,
         ]);
@@ -451,7 +454,7 @@ class TaskController extends Controller
             return $this->jsonOrBack($request, false, 'งานนี้ยังไม่ได้รับอนุมัติ', 422);
         }
 
-        if ((int) $job->job_status === 4) {
+        if ((int) $job->job_status === 4 && $user?->role !== 'admin') {
             return $this->jsonOrBack($request, false, 'งานนี้ปิดแล้ว ไม่สามารถอัปเดตความคืบหน้าได้', 422);
         }
 
@@ -483,7 +486,7 @@ class TaskController extends Controller
         });
 
         $job->refresh();
-        AuditTrail::log('progress_updated', $job, 'Updated task progress: ' . $job->job_topic, [
+        AuditTrail::log('progress_updated', $job, 'เพิ่มความคิดเห็น/อัปเดตงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
             'progress' => $progress,
@@ -513,7 +516,7 @@ class TaskController extends Controller
         $job->delete_request_reason = $validated['reason'];
         $job->save();
 
-        AuditTrail::log('delete_requested', $job, 'Requested task deletion: ' . $job->job_topic, [
+        AuditTrail::log('delete_requested', $job, 'ส่งคำขอลบงาน: ' . $job->job_topic, [
             'reason' => Str::limit($validated['reason'], 500),
             'requested_by' => $user->id,
         ]);
@@ -550,7 +553,7 @@ class TaskController extends Controller
             'leader' => $job->leader?->only(['id', 'name', 'email']),
             'collaborators' => $job->collaborators->map->only(['id', 'name', 'email'])->values()->all(),
         ]);
-        AuditTrail::log('deleted', $job, 'Admin deleted task: ' . $job->job_topic, [
+        AuditTrail::log('deleted', $job, 'Admin ลบงาน: ' . $job->job_topic, [
             'before' => $job->attributesToArray(),
         ]);
         $job->delete();
@@ -564,6 +567,54 @@ class TaskController extends Controller
         }
 
         return redirect()->route('board.index')->with('success', 'อนุมัติลบงานสำเร็จ');
+    }
+
+    public function rejectDeleteRequest(Request $request, $id)
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $job = WorkOrder::with(['user', 'creator', 'leader', 'collaborators', 'deleteRequester'])->findOrFail($id);
+
+        if (! $job->delete_requested_at) {
+            return $this->jsonOrBack($request, false, 'งานนี้ไม่มีคำขอลบ', 422);
+        }
+
+        $requesterId = $job->delete_requested_by;
+        $before = $job->attributesToArray();
+
+        $job->forceFill([
+            'delete_requested_by' => null,
+            'delete_requested_at' => null,
+            'delete_request_reason' => null,
+        ])->save();
+
+        $job->refresh();
+
+        AuditTrail::log('delete_request_rejected', $job, 'Admin ปฏิเสธคำขอลบงาน: ' . $job->job_topic, [
+            'before' => $before,
+            'after' => $job->attributesToArray(),
+            'requested_by' => $requesterId,
+        ]);
+
+        if ($requesterId && (int) $requesterId !== (int) Auth::id()) {
+            SystemNotification::create([
+                'user_id' => $requesterId,
+                'work_order_id' => $job->job_id,
+                'type' => 'delete_request_rejected',
+                'title' => 'คำขอลบงานถูกปฏิเสธ',
+                'message' => 'ผู้ดูแลระบบปฏิเสธคำขอลบงาน "' . $job->job_topic . '"',
+            ]);
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'ปฏิเสธคำขอลบงานแล้ว',
+                'redirect' => route('board.index'),
+            ]);
+        }
+
+        return redirect()->route('board.index')->with('success', 'ปฏิเสธคำขอลบงานแล้ว');
     }
 
     public function updateApproval(Request $request, $id)
@@ -588,7 +639,7 @@ class TaskController extends Controller
         $job->save();
 
         $job->refresh();
-        AuditTrail::log('approval_updated', $job, 'Admin updated task approval: ' . $job->job_topic, [
+        AuditTrail::log('approval_updated', $job, 'Admin อัปเดตการอนุมัติงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
         ]);
@@ -618,7 +669,7 @@ class TaskController extends Controller
             'leader' => $job->leader?->only(['id', 'name', 'email']),
             'collaborators' => $job->collaborators->map->only(['id', 'name', 'email'])->values()->all(),
         ]);
-        AuditTrail::log('deleted', $job, 'Admin deleted task: ' . $job->job_topic, [
+        AuditTrail::log('deleted', $job, 'Admin ลบงาน: ' . $job->job_topic, [
             'before' => $job->attributesToArray(),
         ]);
         $this->notifyJobDeleted($job, 'ผู้ดูแลระบบลบงาน "' . $job->job_topic . '" แล้ว');

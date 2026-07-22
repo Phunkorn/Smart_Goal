@@ -54,6 +54,7 @@ class MyTaskController extends Controller
                 'subtasks',
                 'user.department',
                 'creator',
+                'leader.department',
                 'collaborators.department',
                 'images',
                 'updates.user.department',
@@ -125,20 +126,20 @@ class MyTaskController extends Controller
             'job_due_at' => now()->addDay(),
         ]);
 
-        AuditTrail::log('created', $workOrder, 'Created quick task: ' . $workOrder->job_topic, [
+        AuditTrail::log('created', $workOrder, 'สร้างงานย่อย: ' . $workOrder->job_topic, [
             'after' => $workOrder->attributesToArray(),
         ]);
 
         return response()->json([
             'ok' => true,
-            'message' => 'สร้างงานแล้ว',
+            'message' => 'เพิ่มงานย่อยแล้ว',
             'job_id' => $workOrder->job_id,
         ], 201);
     }
 
     /**
      * สร้างงานแบบเต็มรูปแบบจากหน้า "งานของฉัน" (หัวข้อ, รายละเอียด, ผู้รับผิดชอบ,
-     * ผู้ร่วมงาน, วันเริ่ม-สิ้นสุด, ความสำคัญ, ไฟล์แนบ)
+     * ผู้ร่วมงาน, วันเริ่ม-สิ้นสุด, ความสำคัญ, ไฟล์อ้างอิงงาน)
      *
      * กติกาการอนุมัติ:
      * - มอบหมายให้ตัวเอง หรือมอบหมายให้พนักงานแผนกเดียวกัน => สร้างงานได้ทันที (approved)
@@ -152,8 +153,17 @@ class MyTaskController extends Controller
         abort_if($actor->role === 'viewer', 403);
 
         $validated = $request->validate([
-            'job_topic' => ['required', 'string', 'max:255'],
+            'project_name' => ['nullable', 'string', 'max:80'],
+            'job_topic' => ['nullable', 'string', 'max:255'],
             'job_details' => ['nullable', 'string', 'max:2000'],
+            'initial_subtask_title' => ['nullable', 'string', 'max:255'],
+            'initial_subtask_details' => ['nullable', 'string', 'max:2000'],
+            'project_items' => ['nullable', 'array', 'max:20'],
+            'project_items.*.job_topic' => ['nullable', 'string', 'max:255'],
+            'project_items.*.job_details' => ['nullable', 'string', 'max:2000'],
+            'project_items.*.subtasks' => ['nullable', 'array', 'max:50'],
+            'project_items.*.subtasks.*.title' => ['nullable', 'string', 'max:255'],
+            'project_items.*.subtasks.*.details' => ['nullable', 'string', 'max:2000'],
             'user_id' => ['nullable', 'exists:users,id'],
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id'],
@@ -166,6 +176,45 @@ class MyTaskController extends Controller
 
         $this->assertAllowedAttachments($request, 'attachments');
 
+        $projectItems = collect($validated['project_items'] ?? [])
+            ->map(function ($item) {
+                $subtasks = collect($item['subtasks'] ?? [])
+                    ->map(fn ($subtask) => [
+                        'title' => trim((string) ($subtask['title'] ?? '')),
+                        'details' => trim((string) ($subtask['details'] ?? '')),
+                    ])
+                    ->filter(fn ($subtask) => $subtask['title'] !== '')
+                    ->values()
+                    ->all();
+
+                return [
+                    'job_topic' => trim((string) ($item['job_topic'] ?? '')),
+                    'job_details' => trim((string) ($item['job_details'] ?? '')),
+                    'subtasks' => $subtasks,
+                ];
+            })
+            ->filter(fn ($item) => $item['job_topic'] !== '')
+            ->values();
+
+        if ($projectItems->isEmpty() && filled($validated['job_topic'] ?? null)) {
+            $legacySubtasks = [];
+
+            if (filled($validated['initial_subtask_title'] ?? null)) {
+                $legacySubtasks[] = [
+                    'title' => trim((string) $validated['initial_subtask_title']),
+                    'details' => trim((string) ($validated['initial_subtask_details'] ?? '')),
+                ];
+            }
+
+            $projectItems = collect([[
+                'job_topic' => trim((string) $validated['job_topic']),
+                'job_details' => trim((string) ($validated['job_details'] ?? '')),
+                'subtasks' => $legacySubtasks,
+            ]]);
+        }
+
+        abort_if($projectItems->isEmpty(), 422, 'กรุณาเพิ่มงานหลักอย่างน้อย 1 รายการ');
+
         $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
         abort_unless($assignee && $assignee->role !== 'viewer', 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
 
@@ -173,64 +222,93 @@ class MyTaskController extends Controller
             || ($assignee->department_id && $actor->department_id
                 && (int) $assignee->department_id === (int) $actor->department_id);
 
-        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $request) {
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $request, $projectItems) {
+            $leaderId = $sameDepartment && (int) $assignee->id !== (int) $actor->id
+                ? $assignee->id
+                : $actor->id;
+            $firstItem = $projectItems->first();
+            $projectName = trim((string) ($validated['project_name'] ?? '')) ?: $firstItem['job_topic'];
+
             // Create a dedicated project group so the new work card is rendered beneath its group-head.
             $list = WorkOrderList::create([
-                'user_id' => $actor->id,
-                'name' => $validated['job_topic'],
+                'user_id' => $leaderId,
+                'name' => $projectName,
                 'is_visible' => true,
-                'sort_order' => (int) WorkOrderList::where('user_id', $actor->id)->max('sort_order') + 1,
+                'sort_order' => (int) WorkOrderList::where('user_id', $leaderId)->max('sort_order') + 1,
             ]);
 
-            $job = WorkOrder::create([
-                'user_id' => $assignee->id,
-                'created_by' => $actor->id,
-                'leader_user_id' => $actor->id,
-                'department_id' => $assignee->department_id ?? $actor->department_id,
-                'work_order_list_id' => $list->id,
-                'job_topic' => $validated['job_topic'],
-                'job_details' => $validated['job_details'] ?? null,
-                'job_priority' => $validated['job_priority'] ?? 2,
-                'job_status' => 1,
-                'approval_status' => $sameDepartment ? 'approved' : 'pending',
-                'approved_by' => $sameDepartment ? $actor->id : null,
-                'approved_at' => $sameDepartment ? now() : null,
-                'job_progress' => 0,
-                'job_start_at' => Carbon::parse($validated['job_start_at']),
-                'job_due_at' => Carbon::parse($validated['job_due_at']),
-            ]);
+            $createdJobs = collect();
 
-            $collaborators = collect($validated['collaborators'] ?? [])
-                ->map(fn ($id) => (int) $id)
-                ->reject(fn ($id) => $id === (int) $assignee->id)
-                ->unique()
-                ->values();
-
-            foreach ($collaborators as $userId) {
-                $job->collaborators()->syncWithoutDetaching([
-                    $userId => [
-                        'added_by' => $actor->id,
-                        'status' => 'pending',
-                    ],
+            foreach ($projectItems as $itemIndex => $item) {
+                $job = WorkOrder::create([
+                    'user_id' => $assignee->id,
+                    'created_by' => $actor->id,
+                    'leader_user_id' => $leaderId,
+                    'department_id' => $assignee->department_id ?? $actor->department_id,
+                    'work_order_list_id' => $list->id,
+                    'job_topic' => $item['job_topic'],
+                    'job_details' => $item['job_details'] ?: null,
+                    'job_priority' => $validated['job_priority'] ?? 2,
+                    'job_status' => 1,
+                    'approval_status' => $sameDepartment ? 'approved' : 'pending',
+                    'approved_by' => $sameDepartment ? $actor->id : null,
+                    'approved_at' => $sameDepartment ? now() : null,
+                    'job_progress' => 0,
+                    'job_start_at' => Carbon::parse($validated['job_start_at']),
+                    'job_due_at' => Carbon::parse($validated['job_due_at']),
                 ]);
+
+                foreach ($item['subtasks'] as $subtaskIndex => $subtask) {
+                    $job->subtasks()->create([
+                        'created_by' => $actor->id,
+                        'title' => $subtask['title'],
+                        'details' => $subtask['details'] ?: null,
+                        'sort_order' => $subtaskIndex + 1,
+                    ]);
+                }
+
+                AuditTrail::log('project_leader_assigned', $job, 'กำหนดหัวหน้าโปรเจกต์สำหรับงาน: ' . $job->job_topic, [
+                    'leader_user_id' => $leaderId,
+                    'work_order_list_id' => $list->id,
+                    'list_user_id' => $list->user_id,
+                ]);
+
+                $collaborators = collect($validated['collaborators'] ?? [])
+                    ->map(fn ($id) => (int) $id)
+                    ->reject(fn ($id) => $id === (int) $assignee->id)
+                    ->unique()
+                    ->values();
+
+                foreach ($collaborators as $userId) {
+                    $job->collaborators()->syncWithoutDetaching([
+                        $userId => [
+                            'added_by' => $actor->id,
+                            'status' => 'pending',
+                        ],
+                    ]);
+                }
+
+                AuditTrail::log('created', $job, ($sameDepartment ? 'สร้างโปรเจกต์: ' : 'ส่งคำขอเปิดงานข้ามแผนก: ') . $job->job_topic, [
+                    'after' => $job->attributesToArray(),
+                ]);
+
+                if ($itemIndex === 0) {
+                    $this->storeFiles($request, $job, 'attachments');
+                }
+
+                $createdJobs->push($job);
             }
 
-            $this->storeFiles($request, $job, 'attachments');
-
-            return $job;
+            return $createdJobs->first();
         });
 
         $job->refresh();
-
-        AuditTrail::log('created', $job, ($sameDepartment ? 'User created task: ' : 'User requested cross-department task: ') . $job->job_topic, [
-            'after' => $job->attributesToArray(),
-        ]);
 
         if ($sameDepartment) {
             if ((int) $assignee->id !== (int) $actor->id) {
                 $this->notifyUsers([$assignee->id], $job, 'task_assigned', 'มีงานใหม่', $actor->name . ' มอบหมายงาน "' . $job->job_topic . '" ให้คุณ');
             }
-            $message = 'สร้างงานสำเร็จ';
+            $message = 'เพิ่มโปรเจกต์สำเร็จ';
         } else {
             $this->notifyAdmins($job, 'cross_department_pending', 'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
                 $actor->name . ' ต้องการมอบหมายงาน "' . $job->job_topic . '" ให้ ' . $assignee->name . ' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ');
@@ -287,19 +365,48 @@ class MyTaskController extends Controller
         ]);
     }
 
+    public function updateList(Request $request, WorkOrderList $list): JsonResponse
+    {
+        $user = Auth::user();
+
+        abort_if($user->role === 'viewer', 403);
+        abort_unless($this->canManageList($list, $user), 403);
+        abort_if($this->listIsCompleted($list) && $user->role !== 'admin', 403);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:80',
+        ]);
+
+        $before = $list->attributesToArray();
+        $list->update(['name' => $validated['name']]);
+
+        AuditTrail::log('updated', $list, 'เปลี่ยนชื่อโปรเจกต์: ' . $list->name, [
+            'before' => $before,
+            'after' => $list->fresh()->attributesToArray(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'เปลี่ยนชื่อโปรเจกต์แล้ว',
+            'list_id' => $list->id,
+            'name' => $list->name,
+        ]);
+    }
+
     public function destroyList(WorkOrderList $list): JsonResponse
     {
         $user = Auth::user();
 
         abort_if($user->role === 'viewer', 403);
-        abort_unless($list->user_id === $user->id, 403);
+        abort_unless($this->canManageList($list, $user), 403);
+        abort_if($this->listIsCompleted($list) && $user->role !== 'admin', 403);
 
         DB::transaction(function () use ($list, $user) {
             AuditTrail::trash($list, $user, [
                 'list' => $list->attributesToArray(),
                 'work_order_count' => $list->workOrders()->count(),
             ]);
-            AuditTrail::log('deleted', $list, 'Deleted task list: ' . $list->name, [
+            AuditTrail::log('deleted', $list, 'ลบโปรเจกต์: ' . $list->name, [
                 'before' => $list->attributesToArray(),
             ]);
 
@@ -308,7 +415,7 @@ class MyTaskController extends Controller
                     'work_order' => $workOrder->attributesToArray(),
                     'deleted_with_list' => true,
                 ]);
-                AuditTrail::log('deleted', $workOrder, 'Deleted task with list: ' . $workOrder->job_topic, [
+                AuditTrail::log('deleted', $workOrder, 'ลบงานพร้อมโปรเจกต์: ' . $workOrder->job_topic, [
                     'before' => $workOrder->attributesToArray(),
                 ]);
                 $workOrder->delete();
@@ -325,13 +432,24 @@ class MyTaskController extends Controller
 
     public function destroy(int $job_id): JsonResponse
     {
-        $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
+        $workOrder = $this->baseWorkOrderQuery()->with(['creator', 'user', 'leader', 'collaborators'])->findOrFail($job_id);
         $this->authorizeWorkOrderDeletion($workOrder);
+        abort_if($this->isCompletedLocked($workOrder), 403);
+
+        if ($workOrder->creator?->role === 'admin' && Auth::user()?->role !== 'admin') {
+            $this->requestAdminAssignedDelete($workOrder);
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'ส่งคำขอลบงานให้ Admin แล้ว',
+                'delete_requested' => true,
+            ], 202);
+        }
 
         AuditTrail::trash($workOrder, Auth::user(), [
             'work_order' => $workOrder->attributesToArray(),
         ]);
-        AuditTrail::log('deleted', $workOrder, 'Deleted task: ' . $workOrder->job_topic, [
+        AuditTrail::log('deleted', $workOrder, 'ลบงาน: ' . $workOrder->job_topic, [
             'before' => $workOrder->attributesToArray(),
         ]);
         $workOrder->delete();
@@ -346,12 +464,13 @@ class MyTaskController extends Controller
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorizeWorkOrderAccess($workOrder);
+        abort_if($this->isCompletedLocked($workOrder), 403);
 
         $validated = $request->validate([
             'completed' => 'required|boolean',
         ]);
 
-        if ((int) $workOrder->job_status === 4 && ! $validated['completed']) {
+        if ((int) $workOrder->job_status === 4 && ! $validated['completed'] && Auth::user()?->role !== 'admin') {
             return response()->json([
                 'ok' => false,
                 'message' => 'โปรเจกต์นี้ปิดแล้ว ไม่สามารถเปิดกลับได้',
@@ -388,6 +507,7 @@ class MyTaskController extends Controller
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorizeWorkOrderAccess($workOrder);
+        abort_if($this->isCompletedLocked($workOrder), 403);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -411,6 +531,7 @@ class MyTaskController extends Controller
     {
         $subtask->load('workOrder.collaborators');
         $this->authorizeWorkOrderAccess($subtask->workOrder);
+        abort_if($this->isCompletedLocked($subtask->workOrder), 403);
 
         $validated = $request->validate([
             'completed' => 'required|boolean',
@@ -434,7 +555,7 @@ class MyTaskController extends Controller
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorizeWorkOrderAccess($workOrder);
 
-        if ((int) $workOrder->job_status === 4 && (int) $validated['job_status'] !== 4) {
+        if ((int) $workOrder->job_status === 4 && (int) $validated['job_status'] !== 4 && Auth::user()?->role !== 'admin') {
             return response()->json([
                 'ok' => false,
                 'message' => 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะกลับได้',
@@ -458,7 +579,7 @@ class MyTaskController extends Controller
         $before = $workOrder->attributesToArray();
         $workOrder->update($updates);
 
-        AuditTrail::log('status_changed', $workOrder, 'Changed task status: ' . $workOrder->job_topic, [
+        AuditTrail::log('status_changed', $workOrder, 'เปลี่ยนสถานะงาน: ' . $workOrder->job_topic, [
             'before' => $before,
             'after' => $workOrder->fresh()->attributesToArray(),
         ]);
@@ -479,13 +600,14 @@ class MyTaskController extends Controller
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorizeWorkOrderAccess($workOrder);
+        abort_if($this->isCompletedLocked($workOrder), 403);
 
-        abort_if((int) $workOrder->job_status === 4, 422, 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนความสำคัญได้');
+        abort_if((int) $workOrder->job_status === 4 && Auth::user()?->role !== 'admin', 422, 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนความสำคัญได้');
 
         $before = $workOrder->attributesToArray();
         $workOrder->update(['job_priority' => $validated['job_priority']]);
 
-        AuditTrail::log('priority_changed', $workOrder, 'Changed task priority: ' . $workOrder->job_topic, [
+        AuditTrail::log('priority_changed', $workOrder, 'เปลี่ยนความสำคัญของงาน: ' . $workOrder->job_topic, [
             'before' => $before,
             'after' => $workOrder->fresh()->attributesToArray(),
         ]);
@@ -506,11 +628,12 @@ class MyTaskController extends Controller
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorizeWorkOrderAccess($workOrder);
+        abort_if($this->isCompletedLocked($workOrder), 403);
 
         $before = $workOrder->attributesToArray();
         $workOrder->update(['job_due_at' => $validated['job_due_at']]);
 
-        AuditTrail::log('due_date_changed', $workOrder, 'Changed task due date: ' . $workOrder->job_topic, [
+        AuditTrail::log('due_date_changed', $workOrder, 'เปลี่ยนกำหนดส่งงาน: ' . $workOrder->job_topic, [
             'before' => $before,
             'after' => $workOrder->fresh()->attributesToArray(),
         ]);
@@ -552,6 +675,35 @@ class MyTaskController extends Controller
         $adminIds = User::where('role', 'admin')->pluck('id')->all();
 
         $this->notifyUsers($adminIds, $job, $type, $title, $message);
+    }
+
+    private function requestAdminAssignedDelete(WorkOrder $workOrder): void
+    {
+        if ($workOrder->delete_requested_at) {
+            return;
+        }
+
+        $user = Auth::user();
+        $before = $workOrder->attributesToArray();
+
+        $workOrder->forceFill([
+            'delete_requested_by' => $user->id,
+            'delete_requested_at' => now(),
+            'delete_request_reason' => 'ส่งคำขอจากหน้างานของฉัน',
+        ])->save();
+
+        AuditTrail::log('delete_requested', $workOrder, 'ส่งคำขอลบงานที่ Admin มอบหมาย: ' . $workOrder->job_topic, [
+            'before' => $before,
+            'after' => $workOrder->fresh()->attributesToArray(),
+            'requested_by' => $user->id,
+        ]);
+
+        $this->notifyAdmins(
+            $workOrder,
+            'delete_request',
+            'มีคำขอลบงาน',
+            $user->name . ' ขออนุญาตลบงาน "' . $workOrder->job_topic . '"'
+        );
     }
 
     /**
@@ -663,5 +815,21 @@ class MyTaskController extends Controller
             || $workOrder->leader_user_id === $user->id;
 
         abort_unless($canDelete, 403);
+    }
+
+    private function canManageList(WorkOrderList $list, User $user): bool
+    {
+        return $user->role === 'admin' || (int) $list->user_id === (int) $user->id;
+    }
+
+    private function isCompletedLocked(WorkOrder $workOrder): bool
+    {
+        return (int) $workOrder->job_status === 4 && Auth::user()?->role !== 'admin';
+    }
+
+    private function listIsCompleted(WorkOrderList $list): bool
+    {
+        return $list->workOrders()->exists()
+            && $list->workOrders()->where('job_status', '!=', 4)->doesntExist();
     }
 }

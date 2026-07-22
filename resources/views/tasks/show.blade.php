@@ -230,7 +230,7 @@
             </section>
 
             <section class="detail-card">
-                <h2>ไฟล์แนบ</h2>
+                <h2>ไฟล์อ้างอิงงาน</h2>
                 @if($job->images->isNotEmpty())
                     <div class="file-list">
                         @foreach($job->images as $file)
@@ -241,21 +241,21 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="empty">ยังไม่มีไฟล์แนบ</div>
+                    <div class="empty">ยังไม่มีไฟล์อ้างอิงงาน</div>
                 @endif
 
                 @if($canUpdateStatus)
-                    <form method="POST" action="{{ route('tasks.attachments.store', $job->job_id) }}" enctype="multipart/form-data" class="form-grid ajax-form mt-3 attachment-form" data-success="แนบไฟล์สำเร็จ">
+                    <form method="POST" action="{{ route('tasks.attachments.store', $job->job_id) }}" enctype="multipart/form-data" class="form-grid ajax-form mt-3 attachment-form" data-success="เพิ่มไฟล์อ้างอิงงานสำเร็จ">
                         @csrf
                         <label class="drop-zone">
                             <i class="bi bi-cloud-arrow-up"></i>
-                            <strong>ลากไฟล์มาวาง หรือกดเพื่อเลือกไฟล์</strong>
-                            <div class="muted">รองรับ PDF, PNG, JPG, JPEG, Excel, CSV และไฟล์ ZIP สำหรับโฟลเดอร์</div>
+                            <strong>เพิ่มไฟล์ตัวอย่าง / ไฟล์อ้างอิงงาน</strong>
+                            <div class="muted">ใช้สำหรับโจทย์งาน รูปตัวอย่าง หรือเอกสารประกอบ เพื่อให้ทีมเข้าใจรายละเอียดงาน</div>
                             <input type="file" name="completion_attachments[]" multiple accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx,.csv,.zip">
                             <div class="file-selected">ยังไม่ได้เลือกไฟล์</div>
                         </label>
                         <div class="form-actions">
-                            <button type="submit" class="btn-soft btn-primary-solid" disabled><i class="bi bi-save"></i> บันทึกไฟล์แนบ</button>
+                            <button type="submit" class="btn-soft btn-primary-solid" disabled><i class="bi bi-save"></i> เพิ่มไฟล์อ้างอิงงาน</button>
                         </div>
                     </form>
                 @endif
@@ -288,7 +288,7 @@
                 </section>
             @elseif($isDone)
                 <section class="detail-card">
-                    <div class="danger-note">งานนี้ปิดแล้ว ดูรายละเอียดได้เท่านั้น หากต้องการแนบหลักฐานเพิ่มเติมให้ใช้กล่องไฟล์แนบด้านซ้าย</div>
+                    <div class="danger-note">งานนี้ปิดแล้ว ดูรายละเอียดได้เท่านั้น หากต้องการเพิ่มไฟล์อ้างอิงเพิ่มเติมให้ใช้กล่องไฟล์อ้างอิงงานด้านซ้าย</div>
                 </section>
             @endif
 

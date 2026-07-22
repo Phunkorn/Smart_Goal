@@ -14,7 +14,7 @@ class WorkOrder extends Model
 {
     use SoftDeletes;
 
-    protected $table      = 'work_orders';   // <- เนเธเนเธ•รงนี้
+    protected $table      = 'work_orders';   // <- แก้ตรงนี้
     protected $primaryKey = 'job_id';
     public $timestamps = true;
 

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
-| หน้าแรก โ’ Login
+| หน้าแรก -> Login
 |--------------------------------------------------------------------------
 */
 
@@ -103,6 +103,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/admin/tasks/{id}/delete-request', [TaskController::class, 'approveDeleteRequest'])
         ->middleware('admin')
         ->name('admin.tasks.deleteRequest.approve');
+
+    Route::patch('/admin/tasks/{id}/delete-request/reject', [TaskController::class, 'rejectDeleteRequest'])
+        ->middleware('admin')
+        ->name('admin.tasks.deleteRequest.reject');
 
     Route::get('/admin/activity-logs', [ActivityLogController::class, 'index'])
         ->middleware('admin')
@@ -195,6 +199,9 @@ Route::middleware('auth')->group(function () {
 
     Route::patch('/my-tasks/lists/{list}', [MyTaskController::class, 'toggleList'])
         ->name('mytasks.lists.toggle');
+
+    Route::patch('/my-tasks/lists/{list}/name', [MyTaskController::class, 'updateList'])
+        ->name('mytasks.lists.update');
 
     Route::delete('/my-tasks/lists/{list}', [MyTaskController::class, 'destroyList'])
         ->name('mytasks.lists.destroy');

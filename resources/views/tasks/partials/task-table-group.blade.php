@@ -45,6 +45,25 @@
     };
     $assigneeName = $projectTask?->user?->name;
     $adminSenderName = $projectTask?->creator?->role === 'admin' ? $projectTask->creator->name : null;
+    $currentUser = auth()->user();
+    $realListId = is_numeric($listId) ? (int) $listId : null;
+    $listOwnerId = $realListId ? optional($taskLists->firstWhere('id', $realListId))->user_id : null;
+    $projectCompleted = $allListTasks->isNotEmpty() && $allListTasks->every(fn ($task) => (int) $task->job_status === 4);
+    $projectLeader = $projectTask?->leader ?: $projectTask?->user;
+    $projectMembers = $allListTasks
+        ->flatMap(fn ($task) => collect([$task->leader, $task->user])->merge($task->collaborators))
+        ->filter()
+        ->unique('id')
+        ->values();
+    $avatarColors = ['#0073EA', '#E2445C', '#00C875', '#FDAB3D', '#7C4DFF', '#00A9A5'];
+    $canManageProject = $realListId && $currentUser && (
+        $currentUser->role === 'admin' || (int) $listOwnerId === (int) $currentUser->id
+    ) && (! $projectCompleted || $currentUser->role === 'admin');
+    $canManageProjectTeam = $projectTask && $currentUser && (! $projectCompleted || $currentUser->role === 'admin') && (
+        $currentUser->role === 'admin'
+        || (int) $projectTask->created_by === (int) $currentUser->id
+        || (int) $projectTask->leader_user_id === (int) $currentUser->id
+    );
 @endphp
 
 <article class="task-group {{ $isVisible ? '' : 'is-hidden' }}" data-list-lane="{{ $listId }}">
@@ -55,7 +74,34 @@
             </button>
             <h2 class="group-name">{{ $listName }}</h2>
             <span class="group-count">{{ $listTasks->count() }}</span>
+            @if ($canManageProject)
+                <button type="button"
+                    class="group-action-btn"
+                    data-edit-list
+                    data-list-id="{{ $realListId }}"
+                    aria-label="แก้ไขชื่อโปรเจกต์">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button"
+                    class="group-action-btn danger"
+                    data-delete-list
+                    data-list-id="{{ $realListId }}"
+                    data-list-name="{{ $listName }}"
+                    data-url="{{ route('mytasks.lists.destroy', $realListId) }}"
+                    aria-label="ลบโปรเจกต์">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            @endif
         </div>
+        @if ($canManageProject)
+            <form class="group-rename-form" data-list-rename-form="{{ $realListId }}" action="{{ route('mytasks.lists.update', $realListId) }}" method="POST" hidden>
+                @csrf
+                @method('PATCH')
+                <input type="text" name="name" maxlength="80" required value="{{ $listName }}" aria-label="ชื่อโปรเจกต์">
+                <button type="submit"><i class="bi bi-check-lg"></i></button>
+                <button type="button" data-cancel-list-rename><i class="bi bi-x-lg"></i></button>
+            </form>
+        @endif
         <div class="group-summary">
             <span>{{ $dueRange }}</span>
             @if ($remainingLabel)
@@ -67,23 +113,81 @@
             @if ($adminSenderName)
                 <span class="group-meta-admin">มอบหมายโดย Admin: {{ $adminSenderName }}</span>
             @endif
+            @if ($projectLeader)
+                <div class="group-team">
+                    <span class="group-team-label">หัวหน้าโปรเจกต์: {{ $projectLeader->name }}</span>
+                    <div class="avatar-stack group-member-stack" aria-label="สมาชิกโปรเจกต์">
+                        @foreach ($projectMembers->take(6) as $index => $person)
+                            <button type="button"
+                                class="avatar-dot member-avatar-btn {{ $projectLeader && (int) $person->id === (int) $projectLeader->id ? 'is-leader' : '' }}"
+                                style="background:{{ $avatarColors[$index % count($avatarColors)] }}"
+                                title="{{ $person->name }}{{ $projectLeader && (int) $person->id === (int) $projectLeader->id ? ' - หัวหน้าโปรเจกต์' : ' - ผู้ร่วมโปรเจกต์' }}"
+                                data-open-member-modal="project-{{ $listId }}-{{ $person->id }}">
+                                {{ Str::of($person->name ?? 'U')->substr(0, 2)->upper() }}
+                            </button>
+                        @endforeach
+                        @if ($projectMembers->count() > 6)
+                            <span class="avatar-more">+{{ $projectMembers->count() - 6 }}</span>
+                        @endif
+                        @if ($canManageProjectTeam)
+                            <button type="button"
+                                class="avatar-add"
+                                data-open-collaborator-modal
+                                data-task-id="{{ $projectTask->job_id }}"
+                                data-task-title="{{ $projectTask->job_topic }}"
+                                data-existing-users="{{ collect([$projectTask->user_id, $projectTask->leader_user_id])->merge($projectTask->collaborators->pluck('id'))->filter()->unique()->values()->join(',') }}"
+                                aria-label="เพิ่มผู้ร่วมโปรเจกต์">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
+
+    @foreach ($projectMembers as $index => $person)
+        <div class="simple-modal member-info-modal" data-member-modal="project-{{ $listId }}-{{ $person->id }}" hidden>
+            <div class="simple-modal-card member-info-card" role="dialog" aria-modal="true">
+                <button type="button" class="simple-modal-close member-modal-close" data-close-inline-modal aria-label="ปิด">&times;</button>
+                <div class="member-profile">
+                    <div class="member-profile-avatar" style="background:{{ $avatarColors[$index % count($avatarColors)] }}">
+                        @if ($person->profile_image)
+                            <img src="{{ route('media.show', ['path' => $person->profile_image]) }}" alt="{{ $person->name }}">
+                        @else
+                            {{ Str::of($person->name ?? 'U')->substr(0, 2)->upper() }}
+                        @endif
+                    </div>
+                    <div>
+                        <h2>{{ $person->name }}</h2>
+                        <p>{{ $projectLeader && (int) $person->id === (int) $projectLeader->id ? 'หัวหน้าโปรเจกต์' : 'ผู้ร่วมโปรเจกต์' }}</p>
+                        <p>{{ optional($person->department)->department_name ?: 'ไม่ระบุแผนก' }}</p>
+                        <p>{{ $person->phone ?: 'ไม่ระบุเบอร์โทร' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
 
     <div class="group-body">
         <div class="task-table-wrap">
             <table class="task-table">
+                <colgroup>
+                    <col class="col-check">
+                    <col class="col-name">
+                    <col class="col-priority">
+                    <col class="col-progress">
+                    <col class="col-due">
+                    <col class="col-status">
+                    <col class="col-actions">
+                </colgroup>
                 <thead>
                     <tr>
-                        <th class="check-col"><input type="checkbox" disabled></th>
-                        <th class="name-col">
-                            รายการงาน
-                        </th>
+                        <th class="check-col"></th>
+                        <th class="name-col">รายการงานย่อย</th>
                         <th>ความสำคัญ</th>
+                        <th>ความคืบหน้า</th>
                         <th>กำหนดส่ง</th>
-                        <th></th>
-                        <th>ผู้ร่วมงาน</th>
-                        <th>Files</th>
                         <th>สถานะ</th>
                         <th class="row-actions"></th>
                     </tr>
@@ -93,7 +197,7 @@
                         @include('tasks.partials.google-task-item', ['task' => $task])
                     @empty
                         <tr class="empty-row">
-                            <td colspan="9">
+                            <td colspan="7">
                                 <div class="empty-row-message">ยังไม่มีงานในรายการนี้</div>
                             </td>
                         </tr>
@@ -101,14 +205,14 @@
                     @unless ($isCompletedBoard)
                         <tr class="add-row">
                             <td></td>
-                            <td colspan="8">
+                            <td colspan="6">
                                 <form class="add-task-inline" action="{{ route('mytasks.store') }}" method="POST">
                                     @csrf
                                     <input type="hidden" name="work_order_list_id"
                                         value="{{ $isVirtual ? '' : $listId }}">
                                     <input type="text" name="job_topic" maxlength="255" required
-                                        placeholder="+ เพิ่มรายการงาน">
-                                    <button type="submit">เพิ่ม</button>
+                                        placeholder="+ เพิ่มงานย่อยในโปรเจกต์นี้">
+                                    <button type="submit">เพิ่มงานย่อย</button>
                                 </form>
                             </td>
                         </tr>

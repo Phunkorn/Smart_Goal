@@ -27,6 +27,16 @@
     $completedProjectCount = $taskLists->filter(function ($list) use ($allProjectTasks, $isProjectCompleted) {
         return $isProjectCompleted($allProjectTasks->where('work_order_list_id', $list->id));
     })->count() + ($isInboxCompleted ? 1 : 0);
+    $totalTasksCount = $allProjectTasks->count();
+    $doneTasksCount = $completedTasks->count();
+    $overallProgress = $totalTasksCount > 0 ? (int) round(($doneTasksCount / $totalTasksCount) * 100) : 0;
+    $nextDueTask = $activeTasks->pluck('job_due_at')->filter()->sort()->first();
+    $workspaceMembers = $allProjectTasks
+        ->flatMap(fn ($task) => collect([$task->user])->merge($task->collaborators))
+        ->filter()
+        ->unique('id')
+        ->values();
+    $avatarColors = ['#0073EA', '#E2445C', '#00C875', '#FDAB3D', '#7C4DFF', '#00A9A5'];
 @endphp
 
 @push('styles')
@@ -186,7 +196,18 @@
     .field-optional { font-weight:650; color:var(--text-muted); font-size:12px; }
     .field-hint { color:var(--text-muted); font-weight:650; font-size:12px; }
     .field-hint.is-warning { color:#b45309; }
+    .project-item-list { display:grid; gap:12px; }
+    .project-item-card { display:grid; gap:10px; padding:12px; border:1px solid var(--border); border-radius:14px; background:#f8fafc; }
+    .project-item-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .project-item-title { font-weight:900; color:var(--text); }
+    .tiny-icon-btn { width:34px; height:34px; border:1px solid var(--border); border-radius:10px; background:#fff; color:var(--text-muted); display:inline-grid; place-items:center; }
+    .tiny-icon-btn.danger { color:#dc2626; }
+    .initial-subtask-list { display:grid; gap:8px; }
+    .initial-subtask-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:8px; align-items:start; }
+    .initial-subtask-row input { min-height:38px; border:1px solid var(--border); border-radius:10px; padding:0 10px; font:inherit; background:#fff; }
+    .inline-add-btn { min-height:36px; border:1px dashed var(--accent); border-radius:10px; background:#eff6ff; color:var(--accent-strong); font-weight:850; display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:0 12px; justify-self:start; }
     @media (max-width:520px) { .simple-field-row { grid-template-columns:1fr; } }
+    @media (max-width:720px) { .initial-subtask-row { grid-template-columns:1fr auto; } }
 
     @media (max-width:900px) {
         .tasks-title h1 { font-size:28px; }
@@ -198,6 +219,1258 @@
         .check-col::before, .row-actions::before { display:none !important; }
         .name-col { display:flex !important; width:100%; }
         .add-task-inline, .subtask-inline-form, .update-inline-form, .attachment-inline-form { display:grid; grid-template-columns:1fr; }
+    }
+
+    .tasks-page {
+        --pulse-bg:#F7F9FC;
+        --pulse-card:#FFFFFF;
+        --pulse-primary:#0073EA;
+        --pulse-primary-soft:#E8F1FE;
+        --pulse-green:#00C875;
+        --pulse-red:#E2445C;
+        --pulse-red-soft:#FCE9EC;
+        --pulse-amber:#FDAB3D;
+        --pulse-text:#172B4D;
+        --pulse-muted:#5E6C84;
+        --pulse-light:#98A2B3;
+        --pulse-border:#EDEFF5;
+        display:grid;
+        gap:20px;
+        color:var(--pulse-text);
+    }
+
+    .pulse-hero,
+    .task-group {
+        background:var(--pulse-card);
+        border:1px solid var(--pulse-border);
+        border-radius:18px;
+        box-shadow:0 4px 12px rgba(23,43,77,.06), 0 2px 4px rgba(23,43,77,.04);
+        overflow:hidden;
+    }
+
+    .pulse-hero {
+        padding:26px 32px;
+    }
+
+    .pulse-hero-top {
+        display:flex;
+        justify-content:space-between;
+        gap:18px;
+        align-items:flex-start;
+        padding-bottom:22px;
+        border-bottom:1px solid var(--pulse-border);
+    }
+
+    .pulse-title-block {
+        display:flex;
+        align-items:center;
+        gap:15px;
+        min-width:0;
+    }
+
+    .pulse-project-icon {
+        width:52px;
+        height:52px;
+        border-radius:14px;
+        display:grid;
+        place-items:center;
+        color:#fff;
+        font-weight:900;
+        letter-spacing:.02em;
+        background:linear-gradient(135deg, #0073EA 0%, #00C2E0 100%);
+        box-shadow:0 6px 16px rgba(0,115,234,.28);
+        flex:0 0 auto;
+    }
+
+    .tasks-title h1 {
+        margin:0;
+        font-size:24px;
+        font-weight:900;
+        letter-spacing:0;
+        color:var(--pulse-text);
+    }
+
+    .tasks-title p {
+        margin:4px 0 0;
+        color:var(--pulse-muted);
+        font-size:13.5px;
+        font-weight:650;
+    }
+
+    .pulse-actions {
+        display:flex;
+        align-items:center;
+        justify-content:flex-end;
+        gap:10px;
+        flex-wrap:wrap;
+    }
+
+    .tasks-toolbar {
+        display:flex;
+        gap:10px;
+        align-items:center;
+        flex-wrap:wrap;
+        background:transparent;
+        border:0;
+        border-radius:0;
+        padding:0;
+        box-shadow:none;
+    }
+
+    .tool-field,
+    .tool-btn,
+    .create-project-card {
+        min-height:40px;
+        border-radius:10px;
+        border:1px solid var(--pulse-border);
+        background:#fff;
+        color:var(--pulse-text);
+        font-weight:800;
+        box-shadow:none;
+    }
+
+    .tool-field {
+        padding:0 12px;
+        background:#F7F9FC;
+    }
+
+    .tool-field:focus-within {
+        background:#fff;
+        border-color:var(--pulse-primary);
+        box-shadow:0 0 0 3px var(--pulse-primary-soft);
+    }
+
+    .tool-field input,
+    .tool-field select {
+        font-size:13px;
+        color:var(--pulse-text);
+    }
+
+    .tool-btn {
+        padding:0 13px;
+    }
+
+    .tool-btn:hover,
+    .create-project-card:hover {
+        background:#F5F7FB;
+        transform:translateY(-1px);
+        box-shadow:0 1px 2px rgba(23,43,77,.05);
+    }
+
+    .create-project-card {
+        border:0;
+        background:linear-gradient(135deg, #0073EA, #0091FF);
+        color:#fff;
+        padding:0 17px;
+        box-shadow:0 4px 12px rgba(0,115,234,.28);
+    }
+
+    .create-project-card:hover {
+        color:#fff;
+        background:linear-gradient(135deg, #0067D3, #0089F2);
+        box-shadow:0 6px 18px rgba(0,115,234,.34);
+    }
+
+    .pulse-meta {
+        display:grid;
+        grid-template-columns:repeat(4, minmax(140px, 1fr));
+        gap:24px;
+        padding-top:18px;
+    }
+
+    .pulse-meta-item {
+        display:grid;
+        gap:7px;
+        min-width:0;
+    }
+
+    .pulse-meta-label,
+    .table-head th,
+    .expand-col h4 {
+        color:var(--pulse-light);
+        font-size:11px;
+        font-weight:900;
+        text-transform:uppercase;
+        letter-spacing:.08em;
+    }
+
+    .pulse-meta-value {
+        color:var(--pulse-text);
+        font-size:15px;
+        font-weight:900;
+    }
+
+    .pulse-progress {
+        display:flex;
+        align-items:center;
+        gap:10px;
+    }
+
+    .pulse-progress-track,
+    .progress-track {
+        height:9px;
+        border-radius:999px;
+        background:#EEF0F5;
+        overflow:hidden;
+    }
+
+    .pulse-progress-track {
+        width:120px;
+        flex:0 0 120px;
+    }
+
+    .pulse-progress-track span,
+    .progress-track span {
+        display:block;
+        height:100%;
+        border-radius:999px;
+        background:linear-gradient(90deg, #0073EA 0%, #12C2E9 55%, #00C875 100%);
+    }
+
+    .board-tabs {
+        display:flex;
+        gap:8px;
+        border-bottom:0;
+    }
+
+    .board-tab {
+        border:1px solid var(--pulse-border);
+        border-radius:12px;
+        background:#fff;
+        padding:10px 14px;
+        color:var(--pulse-muted);
+        font-weight:900;
+    }
+
+    .board-tab.is-active {
+        color:var(--pulse-primary);
+        border-color:#CFE0FF;
+        background:var(--pulse-primary-soft);
+    }
+
+    .board-tab-count {
+        background:#fff;
+        color:inherit;
+    }
+
+    .task-board {
+        display:grid;
+        gap:18px;
+    }
+
+    .group-head {
+        min-height:auto;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:18px;
+        padding:18px 22px;
+        border-left:0;
+        border-bottom:1px solid var(--pulse-border);
+        background:#FAFBFD;
+    }
+
+    .group-head.project-priority-high,
+    .group-head.project-priority-medium,
+    .group-head.project-priority-low {
+        background:#FAFBFD;
+        border-left:0;
+    }
+
+    .group-title {
+        display:flex;
+        align-items:center;
+        gap:11px;
+    }
+
+    .group-action-btn {
+        width:30px;
+        height:30px;
+        border:1px solid var(--pulse-border);
+        border-radius:9px;
+        background:#fff;
+        color:var(--pulse-muted);
+        display:grid;
+        place-items:center;
+    }
+
+    .group-action-btn:hover {
+        background:var(--pulse-primary-soft);
+        color:var(--pulse-primary);
+    }
+
+    .group-action-btn.danger:hover {
+        background:var(--pulse-red-soft);
+        color:var(--pulse-red);
+    }
+
+    .group-rename-form {
+        display:flex;
+        align-items:center;
+        gap:6px;
+        min-width:min(360px, 100%);
+    }
+
+    .group-rename-form[hidden] {
+        display:none;
+    }
+
+    .group-rename-form input {
+        min-height:34px;
+        border:1px solid var(--pulse-border);
+        border-radius:9px;
+        padding:0 10px;
+        font:inherit;
+        font-size:13px;
+        font-weight:800;
+    }
+
+    .group-rename-form button {
+        width:34px;
+        height:34px;
+        border:0;
+        border-radius:9px;
+        background:var(--pulse-primary);
+        color:#fff;
+    }
+
+    .group-rename-form button[type="button"] {
+        background:#EEF0F5;
+        color:var(--pulse-muted);
+    }
+
+    .group-toggle {
+        width:32px;
+        height:32px;
+        border-radius:10px;
+        background:#fff;
+        border:1px solid var(--pulse-border);
+        color:var(--pulse-primary);
+    }
+
+    .group-name {
+        color:var(--pulse-text);
+        font-size:17px;
+        font-weight:900;
+        letter-spacing:0;
+    }
+
+    .group-count,
+    .group-meta-days,
+    .group-meta-owner,
+    .group-meta-admin {
+        border-radius:999px;
+        padding:5px 9px;
+        border:0;
+        font-size:12px;
+        font-weight:900;
+    }
+
+    .group-count {
+        background:var(--pulse-primary-soft);
+        color:var(--pulse-primary);
+    }
+
+    .group-summary {
+        color:var(--pulse-muted);
+        font-size:12.5px;
+        font-weight:800;
+    }
+
+    .task-table-wrap {
+        overflow-x:auto;
+    }
+
+    .task-table {
+        width:100%;
+        min-width:1040px;
+        border-collapse:separate;
+        border-spacing:0;
+        table-layout:fixed;
+    }
+
+    .task-table th,
+    .task-table td {
+        border:0;
+        border-bottom:1px solid #F0F2F7;
+        background:#fff;
+        padding:13px 10px;
+        height:auto;
+        vertical-align:middle;
+    }
+
+    .task-table th {
+        position:static;
+        background:#FAFBFD;
+        color:var(--pulse-light);
+        font-size:11px;
+        font-weight:900;
+        text-transform:uppercase;
+        letter-spacing:.08em;
+    }
+
+    .task-row {
+        transition:background .16s ease, box-shadow .16s ease;
+    }
+
+    .task-row:hover td {
+        background:#F7FAFF;
+    }
+
+    .check-col {
+        width:46px;
+        text-align:center;
+    }
+
+    .name-col {
+        width:280px;
+    }
+
+    .task-table th:nth-child(3),
+    .task-table td:nth-child(3) {
+        width:130px;
+    }
+
+    .task-table th:nth-child(4),
+    .task-table td:nth-child(4) {
+        width:150px;
+    }
+
+    .task-table th:nth-child(5),
+    .task-table td:nth-child(5) {
+        width:138px;
+    }
+
+    .task-table th:nth-child(6),
+    .task-table td:nth-child(6) {
+        width:145px;
+    }
+
+    .task-table th:nth-child(7),
+    .task-table td:nth-child(7) {
+        width:82px;
+    }
+
+    .task-table th:nth-child(8),
+    .task-table td:nth-child(8) {
+        width:130px;
+    }
+
+    .row-actions {
+        width:88px;
+        white-space:nowrap;
+        text-align:right;
+    }
+
+    .task-check {
+        width:20px;
+        height:20px;
+        border-radius:6px;
+        border:2px solid #D9DEE8;
+        background:#fff;
+        color:transparent;
+        display:inline-grid;
+        place-items:center;
+        transition:.15s ease;
+    }
+
+    .task-check.is-on {
+        background:linear-gradient(135deg, #0073EA, #00C2E0);
+        border-color:transparent;
+        color:#fff;
+    }
+
+    .expand-task {
+        width:28px;
+        height:28px;
+        border-radius:9px;
+        border:0;
+        background:transparent;
+        color:var(--pulse-light);
+        display:grid;
+        place-items:center;
+        flex:0 0 auto;
+    }
+
+    .expand-task:hover {
+        background:var(--pulse-primary-soft);
+        color:var(--pulse-primary);
+    }
+
+    .task-title-text {
+        font-size:13.5px;
+        font-weight:900;
+        color:var(--pulse-text);
+        white-space:normal;
+        line-height:1.25;
+    }
+
+    .task-detail-line {
+        color:var(--pulse-light);
+        font-size:12px;
+        font-weight:650;
+        margin-top:2px;
+    }
+
+    .priority-label,
+    .status-label,
+    .due-input {
+        width:auto;
+        min-height:30px;
+        border:0;
+        border-radius:999px;
+        padding:0 11px;
+        text-align:center;
+        font-size:12px;
+        font-weight:900;
+        appearance:none;
+    }
+
+    .priority-low { background:#E4F7ED; color:#0F9D58; }
+    .priority-medium { background:#FFF6DA; color:#B9911B; }
+    .priority-high { background:#FFEEDD; color:#C86A16; }
+    .status-working { background:var(--pulse-primary-soft); color:var(--pulse-primary); }
+    .status-done { background:#E1F7EC; color:#00A35C; }
+    .status-paused { background:#EEF0F5; color:#676C7A; }
+    .status-overdue,
+    .due-input.overdue { background:var(--pulse-red-soft); color:var(--pulse-red); }
+    .due-input.soon { background:#FFF6DA; color:#B9911B; }
+
+    .progress-cell {
+        border:0;
+        background:transparent;
+        width:100%;
+        display:grid;
+        grid-template-columns:1fr auto;
+        align-items:center;
+        gap:8px;
+        color:var(--pulse-muted);
+        font-size:12px;
+        font-weight:900;
+        text-align:left;
+    }
+
+    .avatar-stack,
+    .pulse-member-stack {
+        display:flex;
+        align-items:center;
+    }
+
+    .avatar-dot,
+    .avatar-more,
+    .pulse-avatar,
+    .pulse-avatar-more {
+        width:29px;
+        height:29px;
+        border-radius:50%;
+        border:2px solid #fff;
+        margin-left:-8px;
+        display:grid;
+        place-items:center;
+        color:#fff;
+        font-size:10px;
+        font-weight:900;
+        box-shadow:0 2px 6px rgba(23,43,77,.14);
+    }
+
+    .avatar-dot:first-child,
+    .pulse-avatar:first-child {
+        margin-left:0;
+    }
+
+    .avatar-dot.muted {
+        background:#64748B;
+    }
+
+    .avatar-more,
+    .pulse-avatar-more {
+        background:#EDEFF5;
+        color:var(--pulse-muted);
+    }
+
+    .avatar-add {
+        width:29px;
+        height:29px;
+        margin-left:4px;
+        border-radius:50%;
+        border:1px solid var(--pulse-border);
+        background:#fff;
+        color:var(--pulse-primary);
+        display:grid;
+        place-items:center;
+    }
+
+    .file-pill {
+        display:inline-flex;
+        align-items:center;
+        gap:5px;
+        border-radius:999px;
+        background:#F2F5FA;
+        color:var(--pulse-muted);
+        padding:5px 9px;
+        font-size:12px;
+        font-weight:900;
+    }
+
+    .icon-row-btn {
+        width:32px;
+        height:32px;
+        border:0;
+        border-radius:9px;
+        background:#fff;
+        color:var(--pulse-muted);
+    }
+
+    .icon-row-btn:hover {
+        background:var(--pulse-primary-soft);
+        color:var(--pulse-primary);
+    }
+
+    .icon-row-btn.danger:hover {
+        background:var(--pulse-red-soft);
+        color:var(--pulse-red);
+    }
+
+    .member-avatar-btn,
+    .file-pill-button {
+        cursor:pointer;
+        border:0;
+        font:inherit;
+    }
+
+    .member-avatar-btn:hover,
+    .file-pill-button:hover {
+        transform:translateY(-1px);
+        box-shadow:0 4px 10px rgba(23,43,77,.16);
+    }
+
+    .member-info-modal,
+    .file-list-modal {
+        z-index:92;
+    }
+
+    .member-info-card {
+        width:min(360px, 100%);
+        padding:22px;
+        position:relative;
+    }
+
+    .member-modal-close {
+        position:absolute;
+        top:10px;
+        right:12px;
+    }
+
+    .member-profile {
+        display:flex;
+        align-items:center;
+        gap:16px;
+        min-width:0;
+    }
+
+    .member-profile-avatar {
+        width:72px;
+        height:72px;
+        border-radius:20px;
+        display:grid;
+        place-items:center;
+        color:#fff;
+        font-size:20px;
+        font-weight:900;
+        overflow:hidden;
+        flex:0 0 auto;
+        box-shadow:0 8px 20px rgba(23,43,77,.18);
+    }
+
+    .member-profile-avatar img {
+        width:100%;
+        height:100%;
+        object-fit:cover;
+    }
+
+    .member-profile h2 {
+        margin:0 0 6px;
+        font-size:20px;
+        font-weight:900;
+        color:var(--pulse-text);
+    }
+
+    .member-profile p {
+        margin:3px 0;
+        color:var(--pulse-muted);
+        font-size:13px;
+        font-weight:750;
+    }
+
+    .attachment-icon-drop {
+        border:1px dashed var(--pulse-primary);
+        border-radius:12px;
+        background:var(--pulse-primary-soft);
+        color:var(--pulse-primary);
+        padding:12px;
+        display:grid;
+        gap:5px;
+        font-weight:900;
+        cursor:pointer;
+    }
+
+    .attachment-icon-drop input,
+    .file-icon-button input {
+        margin-top:6px;
+    }
+
+    .attachment-icon-drop small,
+    .compact-file-form small {
+        color:var(--pulse-muted);
+        font-size:12px;
+        font-weight:700;
+        line-height:1.35;
+    }
+
+    .compact-comment-form {
+        grid-template-columns:1fr 34px;
+        align-items:stretch;
+        gap:6px;
+    }
+
+    .compact-comment-form textarea {
+        min-height:42px;
+        max-height:72px;
+        border-radius:9px;
+        padding:8px 10px;
+        font-size:12px;
+    }
+
+    .compact-file-form {
+        display:grid;
+        grid-template-columns:34px 1fr 34px;
+        align-items:center;
+        gap:6px;
+    }
+
+    .file-icon-button {
+        width:34px;
+        height:34px;
+        border-radius:9px;
+        display:grid;
+        place-items:center;
+        background:var(--pulse-primary-soft);
+        color:var(--pulse-primary);
+        cursor:pointer;
+        overflow:hidden;
+        position:relative;
+    }
+
+    .file-icon-button input {
+        position:absolute;
+        inset:0;
+        opacity:0;
+        cursor:pointer;
+    }
+
+    .compact-file-form small {
+        display:block;
+        max-width:100%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+    }
+
+    .subtask-panel .update-list,
+    .subtask-panel .activity-list,
+    .subtask-panel .attachment-list {
+        gap:6px;
+    }
+
+    .subtask-panel .update-item,
+    .subtask-panel .activity-item,
+    .subtask-panel .attachment-item {
+        line-height:1.35;
+    }
+
+    .subtask-panel .update-item span,
+    .subtask-panel .activity-item span {
+        margin-top:1px;
+        font-size:11px;
+    }
+
+    .subtask-row td {
+        background:#fff;
+        padding:0 20px 16px;
+    }
+
+    .subtask-panel {
+        max-width:none;
+        margin-left:26px;
+        border:1px solid var(--pulse-border);
+        border-radius:14px;
+        padding:12px 14px;
+        background:#FAFBFD;
+        display:grid;
+        grid-template-columns:minmax(210px, 1fr) minmax(230px, 1.05fr) minmax(210px, .95fr) minmax(230px, 1.05fr);
+        gap:14px;
+    }
+
+    .subtask-tree,
+    .panel-section {
+        border:0;
+        border-radius:0;
+        padding:0;
+        background:transparent;
+        display:grid;
+        align-content:start;
+        gap:7px;
+    }
+
+    .subtask-tree-label,
+    .panel-section h3 {
+        margin:0 0 2px;
+        color:var(--pulse-light);
+        font-size:10px;
+        font-weight:900;
+        text-transform:uppercase;
+        letter-spacing:.08em;
+    }
+
+    .subtask-tree-item,
+    .update-item,
+    .activity-item,
+    .attachment-item {
+        border:0;
+        border-radius:0;
+        padding:0;
+        background:transparent;
+        color:var(--pulse-muted);
+        font-size:11.5px;
+        font-weight:700;
+    }
+
+    .subtask-tree-item::before {
+        display:none;
+    }
+
+    .subtask-empty {
+        color:var(--pulse-muted);
+        font-size:11.5px;
+        font-weight:650;
+    }
+
+    .subtask-panel .task-check.small {
+        width:16px;
+        height:16px;
+        border-radius:5px;
+        font-size:9px;
+    }
+
+    .subtask-panel .subtask-tree-item {
+        min-height:24px;
+        gap:7px;
+    }
+
+    .subtask-panel .subtask-inline-form {
+        display:grid;
+        grid-template-columns:1fr 34px;
+        gap:6px;
+    }
+
+    .subtask-panel .subtask-inline-form input {
+        min-height:32px;
+        border:1px solid var(--pulse-border);
+        border-radius:9px;
+        padding:0 10px;
+        font:inherit;
+        font-size:12px;
+    }
+
+    .subtask-panel .subtask-inline-form button,
+    .compact-comment-form button,
+    .compact-file-form button {
+        width:34px;
+        min-width:34px;
+        height:34px;
+        min-height:34px;
+        padding:0;
+        display:grid;
+        place-items:center;
+        border-radius:9px;
+    }
+
+    .subtask-panel .subtask-inline-form button {
+        font-size:0;
+    }
+
+    .subtask-panel .subtask-inline-form button i {
+        font-size:14px;
+    }
+
+    .add-row td {
+        background:#FAFBFD;
+    }
+
+    .add-task-inline input {
+        min-height:38px;
+        border:1px solid var(--pulse-border);
+        border-radius:10px;
+    }
+
+    .add-task-inline button,
+    .subtask-inline-form button,
+    .update-inline-form button,
+    .attachment-inline-form button,
+    .primary-btn {
+        border:0;
+        border-radius:10px;
+        background:var(--pulse-primary);
+        color:#fff;
+        font-weight:900;
+    }
+
+    .page-empty,
+    .empty-row-message {
+        color:var(--pulse-muted);
+        padding:30px;
+        text-align:center;
+    }
+
+    @media (max-width:1100px) {
+        .pulse-hero-top {
+            flex-direction:column;
+        }
+        .pulse-actions {
+            width:100%;
+            justify-content:flex-start;
+        }
+        .pulse-meta {
+            grid-template-columns:repeat(2, minmax(150px, 1fr));
+        }
+        .subtask-panel {
+            grid-template-columns:1fr 1fr;
+        }
+    }
+
+    @media (max-width:900px) {
+        .pulse-hero {
+            padding:20px;
+        }
+        .pulse-meta {
+            grid-template-columns:1fr;
+        }
+        .task-table,
+        .task-table tbody,
+        .task-table tr,
+        .task-table td {
+            display:block;
+            min-width:0;
+            width:100%;
+        }
+        .task-table thead {
+            display:none;
+        }
+        .task-table tr.task-row {
+            padding:12px 14px;
+            border-bottom:1px solid var(--pulse-border);
+        }
+        .task-table td {
+            border:0;
+            padding:7px 0;
+        }
+        .task-table td::before {
+            content:attr(data-label);
+            display:block;
+            color:var(--pulse-light);
+            font-size:11px;
+            font-weight:900;
+            text-transform:uppercase;
+            letter-spacing:.06em;
+            margin-bottom:4px;
+        }
+        .check-col::before,
+        .row-actions::before {
+            display:none !important;
+        }
+        .name-col {
+            display:flex !important;
+            width:100%;
+        }
+        .subtask-panel {
+            margin-left:0;
+            grid-template-columns:1fr;
+        }
+    }
+
+    .subtask-row td {
+        padding:0 12px 10px;
+    }
+
+    .subtask-panel {
+        margin-left:18px;
+        padding:9px 12px;
+        gap:10px;
+        grid-template-columns:minmax(240px, 1.1fr) minmax(180px, .82fr) minmax(170px, .72fr) minmax(220px, 1fr);
+    }
+
+    .subtask-panel .subtask-tree,
+    .subtask-panel .panel-section {
+        gap:6px;
+    }
+
+    .subtask-panel .subtask-inline-form {
+        grid-template-columns:minmax(150px, 1fr) 28px;
+        gap:6px;
+    }
+
+    .subtask-panel .subtask-inline-form input {
+        min-height:28px;
+        border-radius:8px;
+        padding:0 8px;
+        font-size:11.5px;
+    }
+
+    .subtask-panel .subtask-inline-form button,
+    .compact-comment-form button,
+    .compact-file-form button {
+        width:28px;
+        min-width:28px;
+        height:28px;
+        min-height:28px;
+        border-radius:8px;
+        padding:0;
+        font-size:12px;
+    }
+
+    .compact-comment-form {
+        grid-template-columns:minmax(150px, 1fr) 28px;
+        align-items:start;
+        gap:6px;
+    }
+
+    .compact-comment-form textarea {
+        width:100%;
+        min-height:30px;
+        height:30px;
+        max-height:44px;
+        border-radius:8px;
+        padding:6px 8px;
+        font-size:11.5px;
+        line-height:1.25;
+        resize:vertical;
+    }
+
+    .subtask-panel .panel-section h3,
+    .subtask-panel .subtask-tree-label {
+        margin-bottom:3px;
+    }
+
+    .compact-file-form {
+        grid-template-columns:28px minmax(110px, 1fr) 28px;
+        gap:6px;
+    }
+
+    .file-icon-button {
+        width:28px;
+        height:28px;
+        border-radius:8px;
+        font-size:12px;
+    }
+
+    .compact-file-form small {
+        font-size:10.5px;
+        line-height:1.25;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+    }
+
+    .subtask-panel .task-check.small {
+        width:14px;
+        height:14px;
+        border-radius:4px;
+    }
+
+    @media (max-width:1200px) {
+        .subtask-panel {
+            grid-template-columns:1fr 1fr;
+        }
+    }
+
+    .task-table {
+        table-layout:fixed;
+        width:100%;
+        min-width:1180px;
+    }
+
+    .task-table col.col-check { width:44px; }
+    .task-table col.col-name { width:42%; }
+    .task-table col.col-priority { width:11%; }
+    .task-table col.col-progress { width:14%; }
+    .task-table col.col-due { width:14%; }
+    .task-table col.col-status { width:11%; }
+    .task-table col.col-actions { width:74px; }
+
+    .task-table th,
+    .task-table td {
+        box-sizing:border-box;
+    }
+
+    .task-table th.name-col {
+        display:table-cell !important;
+        width:auto;
+    }
+
+    .task-table td.name-col {
+        display:flex;
+        width:auto;
+    }
+
+    .task-table th:nth-child(n),
+    .task-table td:nth-child(n),
+    .check-col,
+    .name-col,
+    .row-actions {
+        width:auto;
+    }
+
+    .row-actions {
+        text-align:left;
+        white-space:nowrap;
+    }
+
+    .row-actions > .icon-row-btn {
+        vertical-align:middle;
+    }
+
+    .simple-modal,
+    .simple-modal-card,
+    .task-activity-modal,
+    .task-activity-modal * {
+        text-align:left;
+    }
+
+    .row-actions .simple-modal,
+    .row-actions .simple-modal-card {
+        white-space:normal;
+    }
+
+    .task-activity-tabs {
+        justify-content:flex-start;
+    }
+
+    .task-activity-body,
+    .task-activity-body section,
+    .update-list,
+    .attachment-list,
+    .activity-list {
+        justify-items:stretch;
+        align-items:stretch;
+    }
+
+    .task-activity-modal .update-item,
+    .task-activity-modal .activity-item,
+    .task-activity-modal .attachment-item {
+        text-align:left;
+    }
+
+    .task-activity-modal .full-task-card {
+        width:min(620px, calc(100vw - 28px));
+    }
+
+    .task-activity-modal .simple-modal-body,
+    .task-activity-modal [data-task-activity-panel],
+    .task-activity-modal .update-inline-form,
+    .task-activity-modal .attachment-inline-form,
+    .task-activity-modal .attachment-drop {
+        width:100%;
+        max-width:100%;
+        white-space:normal;
+        justify-self:stretch;
+    }
+
+    .task-activity-modal .update-inline-form {
+        grid-template-columns:minmax(0, 1fr) auto;
+    }
+
+    .task-activity-modal .attachment-inline-form {
+        grid-template-columns:minmax(0, 1fr) auto;
+        align-items:center;
+    }
+
+    .task-activity-modal .attachment-drop {
+        padding:10px 12px;
+    }
+
+    .task-activity-modal .attachment-drop input {
+        max-width:100%;
+    }
+
+    .task-activity-modal .update-item,
+    .task-activity-modal .activity-item,
+    .task-activity-modal .attachment-item {
+        display:block;
+        width:100%;
+        white-space:normal;
+    }
+
+    .task-table .progress-cell,
+    .task-table .members-cell,
+    .task-table .status-cell {
+        overflow:visible;
+    }
+
+    .task-table .name-col {
+        min-width:0;
+    }
+
+    .task-table .task-name-wrap,
+    .task-table .task-title-line,
+    .task-table .task-title-text {
+        min-width:0;
+        max-width:100%;
+    }
+
+    .task-table .task-title-text {
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+    }
+
+    .group-team {
+        display:flex;
+        align-items:center;
+        gap:8px;
+        min-width:0;
+    }
+
+    .group-team-label {
+        color:var(--pulse-text);
+        font-size:12px;
+        font-weight:900;
+        white-space:nowrap;
+    }
+
+    .group-member-stack .avatar-dot.is-leader {
+        outline:2px solid #F59E0B;
+        outline-offset:1px;
+    }
+
+    .task-check,
+    .task-check.small {
+        padding:0;
+        line-height:1;
+        place-items:center;
+        align-items:center;
+        justify-items:center;
+    }
+
+    .task-check i,
+    .task-check.small i {
+        display:block;
+        line-height:1;
+        font-size:13px;
+        transform:none;
+    }
+
+    .task-check.small i {
+        font-size:10px;
     }
 </style>
 @endpush
@@ -216,46 +1489,87 @@
     data-complete-url-template="{{ route('mytasks.complete', ['job_id' => '__ID__']) }}"
     data-delete-url-template="{{ route('mytasks.destroy', ['job_id' => '__ID__']) }}"
     data-due-url-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}">
-    <section class="tasks-head">
-        <div class="tasks-title">
-            <h1>งานของฉัน</h1>
-            <p>จัดการงานเป็นตาราง แยกตามรายการงาน เปลี่ยนสถานะและกำหนดส่งได้ในหน้าเดียว</p>
-        </div>
-              <button type="button" class="create-project-card" data-open-new-task-modal>
-            <i class="bi bi-plus-lg"></i>
-            <span>สร้างงาน</span>
-        </button>
-    </section>
+    <section class="pulse-hero">
+        <div class="pulse-hero-top">
+            <div class="pulse-title-block">
+                <div class="pulse-project-icon">SG</div>
+                <div class="tasks-title">
+                    <h1>งานของฉัน</h1>
+                    <p>{{ auth()->user()->department?->department_name ?: 'Smart Goal workspace' }}</p>
+                </div>
+            </div>
 
-    <section class="tasks-toolbar">
-        <label class="tool-field">
-            <i class="bi bi-search"></i>
-            <input id="taskSearch" type="search" placeholder="Search task, details, subtask...">
-        </label>
-        <label class="tool-field">
-            <i class="bi bi-kanban"></i>
-            <select id="statusFilter">
-                <option value="">Status ทั้งหมด</option>
-                @foreach ($statusLabels as $value => $label)
-                    <option value="{{ $value }}">{{ $label }}</option>
-                @endforeach
-            </select>
-        </label>
-        <label class="tool-field">
-            <i class="bi bi-flag"></i>
-            <select id="priorityFilter">
-                <option value="">Priority ทั้งหมด</option>
-                @foreach ($priorityLabels as $value => $label)
-                    <option value="{{ $value }}">{{ $label }}</option>
-                @endforeach
-            </select>
-        </label>
-        <button type="button" class="tool-btn" data-sort-due>
-            <i class="bi bi-sort-down"></i> Sort due date
-        </button>
-        <button type="button" class="tool-btn" data-show-all-groups>
-            <i class="bi bi-eye"></i> Show all groups
-        </button>
+            <div class="pulse-actions">
+                <section class="tasks-toolbar" aria-label="ตัวกรองงาน">
+                    <label class="tool-field">
+                        <i class="bi bi-search"></i>
+                        <input id="taskSearch" type="search" placeholder="ค้นหางาน...">
+                    </label>
+                    <label class="tool-field">
+                        <i class="bi bi-kanban"></i>
+                        <select id="statusFilter">
+                            <option value="">สถานะทั้งหมด</option>
+                            @foreach ($statusLabels as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="tool-field">
+                        <i class="bi bi-flag"></i>
+                        <select id="priorityFilter">
+                            <option value="">ความสำคัญทั้งหมด</option>
+                            @foreach ($priorityLabels as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <button type="button" class="tool-btn" data-sort-due title="เรียงตามกำหนดส่ง">
+                        <i class="bi bi-sort-down"></i>
+                    </button>
+                    <button type="button" class="tool-btn" data-show-all-groups title="แสดงทุกกลุ่ม">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </section>
+
+                <button type="button" class="create-project-card" data-open-new-task-modal>
+                    <i class="bi bi-plus-lg"></i>
+                    <span>เพิ่มโปรเจกต์</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="pulse-meta">
+            <div class="pulse-meta-item">
+                <span class="pulse-meta-label">ความคืบหน้า</span>
+                <div class="pulse-progress">
+                    <div class="pulse-progress-track"><span style="width: {{ $overallProgress }}%"></span></div>
+                    <span class="pulse-meta-value">{{ $overallProgress }}%</span>
+                </div>
+            </div>
+            <div class="pulse-meta-item">
+                <span class="pulse-meta-label">งาน</span>
+                <span class="pulse-meta-value">ทั้งหมด {{ $totalTasksCount }} งาน, เสร็จแล้ว {{ $doneTasksCount }} งาน</span>
+            </div>
+            <div class="pulse-meta-item">
+                <span class="pulse-meta-label">กำหนดส่ง</span>
+                <span class="pulse-meta-value">{{ $nextDueTask ? $nextDueTask->locale('th')->isoFormat('D MMM YYYY') : 'ยังไม่มีกำหนดส่ง' }}</span>
+            </div>
+            <div class="pulse-meta-item">
+                <span class="pulse-meta-label">สมาชิก</span>
+                <div class="pulse-member-stack">
+                    @forelse ($workspaceMembers->take(5) as $index => $member)
+                        <span class="pulse-avatar" style="background:{{ $avatarColors[$index % count($avatarColors)] }}" title="{{ $member->name }}">
+                            {{ Str::of($member->name)->substr(0, 2)->upper() }}
+                        </span>
+                    @empty
+                        <span class="pulse-avatar" style="background:#94A3B8;">{{ Str::of(auth()->user()->name)->substr(0, 2)->upper() }}</span>
+                    @endforelse
+                    @if ($workspaceMembers->count() > 5)
+                        <span class="pulse-avatar-more">+{{ $workspaceMembers->count() - 5 }}</span>
+                    @endif
+                </div>
+            </div>
+        </div>
     </section>
 
     <nav class="board-tabs" aria-label="บอร์ดงาน">
@@ -330,20 +1644,50 @@
         @csrf
         <div class="simple-modal-head">
             <div>
-                <h2>สร้างงาน</h2>
-                <p>กรอกรายละเอียดงานให้ครบ มอบหมายให้ตัวเองหรือเพื่อนร่วมงานได้เลย</p>
+                <h2>เพิ่มโปรเจกต์</h2>
+                <p>ตั้งชื่อโปรเจกต์ แล้วเพิ่มรายการงานและงานย่อยในโปรเจกต์นี้</p>
             </div>
             <button type="button" class="simple-modal-close" data-close-new-task-modal aria-label="ปิด">&times;</button>
         </div>
         <div class="simple-modal-body">
             <label class="simple-field">
-                หัวข้องาน
-                <input type="text" name="job_topic" maxlength="255" required placeholder="พิมพ์หัวข้องาน...">
+                ชื่อโปรเจกต์
+                <input type="text" name="project_name" maxlength="80" required placeholder="เช่น โปรเจกต์ออกแบบ Dashboard">
             </label>
-            <label class="simple-field">
-                รายละเอียดงาน
-                <textarea name="job_details" maxlength="2000" rows="3" placeholder="อธิบายรายละเอียดงาน (ไม่บังคับ)"></textarea>
-            </label>
+            <div class="simple-field">
+                รายการงานในโปรเจกต์
+                <div class="project-item-list" data-project-items>
+                    <div class="project-item-card" data-project-item>
+                        <div class="project-item-head">
+                            <span class="project-item-title">รายการงานที่ 1</span>
+                            <button type="button" class="tiny-icon-btn danger" data-remove-project-item hidden title="ลบรายการงาน">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </div>
+                        <label class="simple-field">
+                            ชื่องาน
+                            <input type="text" name="project_items[0][job_topic]" maxlength="255" required placeholder="เช่น ออกแบบหน้า Dashboard">
+                        </label>
+                        <div class="simple-field">
+                            งานย่อย <span class="field-optional">(เพิ่มได้หลายรายการ)</span>
+                            <div class="initial-subtask-list" data-initial-subtasks>
+                                <div class="initial-subtask-row" data-initial-subtask-row>
+                                    <input type="text" name="project_items[0][subtasks][0][title]" maxlength="255" placeholder="เช่น วางโครงหน้า Dashboard">
+                                    <button type="button" class="tiny-icon-btn danger" data-remove-initial-subtask hidden title="ลบงานย่อย">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="button" class="inline-add-btn" data-add-initial-subtask>
+                                <i class="bi bi-plus-lg"></i> เพิ่มงานย่อย
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="inline-add-btn" data-add-project-item>
+                    <i class="bi bi-plus-lg"></i> เพิ่มรายการงาน
+                </button>
+            </div>
             <label class="simple-field">
                 ผู้รับผิดชอบ
                 <select name="user_id" data-newtask-assignee>
@@ -394,13 +1738,13 @@
                 </select>
             </label>
             <label class="simple-field">
-                แนบไฟล์ <span class="field-optional">(ไม่บังคับ)</span>
+                ไฟล์ตัวอย่าง / ไฟล์อ้างอิงงาน <span class="field-optional">(ไม่บังคับ)</span>
                 <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx" data-newtask-attachments>
-                <small class="field-hint">รองรับรูปภาพ (JPG, PNG), Word, Excel, PowerPoint — ไฟล์ละไม่เกิน 10MB สูงสุด 5 ไฟล์</small>
+                <small class="field-hint">ใช้แนบโจทย์งาน ไฟล์ตัวอย่าง รูปแบบที่อยากได้ หรือเอกสารประกอบ — ไฟล์ละไม่เกิน 10MB สูงสุด 5 ไฟล์</small>
             </label>
             <div class="simple-actions">
                 <button type="button" class="secondary-btn" data-close-new-task-modal>ยกเลิก</button>
-                <button type="submit" class="primary-btn">สร้างงาน</button>
+                <button type="submit" class="primary-btn">เพิ่มโปรเจกต์</button>
             </div>
         </div>
     </form>
@@ -454,7 +1798,7 @@
     const collaboratorForm = document.getElementById('collaboratorForm');
     const toast = Swal.mixin({toast:true, position:'top-end', showConfirmButton:false, timer:1500, timerProgressBar:true});
     const statusClass = {2:'status-working', 4:'status-done', 5:'status-paused', overdue:'status-overdue'};
-    const statusText = {2:'กำลังดำเนินงาน', 4:'งานเสร็จสิ้น', 5:'พักงาน'};
+    const statusText = {2:'สถานะ', 4:'เสร็จสิ้น', 5:'พักงาน'};
     const priorityText = {1:'ไม่สำคัญ/ทั่วไป', 2:'สำคัญ/ไม่ด่วน', 3:'ด่วน/สำคัญมาก'};
     const priorityClass = {1:'priority-low', 2:'priority-medium', 3:'priority-high'};
 
@@ -522,10 +1866,8 @@
                     <div class="task-name-wrap"><div class="task-title-line"><span class="task-title-text">${topic}</span></div></div>
                 </td>
                 <td data-label="ความสำคัญ"><select class="label-select priority-label ${priorityClass[2]}" data-priority-select data-url="${urlFor(page.dataset.priorityUrlTemplate, id)}">${Object.entries(priorityText).map(([value, label]) => `<option value="${value}" ${value === '2' ? 'selected' : ''}>${label}</option>`).join('')}</select></td>
+                <td data-label="ความคืบหน้า"><button type="button" class="progress-cell" data-expand-task="${id}"><span class="progress-track"><span style="width:0%"></span></span><strong>0%</strong></button></td>
                 <td data-label="กำหนดส่ง"><input type="date" class="due-input" data-due-input data-url="${urlFor(page.dataset.dueUrlTemplate, id)}"></td>
-                <td data-label="Subitem"><button type="button" class="progress-cell" data-expand-task="${id}"><span class="progress-track"><span style="width:0%"></span></span><strong>0/0</strong></button></td>
-                <td data-label="ผู้ร่วมงาน"><div class="avatar-stack"><span class="avatar-dot" title="${currentUser}">${initials}</span><button type="button" class="avatar-add" data-open-collaborator-modal data-task-id="${id}" data-task-title="${topic}" data-existing-users="" aria-label="เพิ่มผู้ร่วมงาน"><i class="bi bi-plus-lg"></i></button></div></td>
-                <td data-label="ไฟล์"><span class="file-pill"><i class="bi bi-paperclip"></i> 0</span></td>
                 <td data-label="สถานะ"><select class="label-select status-label status-working" data-status-select data-url="${urlFor(page.dataset.statusUrlTemplate, id)}">${Object.entries(statusText).map(([value, label]) => `<option value="${value}" ${value === '2' ? 'selected' : ''}>${label}</option>`).join('')}</select></td>
                 <td class="row-actions" data-label="">
                     <button type="button" class="icon-row-btn danger" data-delete-task data-task-title="${topic}" data-url="${urlFor(page.dataset.deleteUrlTemplate, id)}" aria-label="ลบงาน"><i class="bi bi-trash3"></i></button>
@@ -533,15 +1875,15 @@
             </tr>
             <tr class="subtask-row" data-subtask-panel="${id}" hidden>
                 <td></td>
-                <td colspan="8">
+                <td colspan="6">
                     <div class="subtask-panel">
-                        <div class="task-panel-tabs"><span><i class="bi bi-list-check"></i> งานย่อย</span><span><i class="bi bi-chat-left-text"></i> อัปเดต</span><span><i class="bi bi-paperclip"></i> ไฟล์</span><span><i class="bi bi-clock-history"></i> Activity Log</span></div>
+                        <div class="task-panel-tabs"><span><i class="bi bi-list-check"></i> งานย่อย</span><span><i class="bi bi-chat-left-text"></i> ความคิดเห็น</span><span><i class="bi bi-paperclip"></i> ไฟล์อ้างอิง</span><span><i class="bi bi-clock-history"></i> ประวัติ</span></div>
                         <table class="subitem-table">
-                            <thead><tr><th class="check-col"></th><th>Subitem</th><th>รายละเอียด</th><th>Date</th></tr></thead>
+                            <thead><tr><th class="check-col"></th><th>งานย่อย</th><th>รายละเอียด</th><th>วันที่</th></tr></thead>
                             <tbody><tr><td colspan="4"><div class="subtask-empty">ยังไม่มีงานย่อย</div></td></tr></tbody>
                         </table>
                         <div class="panel-section">
-                            <h3>อัปเดตงาน</h3>
+                            <h3>ความคิดเห็น</h3>
                             <form class="update-inline-form" action="${urlFor(page.dataset.progressUrlTemplate, id)}" method="POST">
                                 <input type="number" name="progress" min="0" max="99" value="0">
                                 <textarea name="note" maxlength="2000" required placeholder="เขียนอัปเดตงาน..."></textarea>
@@ -550,14 +1892,14 @@
                             <div class="subtask-empty">ยังไม่มีอัปเดตงาน</div>
                         </div>
                         <div class="panel-section">
-                            <h3>ไฟล์แนบ</h3>
-                            <div class="subtask-empty">ยังไม่มีไฟล์แนบ</div>
+                            <h3>ไฟล์อ้างอิง</h3>
+                            <div class="subtask-empty">ยังไม่มีไฟล์อ้างอิงงาน</div>
                             <form class="attachment-inline-form" action="${urlFor(page.dataset.attachmentUrlTemplate, id)}" method="POST" enctype="multipart/form-data" data-existing-files="0">
-                                <label class="attachment-drop"><i class="bi bi-cloud-arrow-up"></i><span>เลือกหรือลากไฟล์มาวาง</span><small>แนบได้สูงสุด 5 ไฟล์ ไฟล์ละไม่เกิน 5MB</small><input type="file" name="completion_attachments[]" multiple accept=".jpg,.jpeg,.png,.pdf,.xls,.xlsx,.csv,.zip"></label>
-                                <button type="submit"><i class="bi bi-upload"></i> บันทึกไฟล์</button>
+                                <label class="attachment-drop"><i class="bi bi-cloud-arrow-up"></i><span>เพิ่มไฟล์อ้างอิงงาน</span><small>ใช้สำหรับไฟล์ตัวอย่าง โจทย์งาน หรือเอกสารประกอบ สูงสุด 5 ไฟล์ ไฟล์ละไม่เกิน 10MB</small><input type="file" name="completion_attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>
+                                <button type="submit"><i class="bi bi-upload"></i> เพิ่มไฟล์</button>
                             </form>
                         </div>
-                        <div class="panel-section"><h3>Activity Log</h3><div class="subtask-empty">ยังไม่มีประวัติการทำงาน</div></div>
+                        <div class="panel-section"><h3>ประวัติ</h3><div class="subtask-empty">ยังไม่มีประวัติการทำงาน</div></div>
                     </div>
                 </td>
             </tr>`;
@@ -579,14 +1921,23 @@
                 <div class="group-body">
                     <div class="task-table-wrap">
                         <table class="task-table">
-                            <thead><tr><th class="check-col"><input type="checkbox" disabled></th><th class="name-col">Project</th><th><i class="bi bi-chat-dots" aria-hidden="true"></i> ความสำคัญ</th><th>กำหนดส่ง</th><th>Subitem</th><th>ผู้ร่วมงาน</th><th>Files</th><th>สถานะ</th><th class="row-actions"></th></tr></thead>
+                            <colgroup>
+                                <col class="col-check">
+                                <col class="col-name">
+                                <col class="col-priority">
+                                <col class="col-progress">
+                                <col class="col-due">
+                                <col class="col-status">
+                                <col class="col-actions">
+                            </colgroup>
+                            <thead><tr><th class="check-col"></th><th class="name-col">รายการงานย่อย</th><th>ความสำคัญ</th><th>ความคืบหน้า</th><th>กำหนดส่ง</th><th>สถานะ</th><th class="row-actions"></th></tr></thead>
                             <tbody data-group-body="${listId}">
-                                <tr class="empty-row"><td colspan="9"><div class="empty-row-message">ยังไม่มีงานในรายการนี้</div></td></tr>
-                                <tr class="add-row"><td></td><td colspan="8"><form class="add-task-inline" action="${page.dataset.storeUrl}" method="POST"><input type="hidden" name="work_order_list_id" value="${listId}"><input type="text" name="job_topic" maxlength="255" required placeholder="+ Add project"><button type="submit">เพิ่ม</button></form></td></tr>
+                                <tr class="empty-row"><td colspan="7"><div class="empty-row-message">ยังไม่มีงานในรายการนี้</div></td></tr>
+                                <tr class="add-row"><td></td><td colspan="6"><form class="add-task-inline" action="${page.dataset.storeUrl}" method="POST"><input type="hidden" name="work_order_list_id" value="${listId}"><input type="text" name="job_topic" maxlength="255" required placeholder="+ เพิ่มงานย่อยในโปรเจกต์นี้"><button type="submit">เพิ่มงานย่อย</button></form></td></tr>
                             </tbody>
                         </table>
                     </div>
-                    <div class="completed-group"><details><summary><i class="bi bi-check-circle"></i> Completed <span>0</span></summary><div class="task-table-wrap"><table class="task-table"><tbody><tr class="empty-row"><td colspan="9"><div class="empty-row-message">ยังไม่มีงานที่เสร็จแล้ว</div></td></tr></tbody></table></div></details></div>
+                    <div class="completed-group"><details><summary><i class="bi bi-check-circle"></i> งานที่เสร็จแล้ว <span>0</span></summary><div class="task-table-wrap"><table class="task-table"><tbody><tr class="empty-row"><td colspan="7"><div class="empty-row-message">ยังไม่มีงานที่เสร็จแล้ว</div></td></tr></tbody></table></div></details></div>
                 </div>
             </article>`;
         const group = wrapper.firstElementChild;
@@ -634,6 +1985,59 @@
         applyFilters();
     };
 
+    const subtaskTemplate = (itemIndex, subtaskIndex) => `
+        <div class="initial-subtask-row" data-initial-subtask-row>
+            <input type="text" name="project_items[${itemIndex}][subtasks][${subtaskIndex}][title]" maxlength="255" placeholder="เช่น วางโครงหน้า Dashboard">
+            <button type="button" class="tiny-icon-btn danger" data-remove-initial-subtask title="ลบงานย่อย">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>`;
+
+    const projectItemTemplate = (itemIndex) => `
+        <div class="project-item-card" data-project-item>
+            <div class="project-item-head">
+                <span class="project-item-title">รายการงานที่ ${itemIndex + 1}</span>
+                <button type="button" class="tiny-icon-btn danger" data-remove-project-item title="ลบรายการงาน">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </div>
+            <label class="simple-field">
+                ชื่องาน
+                <input type="text" name="project_items[${itemIndex}][job_topic]" maxlength="255" required placeholder="เช่น ออกแบบหน้า Dashboard">
+            </label>
+            <div class="simple-field">
+                งานย่อย <span class="field-optional">(เพิ่มได้หลายรายการ)</span>
+                <div class="initial-subtask-list" data-initial-subtasks>
+                    ${subtaskTemplate(itemIndex, 0)}
+                </div>
+                <button type="button" class="inline-add-btn" data-add-initial-subtask>
+                    <i class="bi bi-plus-lg"></i> เพิ่มงานย่อย
+                </button>
+            </div>
+        </div>`;
+
+    const reindexProjectItems = () => {
+        modalForm?.querySelectorAll('[data-project-item]').forEach((item, itemIndex) => {
+            const itemTitle = item.querySelector('.project-item-title');
+            if (itemTitle) itemTitle.textContent = `รายการงานที่ ${itemIndex + 1}`;
+            const removeItem = item.querySelector('[data-remove-project-item]');
+            if (removeItem) removeItem.hidden = itemIndex === 0 && modalForm.querySelectorAll('[data-project-item]').length === 1;
+            item.querySelector('input[name*="[job_topic]"]')?.setAttribute('name', `project_items[${itemIndex}][job_topic]`);
+            item.querySelectorAll('[data-initial-subtask-row]').forEach((row, subtaskIndex) => {
+                row.querySelector('input')?.setAttribute('name', `project_items[${itemIndex}][subtasks][${subtaskIndex}][title]`);
+                const removeSubtask = row.querySelector('[data-remove-initial-subtask]');
+                if (removeSubtask) removeSubtask.hidden = subtaskIndex === 0 && item.querySelectorAll('[data-initial-subtask-row]').length === 1;
+            });
+        });
+    };
+
+    const resetProjectItems = () => {
+        const list = modalForm?.querySelector('[data-project-items]');
+        if (!list) return;
+        list.innerHTML = projectItemTemplate(0);
+        reindexProjectItems();
+    };
+
     document.getElementById('taskSearch')?.addEventListener('input', applyFilters);
     document.getElementById('statusFilter')?.addEventListener('change', applyFilters);
     document.getElementById('priorityFilter')?.addEventListener('change', applyFilters);
@@ -641,10 +2045,11 @@
     document.querySelector('[data-open-new-task-modal]')?.addEventListener('click', () => {
         modal.hidden = false;
         modalForm?.reset();
+        resetProjectItems();
         modal.querySelectorAll('[data-newtask-collaborator-option]').forEach((option) => option.hidden = false);
         const hint = modal.querySelector('[data-newtask-assignee-hint]');
         if (hint) { hint.hidden = true; hint.classList.remove('is-warning'); }
-        modal.querySelector('input[name="job_topic"]')?.focus();
+        modal.querySelector('input[name="project_name"]')?.focus();
     });
     document.querySelectorAll('[data-close-new-task-modal]').forEach((button) => {
         button.addEventListener('click', () => modal.hidden = true);
@@ -694,17 +2099,18 @@
 
     const newTaskAttachmentsInput = modalForm?.querySelector('[data-newtask-attachments]');
     const allowedAttachmentExtensions = ['jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+    const allowedAttachmentText = 'jpg, jpeg, png, doc, docx, xls, xlsx, ppt, pptx';
     newTaskAttachmentsInput?.addEventListener('change', () => {
         const files = [...(newTaskAttachmentsInput.files || [])];
         if (files.length > 5) {
-            Swal.fire({icon:'warning', title:'ไฟล์เกินจำนวน', text:'แนบไฟล์ได้สูงสุด 5 ไฟล์ต่องาน'});
+            Swal.fire({icon:'warning', title:'ไฟล์เกินจำนวน', text:'เพิ่มไฟล์อ้างอิงงานได้สูงสุด 5 ไฟล์ต่องาน'});
             newTaskAttachmentsInput.value = '';
             return;
         }
         for (const file of files) {
             const ext = (file.name.split('.').pop() || '').toLowerCase();
             if (!allowedAttachmentExtensions.includes(ext)) {
-                Swal.fire({icon:'warning', title:'ไม่รองรับไฟล์นี้', text:`ไฟล์ "${file.name}" ไม่ใช่ประเภทที่รองรับ (รูปภาพ, Word, Excel, PowerPoint เท่านั้น)`});
+                Swal.fire({icon:'warning', title:'ไม่รองรับไฟล์นี้', text:`ไฟล์ "${file.name}" ไม่ใช่ประเภทที่รองรับ (${allowedAttachmentText})`});
                 newTaskAttachmentsInput.value = '';
                 return;
             }
@@ -737,7 +2143,7 @@
             const data = await requestJson(modalForm.action, {method:'POST', body:formData});
             modalForm.reset();
             modal.hidden = true;
-            toast.fire({icon:'success', title: data.message || 'สร้างงานแล้ว'});
+            toast.fire({icon:'success', title: data.message || 'เพิ่มโปรเจกต์แล้ว'});
             window.location.reload();
         } catch (error) { showError(error); }
     });
@@ -758,10 +2164,21 @@
     });
 
     document.addEventListener('submit', async (event) => {
-        const form = event.target.closest('.add-task-inline, .subtask-inline-form, .update-inline-form, .attachment-inline-form');
+        const form = event.target.closest('.add-task-inline, .subtask-inline-form, .update-inline-form, .attachment-inline-form, .group-rename-form');
         if (!form) return;
         event.preventDefault();
         try {
+            if (form.classList.contains('group-rename-form')) {
+                const data = await requestJson(form.action, {method:'POST', body:new FormData(form)});
+                const group = form.closest('.task-group');
+                const title = group?.querySelector('.group-name');
+                if (title) title.textContent = data.name || form.querySelector('input[name="name"]').value;
+                form.hidden = true;
+                group?.querySelector('.group-summary')?.removeAttribute('hidden');
+                toast.fire({icon:'success', title:'เปลี่ยนชื่อโปรเจกต์แล้ว'});
+                return;
+            }
+
             if (form.classList.contains('attachment-inline-form')) {
                 const input = form.querySelector('input[type="file"]');
                 const files = [...(input?.files || [])];
@@ -771,15 +2188,22 @@
                     return;
                 }
                 if (existing + files.length > 5) {
-                    Swal.fire({icon:'warning', title:'ไฟล์เกินจำนวน', text:'แนบไฟล์ได้สูงสุด 5 ไฟล์ต่องาน'});
+                    Swal.fire({icon:'warning', title:'ไฟล์เกินจำนวน', text:'เพิ่มไฟล์อ้างอิงงานได้สูงสุด 5 ไฟล์ต่องาน'});
                     return;
                 }
-                if (files.some((file) => file.size > 5 * 1024 * 1024)) {
-                    Swal.fire({icon:'warning', title:'ไฟล์ใหญ่เกินไป', text:'แต่ละไฟล์ต้องไม่เกิน 5MB'});
+                for (const file of files) {
+                    const ext = (file.name.split('.').pop() || '').toLowerCase();
+                    if (!allowedAttachmentExtensions.includes(ext)) {
+                        Swal.fire({icon:'warning', title:'ไม่รองรับไฟล์นี้', text:`ไฟล์ "${file.name}" ไม่ใช่ประเภทที่รองรับ (${allowedAttachmentText})`});
+                        return;
+                    }
+                }
+                if (files.some((file) => file.size > 10 * 1024 * 1024)) {
+                    Swal.fire({icon:'warning', title:'ไฟล์ใหญ่เกินไป', text:'แต่ละไฟล์ต้องไม่เกิน 10MB'});
                     return;
                 }
                 await requestJson(form.action, {method:'POST', body:new FormData(form)});
-                toast.fire({icon:'success', title:'แนบไฟล์สำเร็จ'});
+                toast.fire({icon:'success', title:'เพิ่มไฟล์อ้างอิงแล้ว'});
                 window.location.reload();
                 return;
             }
@@ -793,11 +2217,11 @@
 
             if (form.classList.contains('add-task-inline')) {
                 const formData = new FormData(form);
-                const listId = await ensureListForTask(formData);
-                const data = await requestJson(form.action, {method:'POST', body:formData});
-                appendTask(listId, {job_id:data.job_id, job_topic:formData.get('job_topic')});
+                await ensureListForTask(formData);
+                await requestJson(form.action, {method:'POST', body:formData});
                 form.reset();
                 toast.fire({icon:'success', title:'เพิ่มงานแล้ว'});
+                window.location.reload();
                 return;
             }
             await requestJson(form.action, {method:'POST', body:new FormData(form)});
@@ -807,6 +2231,48 @@
     });
 
     document.addEventListener('click', async (event) => {
+        const addProjectItem = event.target.closest('[data-add-project-item]');
+        if (addProjectItem) {
+            const list = modalForm?.querySelector('[data-project-items]');
+            if (!list) return;
+            const itemIndex = list.querySelectorAll('[data-project-item]').length;
+            const holder = document.createElement('div');
+            holder.innerHTML = projectItemTemplate(itemIndex);
+            list.appendChild(holder.firstElementChild);
+            reindexProjectItems();
+            list.querySelector(`[name="project_items[${itemIndex}][job_topic]"]`)?.focus();
+            return;
+        }
+
+        const removeProjectItem = event.target.closest('[data-remove-project-item]');
+        if (removeProjectItem) {
+            removeProjectItem.closest('[data-project-item]')?.remove();
+            reindexProjectItems();
+            return;
+        }
+
+        const addInitialSubtask = event.target.closest('[data-add-initial-subtask]');
+        if (addInitialSubtask) {
+            const item = addInitialSubtask.closest('[data-project-item]');
+            const list = item?.querySelector('[data-initial-subtasks]');
+            if (!item || !list) return;
+            const itemIndex = [...modalForm.querySelectorAll('[data-project-item]')].indexOf(item);
+            const subtaskIndex = list.querySelectorAll('[data-initial-subtask-row]').length;
+            const holder = document.createElement('div');
+            holder.innerHTML = subtaskTemplate(itemIndex, subtaskIndex);
+            list.appendChild(holder.firstElementChild);
+            reindexProjectItems();
+            list.querySelector(`[name="project_items[${itemIndex}][subtasks][${subtaskIndex}][title]"]`)?.focus();
+            return;
+        }
+
+        const removeInitialSubtask = event.target.closest('[data-remove-initial-subtask]');
+        if (removeInitialSubtask) {
+            removeInitialSubtask.closest('[data-initial-subtask-row]')?.remove();
+            reindexProjectItems();
+            return;
+        }
+
         const boardTab = event.target.closest('[data-board-tab]');
         if (boardTab) {
             const boardName = boardTab.dataset.boardTab;
@@ -814,6 +2280,52 @@
             document.querySelectorAll('[data-task-board]').forEach((board) => {
                 board.hidden = board.dataset.taskBoard !== boardName;
             });
+            return;
+        }
+
+        const editList = event.target.closest('[data-edit-list]');
+        if (editList) {
+            const group = editList.closest('.task-group');
+            const form = group?.querySelector(`[data-list-rename-form="${editList.dataset.listId}"]`);
+            if (form) {
+                form.hidden = false;
+                group?.querySelector('.group-summary')?.setAttribute('hidden', 'hidden');
+                form.querySelector('input[name="name"]')?.focus();
+            }
+            return;
+        }
+
+        const cancelListRename = event.target.closest('[data-cancel-list-rename]');
+        if (cancelListRename) {
+            const form = cancelListRename.closest('.group-rename-form');
+            const group = form?.closest('.task-group');
+            form?.setAttribute('hidden', 'hidden');
+            group?.querySelector('.group-summary')?.removeAttribute('hidden');
+            return;
+        }
+
+        const memberButton = event.target.closest('[data-open-member-modal]');
+        if (memberButton) {
+            const memberModal = document.querySelector(`[data-member-modal="${memberButton.dataset.openMemberModal}"]`);
+            if (memberModal) memberModal.hidden = false;
+            return;
+        }
+
+        const fileButton = event.target.closest('[data-open-file-modal]');
+        if (fileButton) {
+            const fileModal = document.querySelector(`[data-file-modal="${fileButton.dataset.openFileModal}"]`);
+            if (fileModal) fileModal.hidden = false;
+            return;
+        }
+
+        const closeInlineModal = event.target.closest('[data-close-inline-modal]');
+        if (closeInlineModal) {
+            closeInlineModal.closest('.simple-modal')?.setAttribute('hidden', 'hidden');
+            return;
+        }
+
+        if (event.target.matches('.member-info-modal, .file-list-modal')) {
+            event.target.hidden = true;
             return;
         }
 
@@ -915,6 +2427,7 @@
 
         const deleteTask = event.target.closest('[data-delete-task]');
         if (deleteTask) {
+            const isDeleteRequest = deleteTask.dataset.deleteRequest === '1';
             const result = await Swal.fire({
                 icon:'warning',
                 title:'ลบงานนี้?',
@@ -926,7 +2439,11 @@
             });
             if (!result.isConfirmed) return;
             try {
-                await requestJson(deleteTask.dataset.url, {method:'DELETE'});
+                const data = await requestJson(deleteTask.dataset.url, {method:'DELETE'});
+                if (data.delete_requested) {
+                    toast.fire({icon:'success', title:data.message || 'Delete request sent'});
+                    return;
+                }
                 const row = deleteTask.closest('[data-task-row]');
                 document.querySelector(`[data-subtask-panel="${row.dataset.taskId}"]`)?.remove();
                 row.remove();

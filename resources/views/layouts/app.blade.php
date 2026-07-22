@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -1138,6 +1138,11 @@
                                         @csrf
                                         @method('PATCH')
                                         <button type="submit" class="btn btn-sm btn-outline-danger">อนุมัติลบ</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.tasks.deleteRequest.reject', $deleteJob->job_id) }}">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">ปฏิเสธ</button>
                                     </form>
                                 </div>
                             </div>
