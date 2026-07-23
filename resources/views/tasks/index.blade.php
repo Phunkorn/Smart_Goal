@@ -209,6 +209,31 @@
     @media (max-width:520px) { .simple-field-row { grid-template-columns:1fr; } }
     @media (max-width:720px) { .initial-subtask-row { grid-template-columns:1fr auto; } }
 
+    /* ===== เพิ่มโปรเจกต์ (redesign) ===== */
+    .ntf-head { align-items:flex-start; }
+    .ntf-eyebrow { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:850; color:var(--accent-strong); background:var(--accent-dim); padding:3px 10px; border-radius:999px; margin-bottom:8px; }
+    .ntf-body { padding:22px 24px 20px; display:grid; gap:22px; flex:1 1 auto; min-height:0; }
+    .ntf-section { display:grid; gap:12px; }
+    .ntf-section-head { display:flex; align-items:flex-start; gap:10px; }
+    .ntf-section-num { flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--accent-dim); color:var(--accent-strong); font-size:12px; font-weight:900; display:grid; place-items:center; margin-top:1px; }
+    .ntf-section-title { font-weight:900; font-size:14.5px; color:var(--text); }
+    .ntf-section-desc { margin:2px 0 0; font-size:12px; color:var(--text-muted); font-weight:650; }
+    .ntf-section-body { display:grid; gap:12px; padding-left:34px; }
+    .ntf-divider { height:1px; background:var(--border); margin:0 0 0 34px; }
+    .ntf-schedule-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+    .ntf-schedule-grid label span { display:inline-flex; align-items:center; gap:6px; }
+    .ntf-card .project-item-card { position:relative; background:#fbfdff; transition:box-shadow .15s ease, border-color .15s ease; }
+    .ntf-card .project-item-card:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+    .ntf-card .project-item-title { display:inline-flex; align-items:center; font-size:12px; padding:4px 11px; border-radius:999px; background:var(--accent-dim); color:var(--accent-strong); }
+    .ntf-card .initial-subtask-row { align-items:center; }
+    .ntf-footer { display:flex; justify-content:flex-end; gap:10px; padding:14px 24px; border-top:1px solid var(--border); background:#fff; flex:0 0 auto; }
+    .ntf-footer .primary-btn, .ntf-footer .secondary-btn { min-width:120px; justify-content:center; }
+    @media (max-width:560px) {
+        .ntf-schedule-grid { grid-template-columns:1fr; }
+        .ntf-section-body { padding-left:0; }
+        .ntf-divider { margin-left:0; }
+    }
+
     @media (max-width:900px) {
         .tasks-title h1 { font-size:28px; }
         .task-table, .task-table tbody, .task-table tr, .task-table td { display:block; min-width:0; width:100%; }
@@ -1640,112 +1665,172 @@
 </div>
 
 <div class="simple-modal" data-new-task-modal hidden>
-    <form class="simple-modal-card full-task-card" id="newTaskForm" action="{{ route('mytasks.create') }}" method="POST" enctype="multipart/form-data">
+    <form class="simple-modal-card full-task-card ntf-card" id="newTaskForm" action="{{ route('mytasks.create') }}" method="POST" enctype="multipart/form-data">
         @csrf
-        <div class="simple-modal-head">
+        <div class="simple-modal-head ntf-head">
             <div>
+                <span class="ntf-eyebrow"><i class="bi bi-kanban"></i> โปรเจกต์ใหม่</span>
                 <h2>เพิ่มโปรเจกต์</h2>
                 <p>ตั้งชื่อโปรเจกต์ แล้วเพิ่มรายการงานและงานย่อยในโปรเจกต์นี้</p>
             </div>
             <button type="button" class="simple-modal-close" data-close-new-task-modal aria-label="ปิด">&times;</button>
         </div>
-        <div class="simple-modal-body">
-            <label class="simple-field">
-                ชื่อโปรเจกต์
-                <input type="text" name="project_name" maxlength="80" required placeholder="เช่น โปรเจกต์ออกแบบ Dashboard">
-            </label>
-            <div class="simple-field">
-                รายการงานในโปรเจกต์
-                <div class="project-item-list" data-project-items>
-                    <div class="project-item-card" data-project-item>
-                        <div class="project-item-head">
-                            <span class="project-item-title">รายการงานที่ 1</span>
-                            <button type="button" class="tiny-icon-btn danger" data-remove-project-item hidden title="ลบรายการงาน">
-                                <i class="bi bi-trash3"></i>
-                            </button>
-                        </div>
-                        <label class="simple-field">
-                            ชื่องาน
-                            <input type="text" name="project_items[0][job_topic]" maxlength="255" required placeholder="เช่น ออกแบบหน้า Dashboard">
-                        </label>
-                        <div class="simple-field">
-                            งานย่อย <span class="field-optional">(เพิ่มได้หลายรายการ)</span>
-                            <div class="initial-subtask-list" data-initial-subtasks>
-                                <div class="initial-subtask-row" data-initial-subtask-row>
-                                    <input type="text" name="project_items[0][subtasks][0][title]" maxlength="255" placeholder="เช่น วางโครงหน้า Dashboard">
-                                    <button type="button" class="tiny-icon-btn danger" data-remove-initial-subtask hidden title="ลบงานย่อย">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </div>
+        <div class="simple-modal-body ntf-body">
+
+            <div class="ntf-section">
+                <div class="ntf-section-head">
+                    <span class="ntf-section-num">1</span>
+                    <div>
+                        <div class="ntf-section-title">ชื่อโปรเจกต์</div>
+                    </div>
+                </div>
+                <div class="ntf-section-body">
+                    <label class="simple-field">
+                        <input type="text" name="project_name" maxlength="80" required placeholder="เช่น โปรเจกต์ออกแบบ Dashboard">
+                    </label>
+                </div>
+            </div>
+
+            <div class="ntf-divider"></div>
+
+            <div class="ntf-section">
+                <div class="ntf-section-head">
+                    <span class="ntf-section-num">2</span>
+                    <div>
+                        <div class="ntf-section-title">รายการงานในโปรเจกต์</div>
+                        <p class="ntf-section-desc">แตกโปรเจกต์เป็นงานย่อยที่ทำได้จริง เพิ่มได้หลายรายการ</p>
+                    </div>
+                </div>
+                <div class="ntf-section-body">
+                    <div class="project-item-list" data-project-items>
+                        <div class="project-item-card" data-project-item>
+                            <div class="project-item-head">
+                                <span class="project-item-title">รายการงานที่ 1</span>
+                                <button type="button" class="tiny-icon-btn danger" data-remove-project-item hidden title="ลบรายการงาน">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
                             </div>
-                            <button type="button" class="inline-add-btn" data-add-initial-subtask>
-                                <i class="bi bi-plus-lg"></i> เพิ่มงานย่อย
-                            </button>
+                            <label class="simple-field">
+                                ชื่องาน
+                                <input type="text" name="project_items[0][job_topic]" maxlength="255" required placeholder="เช่น ออกแบบหน้า Dashboard">
+                            </label>
+                            <div class="simple-field">
+                                งานย่อย <span class="field-optional">(เพิ่มได้หลายรายการ)</span>
+                                <div class="initial-subtask-list" data-initial-subtasks>
+                                    <div class="initial-subtask-row" data-initial-subtask-row>
+                                        <input type="text" name="project_items[0][subtasks][0][title]" maxlength="255" placeholder="เช่น วางโครงหน้า Dashboard">
+                                        <button type="button" class="tiny-icon-btn danger" data-remove-initial-subtask hidden title="ลบงานย่อย">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button type="button" class="inline-add-btn" data-add-initial-subtask>
+                                    <i class="bi bi-plus-lg"></i> เพิ่มงานย่อย
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="inline-add-btn" data-add-project-item>
+                        <i class="bi bi-plus-lg"></i> เพิ่มรายการงาน
+                    </button>
+                </div>
+            </div>
+
+            <div class="ntf-divider"></div>
+
+            <div class="ntf-section">
+                <div class="ntf-section-head">
+                    <span class="ntf-section-num">3</span>
+                    <div>
+                        <div class="ntf-section-title">ผู้รับผิดชอบ &amp; ผู้ร่วมงาน</div>
+                    </div>
+                </div>
+                <div class="ntf-section-body">
+                    <label class="simple-field">
+                        ผู้รับผิดชอบ
+                        <select name="user_id" data-newtask-assignee>
+                            <option value="{{ auth()->id() }}" data-department-id="{{ auth()->user()->department_id }}">ตัวฉันเอง ({{ auth()->user()->name }})</option>
+                            @foreach ($availableCollaborators as $employee)
+                                <option value="{{ $employee->id }}" data-department-id="{{ $employee->department_id }}">
+                                    {{ $employee->name }} — {{ optional($employee->department)->department_name ?: 'ไม่ระบุแผนก' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="field-hint" data-newtask-assignee-hint hidden></small>
+                    </label>
+                    <div class="simple-field">
+                        ผู้ร่วมงาน <span class="field-optional">(ไม่บังคับ)</span>
+                        <input type="search" class="collaborator-search" data-newtask-collaborator-search placeholder="ค้นหาชื่อพนักงานหรือแผนก">
+                        <div class="collaborator-list" data-newtask-collaborator-list>
+                            @forelse ($availableCollaborators as $employee)
+                                <label class="collaborator-option"
+                                    data-newtask-collaborator-option
+                                    data-search="{{ Str::lower($employee->name . ' ' . optional($employee->department)->department_name) }}">
+                                    <input type="checkbox" name="collaborators[]" value="{{ $employee->id }}">
+                                    <span>
+                                        <strong>{{ $employee->name }}</strong>
+                                        <div class="collaborator-meta">{{ optional($employee->department)->department_name ?: 'ไม่ระบุแผนก' }}</div>
+                                    </span>
+                                </label>
+                            @empty
+                                <div class="empty-row-message">ยังไม่มีพนักงานที่เชิญได้</div>
+                            @endforelse
                         </div>
                     </div>
                 </div>
-                <button type="button" class="inline-add-btn" data-add-project-item>
-                    <i class="bi bi-plus-lg"></i> เพิ่มรายการงาน
-                </button>
             </div>
-            <label class="simple-field">
-                ผู้รับผิดชอบ
-                <select name="user_id" data-newtask-assignee>
-                    <option value="{{ auth()->id() }}" data-department-id="{{ auth()->user()->department_id }}">ตัวฉันเอง ({{ auth()->user()->name }})</option>
-                    @foreach ($availableCollaborators as $employee)
-                        <option value="{{ $employee->id }}" data-department-id="{{ $employee->department_id }}">
-                            {{ $employee->name }} — {{ optional($employee->department)->department_name ?: 'ไม่ระบุแผนก' }}
-                        </option>
-                    @endforeach
-                </select>
-                <small class="field-hint" data-newtask-assignee-hint hidden></small>
-            </label>
-            <div class="simple-field">
-                ผู้ร่วมงาน <span class="field-optional">(ไม่บังคับ)</span>
-                <input type="search" class="collaborator-search" data-newtask-collaborator-search placeholder="ค้นหาชื่อพนักงานหรือแผนก">
-                <div class="collaborator-list" data-newtask-collaborator-list>
-                    @forelse ($availableCollaborators as $employee)
-                        <label class="collaborator-option"
-                            data-newtask-collaborator-option
-                            data-search="{{ Str::lower($employee->name . ' ' . optional($employee->department)->department_name) }}">
-                            <input type="checkbox" name="collaborators[]" value="{{ $employee->id }}">
-                            <span>
-                                <strong>{{ $employee->name }}</strong>
-                                <div class="collaborator-meta">{{ optional($employee->department)->department_name ?: 'ไม่ระบุแผนก' }}</div>
-                            </span>
-                        </label>
-                    @empty
-                        <div class="empty-row-message">ยังไม่มีพนักงานที่เชิญได้</div>
-                    @endforelse
+
+            <div class="ntf-divider"></div>
+
+            <div class="ntf-section">
+                <div class="ntf-section-head">
+                    <span class="ntf-section-num">4</span>
+                    <div>
+                        <div class="ntf-section-title">กำหนดการ &amp; ความสำคัญ</div>
+                    </div>
+                </div>
+                <div class="ntf-section-body ntf-schedule-grid">
+                    <label class="simple-field">
+                        <span><i class="bi bi-calendar-event"></i> วันที่เริ่มงาน</span>
+                        <input type="date" name="job_start_at" data-newtask-start required>
+                    </label>
+                    <label class="simple-field">
+                        <span><i class="bi bi-calendar-check"></i> วันที่สิ้นสุดงาน</span>
+                        <input type="date" name="job_due_at" data-newtask-due required>
+                    </label>
+                    <label class="simple-field">
+                        <span><i class="bi bi-flag"></i> ความสำคัญ</span>
+                        <select name="job_priority">
+                            <option value="1">ไม่สำคัญ/ทั่วไป</option>
+                            <option value="2" selected>สำคัญ/ไม่ด่วน</option>
+                            <option value="3">ด่วน/สำคัญมาก</option>
+                        </select>
+                    </label>
                 </div>
             </div>
-            <div class="simple-field-row">
-                <label class="simple-field">
-                    วันที่เริ่มงาน
-                    <input type="date" name="job_start_at" data-newtask-start required>
-                </label>
-                <label class="simple-field">
-                    วันที่สิ้นสุดงาน
-                    <input type="date" name="job_due_at" data-newtask-due required>
-                </label>
+
+            <div class="ntf-divider"></div>
+
+            <div class="ntf-section">
+                <div class="ntf-section-head">
+                    <span class="ntf-section-num">5</span>
+                    <div>
+                        <div class="ntf-section-title">ไฟล์อ้างอิงงาน <span class="field-optional">(ไม่บังคับ)</span></div>
+                    </div>
+                </div>
+                <div class="ntf-section-body">
+                    <label class="attachment-drop">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                        <span>แนบไฟล์โจทย์งาน ไฟล์ตัวอย่าง หรือเอกสารประกอบ</span>
+                        <small>รองรับ jpg, png, doc, xls, ppt — ไฟล์ละไม่เกิน 10MB สูงสุด 5 ไฟล์</small>
+                        <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx" data-newtask-attachments>
+                    </label>
+                </div>
             </div>
-            <label class="simple-field">
-                ความสำคัญ
-                <select name="job_priority">
-                    <option value="1">ไม่สำคัญ/ทั่วไป</option>
-                    <option value="2" selected>สำคัญ/ไม่ด่วน</option>
-                    <option value="3">ด่วน/สำคัญมาก</option>
-                </select>
-            </label>
-            <label class="simple-field">
-                ไฟล์ตัวอย่าง / ไฟล์อ้างอิงงาน <span class="field-optional">(ไม่บังคับ)</span>
-                <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx" data-newtask-attachments>
-                <small class="field-hint">ใช้แนบโจทย์งาน ไฟล์ตัวอย่าง รูปแบบที่อยากได้ หรือเอกสารประกอบ — ไฟล์ละไม่เกิน 10MB สูงสุด 5 ไฟล์</small>
-            </label>
-            <div class="simple-actions">
-                <button type="button" class="secondary-btn" data-close-new-task-modal>ยกเลิก</button>
-                <button type="submit" class="primary-btn">เพิ่มโปรเจกต์</button>
-            </div>
+        </div>
+        <div class="ntf-footer">
+            <button type="button" class="secondary-btn" data-close-new-task-modal>ยกเลิก</button>
+            <button type="submit" class="primary-btn"><i class="bi bi-check2-circle"></i> เพิ่มโปรเจกต์</button>
         </div>
     </form>
 </div>
@@ -1798,7 +1883,7 @@
     const collaboratorForm = document.getElementById('collaboratorForm');
     const toast = Swal.mixin({toast:true, position:'top-end', showConfirmButton:false, timer:1500, timerProgressBar:true});
     const statusClass = {2:'status-working', 4:'status-done', 5:'status-paused', overdue:'status-overdue'};
-    const statusText = {2:'สถานะ', 4:'เสร็จสิ้น', 5:'พักงาน'};
+    const statusText = {2:'ดำเนินการ', 4:'เสร็จสิ้น', 5:'พักงาน'};
     const priorityText = {1:'ไม่สำคัญ/ทั่วไป', 2:'สำคัญ/ไม่ด่วน', 3:'ด่วน/สำคัญมาก'};
     const priorityClass = {1:'priority-low', 2:'priority-medium', 3:'priority-high'};
 

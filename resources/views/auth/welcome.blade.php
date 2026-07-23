@@ -1,4 +1,4 @@
-﻿@php
+@php
     $user = auth()->user();
     $isAdmin = $user?->role === 'admin';
     $roleLabel = $isAdmin ? 'ผู้ดูแลระบบ' : 'ผู้ใช้งาน';

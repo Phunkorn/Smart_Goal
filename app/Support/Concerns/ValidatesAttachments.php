@@ -63,11 +63,11 @@ trait ValidatesAttachments
             $sizeKb = $file->getSize() / 1024;
 
             if (! in_array($extension, self::ALLOWED_ATTACHMENT_EXTENSIONS, true)) {
-                abort(422, 'ไม่อนุญาตไฟล์นามสกุล .' . $extension . ' — แนบได้เฉพาะไฟล์รูปภาพ (JPG, PNG), Word, Excel หรือ PowerPoint เท่านั้น');
+                abort(422, 'ไม่อนุญาตไฟล์นามสกุล .'.$extension.' — แนบได้เฉพาะไฟล์รูปภาพ (JPG, PNG), Word, Excel หรือ PowerPoint เท่านั้น');
             } elseif (! in_array($realMime, self::ALLOWED_ATTACHMENT_MIMES, true)) {
-                abort(422, 'ไฟล์ "' . $file->getClientOriginalName() . '" มีเนื้อหาไม่ตรงกับประเภทไฟล์ที่อนุญาต');
+                abort(422, 'ไฟล์ "'.$file->getClientOriginalName().'" มีเนื้อหาไม่ตรงกับประเภทไฟล์ที่อนุญาต');
             } elseif ($sizeKb > self::ATTACHMENT_MAX_KB) {
-                abort(422, 'ไฟล์ "' . $file->getClientOriginalName() . '" มีขนาดเกิน ' . (self::ATTACHMENT_MAX_KB / 1024) . ' MB');
+                abort(422, 'ไฟล์ "'.$file->getClientOriginalName().'" มีขนาดเกิน '.(self::ATTACHMENT_MAX_KB / 1024).' MB');
             }
         }
     }
@@ -79,7 +79,7 @@ trait ValidatesAttachments
         }
 
         foreach ($request->file($field) as $file) {
-            $path = $file->store('job-attachments/' . $job->job_id, 'public');
+            $path = $file->store('job-attachments/'.$job->job_id, 'public');
 
             JobImage::create([
                 'job_id' => $job->job_id,

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -12,6 +14,16 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
+        if (Auth::check()) {
+            $user = Auth::user();
+
+            if ($user->must_change_password) {
+                return redirect()->route('password.setup');
+            }
+
+            return redirect()->route($user->role === 'user' ? 'mytasks.index' : 'board.index');
+        }
+
         return view('auth.login');
     }
 
@@ -25,7 +37,7 @@ class AuthController extends Controller
         $this->ensureLoginIsNotRateLimited($request);
         $throttleKey = $this->throttleKey($request);
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (! Auth::attempt([...$credentials, 'is_active' => true], $request->boolean('remember'))) {
             RateLimiter::hit($throttleKey, 60);
 
             return back()
@@ -56,7 +68,7 @@ class AuthController extends Controller
             return redirect()->route('mytasks.index');
         }
 
-        Auth::logout();
+        $this->logout($request);
 
         return redirect()
             ->route('login')
@@ -85,7 +97,7 @@ class AuthController extends Controller
     public function updateFirstPassword(Request $request)
     {
         $request->validate([
-            'password' => ['required', 'confirmed', 'min:8'],
+            'password' => ['required', 'confirmed', PasswordPolicy::rule()],
         ], [
             'password.required' => 'กรุณากรอกรหัสผ่านใหม่',
             'password.confirmed' => 'รหัสผ่านทั้งสองช่องไม่ตรงกัน',
@@ -94,7 +106,7 @@ class AuthController extends Controller
 
         $user = $request->user();
 
-        $user->password = bcrypt($request->password);
+        $user->password = Hash::make($request->input('password'));
         $user->must_change_password = false;
         $user->save();
 
@@ -118,6 +130,6 @@ class AuthController extends Controller
 
     private function throttleKey(Request $request): string
     {
-        return Str::lower($request->input('email')) . '|' . $request->ip();
+        return Str::lower($request->input('email')).'|'.$request->ip();
     }
 }

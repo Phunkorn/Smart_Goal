@@ -6,8 +6,10 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\AuditTrail;
+use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -63,10 +65,11 @@ class UserController extends Controller
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
             'must_change_password' => true,
+            'is_active' => $validated['is_active'],
             'profile_image' => $profilePath,
         ]);
 
-        AuditTrail::log('created', $employee, 'Admin created employee: ' . $employee->name, [
+        AuditTrail::log('created', $employee, 'Admin created employee: '.$employee->name, [
             'after' => $this->auditUserPayload($employee),
         ]);
 
@@ -86,6 +89,7 @@ class UserController extends Controller
             'phone' => $validated['phone'] ?? null,
             'role' => $validated['role'],
             'department_id' => $validated['role'] === 'user' ? $validated['department_id'] : null,
+            'is_active' => $validated['is_active'],
         ];
 
         if (! empty($validated['password'])) {
@@ -103,7 +107,11 @@ class UserController extends Controller
         $user->update($data);
         $user->refresh();
 
-        AuditTrail::log('updated', $user, 'Admin updated employee: ' . $user->name, [
+        if (! $user->is_active || array_key_exists('password', $data)) {
+            $this->invalidateUserSessions($user);
+        }
+
+        AuditTrail::log('updated', $user, 'Admin updated employee: '.$user->name, [
             'before' => $before,
             'after' => $this->auditUserPayload($user),
         ]);
@@ -136,11 +144,12 @@ class UserController extends Controller
         }
 
         AuditTrail::trash($user, Auth::user(), ['user' => $payload]);
-        AuditTrail::log('deleted', $user, 'Admin deleted employee: ' . $user->name, [
+        AuditTrail::log('deleted', $user, 'Admin deleted employee: '.$user->name, [
             'before' => $payload,
         ]);
 
         $user->delete();
+        $this->invalidateUserSessions($user);
 
         return redirect()->route('employees.index')->with('success', 'ลบพนักงานสำเร็จ');
     }
@@ -150,7 +159,7 @@ class UserController extends Controller
         abort_unless(Auth::user()?->role === 'admin', 403);
 
         $validated = $request->validate([
-            'password' => ['required', 'string', 'min:6'],
+            'password' => ['required', 'string', PasswordPolicy::rule()],
         ], [
             'password.required' => 'กรุณากรอกรหัสผ่านชั่วคราว',
             'password.min' => 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
@@ -162,8 +171,9 @@ class UserController extends Controller
             'password' => Hash::make($validated['password']),
             'must_change_password' => true,
         ]);
+        $this->invalidateUserSessions($user);
 
-        AuditTrail::log('password_reset', $user, 'Admin reset password for employee: ' . $user->name, [
+        AuditTrail::log('password_reset', $user, 'Admin reset password for employee: '.$user->name, [
             'before' => $before,
             'after' => $this->auditUserPayload($user),
         ]);
@@ -173,7 +183,9 @@ class UserController extends Controller
 
     private function validateUser(Request $request, ?User $user = null): array
     {
-        $passwordRule = $user ? ['nullable', 'string', 'min:6'] : ['required', 'string', 'min:6'];
+        $passwordRule = $user
+            ? ['nullable', 'string', 'confirmed', PasswordPolicy::rule()]
+            : ['required', 'string', 'confirmed', PasswordPolicy::rule()];
 
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -181,6 +193,7 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
             'password' => $passwordRule,
             'role' => ['required', Rule::in(['admin', 'user', 'viewer'])],
+            'is_active' => ['required', 'boolean'],
             'department_id' => ['nullable', 'required_if:role,user', 'exists:departments,id'],
             'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
@@ -199,5 +212,14 @@ class UserController extends Controller
         unset($payload['password'], $payload['remember_token']);
 
         return $payload;
+    }
+
+    private function invalidateUserSessions(User $user): void
+    {
+        if (config('session.driver') !== 'database') {
+            return;
+        }
+
+        DB::table(config('session.table'))->where('user_id', $user->id)->delete();
     }
 }

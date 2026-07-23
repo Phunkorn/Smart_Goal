@@ -57,3 +57,15 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Deployment
+
+```bash
+composer install --no-dev --optimize-autoloader
+npm install && npm run build
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+Before deploying, ensure `.env` has `APP_ENV=production`, `APP_DEBUG=false`, and `SESSION_ENCRYPT=true`.

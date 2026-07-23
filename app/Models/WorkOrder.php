@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,10 +14,11 @@ class WorkOrder extends Model
 {
     use SoftDeletes;
 
-    protected $table      = 'work_orders';   // <- แก้ตรงนี้
-    protected $primaryKey = 'job_id';
-    public $timestamps = true;
+    protected $table = 'work_orders';   // <- แก้ตรงนี้
 
+    protected $primaryKey = 'job_id';
+
+    public $timestamps = true;
 
     protected $fillable = [
         'user_id',
@@ -44,10 +45,10 @@ class WorkOrder extends Model
     protected function casts(): array
     {
         return [
-            'job_start_at'     => 'datetime',
-            'job_due_at'       => 'datetime',
+            'job_start_at' => 'datetime',
+            'job_due_at' => 'datetime',
             'job_completed_at' => 'datetime',
-            'approved_at'      => 'datetime',
+            'approved_at' => 'datetime',
             'delete_requested_at' => 'datetime',
 
         ];

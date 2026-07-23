@@ -4,11 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\TrashLog;
 use App\Models\User;
+use App\Models\WorkOrder;
 use App\Support\TrashRetention;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TrashController extends Controller
 {
@@ -40,7 +41,7 @@ class TrashController extends Controller
         $departments = $this->departmentOptions();
         $stats = [
             'total' => (clone $baseQuery)->count(),
-            'work_orders' => (clone $baseQuery)->where('entity_type', \App\Models\WorkOrder::class)->count(),
+            'work_orders' => (clone $baseQuery)->where('entity_type', WorkOrder::class)->count(),
             'users' => (clone $baseQuery)->where('entity_type', User::class)->count(),
             'expired' => (clone $baseQuery)->whereNotNull('purge_after')->where('purge_after', '<=', now())->count(),
         ];
@@ -61,7 +62,7 @@ class TrashController extends Controller
     {
         abort_unless(Auth::user()?->role === 'admin', 403);
 
-        $fileName = 'trash-report-' . now()->format('Ymd-His') . '.csv';
+        $fileName = 'trash-report-'.now()->format('Ymd-His').'.csv';
         $logs = $this->filteredQuery($request)->latest('deleted_at')->get();
 
         return response()->streamDownload(function () use ($logs) {
@@ -78,7 +79,7 @@ class TrashController extends Controller
                     $trash->deletedBy?->name ?? 'ระบบ',
                     $trash->deletedBy?->email ?? '',
                     optional($trash->deleted_at)->format('Y-m-d H:i:s'),
-                    $summary['days_left'] === null ? '-' : $summary['days_left'] . ' วัน',
+                    $summary['days_left'] === null ? '-' : $summary['days_left'].' วัน',
                     optional($trash->purge_after)->format('Y-m-d H:i:s'),
                 ]);
             }
@@ -93,11 +94,11 @@ class TrashController extends Controller
             ->when($request->filled('entity_type'), fn ($query) => $query->where('entity_type', $request->string('entity_type')))
             ->when($request->filled('deleted_by'), fn ($query) => $query->where('deleted_by', $request->integer('deleted_by')))
             ->when($request->filled('department'), function ($query) use ($request) {
-                $department = '%' . $request->string('department') . '%';
+                $department = '%'.$request->string('department').'%';
                 $query->where('payload_json', 'like', $department);
             })
             ->when($request->filled('q'), function ($query) use ($request) {
-                $search = '%' . $request->string('q') . '%';
+                $search = '%'.$request->string('q').'%';
                 $query->where(function ($inner) use ($search) {
                     $inner->where('entity_type', 'like', $search)
                         ->orWhere('entity_id', 'like', $search)

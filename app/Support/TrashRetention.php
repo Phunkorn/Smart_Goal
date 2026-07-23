@@ -19,10 +19,10 @@ class TrashRetention
         $data = self::mainPayload($trash);
 
         $name = match ($trash->entity_type) {
-            User::class => $data['name'] ?? 'พนักงาน #' . $trash->entity_id,
-            WorkOrder::class => $data['job_topic'] ?? 'งาน #' . $trash->entity_id,
-            WorkOrderList::class => $data['name'] ?? 'รายการ #' . $trash->entity_id,
-            default => $data['name'] ?? $data['job_topic'] ?? $entity . ' #' . $trash->entity_id,
+            User::class => $data['name'] ?? 'พนักงาน #'.$trash->entity_id,
+            WorkOrder::class => $data['job_topic'] ?? 'งาน #'.$trash->entity_id,
+            WorkOrderList::class => $data['name'] ?? 'รายการ #'.$trash->entity_id,
+            default => $data['name'] ?? $data['job_topic'] ?? $entity.' #'.$trash->entity_id,
         };
 
         $department = $payload['assignee']['department']['department_name']
@@ -39,7 +39,7 @@ class TrashRetention
                 default => $entity,
             },
             'name' => $name,
-            'department' => is_numeric($department) ? 'แผนก #' . $department : $department,
+            'department' => is_numeric($department) ? 'แผนก #'.$department : $department,
             'short_description' => Str::limit($name, 80),
             'days_left' => self::daysLeft($trash),
             'can_restore' => self::canRestore($trash),
@@ -51,7 +51,7 @@ class TrashRetention
         return DB::transaction(function () use ($trash) {
             $model = self::restoreModel($trash);
 
-            AuditTrail::log('restored', $model, 'Restored deleted item: ' . self::summary($trash)['name'], [
+            AuditTrail::log('restored', $model, 'Restored deleted item: '.self::summary($trash)['name'], [
                 'trash_log_id' => $trash->id,
                 'entity_type' => $trash->entity_type,
                 'entity_id' => $trash->entity_id,
@@ -131,7 +131,7 @@ class TrashRetention
             $payload = $trash->payload_json['list'] ?? [];
             abort_unless(! empty($payload), 422, 'ไม่มีข้อมูลรายการสำหรับกู้คืน');
 
-            $list = new WorkOrderList();
+            $list = new WorkOrderList;
             $list->forceFill($payload);
             $list->save();
 

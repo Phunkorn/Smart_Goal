@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
@@ -22,6 +22,7 @@ class User extends Authenticatable
         'department_id',
         'role',
         'must_change_password',
+        'is_active',
         'profile_image',
     ];
 
@@ -33,9 +34,10 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at'    => 'datetime',
-            'password'             => 'hashed',
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 

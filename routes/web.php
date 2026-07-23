@@ -1,15 +1,15 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\TaskController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TrashController;
+use App\Http\Controllers\UserController;
 use App\Models\SystemNotification;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
 /*
@@ -41,7 +41,7 @@ Route::post('/logout', [AuthController::class, 'logout'])
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::get('/setup-password', function () {
         return view('auth.setup-password');
@@ -49,7 +49,7 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/setup-password', [
         AuthController::class,
-        'updateFirstPassword'
+        'updateFirstPassword',
     ])->name('password.update.first');
 
     Route::get('/welcome', [AuthController::class, 'welcome'])
@@ -62,7 +62,7 @@ Route::middleware('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::redirect('/dashboard', '/board')
         ->name('dashboard');
@@ -146,7 +146,7 @@ Route::middleware('auth')->group(function () {
     })->where('path', '.*')->name('media.show');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::get('/reports', [ReportController::class, 'index'])
         ->name('reports.index');
@@ -180,7 +180,7 @@ Route::middleware('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::post('/my-tasks/{job_id}/status', [MyTaskController::class, 'updateStatus'])
         ->name('mytasks.updateStatus');

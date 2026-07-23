@@ -50,6 +50,23 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">สถานะบัญชี</label>
+                            <select name="is_active" class="form-select" required>
+                                <option value="1" @selected((string) old('is_active', $employee->is_active ?? true) === '1')>เปิดใช้งาน</option>
+                                <option value="0" @selected((string) old('is_active', $employee->is_active ?? true) === '0')>ปิดใช้งาน</option>
+                            </select>
+                            <div class="form-help">บัญชีที่ปิดใช้งานจะถูกออกจากทุกอุปกรณ์</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">{{ $isEdit ? 'รหัสผ่านใหม่ (เว้นว่างได้)' : 'รหัสผ่านชั่วคราว' }}</label>
+                            <input type="password" name="password" class="form-control" minlength="12" {{ $isEdit ? '' : 'required' }} autocomplete="new-password" placeholder="อย่างน้อย 12 ตัวอักษร">
+                            <div class="form-help">ต้องมีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ ตัวเลข และสัญลักษณ์</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">ยืนยันรหัสผ่าน</label>
+                            <input type="password" name="password_confirmation" class="form-control" minlength="12" {{ $isEdit ? '' : 'required' }} autocomplete="new-password" placeholder="กรอกรหัสผ่านอีกครั้ง">
+                        </div>
                         <div class="col-md-12">
                             <label class="form-label fw-bold">รูปภาพโปรไฟล์</label>
                             <input type="file" name="profile_image" class="form-control" accept="image/png,image/jpeg,image/webp" data-profile-input>

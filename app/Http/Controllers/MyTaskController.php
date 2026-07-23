@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\SystemNotification;
+use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderSubtask;
-use App\Models\User;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use Carbon\Carbon;
@@ -21,7 +21,6 @@ use Illuminate\View\View;
 class MyTaskController extends Controller
 {
     use ValidatesAttachments;
-
 
     public function index(): View|RedirectResponse
     {
@@ -126,7 +125,7 @@ class MyTaskController extends Controller
             'job_due_at' => now()->addDay(),
         ]);
 
-        AuditTrail::log('created', $workOrder, 'สร้างงานย่อย: ' . $workOrder->job_topic, [
+        AuditTrail::log('created', $workOrder, 'สร้างงานย่อย: '.$workOrder->job_topic, [
             'after' => $workOrder->attributesToArray(),
         ]);
 
@@ -171,7 +170,7 @@ class MyTaskController extends Controller
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
             'job_priority' => ['nullable', 'integer', 'in:1,2,3'],
             'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
+            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
         ]);
 
         $this->assertAllowedAttachments($request, 'attachments');
@@ -267,7 +266,7 @@ class MyTaskController extends Controller
                     ]);
                 }
 
-                AuditTrail::log('project_leader_assigned', $job, 'กำหนดหัวหน้าโปรเจกต์สำหรับงาน: ' . $job->job_topic, [
+                AuditTrail::log('project_leader_assigned', $job, 'กำหนดหัวหน้าโปรเจกต์สำหรับงาน: '.$job->job_topic, [
                     'leader_user_id' => $leaderId,
                     'work_order_list_id' => $list->id,
                     'list_user_id' => $list->user_id,
@@ -288,7 +287,7 @@ class MyTaskController extends Controller
                     ]);
                 }
 
-                AuditTrail::log('created', $job, ($sameDepartment ? 'สร้างโปรเจกต์: ' : 'ส่งคำขอเปิดงานข้ามแผนก: ') . $job->job_topic, [
+                AuditTrail::log('created', $job, ($sameDepartment ? 'สร้างโปรเจกต์: ' : 'ส่งคำขอเปิดงานข้ามแผนก: ').$job->job_topic, [
                     'after' => $job->attributesToArray(),
                 ]);
 
@@ -306,12 +305,12 @@ class MyTaskController extends Controller
 
         if ($sameDepartment) {
             if ((int) $assignee->id !== (int) $actor->id) {
-                $this->notifyUsers([$assignee->id], $job, 'task_assigned', 'มีงานใหม่', $actor->name . ' มอบหมายงาน "' . $job->job_topic . '" ให้คุณ');
+                $this->notifyUsers([$assignee->id], $job, 'task_assigned', 'มีงานใหม่', $actor->name.' มอบหมายงาน "'.$job->job_topic.'" ให้คุณ');
             }
             $message = 'เพิ่มโปรเจกต์สำเร็จ';
         } else {
             $this->notifyAdmins($job, 'cross_department_pending', 'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
-                $actor->name . ' ต้องการมอบหมายงาน "' . $job->job_topic . '" ให้ ' . $assignee->name . ' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ');
+                $actor->name.' ต้องการมอบหมายงาน "'.$job->job_topic.'" ให้ '.$assignee->name.' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ');
             $message = 'ส่งคำขอเปิดงานข้ามแผนกแล้ว รอผู้ดูแลระบบตรวจสอบก่อนเริ่มงาน';
         }
 
@@ -380,7 +379,7 @@ class MyTaskController extends Controller
         $before = $list->attributesToArray();
         $list->update(['name' => $validated['name']]);
 
-        AuditTrail::log('updated', $list, 'เปลี่ยนชื่อโปรเจกต์: ' . $list->name, [
+        AuditTrail::log('updated', $list, 'เปลี่ยนชื่อโปรเจกต์: '.$list->name, [
             'before' => $before,
             'after' => $list->fresh()->attributesToArray(),
         ]);
@@ -406,7 +405,7 @@ class MyTaskController extends Controller
                 'list' => $list->attributesToArray(),
                 'work_order_count' => $list->workOrders()->count(),
             ]);
-            AuditTrail::log('deleted', $list, 'ลบโปรเจกต์: ' . $list->name, [
+            AuditTrail::log('deleted', $list, 'ลบโปรเจกต์: '.$list->name, [
                 'before' => $list->attributesToArray(),
             ]);
 
@@ -415,7 +414,7 @@ class MyTaskController extends Controller
                     'work_order' => $workOrder->attributesToArray(),
                     'deleted_with_list' => true,
                 ]);
-                AuditTrail::log('deleted', $workOrder, 'ลบงานพร้อมโปรเจกต์: ' . $workOrder->job_topic, [
+                AuditTrail::log('deleted', $workOrder, 'ลบงานพร้อมโปรเจกต์: '.$workOrder->job_topic, [
                     'before' => $workOrder->attributesToArray(),
                 ]);
                 $workOrder->delete();
@@ -432,7 +431,7 @@ class MyTaskController extends Controller
 
     public function destroy(int $job_id): JsonResponse
     {
-        $workOrder = $this->baseWorkOrderQuery()->with(['creator', 'user', 'leader', 'collaborators'])->findOrFail($job_id);
+        $workOrder = WorkOrder::with(['creator', 'user', 'leader', 'collaborators'])->findOrFail($job_id);
         $this->authorizeWorkOrderDeletion($workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
@@ -449,7 +448,7 @@ class MyTaskController extends Controller
         AuditTrail::trash($workOrder, Auth::user(), [
             'work_order' => $workOrder->attributesToArray(),
         ]);
-        AuditTrail::log('deleted', $workOrder, 'ลบงาน: ' . $workOrder->job_topic, [
+        AuditTrail::log('deleted', $workOrder, 'ลบงาน: '.$workOrder->job_topic, [
             'before' => $workOrder->attributesToArray(),
         ]);
         $workOrder->delete();
@@ -579,7 +578,7 @@ class MyTaskController extends Controller
         $before = $workOrder->attributesToArray();
         $workOrder->update($updates);
 
-        AuditTrail::log('status_changed', $workOrder, 'เปลี่ยนสถานะงาน: ' . $workOrder->job_topic, [
+        AuditTrail::log('status_changed', $workOrder, 'เปลี่ยนสถานะงาน: '.$workOrder->job_topic, [
             'before' => $before,
             'after' => $workOrder->fresh()->attributesToArray(),
         ]);
@@ -607,7 +606,7 @@ class MyTaskController extends Controller
         $before = $workOrder->attributesToArray();
         $workOrder->update(['job_priority' => $validated['job_priority']]);
 
-        AuditTrail::log('priority_changed', $workOrder, 'เปลี่ยนความสำคัญของงาน: ' . $workOrder->job_topic, [
+        AuditTrail::log('priority_changed', $workOrder, 'เปลี่ยนความสำคัญของงาน: '.$workOrder->job_topic, [
             'before' => $before,
             'after' => $workOrder->fresh()->attributesToArray(),
         ]);
@@ -633,7 +632,7 @@ class MyTaskController extends Controller
         $before = $workOrder->attributesToArray();
         $workOrder->update(['job_due_at' => $validated['job_due_at']]);
 
-        AuditTrail::log('due_date_changed', $workOrder, 'เปลี่ยนกำหนดส่งงาน: ' . $workOrder->job_topic, [
+        AuditTrail::log('due_date_changed', $workOrder, 'เปลี่ยนกำหนดส่งงาน: '.$workOrder->job_topic, [
             'before' => $before,
             'after' => $workOrder->fresh()->attributesToArray(),
         ]);
@@ -692,7 +691,7 @@ class MyTaskController extends Controller
             'delete_request_reason' => 'ส่งคำขอจากหน้างานของฉัน',
         ])->save();
 
-        AuditTrail::log('delete_requested', $workOrder, 'ส่งคำขอลบงานที่ Admin มอบหมาย: ' . $workOrder->job_topic, [
+        AuditTrail::log('delete_requested', $workOrder, 'ส่งคำขอลบงานที่ Admin มอบหมาย: '.$workOrder->job_topic, [
             'before' => $before,
             'after' => $workOrder->fresh()->attributesToArray(),
             'requested_by' => $user->id,
@@ -702,7 +701,7 @@ class MyTaskController extends Controller
             $workOrder,
             'delete_request',
             'มีคำขอลบงาน',
-            $user->name . ' ขออนุญาตลบงาน "' . $workOrder->job_topic . '"'
+            $user->name.' ขออนุญาตลบงาน "'.$workOrder->job_topic.'"'
         );
     }
 
@@ -802,7 +801,7 @@ class MyTaskController extends Controller
                 ->where('work_order_collaborators.status', 'accepted')
                 ->exists();
 
-        abort_unless($canUpdate, 403);
+        abort_unless($user->role !== 'viewer' && $canUpdate, 403);
     }
 
     private function authorizeWorkOrderDeletion(WorkOrder $workOrder): void
@@ -814,7 +813,7 @@ class MyTaskController extends Controller
             || $workOrder->created_by === $user->id
             || $workOrder->leader_user_id === $user->id;
 
-        abort_unless($canDelete, 403);
+        abort_unless($user->role !== 'viewer' && $canDelete, 403);
     }
 
     private function canManageList(WorkOrderList $list, User $user): bool

@@ -20,7 +20,7 @@
                     <label class="form-label fw-bold">รหัสผ่านชั่วคราว</label>
                     <div class="input-group">
                         <input type="text" name="password" id="resetPasswordInput{{ $employee->id }}"
-                            class="form-control" minlength="6" required placeholder="เช่น Master12345">
+                            class="form-control" minlength="12" required placeholder="อย่างน้อย 12 ตัวอักษร">
                         <button type="button" class="mini-btn" onclick="generateTempPassword({{ $employee->id }})">
                             <i class="bi bi-shuffle"></i> สุ่มรหัส
                         </button>

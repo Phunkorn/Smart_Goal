@@ -91,7 +91,7 @@ class ReportController extends Controller
 
         return $this->downloadJobsCsv(
             WorkOrder::with(['user', 'department'])->orderBy('job_id'),
-            'smart-goals-report-' . now()->format('Ymd-His') . '.csv'
+            'smart-goals-report-'.now()->format('Ymd-His').'.csv'
         );
     }
 
@@ -207,7 +207,7 @@ class ReportController extends Controller
     {
         return $this->downloadJobsCsv(
             $this->personalJobsQuery($user->id)->with(['user', 'department'])->whereYear('created_at', $year)->orderBy('job_id'),
-            'smart-goals-' . $user->id . '-' . $year . '.csv'
+            'smart-goals-'.$user->id.'-'.$year.'.csv'
         );
     }
 
@@ -215,19 +215,19 @@ class ReportController extends Controller
     {
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($handle, ['เลขงาน', 'ชื่องาน', 'ผู้รับผิดชอบ', 'แผนก', 'สถานะอนุมัติ', 'สถานะงาน', 'ความคืบหน้า', 'วันที่เริ่ม', 'กำหนดส่ง', 'วันที่เสร็จ']);
 
             $query->chunk(200, function ($jobs) use ($handle) {
                 foreach ($jobs as $job) {
                     fputcsv($handle, [
-                        'IT-' . $job->job_id,
+                        'IT-'.$job->job_id,
                         $job->job_topic,
                         optional($job->user)->name,
                         optional($job->department)->department_name,
                         $this->approvalLabel($job->approval_status),
                         $this->statusLabel((int) $job->job_status),
-                        $job->job_progress . '%',
+                        $job->job_progress.'%',
                         optional($job->job_start_at)->format('Y-m-d H:i'),
                         optional($job->job_due_at)->format('Y-m-d H:i'),
                         optional($job->job_completed_at)->format('Y-m-d H:i'),

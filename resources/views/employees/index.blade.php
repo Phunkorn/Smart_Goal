@@ -435,11 +435,12 @@
 @push('scripts')
     <script>
         function generateTempPassword(employeeId) {
-            const words = ['Master', 'Smart', 'Goal', 'Premium', 'Care', 'Team'];
+            const words = ['SmartGoal', 'PremiumCare', 'SecureTeam'];
             const word = words[Math.floor(Math.random() * words.length)];
-            const digits = Math.floor(1000 + Math.random() * 9000);
+            const digits = crypto.getRandomValues(new Uint32Array(1))[0].toString().slice(-5);
             const input = document.getElementById('resetPasswordInput' + employeeId);
-            if (input) input.value = word + digits;
+            const password = word + '!' + digits;
+            if (input) input.value = password;
         }
 
         function filterEmployees(value) {

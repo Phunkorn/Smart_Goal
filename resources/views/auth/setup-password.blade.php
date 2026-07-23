@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -365,7 +365,8 @@
                 </div>
 
                 <div class="rules" aria-live="polite">
-                    <div class="rule" id="rule-length"><i class="bi bi-circle"></i> อย่างน้อย 8 ตัวอักษร</div>
+                    <div class="rule" id="rule-length"><i class="bi bi-circle"></i> อย่างน้อย 12 ตัวอักษร</div>
+                    <div class="rule" id="rule-complexity"><i class="bi bi-circle"></i> มีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ ตัวเลข และสัญลักษณ์</div>
                     <div class="rule" id="rule-match"><i class="bi bi-circle"></i> รหัสผ่านทั้งสองช่องต้องตรงกัน</div>
                 </div>
 
@@ -394,12 +395,14 @@
         function checkPassword() {
             const password = document.getElementById('password').value;
             const confirmation = document.getElementById('password_confirmation').value;
-            const hasLength = password.length >= 8;
+            const hasLength = password.length >= 12;
+            const hasComplexity = /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
             const isMatched = password.length > 0 && password === confirmation;
 
             setRule('rule-length', hasLength);
+            setRule('rule-complexity', hasComplexity);
             setRule('rule-match', isMatched);
-            document.getElementById('submitBtn').disabled = !(hasLength && isMatched);
+            document.getElementById('submitBtn').disabled = !(hasLength && hasComplexity && isMatched);
         }
     </script>
 </body>

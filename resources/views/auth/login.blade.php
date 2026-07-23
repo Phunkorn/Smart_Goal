@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
@@ -278,7 +278,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('login.submit') }}">
+            <form method="POST" action="{{ route('login.submit') }}" data-login-form>
                 @csrf
 
                 <div class="field">
@@ -300,7 +300,14 @@
                     </div>
                 </div>
 
-                <button type="submit" class="submit">เข้าสู่ระบบ</button>
+                <div class="form-row">
+                    <label class="remember" for="remember">
+                        <input type="checkbox" id="remember" name="remember" value="1">
+                        จดจำการเข้าสู่ระบบ
+                    </label>
+                </div>
+
+                <button type="submit" class="submit" data-submit>เข้าสู่ระบบ</button>
             </form>
         </section>
     </main>
@@ -314,6 +321,12 @@
             icon.classList.toggle('bi-eye', !isHidden);
             icon.classList.toggle('bi-eye-slash', isHidden);
         }
+
+        document.querySelector('[data-login-form]').addEventListener('submit', function () {
+            const button = this.querySelector('[data-submit]');
+            button.disabled = true;
+            button.textContent = 'กำลังเข้าสู่ระบบ…';
+        });
     </script>
 </body>
 </html>
