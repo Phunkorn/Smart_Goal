@@ -1,0 +1,31 @@
+.report-page { max-width:1440px; margin:0 auto; }
+    .report-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:18px; }
+    .report-head h1 { margin:0; font-size:30px; font-weight:850; }
+    .report-head p { margin:6px 0 0; color:var(--text-muted); }
+    .export-btn { min-height:42px; border-radius:12px; border:0; background:var(--green); color:#fff; padding:0 16px; display:inline-flex; align-items:center; gap:8px; font-weight:800; text-decoration:none; }
+    .metric-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+    .metric { background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:var(--shadow-sm); }
+    .metric .label { color:var(--text-muted); font-size:12px; font-weight:800; }
+    .metric .value { font-size:30px; font-weight:850; margin-top:4px; }
+    .report-grid { display:grid; grid-template-columns:minmax(0,1fr) 420px; gap:16px; align-items:start; }
+    .report-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:18px; box-shadow:var(--shadow-sm); min-width:0; }
+    .report-card h2 { font-size:17px; font-weight:850; margin:0 0 4px; }
+    .desc { color:var(--text-muted); font-size:13px; margin-bottom:16px; }
+    .bar-list, .dept-list, .employee-list { display:grid; gap:12px; }
+    .bar-row { display:grid; grid-template-columns:130px minmax(0,1fr) 44px; gap:10px; align-items:center; }
+    .bar-label { font-weight:800; font-size:13px; }
+    .track { height:12px; border-radius:999px; background:var(--surface-2); overflow:hidden; }
+    .fill { height:100%; border-radius:999px; width:var(--w); }
+    .tone-gray { background:#94a3b8; } .tone-blue { background:#2563eb; } .tone-purple { background:#7c3aed; }
+    .tone-green { background:#079455; } .tone-amber { background:#f59e0b; } .tone-red { background:#dc2626; }
+    .dept-card, .employee-row { border:1px solid var(--border); border-radius:12px; padding:13px; }
+    .employee-report-link { color:inherit; text-decoration:none; }
+    .row-title { display:flex; justify-content:space-between; gap:12px; font-weight:850; }
+    .mini { color:var(--text-muted); font-size:12px; margin-top:6px; display:flex; flex-wrap:wrap; gap:10px; }
+    .month-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; align-items:end; min-height:220px; }
+    .month-col { display:grid; gap:8px; align-content:end; text-align:center; color:var(--text-muted); font-size:12px; }
+    .month-bars { height:150px; display:flex; align-items:end; justify-content:center; gap:5px; }
+    .month-bar { width:16px; border-radius:8px 8px 2px 2px; min-height:4px; }
+    @media (max-width:1200px){ .metric-grid{grid-template-columns:repeat(2,1fr);} .report-grid{grid-template-columns:1fr;} }
+    @media (max-width:760px){ .report-head{align-items:flex-start;flex-direction:column;} .metric-grid,.month-grid{grid-template-columns:1fr;} .bar-row{grid-template-columns:1fr;} }
+
