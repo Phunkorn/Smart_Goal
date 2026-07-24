@@ -10,6 +10,7 @@ use App\Models\WorkOrderList;
 use App\Models\WorkOrderUpdate;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
+use App\Support\WorkOrderApprovalResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -42,7 +43,7 @@ class TaskController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
+        $this->authorize('viewAny', WorkOrder::class);
 
         $currentDeptId = $request->integer('department_id') ?: null;
         $currentAssignee = $request->integer('assignee') ?: null;
@@ -128,7 +129,7 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'user'], true), 403);
+        $this->authorize('create', WorkOrder::class);
 
         $validated = $request->validate([
             'job_topic' => ['required', 'string', 'max:255'],
@@ -150,7 +151,12 @@ class TaskController extends Controller
         $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
         abort_unless($assignee, 422);
 
-        $job = DB::transaction(function () use ($validated, $actor, $assignee, $request) {
+        // กติกาการอนุมัติ (approval_status / approved_by / approved_at / leader_user_id)
+        // คำนวณจาก WorkOrderApprovalResolver ตัวเดียวกับที่ MyTaskController::store() ใช้
+        // เพื่อไม่ให้ logic เพี้ยนกันไปคนละทางระหว่างสองช่องทางสร้างงาน
+        $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
+
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $request, $approval) {
             $initialStatus = (int) ($validated['job_status'] ?? 1);
             $projectList = null;
 
@@ -167,16 +173,16 @@ class TaskController extends Controller
             $job = WorkOrder::create([
                 'user_id' => $assignee->id,
                 'created_by' => $actor->id,
-                'leader_user_id' => $actor->role === 'admin' ? $assignee->id : $actor->id,
+                'leader_user_id' => $approval['leader_user_id'],
                 'department_id' => $validated['department_id'] ?? $assignee->department_id,
                 'work_order_list_id' => $projectList?->id,
                 'job_topic' => $validated['job_topic'],
                 'job_details' => $validated['job_details'] ?? null,
                 'job_priority' => $validated['job_priority'] ?? 2,
                 'job_status' => $initialStatus,
-                'approval_status' => $actor->role === 'admin' ? 'approved' : 'pending',
-                'approved_by' => $actor->role === 'admin' ? $actor->id : null,
-                'approved_at' => $actor->role === 'admin' ? now() : null,
+                'approval_status' => $approval['approval_status'],
+                'approved_by' => $approval['approved_by'],
+                'approved_at' => $approval['approved_at'],
                 'job_progress' => $initialStatus === 4 ? 100 : 0,
                 'job_start_at' => Carbon::parse($validated['job_start_at']),
                 'job_due_at' => Carbon::parse($validated['job_due_at']),
@@ -202,6 +208,10 @@ class TaskController extends Controller
 
             if ($actor->role === 'admin') {
                 $this->notifyJobMembers($job, 'admin_created_task', 'มีงานใหม่', 'ผู้ดูแลระบบมอบหมายงาน "'.$job->job_topic.'" ให้คุณ');
+            } elseif (! $approval['same_department']) {
+                // มอบหมายข้ามแผนก -> ต้องแจ้งเตือน admin ทุกคนให้เข้ามาอนุมัติ/ปฏิเสธ
+                $this->notifyAdmins($job, 'cross_department_pending', 'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
+                    $actor->name.' ต้องการมอบหมายงาน "'.$job->job_topic.'" ให้ '.$assignee->name.' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ');
             }
 
             return $job;
@@ -214,7 +224,9 @@ class TaskController extends Controller
 
         $message = Auth::user()->role === 'admin'
             ? 'เพิ่มงานสำเร็จ'
-            : 'ส่งคำขอเปิดงานแล้ว รอผู้ดูแลระบบอนุมัติ';
+            : ($approval['same_department']
+                ? 'เพิ่มงานสำเร็จ'
+                : 'ส่งคำขอเปิดงานแล้ว รอผู้ดูแลระบบอนุมัติ');
 
         return redirect()->route(Auth::user()->role === 'admin' ? 'board.index' : 'mytasks.index')
             ->with('success', $message);
@@ -234,13 +246,9 @@ class TaskController extends Controller
         ])->findOrFail($id);
 
         $user = Auth::user();
-        $canView = in_array($user?->role, ['admin', 'viewer'], true)
-            || in_array($user?->id, [$job->user_id, $job->created_by, $job->leader_user_id], true)
-            || $job->collaborators->contains('id', $user?->id);
+        $this->authorize('view', $job);
 
-        abort_unless($canView, 403);
-
-        $canManageTeam = $this->canManageTeam($job, $user);
+        $canManageTeam = $user->can('manageTeam', $job);
 
         $availableCollaborators = User::with('department')
             ->where('role', '!=', 'viewer')
@@ -260,11 +268,7 @@ class TaskController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $canUpdate = $user?->role === 'admin'
-            || in_array($user?->id, [$job->user_id, $job->created_by, $job->leader_user_id], true)
-            || $job->collaborators->contains(fn ($person) => $person->id === $user?->id && $person->pivot?->status === 'accepted');
-
-        abort_unless($user?->role !== 'viewer' && $canUpdate, 403);
+        $this->authorize('update', $job);
 
         $validated = $request->validate([
             'job_status' => ['required', 'integer', 'in:1,2,3,4,5'],
@@ -314,11 +318,7 @@ class TaskController extends Controller
         $job = WorkOrder::with(['collaborators', 'images'])->findOrFail($id);
         $user = Auth::user();
 
-        $canUpload = $user?->role === 'admin'
-            || in_array($user?->id, [$job->user_id, $job->created_by, $job->leader_user_id], true)
-            || $job->collaborators->contains(fn ($person) => $person->id === $user?->id && $person->pivot?->status === 'accepted');
-
-        abort_unless($canUpload, 403);
+        $this->authorize('update', $job);
         abort_if((int) $job->job_status === 4 && $user?->role !== 'admin', 403);
 
         $request->validate([
@@ -345,7 +345,7 @@ class TaskController extends Controller
     public function addCollaborators(Request $request, $id)
     {
         $job = WorkOrder::with(['collaborators', 'user.department', 'leader.department'])->findOrFail($id);
-        abort_unless($this->canManageTeam($job, Auth::user()), 403);
+        $this->authorize('manageTeam', $job);
         abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
 
         $validated = $request->validate([
@@ -419,7 +419,7 @@ class TaskController extends Controller
     public function removeCollaborator(Request $request, $id, User $user)
     {
         $job = WorkOrder::with(['collaborators', 'user', 'leader'])->findOrFail($id);
-        abort_unless($this->canManageTeam($job, Auth::user()), 403);
+        $this->authorize('manageTeam', $job);
         abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
         abort_if(in_array($user->id, [$job->user_id, $job->created_by, $job->leader_user_id], true), 422, 'ไม่สามารถลบผู้รับผิดชอบหลักหรือหัวหน้างานออกจากทีมได้');
 
@@ -446,8 +446,7 @@ class TaskController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $canUpdate = $this->canWorkOnJob($job, $user);
-        abort_unless($canUpdate, 403);
+        $this->authorize('update', $job);
 
         if ($job->approval_status !== 'approved') {
             return $this->jsonOrBack($request, false, 'งานนี้ยังไม่ได้รับอนุมัติ', 422);
@@ -500,7 +499,7 @@ class TaskController extends Controller
         $job = WorkOrder::with(['collaborators', 'user', 'creator', 'leader'])->findOrFail($id);
         $user = Auth::user();
 
-        abort_unless($this->canWorkOnJob($job, $user), 403);
+        $this->authorize('update', $job);
 
         if ((int) $job->job_status === 4) {
             return $this->jsonOrBack($request, false, 'งานนี้ปิดแล้ว ไม่สามารถขอลบได้', 422);
@@ -536,9 +535,8 @@ class TaskController extends Controller
 
     public function approveDeleteRequest(Request $request, $id)
     {
-        abort_unless(Auth::user()?->role === 'admin', 403);
-
         $job = WorkOrder::with(['user', 'creator', 'leader', 'collaborators'])->findOrFail($id);
+        $this->authorize('delete', $job);
 
         if (! $job->delete_requested_at) {
             return $this->jsonOrBack($request, false, 'งานนี้ไม่มีคำขอลบ', 422);
@@ -570,9 +568,8 @@ class TaskController extends Controller
 
     public function rejectDeleteRequest(Request $request, $id)
     {
-        abort_unless(Auth::user()?->role === 'admin', 403);
-
         $job = WorkOrder::with(['user', 'creator', 'leader', 'collaborators', 'deleteRequester'])->findOrFail($id);
+        $this->authorize('delete', $job);
 
         if (! $job->delete_requested_at) {
             return $this->jsonOrBack($request, false, 'งานนี้ไม่มีคำขอลบ', 422);
@@ -618,7 +615,7 @@ class TaskController extends Controller
 
     public function updateApproval(Request $request, $id)
     {
-        abort_unless(Auth::user()?->role === 'admin', 403);
+        $this->authorize('approve', WorkOrder::class);
 
         $validated = $request->validate([
             'approval_status' => ['required', 'in:approved,rejected'],
@@ -658,9 +655,9 @@ class TaskController extends Controller
 
     public function destroy($id)
     {
-        abort_unless(Auth::user()?->role === 'admin', 403);
-
         $job = WorkOrder::with(['user', 'creator', 'leader', 'collaborators'])->findOrFail($id);
+        $this->authorize('delete', $job);
+
         AuditTrail::trash($job, Auth::user(), [
             'work_order' => $job->attributesToArray(),
             'assignee' => $job->user?->only(['id', 'name', 'email']),
@@ -723,6 +720,29 @@ class TaskController extends Controller
         }
     }
 
+    private function notifyAdmins(WorkOrder $job, string $type, string $title, string $message): void
+    {
+        $adminIds = User::where('role', 'admin')->pluck('id')->all();
+
+        $this->notifyUsers($adminIds, $job, $type, $title, $message);
+    }
+
+    private function notifyUsers(array $userIds, WorkOrder $job, string $type, string $title, string $message): void
+    {
+        $safeTitle = Str::limit(strip_tags($title), 120, '');
+        $safeMessage = Str::limit(strip_tags($message), 1000, '');
+
+        foreach (collect($userIds)->filter()->unique() as $userId) {
+            SystemNotification::create([
+                'user_id' => $userId,
+                'work_order_id' => $job->job_id,
+                'type' => $type,
+                'title' => $safeTitle,
+                'message' => $safeMessage,
+            ]);
+        }
+    }
+
     private function notifyJobDeleted(WorkOrder $job, string $message): void
     {
         $job->loadMissing('collaborators');
@@ -743,30 +763,6 @@ class TaskController extends Controller
                 'message' => Str::limit(strip_tags($message), 1000, ''),
             ]);
         }
-    }
-
-    private function canWorkOnJob(WorkOrder $job, ?User $user): bool
-    {
-        if (! $user) {
-            return false;
-        }
-
-        if ($user->role === 'admin') {
-            return true;
-        }
-
-        return in_array($user->id, [$job->user_id, $job->created_by, $job->leader_user_id], true)
-            || $job->collaborators->contains(fn ($person) => $person->id === $user->id && $person->pivot?->status === 'accepted');
-    }
-
-    private function canManageTeam(WorkOrder $job, ?User $user): bool
-    {
-        if (! $user) {
-            return false;
-        }
-
-        return $user->role === 'admin'
-            || in_array($user->id, [$job->created_by, $job->leader_user_id], true);
     }
 
     private function jsonOrBack(Request $request, bool $ok, string $message, int $status = 200)

@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\EnsurePasswordHasBeenChanged;
+use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => AdminOnly::class,
             'active' => EnsureUserIsActive::class,
             'password.changed' => EnsurePasswordHasBeenChanged::class,
+            'role' => EnsureRole::class,
         ]);
 
     })

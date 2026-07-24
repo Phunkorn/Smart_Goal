@@ -9,6 +9,7 @@ use App\Models\WorkOrderList;
 use App\Models\WorkOrderSubtask;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
+use App\Support\WorkOrderApprovalResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -89,7 +90,7 @@ class MyTaskController extends Controller
     {
         $user = Auth::user();
 
-        abort_if($user->role === 'viewer', 403);
+        $this->authorize('create', WorkOrder::class);
 
         $taskLists = $this->taskListsForCurrentUser();
 
@@ -149,7 +150,7 @@ class MyTaskController extends Controller
     {
         $actor = Auth::user();
 
-        abort_if($actor->role === 'viewer', 403);
+        $this->authorize('create', WorkOrder::class);
 
         $validated = $request->validate([
             'project_name' => ['nullable', 'string', 'max:80'],
@@ -217,14 +218,14 @@ class MyTaskController extends Controller
         $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
         abort_unless($assignee && $assignee->role !== 'viewer', 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
 
-        $sameDepartment = (int) $assignee->id === (int) $actor->id
-            || ($assignee->department_id && $actor->department_id
-                && (int) $assignee->department_id === (int) $actor->department_id);
+        // กติกาการอนุมัติ (approval_status / approved_by / approved_at / leader_user_id)
+        // คำนวณจาก WorkOrderApprovalResolver ตัวเดียวกับที่ TaskController::store() ใช้
+        // เพื่อไม่ให้ logic เพี้ยนกันไปคนละทางระหว่างสองช่องทางสร้างงาน
+        $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
+        $sameDepartment = $approval['same_department'];
 
-        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $request, $projectItems) {
-            $leaderId = $sameDepartment && (int) $assignee->id !== (int) $actor->id
-                ? $assignee->id
-                : $actor->id;
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $approval, $request, $projectItems) {
+            $leaderId = $approval['leader_user_id'];
             $firstItem = $projectItems->first();
             $projectName = trim((string) ($validated['project_name'] ?? '')) ?: $firstItem['job_topic'];
 
@@ -249,9 +250,9 @@ class MyTaskController extends Controller
                     'job_details' => $item['job_details'] ?: null,
                     'job_priority' => $validated['job_priority'] ?? 2,
                     'job_status' => 1,
-                    'approval_status' => $sameDepartment ? 'approved' : 'pending',
-                    'approved_by' => $sameDepartment ? $actor->id : null,
-                    'approved_at' => $sameDepartment ? now() : null,
+                    'approval_status' => $approval['approval_status'],
+                    'approved_by' => $approval['approved_by'],
+                    'approved_at' => $approval['approved_at'],
                     'job_progress' => 0,
                     'job_start_at' => Carbon::parse($validated['job_start_at']),
                     'job_due_at' => Carbon::parse($validated['job_due_at']),
@@ -327,7 +328,7 @@ class MyTaskController extends Controller
     {
         $user = Auth::user();
 
-        abort_if($user->role === 'viewer', 403);
+        $this->authorize('create', WorkOrderList::class);
 
         $validated = $request->validate([
             'name' => 'required|string|max:80',
@@ -349,7 +350,7 @@ class MyTaskController extends Controller
 
     public function toggleList(Request $request, WorkOrderList $list): JsonResponse
     {
-        abort_unless($list->user_id === Auth::id(), 403);
+        $this->authorize('toggle', $list);
 
         $validated = $request->validate([
             'is_visible' => 'required|boolean',
@@ -368,8 +369,7 @@ class MyTaskController extends Controller
     {
         $user = Auth::user();
 
-        abort_if($user->role === 'viewer', 403);
-        abort_unless($this->canManageList($list, $user), 403);
+        $this->authorize('manage', $list);
         abort_if($this->listIsCompleted($list) && $user->role !== 'admin', 403);
 
         $validated = $request->validate([
@@ -396,8 +396,7 @@ class MyTaskController extends Controller
     {
         $user = Auth::user();
 
-        abort_if($user->role === 'viewer', 403);
-        abort_unless($this->canManageList($list, $user), 403);
+        $this->authorize('manage', $list);
         abort_if($this->listIsCompleted($list) && $user->role !== 'admin', 403);
 
         DB::transaction(function () use ($list, $user) {
@@ -432,7 +431,7 @@ class MyTaskController extends Controller
     public function destroy(int $job_id): JsonResponse
     {
         $workOrder = WorkOrder::with(['creator', 'user', 'leader', 'collaborators'])->findOrFail($job_id);
-        $this->authorizeWorkOrderDeletion($workOrder);
+        $this->authorize('deleteOwn', $workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         if ($workOrder->creator?->role === 'admin' && Auth::user()?->role !== 'admin') {
@@ -462,7 +461,7 @@ class MyTaskController extends Controller
     public function toggleComplete(Request $request, int $job_id): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorizeWorkOrderAccess($workOrder);
+        $this->authorize('update', $workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         $validated = $request->validate([
@@ -505,7 +504,7 @@ class MyTaskController extends Controller
     public function storeSubtask(Request $request, int $job_id): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorizeWorkOrderAccess($workOrder);
+        $this->authorize('update', $workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         $validated = $request->validate([
@@ -529,7 +528,7 @@ class MyTaskController extends Controller
     public function toggleSubtask(Request $request, WorkOrderSubtask $subtask): JsonResponse
     {
         $subtask->load('workOrder.collaborators');
-        $this->authorizeWorkOrderAccess($subtask->workOrder);
+        $this->authorize('update', $subtask->workOrder);
         abort_if($this->isCompletedLocked($subtask->workOrder), 403);
 
         $validated = $request->validate([
@@ -552,7 +551,7 @@ class MyTaskController extends Controller
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorizeWorkOrderAccess($workOrder);
+        $this->authorize('update', $workOrder);
 
         if ((int) $workOrder->job_status === 4 && (int) $validated['job_status'] !== 4 && Auth::user()?->role !== 'admin') {
             return response()->json([
@@ -598,7 +597,7 @@ class MyTaskController extends Controller
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorizeWorkOrderAccess($workOrder);
+        $this->authorize('update', $workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         abort_if((int) $workOrder->job_status === 4 && Auth::user()?->role !== 'admin', 422, 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนความสำคัญได้');
@@ -626,7 +625,7 @@ class MyTaskController extends Controller
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorizeWorkOrderAccess($workOrder);
+        $this->authorize('update', $workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         $before = $workOrder->attributesToArray();
@@ -786,39 +785,6 @@ class MyTaskController extends Controller
         }
 
         return $query;
-    }
-
-    private function authorizeWorkOrderAccess(WorkOrder $workOrder): void
-    {
-        $user = Auth::user();
-
-        $canUpdate = $user->role === 'admin'
-            || $workOrder->user_id === $user->id
-            || $workOrder->created_by === $user->id
-            || $workOrder->leader_user_id === $user->id
-            || $workOrder->collaborators()
-                ->where('users.id', $user->id)
-                ->where('work_order_collaborators.status', 'accepted')
-                ->exists();
-
-        abort_unless($user->role !== 'viewer' && $canUpdate, 403);
-    }
-
-    private function authorizeWorkOrderDeletion(WorkOrder $workOrder): void
-    {
-        $user = Auth::user();
-
-        $canDelete = $user->role === 'admin'
-            || $workOrder->user_id === $user->id
-            || $workOrder->created_by === $user->id
-            || $workOrder->leader_user_id === $user->id;
-
-        abort_unless($user->role !== 'viewer' && $canDelete, 403);
-    }
-
-    private function canManageList(WorkOrderList $list, User $user): bool
-    {
-        return $user->role === 'admin' || (int) $list->user_id === (int) $user->id;
     }
 
     private function isCompletedLocked(WorkOrder $workOrder): bool
