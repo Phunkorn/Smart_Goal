@@ -2,6 +2,10 @@
 
 @section('title', 'รายละเอียดพนักงาน')
 
+@push('styles')
+    @vite('resources/css/pages/employee-show.css')
+@endpush
+
 @section('content')
 
     @php
@@ -30,14 +34,14 @@
     <div class="page-head">
         <div>
             <span class="eyebrow">
-                <a href="{{ route('employees.index') }}" style="color:var(--accent);">
+                <a href="{{ route('employees.index') }}" class="employee-back-link">
                     <i class="bi bi-arrow-left me-1"></i>พนักงานทั้งหมด
                 </a>
             </span>
             <h1>{{ $user->name }}</h1>
             <p>{{ $user->position ?? '-' }} · {{ optional($user->department)->department_name ?? '-' }}</p>
         </div>
-        <span class="badge-soft {{ $statusInfo['tone'] }}" style="font-size:.78rem;padding:.45rem .8rem;">
+        <span class="badge-soft {{ $statusInfo['tone'] }} employee-status-pill">
             <span class="status-dot"></span> {{ $statusInfo['label'] }}
         </span>
     </div>
@@ -46,33 +50,31 @@
         {{-- Left Panel --}}
         <div class="col-xl-4">
             <div class="panel mb-3 text-center">
-<div class="avatar mx-auto mb-3"
-    style="width:72px;height:72px;padding:0;border-radius:50%;overflow:hidden;">
+<div class="avatar mx-auto mb-3 employee-show-avatar">
 
     @if($user->profile_image)
         <img
             src="{{ route('media.show', ['path' => $user->profile_image]) }}"
-            alt="{{ $user->name }}"
-            style="width:100%;height:100%;object-fit:cover;">
+            alt="{{ $user->name }}">
     @else
         {{ $initials }}
     @endif
 
 </div>
-                <div style="font-weight:700;font-size:1.05rem;">{{ $user->name }}</div>
-                <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:1rem;">
+                <div class="employee-profile-name">{{ $user->name }}</div>
+                <div class="employee-profile-department">
                     {{ $user->department?->department_name ?? '-' }} </div>
-                <div class="text-start" style="font-size:.84rem;">
-                    <div class="d-flex align-items-center gap-2 py-2" style="border-top:1px solid var(--border);">
-                        <i class="bi bi-envelope-fill" style="color:var(--text-muted);"></i>
+                <div class="text-start employee-contact-list">
+                    <div class="d-flex align-items-center gap-2 py-2 employee-contact-row">
+                        <i class="bi bi-envelope-fill"></i>
                         {{ $user->email }}
                     </div>
-                    <div class="d-flex align-items-center gap-2 py-2" style="border-top:1px solid var(--border);">
-                        <i class="bi bi-telephone-fill" style="color:var(--text-muted);"></i>
+                    <div class="d-flex align-items-center gap-2 py-2 employee-contact-row">
+                        <i class="bi bi-telephone-fill"></i>
                         {{ $user->phone ?? '-' }}
                     </div>
-                    <div class="d-flex align-items-center gap-2 py-2" style="border-top:1px solid var(--border);">
-                        <i class="bi bi-calendar-check-fill" style="color:var(--text-muted);"></i>
+                    <div class="d-flex align-items-center gap-2 py-2 employee-contact-row">
+                        <i class="bi bi-calendar-check-fill"></i>
                         เข้าทำงานเมื่อ {{ $joined }}
                     </div>
                 </div>
@@ -100,23 +102,22 @@
             {{-- งานที่กำลังทำ --}}
             <div class="panel mb-3">
                 <div class="panel-head">
-                    <h2><i class="bi bi-broadcast-pin me-1" style="color:var(--green);"></i> งานที่กำลังทำอยู่</h2>
+                    <h2><i class="bi bi-broadcast-pin me-1 employee-active-icon"></i> งานที่กำลังทำอยู่</h2>
                 </div>
 
                 @if ($activeJob)
-                    <div class="d-flex align-items-center justify-content-between p-3 rounded"
-                        style="border:1px solid var(--border); border-left:3px solid var(--green); background:var(--surface-2);">
+                    <div class="d-flex align-items-center justify-content-between p-3 rounded employee-active-card">
                         <div>
                             <span class="ticket-id">IT-{{ $activeJob->job_id }}</span>
-                            <div style="font-weight:600;margin-top:.2rem;">{{ $activeJob->job_topic }}</div>
-                            <div style="font-size:.76rem;color:var(--text-muted);margin-top:.2rem;">
+                            <div class="employee-active-title">{{ $activeJob->job_topic }}</div>
+                            <div class="employee-active-meta">
                                 เริ่มเมื่อ {{ \Carbon\Carbon::parse($activeJob->job_start_at)->diffForHumans() }}
                             </div>
                         </div>
                         <a href="{{ route('tasks.show', $activeJob->job_id) }}" class="btn-outline-line">ดูงาน</a>
                     </div>
                 @else
-                    <p style="color:var(--text-muted);font-size:.85rem;">ไม่มีงานที่กำลังดำเนินการอยู่</p>
+                    <p class="employee-muted-text">ไม่มีงานที่กำลังดำเนินการอยู่</p>
                 @endif
             </div>
 
@@ -153,7 +154,7 @@
                         </tbody>
                     </table>
                 @else
-                    <p style="color:var(--text-muted);font-size:.85rem;">ยังไม่มีประวัติงาน</p>
+                    <p class="employee-muted-text">ยังไม่มีประวัติงาน</p>
                 @endif
             </div>
 
