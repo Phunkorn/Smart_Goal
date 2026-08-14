@@ -263,6 +263,37 @@ class TaskController extends Controller
         return view('tasks.show', compact('job', 'availableCollaborators', 'canManageTeam'));
     }
 
+    public function updateDetails(Request $request, $id)
+    {
+        $job = WorkOrder::with('collaborators')->findOrFail($id);
+        $user = Auth::user();
+
+        $this->authorize('update', $job);
+
+        if ((int) $job->job_status === 4 && $user?->role !== 'admin') {
+            return $this->jsonOrBack($request, false, 'งานนี้ปิดแล้ว ไม่สามารถแก้ไขรายละเอียดได้', 422);
+        }
+
+        $validated = $request->validate([
+            'job_topic' => ['required', 'string', 'max:255'],
+            'job_details' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $before = $job->attributesToArray();
+        $job->job_topic = trim($validated['job_topic']);
+        $job->job_details = isset($validated['job_details'])
+            ? trim($validated['job_details'])
+            : null;
+        $job->save();
+        $job->refresh();
+
+        AuditTrail::log('updated', $job, 'แก้ไขรายละเอียดงาน: '.$job->job_topic, [
+            'before' => $before,
+            'after' => $job->attributesToArray(),
+        ]);
+
+        return $this->jsonOrBack($request, true, 'บันทึกรายละเอียดงานสำเร็จ');
+    }
     public function updateStatus(Request $request, $id)
     {
         $job = WorkOrder::with('collaborators')->findOrFail($id);

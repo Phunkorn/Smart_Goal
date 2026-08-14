@@ -225,6 +225,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/my-tasks', [MyTaskController::class, 'index'])
         ->name('mytasks.index');
 
+    Route::get('/tasks/demo-notion', function () {
+        return view('tasks.demo-notion');
+    })->name('tasks.demoNotion');
+
     // ตั้งใจเปิดให้ role admin และ user เรียก endpoint นี้ได้ทั้งคู่ (ไม่ใช่ admin เท่านั้น)
     // เพราะ user ก็ต้องมอบหมาย/ขอเปิดงานให้ตัวเองหรือเพื่อนร่วมงานได้ผ่านหน้านี้เช่นกัน
     // (user ต่างแผนกจะถูกบังคับเป็น approval_status = 'pending' โดย TaskController::store()
@@ -233,6 +237,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/tasks', [TaskController::class, 'store'])
         ->middleware('role:admin,user')
         ->name('tasks.store');
+
+    Route::patch('/tasks/{id}/details', [TaskController::class, 'updateDetails'])
+        ->middleware('role:admin,user')
+        ->name('tasks.details.update');
 
     Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])
         ->name('tasks.updateStatus');

@@ -1463,3 +1463,304 @@
         width:0%;
     }
 
+
+/* ===== My Tasks: project card readability refresh (2026-07-30) ===== */
+.tasks-page .task-board {
+    gap: 22px;
+}
+
+.tasks-page .task-group {
+    border: 1px solid #dfe6f1;
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(23, 43, 77, .07);
+    overflow: hidden;
+}
+
+.tasks-page .group-head {
+    display: grid;
+    gap: 16px;
+    min-height: 0;
+    padding: 18px 20px 16px;
+    border-left-width: 5px;
+    border-bottom: 1px solid #e8edf5;
+    background: #fff;
+}
+
+.tasks-page .group-head.project-priority-high,
+.tasks-page .group-head.project-priority-medium,
+.tasks-page .group-head.project-priority-low {
+    background: #fff;
+}
+
+.tasks-page .group-primary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.tasks-page .group-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 12px;
+}
+
+.tasks-page .group-toggle {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border: 1px solid #dce5f2;
+    border-radius: 10px;
+    background: #f8fbff;
+    color: #3472c7;
+}
+
+.tasks-page .group-toggle:hover {
+    background: #eaf3ff;
+    border-color: #bdd5f5;
+}
+
+.tasks-page .group-title-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.tasks-page .group-title-line {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.tasks-page .group-name {
+    color: #172b4d;
+    font-size: 18px;
+    line-height: 1.35;
+}
+
+.tasks-page .group-title-hint {
+    color: #7b879d;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.tasks-page .group-count {
+    flex: 0 0 auto;
+    padding: 4px 9px;
+    background: #eaf3ff;
+    color: #1767c0;
+}
+
+.tasks-page .group-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 2px;
+}
+
+.tasks-page .group-team-primary {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-left: 18px;
+    border-left: 1px solid #e5eaf2;
+}
+
+.tasks-page .group-team-copy {
+    display: grid;
+    gap: 2px;
+    text-align: right;
+}
+
+.tasks-page .group-team-copy strong {
+    color: #243858;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.tasks-page .group-info-label {
+    display: block;
+    color: #8a96a9;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: .04em;
+}
+
+.tasks-page .group-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+}
+
+.tasks-page .group-info-card {
+    min-width: 0;
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e7ecf4;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.tasks-page .group-info-card > div {
+    min-width: 0;
+}
+
+.tasks-page .group-info-card strong {
+    display: block;
+    margin-top: 3px;
+    overflow: hidden;
+    color: #263b5c;
+    font-size: 12.5px;
+    font-weight: 850;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tasks-page .group-info-card-warning {
+    border-color: #f7dfad;
+    background: #fffaf0;
+}
+
+.tasks-page .group-info-card-warning strong,
+.tasks-page .group-info-card-warning .group-info-icon {
+    color: #b96a00;
+}
+
+.tasks-page .group-info-icon {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: #e8f2ff;
+    color: #176fd1;
+    font-size: 14px;
+}
+
+.tasks-page .task-table-wrap {
+    padding: 0 14px 14px;
+    background: #fff;
+}
+
+.tasks-page .task-table {
+    min-width: 980px;
+    border: 1px solid #e4eaf3;
+    border-radius: 13px;
+    overflow: hidden;
+}
+
+.tasks-page .task-table th {
+    height: 42px;
+    padding: 0 12px;
+    border-right: 0;
+    border-bottom: 1px solid #e4eaf3;
+    background: #f7f9fc;
+    color: #75839a;
+    font-size: 11px;
+    letter-spacing: .02em;
+}
+
+.tasks-page .task-table td {
+    height: 54px;
+    padding: 7px 12px;
+    border-right: 0;
+    border-bottom-color: #edf1f6;
+}
+
+.tasks-page .task-row:last-child td {
+    border-bottom: 0;
+}
+
+.tasks-page .task-row:hover td {
+    background: #f8fbff;
+}
+
+.tasks-page .task-title-text {
+    color: #1f3556;
+    font-size: 13.5px;
+}
+
+.tasks-page .task-detail-line {
+    color: #8894a6;
+    font-size: 11.5px;
+}
+
+.tasks-page .label-select,
+.tasks-page .due-input {
+    min-height: 32px;
+    border-radius: 9px;
+}
+
+.tasks-page .add-row td {
+    padding: 10px 12px 12px;
+    background: #fbfcfe;
+}
+
+.tasks-page .add-task-inline input {
+    min-height: 38px;
+    border: 1px dashed #cdd8e8;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.tasks-page .add-task-inline button {
+    min-height: 38px;
+    border-radius: 10px;
+}
+
+@media (max-width: 1180px) {
+    .tasks-page .group-summary {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+    }
+}
+
+@media (max-width: 800px) {
+    .tasks-page .group-head {
+        padding: 15px;
+    }
+
+    .tasks-page .group-primary-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .tasks-page .group-team-primary {
+        width: 100%;
+        justify-content: space-between;
+        padding: 10px 0 0;
+        border-top: 1px solid #e8edf5;
+        border-left: 0;
+    }
+
+    .tasks-page .group-team-copy {
+        text-align: left;
+    }
+
+    .tasks-page .group-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .tasks-page .task-table-wrap {
+        padding: 0 10px 10px;
+    }
+
+    .tasks-page .task-table {
+        border: 0;
+    }
+
+    .tasks-page .task-table tr.task-row {
+        margin-bottom: 10px;
+        padding: 12px;
+        border: 1px solid #e4eaf3;
+        border-radius: 12px;
+        background: #fff;
+    }
+}

@@ -68,54 +68,46 @@
 
 <article class="task-group {{ $isVisible ? '' : 'is-hidden' }}" data-list-lane="{{ $listId }}">
     <div class="group-head {{ $priorityClass }}">
-        <div class="group-title">
-            <button type="button" class="group-toggle" data-collapse-group aria-label="พับกลุ่ม">
-                <i class="bi bi-chevron-down"></i>
-            </button>
-            <h2 class="group-name">{{ $listName }}</h2>
-            <span class="group-count">{{ $listTasks->count() }}</span>
-            @if ($canManageProject)
-                <button type="button"
-                    class="group-action-btn"
-                    data-edit-list
-                    data-list-id="{{ $realListId }}"
-                    aria-label="แก้ไขชื่อโปรเจกต์">
-                    <i class="bi bi-pencil"></i>
+        <div class="group-primary-row">
+            <div class="group-title">
+                <button type="button" class="group-toggle" data-collapse-group aria-label="พับกลุ่ม">
+                    <i class="bi bi-chevron-down"></i>
                 </button>
-                <button type="button"
-                    class="group-action-btn danger"
-                    data-delete-list
-                    data-list-id="{{ $realListId }}"
-                    data-list-name="{{ $listName }}"
-                    data-url="{{ route('mytasks.lists.destroy', $realListId) }}"
-                    aria-label="ลบโปรเจกต์">
-                    <i class="bi bi-trash3"></i>
-                </button>
-            @endif
-        </div>
-        @if ($canManageProject)
-            <form class="group-rename-form" data-list-rename-form="{{ $realListId }}" action="{{ route('mytasks.lists.update', $realListId) }}" method="POST" hidden>
-                @csrf
-                @method('PATCH')
-                <input type="text" name="name" maxlength="80" required value="{{ $listName }}" aria-label="ชื่อโปรเจกต์">
-                <button type="submit"><i class="bi bi-check-lg"></i></button>
-                <button type="button" data-cancel-list-rename><i class="bi bi-x-lg"></i></button>
-            </form>
-        @endif
-        <div class="group-summary">
-            <span>{{ $dueRange }}</span>
-            @if ($remainingLabel)
-                <span class="group-meta-days">{{ $remainingLabel }}</span>
-            @endif
-            @if ($assigneeName)
-                <span class="group-meta-owner">ผู้รับผิดชอบ: {{ $assigneeName }}</span>
-            @endif
-            @if ($adminSenderName)
-                <span class="group-meta-admin">มอบหมายโดย Admin: {{ $adminSenderName }}</span>
-            @endif
+                <div class="group-title-copy">
+                    <div class="group-title-line">
+                        <h2 class="group-name">{{ $listName }}</h2>
+                        <span class="group-count">{{ $listTasks->count() }} งาน</span>
+                    </div>
+                    <span class="group-title-hint">โปรเจกต์และรายการงานย่อยทั้งหมดในกลุ่มนี้</span>
+                </div>
+                @if ($canManageProject)
+                    <div class="group-actions">
+                        <button type="button"
+                            class="group-action-btn"
+                            data-edit-list
+                            data-list-id="{{ $realListId }}"
+                            aria-label="แก้ไขชื่อโปรเจกต์">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button"
+                            class="group-action-btn danger"
+                            data-delete-list
+                            data-list-id="{{ $realListId }}"
+                            data-list-name="{{ $listName }}"
+                            data-url="{{ route('mytasks.lists.destroy', $realListId) }}"
+                            aria-label="ลบโปรเจกต์">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+                @endif
+            </div>
+
             @if ($projectLeader)
-                <div class="group-team">
-                    <span class="group-team-label">หัวหน้าโปรเจกต์: {{ $projectLeader->name }}</span>
+                <div class="group-team group-team-primary">
+                    <div class="group-team-copy">
+                        <span class="group-info-label">หัวหน้าโปรเจกต์</span>
+                        <strong>{{ $projectLeader->name }}</strong>
+                    </div>
                     <div class="avatar-stack group-member-stack" aria-label="สมาชิกโปรเจกต์">
                         @foreach ($projectMembers->take(6) as $index => $person)
                             <button type="button"
@@ -144,8 +136,57 @@
                 </div>
             @endif
         </div>
-    </div>
 
+        @if ($canManageProject)
+            <form class="group-rename-form" data-list-rename-form="{{ $realListId }}" action="{{ route('mytasks.lists.update', $realListId) }}" method="POST" hidden>
+                @csrf
+                @method('PATCH')
+                <input type="text" name="name" maxlength="80" required value="{{ $listName }}" aria-label="ชื่อโปรเจกต์">
+                <button type="submit"><i class="bi bi-check-lg"></i></button>
+                <button type="button" data-cancel-list-rename><i class="bi bi-x-lg"></i></button>
+            </form>
+        @endif
+
+        <div class="group-summary">
+            <div class="group-info-card">
+                <span class="group-info-icon"><i class="bi bi-calendar3"></i></span>
+                <div>
+                    <span class="group-info-label">ช่วงเวลาดำเนินงาน</span>
+                    <strong>{{ $dueRange }}</strong>
+                </div>
+            </div>
+
+            @if ($remainingLabel)
+                <div class="group-info-card group-info-card-warning">
+                    <span class="group-info-icon"><i class="bi bi-hourglass-split"></i></span>
+                    <div>
+                        <span class="group-info-label">เวลาคงเหลือ</span>
+                        <strong>{{ $remainingLabel }}</strong>
+                    </div>
+                </div>
+            @endif
+
+            @if ($assigneeName)
+                <div class="group-info-card">
+                    <span class="group-info-icon"><i class="bi bi-person-check"></i></span>
+                    <div>
+                        <span class="group-info-label">ผู้รับผิดชอบ</span>
+                        <strong>{{ $assigneeName }}</strong>
+                    </div>
+                </div>
+            @endif
+
+            @if ($adminSenderName)
+                <div class="group-info-card">
+                    <span class="group-info-icon"><i class="bi bi-person-badge"></i></span>
+                    <div>
+                        <span class="group-info-label">มอบหมายโดย</span>
+                        <strong>{{ $adminSenderName }}</strong>
+                    </div>
+                </div>
+            @endif
+        </div>
+    </div>
     @foreach ($projectMembers as $index => $person)
         <div class="simple-modal member-info-modal" data-member-modal="project-{{ $listId }}-{{ $person->id }}" hidden>
             <div class="simple-modal-card member-info-card" role="dialog" aria-modal="true">
