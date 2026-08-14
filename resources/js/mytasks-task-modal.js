@@ -109,3 +109,114 @@
         }
     });
 })();
+
+(() => {
+    const modal = document.querySelector('[data-team-modal]');
+    const source = document.querySelector('[data-team-data]');
+    const form = modal?.querySelector('[data-team-form]');
+    if (!modal || !source || !form) return;
+
+    const teams = JSON.parse(source.textContent || '{}');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const topic = modal.querySelector('[data-team-topic]');
+    const owner = modal.querySelector('[data-team-owner]');
+    const members = modal.querySelector('[data-team-members]');
+    const count = modal.querySelector('[data-team-count]');
+    const empty = modal.querySelector('[data-team-empty]');
+    const notice = modal.querySelector('[data-team-notice]');
+    const select = form.elements['collaborators[]'];
+    let activeTeam = null;
+
+    const initials = (name) => Array.from(name || '?').slice(0, 1).join('');
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    const request = async (url, method, payload = null) => {
+        const response = await fetch(url, {
+            method,
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+            body: payload ? JSON.stringify(payload) : null,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'ดำเนินการไม่สำเร็จ');
+        return data;
+    };
+
+    const render = () => {
+        const team = activeTeam;
+        topic.textContent = team.topic;
+        owner.innerHTML = `<span class="team-avatar primary">${escapeHtml(initials(team.assignee.name))}</span><span><strong>${escapeHtml(team.assignee.name)}</strong><small>${escapeHtml(team.assignee.department || 'ไม่ระบุแผนก')}</small></span><b><i class="bi bi-check-circle-fill"></i> ผู้รับผิดชอบหลัก</b>`;
+        count.textContent = `${team.collaborators.length} คน`;
+        empty.hidden = team.collaborators.length > 0;
+        members.innerHTML = team.collaborators.map((person) => {
+            const pending = person.status !== 'accepted';
+            const status = pending ? 'รอตอบรับ' : 'เข้าร่วมแล้ว';
+            return `<article class="team-member"><span class="team-avatar">${escapeHtml(initials(person.name))}</span><span class="team-person"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.department || 'ไม่ระบุแผนก')}</small></span><span class="team-state ${pending ? 'pending' : 'accepted'}"><i></i>${status}</span>${team.can_manage && !team.locked ? `<button type="button" data-remove-team-member="${person.id}" title="นำ ${escapeHtml(person.name)} ออกจากทีม"><i class="bi bi-x-lg"></i></button>` : ''}</article>`;
+        }).join('');
+
+        [...select.options].forEach((option) => {
+            option.disabled = team.collaborators.some((person) => String(person.id) === option.value) || String(team.assignee.id) === option.value;
+            option.selected = false;
+        });
+        form.hidden = !team.can_manage || team.locked;
+        notice.hidden = team.can_manage && !team.locked;
+        if (!notice.hidden) notice.textContent = team.locked ? 'งานที่เสร็จแล้วถูกล็อกการจัดการทีม' : 'คุณดูรายชื่อทีมได้ แต่ไม่มีสิทธิ์แก้ไข';
+    };
+
+    const open = (id) => {
+        activeTeam = teams[String(id)];
+        if (!activeTeam) return;
+        render();
+        modal.hidden = false;
+        document.body.classList.add('modal-open');
+    };
+    const close = () => {
+        modal.hidden = true;
+        activeTeam = null;
+        document.body.classList.remove('modal-open');
+    };
+
+    document.addEventListener('click', async (event) => {
+        const trigger = event.target.closest('[data-manage-team]');
+        if (trigger) {
+            event.preventDefault();
+            trigger.closest('details')?.removeAttribute('open');
+            open(trigger.dataset.manageTeam);
+            return;
+        }
+        if (event.target === modal || event.target.closest('[data-close-team]')) {
+            close();
+            return;
+        }
+        const remove = event.target.closest('[data-remove-team-member]');
+        if (!remove || !activeTeam) return;
+        remove.disabled = true;
+        try {
+            await request(activeTeam.remove_url.replace('__USER__', remove.dataset.removeTeamMember), 'DELETE');
+            activeTeam.collaborators = activeTeam.collaborators.filter((person) => String(person.id) !== remove.dataset.removeTeamMember);
+            render();
+        } catch (error) {
+            notice.hidden = false;
+            notice.textContent = error.message;
+            remove.disabled = false;
+        }
+    });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const selected = [...select.selectedOptions].map((option) => Number(option.value));
+        if (!selected.length || !activeTeam) return;
+        const button = form.querySelector('[type="submit"]');
+        button.disabled = true;
+        try {
+            await request(activeTeam.add_url, 'POST', {collaborators: selected});
+            window.location.reload();
+        } catch (error) {
+            notice.hidden = false;
+            notice.textContent = error.message;
+            button.disabled = false;
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.hidden) close();
+    });
+})();

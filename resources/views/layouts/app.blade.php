@@ -130,6 +130,10 @@
             <div class="nav-section-label">{{ $isAdmin ? 'การจัดการ' : 'พื้นที่ของฉัน' }}</div>
 
             @if (! $isAdmin && ! $isViewer)
+                <a href="{{ route('work-board.index') }}"
+                    class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
+                    <i class="bi bi-kanban-fill"></i> บอร์ดงาน
+                </a>
                 <a href="{{ route('mytasks.index') }}"
                     class="nav-item {{ request()->routeIs('mytasks.*') ? 'active' : '' }}">
                     <i class="bi bi-briefcase"></i> งานของฉัน
@@ -423,5 +427,4 @@
 </body>
 
 </html>
-
 

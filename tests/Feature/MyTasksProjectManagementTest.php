@@ -9,11 +9,41 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MyTasksProjectManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_project_priority_and_attachments_belong_to_project_not_first_task(): void
+    {
+        Storage::fake('public');
+        $department = Department::create(['department_name' => 'IT']);
+        $actor = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+
+        $this->actingAs($actor)
+            ->post(route('mytasks.create'), [
+                'project_name' => 'Project metadata',
+                'job_topic' => 'First task',
+                'user_id' => $actor->id,
+                'job_start_at' => now()->format('Y-m-d'),
+                'job_due_at' => now()->addDay()->format('Y-m-d'),
+                'project_priority' => 3,
+                'attachments' => [UploadedFile::fake()->image('brief.png')],
+            ], ['Accept' => 'application/json'])
+            ->assertCreated();
+
+        $job = WorkOrder::where('job_topic', 'First task')->firstOrFail();
+        $project = $job->taskList()->with('attachments')->firstOrFail();
+
+        $this->assertSame(3, $project->priority);
+        $this->assertSame(2, (int) $job->job_priority);
+        $this->assertCount(1, $project->attachments);
+        $this->assertDatabaseMissing('job_images', ['job_id' => $job->job_id]);
+        Storage::disk('public')->assertExists($project->attachments->first()->file_path);
+    }
 
     public function test_same_department_assignment_makes_assignee_project_leader_and_list_owner(): void
     {
@@ -317,5 +347,29 @@ class MyTasksProjectManagementTest extends TestCase
 
         $this->assertSame('Admin rename', $list->fresh()->name);
         $this->assertSame(3, (int) $job->fresh()->job_priority);
+    }
+
+    public function test_completed_status_always_persists_one_hundred_percent_progress(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+
+        $job = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'department_id' => $department->id,
+            'job_topic' => 'Completed invariant',
+            'job_status' => 2,
+            'job_progress' => 35,
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+
+        $job->update(['job_status' => 4, 'job_progress' => 0]);
+
+        $this->assertSame(100, (int) $job->fresh()->job_progress);
+        $this->assertNotNull($job->fresh()->job_completed_at);
+        $this->assertSame(100, $job->fresh()->progress_from_subtasks);
     }
 }

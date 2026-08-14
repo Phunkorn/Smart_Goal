@@ -11,6 +11,7 @@ class WorkOrderList extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'priority',
         'is_visible',
         'sort_order',
     ];
@@ -19,6 +20,7 @@ class WorkOrderList extends Model
     {
         return [
             'is_visible' => 'boolean',
+            'priority' => 'integer',
         ];
     }
 
@@ -30,5 +32,10 @@ class WorkOrderList extends Model
     public function workOrders(): HasMany
     {
         return $this->hasMany(WorkOrder::class, 'work_order_list_id', 'id');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(WorkOrderListAttachment::class, 'work_order_list_id');
     }
 }

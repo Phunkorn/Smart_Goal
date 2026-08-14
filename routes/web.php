@@ -8,6 +8,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkBoardController;
 use App\Models\SystemNotification;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -181,6 +182,12 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 */
 
 Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
+
+    Route::prefix('work-board')->name('work-board.')->middleware('role:user')->group(function () {
+        Route::get('/', [WorkBoardController::class, 'index'])->name('index');
+        Route::get('/departments/{department}', [WorkBoardController::class, 'department'])->name('department');
+        Route::get('/departments/{department}/members/{user}', [WorkBoardController::class, 'member'])->name('member');
+    });
 
     Route::post('/my-tasks/{job_id}/status', [MyTaskController::class, 'updateStatus'])
         ->name('mytasks.updateStatus');

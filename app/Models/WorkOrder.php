@@ -54,6 +54,16 @@ class WorkOrder extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (WorkOrder $workOrder): void {
+            if ((int) $workOrder->job_status === 4) {
+                $workOrder->job_progress = 100;
+                $workOrder->job_completed_at ??= now();
+            }
+        });
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -131,6 +141,10 @@ class WorkOrder extends Model
     protected function progressFromSubtasks(): Attribute
     {
         return Attribute::get(function (): int {
+            if ((int) $this->job_status === 4) {
+                return 100;
+            }
+
             $subtasks = $this->relationLoaded('subtasks')
                 ? $this->subtasks
                 : $this->subtasks()->get();

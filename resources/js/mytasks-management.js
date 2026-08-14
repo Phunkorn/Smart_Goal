@@ -38,7 +38,7 @@
             actions.className = 'project-actions';
             actions.innerHTML = `<button type="button" class="group-plus" data-add-in-group data-list-id="${row.dataset.listId}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>`;
             if (row.dataset.listUpdateUrl && row.dataset.listDeleteUrl) {
-                actions.innerHTML += `<button type="button" data-edit-project data-name="${safeName}" data-url="${row.dataset.listUpdateUrl}" title="แก้ไขชื่อโปรเจกต์"><i class="bi bi-pencil"></i></button><button type="button" class="danger" data-delete-project data-name="${safeName}" data-url="${row.dataset.listDeleteUrl}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>`;
+                actions.innerHTML += `<details class="project-more-menu"><summary aria-label="เมนูโปรเจกต์"><i class="bi bi-three-dots"></i></summary><div><button type="button" data-edit-project data-name="${safeName}" data-url="${row.dataset.listUpdateUrl}"><i class="bi bi-pencil"></i> แก้ไขชื่อ</button><button type="button" class="danger" data-delete-project data-name="${safeName}" data-url="${row.dataset.listDeleteUrl}"><i class="bi bi-trash3"></i> ลบโปรเจกต์</button></div></details>`;
             }
             header.appendChild(actions);
         });
@@ -107,5 +107,75 @@
                 }
             } catch (error) { deleteTask.disabled = false; notify(error.message, false); }
         }
+    });
+})();
+
+(() => {
+    const workspace = document.querySelector('[data-workspace]');
+    if (!workspace) return;
+
+    const closeMenus = (except = null) => {
+        workspace.querySelectorAll('.task-more-menu[open], .project-more-menu[open]').forEach((menu) => {
+            if (menu !== except) menu.removeAttribute('open');
+        });
+    };
+
+    workspace.addEventListener('click', (event) => {
+        const due = event.target.closest('.row-due');
+        if (due && !event.target.matches('input')) {
+            const input = due.querySelector('input[type="date"]');
+            input?.showPicker?.();
+            input?.focus();
+        }
+
+        const summary = event.target.closest('.task-more-menu summary, .project-more-menu summary');
+        if (summary) {
+            const menu = summary.parentElement;
+            closeMenus(menu);
+            window.setTimeout(() => {
+                if (!menu.open) return;
+                const rect = summary.getBoundingClientRect();
+                const width = 190;
+                const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+                const menuHeight = menu.querySelector(':scope > div')?.offsetHeight || 180;
+                const top = rect.bottom + menuHeight + 8 <= window.innerHeight
+                    ? rect.bottom + 4
+                    : Math.max(8, rect.top - menuHeight - 4);
+                menu.style.setProperty('--menu-left', left + 'px');
+                menu.style.setProperty('--menu-top', top + 'px');
+            });
+        }
+        else if (!event.target.closest('.task-more-menu, .project-more-menu')) closeMenus();
+    });
+
+    workspace.addEventListener('change', (event) => {
+        if (event.target.matches('[data-field="status"]')) {
+            const wrapper = event.target.closest('[data-status-choice]');
+            if (wrapper) {
+                wrapper.classList.remove('status-todo', 'status-progress', 'status-review', 'status-done', 'status-paused', 'status-late');
+                wrapper.classList.add({1: 'status-todo', 2: 'status-progress', 3: 'status-review', 4: 'status-done', 5: 'status-paused'}[event.target.value] || 'status-todo');
+            }
+            return;
+        }
+
+        if (event.target.matches('[data-field="priority"]')) {
+            const wrapper = event.target.closest('[data-priority-choice]');
+            if (wrapper) {
+                wrapper.classList.remove('priority-1', 'priority-2', 'priority-3');
+                wrapper.classList.add(`priority-${event.target.value}`);
+            }
+            return;
+        }
+
+        if (!event.target.matches('.row-due input[type="date"]')) return;
+        const date = new Date(event.target.value + 'T00:00:00');
+        const label = event.target.closest('.row-due')?.querySelector('[data-due-label]');
+        if (label && !Number.isNaN(date.getTime())) {
+            label.textContent = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeMenus();
     });
 })();

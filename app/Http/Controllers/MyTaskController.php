@@ -6,6 +6,7 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Models\WorkOrderListAttachment;
 use App\Models\WorkOrderSubtask;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
@@ -170,6 +171,7 @@ class MyTaskController extends Controller
             'job_start_at' => ['required', 'date'],
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
             'job_priority' => ['nullable', 'integer', 'in:1,2,3'],
+            'project_priority' => ['nullable', 'integer', 'in:1,2,3'],
             'attachments' => ['nullable', 'array', 'max:5'],
             'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
         ]);
@@ -233,6 +235,7 @@ class MyTaskController extends Controller
             $list = WorkOrderList::create([
                 'user_id' => $leaderId,
                 'name' => $projectName,
+                'priority' => $validated['project_priority'] ?? $validated['job_priority'] ?? 2,
                 'is_visible' => true,
                 'sort_order' => (int) WorkOrderList::where('user_id', $leaderId)->max('sort_order') + 1,
             ]);
@@ -248,7 +251,7 @@ class MyTaskController extends Controller
                     'work_order_list_id' => $list->id,
                     'job_topic' => $item['job_topic'],
                     'job_details' => $item['job_details'] ?: null,
-                    'job_priority' => $validated['job_priority'] ?? 2,
+                    'job_priority' => 2,
                     'job_status' => 1,
                     'approval_status' => $approval['approval_status'],
                     'approved_by' => $approval['approved_by'],
@@ -292,11 +295,20 @@ class MyTaskController extends Controller
                     'after' => $job->attributesToArray(),
                 ]);
 
-                if ($itemIndex === 0) {
-                    $this->storeFiles($request, $job, 'attachments');
-                }
-
                 $createdJobs->push($job);
+            }
+
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $path = $file->store('project-attachments/'.$list->id, 'public');
+                    WorkOrderListAttachment::create([
+                        'work_order_list_id' => $list->id,
+                        'file_path' => $path,
+                        'original_name' => $file->getClientOriginalName(),
+                        'file_type' => $file->getClientMimeType(),
+                        'uploaded_by' => $actor->id,
+                    ]);
+                }
             }
 
             return $createdJobs->first();
@@ -418,6 +430,8 @@ class MyTaskController extends Controller
                 ]);
                 $workOrder->delete();
             }, 100, 'job_id');
+
+            $list->attachments()->each(fn (WorkOrderListAttachment $attachment) => $attachment->delete());
 
             $list->delete();
         });
@@ -713,7 +727,7 @@ class MyTaskController extends Controller
     {
         $user = Auth::user();
 
-        return WorkOrderList::where('user_id', $user->id)
+        return WorkOrderList::with('attachments')->where('user_id', $user->id)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();

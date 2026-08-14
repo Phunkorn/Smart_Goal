@@ -7,10 +7,8 @@
     if (!database || !groupSelect || !buttons.length) return;
 
     let tableGrouping = groupSelect.value;
-    const labels = {table: 'ตารางทั้งหมด', board: 'บอร์ด', list: 'รายการ'};
-
     const setView = (view, announce = true) => {
-        if (!['table', 'board', 'list'].includes(view)) view = 'table';
+        if (!['table', 'board'].includes(view)) view = 'table';
         database.dataset.view = view;
         buttons.forEach((button) => {
             const active = button.dataset.view === view;
