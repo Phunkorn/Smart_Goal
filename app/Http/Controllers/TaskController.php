@@ -136,7 +136,7 @@ class TaskController extends Controller
             'job_details' => ['nullable', 'string'],
             'user_id' => ['nullable', 'exists:users,id,role,user'],
             'department_id' => ['nullable', 'exists:departments,id'],
-            'job_priority' => ['nullable', 'integer', 'in:1,2,3'],
+            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
             'job_start_at' => ['required', 'date'],
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
             'collaborators' => ['nullable', 'array'],
@@ -234,33 +234,10 @@ class TaskController extends Controller
 
     public function show($id)
     {
-        $job = WorkOrder::with([
-            'user.department',
-            'department',
-            'creator',
-            'leader.department',
-            'collaborators.department',
-            'images',
-            'updates.user',
-            'deleteRequester',
-        ])->findOrFail($id);
-
-        $user = Auth::user();
+        $job = WorkOrder::findOrFail($id);
         $this->authorize('view', $job);
 
-        $canManageTeam = $user->can('manageTeam', $job);
-
-        $availableCollaborators = User::with('department')
-            ->where('role', '!=', 'viewer')
-            ->whereNotIn('id', collect([$job->user_id, $job->leader_user_id, Auth::id()])
-                ->merge($job->collaborators->pluck('id'))
-                ->filter()
-                ->unique()
-                ->values())
-            ->orderBy('name')
-            ->get();
-
-        return view('tasks.show', compact('job', 'availableCollaborators', 'canManageTeam'));
+        return redirect()->route(Auth::user()?->role === 'viewer' ? 'board.index' : 'mytasks.index');
     }
 
     public function updateDetails(Request $request, $id)

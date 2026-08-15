@@ -197,6 +197,13 @@ class MyTasksProjectManagementTest extends TestCase
             ->assertJsonPath('name', 'New project');
 
         $this->assertSame('New project', $list->fresh()->name);
+
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.lists.update', $list), ['priority' => 3])
+            ->assertOk()
+            ->assertJsonPath('priority', 3);
+
+        $this->assertSame(3, (int) $list->fresh()->priority);
         $this->assertDatabaseHas('activity_logs', [
             'action' => 'updated',
             'subject_type' => WorkOrderList::class,
@@ -331,7 +338,11 @@ class MyTasksProjectManagementTest extends TestCase
 
         $this->actingAs($owner)
             ->postJson(route('mytasks.updatePriority', $job->job_id), ['job_priority' => 3])
-            ->assertForbidden();
+            ->assertOk();
+
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.lists.update', $list), ['priority' => 3])
+            ->assertOk();
 
         $this->actingAs($owner)
             ->postJson(route('tasks.progress.store', $job->job_id), ['note' => 'try update'])
@@ -371,5 +382,22 @@ class MyTasksProjectManagementTest extends TestCase
         $this->assertSame(100, (int) $job->fresh()->job_progress);
         $this->assertNotNull($job->fresh()->job_completed_at);
         $this->assertSame(100, $job->fresh()->progress_from_subtasks);
+    }
+
+    public function test_project_can_be_created_without_an_initial_job(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($owner)
+            ->postJson(route('mytasks.create'), [
+                'project_name' => 'Empty project',
+                'project_priority' => 3,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('job_id', null);
+
+        $project = WorkOrderList::where('name', 'Empty project')->firstOrFail();
+        $this->assertSame(3, (int) $project->priority);
+        $this->assertSame(0, $project->workOrders()->count());
     }
 }

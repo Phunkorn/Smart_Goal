@@ -51,8 +51,9 @@
         if (editProject) {
             const section = editProject.closest('[data-group-section], [data-project-card]');
             const oldName = editProject.dataset.name;
-            const name = window.prompt('แก้ไขชื่อโปรเจกต์', oldName)?.trim();
-            if (!name || name === oldName) return;
+            const result = await Swal.fire({title: 'แก้ไขชื่อโปรเจกต์', input: 'text', inputValue: oldName, inputAttributes: {maxlength: 80}, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่อโปรเจกต์'});
+            const name = result.value?.trim();
+            if (!result.isConfirmed || !name || name === oldName) return;
             try {
                 await request(editProject.dataset.url, 'PATCH', {name});
                 section.querySelector('.project-pill, .board-project-title h2').textContent = name;
@@ -73,7 +74,8 @@
         if (deleteProject) {
             const section = deleteProject.closest('[data-group-section], [data-project-card]');
             const count = section.querySelectorAll('[data-row], [data-board-task]').length;
-            if (!window.confirm(`ลบโปรเจกต์ “${deleteProject.dataset.name}” พร้อมงาน ${count} รายการหรือไม่?\nการดำเนินการนี้ไม่สามารถย้อนกลับได้`)) return;
+            const result = await Swal.fire({icon: 'warning', title: 'ลบโปรเจกต์นี้หรือไม่?', text: `โปรเจกต์ “${deleteProject.dataset.name}” พร้อมงาน ${count} รายการจะถูกลบ และไม่สามารถย้อนกลับได้`, showCancelButton: true, confirmButtonText: 'ลบโปรเจกต์', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
+            if (!result.isConfirmed) return;
             deleteProject.disabled = true;
             try {
                 await request(deleteProject.dataset.url, 'DELETE');
@@ -87,7 +89,8 @@
         if (deleteTask) {
             const row = deleteTask.closest('[data-row]');
             const title = row.dataset.topic;
-            if (!window.confirm(`ลบรายการ “${title}” ออกจากโปรเจกต์หรือไม่?`)) return;
+            const result = await Swal.fire({icon: 'warning', title: 'ลบรายการนี้หรือไม่?', text: `“${title}” จะถูกนำออกจากโปรเจกต์`, showCancelButton: true, confirmButtonText: 'ลบรายการ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
+            if (!result.isConfirmed) return;
             deleteTask.disabled = true;
             try {
                 const data = await request(deleteTask.dataset.url, 'DELETE');
@@ -121,7 +124,7 @@
     };
 
     workspace.addEventListener('click', (event) => {
-        const due = event.target.closest('.row-due');
+        const due = event.target.closest('.row-duration');
         if (due && !event.target.matches('input')) {
             const input = due.querySelector('input[type="date"]');
             input?.showPicker?.();
@@ -161,17 +164,19 @@
         if (event.target.matches('[data-field="priority"]')) {
             const wrapper = event.target.closest('[data-priority-choice]');
             if (wrapper) {
-                wrapper.classList.remove('priority-1', 'priority-2', 'priority-3');
+                wrapper.classList.remove('priority-1', 'priority-2', 'priority-3', 'priority-4', 'priority-5');
                 wrapper.classList.add(`priority-${event.target.value}`);
             }
             return;
         }
 
-        if (!event.target.matches('.row-due input[type="date"]')) return;
+        if (!event.target.matches('.row-duration input[type="date"]')) return;
         const date = new Date(event.target.value + 'T00:00:00');
-        const label = event.target.closest('.row-due')?.querySelector('[data-due-label]');
+        const label = event.target.closest('.row-duration')?.querySelector('[data-due-label]');
         if (label && !Number.isNaN(date.getTime())) {
-            label.textContent = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+            const dayMonth = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(date);
+            const shortBuddhistYear = String((date.getFullYear() + 543) % 100).padStart(2, '0');
+            label.textContent = `${dayMonth} ${shortBuddhistYear}`;
         }
     });
 

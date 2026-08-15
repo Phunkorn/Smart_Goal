@@ -111,6 +111,48 @@
 })();
 
 (() => {
+    const modal = document.querySelector('[data-owner-modal]');
+    const source = document.querySelector('[data-owner-data]');
+    if (!modal || !source) return;
+
+    const owners = JSON.parse(source.textContent || '{}');
+    const avatar = modal.querySelector('[data-owner-avatar]');
+    const name = modal.querySelector('[data-owner-name]');
+
+    const close = () => {
+        modal.hidden = true;
+        document.body.classList.remove('modal-open');
+    };
+
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-open-owner]');
+        if (trigger) {
+            const owner = owners[String(trigger.dataset.openOwner)];
+            if (!owner) return;
+            event.preventDefault();
+            name.textContent = owner.name;
+            avatar.replaceChildren();
+            if (owner.avatar_url) {
+                const image = document.createElement('img');
+                image.src = owner.avatar_url;
+                image.alt = owner.name;
+                avatar.appendChild(image);
+            } else {
+                avatar.textContent = owner.initial;
+            }
+            modal.hidden = false;
+            document.body.classList.add('modal-open');
+            return;
+        }
+        if (event.target === modal || event.target.closest('[data-close-owner]')) close();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.hidden) close();
+    });
+})();
+
+(() => {
     const modal = document.querySelector('[data-team-modal]');
     const source = document.querySelector('[data-team-data]');
     const form = modal?.querySelector('[data-team-form]');
@@ -156,8 +198,11 @@
             option.disabled = team.collaborators.some((person) => String(person.id) === option.value) || String(team.assignee.id) === option.value;
             option.selected = false;
         });
-        form.hidden = !team.can_manage || team.locked;
-        notice.hidden = team.can_manage && !team.locked;
+        const canEdit = team.can_manage && !team.locked;
+        form.hidden = false;
+        select.disabled = !canEdit;
+        form.querySelector('[type="submit"]').disabled = !canEdit;
+        notice.hidden = canEdit;
         if (!notice.hidden) notice.textContent = team.locked ? 'งานที่เสร็จแล้วถูกล็อกการจัดการทีม' : 'คุณดูรายชื่อทีมได้ แต่ไม่มีสิทธิ์แก้ไข';
     };
 

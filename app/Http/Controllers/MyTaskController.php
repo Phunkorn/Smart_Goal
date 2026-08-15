@@ -168,9 +168,9 @@ class MyTaskController extends Controller
             'user_id' => ['nullable', 'exists:users,id'],
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id'],
-            'job_start_at' => ['required', 'date'],
-            'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
-            'job_priority' => ['nullable', 'integer', 'in:1,2,3'],
+            'job_start_at' => ['nullable', 'date'],
+            'job_due_at' => ['nullable', 'date', 'after_or_equal:job_start_at'],
+            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
             'project_priority' => ['nullable', 'integer', 'in:1,2,3'],
             'attachments' => ['nullable', 'array', 'max:5'],
             'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
@@ -215,7 +215,49 @@ class MyTaskController extends Controller
             ]]);
         }
 
-        abort_if($projectItems->isEmpty(), 422, 'กรุณาเพิ่มงานหลักอย่างน้อย 1 รายการ');
+        if ($projectItems->isEmpty()) {
+            $projectName = trim((string) ($validated['project_name'] ?? ''));
+            abort_if($projectName === '', 422, 'กรุณาระบุชื่อโปรเจกต์');
+
+            $this->authorize('create', WorkOrderList::class);
+
+            $list = DB::transaction(function () use ($validated, $actor, $request, $projectName) {
+                $list = WorkOrderList::create([
+                    'user_id' => $actor->id,
+                    'name' => $projectName,
+                    'priority' => $validated['project_priority'] ?? 2,
+                    'is_visible' => true,
+                    'sort_order' => (int) WorkOrderList::where('user_id', $actor->id)->max('sort_order') + 1,
+                ]);
+
+                if ($request->hasFile('attachments')) {
+                    foreach ($request->file('attachments') as $file) {
+                        $path = $file->store('project-attachments/'.$list->id, 'public');
+                        WorkOrderListAttachment::create([
+                            'work_order_list_id' => $list->id,
+                            'file_path' => $path,
+                            'original_name' => $file->getClientOriginalName(),
+                            'file_type' => $file->getClientMimeType(),
+                            'uploaded_by' => $actor->id,
+                        ]);
+                    }
+                }
+
+                AuditTrail::log('created', $list, 'สร้างโปรเจกต์: '.$list->name, [
+                    'after' => $list->attributesToArray(),
+                ]);
+
+                return $list;
+            });
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'เพิ่มโปรเจกต์สำเร็จ',
+                'job_id' => null,
+                'list_id' => $list->id,
+                'requires_admin_review' => false,
+            ], 201);
+        }
 
         $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
         abort_unless($assignee && $assignee->role !== 'viewer', 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
@@ -381,17 +423,18 @@ class MyTaskController extends Controller
     {
         $user = Auth::user();
 
-        $this->authorize('manage', $list);
-        abort_if($this->listIsCompleted($list) && $user->role !== 'admin', 403);
-
         $validated = $request->validate([
-            'name' => 'required|string|max:80',
+            'name' => 'required_without:priority|string|max:80',
+            'priority' => 'required_without:name|integer|in:1,2,3',
         ]);
 
-        $before = $list->attributesToArray();
-        $list->update(['name' => $validated['name']]);
+        $this->authorize('manage', $list);
+        abort_if(isset($validated['name']) && $this->listIsCompleted($list) && $user->role !== 'admin', 403);
 
-        AuditTrail::log('updated', $list, 'เปลี่ยนชื่อโปรเจกต์: '.$list->name, [
+        $before = $list->attributesToArray();
+        $list->update(collect($validated)->only(['name', 'priority'])->all());
+
+        AuditTrail::log('updated', $list, isset($validated['priority']) ? 'เปลี่ยนความสำคัญโปรเจกต์: '.$list->name : 'เปลี่ยนชื่อโปรเจกต์: '.$list->name, [
             'before' => $before,
             'after' => $list->fresh()->attributesToArray(),
         ]);
@@ -401,6 +444,7 @@ class MyTaskController extends Controller
             'message' => 'เปลี่ยนชื่อโปรเจกต์แล้ว',
             'list_id' => $list->id,
             'name' => $list->name,
+            'priority' => (int) $list->priority,
         ]);
     }
 
@@ -607,14 +651,11 @@ class MyTaskController extends Controller
     public function updatePriority(Request $request, int $job_id): JsonResponse
     {
         $validated = $request->validate([
-            'job_priority' => 'required|integer|in:1,2,3',
+            'job_priority' => 'required|integer|in:1,2,3,4,5',
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorize('update', $workOrder);
-        abort_if($this->isCompletedLocked($workOrder), 403);
-
-        abort_if((int) $workOrder->job_status === 4 && Auth::user()?->role !== 'admin', 422, 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนความสำคัญได้');
 
         $before = $workOrder->attributesToArray();
         $workOrder->update(['job_priority' => $validated['job_priority']]);

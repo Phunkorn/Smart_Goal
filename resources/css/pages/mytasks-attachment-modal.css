@@ -1,0 +1,114 @@
+.attachment-modal-card {
+    width: min(640px, 100%);
+}
+
+.attachment-modal-body {
+    display: grid;
+    gap: 14px;
+    padding: 22px 24px;
+}
+
+.attachment-modal-list {
+    display: grid;
+    gap: 8px;
+}
+
+.attachment-modal-list > a {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 20px;
+    align-items: center;
+    min-height: 52px;
+    padding: 8px 12px;
+    border: 1px solid #e1e7ef;
+    border-radius: 10px;
+    background: #fff;
+    color: #334155;
+    text-decoration: none;
+}
+
+.attachment-modal-list > a:hover {
+    border-color: #b8cef0;
+    background: #f7faff;
+    color: #2563eb;
+}
+
+.attachment-modal-list > a > i:first-child {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #edf4ff;
+    color: #2563eb;
+    font-size: 16px;
+}
+
+.attachment-modal-list > a > span {
+    overflow: hidden;
+    padding: 0 9px;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-modal-empty {
+    display: grid;
+    place-items: center;
+    gap: 5px;
+    padding: 32px 16px;
+    border: 1px dashed #d7e0eb;
+    border-radius: 10px;
+    color: #8290a4;
+    text-align: center;
+}
+
+.attachment-modal-empty[hidden],
+.attachment-modal-upload[hidden] {
+    display: none;
+}
+
+.attachment-modal-empty > i {
+    font-size: 24px;
+}
+
+.attachment-modal-empty > strong {
+    color: #475569;
+}
+
+.attachment-modal-empty > span,
+.attachment-modal-upload label small {
+    font-size: 11px;
+}
+
+.attachment-modal-upload label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border: 1px dashed #adc5e8;
+    border-radius: 10px;
+    background: #f7faff;
+    color: #2563eb;
+    cursor: pointer;
+}
+
+.attachment-modal-upload label > i {
+    font-size: 24px;
+}
+
+.attachment-modal-upload label > span {
+    display: grid;
+}
+
+.attachment-modal-upload label small {
+    color: #718096;
+    font-weight: 400;
+}
+
+.attachment-modal-upload input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}

@@ -1,0 +1,252 @@
+.project-create-card {
+    width: min(720px, 100%);
+    border-radius: 16px;
+}
+
+.project-create-card > header {
+    align-items: flex-start;
+    padding: 20px 22px 17px;
+}
+
+.project-create-card > header > div {
+    display: grid;
+    gap: 2px;
+}
+
+.project-create-card > header strong {
+    font-size: 21px;
+}
+
+.project-create-card > header small {
+    color: var(--sg-muted);
+    font-size: 12px;
+}
+
+.notion-modal .project-create-body {
+    grid-template-columns: minmax(0, 1.5fr) minmax(190px, .7fr);
+    gap: 18px;
+    padding: 22px;
+    background: #f8fafc;
+}
+
+.project-create-body label {
+    align-content: start;
+}
+
+.project-create-body label > span {
+    color: #334155 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+}
+
+.project-create-body label > span em {
+    margin-left: 5px;
+    color: #94a3b8;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 500;
+}
+
+.project-input-shell {
+    display: flex;
+    align-items: center;
+    min-height: 46px;
+    border: 1px solid #cbd7e6;
+    border-radius: 10px;
+    background: #fff;
+    color: #718096;
+}
+
+.project-input-shell:focus-within {
+    border-color: #6f9cf5;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+}
+
+.project-input-shell > i {
+    width: 42px;
+    text-align: center;
+}
+
+.notion-modal .project-input-shell input,
+.notion-modal .project-input-shell select {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #172033;
+}
+
+.project-create-files {
+    grid-column: 1 / -1;
+}
+
+.project-file-drop {
+    position: relative;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: center;
+    min-height: 92px;
+    padding: 14px 16px;
+    border: 1px dashed #9eb8de;
+    border-radius: 12px;
+    background: #fff;
+    color: #2563eb;
+    cursor: pointer;
+}
+
+.project-file-drop:hover {
+    border-color: #5686d9;
+    background: #f5f9ff;
+}
+
+.project-file-drop > i {
+    font-size: 25px;
+}
+
+.project-file-drop > div {
+    display: grid;
+    gap: 2px;
+}
+
+.project-file-drop small {
+    color: #718096;
+    font-size: 11px;
+}
+
+.project-file-drop input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    opacity: 0;
+}
+
+.project-create-card > footer {
+    padding: 14px 22px;
+    background: #fff;
+}
+
+.team-modal-card {
+    width: min(700px, 100%);
+}
+
+.team-modal-body {
+    gap: 14px;
+    padding: 18px 20px 22px;
+}
+
+.team-invite {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 12px;
+    padding: 16px;
+}
+
+.team-invite select {
+    display: block;
+    width: 100%;
+    min-height: 112px;
+    border: 1px solid #cbd7e6;
+    background: #fff;
+    color: #172033;
+}
+
+.team-invite select:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+.team-invite > button {
+    align-self: end;
+    min-height: 42px;
+    padding-inline: 16px;
+}
+
+.team-invite > button:disabled {
+    background: #cbd5e1;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+    .notion-modal .project-create-body {
+        grid-template-columns: 1fr;
+        padding: 17px;
+    }
+
+    .project-create-files {
+        grid-column: auto;
+    }
+
+    .team-invite {
+        grid-template-columns: 1fr;
+    }
+
+    .team-invite > button {
+        width: 100%;
+    }
+}
+
+.my-tasks-page .board-owner > i {
+    overflow: hidden;
+}
+
+.my-tasks-page .board-owner > i img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.owner-modal {
+    z-index: 1300;
+    background: rgba(15, 23, 42, .42);
+    backdrop-filter: blur(3px);
+}
+
+.owner-modal-card {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 15px;
+    width: min(360px, 100%);
+    padding: 44px 32px 34px;
+    border: 1px solid #d9e2ed;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+    text-align: center;
+}
+
+.owner-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+}
+
+.owner-modal-avatar {
+    display: grid;
+    place-items: center;
+    width: 112px;
+    height: 112px;
+    overflow: hidden;
+    border: 5px solid #eef4ff;
+    border-radius: 50%;
+    background: #dbe8ff;
+    color: #2459c2;
+    font-size: 34px;
+    font-weight: 750;
+    box-shadow: 0 8px 22px rgba(37, 99, 235, .14);
+}
+
+.owner-modal-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.owner-modal-card > strong {
+    color: #172033;
+    font-size: 20px;
+    font-weight: 750;
+}

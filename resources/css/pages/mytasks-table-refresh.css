@@ -1,0 +1,262 @@
+.my-tasks-page .notion-database[data-view="table"] .notion-table {
+    min-width: 1240px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-columns,
+.my-tasks-page .notion-database[data-view="table"] .notion-row {
+    grid-template-columns:
+        minmax(320px, 2.4fr)
+        126px
+        168px
+        72px
+        190px
+        112px
+        68px
+        minmax(180px, 1.25fr)
+        52px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-columns {
+    height: 42px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 10px;
+    letter-spacing: .01em;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-columns > span,
+.my-tasks-page .notion-database[data-view="table"] .notion-row > * {
+    padding-inline: 12px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-columns > span:not(:first-child) {
+    justify-content: center;
+    text-align: center;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-group-section {
+    border-bottom-color: #e5eaf0;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-group-section > header {
+    height: 44px;
+    padding-inline: 12px;
+    border-bottom-color: #e5eaf0;
+    background: #f8fafc;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .project-pill,
+.my-tasks-page .notion-database[data-view="table"] .project-pill.neutral {
+    max-width: 620px;
+    padding: 0;
+    background: transparent;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-group-section header small {
+    color: #94a3b8;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-row {
+    min-height: 68px;
+    border-bottom-color: #edf1f5;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .notion-row:hover {
+    background: #fafbfd;
+    box-shadow: none;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-title {
+    padding-block: 10px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-title strong {
+    color: #172033;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-title small {
+    display: none;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper {
+    justify-self: center;
+    width: auto;
+    height: auto;
+    min-height: 30px;
+    max-width: calc(100% - 12px);
+    padding: 0 8px;
+    border-radius: 8px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper .cell-select {
+    width: auto;
+    max-width: 138px;
+    height: 30px;
+    border: 0;
+    font-size: 11px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-todo { background:#f1f5f9; color:#64748b; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-progress { background:#eaf2ff; color:#2563eb; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-review { background:#f2ebff; color:#7447b8; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-done { background:#e8f7f1; color:#07845f; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-paused { background:#fff4dc; color:#a86108; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-late { background:#feedef; color:#d9363e; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-1 { background:#eaf2ff; color:#2563eb; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-2 { background:#fff7d6; color:#a56a05; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-3 { background:#feedef; color:#d9363e; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-4 { background:#fff1df; color:#d66d08; }
+.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-5 { background:#e8f7f1; color:#07845f; }
+
+.my-tasks-page .notion-database[data-view="table"] .row-owner,
+.my-tasks-page .notion-database[data-view="table"] .row-collaborators,
+.my-tasks-page .notion-database[data-view="table"] .row-files {
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-owner > i {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #e8edf3;
+    color: #475569;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 700;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-owner img,
+.my-tasks-page .notion-database[data-view="table"] .collaborator-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-duration {
+    position: relative;
+    justify-content: center;
+    justify-self: center;
+    width: calc(100% - 12px);
+    min-height: 32px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: #475569;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-duration:hover {
+    border-color: #d7e0ea;
+    background: #fff;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-duration.is-late {
+    background: transparent;
+    color: #d9363e;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-duration-copy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    white-space: nowrap;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-duration-copy i {
+    color: #94a3b8;
+    font-size: 10px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-duration .cell-date {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-collaborators .collaborator-stack {
+    display: flex;
+    padding-left: 7px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .collaborator-avatar,
+.my-tasks-page .notion-database[data-view="table"] .collaborator-more,
+.my-tasks-page .notion-database[data-view="table"] .collaborator-empty {
+    display: grid;
+    place-items: center;
+    width: 27px;
+    height: 27px;
+    overflow: hidden;
+    margin-left: -7px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #e8edf3;
+    color: #475569;
+    font-size: 9px;
+    font-style: normal;
+    font-weight: 700;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .collaborator-avatar.pending {
+    position: relative;
+    border-style: dashed;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .collaborator-avatar.pending b {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 6px;
+    height: 6px;
+    border: 1px solid #fff;
+    border-radius: 50%;
+    background: #f59e0b;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-files {
+    gap: 4px;
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-files.has-files {
+    color: #475569;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-files b {
+    font-size: 10px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-progress {
+    gap: 10px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-progress > i {
+    height: 6px;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-actions {
+    justify-self: center;
+}
+
+@media (max-width: 1250px) {
+    .my-tasks-page .notion-database[data-view="table"] .notion-table {
+        min-width: 1240px;
+    }
+}

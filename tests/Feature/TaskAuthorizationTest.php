@@ -59,7 +59,7 @@ class TaskAuthorizationTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('tasks.show', $task))
-            ->assertOk();
+            ->assertRedirect(route('mytasks.index'));
 
         $this->actingAs($admin)
             ->patch(route('tasks.updateStatus', $task), ['job_status' => 2])

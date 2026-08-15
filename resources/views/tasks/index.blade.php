@@ -4,7 +4,7 @@
 <?php
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
     $statusLabels = [1 => 'ยังไม่เริ่ม', 2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน'];
-    $priorityLabels = [1 => 'ต่ำ', 2 => 'กลาง', 3 => 'สูง'];
+    $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
     $doneCount = $allTasks->where('job_status', 4)->count();
     $lateCount = $allTasks->filter(fn ($task) => (int) $task->job_status !== 4 && $task->job_due_at?->isPast())->count();
     $overall = $allTasks->count() ? (int) round($doneCount / $allTasks->count() * 100) : 0;
@@ -14,9 +14,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
     <style>{!! file_get_contents(resource_path('css/pages/mytasks-notion.css')) !!}</style>
+    <style>{!! file_get_contents(resource_path('css/pages/mytasks-table-refresh.css')) !!}</style>
     <style>{!! file_get_contents(resource_path('css/pages/mytasks-task-modal.css')) !!}</style>
+    <style>{!! file_get_contents(resource_path('css/pages/mytasks-attachment-modal.css')) !!}</style>
     <style>{!! file_get_contents(resource_path('css/pages/mytasks-views.css')) !!}</style>
     <style>{!! file_get_contents(resource_path('css/pages/mytasks-project-board.css')) !!}</style>
+    <style>{!! file_get_contents(resource_path('css/pages/mytasks-priority-menus.css')) !!}</style>
+    <style>{!! file_get_contents(resource_path('css/pages/mytasks-modal-refresh.css')) !!}</style>
 @endpush
 
 @section('content')
@@ -65,11 +69,10 @@
                 <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานในบอร์ดตามตัวกรองที่เลือก</p></div>
             </div>
             <div class="notion-table" data-table>
-                <div class="notion-columns"><span></span><span>ชื่องาน</span><span>โปรเจกต์</span><span>สถานะ</span><span>ผู้รับผิดชอบ</span><span>กำหนดส่ง</span><span>ความคืบหน้า</span><span>ความสำคัญ</span><span></span></div>
+                <div class="notion-columns"><span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>ผู้รับผิดชอบ</span><span>ระยะเวลา</span><span>ผู้ร่วมงาน</span><span>ไฟล์</span><span>ความคืบหน้า</span><span>Action</span></div>
                 <div data-groups>
                     @foreach($taskLists as $list)
                         @php($listTasks = $allTasks->where('work_order_list_id', $list->id))
-                        @if($listTasks->isNotEmpty())
                             <section class="notion-group-section" data-group-section data-group-key="{{ $list->name }}">
                                 <header>
                                     <button type="button" data-collapse title="ย่อ/ขยาย"><i class="bi bi-chevron-down"></i></button>
@@ -88,7 +91,6 @@
                                     @endforeach
                                 </div>
                             </section>
-                        @endif
                     @endforeach
                     @php($ungrouped = $allTasks->whereNull('work_order_list_id'))
                     @if($ungrouped->isNotEmpty())
@@ -121,6 +123,29 @@
 ?>
 <script type="application/json" data-team-data>@json($teamData)</script>
 
+<?php
+    $ownerData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
+        'name' => $task->user?->name ?? 'ไม่ระบุผู้รับผิดชอบ',
+        'avatar_url' => $task->user?->profile_image ? route('media.show', ['path' => $task->user->profile_image]) : null,
+        'initial' => Str::substr($task->user?->name ?? '?', 0, 1),
+    ]]);
+?>
+<script type="application/json" data-owner-data>@json($ownerData)</script>
+
+<?php
+    $attachmentData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
+        'id' => $task->job_id,
+        'topic' => $task->job_topic,
+        'can_upload' => auth()->user()->can('update', $task),
+        'upload_url' => route('tasks.attachments.store', $task->job_id),
+        'files' => $task->images->map(fn ($file) => [
+            'name' => $file->original_name ?? basename($file->file_path),
+            'url' => route('media.show', ['path' => $file->file_path]),
+        ])->values(),
+    ]]);
+?>
+<script type="application/json" data-attachment-data>@json($attachmentData)</script>
+
 <div class="team-modal notion-modal" data-team-modal hidden>
     <section class="team-modal-card" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
         <header>
@@ -147,23 +172,40 @@
     </section>
 </div>
 
-<div class="notion-modal" data-create-modal hidden>
-    <form class="notion-modal-card" data-create-form enctype="multipart/form-data">
-        <header><div><strong>เพิ่มโปรเจกต์ใหม่</strong><span>สร้างโปรเจกต์และงานแรก</span></div><button type="button" data-close-create><i class="bi bi-x-lg"></i></button></header>
-        <div class="modal-body">
-            <label><span>ชื่อโปรเจกต์</span><input name="project_name" maxlength="80" required placeholder="เช่น ปรับปรุงเว็บไซต์บริษัท"></label>
-            <label><span>ชื่องานแรก</span><input name="job_topic" maxlength="255" required placeholder="ระบุสิ่งที่ต้องดำเนินการ"></label>
-            <label class="full"><span>รายละเอียด</span><textarea name="job_details" rows="3" maxlength="2000" placeholder="อธิบายผลลัพธ์ที่ต้องการ"></textarea></label>
-            <fieldset class="modal-team full"><legend>ผู้รับผิดชอบและผู้ร่วมงาน</legend>
-                <label><span>ผู้รับผิดชอบหลัก (1 คน)</span><select name="user_id"><option value="{{ auth()->id() }}">ฉัน — {{ auth()->user()->name }}</option>@foreach($availableCollaborators as $person)<option value="{{ $person->id }}">{{ $person->name }} · {{ $person->department?->department_name }}</option>@endforeach</select></label>
-                <label><span>ผู้ร่วมงาน (เลือกได้หลายคน)</span><select name="collaborators[]" multiple size="4">@foreach($availableCollaborators as $person)<option value="{{ $person->id }}">{{ $person->name }} · {{ $person->department?->department_name }}</option>@endforeach</select><small>กด Ctrl หรือ ⌘ ค้างเพื่อเลือกหลายคน</small></label>
-            </fieldset>
-            <label><span>ความสำคัญของโปรเจกต์</span><select name="project_priority"><option value="1">ต่ำ</option><option value="2" selected>กลาง</option><option value="3">สูง</option></select></label>
-            <label><span>วันที่เริ่ม</span><input type="date" name="job_start_at" value="{{ now()->format('Y-m-d') }}" required></label>
-            <label><span>กำหนดส่ง</span><input type="date" name="job_due_at" value="{{ now()->addDay()->format('Y-m-d') }}" required></label>
-            <label class="full"><span>ไฟล์แนบของโปรเจกต์ (สูงสุด 5 ไฟล์)</span><input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"><small>ไฟล์เหล่านี้เป็นเอกสารของโปรเจกต์ ไม่ใช่ไฟล์แนบของงาน · สูงสุด 10 MB ต่อไฟล์</small></label>
+<div class="notion-modal owner-modal" data-owner-modal hidden>
+    <section class="owner-modal-card" role="dialog" aria-modal="true" aria-labelledby="owner-modal-title">
+        <button type="button" class="task-modal-close owner-modal-close" data-close-owner aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
+        <div class="owner-modal-avatar" data-owner-avatar></div>
+        <strong id="owner-modal-title" data-owner-name></strong>
+    </section>
+</div>
+
+<div class="task-edit-modal notion-modal" data-attachment-modal hidden>
+    <section class="task-edit-card attachment-modal-card" role="dialog" aria-modal="true" aria-labelledby="attachment-modal-title">
+        <header>
+            <div><span class="task-edit-kicker">ATTACHMENTS</span><strong id="attachment-modal-title">ไฟล์แนบ</strong><small data-attachment-topic></small></div>
+            <button type="button" class="task-modal-close" data-close-attachments aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
+        </header>
+        <div class="attachment-modal-body">
+            <div class="attachment-modal-list" data-attachment-list></div>
+            <div class="attachment-modal-empty" data-attachment-empty hidden><i class="bi bi-paperclip"></i><strong>ยังไม่มีไฟล์แนบ</strong><span>เพิ่มเอกสารหรือรูปภาพที่เกี่ยวข้องกับงานนี้ได้ด้านล่าง</span></div>
+            <div class="attachment-modal-upload" data-attachment-upload>
+                <label><i class="bi bi-cloud-arrow-up"></i><span><strong>เพิ่มไฟล์แนบ</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB/ไฟล์ · รวมไม่เกิน 5 ไฟล์</small></span><input type="file" multiple data-modal-attachment-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>
+            </div>
         </div>
-        <footer><button type="button" data-close-create>ยกเลิก</button><button class="notion-primary" type="submit">สร้างโปรเจกต์</button></footer>
+        <footer><button type="button" class="task-secondary" data-close-attachments>ปิด</button></footer>
+    </section>
+</div>
+
+<div class="notion-modal" data-create-modal hidden>
+    <form class="notion-modal-card project-create-card" data-create-form enctype="multipart/form-data">
+        <header><div><span class="task-edit-kicker">NEW PROJECT</span><strong>เพิ่มโปรเจกต์ใหม่</strong><small>สร้างพื้นที่โปรเจกต์ก่อน แล้วเพิ่มรายการงานภายหลัง</small></div><button type="button" class="task-modal-close" data-close-create aria-label="ปิด"><i class="bi bi-x-lg"></i></button></header>
+        <div class="modal-body project-create-body">
+            <label class="project-create-name"><span>ชื่อโปรเจกต์</span><div class="project-input-shell"><i class="bi bi-folder"></i><input name="project_name" maxlength="80" required placeholder="เช่น ปรับปรุงเว็บไซต์บริษัท"></div></label>
+            <label><span>ความสำคัญของโปรเจกต์</span><div class="project-input-shell"><i class="bi bi-flag"></i><select name="project_priority"><option value="1">ต่ำ</option><option value="2" selected>กลาง</option><option value="3">สูง</option></select></div></label>
+            <label class="project-create-files"><span>ไฟล์แนบของโปรเจกต์ <em>สูงสุด 5 ไฟล์</em></span><div class="project-file-drop"><i class="bi bi-cloud-arrow-up"></i><div><strong>เลือกไฟล์ที่เกี่ยวข้อง</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB ต่อไฟล์</small></div><input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></div></label>
+        </div>
+        <footer><button type="button" class="task-secondary" data-close-create>ยกเลิก</button><button class="notion-primary" type="submit"><i class="bi bi-plus-lg"></i> สร้างโปรเจกต์</button></footer>
     </form>
 </div>
 
@@ -177,7 +219,7 @@
             <label class="task-field full"><span>ชื่องาน</span><input name="job_topic" maxlength="255" required></label>
             <label class="task-field full"><span>รายละเอียดงาน</span><textarea name="job_details" rows="5" maxlength="5000" placeholder="อธิบายเป้าหมาย ผลลัพธ์ หรือข้อมูลที่เกี่ยวข้อง"></textarea></label>
             <label class="task-field"><span>สถานะ</span><select name="job_status"><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="4">เสร็จแล้ว</option><option value="5">พักงาน</option></select></label>
-            <label class="task-field"><span>ความสำคัญ</span><select name="job_priority"><option value="1">ต่ำ</option><option value="2">กลาง</option><option value="3">สูง</option></select></label>
+            <label class="task-field"><span>ความสำคัญ</span><select name="job_priority"><option value="3">สำคัญด่วน</option><option value="4">ด่วนไม่ค่อยสำคัญ</option><option value="2">สำคัญไม่ด่วน</option><option value="5">ไม่รีบ ไม่มีกำหนด</option><option value="1">routine</option></select></label>
             <label class="task-field"><span>กำหนดส่ง</span><input type="date" name="job_due_at" required></label>
             <div class="task-field task-progress-readonly"><span>ความคืบหน้า</span><strong data-modal-progress>0%</strong><small>คำนวณจากงานย่อยโดยอัตโนมัติ</small></div>
             <label class="task-field"><span>โปรเจกต์</span><input name="project" readonly></label>

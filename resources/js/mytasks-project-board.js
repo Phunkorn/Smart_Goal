@@ -9,6 +9,9 @@
     const sort = workspace.querySelector('[data-sort]');
     const toast = document.querySelector('[data-toast]');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const attachmentModal = document.querySelector('[data-attachment-modal]');
+    const attachmentDataNode = document.querySelector('[data-attachment-data]');
+    const attachmentData = attachmentDataNode ? JSON.parse(attachmentDataNode.textContent || '{}') : {};
     const endpoint = (template, id) => template.replace('__ID__', id);
     let ascending = true;
     const statusMeta = {
@@ -17,6 +20,18 @@
         3: {className: 'status-review', label: 'รอตรวจสอบ'},
         4: {className: 'status-done', label: 'เสร็จแล้ว'},
         5: {className: 'status-paused', label: 'พักงาน'},
+    };
+    const projectPriorityMeta = {
+        1: {className: 'priority-low', tone: 'project-tone-low', label: 'ต่ำ', projectLabel: 'สำคัญ/ต่ำ'},
+        2: {className: 'priority-medium', tone: 'project-tone-medium', label: 'กลาง', projectLabel: 'สำคัญ/กลาง'},
+        3: {className: 'priority-high', tone: 'project-tone-high', label: 'สูง', projectLabel: 'สำคัญ/สูง'},
+    };
+    const taskPriorityMeta = {
+        1: {className: 'priority-routine', label: 'routine'},
+        2: {className: 'priority-important', label: 'สำคัญไม่ด่วน'},
+        3: {className: 'priority-urgent', label: 'สำคัญด่วน'},
+        4: {className: 'priority-quick', label: 'ด่วนไม่ค่อยสำคัญ'},
+        5: {className: 'priority-flexible', label: 'ไม่รีบ ไม่มีกำหนด'},
     };
 
     const notify = (message, ok = true) => {
@@ -46,7 +61,7 @@
         .find((header) => header.dataset.projectKey === task.dataset.projectKey);
 
     const closeStatusMenus = (except = null) => {
-        board.querySelectorAll('[data-board-status-menu][open]').forEach((menu) => {
+        board.querySelectorAll('[data-board-status-menu][open], [data-board-priority-menu][open], [data-project-priority-menu][open]').forEach((menu) => {
             if (menu !== except) menu.removeAttribute('open');
         });
     };
@@ -106,6 +121,44 @@
         }
     };
 
+    const closeAttachmentModal = () => {
+        if (!attachmentModal) return;
+        attachmentModal.hidden = true;
+        document.body.style.overflow = '';
+    };
+
+    const openAttachmentModal = (taskId) => {
+        const data = attachmentData[String(taskId)];
+        if (!attachmentModal || !data) return;
+        const list = attachmentModal.querySelector('[data-attachment-list]');
+        const empty = attachmentModal.querySelector('[data-attachment-empty]');
+        const upload = attachmentModal.querySelector('[data-attachment-upload]');
+        const input = attachmentModal.querySelector('[data-modal-attachment-input]');
+        attachmentModal.querySelector('[data-attachment-topic]').textContent = data.topic || '';
+        list.replaceChildren();
+        (data.files || []).forEach((file) => {
+            const link = document.createElement('a');
+            link.href = file.url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-file-earmark';
+            const name = document.createElement('span');
+            name.textContent = file.name;
+            const open = document.createElement('i');
+            open.className = 'bi bi-box-arrow-up-right';
+            link.append(icon, name, open);
+            list.append(link);
+        });
+        empty.hidden = (data.files || []).length > 0;
+        upload.hidden = !data.can_upload;
+        input.dataset.url = data.upload_url;
+        input.dataset.existingCount = String((data.files || []).length);
+        input.value = '';
+        attachmentModal.hidden = false;
+        document.body.style.overflow = 'hidden';
+    };
+
     const filterBoard = () => {
         const query = search.value.trim().toLowerCase();
         const status = filter.value;
@@ -120,8 +173,10 @@
         });
 
         board.querySelectorAll('[data-project-header]').forEach((header) => {
-            const visibleInProject = tasksForProject(header).filter((task) => !task.hidden).length;
-            header.hidden = visibleInProject === 0;
+            const projectTasks = tasksForProject(header);
+            const visibleInProject = projectTasks.filter((task) => !task.hidden).length;
+            const emptyProjectMatch = projectTasks.length === 0 && !status && (!query || (header.dataset.projectName || '').toLowerCase().includes(query));
+            header.hidden = visibleInProject === 0 && !emptyProjectMatch;
             const count = header.querySelector('[data-board-visible-count]');
             if (count) count.textContent = visibleInProject;
         });
@@ -150,12 +205,73 @@
             .forEach(({header, tasks}) => cardGrid.append(header, ...tasks));
     });
 
-    document.addEventListener('click', (event) => {
-        const statusSummary = event.target.closest('[data-board-status-menu] > summary');
+    document.addEventListener('click', async (event) => {
+        const attachmentOpen = event.target.closest('[data-open-attachments]');
+        if (attachmentOpen) {
+            event.preventDefault();
+            openAttachmentModal(attachmentOpen.dataset.openAttachments);
+            return;
+        }
+        if (event.target.closest('[data-close-attachments]') || event.target === attachmentModal) {
+            closeAttachmentModal();
+            return;
+        }
+        const statusSummary = event.target.closest('[data-board-status-menu] > summary, [data-board-priority-menu] > summary, [data-project-priority-menu] > summary');
         if (statusSummary) {
             const menu = statusSummary.closest('[data-board-status-menu]');
-            closeStatusMenus(menu);
-            positionStatusMenu(menu);
+            const wasOpen = menu.hasAttribute('open');
+            event.preventDefault();
+            closeStatusMenus();
+            if (!wasOpen) {
+                menu.setAttribute('open', '');
+                positionStatusMenu(menu);
+            }
+            return;
+        }
+
+        const projectPriorityOption = event.target.closest('[data-project-priority-value]');
+        if (projectPriorityOption) {
+            const menu = projectPriorityOption.closest('[data-project-priority-menu]');
+            const header = projectPriorityOption.closest('[data-project-header]');
+            const value = Number(projectPriorityOption.dataset.projectPriorityValue);
+            const meta = projectPriorityMeta[value];
+            if (!menu || !header || !meta) return;
+            projectPriorityOption.disabled = true;
+            request(menu.dataset.url, 'PATCH', {priority: value}).then(() => {
+                header.classList.remove('project-tone-low', 'project-tone-medium', 'project-tone-high');
+                header.classList.add(meta.tone);
+                const summary = menu.querySelector('summary');
+                summary.classList.remove('priority-low', 'priority-medium', 'priority-high');
+                summary.classList.add(meta.className);
+                summary.querySelector('[data-project-priority-label]').textContent = meta.projectLabel;
+                menu.querySelectorAll('[data-project-priority-value] .bi-check2').forEach((check) => check.remove());
+                projectPriorityOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
+                menu.removeAttribute('open');
+                notify('เปลี่ยนความสำคัญโปรเจกต์แล้ว');
+            }).catch((error) => notify(error.message, false)).finally(() => projectPriorityOption.disabled = false);
+            return;
+        }
+
+        const taskPriorityOption = event.target.closest('[data-board-priority-value]');
+        if (taskPriorityOption) {
+            const menu = taskPriorityOption.closest('[data-board-priority-menu]');
+            const task = taskPriorityOption.closest('[data-board-task]');
+            const value = Number(taskPriorityOption.dataset.boardPriorityValue);
+            const meta = taskPriorityMeta[value];
+            if (!menu || !task || !meta) return;
+            taskPriorityOption.disabled = true;
+            request(endpoint(workspace.dataset.priorityTemplate, task.dataset.taskId), 'POST', {job_priority: value}).then(() => {
+                task.classList.remove('task-priority-routine', 'task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
+                task.classList.add(`task-${meta.className}`);
+                const summary = menu.querySelector('summary');
+                summary.classList.remove('priority-routine', 'priority-important', 'priority-urgent', 'priority-quick', 'priority-flexible');
+                summary.classList.add(meta.className);
+                summary.querySelector('[data-board-priority-label]').textContent = meta.label;
+                menu.querySelectorAll('[data-board-priority-value] .bi-check2').forEach((check) => check.remove());
+                taskPriorityOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
+                menu.removeAttribute('open');
+                notify('เปลี่ยนความสำคัญงานแล้ว');
+            }).catch((error) => notify(error.message, false)).finally(() => taskPriorityOption.disabled = false);
             return;
         }
 
@@ -219,8 +335,9 @@
         const editProject = event.target.closest('[data-board-edit-project]');
         if (editProject) {
             const header = editProject.closest('[data-project-header]');
-            const name = window.prompt('แก้ไขชื่อโปรเจกต์', editProject.dataset.name)?.trim();
-            if (!name || name === editProject.dataset.name) return;
+            const result = await Swal.fire({title: 'แก้ไขชื่อโปรเจกต์', input: 'text', inputValue: editProject.dataset.name, inputAttributes: {maxlength: 80}, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่อโปรเจกต์'});
+            const name = result.value?.trim();
+            if (!result.isConfirmed || !name || name === editProject.dataset.name) return;
             editProject.disabled = true;
             request(editProject.dataset.url, 'PATCH', {name}).then(() => {
                 header.querySelector(':scope > strong').textContent = name;
@@ -237,7 +354,9 @@
         const deleteProject = event.target.closest('[data-board-delete-project]');
         if (deleteProject) {
             const header = deleteProject.closest('[data-project-header]');
-            if (!header || !window.confirm(`ลบโปรเจกต์ “${deleteProject.dataset.name}” พร้อมงานทั้งหมดหรือไม่?`)) return;
+            if (!header) return;
+            const result = await Swal.fire({icon: 'warning', title: 'ลบโปรเจกต์นี้หรือไม่?', text: `โปรเจกต์ “${deleteProject.dataset.name}” และงานทั้งหมดภายในจะถูกลบ`, showCancelButton: true, confirmButtonText: 'ลบโปรเจกต์', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
+            if (!result.isConfirmed) return;
             deleteProject.disabled = true;
             fetch(deleteProject.dataset.url, {
                 method: 'DELETE',
@@ -259,7 +378,9 @@
         if (deleteTask) {
             const task = deleteTask.closest('[data-board-task]');
             const projectHeader = task ? headerForTask(task) : null;
-            if (!task || !window.confirm(`ลบงาน “${task.dataset.topic}” หรือไม่?`)) return;
+            if (!task) return;
+            const result = await Swal.fire({icon: 'warning', title: 'ลบรายการนี้หรือไม่?', text: `“${task.dataset.topic}” จะถูกนำออกจากโปรเจกต์`, showCancelButton: true, confirmButtonText: 'ลบรายการ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
+            if (!result.isConfirmed) return;
             deleteTask.disabled = true;
             fetch(deleteTask.dataset.url, {
                 method: 'DELETE',
@@ -340,6 +461,15 @@
         } finally {
             control.disabled = false;
         }
+    });
+
+    attachmentModal?.addEventListener('change', async (event) => {
+        const input = event.target.closest('[data-modal-attachment-input]');
+        if (input) await uploadAttachments(input);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && attachmentModal && !attachmentModal.hidden) closeAttachmentModal();
     });
 
     document.addEventListener('keydown', (event) => {

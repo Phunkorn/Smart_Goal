@@ -3,7 +3,7 @@
     $projectGroups = collect();
     foreach ($taskLists as $list) {
         $listTasks = $allTasks->where('work_order_list_id', $list->id)->values();
-        if ($listTasks->isNotEmpty()) $projectGroups->push(['list' => $list, 'tasks' => $listTasks]);
+        $projectGroups->push(['list' => $list, 'tasks' => $listTasks]);
     }
     $ungroupedTasks = $allTasks->whereNull('work_order_list_id')->values();
     if ($ungroupedTasks->isNotEmpty()) $projectGroups->push(['list' => null, 'tasks' => $ungroupedTasks]);
@@ -11,7 +11,7 @@
 
 <div class="board-reference-list" data-board-list-body>
     <div class="board-reference-columns" aria-hidden="true">
-        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>กำหนดส่ง</span><span>ความคืบหน้า</span><span></span>
+        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>ความคืบหน้า</span><span></span>
     </div>
 
     @foreach($projectGroups as $group)
@@ -20,18 +20,27 @@
             $projectTasks = $group['tasks'];
             $projectName = $project?->name ?? 'งานทั่วไป';
             $projectKey = $project ? 'project-'.$project->id : 'general';
-            $projectPriority = [1=>['ต่ำ','low'],2=>['กลาง','medium'],3=>['สูง','high']][(int) ($project?->priority ?? 2)] ?? ['กลาง','medium'];
+            $projectPriority = [1=>['สำคัญ/ต่ำ','low'],2=>['สำคัญ/กลาง','medium'],3=>['สำคัญ/สูง','high']][(int) ($project?->priority ?? 2)] ?? ['สำคัญ/กลาง','medium'];
             $projectAttachments = $project?->attachments ?? collect();
         @endphp
-            <header class="board-project-group__header" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}">
+            <header class="board-project-group__header project-tone-{{ $project ? $projectPriority[1] : 'neutral' }}" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}">
                 <button type="button" class="board-project-collapse" data-board-collapse aria-label="ย่อหรือขยายโปรเจกต์"><i class="bi bi-caret-down-fill"></i></button>
+                <i class="board-project-folder bi bi-folder-fill" aria-hidden="true"></i>
                 <strong>{{ $projectName }}</strong>
                 <span><b data-board-visible-count data-board-total-count="{{ $projectTasks->count() }}">{{ $projectTasks->count() }}</b> งาน</span>
-                @if($project)<span class="board-project-priority priority-{{ $projectPriority[1] }}"><i class="bi bi-flag-fill"></i>{{ $projectPriority[0] }}</span>@endif
+                @if($project)
+                    @can('manage', $project)
+                        <details class="board-status-menu board-project-priority-menu" data-project-priority-menu data-url="{{ route('mytasks.lists.update', $project) }}">
+                            <summary class="board-project-priority priority-{{ $projectPriority[1] }}"><i class="bi bi-flag-fill"></i><span data-project-priority-label>{{ $projectPriority[0] }}</span><i class="bi bi-chevron-down"></i></summary>
+                            <div>@foreach([1=>['สำคัญ/ต่ำ','low'],2=>['สำคัญ/กลาง','medium'],3=>['สำคัญ/สูง','high']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-project-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$project->priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+                        </details>
+                    @else
+                        <span class="board-project-priority priority-{{ $projectPriority[1] }}"><i class="bi bi-flag-fill"></i>{{ $projectPriority[0] }}</span>
+                    @endcan
+                @endif
                 @if($projectAttachments->isNotEmpty())
                     <details class="board-project-files"><summary title="ไฟล์แนบของโปรเจกต์"><i class="bi bi-paperclip"></i>{{ $projectAttachments->count() }} ไฟล์</summary><div>@foreach($projectAttachments as $attachment)<a href="{{ route('media.show', ['path' => $attachment->file_path]) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark"></i><span>{{ $attachment->original_name }}</span></a>@endforeach</div></details>
                 @endif
-                <i class="board-project-rule"></i>
                 <div class="board-project-actions">
                     @if($project)<button type="button" class="board-project-add" data-add-in-group data-list-id="{{ $project->id }}" title="เพิ่มรายการในโปรเจกต์ {{ $projectName }}"><i class="bi bi-plus-lg"></i><span>เพิ่มรายการ</span></button>@endif
                     @if($project && auth()->user()->can('manage', $project))
@@ -47,41 +56,45 @@
                         $taskIsSoon = ! $taskIsLate && (int) $task->job_status !== 4 && $task->job_due_at && now()->diffInDays($task->job_due_at, false) <= 3;
                         $taskStatus = [1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']][(int)$task->job_status] ?? ['ยังไม่เริ่ม','todo'];
                         $taskProgress = (int) $task->progress_from_subtasks;
-                        $priority = [1=>['ต่ำ','low'],2=>['กลาง','medium'],3=>['สูง','high']][(int)$task->job_priority] ?? ['กลาง','medium'];
+                        $priority = [1=>['routine','routine'],2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int)$task->job_priority] ?? ['สำคัญไม่ด่วน','important'];
                         $acceptedCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status === 'accepted')->values();
                         $pendingCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
                         $collaborators = $acceptedCollaborators->concat($pendingCollaborators);
                         $fileCount = (int) ($task->images_count ?? $task->images->count());
+                        $startLabel = $task->job_start_at ? $task->job_start_at->day.' '.$thaiMonths[$task->job_start_at->month].' '.($task->job_start_at->year + 543) : '-';
                         $dueLabel = $task->job_due_at ? $task->job_due_at->day.' '.$thaiMonths[$task->job_due_at->month].' '.($task->job_due_at->year + 543) : 'ไม่มีกำหนด';
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
                     @endphp
-                    <article class="board-reference-row" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
+                    <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
                         <button type="button" class="board-reference-task" data-board-open-task="{{ $task->job_id }}">
                             <strong>{{ $task->job_topic }}</strong>
-                            <span>{{ $task->job_details ? Str::limit($task->job_details, 80) : 'ไม่มีรายละเอียดงาน' }}</span>
-                            @if($fileCount)<small><i class="bi bi-paperclip"></i>{{ $fileCount }} ไฟล์แนบ</small>@endif
                         </button>
                         @can('update', $task)
                             <details class="board-status-menu" data-board-status-menu>
-                                <summary class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}"><i></i><span data-board-status-label>{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span><i class="bi bi-chevron-down"></i></summary>
+                                <summary class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}"><span data-board-status-label>{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span><i class="bi bi-chevron-down"></i></summary>
                                 <div>
                                     @foreach([1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']] as $value=>$meta)
-                                        <button type="button" class="status-{{ $meta[1] }}" data-board-status-value="{{ $value }}"><i></i>{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>
+                                        <button type="button" class="status-{{ $meta[1] }}" data-board-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>
                                     @endforeach
                                 </div>
                             </details>
-                            <label class="board-inline-select board-priority priority-{{ $priority[1] }}" data-board-priority-choice><i class="bi bi-flag-fill"></i><select data-board-field="priority" aria-label="เปลี่ยนความสำคัญ">@foreach([1=>'ต่ำ',2=>'กลาง',3=>'สูง'] as $value=>$label)<option value="{{ $value }}" @selected((int)$task->job_priority === $value)>{{ $label }}</option>@endforeach</select></label>
+                            <details class="board-status-menu board-priority-menu" data-board-priority-menu>
+                                <summary class="board-priority priority-{{ $priority[1] }}"><span data-board-priority-label>{{ $priority[0] }}</span><i class="bi bi-chevron-down"></i></summary>
+                                <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible'],1=>['routine','routine']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$task->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+                            </details>
                         @else
-                            <span class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}"><i></i>{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span>
-                            <span class="board-priority priority-{{ $priority[1] }}"><i class="bi bi-flag-fill"></i>{{ $priority[0] }}</span>
+                            <span class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}">{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span>
+                            <span class="board-priority priority-{{ $priority[1] }}">{{ $priority[0] }}</span>
                         @endcan
-                        <span class="board-owner" title="ผู้รับผิดชอบหลัก: {{ $assigneeName }}"><i>{{ Str::substr($assigneeName, 0, 1) }}</i><strong>{{ $assigneeName }}</strong></span>
-                        <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="เพิ่มหรือลบผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="เพิ่มผู้ร่วมงาน"><i class="bi bi-person-plus-fill"></i></span></button></span>
+                        <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
                         @can('update', $task)
                             <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="date" data-board-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" aria-label="เลือกกำหนดส่ง"></label>
                         @else
                             <span class="board-due {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $dueLabel }}</span>
                         @endcan
+                        <button type="button" class="board-owner" data-open-owner="{{ $task->job_id }}" title="ดูผู้รับผิดชอบ: {{ $assigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $assigneeName }}"><i>@if($task->user?->profile_image)<img src="{{ route('media.show', ['path' => $task->user->profile_image]) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i></button>
+                        <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="เพิ่มหรือลบผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="เพิ่มผู้ร่วมงาน"><i class="bi bi-person-plus-fill"></i></span></button></span>
+                        <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
                         <span class="board-progress"><i><b style="width:{{ $taskProgress }}%"></b></i><strong>{{ $taskProgress }}%</strong></span>
                         <details class="task-more-menu board-reference-menu">
                             <summary aria-label="เมนูจัดการรายการ"><i class="bi bi-three-dots-vertical"></i></summary>
