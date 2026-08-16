@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
-| หน้าแรก -> Login
+| หน้าเริ่มต้นของระบบ
 |--------------------------------------------------------------------------
 */
 
@@ -23,7 +23,7 @@ Route::redirect('/', '/login');
 
 /*
 |--------------------------------------------------------------------------
-| Authentication
+| การเข้าสู่ระบบและออกจากระบบ
 |--------------------------------------------------------------------------
 */
 
@@ -38,7 +38,7 @@ Route::post('/logout', [AuthController::class, 'logout'])
 
 /*
 |--------------------------------------------------------------------------
-| First Login
+| การตั้งค่าบัญชีเมื่อเข้าสู่ระบบครั้งแรก
 |--------------------------------------------------------------------------
 */
 
@@ -59,18 +59,20 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Admin Routes
+| เส้นทางภายในระบบสำหรับผู้ใช้ที่ผ่านการยืนยันตัวตน
 |--------------------------------------------------------------------------
 */
 
 Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
+    // หน้าหลักและบอร์ดภาพรวม
     Route::redirect('/dashboard', '/board')
         ->name('dashboard');
 
     Route::get('/board', [TaskController::class, 'index'])
         ->name('board.index');
 
+    // การจัดการพนักงาน
     Route::get('/employees', [UserController::class, 'index'])
         ->name('employees.index');
 
@@ -93,6 +95,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('employees.resetPassword');
 
+    // การอนุมัติและจัดการงานโดยผู้ดูแลระบบ
     Route::patch('/admin/tasks/{id}/approval', [TaskController::class, 'updateApproval'])
         ->middleware('admin')
         ->name('admin.tasks.approval');
@@ -109,6 +112,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('admin.tasks.deleteRequest.reject');
 
+    // ประวัติการใช้งานและถังขยะของผู้ดูแลระบบ
     Route::get('/admin/activity-logs', [ActivityLogController::class, 'index'])
         ->middleware('admin')
         ->name('admin.activity-logs.index');
@@ -128,27 +132,27 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/tasks/{id}/invitation', [TaskController::class, 'respondInvitation'])
         ->name('tasks.invitation.respond');
 
+    // การตั้งค่าส่วนตัว
     Route::get('/settings', [SettingsController::class, 'index'])
         ->name('settings.index');
 
     Route::patch('/settings', [SettingsController::class, 'update'])
         ->name('settings.update');
 
+    // รายงานของผู้ใช้ปัจจุบัน
     Route::get('/my-reports', [ReportController::class, 'myReport'])
         ->name('reports.my');
 
     Route::get('/my-reports/export.csv', [ReportController::class, 'exportMyCsv'])
         ->name('reports.myExportCsv');
 
+    // เปิดไฟล์จากพื้นที่ public storage ผ่านเส้นทางที่ตรวจสอบแล้ว
     Route::get('/media/{path}', function (string $path) {
         abort_unless(Storage::disk('public')->exists($path), 404);
 
         return response()->file(Storage::disk('public')->path($path));
     })->where('path', '.*')->name('media.show');
-});
-
-Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
-
+    // รายงานภาพรวมและรายงานรายพนักงาน
     Route::get('/reports', [ReportController::class, 'index'])
         ->name('reports.index');
 
@@ -161,7 +165,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/reports/employees/{user}/export.csv', [ReportController::class, 'exportEmployeeCsv'])
         ->name('reports.employeeExportCsv');
 
-    // บอร์ดงาน (Admin)
+    // หน้าจัดการงานของผู้ดูแลระบบ
     Route::get('/admin/tasks', [TaskController::class, 'index'])
         ->middleware('admin')
         ->name('admin.tasks.index');
@@ -173,22 +177,14 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/admin/tasks/{id}', [TaskController::class, 'show'])
         ->middleware('admin')
         ->name('admin.tasks.show');
-});
-
-/*
-|--------------------------------------------------------------------------
-| User Routes
-|--------------------------------------------------------------------------
-*/
-
-Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
-
+    // บอร์ดติดตามงานสำหรับพนักงาน
     Route::prefix('work-board')->name('work-board.')->middleware('role:user')->group(function () {
         Route::get('/', [WorkBoardController::class, 'index'])->name('index');
         Route::get('/departments/{department}', [WorkBoardController::class, 'department'])->name('department');
         Route::get('/departments/{department}/members/{user}', [WorkBoardController::class, 'member'])->name('member');
     });
 
+    // งานและโปรเจกต์ในหน้า "งานของฉัน"
     Route::post('/my-tasks/{job_id}/status', [MyTaskController::class, 'updateStatus'])
         ->name('mytasks.updateStatus');
 
@@ -228,19 +224,16 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::match(['post', 'patch'], '/my-tasks/{job_id}/due-date', [MyTaskController::class, 'updateDueDate'])
         ->name('mytasks.updateDueDate');
 
-    // งานของฉัน
     Route::get('/my-tasks', [MyTaskController::class, 'index'])
         ->name('mytasks.index');
 
+    // หน้าตัวอย่างสำหรับตรวจสอบรูปแบบ UI ของงาน
     Route::get('/tasks/demo-notion', function () {
         return view('tasks.demo-notion');
     })->name('tasks.demoNotion');
 
-    // ตั้งใจเปิดให้ role admin และ user เรียก endpoint นี้ได้ทั้งคู่ (ไม่ใช่ admin เท่านั้น)
-    // เพราะ user ก็ต้องมอบหมาย/ขอเปิดงานให้ตัวเองหรือเพื่อนร่วมงานได้ผ่านหน้านี้เช่นกัน
-    // (user ต่างแผนกจะถูกบังคับเป็น approval_status = 'pending' โดย TaskController::store()
-    // ผ่าน WorkOrderApprovalResolver ไม่ใช่ endpoint นี้ปล่อยผ่านโดยไม่มีการตรวจสอบ)
-    // ใส่ guard ระดับ route ตรงนี้ไว้ด้วย ไม่ใช่พึ่งแค่ abort_unless() ในตัว controller เพียงจุดเดียว
+    // งานที่ใช้ร่วมกันระหว่าง Admin และ User
+    // การสร้างและแก้รายละเอียดจำกัด role ที่ระดับ route ส่วนสิทธิ์รายงานตรวจซ้ำใน Policy
     Route::post('/tasks', [TaskController::class, 'store'])
         ->middleware('role:admin,user')
         ->name('tasks.store');
@@ -270,6 +263,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/tasks/{id}', [TaskController::class, 'show'])
         ->name('tasks.show');
 
+    // การแจ้งเตือนของผู้ใช้ปัจจุบัน
     Route::delete('/notifications/{notification}', function (SystemNotification $notification) {
         abort_unless($notification->user_id === auth()->id(), 403);
         $notification->delete();

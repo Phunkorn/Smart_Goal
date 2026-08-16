@@ -157,7 +157,7 @@
                 <div class="table-tools">
                     <label class="board-search">
                         <i class="bi bi-search"></i>
-                        <input type="search" id="boardSearch" placeholder="ค้นหาชื่องาน ผู้รับผิดชอบ หรือแผนก" oninput="filterRows(this.value)">
+                        <input type="search" id="boardSearch" placeholder="ค้นหาชื่องาน ผู้รับผิดชอบ หรือแผนก" oninput="filterRows()">
                     </label>
                     @if($currentAssignee || $currentDeptId)
                         <a href="{{ route('board.index') }}" class="action-btn">
@@ -522,6 +522,22 @@
 
     let activeMetricFilter = 'all';
 
+    const boardElements = {
+        search: document.getElementById('boardSearch'),
+        emptyRow: document.getElementById('boardFilterEmpty'),
+        visibleCount: document.getElementById('visibleJobCount'),
+        listTitle: document.getElementById('boardListTitle'),
+        listDescription: document.getElementById('boardListDesc'),
+    };
+    const boardRows = Array.from(document.querySelectorAll('#workRows tr[data-search]'));
+    const metricCards = Array.from(document.querySelectorAll('[data-metric-filter]'));
+    const metricStatusMap = {
+        pending: '1',
+        doing: '2',
+        done: '4',
+        paused: '5',
+    };
+
     const metricFilterLabels = {
         all: ['รายการงานทั้งหมด', 'แสดงงานทั้งหมดตามแผนกและผู้รับผิดชอบที่เลือก'],
         pending: ['งานรอดำเนินการ', 'แสดงคนที่มีงานรอดำเนินการอยู่ตอนนี้'],
@@ -541,7 +557,7 @@
         window.location.href = url.toString();
     }
 
-    function filterRows(value) {
+    function filterRows() {
         applyBoardFilters();
     }
 
@@ -549,51 +565,39 @@
         if (activeMetricFilter === 'all') return true;
         if (activeMetricFilter === 'late') return row.dataset.overdue === '1';
 
-        const statusMap = {
-            pending: '1',
-            doing: '2',
-            done: '4',
-            paused: '5',
-        };
-
-        return row.dataset.status === statusMap[activeMetricFilter];
+        return row.dataset.status === metricStatusMap[activeMetricFilter];
     }
 
     function applyBoardFilters() {
-        const keyword = (document.getElementById('boardSearch')?.value || '').trim().toLowerCase();
+        const keyword = (boardElements.search?.value || '').trim().toLowerCase();
         let visibleCount = 0;
 
-        document.querySelectorAll('#workRows tr[data-search]').forEach((row) => {
+        boardRows.forEach((row) => {
             const visible = row.dataset.search.includes(keyword) && rowMatchesMetric(row);
             row.style.display = visible ? '' : 'none';
             if (visible) visibleCount += 1;
         });
 
-        const emptyRow = document.getElementById('boardFilterEmpty');
-        if (emptyRow) emptyRow.style.display = visibleCount === 0 ? '' : 'none';
-
-        const count = document.getElementById('visibleJobCount');
-        if (count) count.textContent = visibleCount;
+        if (boardElements.emptyRow) boardElements.emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+        if (boardElements.visibleCount) boardElements.visibleCount.textContent = visibleCount;
 
         const label = metricFilterLabels[activeMetricFilter] || metricFilterLabels.all;
-        const title = document.getElementById('boardListTitle');
-        const desc = document.getElementById('boardListDesc');
-        if (title) title.textContent = label[0];
-        if (desc) desc.textContent = label[1];
+        if (boardElements.listTitle) boardElements.listTitle.textContent = label[0];
+        if (boardElements.listDescription) boardElements.listDescription.textContent = label[1];
     }
 
-    document.querySelectorAll('[data-metric-filter]').forEach((card) => {
+    metricCards.forEach((card) => {
         card.addEventListener('click', () => {
             activeMetricFilter = card.dataset.metricFilter || 'all';
 
-            document.querySelectorAll('[data-metric-filter]').forEach((item) => {
+            metricCards.forEach((item) => {
                 const isActive = item === card;
                 item.classList.toggle('active', isActive);
                 item.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             });
 
             applyBoardFilters();
-            document.getElementById('boardListTitle')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            boardElements.listTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
 
@@ -773,5 +777,4 @@
     });
 </script>
 @endpush
-
 

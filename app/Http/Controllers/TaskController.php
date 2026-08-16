@@ -13,6 +13,7 @@ use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -70,46 +71,15 @@ class TaskController extends Controller
             ->orderBy('name')
             ->get();
 
-        $stats = [
-            'pending' => $jobs->where('approval_status', 'pending')->count(),
-            'doing' => $jobs->where('approval_status', 'approved')->whereIn('job_status', [1, 2, 3])->count(),
-            'paused' => $jobs->where('approval_status', 'approved')->where('job_status', 5)->count(),
-            'done' => $jobs->where('job_status', 4)->count(),
-            'late' => $jobs->where('is_overdue', true)->count(),
-        ];
+        $stats = $this->boardStats($jobs);
 
         $attentionJobs = $jobs
             ->filter(fn (WorkOrder $job) => $job->approval_status !== 'rejected' && ($job->is_overdue || $this->isDueSoon($job)))
             ->sortBy(fn (WorkOrder $job) => optional($job->job_due_at)->timestamp ?? PHP_INT_MAX)
             ->values();
 
-        $workloadByDepartment = $departments->map(function (Department $department) use ($jobs, $employees) {
-            $deptJobs = $jobs->where('department_id', $department->id);
-
-            return [
-                'name' => $department->department_name,
-                'employee_count' => $employees->where('department_id', $department->id)->count(),
-                'total_jobs' => $deptJobs->count(),
-                'done_count' => $deptJobs->where('job_status', 4)->count(),
-                'active_count' => $deptJobs->where('job_status', '!=', 4)->count(),
-                'overdue_count' => $deptJobs->where('is_overdue', true)->count(),
-            ];
-        });
-
-        $workloadByUser = $employees->map(function (User $employee) use ($jobs) {
-            $assigned = $jobs->where('user_id', $employee->id);
-            $latest = $assigned->sortByDesc('job_id')->first();
-
-            return [
-                'id' => $employee->id,
-                'name' => $employee->name,
-                'department' => optional($employee->department)->department_name ?? '-',
-                'profile_image' => $employee->profile_image,
-                'latest_job' => $latest?->job_topic,
-                'active_count' => $assigned->where('job_status', '!=', 4)->count(),
-                'done_count' => $assigned->where('job_status', 4)->count(),
-            ];
-        });
+        $workloadByDepartment = $this->departmentWorkload($departments, $employees, $jobs);
+        $workloadByUser = $this->userWorkload($employees, $jobs);
 
         $canManageTasks = Auth::user()?->role === 'admin';
 
@@ -131,19 +101,7 @@ class TaskController extends Controller
     {
         $this->authorize('create', WorkOrder::class);
 
-        $validated = $request->validate([
-            'job_topic' => ['required', 'string', 'max:255'],
-            'job_details' => ['nullable', 'string'],
-            'user_id' => ['nullable', 'exists:users,id,role,user'],
-            'department_id' => ['nullable', 'exists:departments,id'],
-            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
-            'job_start_at' => ['required', 'date'],
-            'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
-            'collaborators' => ['nullable', 'array'],
-            'collaborators.*' => ['integer', 'exists:users,id,role,user'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
-        ]);
+        $validated = $request->validate($this->storeValidationRules());
 
         $this->assertAllowedAttachments($request, 'attachments');
 
@@ -271,6 +229,7 @@ class TaskController extends Controller
 
         return $this->jsonOrBack($request, true, 'บันทึกรายละเอียดงานสำเร็จ');
     }
+
     public function updateStatus(Request $request, $id)
     {
         $job = WorkOrder::with('collaborators')->findOrFail($id);
@@ -771,6 +730,68 @@ class TaskController extends Controller
                 'message' => Str::limit(strip_tags($message), 1000, ''),
             ]);
         }
+    }
+
+    private function boardStats(Collection $jobs): array
+    {
+        return [
+            'pending' => $jobs->where('approval_status', 'pending')->count(),
+            'doing' => $jobs->where('approval_status', 'approved')->whereIn('job_status', [1, 2, 3])->count(),
+            'paused' => $jobs->where('approval_status', 'approved')->where('job_status', 5)->count(),
+            'done' => $jobs->where('job_status', 4)->count(),
+            'late' => $jobs->where('is_overdue', true)->count(),
+        ];
+    }
+
+    private function departmentWorkload(Collection $departments, Collection $employees, Collection $jobs): Collection
+    {
+        return $departments->map(function (Department $department) use ($jobs, $employees) {
+            $departmentJobs = $jobs->where('department_id', $department->id);
+
+            return [
+                'name' => $department->department_name,
+                'employee_count' => $employees->where('department_id', $department->id)->count(),
+                'total_jobs' => $departmentJobs->count(),
+                'done_count' => $departmentJobs->where('job_status', 4)->count(),
+                'active_count' => $departmentJobs->where('job_status', '!=', 4)->count(),
+                'overdue_count' => $departmentJobs->where('is_overdue', true)->count(),
+            ];
+        });
+    }
+
+    private function userWorkload(Collection $employees, Collection $jobs): Collection
+    {
+        return $employees->map(function (User $employee) use ($jobs) {
+            $assignedJobs = $jobs->where('user_id', $employee->id);
+            $latestJob = $assignedJobs->sortByDesc('job_id')->first();
+
+            return [
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'department' => optional($employee->department)->department_name ?? '-',
+                'profile_image' => $employee->profile_image,
+                'latest_job' => $latestJob?->job_topic,
+                'active_count' => $assignedJobs->where('job_status', '!=', 4)->count(),
+                'done_count' => $assignedJobs->where('job_status', 4)->count(),
+            ];
+        });
+    }
+
+    private function storeValidationRules(): array
+    {
+        return [
+            'job_topic' => ['required', 'string', 'max:255'],
+            'job_details' => ['nullable', 'string'],
+            'user_id' => ['nullable', 'exists:users,id,role,user'],
+            'department_id' => ['nullable', 'exists:departments,id'],
+            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
+            'job_start_at' => ['required', 'date'],
+            'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
+            'collaborators' => ['nullable', 'array'],
+            'collaborators.*' => ['integer', 'exists:users,id,role,user'],
+            'attachments' => ['nullable', 'array', 'max:5'],
+            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+        ];
     }
 
     private function jsonOrBack(Request $request, bool $ok, string $message, int $status = 200)

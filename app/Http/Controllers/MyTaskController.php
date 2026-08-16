@@ -15,6 +15,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -153,67 +154,11 @@ class MyTaskController extends Controller
 
         $this->authorize('create', WorkOrder::class);
 
-        $validated = $request->validate([
-            'project_name' => ['nullable', 'string', 'max:80'],
-            'job_topic' => ['nullable', 'string', 'max:255'],
-            'job_details' => ['nullable', 'string', 'max:2000'],
-            'initial_subtask_title' => ['nullable', 'string', 'max:255'],
-            'initial_subtask_details' => ['nullable', 'string', 'max:2000'],
-            'project_items' => ['nullable', 'array', 'max:20'],
-            'project_items.*.job_topic' => ['nullable', 'string', 'max:255'],
-            'project_items.*.job_details' => ['nullable', 'string', 'max:2000'],
-            'project_items.*.subtasks' => ['nullable', 'array', 'max:50'],
-            'project_items.*.subtasks.*.title' => ['nullable', 'string', 'max:255'],
-            'project_items.*.subtasks.*.details' => ['nullable', 'string', 'max:2000'],
-            'user_id' => ['nullable', 'exists:users,id'],
-            'collaborators' => ['nullable', 'array'],
-            'collaborators.*' => ['integer', 'exists:users,id'],
-            'job_start_at' => ['nullable', 'date'],
-            'job_due_at' => ['nullable', 'date', 'after_or_equal:job_start_at'],
-            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
-            'project_priority' => ['nullable', 'integer', 'in:1,2,3'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
-        ]);
+        $validated = $request->validate($this->storeValidationRules());
 
         $this->assertAllowedAttachments($request, 'attachments');
 
-        $projectItems = collect($validated['project_items'] ?? [])
-            ->map(function ($item) {
-                $subtasks = collect($item['subtasks'] ?? [])
-                    ->map(fn ($subtask) => [
-                        'title' => trim((string) ($subtask['title'] ?? '')),
-                        'details' => trim((string) ($subtask['details'] ?? '')),
-                    ])
-                    ->filter(fn ($subtask) => $subtask['title'] !== '')
-                    ->values()
-                    ->all();
-
-                return [
-                    'job_topic' => trim((string) ($item['job_topic'] ?? '')),
-                    'job_details' => trim((string) ($item['job_details'] ?? '')),
-                    'subtasks' => $subtasks,
-                ];
-            })
-            ->filter(fn ($item) => $item['job_topic'] !== '')
-            ->values();
-
-        if ($projectItems->isEmpty() && filled($validated['job_topic'] ?? null)) {
-            $legacySubtasks = [];
-
-            if (filled($validated['initial_subtask_title'] ?? null)) {
-                $legacySubtasks[] = [
-                    'title' => trim((string) $validated['initial_subtask_title']),
-                    'details' => trim((string) ($validated['initial_subtask_details'] ?? '')),
-                ];
-            }
-
-            $projectItems = collect([[
-                'job_topic' => trim((string) $validated['job_topic']),
-                'job_details' => trim((string) ($validated['job_details'] ?? '')),
-                'subtasks' => $legacySubtasks,
-            ]]);
-        }
+        $projectItems = $this->normalizeProjectItems($validated);
 
         if ($projectItems->isEmpty()) {
             $projectName = trim((string) ($validated['project_name'] ?? ''));
@@ -400,6 +345,82 @@ class MyTaskController extends Controller
             'message' => 'สร้างรายการแล้ว',
             'list_id' => $list->id,
         ], 201);
+    }
+
+    /**
+     * Keep the HTTP contract for project creation in one place so store() can
+     * focus on authorization and orchestration.
+     */
+    private function storeValidationRules(): array
+    {
+        return [
+            'project_name' => ['nullable', 'string', 'max:80'],
+            'job_topic' => ['nullable', 'string', 'max:255'],
+            'job_details' => ['nullable', 'string', 'max:2000'],
+            'initial_subtask_title' => ['nullable', 'string', 'max:255'],
+            'initial_subtask_details' => ['nullable', 'string', 'max:2000'],
+            'project_items' => ['nullable', 'array', 'max:20'],
+            'project_items.*.job_topic' => ['nullable', 'string', 'max:255'],
+            'project_items.*.job_details' => ['nullable', 'string', 'max:2000'],
+            'project_items.*.subtasks' => ['nullable', 'array', 'max:50'],
+            'project_items.*.subtasks.*.title' => ['nullable', 'string', 'max:255'],
+            'project_items.*.subtasks.*.details' => ['nullable', 'string', 'max:2000'],
+            'user_id' => ['nullable', 'exists:users,id'],
+            'collaborators' => ['nullable', 'array'],
+            'collaborators.*' => ['integer', 'exists:users,id'],
+            'job_start_at' => ['nullable', 'date'],
+            'job_due_at' => ['nullable', 'date', 'after_or_equal:job_start_at'],
+            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
+            'project_priority' => ['nullable', 'integer', 'in:1,2,3'],
+            'attachments' => ['nullable', 'array', 'max:5'],
+            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+        ];
+    }
+
+    /**
+     * Normalize both the current multi-item payload and the legacy single-item
+     * payload into the same collection shape.
+     */
+    private function normalizeProjectItems(array $validated): Collection
+    {
+        $projectItems = collect($validated['project_items'] ?? [])
+            ->map(function ($item) {
+                $subtasks = collect($item['subtasks'] ?? [])
+                    ->map(fn ($subtask) => [
+                        'title' => trim((string) ($subtask['title'] ?? '')),
+                        'details' => trim((string) ($subtask['details'] ?? '')),
+                    ])
+                    ->filter(fn ($subtask) => $subtask['title'] !== '')
+                    ->values()
+                    ->all();
+
+                return [
+                    'job_topic' => trim((string) ($item['job_topic'] ?? '')),
+                    'job_details' => trim((string) ($item['job_details'] ?? '')),
+                    'subtasks' => $subtasks,
+                ];
+            })
+            ->filter(fn ($item) => $item['job_topic'] !== '')
+            ->values();
+
+        if ($projectItems->isNotEmpty() || blank($validated['job_topic'] ?? null)) {
+            return $projectItems;
+        }
+
+        $legacySubtasks = [];
+
+        if (filled($validated['initial_subtask_title'] ?? null)) {
+            $legacySubtasks[] = [
+                'title' => trim((string) $validated['initial_subtask_title']),
+                'details' => trim((string) ($validated['initial_subtask_details'] ?? '')),
+            ];
+        }
+
+        return collect([[
+            'job_topic' => trim((string) $validated['job_topic']),
+            'job_details' => trim((string) ($validated['job_details'] ?? '')),
+            'subtasks' => $legacySubtasks,
+        ]]);
     }
 
     public function toggleList(Request $request, WorkOrderList $list): JsonResponse
