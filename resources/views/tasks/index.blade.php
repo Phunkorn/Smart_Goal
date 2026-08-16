@@ -13,14 +13,7 @@
 @push('styles')
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-notion.css')) !!}</style>
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-table-refresh.css')) !!}</style>
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-task-modal.css')) !!}</style>
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-attachment-modal.css')) !!}</style>
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-views.css')) !!}</style>
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-project-board.css')) !!}</style>
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-priority-menus.css')) !!}</style>
-    <style>{!! file_get_contents(resource_path('css/pages/mytasks-modal-refresh.css')) !!}</style>
+    @vite('resources/css/pages/mytasks.css')
 @endpush
 
 @section('content')
