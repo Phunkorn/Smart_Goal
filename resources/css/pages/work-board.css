@@ -45,8 +45,47 @@
 .wb-department-row:last-child { border-bottom: 0; }
 .wb-department-row:hover { background: #f9fbfe; }
 .wb-department-row__identity { display: flex; align-items: center; gap: 15px; min-width: 0; }
-.wb-department-mark { width: 52px; height: 52px; display: inline-grid; place-items: center; flex: 0 0 auto; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 13px; color: var(--dept-color, var(--wb-blue)); background: var(--dept-soft, #edf4ff); font-size: 18px; font-weight: 800; }
-.wb-department-row__identity h3 { overflow: hidden; margin: 0; font-size: 17px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.wb-department-mark {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+    flex: 0 0 52px;
+
+    display: grid;
+    place-items: center;
+
+    padding: 0;
+    margin: 0;
+
+    border: 1px solid #cbd8ea;
+    border-radius: 12px;
+
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 52px;
+    text-align: center;
+}
+/* Account */
+.wb-dept-blue .wb-department-mark {
+    background: #eaf2ff;
+    border-color: #c7d8f5;
+    color: #315f9e;
+}
+
+/* IT */
+.wb-dept-cyan .wb-department-mark {
+    background: #e5f7fb;
+    border-color: #bfe3ec;
+    color: #18758a;
+}
+
+/* Marketing */
+.wb-dept-purple .wb-department-mark {
+    background: #f1eaff;
+    border-color: #dac9fa;
+    color: #7047b7;
+}.wb-department-row__identity h3 { overflow: hidden; margin: 0; font-size: 17px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .wb-department-row__identity span { display: block; margin-top: 3px; color: var(--wb-muted); font-size: 11px; }
 .wb-department-stat { min-height: 44px; display: flex; align-items: center; gap: 9px; padding-left: 22px; border-left: 1px solid var(--wb-line); }
 .wb-department-stat i { color: #65738d; font-size: 19px; }

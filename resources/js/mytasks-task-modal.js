@@ -95,6 +95,7 @@
             activeRow.dataset.priority = values.job_priority;
             activeRow.dataset.due = values.job_due_at;
             activeRow.querySelector('.row-title strong').textContent = values.job_topic;
+            document.dispatchEvent(new CustomEvent('mytasks:changed', {detail: {id, topic: values.job_topic, status: Number(values.job_status), priority: Number(values.job_priority)}}));
             activeRow.querySelector('.row-title small').textContent = values.job_details || 'ยังไม่มีรายละเอียดงาน';
             if (currentStatus) currentStatus.value = values.job_status;
             if (currentPriority) currentPriority.value = values.job_priority;

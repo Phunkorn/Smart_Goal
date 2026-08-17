@@ -13,7 +13,7 @@
 @push('styles')
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
-    @vite('resources/css/pages/mytasks.css')
+    @vite(['resources/css/pages/mytasks.css', 'resources/js/pages/mytasks/index.js'])
 @endpush
 
 @section('content')
@@ -30,7 +30,7 @@
         <button type="button" class="notion-primary" data-open-create><i class="bi bi-plus-lg"></i> เพิ่มโปรเจกต์</button>
     </section>
 
-    <section class="notion-summary" aria-label="สรุปงาน">
+    {{-- <section class="notion-summary" aria-label="สรุปงาน">
         <button class="overview-total" data-summary-filter=""><i class="bi bi-stack"></i><span><small>ภาพรวมงาน</small><strong>{{ $allTasks->count() }}</strong><em>งานทั้งหมด</em></span></button>
         <div class="overview-states" aria-label="กรองตามสถานะ">
             <button class="state-todo" data-summary-filter="1"><i></i><span>ยังไม่เริ่ม</span><strong>{{ $allTasks->where('job_status', 1)->count() }}</strong></button>
@@ -41,7 +41,7 @@
             <button class="state-late" data-summary-filter="late"><i></i><span>ล่าช้า</span><strong>{{ $lateCount }}</strong></button>
         </div>
         <div class="summary-progress"><span><small>ประสิทธิภาพโดยรวม</small><strong>{{ $overall }}%</strong></span><div><i style="width:{{ $overall }}%"></i></div><em>{{ $doneCount }} จาก {{ $allTasks->count() }} งานเสร็จสมบูรณ์</em></div>
-    </section>
+    </section> --}}
 
     <nav class="notion-viewbar">
         <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i> ตาราง</button>
@@ -60,6 +60,9 @@
             <div class="project-board" data-project-board>
                 @include('tasks.partials.project-board-card', compact('allTasks'))
                 <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานในบอร์ดตามตัวกรองที่เลือก</p></div>
+            </div>
+            <div class="mytasks-kanban-view" data-table-kanban>
+                @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists'))
             </div>
             <div class="notion-table" data-table>
                 <div class="notion-columns"><span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>ผู้รับผิดชอบ</span><span>ระยะเวลา</span><span>ผู้ร่วมงาน</span><span>ไฟล์</span><span>ความคืบหน้า</span><span>Action</span></div>
@@ -138,6 +141,10 @@
     ]]);
 ?>
 <script type="application/json" data-attachment-data>@json($attachmentData)</script>
+<?php
+    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['author' => $update->user?->name ?? 'ไม่ระบุ', 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
+?>
+<script type="application/json" data-timeline-data>@json($timelineData)</script>
 
 <div class="team-modal notion-modal" data-team-modal hidden>
     <section class="team-modal-card" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
@@ -218,16 +225,14 @@
             <label class="task-field"><span>โปรเจกต์</span><input name="project" readonly></label>
             <label class="task-field"><span>ผู้รับผิดชอบ</span><input name="assignee" readonly></label>
         </div>
+        <section class="task-timeline" data-task-timeline hidden>
+            <nav><button type="button" class="active" data-timeline-tab="updates">อัปเดต</button><button type="button" data-timeline-tab="activity">กิจกรรม</button></nav>
+            <div data-timeline-items></div>
+            <div class="task-timeline__compose"><textarea data-task-update-note maxlength="2000" placeholder="เขียนอัปเดต..."></textarea><button type="button" data-submit-task-update aria-label="ส่งอัปเดต"><i class="bi bi-send-fill"></i></button></div>
+        </section>
         <footer><button type="button" class="task-secondary" data-close-task>ยกเลิก</button><button type="submit" class="notion-primary">บันทึกการแก้ไข</button></footer>
     </form>
 </div>
 <div class="notion-toast" data-toast></div>
 @endsection
 
-@push('scripts')
-    <script>{!! file_get_contents(resource_path('js/mytasks-notion.js')) !!}</script>
-    <script>{!! file_get_contents(resource_path('js/mytasks-task-modal.js')) !!}</script>
-    <script>{!! file_get_contents(resource_path('js/mytasks-views.js')) !!}</script>
-    <script>{!! file_get_contents(resource_path('js/mytasks-management.js')) !!}</script>
-    <script>{!! file_get_contents(resource_path('js/mytasks-project-board.js')) !!}</script>
-@endpush
