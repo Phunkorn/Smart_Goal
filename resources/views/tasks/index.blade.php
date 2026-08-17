@@ -24,10 +24,12 @@
     data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}"
     data-progress-template="{{ route('tasks.progress.store', ['id' => '__ID__']) }}"
     data-quick-url="{{ route('mytasks.store') }}"
-    data-create-url="{{ route('mytasks.create') }}">
+    data-create-url="{{ route('mytasks.create') }}"
+    data-current-user-name="{{ auth()->user()->name }}"
+    data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.show', ['path' => auth()->user()->profile_image]) : '' }}">
     <section class="notion-heading">
         <div class="notion-heading-copy"><span class="heading-mark"><i class="bi bi-check2-square"></i></span><div><span class="notion-kicker">WORK MANAGEMENT</span><h1>งานของฉัน</h1><p>จัดลำดับงาน ติดตามความคืบหน้า และทำงานร่วมกับทีมในพื้นที่เดียว</p></div></div>
-        <button type="button" class="notion-primary" data-open-create><i class="bi bi-plus-lg"></i> เพิ่มโปรเจกต์</button>
+
     </section>
 
     {{-- <section class="notion-summary" aria-label="สรุปงาน">
@@ -61,32 +63,34 @@
                 @include('tasks.partials.project-board-card', compact('allTasks'))
                 <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานในบอร์ดตามตัวกรองที่เลือก</p></div>
             </div>
+
             <div class="mytasks-kanban-view" data-table-kanban>
                 @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists'))
             </div>
+
             <div class="notion-table" data-table>
                 <div class="notion-columns"><span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>ผู้รับผิดชอบ</span><span>ระยะเวลา</span><span>ผู้ร่วมงาน</span><span>ไฟล์</span><span>ความคืบหน้า</span><span>Action</span></div>
                 <div data-groups>
                     @foreach($taskLists as $list)
                         @php($listTasks = $allTasks->where('work_order_list_id', $list->id))
-                            <section class="notion-group-section" data-group-section data-group-key="{{ $list->name }}">
-                                <header>
-                                    <button type="button" data-collapse title="ย่อ/ขยาย"><i class="bi bi-chevron-down"></i></button>
-                                    <span class="project-pill">{{ $list->name }}</span><small>{{ $listTasks->count() }} งาน</small>
-                                    <div class="project-actions">
-                                        <button type="button" class="group-plus" data-add-in-group data-list-id="{{ $list->id }}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>
-                                        @can('manage', $list)
-                                            <button type="button" data-edit-project data-name="{{ $list->name }}" data-url="{{ route('mytasks.lists.update', $list) }}" title="แก้ไขชื่อโปรเจกต์"><i class="bi bi-pencil"></i></button>
-                                            <button type="button" class="danger" data-delete-project data-name="{{ $list->name }}" data-url="{{ route('mytasks.lists.destroy', $list) }}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>
-                                        @endcan
-                                    </div>
-                                </header>
-                                <div data-group-rows>
-                                    @foreach($listTasks as $task)
-                                        @include('tasks.partials.notion-task-row', compact('task', 'statusLabels', 'priorityLabels'))
-                                    @endforeach
+                        <section class="notion-group-section" data-group-section data-group-key="{{ $list->name }}">
+                            <header>
+                                <button type="button" data-collapse title="ย่อ/ขยาย"><i class="bi bi-chevron-down"></i></button>
+                                <span class="project-pill">{{ $list->name }}</span><small>{{ $listTasks->count() }} งาน</small>
+                                <div class="project-actions">
+                                    <button type="button" class="group-plus" data-add-in-group data-list-id="{{ $list->id }}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>
+                                    @can('manage', $list)
+                                        <button type="button" data-edit-project data-name="{{ $list->name }}" data-url="{{ route('mytasks.lists.update', $list) }}" title="แก้ไขชื่อโปรเจกต์"><i class="bi bi-pencil"></i></button>
+                                        <button type="button" class="danger" data-delete-project data-name="{{ $list->name }}" data-url="{{ route('mytasks.lists.destroy', $list) }}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>
+                                    @endcan
                                 </div>
-                            </section>
+                            </header>
+                            <div data-group-rows>
+                                @foreach($listTasks as $task)
+                                    @include('tasks.partials.notion-task-row', compact('task', 'statusLabels', 'priorityLabels'))
+                                @endforeach
+                            </div>
+                        </section>
                     @endforeach
                     @php($ungrouped = $allTasks->whereNull('work_order_list_id'))
                     @if($ungrouped->isNotEmpty())
@@ -96,7 +100,7 @@
                 <div class="notion-empty" data-empty hidden><i class="bi bi-search"></i><strong>ไม่พบงาน</strong><span>ลองเปลี่ยนคำค้นหาหรือตัวกรอง</span></div>
             </div>
         </div>
-        <footer><button type="button" data-open-create><i class="bi bi-plus"></i> เพิ่มโปรเจกต์</button><span>แก้ไขข้อมูลในช่องได้ทันที ระบบจะบันทึกอัตโนมัติ</span></footer>
+
     </section>
 </div>
 
@@ -137,12 +141,13 @@
         'files' => $task->images->map(fn ($file) => [
             'name' => $file->original_name ?? basename($file->file_path),
             'url' => route('media.show', ['path' => $file->file_path]),
+            'delete_url' => route('tasks.attachments.destroy', [$task->job_id, $file]),
         ])->values(),
     ]]);
 ?>
 <script type="application/json" data-attachment-data>@json($attachmentData)</script>
 <?php
-    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['author' => $update->user?->name ?? 'ไม่ระบุ', 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
+    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['author' => $update->user?->name ?? 'ไม่ระบุ', 'avatar_url' => $update->user?->profile_image ? route('media.show', ['path' => $update->user->profile_image]) : null, 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'avatar_url' => $log->user?->profile_image ? route('media.show', ['path' => $log->user->profile_image]) : null, 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
 ?>
 <script type="application/json" data-timeline-data>@json($timelineData)</script>
 
@@ -215,16 +220,82 @@
             <div><span class="task-edit-kicker">TASK DETAILS</span><strong>รายละเอียดงาน</strong><small>แก้ไขข้อมูลและบันทึกได้จากหน้านี้</small></div>
             <button type="button" class="task-modal-close" data-close-task aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
         </header>
-        <div class="task-edit-body">
-            <label class="task-field full"><span>ชื่องาน</span><input name="job_topic" maxlength="255" required></label>
-            <label class="task-field full"><span>รายละเอียดงาน</span><textarea name="job_details" rows="5" maxlength="5000" placeholder="อธิบายเป้าหมาย ผลลัพธ์ หรือข้อมูลที่เกี่ยวข้อง"></textarea></label>
-            <label class="task-field"><span>สถานะ</span><select name="job_status"><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="4">เสร็จแล้ว</option><option value="5">พักงาน</option></select></label>
-            <label class="task-field"><span>ความสำคัญ</span><select name="job_priority"><option value="3">สำคัญด่วน</option><option value="4">ด่วนไม่ค่อยสำคัญ</option><option value="2">สำคัญไม่ด่วน</option><option value="5">ไม่รีบ ไม่มีกำหนด</option><option value="1">routine</option></select></label>
-            <label class="task-field"><span>กำหนดส่ง</span><input type="date" name="job_due_at" required></label>
-            <div class="task-field task-progress-readonly"><span>ความคืบหน้า</span><strong data-modal-progress>0%</strong><small>คำนวณจากงานย่อยโดยอัตโนมัติ</small></div>
-            <label class="task-field"><span>โปรเจกต์</span><input name="project" readonly></label>
-            <label class="task-field"><span>ผู้รับผิดชอบ</span><input name="assignee" readonly></label>
+<div class="task-edit-body">
+
+    <div class="task-detail-section-head">
+        <div>
+            <strong>รายละเอียดงาน</strong>
+            <span>ข้อมูลและการตั้งค่าของงาน</span>
         </div>
+    </div>
+
+    <label class="task-field full">
+        <span>ชื่องาน</span>
+        <input name="job_topic" maxlength="255" required>
+    </label>
+
+    <label class="task-field full">
+        <span>รายละเอียดงาน</span>
+        <textarea
+            name="job_details"
+            rows="4"
+            maxlength="5000"
+            placeholder="อธิบายเป้าหมาย ผลลัพธ์ หรือข้อมูลที่เกี่ยวข้อง"
+        ></textarea>
+    </label>
+
+    <div class="task-detail-divider"></div>
+
+    <label class="task-field">
+        <span>สถานะ</span>
+        <select name="job_status" class="task-select-pill task-status-select">
+            <option value="1">ยังไม่เริ่ม</option>
+            <option value="2">กำลังทำ</option>
+            <option value="3">รอตรวจสอบ</option>
+            <option value="4">เสร็จแล้ว</option>
+            <option value="5">พักงาน</option>
+        </select>
+    </label>
+
+    <label class="task-field">
+        <span>ความสำคัญ</span>
+        <select name="job_priority" class="task-select-pill task-priority-select">
+            <option value="3">สำคัญด่วน</option>
+            <option value="4">ด่วนไม่ค่อยสำคัญ</option>
+            <option value="2">สำคัญไม่ด่วน</option>
+            <option value="5">ไม่รีบ ไม่มีกำหนด</option>
+            <option value="1">routine</option>
+        </select>
+    </label>
+    <label class="task-field">
+        <span>วันที่เริ่ม</span>
+        <input type="date" name="job_start_at" readonly>
+    </label>
+
+    <label class="task-field">
+        <span>กำหนดส่ง</span>
+        <input type="date" name="job_due_at" required>
+    </label>
+
+
+
+    <label class="task-field">
+        <span>ผู้รับผิดชอบ</span>
+        <input name="assignee" readonly>
+    </label>
+
+
+    <div class="task-field task-collaborator-field">
+        <span>ผู้ร่วมงาน</span>
+        <button type="button" class="task-collaborator-button" data-manage-team><i class="bi bi-people"></i><span>เพิ่มผู้ร่วมงาน</span></button>
+    </div>
+    <section class="task-field task-attachment-field" data-task-attachments>
+        <span>ไฟล์แนบ</span>
+        <div class="task-inline-files" data-task-inline-files></div>
+        <label class="task-inline-drop" data-task-inline-drop><i class="bi bi-cloud-arrow-up"></i><strong>เลือกไฟล์หรือวางไฟล์ที่นี่</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB/ไฟล์ · รวมไม่เกิน 5 ไฟล์</small><input type="file" multiple data-task-inline-file-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>
+    </section>
+
+</div>
         <section class="task-timeline" data-task-timeline hidden>
             <nav><button type="button" class="active" data-timeline-tab="updates">อัปเดต</button><button type="button" data-timeline-tab="activity">กิจกรรม</button></nav>
             <div data-timeline-items></div>

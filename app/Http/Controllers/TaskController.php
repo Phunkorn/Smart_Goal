@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Department;
+use App\Models\JobImage;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TaskController extends Controller
@@ -309,6 +311,19 @@ class TaskController extends Controller
         return $this->jsonOrBack($request, true, 'เพิ่มไฟล์อ้างอิงงานสำเร็จ');
     }
 
+    public function destroyAttachment(Request $request, $id, JobImage $attachment)
+    {
+        $job = WorkOrder::findOrFail($id);
+        $this->authorize('update', $job);
+        abort_unless((int) $attachment->job_id === (int) $job->job_id, 404);
+        abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
+
+        Storage::disk('public')->delete($attachment->file_path);
+        $attachment->delete();
+        AuditTrail::log('attachment_deleted', $job, 'ลบไฟล์อ้างอิงงาน: '.$job->job_topic);
+
+        return $this->jsonOrBack($request, true, 'ลบไฟล์แนบแล้ว');
+    }
     public function addCollaborators(Request $request, $id)
     {
         $job = WorkOrder::with(['collaborators', 'user.department', 'leader.department'])->findOrFail($id);

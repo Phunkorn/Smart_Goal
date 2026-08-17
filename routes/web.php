@@ -248,6 +248,9 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/tasks/{id}/attachments', [TaskController::class, 'uploadAttachments'])
         ->name('tasks.attachments.store');
 
+    Route::delete('/tasks/{id}/attachments/{attachment}', [TaskController::class, 'destroyAttachment'])
+        ->name('tasks.attachments.destroy');
+
     Route::post('/tasks/{id}/collaborators', [TaskController::class, 'addCollaborators'])
         ->name('tasks.collaborators.store');
 

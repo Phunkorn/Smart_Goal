@@ -38,9 +38,7 @@
         form.elements.job_status.value = row.querySelector('[data-field="status"]')?.value || row.dataset.status;
         form.elements.job_priority.value = row.querySelector('[data-field="priority"]')?.value || row.dataset.priority;
         form.elements.job_due_at.value = row.querySelector('[data-field="due"]')?.value || row.dataset.due || '';
-        form.elements.project.value = row.dataset.project || 'งานทั่วไป';
         form.elements.assignee.value = row.dataset.assignee || '';
-        form.querySelector('[data-modal-progress]').textContent = `${row.querySelector('[data-field="progress"]')?.value || 0}%`;
         modal.hidden = false;
         document.body.classList.add('modal-open');
         requestAnimationFrame(() => form.elements.job_topic.focus());
@@ -265,4 +263,22 @@
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && !modal.hidden) close();
     });
+})();
+(() => {
+    const modal = document.querySelector('[data-task-modal]'); const dataNode = document.querySelector('[data-attachment-data]'); const form = modal?.querySelector('[data-task-form]'); const box = modal?.querySelector('[data-task-attachments]');
+    if (!modal || !dataNode || !form || !box) return;
+    const data = JSON.parse(dataNode.textContent || '{}'); let taskId = null; const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const escape = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const render = () => { const list = box.querySelector('[data-task-inline-files]'); const files = data[String(taskId)]?.files || []; list.innerHTML = files.length ? files.map((file) => `<article><a href="${escape(file.url)}" target="_blank" rel="noopener"><i class="bi bi-file-earmark"></i><span>${escape(file.name)}</span></a>${file.delete_url ? `<button type="button" data-delete-inline-file="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-three-dots-vertical"></i></button>` : ''}</article>`).join('') : '<p>ยังไม่มีไฟล์แนบ</p>'; box.querySelector('[data-task-inline-drop]').hidden = !data[String(taskId)]?.can_upload; };
+    document.addEventListener('click', (event) => { const trigger = event.target.closest('[data-open-task-modal]'); if (trigger) { taskId = trigger.closest('[data-row]')?.dataset.id || null; render(); } const remove = event.target.closest('[data-delete-inline-file]'); if (!remove || !taskId) return; if (!window.confirm('ต้องการลบไฟล์นี้ใช่หรือไม่?')) return; fetch(remove.dataset.deleteInlineFile, {method:'DELETE', headers:{Accept:'application/json','X-CSRF-TOKEN':csrf}}).then((response) => { if (!response.ok) throw new Error(); data[String(taskId)].files = data[String(taskId)].files.filter((file) => file.delete_url !== remove.dataset.deleteInlineFile); render(); }).catch(() => window.Swal?.fire({icon:'errtitle:'ลบไฟล์ไม่สำเร็จ'})); });
+    const upload = async (files) => { const task = data[String(taskId)]; if (!task || !files.length) return; if (task.files.length + files.length > 5 || [...files].some((file) => file.size > 10 * 1024 * 1024)) { window.Swal?.fire({icon:'warning',title:'ตรวจสอบจำนวนหรือขนาดไฟล์',text:'แนบได้รวมไม่เกิน 5 ไฟล์ และไฟล์ละไม่เกิน 10 MB'}); return; } const body = new FormData(); [...files].forEach((file) => body.append('completion_attachments[]', file)); const response = await fetch(task.upload_url, {method:'POST',headers:{Accept:'application/json','X-CSRF-TOKEN':csrf},body}); if (!response.ok) throw new Error(); window.location.reload(); };
+    box.querySelector('[data-task-inline-file-input]')?.addEventListener('change', (event) => upload(event.target.files).catch(() => window.Swal?.fire({icon:'error',title:'แนบไฟล์ไม่สำเร็จ'})));
+    box.querySelector('[data-task-inline-drop]')?.addEventListener('dragover', (event) => { event.preventDefault(); event.currentTarget.classList.add('is-dragover'); });
+    box.querySelector('[data-task-inline-drop]')?.addEventListener('dragleave', (event) => event.currentTarget.classList.remove('is-dragover'));
+    box.querySelector('[data-task-inline-drop]')?.addEventListener('drop', (event) => { event.preventDefault(); event.currentTarget.classList.remove('is-dragover'); upload(event.dataTransfer.files).catch(() => window.Swal?.fire({icon:'error',title:'แนบไฟล์ไม่สำเร็จ'})); });
+})();
+(() => {
+    const modal = document.querySelector('[data-task-modal]'); const form = modal?.querySelector('[data-task-form]');
+    if (!modal || !form) return;
+    document.addEventListener('click', (event) => { const trigger = event.target.closest('[data-open-task-modal]'); const row = trigger?.closest('[data-row]'); if (!row) return; form.elements.job_start_at.value = row.dataset.start || ''; const teamButton = form.querySelector('[data-manage-team]'); if (teamButton) teamButton.dataset.manageTeam = row.dataset.id; });
 })();

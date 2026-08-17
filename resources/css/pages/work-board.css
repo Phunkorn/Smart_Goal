@@ -85,7 +85,8 @@
     background: #f1eaff;
     border-color: #dac9fa;
     color: #7047b7;
-}.wb-department-row__identity h3 { overflow: hidden; margin: 0; font-size: 17px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+}
+.wb-department-row__identity h3 { overflow: hidden; margin: 0; font-size: 17px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .wb-department-row__identity span { display: block; margin-top: 3px; color: var(--wb-muted); font-size: 11px; }
 .wb-department-stat { min-height: 44px; display: flex; align-items: center; gap: 9px; padding-left: 22px; border-left: 1px solid var(--wb-line); }
 .wb-department-stat i { color: #65738d; font-size: 19px; }
