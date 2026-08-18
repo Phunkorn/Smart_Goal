@@ -1,3 +1,5 @@
+import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
+
 (() => {
     const workspace = document.querySelector('[data-workspace]');
     const modal = document.querySelector('[data-task-modal]');
@@ -31,12 +33,23 @@
         return data;
     };
 
+    const setModalStatus = (value) => {
+        const meta = statusMeta[value]; const menu = form.querySelector('[data-modal-status-menu]'); if (!meta || !menu) return;
+        form.elements.job_status.value = String(value); const summary = menu.querySelector('summary'); summary.classList.remove(...statusClasses); summary.classList.add(meta.className); summary.querySelector('[data-modal-status-label]').textContent = meta.label; menu.querySelectorAll('[data-modal-status-value] .bi-check2').forEach((check) => check.remove()); menu.querySelector(`[data-modal-status-value="${value}"]`)?.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
+    };
+    const setModalPriority = (value) => {
+        const meta = taskPriorityMeta[value]; const menu = form.querySelector('[data-modal-priority-menu]'); if (!meta || !menu) return;
+        form.elements.job_priority.value = String(value); const summary = menu.querySelector('summary'); summary.classList.remove(...taskPriorityClasses); summary.classList.add(meta.className); summary.querySelector('[data-modal-priority-label]').textContent = meta.label; menu.querySelectorAll('[data-modal-priority-value] .bi-check2').forEach((check) => check.remove()); menu.querySelector(`[data-modal-priority-value="${value}"]`)?.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
+    };
+    const closeModalMenus = (except = null) => form.querySelectorAll('[data-modal-status-menu][open], [data-modal-priority-menu][open]').forEach((menu) => { if (menu !== except) menu.removeAttribute('open'); });
     const open = (row) => {
         activeRow = row;
         form.elements.job_topic.value = row.dataset.topic || '';
         form.elements.job_details.value = row.dataset.details || '';
         form.elements.job_status.value = row.querySelector('[data-field="status"]')?.value || row.dataset.status;
         form.elements.job_priority.value = row.querySelector('[data-field="priority"]')?.value || row.dataset.priority;
+        setModalStatus(Number(form.elements.job_status.value));
+        setModalPriority(Number(form.elements.job_priority.value));
         form.elements.job_due_at.value = row.querySelector('[data-field="due"]')?.value || row.dataset.due || '';
         form.elements.assignee.value = row.dataset.assignee || '';
         modal.hidden = false;
@@ -51,6 +64,10 @@
     };
 
     document.addEventListener('click', (event) => {
+        const statusOption = event.target.closest('[data-modal-status-value]'); if (statusOption) { setModalStatus(Number(statusOption.dataset.modalStatusValue)); closeModalMenus(); return; }
+        const priorityOption = event.target.closest('[data-modal-priority-value]'); if (priorityOption) { setModalPriority(Number(priorityOption.dataset.modalPriorityValue)); closeModalMenus(); return; }
+        const summary = event.target.closest('[data-modal-status-menu] > summary, [data-modal-priority-menu] > summary'); if (summary) { closeModalMenus(summary.parentElement); return; }
+        if (!event.target.closest('[data-modal-status-menu], [data-modal-priority-menu]')) closeModalMenus();
         const trigger = event.target.closest('[data-open-task-modal]');
         if (trigger) {
             event.preventDefault();
@@ -124,6 +141,10 @@
     };
 
     document.addEventListener('click', (event) => {
+        const statusOption = event.target.closest('[data-modal-status-value]'); if (statusOption) { setModalStatus(Number(statusOption.dataset.modalStatusValue)); closeModalMenus(); return; }
+        const priorityOption = event.target.closest('[data-modal-priority-value]'); if (priorityOption) { setModalPriority(Number(priorityOption.dataset.modalPriorityValue)); closeModalMenus(); return; }
+        const summary = event.target.closest('[data-modal-status-menu] > summary, [data-modal-priority-menu] > summary'); if (summary) { closeModalMenus(summary.parentElement); return; }
+        if (!event.target.closest('[data-modal-status-menu], [data-modal-priority-menu]')) closeModalMenus();
         const trigger = event.target.closest('[data-open-owner]');
         if (trigger) {
             const owner = owners[String(trigger.dataset.openOwner)];
@@ -270,7 +291,11 @@
     const data = JSON.parse(dataNode.textContent || '{}'); let taskId = null; const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const escape = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const render = () => { const list = box.querySelector('[data-task-inline-files]'); const files = data[String(taskId)]?.files || []; list.innerHTML = files.length ? files.map((file) => `<article><a href="${escape(file.url)}" target="_blank" rel="noopener"><i class="bi bi-file-earmark"></i><span>${escape(file.name)}</span></a>${file.delete_url ? `<button type="button" data-delete-inline-file="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-three-dots-vertical"></i></button>` : ''}</article>`).join('') : '<p>ยังไม่มีไฟล์แนบ</p>'; box.querySelector('[data-task-inline-drop]').hidden = !data[String(taskId)]?.can_upload; };
-    document.addEventListener('click', (event) => { const trigger = event.target.closest('[data-open-task-modal]'); if (trigger) { taskId = trigger.closest('[data-row]')?.dataset.id || null; render(); } const remove = event.target.closest('[data-delete-inline-file]'); if (!remove || !taskId) return; if (!window.confirm('ต้องการลบไฟล์นี้ใช่หรือไม่?')) return; fetch(remove.dataset.deleteInlineFile, {method:'DELETE', headers:{Accept:'application/json','X-CSRF-TOKEN':csrf}}).then((response) => { if (!response.ok) throw new Error(); data[String(taskId)].files = data[String(taskId)].files.filter((file) => file.delete_url !== remove.dataset.deleteInlineFile); render(); }).catch(() => window.Swal?.fire({icon:'error',title:'ลบไฟล์ไม่สำเร็จ'})); });
+    document.addEventListener('click', (event) => {
+        const statusOption = event.target.closest('[data-modal-status-value]'); if (statusOption) { setModalStatus(Number(statusOption.dataset.modalStatusValue)); closeModalMenus(); return; }
+        const priorityOption = event.target.closest('[data-modal-priority-value]'); if (priorityOption) { setModalPriority(Number(priorityOption.dataset.modalPriorityValue)); closeModalMenus(); return; }
+        const summary = event.target.closest('[data-modal-status-menu] > summary, [data-modal-priority-menu] > summary'); if (summary) { closeModalMenus(summary.parentElement); return; }
+        if (!event.target.closest('[data-modal-status-menu], [data-modal-priority-menu]')) closeModalMenus(); const trigger = event.target.closest('[data-open-task-modal]'); if (trigger) { taskId = trigger.closest('[data-row]')?.dataset.id || null; render(); } const remove = event.target.closest('[data-delete-inline-file]'); if (!remove || !taskId) return; if (!window.confirm('ต้องการลบไฟล์นี้ใช่หรือไม่?')) return; fetch(remove.dataset.deleteInlineFile, {method:'DELETE', headers:{Accept:'application/json','X-CSRF-TOKEN':csrf}}).then((response) => { if (!response.ok) throw new Error(); data[String(taskId)].files = data[String(taskId)].files.filter((file) => file.delete_url !== remove.dataset.deleteInlineFile); render(); }).catch(() => window.Swal?.fire({icon:'error',title:'ลบไฟล์ไม่สำเร็จ'})); });
     const upload = async (files) => { const task = data[String(taskId)]; if (!task || !files.length) return; if (task.files.length + files.length > 5 || [...files].some((file) => file.size > 10 * 1024 * 1024)) { window.Swal?.fire({icon:'warning',title:'ตรวจสอบจำนวนหรือขนาดไฟล์',text:'แนบได้รวมไม่เกิน 5 ไฟล์ และไฟล์ละไม่เกิน 10 MB'}); return; } const body = new FormData(); [...files].forEach((file) => body.append('completion_attachments[]', file)); const response = await fetch(task.upload_url, {method:'POST',headers:{Accept:'application/json','X-CSRF-TOKEN':csrf},body}); if (!response.ok) throw new Error(); window.location.reload(); };
     box.querySelector('[data-task-inline-file-input]')?.addEventListener('change', (event) => upload(event.target.files).catch(() => window.Swal?.fire({icon:'error',title:'แนบไฟล์ไม่สำเร็จ'})));
     box.querySelector('[data-task-inline-drop]')?.addEventListener('dragover', (event) => { event.preventDefault(); event.currentTarget.classList.add('is-dragover'); });
@@ -280,5 +305,9 @@
 (() => {
     const modal = document.querySelector('[data-task-modal]'); const form = modal?.querySelector('[data-task-form]');
     if (!modal || !form) return;
-    document.addEventListener('click', (event) => { const trigger = event.target.closest('[data-open-task-modal]'); const row = trigger?.closest('[data-row]'); if (!row) return; form.elements.job_start_at.value = row.dataset.start || ''; const teamButton = form.querySelector('[data-manage-team]'); if (teamButton) teamButton.dataset.manageTeam = row.dataset.id; });
+    document.addEventListener('click', (event) => {
+        const statusOption = event.target.closest('[data-modal-status-value]'); if (statusOption) { setModalStatus(Number(statusOption.dataset.modalStatusValue)); closeModalMenus(); return; }
+        const priorityOption = event.target.closest('[data-modal-priority-value]'); if (priorityOption) { setModalPriority(Number(priorityOption.dataset.modalPriorityValue)); closeModalMenus(); return; }
+        const summary = event.target.closest('[data-modal-status-menu] > summary, [data-modal-priority-menu] > summary'); if (summary) { closeModalMenus(summary.parentElement); return; }
+        if (!event.target.closest('[data-modal-status-menu], [data-modal-priority-menu]')) closeModalMenus(); const trigger = event.target.closest('[data-open-task-modal]'); const row = trigger?.closest('[data-row]'); if (!row) return; form.elements.job_start_at.value = row.dataset.start || ''; const teamButton = form.querySelector('[data-manage-team]'); if (teamButton) teamButton.dataset.manageTeam = row.dataset.id; });
 })();

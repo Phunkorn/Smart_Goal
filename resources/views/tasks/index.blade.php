@@ -212,6 +212,23 @@
     </section>
 </div>
 
+<div class="notion-modal board-attachment-modal" data-board-attachment-modal hidden>
+    <section class="board-attachment-modal__card" role="dialog" aria-modal="true" aria-labelledby="board-attachment-modal-title">
+        <header>
+            <div><span>ATTACHMENTS</span><strong id="board-attachment-modal-title">ไฟล์แนบ</strong><small data-board-attachment-topic></small></div>
+            <button type="button" class="task-modal-close" data-close-board-attachments aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
+        </header>
+        <div class="board-attachment-modal__body">
+            <div class="board-attachment-modal__list" data-board-attachment-list></div>
+            <div class="board-attachment-modal__empty" data-board-attachment-empty hidden><i class="bi bi-paperclip"></i><strong>ยังไม่มีไฟล์แนบ</strong><span>เพิ่มเอกสารหรือรูปภาพที่เกี่ยวข้องกับงานนี้ได้ด้านล่าง</span></div>
+            <div class="board-attachment-modal__upload" data-board-attachment-upload>
+                <label><i class="bi bi-cloud-arrow-up"></i><span><strong>เพิ่มไฟล์แนบ</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB/ไฟล์ · รวมไม่เกิน 5 ไฟล์</small></span><input type="file" multiple data-board-modal-attachment-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>
+            </div>
+        </div>
+        <footer><button type="button" class="task-secondary" data-close-board-attachments>ปิด</button></footer>
+    </section>
+</div>
+
 <div class="notion-modal" data-create-modal hidden>
     <form class="notion-modal-card project-create-card" data-create-form enctype="multipart/form-data">
         <header><div><span class="task-edit-kicker">NEW PROJECT</span><strong>เพิ่มโปรเจกต์ใหม่</strong><small>สร้างพื้นที่โปรเจกต์ก่อน แล้วเพิ่มรายการงานภายหลัง</small></div><button type="button" class="task-modal-close" data-close-create aria-label="ปิด"><i class="bi bi-x-lg"></i></button></header>
@@ -224,7 +241,7 @@
     </form>
 </div>
 
-<div class="task-edit-modal notion-modal" data-task-modal hidden>
+<div class="task-edit-modal notion-modal my-tasks-page" data-task-modal hidden>
     <form class="task-edit-card" data-task-form>
         <header>
             <div><span class="task-edit-kicker">TASK DETAILS</span><strong>รายละเอียดงาน</strong><small>แก้ไขข้อมูลและบันทึกได้จากหน้านี้</small></div>
@@ -258,24 +275,14 @@
 
     <label class="task-field">
         <span>สถานะ</span>
-        <select name="job_status" class="task-select-pill task-status-select">
-            <option value="1">ยังไม่เริ่ม</option>
-            <option value="2">กำลังทำ</option>
-            <option value="3">รอตรวจสอบ</option>
-            <option value="4">เสร็จแล้ว</option>
-            <option value="5">พักงาน</option>
-        </select>
+        <select name="job_status" hidden aria-hidden="true" tabindex="-1"><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="4">เสร็จแล้ว</option><option value="5">พักงาน</option></select>
+        <details class="board-status-menu modal-status-menu" data-modal-status-menu><summary class="board-status-pill"><span data-modal-status-label></span><i class="bi bi-chevron-down"></i></summary><div>@foreach([1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']] as $value=>$meta)<button type="button" class="status-{{ $meta[1] }}" data-modal-status-value="{{ $value }}">{{ $meta[0] }}</button>@endforeach</div></details>
     </label>
 
     <label class="task-field">
         <span>ความสำคัญ</span>
-        <select name="job_priority" class="task-select-pill task-priority-select">
-            <option value="3">สำคัญด่วน</option>
-            <option value="4">ด่วนไม่ค่อยสำคัญ</option>
-            <option value="2">สำคัญไม่ด่วน</option>
-            <option value="5">ไม่รีบ ไม่มีกำหนด</option>
-            <option value="1">routine</option>
-        </select>
+        <select name="job_priority" hidden aria-hidden="true" tabindex="-1"><option value="3">สำคัญด่วน</option><option value="4">ด่วนไม่ค่อยสำคัญ</option><option value="2">สำคัญไม่ด่วน</option><option value="5">ไม่รีบ ไม่มีกำหนด</option><option value="1">routine</option></select>
+        <details class="board-priority-menu modal-priority-menu" data-modal-priority-menu><summary class="board-priority"><span data-modal-priority-label></span><i class="bi bi-chevron-down"></i></summary><div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible'],1=>['routine','routine']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-modal-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}</button>@endforeach</div></details>
     </label>
     <label class="task-field">
         <span>วันที่เริ่ม</span>

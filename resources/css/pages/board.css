@@ -2,5 +2,9 @@
 @import './board/base.css';
 @import './board/table.css';
 @import './board/dashboard.css';
+
+/* Admin organization overview */
+@import './board/admin-overview.css';
+
 @import './board/responsive.css';
 @import './board/modal.css';

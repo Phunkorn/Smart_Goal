@@ -43,16 +43,22 @@ class TaskController extends Controller
         2 => ['label' => 'กลาง', 'tone' => 'amber'],
         3 => ['label' => 'สูง', 'tone' => 'red'],
     ];
-
     public function index(Request $request)
     {
         $this->authorize('viewAny', WorkOrder::class);
 
         $currentDeptId = $request->integer('department_id') ?: null;
         $currentAssignee = $request->integer('assignee') ?: null;
+        $currentStatus = $request->string('status')->toString();
+        $search = trim($request->string('search')->toString());
 
-        $query = WorkOrder::with(['user.department', 'department', 'creator', 'leader', 'collaborators.department']);
-
+        $query = WorkOrder::with([
+            'user.department',
+            'department',
+            'creator',
+            'leader',
+            'collaborators.department',
+        ]);
         if ($currentDeptId) {
             $query->where('department_id', $currentDeptId);
         }
@@ -61,13 +67,40 @@ class TaskController extends Controller
             $query->where('user_id', $currentAssignee);
         }
 
-        $jobs = $query->latest('job_id')->get()->map(function (WorkOrder $job) {
-            $job->is_overdue = $this->isOverdue($job);
+        if ($search !== '') {
+            $query->where(function ($query) use ($search) {
+                $query
+                    ->where('job_topic', 'like', '%' . $search . '%')
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', '%' . $search . '%');
+                    })
+                    ->orWhereHas('department', function ($departmentQuery) use ($search) {
+                        $departmentQuery->where('department_name', 'like', '%' . $search . '%');
+                    });
+            });
+        }
 
-            return $job;
-        });
+        $jobs = $query
+            ->latest('job_id')
+            ->get()
+            ->map(function (WorkOrder $job) {
+                $job->is_overdue = $this->isOverdue($job);
+
+                return $job;
+            });
+
+        if ($currentStatus === 'late') {
+            $jobs = $jobs
+                ->where('is_overdue', true)
+                ->values();
+        } elseif (in_array($currentStatus, ['1', '2', '3', '4', '5'], true)) {
+            $jobs = $jobs
+                ->where('job_status', (int) $currentStatus)
+                ->values();
+        }
 
         $departments = Department::orderBy('department_name')->get();
+
         $employees = User::with('department')
             ->where('role', 'user')
             ->orderBy('name')
@@ -76,11 +109,23 @@ class TaskController extends Controller
         $stats = $this->boardStats($jobs);
 
         $attentionJobs = $jobs
-            ->filter(fn (WorkOrder $job) => $job->approval_status !== 'rejected' && ($job->is_overdue || $this->isDueSoon($job)))
-            ->sortBy(fn (WorkOrder $job) => optional($job->job_due_at)->timestamp ?? PHP_INT_MAX)
+            ->filter(
+                fn(WorkOrder $job) =>
+                $job->approval_status !== 'rejected'
+                    && ($job->is_overdue || $this->isDueSoon($job))
+            )
+            ->sortBy(
+                fn(WorkOrder $job) =>
+                optional($job->job_due_at)->timestamp ?? PHP_INT_MAX
+            )
             ->values();
 
-        $workloadByDepartment = $this->departmentWorkload($departments, $employees, $jobs);
+        $workloadByDepartment = $this->departmentWorkload(
+            $departments,
+            $employees,
+            $jobs
+        );
+
         $workloadByUser = $this->userWorkload($employees, $jobs);
 
         $canManageTasks = Auth::user()?->role === 'admin';
@@ -91,6 +136,8 @@ class TaskController extends Controller
             'employees',
             'currentDeptId',
             'currentAssignee',
+            'currentStatus',
+            'search',
             'stats',
             'attentionJobs',
             'workloadByDepartment',
@@ -150,8 +197,8 @@ class TaskController extends Controller
             ]);
 
             $collaborators = collect($validated['collaborators'] ?? [])
-                ->map(fn ($id) => (int) $id)
-                ->reject(fn ($id) => $id === (int) $assignee->id)
+                ->map(fn($id) => (int) $id)
+                ->reject(fn($id) => $id === (int) $assignee->id)
                 ->unique()
                 ->values();
 
@@ -167,18 +214,22 @@ class TaskController extends Controller
             $this->storeFiles($request, $job, 'attachments');
 
             if ($actor->role === 'admin') {
-                $this->notifyJobMembers($job, 'admin_created_task', 'มีงานใหม่', 'ผู้ดูแลระบบมอบหมายงาน "'.$job->job_topic.'" ให้คุณ');
+                $this->notifyJobMembers($job, 'admin_created_task', 'มีงานใหม่', 'ผู้ดูแลระบบมอบหมายงาน "' . $job->job_topic . '" ให้คุณ');
             } elseif (! $approval['same_department']) {
                 // มอบหมายข้ามแผนก -> ต้องแจ้งเตือน admin ทุกคนให้เข้ามาอนุมัติ/ปฏิเสธ
-                $this->notifyAdmins($job, 'cross_department_pending', 'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
-                    $actor->name.' ต้องการมอบหมายงาน "'.$job->job_topic.'" ให้ '.$assignee->name.' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ');
+                $this->notifyAdmins(
+                    $job,
+                    'cross_department_pending',
+                    'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
+                    $actor->name . ' ต้องการมอบหมายงาน "' . $job->job_topic . '" ให้ ' . $assignee->name . ' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ'
+                );
             }
 
             return $job;
         });
 
         $job->refresh();
-        AuditTrail::log('created', $job, ($actor->role === 'admin' ? 'Admin สร้างงาน: ' : 'ผู้ใช้ส่งคำขอเปิดงาน: ').$job->job_topic, [
+        AuditTrail::log('created', $job, ($actor->role === 'admin' ? 'Admin สร้างงาน: ' : 'ผู้ใช้ส่งคำขอเปิดงาน: ') . $job->job_topic, [
             'after' => $job->attributesToArray(),
         ]);
 
@@ -224,7 +275,7 @@ class TaskController extends Controller
         $job->save();
         $job->refresh();
 
-        AuditTrail::log('updated', $job, 'แก้ไขรายละเอียดงาน: '.$job->job_topic, [
+        AuditTrail::log('updated', $job, 'แก้ไขรายละเอียดงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
         ]);
@@ -243,7 +294,7 @@ class TaskController extends Controller
             'job_status' => ['required', 'integer', 'in:1,2,3,4,5'],
             'job_progress' => ['nullable', 'integer', 'min:0', 'max:100'],
             'completion_attachments' => ['nullable', 'array', 'max:5'],
-            'completion_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'completion_attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ]);
 
         if ((int) $job->job_status === 4 && (int) $validated['job_status'] !== 4 && $user?->role !== 'admin') {
@@ -272,7 +323,7 @@ class TaskController extends Controller
         });
 
         $job->refresh();
-        AuditTrail::log('status_changed', $job, 'เปลี่ยนสถานะงาน: '.$job->job_topic, [
+        AuditTrail::log('status_changed', $job, 'เปลี่ยนสถานะงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
         ]);
@@ -292,7 +343,7 @@ class TaskController extends Controller
 
         $request->validate([
             'completion_attachments' => ['required', 'array', 'min:1', 'max:5'],
-            'completion_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'completion_attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ]);
 
         $incomingCount = count($request->file('completion_attachments', []));
@@ -303,7 +354,7 @@ class TaskController extends Controller
         $this->assertAllowedAttachments($request, 'completion_attachments');
 
         $this->storeFiles($request, $job, 'completion_attachments');
-        AuditTrail::log('attachments_uploaded', $job, 'เพิ่มไฟล์อ้างอิงงาน: '.$job->job_topic, [
+        AuditTrail::log('attachments_uploaded', $job, 'เพิ่มไฟล์อ้างอิงงาน: ' . $job->job_topic, [
             'field' => 'completion_attachments',
             'count' => count($request->file('completion_attachments', [])),
         ]);
@@ -320,7 +371,7 @@ class TaskController extends Controller
 
         Storage::disk('public')->delete($attachment->file_path);
         $attachment->delete();
-        AuditTrail::log('attachment_deleted', $job, 'ลบไฟล์อ้างอิงงาน: '.$job->job_topic);
+        AuditTrail::log('attachment_deleted', $job, 'ลบไฟล์อ้างอิงงาน: ' . $job->job_topic);
 
         return $this->jsonOrBack($request, true, 'ลบไฟล์แนบแล้ว');
     }
@@ -346,7 +397,7 @@ class TaskController extends Controller
             ->get();
 
         $newUsers = $eligibleUsers
-            ->reject(fn (User $candidate) => $existingIds->contains((int) $candidate->id))
+            ->reject(fn(User $candidate) => $existingIds->contains((int) $candidate->id))
             ->unique('id')
             ->values();
 
@@ -367,7 +418,7 @@ class TaskController extends Controller
                 ],
             ]);
 
-            AuditTrail::log('collaborator_added', $job, 'เพิ่มผู้ร่วมโปรเจกต์ในงาน: '.$job->job_topic, [
+            AuditTrail::log('collaborator_added', $job, 'เพิ่มผู้ร่วมโปรเจกต์ในงาน: ' . $job->job_topic, [
                 'user_id' => $candidate->id,
                 'status' => $pivotStatus,
             ]);
@@ -378,7 +429,7 @@ class TaskController extends Controller
                     'work_order_id' => $job->job_id,
                     'type' => 'collaborator_added',
                     'title' => 'ถูกเพิ่มเข้าร่วมงาน',
-                    'message' => $actorLabel.' เพิ่มคุณเข้าร่วมงาน "'.$job->job_topic.'"',
+                    'message' => $actorLabel . ' เพิ่มคุณเข้าร่วมงาน "' . $job->job_topic . '"',
                 ]);
 
                 continue;
@@ -390,7 +441,7 @@ class TaskController extends Controller
                     'work_order_id' => $job->job_id,
                     'type' => 'collaborator_approval_request',
                     'title' => 'ขออนุมัติผู้ร่วมงานข้ามแผนก',
-                    'message' => $actorLabel.' ขอเพิ่ม '.$candidate->name.' ('.($candidate->department?->department_name ?? 'ไม่ระบุแผนก').') เข้าร่วมงาน "'.$job->job_topic.'"',
+                    'message' => $actorLabel . ' ขอเพิ่ม ' . $candidate->name . ' (' . ($candidate->department?->department_name ?? 'ไม่ระบุแผนก') . ') เข้าร่วมงาน "' . $job->job_topic . '"',
                 ]);
             }
         }
@@ -407,7 +458,7 @@ class TaskController extends Controller
 
         $job->collaborators()->detach($user->id);
 
-        AuditTrail::log('collaborator_removed', $job, 'นำผู้ร่วมโปรเจกต์ออกจากงาน: '.$job->job_topic, [
+        AuditTrail::log('collaborator_removed', $job, 'นำผู้ร่วมโปรเจกต์ออกจากงาน: ' . $job->job_topic, [
             'user_id' => $user->id,
             'user_name' => $user->name,
         ]);
@@ -417,7 +468,7 @@ class TaskController extends Controller
             'work_order_id' => $job->job_id,
             'type' => 'collaborator_removed',
             'title' => 'ถูกนำออกจากงาน',
-            'message' => 'คุณถูกนำออกจากทีมงาน "'.$job->job_topic.'"',
+            'message' => 'คุณถูกนำออกจากทีมงาน "' . $job->job_topic . '"',
         ]);
 
         return $this->jsonOrBack($request, true, 'นำผู้ร่วมงานออกจากทีมแล้ว');
@@ -466,7 +517,7 @@ class TaskController extends Controller
         });
 
         $job->refresh();
-        AuditTrail::log('progress_updated', $job, 'เพิ่มความคิดเห็น/อัปเดตงาน: '.$job->job_topic, [
+        AuditTrail::log('progress_updated', $job, 'เพิ่มความคิดเห็น/อัปเดตงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
             'progress' => $progress,
@@ -496,7 +547,7 @@ class TaskController extends Controller
         $job->delete_request_reason = $validated['reason'];
         $job->save();
 
-        AuditTrail::log('delete_requested', $job, 'ส่งคำขอลบงาน: '.$job->job_topic, [
+        AuditTrail::log('delete_requested', $job, 'ส่งคำขอลบงาน: ' . $job->job_topic, [
             'reason' => Str::limit($validated['reason'], 500),
             'requested_by' => $user->id,
         ]);
@@ -508,7 +559,7 @@ class TaskController extends Controller
                 'work_order_id' => $job->job_id,
                 'type' => 'delete_request',
                 'title' => 'มีคำขอลบงาน',
-                'message' => $user->name.' ขออนุญาตลบงาน "'.$job->job_topic.'" เหตุผล: '.Str::limit($validated['reason'], 180),
+                'message' => $user->name . ' ขออนุญาตลบงาน "' . $job->job_topic . '" เหตุผล: ' . Str::limit($validated['reason'], 180),
             ]);
         }
 
@@ -524,7 +575,7 @@ class TaskController extends Controller
             return $this->jsonOrBack($request, false, 'งานนี้ไม่มีคำขอลบ', 422);
         }
 
-        $this->notifyJobDeleted($job, 'ผู้ดูแลระบบอนุมัติคำขอลบงาน "'.$job->job_topic.'" แล้ว');
+        $this->notifyJobDeleted($job, 'ผู้ดูแลระบบอนุมัติคำขอลบงาน "' . $job->job_topic . '" แล้ว');
         AuditTrail::trash($job, Auth::user(), [
             'work_order' => $job->attributesToArray(),
             'assignee' => $job->user?->only(['id', 'name', 'email']),
@@ -532,7 +583,7 @@ class TaskController extends Controller
             'leader' => $job->leader?->only(['id', 'name', 'email']),
             'collaborators' => $job->collaborators->map->only(['id', 'name', 'email'])->values()->all(),
         ]);
-        AuditTrail::log('deleted', $job, 'Admin ลบงาน: '.$job->job_topic, [
+        AuditTrail::log('deleted', $job, 'Admin ลบงาน: ' . $job->job_topic, [
             'before' => $job->attributesToArray(),
         ]);
         $job->delete();
@@ -568,7 +619,7 @@ class TaskController extends Controller
 
         $job->refresh();
 
-        AuditTrail::log('delete_request_rejected', $job, 'Admin ปฏิเสธคำขอลบงาน: '.$job->job_topic, [
+        AuditTrail::log('delete_request_rejected', $job, 'Admin ปฏิเสธคำขอลบงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
             'requested_by' => $requesterId,
@@ -580,7 +631,7 @@ class TaskController extends Controller
                 'work_order_id' => $job->job_id,
                 'type' => 'delete_request_rejected',
                 'title' => 'คำขอลบงานถูกปฏิเสธ',
-                'message' => 'ผู้ดูแลระบบปฏิเสธคำขอลบงาน "'.$job->job_topic.'"',
+                'message' => 'ผู้ดูแลระบบปฏิเสธคำขอลบงาน "' . $job->job_topic . '"',
             ]);
         }
 
@@ -617,17 +668,17 @@ class TaskController extends Controller
         $job->save();
 
         $job->refresh();
-        AuditTrail::log('approval_updated', $job, 'Admin อัปเดตการอนุมัติงาน: '.$job->job_topic, [
+        AuditTrail::log('approval_updated', $job, 'Admin อัปเดตการอนุมัติงาน: ' . $job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
         ]);
 
         if ($validated['approval_status'] === 'approved') {
             $title = 'งานได้รับอนุมัติแล้ว';
-            $message = 'ผู้ดูแลระบบอนุมัติงาน "'.$job->job_topic.'" แล้ว';
+            $message = 'ผู้ดูแลระบบอนุมัติงาน "' . $job->job_topic . '" แล้ว';
         } else {
             $title = 'งานไม่ผ่านการอนุมัติ';
-            $message = 'ผู้ดูแลระบบปฏิเสธคำขอเปิดงาน "'.$job->job_topic.'"';
+            $message = 'ผู้ดูแลระบบปฏิเสธคำขอเปิดงาน "' . $job->job_topic . '"';
         }
 
         $this->notifyJobMembers($job, 'admin_approval', $title, $message);
@@ -647,10 +698,10 @@ class TaskController extends Controller
             'leader' => $job->leader?->only(['id', 'name', 'email']),
             'collaborators' => $job->collaborators->map->only(['id', 'name', 'email'])->values()->all(),
         ]);
-        AuditTrail::log('deleted', $job, 'Admin ลบงาน: '.$job->job_topic, [
+        AuditTrail::log('deleted', $job, 'Admin ลบงาน: ' . $job->job_topic, [
             'before' => $job->attributesToArray(),
         ]);
-        $this->notifyJobDeleted($job, 'ผู้ดูแลระบบลบงาน "'.$job->job_topic.'" แล้ว');
+        $this->notifyJobDeleted($job, 'ผู้ดูแลระบบลบงาน "' . $job->job_topic . '" แล้ว');
         $job->delete();
 
         return redirect()->route('board.index')->with('success', 'ลบงานสำเร็จ');
@@ -688,7 +739,7 @@ class TaskController extends Controller
             ->merge($job->collaborators->pluck('id'))
             ->filter()
             ->unique()
-            ->reject(fn ($userId) => (int) $userId === (int) Auth::id())
+            ->reject(fn($userId) => (int) $userId === (int) Auth::id())
             ->values();
 
         foreach ($userIds as $userId) {
@@ -733,7 +784,7 @@ class TaskController extends Controller
             ->merge($job->collaborators->pluck('id'))
             ->filter()
             ->unique()
-            ->reject(fn ($userId) => (int) $userId === (int) Auth::id())
+            ->reject(fn($userId) => (int) $userId === (int) Auth::id())
             ->values();
 
         foreach ($userIds as $userId) {
@@ -758,18 +809,55 @@ class TaskController extends Controller
         ];
     }
 
-    private function departmentWorkload(Collection $departments, Collection $employees, Collection $jobs): Collection
-    {
+    private function departmentWorkload(
+        Collection $departments,
+        Collection $employees,
+        Collection $jobs
+    ): Collection {
         return $departments->map(function (Department $department) use ($jobs, $employees) {
             $departmentJobs = $jobs->where('department_id', $department->id);
 
+            $totalJobs = $departmentJobs->count();
+
+            $doneCount = $departmentJobs
+                ->where('job_status', 4)
+                ->count();
+
+            $projectCount = $departmentJobs
+                ->pluck('work_order_list_id')
+                ->filter()
+                ->unique()
+                ->count();
+
             return [
+                'id' => $department->id,
                 'name' => $department->department_name,
-                'employee_count' => $employees->where('department_id', $department->id)->count(),
-                'total_jobs' => $departmentJobs->count(),
-                'done_count' => $departmentJobs->where('job_status', 4)->count(),
-                'active_count' => $departmentJobs->where('job_status', '!=', 4)->count(),
-                'overdue_count' => $departmentJobs->where('is_overdue', true)->count(),
+
+                'code' => mb_strtoupper(
+                    mb_substr($department->department_name, 0, 2)
+                ),
+
+                'employee_count' => $employees
+                    ->where('department_id', $department->id)
+                    ->count(),
+
+                'project_count' => $projectCount,
+
+                'total_jobs' => $totalJobs,
+
+                'done_count' => $doneCount,
+
+                'active_count' => $departmentJobs
+                    ->where('job_status', '!=', 4)
+                    ->count(),
+
+                'overdue_count' => $departmentJobs
+                    ->where('is_overdue', true)
+                    ->count(),
+
+                'completion_rate' => $totalJobs > 0
+                    ? (int) round(($doneCount / $totalJobs) * 100)
+                    : 0,
             ];
         });
     }
@@ -805,7 +893,7 @@ class TaskController extends Controller
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id,role,user'],
             'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ];
     }
 

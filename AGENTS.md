@@ -41,6 +41,22 @@ resources/
     └── calendar.js
 ```
 
+## Reuse Before Create
+
+ก่อนสร้าง Blade, CSS, JavaScript, Controller, Service หรือ endpoint ใหม่ ต้องตรวจ source of truth เดิมก่อนเสมอ
+
+- ค้นหาไฟล์, class, selector, handler, route, endpoint และ helper ที่ทำหน้าที่ใกล้เคียงก่อนสร้างของใหม่
+- หาก component เดิมรองรับการขยายได้ ให้แก้หรือ extend component เดิมก่อนสร้าง component ใหม่
+- ห้ามสร้างไฟล์ชื่อแนว `*-new`, `*-v2`, `*-fix`, `*-final`, `*-copy`
+- ห้ามสร้าง CSS entry point ใหม่ หากหน้าปัจจุบันมี entry point ผ่าน Vite อยู่แล้ว
+- CSS component ใหม่ต้อง import ผ่าน entry point ของหน้าที่มีอยู่
+- ห้ามประกาศสี, status mapping, priority mapping, spacing, radius หรือ shadow ซ้ำ หากมี source of truth อยู่แล้ว
+- ห้ามสร้าง JavaScript handler ใหม่ หาก handler เดิมสามารถ reuse หรือ extend ได้
+- ห้ามสร้าง endpoint ใหม่ หาก endpoint เดิมรองรับ action เดียวกันอยู่แล้ว
+- หาก Controller มี helper/collection สำหรับข้อมูลชุดเดียวกัน ให้ extend ของเดิมแทนการ aggregate ซ้ำ
+- ก่อนสร้างไฟล์ใหม่ต้องตรวจว่าไม่มีไฟล์เดิมที่เหมาะสมจริง
+- ก่อนจบงานให้ตรวจ dead CSS, dead JavaScript และ duplicate selector ที่เกิดจากงานนี้
+
 ## CSS Rules
 
 - ไฟล์ CSS หลักของแต่ละหน้าต้องเป็น entry point สำหรับ import component ของหน้านั้น
@@ -111,6 +127,9 @@ resources/
 - จำกัดการแก้ไขให้อยู่ในขอบเขตงานที่ได้รับมอบหมาย
 - การ refactor โครงสร้างต้องรักษาหน้าตา พฤติกรรม selector และลำดับ cascade เดิม
 - อย่าแก้ controller, route หรือ database หากงานเป็นเพียงการจัดโครงสร้าง frontend
+- ก่อนแก้ทุกงานให้รัน `git status` และตรวจ `git diff` ก่อน
+- ห้าม revert, overwrite หรือลบ uncommitted work ของผู้ใช้
+- ถ้าพบไฟล์ใหม่ที่ยังไม่ track ต้องตรวจเนื้อหาก่อนสร้างไฟล์ชื่อเดียวกันหรือไฟล์หน้าที่ซ้ำกัน
 
 ## Verification
 

@@ -59,3 +59,117 @@
         .dept-tab { min-height: 36px; font-size: 12px; }
     }
 
+/* Admin board overview */
+
+@media (max-width: 1180px) {
+    .admin-board-overview .admin-board-filter {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-board-overview .admin-board-search {
+        grid-column: 1 / -1;
+    }
+
+    .admin-board-overview .admin-department-table-head {
+        display: none;
+    }
+
+    .admin-board-overview .admin-department-row {
+        grid-template-columns:
+            minmax(220px, 1.5fr)
+            repeat(3, minmax(90px, .5fr))
+            100px;
+    }
+
+    .admin-board-overview .admin-department-action {
+        grid-column: 1 / -1;
+    }
+
+    .admin-board-overview .admin-department-action a {
+        width: 100%;
+    }
+
+    .admin-board-overview .admin-board-bottom-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-board-overview .admin-board-bottom-grid > :first-child {
+        grid-column: 1 / -1;
+    }
+}
+
+
+@media (max-width: 768px) {
+    .admin-board-overview {
+        gap: 12px;
+    }
+
+    .admin-board-overview .admin-board-header h1 {
+        font-size: 24px;
+    }
+
+    .admin-board-overview .admin-board-filter {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-board-overview .admin-board-search {
+        grid-column: auto;
+    }
+
+    .admin-board-overview .admin-department-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
+
+    .admin-board-overview .admin-department-identity {
+        grid-column: 1 / -1;
+    }
+
+    .admin-board-overview .admin-department-progress {
+        justify-content: flex-start;
+    }
+
+    .admin-board-overview .admin-department-action {
+        grid-column: 1 / -1;
+    }
+
+    .admin-board-overview .admin-board-bottom-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-board-overview .admin-board-bottom-grid > :first-child {
+        grid-column: auto;
+    }
+
+    .admin-board-overview .admin-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-board-overview .admin-summary-item {
+        border-right: 0;
+        border-bottom: 1px solid var(--board-line);
+    }
+
+    .admin-board-overview .admin-summary-item:last-child {
+        border-bottom: 0;
+    }
+}
+
+
+@media (max-width: 480px) {
+    .admin-board-overview .admin-department-row {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-board-overview .admin-department-stat,
+    .admin-board-overview .admin-department-progress,
+    .admin-board-overview .admin-department-action {
+        grid-column: 1;
+    }
+
+    .admin-board-overview .admin-department-code {
+        width: 46px;
+        height: 46px;
+        flex-basis: 46px;
+    }
+}

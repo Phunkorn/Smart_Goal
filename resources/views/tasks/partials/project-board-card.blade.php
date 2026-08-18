@@ -66,9 +66,9 @@
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
                     @endphp
                     <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
-                        <button type="button" class="board-reference-task" data-board-open-task="{{ $task->job_id }}">
+                        <div class="board-reference-task">
                             <strong>{{ $task->job_topic }}</strong>
-                        </button>
+                        </div>
                         @can('update', $task)
                             <details class="board-status-menu" data-board-status-menu>
                                 <summary class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}"><span data-board-status-label>{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span><i class="bi bi-chevron-down"></i></summary>
@@ -94,21 +94,18 @@
                         @endcan
                         <button type="button" class="board-owner" data-open-owner="{{ $task->job_id }}" title="ดูผู้รับผิดชอบ: {{ $assigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $assigneeName }}"><i>@if($task->user?->profile_image)<img src="{{ route('media.show', ['path' => $task->user->profile_image]) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i></button>
                         <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="เพิ่มหรือลบผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="เพิ่มผู้ร่วมงาน"><i class="bi bi-person-plus-fill"></i></span></button></span>
-                        <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
+                        <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-board-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
                         <span class="board-progress"><i><b style="width:{{ $taskProgress }}%"></b></i><strong>{{ $taskProgress }}%</strong></span>
-                        <details class="task-more-menu board-reference-menu">
-                            <summary aria-label="เมนูจัดการรายการ"><i class="bi bi-three-dots-vertical"></i></summary>
-                            <div class="board-task-menu">
-                                <button type="button" data-board-open-task="{{ $task->job_id }}"><i class="bi bi-pencil-square"></i><span><strong>แก้ไขรายการ</strong><small>แก้ไขชื่องาน รายละเอียด และข้อมูลของงาน</small></span></button>
-                                @if(auth()->user()->can('update', $task) && ((int)$task->job_status !== 4 || auth()->user()->role === 'admin'))
-                                    <button type="button" data-board-pick-attachment><i class="bi bi-paperclip"></i><span><strong>เพิ่มไฟล์แนบ</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB/ไฟล์ · รวมไม่เกิน 5 ไฟล์</small></span></button>
-                                    <input type="file" hidden multiple data-board-attachment-input data-url="{{ route('tasks.attachments.store', $task->job_id) }}" data-existing-count="{{ $fileCount }}" accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
-                                @endif
-                                @can('deleteOwn', $task)
-                                    <button type="button" class="danger" data-board-delete-task data-url="{{ route('mytasks.destroy', $task->job_id) }}"><i class="bi bi-trash3"></i><span><strong>ลบรายการ</strong><small>ลบงานนี้ออกจากโปรเจกต์</small></span></button>
-                                @endcan
-                            </div>
-                        </details>
+                        @if($project && auth()->user()->can('manage', $project))
+                            <details class="task-more-menu board-reference-menu">
+                                <summary aria-label="เมนูจัดการโปรเจกต์"><i class="bi bi-three-dots-vertical"></i></summary>
+                                <div class="board-task-menu">
+                                    <button type="button" data-board-edit-project data-project-key="{{ $projectKey }}" data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.update', $project) }}"><i class="bi bi-pencil-square"></i><span><strong>แก้ไขรายการ</strong><small>แก้ไขชื่อ Project/List นี้เท่านั้น</small></span></button>
+                                </div>
+                            </details>
+                        @else
+                            <span aria-hidden="true"></span>
+                        @endif
                     </article>
                 @endforeach
     @endforeach

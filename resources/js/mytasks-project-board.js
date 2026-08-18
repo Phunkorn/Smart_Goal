@@ -11,7 +11,7 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
     const sort = workspace.querySelector('[data-sort]');
     const toast = document.querySelector('[data-toast]');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    const attachmentModal = document.querySelector('[data-attachment-modal]');
+    const attachmentModal = document.querySelector('[data-board-attachment-modal]');
     const attachmentDataNode = document.querySelector('[data-attachment-data]');
     const attachmentData = attachmentDataNode ? JSON.parse(attachmentDataNode.textContent || '{}') : {};
     const endpoint = (template, id) => template.replace('__ID__', id);
@@ -132,11 +132,11 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
     const openAttachmentModal = (taskId) => {
         const data = attachmentData[String(taskId)];
         if (!attachmentModal || !data) return;
-        const list = attachmentModal.querySelector('[data-attachment-list]');
-        const empty = attachmentModal.querySelector('[data-attachment-empty]');
-        const upload = attachmentModal.querySelector('[data-attachment-upload]');
-        const input = attachmentModal.querySelector('[data-modal-attachment-input]');
-        attachmentModal.querySelector('[data-attachment-topic]').textContent = data.topic || '';
+        const list = attachmentModal.querySelector('[data-board-attachment-list]');
+        const empty = attachmentModal.querySelector('[data-board-attachment-empty]');
+        const upload = attachmentModal.querySelector('[data-board-attachment-upload]');
+        const input = attachmentModal.querySelector('[data-board-modal-attachment-input]');
+        attachmentModal.querySelector('[data-board-attachment-topic]').textContent = data.topic || '';
         list.replaceChildren();
         (data.files || []).forEach((file) => {
             const link = document.createElement('a');
@@ -208,13 +208,13 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
     });
 
     document.addEventListener('click', async (event) => {
-        const attachmentOpen = event.target.closest('[data-open-attachments]');
+        const attachmentOpen = event.target.closest('[data-board-open-attachments]');
         if (attachmentOpen) {
             event.preventDefault();
-            openAttachmentModal(attachmentOpen.dataset.openAttachments);
+            openAttachmentModal(attachmentOpen.dataset.boardOpenAttachments);
             return;
         }
-        if (event.target.closest('[data-close-attachments]') || event.target === attachmentModal) {
+        if (event.target.closest('[data-close-board-attachments]') || event.target === attachmentModal) {
             closeAttachmentModal();
             return;
         }
@@ -336,7 +336,9 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
 
         const editProject = event.target.closest('[data-board-edit-project]');
         if (editProject) {
-            const header = editProject.closest('[data-project-header]');
+            const header = editProject.closest('[data-project-header]')
+                || [...cardGrid.querySelectorAll('[data-project-header]')].find((candidate) => candidate.dataset.projectKey === editProject.dataset.projectKey);
+            if (!header) return;
             const result = await Swal.fire({title: 'แก้ไขชื่อโปรเจกต์', input: 'text', inputValue: editProject.dataset.name, inputAttributes: {maxlength: 80}, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่อโปรเจกต์'});
             const name = result.value?.trim();
             if (!result.isConfirmed || !name || name === editProject.dataset.name) return;
@@ -345,7 +347,9 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
                 header.querySelector(':scope > strong').textContent = name;
                 header.dataset.projectName = name;
                 tasksForProject(header).forEach((task) => task.dataset.projectName = name);
-                editProject.dataset.name = name;
+                cardGrid.querySelectorAll('[data-board-edit-project]').forEach((button) => {
+                    if (!button.dataset.projectKey || button.dataset.projectKey === header.dataset.projectKey) button.dataset.name = name;
+                });
                 const deleteProject = header.querySelector('[data-board-delete-project]');
                 if (deleteProject) deleteProject.dataset.name = name;
                 notify('แก้ไขชื่อโปรเจกต์แล้ว');
@@ -410,10 +414,7 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
             return;
         }
 
-        const trigger = event.target.closest('[data-board-open-task]');
-        if (!trigger) return;
-        const row = workspace.querySelector(`[data-row][data-id="${trigger.dataset.boardOpenTask}"]`);
-        row?.querySelector('[data-open-task-modal]')?.click();
+
     });
 
     board.addEventListener('change', async (event) => {
@@ -466,7 +467,7 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
     });
 
     attachmentModal?.addEventListener('change', async (event) => {
-        const input = event.target.closest('[data-modal-attachment-input]');
+        const input = event.target.closest('[data-board-modal-attachment-input]');
         if (input) await uploadAttachments(input);
     });
 
