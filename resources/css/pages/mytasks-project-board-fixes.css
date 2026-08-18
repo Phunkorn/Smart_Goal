@@ -1,0 +1,38 @@
+/* Regression fix: task titles became buttons for modal interaction in the shared
+ * project board. Reset the browser's default button chrome while preserving the
+ * existing board typography and click target. */
+.my-tasks-page .board-reference-task__open {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.my-tasks-page .board-reference-task__open strong {
+    display: block;
+    overflow: hidden;
+    max-width: 100%;
+    color: #101d33;
+    font-size: 13px;
+    font-weight: 750;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-tasks-page .board-reference-task__open:hover strong {
+    color: var(--sg-blue, #2563eb);
+}
+
+.my-tasks-page .board-reference-task__open:focus-visible {
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, .18);
+}
