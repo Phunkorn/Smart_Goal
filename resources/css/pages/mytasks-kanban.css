@@ -345,3 +345,97 @@
         font-size: 9px;
     }
 }
+/* Project priority dropdown */
+.my-tasks-page .mytasks-kanban__project-priority {
+    position: relative;
+    margin: 0;
+    z-index: 30;
+}
+
+.my-tasks-page .mytasks-kanban__project-priority > summaery {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid #d5e0ed;
+    border-radius: 9px;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-kanban__project-priority > summary::-webkit-details-marker {
+    display: none;
+}
+
+.my-tasks-page .mytasks-kanban__project-priority-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    display: grid;
+    gap: 6px;
+    min-width: 170px;
+    padding: 8px;
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, .14);
+    z-index: 1000;
+}
+
+.my-tasks-page .mytasks-kanban__project-priority-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 38px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* ต่ำ */
+.my-tasks-page .mytasks-kanban__project-priority .priority-low {
+    border-color: #bfd4f5;
+    background: #eaf2ff;
+    color: #2563eb;
+}
+
+/* กลาง */
+.my-tasks-page .mytasks-kanban__project-priority .priority-medium {
+    border-color: #efd39b;
+    background: #fff5df;
+    color: #b86b08;
+}
+
+/* สูง */
+.my-tasks-page .mytasks-kanban__project-priority .priority-high {
+    border-color: #efb8b5;
+    background: #ffe9e7;
+    color: #dc3b36;
+}
+
+.my-tasks-page .mytasks-kanban__project-priority-menu button:hover {
+    filter: brightness(.98);
+}
+
+@media (max-width:760px) {
+    .my-tasks-page .mytasks-kanban__project-priority {
+        flex: 0 0 auto;
+    }
+
+    .my-tasks-page .mytasks-kanban__project-priority-menu {
+        left: auto;
+        right: 0;
+    }
+}
+@media (max-width:760px) { .my-tasks-page .mytasks-kanban__toolbar { align-items:stretch; flex-wrap:wrap; } .my-tasks-page .mytasks-kanban__project-picker { width:100%; } .my-tasks-page .mytasks-kanban__project-picker select { flex:1; min-width:0; } .my-tasks-page .mytasks-kanban__actions { width:100%; margin-left:0; } .my-tasks-page .mytasks-kanban__button { flex:1; } }
