@@ -18,12 +18,12 @@
         </div>
     </header>
 
-    <section class="wb-overview" aria-label="ภาพรวมองค์กร">
+    {{-- <section class="wb-overview" aria-label="ภาพรวมองค์กร">
         <div class="wb-kpi"><i class="bi bi-diagram-3"></i><div><strong>{{ number_format($totals['departments']) }}</strong><span>แผนก</span></div></div>
         <div class="wb-kpi"><i class="bi bi-folder2-open"></i><div><strong>{{ number_format($totals['projects']) }}</strong><span>โปรเจกต์</span></div></div>
         <div class="wb-kpi"><i class="bi bi-clipboard-check"></i><div><strong>{{ number_format($totals['tasks']) }}</strong><span>งาน</span></div></div>
         @include('work-board.partials.status-summary')
-    </section>
+    </section> --}}
 
     <section class="wb-panel">
         <div class="wb-panel__head">

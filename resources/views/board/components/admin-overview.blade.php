@@ -24,6 +24,25 @@
     $recentJobs = $jobs->sortByDesc('updated_at')->take(3);
 
     $attention = $attentionJobs->take(3);
+
+    $adminJobContext = static function ($job) use ($canManageTasks): array {
+        $assignee = $job->user;
+        $department = $assignee?->department ?? $job->department;
+        $canOpenMemberWorkspace = $assignee
+            && $department
+            && $assignee->role === 'user'
+            && (int) $assignee->department_id === (int) $department->id;
+
+        return [
+            'assignee' => $assignee,
+            'department' => $department,
+            'url' => $canManageTasks
+                ? ($canOpenMemberWorkspace
+                    ? route('admin.work-board.member', [$department, $assignee])
+                    : route('admin.tasks.show', $job->job_id))
+                : route('tasks.show', $job->job_id),
+        ];
+    };
 @endphp
 
 <div class="admin-board-overview">
@@ -104,16 +123,21 @@
         </select>
 
 
-        <button type="submit" class="admin-board-filter-submit">
-            <i class="bi bi-funnel"></i>
-            กรอง
-        </button>
+        <div class="admin-board-filter-controls">
+            <button type="submit" class="admin-board-filter-submit">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                กรอง
+            </button>
 
+            @if ($search !== '' || $currentDeptId || $currentAssignee || $currentStatus !== '')
+                <a href="{{ route('board.index') }}" class="admin-board-filter-reset">
+                    ล้างตัวกรอง
+                </a>
+            @endif
+        </div>
 
-        @if ($search !== '' || $currentDeptId || $currentAssignee || $currentStatus !== '')
-            <a href="{{ route('board.index') }}" class="admin-board-filter-reset">
-                ล้างตัวกรอง
-            </a>
+        @if($canManageTasks)
+            @include('board.components.admin-assignment-trigger')
         @endif
 
     </form>
@@ -310,11 +334,14 @@
             <div class="admin-activity-list">
 
                 @forelse($recentJobs as $job)
-                    <a href="{{ route('tasks.show', $job->job_id) }}" class="admin-activity-row">
+                    @php($jobContext = $adminJobContext($job))
+                    <a href="{{ $jobContext['url'] }}" class="admin-activity-row">
 
-                        <span class="admin-activity-icon">
-                            <i class="bi bi-check2"></i>
-                        </span>
+                        @if($jobContext['assignee'])
+                            @include('work-board.partials.avatar', ['user' => $jobContext['assignee'], 'size' => 'md'])
+                        @else
+                            <span class="wb-avatar wb-avatar--md" title="ไม่ระบุผู้รับผิดชอบ">?</span>
+                        @endif
 
                         <div>
                             <strong>
@@ -322,7 +349,9 @@
                             </strong>
 
                             <span>
-                                {{ optional($job->department)->department_name ?? '-' }}
+                                {{ $jobContext['assignee']?->name ?? 'ไม่ระบุผู้รับผิดชอบ' }}
+                                ·
+                                {{ $jobContext['department']?->department_name ?? 'ไม่ระบุแผนก' }}
                             </span>
                         </div>
 
@@ -358,11 +387,14 @@
             <div class="admin-attention-list">
 
                 @forelse($attention as $job)
-                    <a href="{{ route('tasks.show', $job->job_id) }}" class="admin-attention-row">
+                    @php($jobContext = $adminJobContext($job))
+                    <a href="{{ $jobContext['url'] }}" class="admin-attention-row">
 
-                        <span class="admin-attention-icon">
-                            <i class="bi bi-calendar-event"></i>
-                        </span>
+                        @if($jobContext['assignee'])
+                            @include('work-board.partials.avatar', ['user' => $jobContext['assignee'], 'size' => 'md'])
+                        @else
+                            <span class="wb-avatar wb-avatar--md" title="ไม่ระบุผู้รับผิดชอบ">?</span>
+                        @endif
 
                         <div>
                             <strong>
@@ -370,7 +402,9 @@
                             </strong>
 
                             <span>
-                                {{ optional($job->department)->department_name ?? '-' }}
+                                {{ $jobContext['assignee']?->name ?? 'ไม่ระบุผู้รับผิดชอบ' }}
+                                ·
+                                {{ $jobContext['department']?->department_name ?? 'ไม่ระบุแผนก' }}
                             </span>
                         </div>
 

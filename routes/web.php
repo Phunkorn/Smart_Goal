@@ -181,6 +181,8 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::prefix('admin/work-board')->name('admin.work-board.')->middleware('admin')->group(function () {
         Route::get('/departments/{department}', [WorkBoardController::class, 'adminDepartment'])->name('department');
         Route::get('/departments/{department}/members/{user}', [WorkBoardController::class, 'adminMember'])->name('member');
+        Route::post('/departments/{department}/members/{user}/projects/{list}/tasks', [TaskController::class, 'storeForAdminMember'])
+            ->name('member.tasks.store');
     });
     // บอร์ดติดตามงานสำหรับพนักงาน
     Route::prefix('work-board')->name('work-board.')->middleware('role:user')->group(function () {
@@ -214,6 +216,12 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::delete('/my-tasks/lists/{list}', [MyTaskController::class, 'destroyList'])
         ->name('mytasks.lists.destroy');
 
+    Route::post('/my-tasks/lists/{list}/attachments', [MyTaskController::class, 'storeListAttachments'])
+        ->name('mytasks.lists.attachments.store');
+
+    Route::delete('/my-tasks/lists/{list}/attachments/{attachment}', [MyTaskController::class, 'destroyListAttachment'])
+        ->name('mytasks.lists.attachments.destroy');
+
     Route::patch('/my-tasks/{job_id}/complete', [MyTaskController::class, 'toggleComplete'])
         ->name('mytasks.complete');
 
@@ -225,6 +233,9 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::patch('/my-tasks/subtasks/{subtask}', [MyTaskController::class, 'toggleSubtask'])
         ->name('mytasks.subtasks.toggle');
+
+    Route::patch('/my-tasks/subtasks/{subtask}/details', [MyTaskController::class, 'updateSubtask'])
+        ->name('mytasks.subtasks.update');
 
     Route::match(['post', 'patch'], '/my-tasks/{job_id}/due-date', [MyTaskController::class, 'updateDueDate'])
         ->name('mytasks.updateDueDate');
@@ -246,6 +257,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/tasks/{id}/details', [TaskController::class, 'updateDetails'])
         ->middleware('role:admin,user')
         ->name('tasks.details.update');
+
+    Route::patch('/tasks/{id}/schedule', [TaskController::class, 'updateSchedule'])
+        ->middleware('role:admin,user')
+        ->name('tasks.schedule.update');
 
     Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])
         ->name('tasks.updateStatus');

@@ -41,9 +41,6 @@
     $teamWorkload = ($workloadByUser ?? collect())->sortByDesc('active_count')->values();
 @endphp
 
-@if($canManageTasks)
-    @include('board.components.admin-assignment-trigger')
-@endif
 @include('board.components.admin-overview')
 
 @if($canManageTasks)

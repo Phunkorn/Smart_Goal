@@ -249,6 +249,78 @@ class TaskController extends Controller
             ->with('success', $message);
     }
 
+    public function storeForAdminMember(
+        Request $request,
+        Department $department,
+        User $user,
+        WorkOrderList $list
+    ) {
+        abort_unless(
+            $user->role === 'user' && (int) $user->department_id === (int) $department->id,
+            404
+        );
+
+        $this->authorize('create', WorkOrder::class);
+        $this->authorize('manage', $list);
+
+        $belongsToWorkspace = WorkOrder::query()
+            ->where('work_order_list_id', $list->id)
+            ->where('user_id', $user->id)
+            ->where('department_id', $department->id)
+            ->exists();
+
+        abort_unless($belongsToWorkspace, 404);
+
+        $validated = $request->validate([
+            'job_topic' => ['required', 'string', 'max:255'],
+        ]);
+
+        $actor = Auth::user();
+        $approval = WorkOrderApprovalResolver::resolve($actor, $user);
+
+        $job = DB::transaction(function () use ($validated, $actor, $approval, $department, $user, $list) {
+            $job = WorkOrder::create([
+                'user_id' => $user->id,
+                'created_by' => $actor->id,
+                'leader_user_id' => $approval['leader_user_id'],
+                'department_id' => $department->id,
+                'work_order_list_id' => $list->id,
+                'job_topic' => trim($validated['job_topic']),
+                'job_details' => null,
+                'job_priority' => 2,
+                'job_status' => 1,
+                'approval_status' => $approval['approval_status'],
+                'approved_by' => $approval['approved_by'],
+                'approved_at' => $approval['approved_at'],
+                'job_progress' => 0,
+                'job_start_at' => now(),
+                'job_due_at' => now()->addDay(),
+            ]);
+
+            AuditTrail::log('created', $job, 'Admin เพิ่มงานในโปรเจกต์: '.$job->job_topic, [
+                'after' => $job->attributesToArray(),
+                'work_order_list_id' => $list->id,
+                'workspace_user_id' => $user->id,
+            ]);
+
+            return $job;
+        });
+
+        $this->notifyJobMembers(
+            $job,
+            'admin_created_task',
+            'มีงานใหม่',
+            'ผู้ดูแลระบบมอบหมายงาน "'.$job->job_topic.'" ให้คุณ'
+        );
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'เพิ่มงานในโปรเจกต์แล้ว',
+            'job_id' => $job->job_id,
+            'list_id' => $list->id,
+        ], 201);
+    }
+
     private function storeAdminProject(Request $request)
     {
         $this->authorize('create', WorkOrder::class);
@@ -442,6 +514,33 @@ class TaskController extends Controller
         ]);
 
         return $this->jsonOrBack($request, true, 'บันทึกรายละเอียดงานสำเร็จ');
+    }
+
+    public function updateSchedule(Request $request, $id)
+    {
+        $job = WorkOrder::with('collaborators')->findOrFail($id);
+        $user = Auth::user();
+
+        $this->authorize('update', $job);
+        abort_if((int) $job->job_status === 4 && $user?->role !== 'admin', 403);
+
+        $validated = $request->validate([
+            'job_start_at' => ['required', 'date'],
+            'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
+        ]);
+
+        $before = $job->attributesToArray();
+        $job->update([
+            'job_start_at' => Carbon::parse($validated['job_start_at']),
+            'job_due_at' => Carbon::parse($validated['job_due_at']),
+        ]);
+
+        AuditTrail::log('schedule_changed', $job, 'เปลี่ยนช่วงเวลางาน: '.$job->job_topic, [
+            'before' => $before,
+            'after' => $job->fresh()->attributesToArray(),
+        ]);
+
+        return $this->jsonOrBack($request, true, 'บันทึกช่วงเวลางานแล้ว');
     }
 
     public function updateStatus(Request $request, $id)
@@ -652,14 +751,22 @@ class TaskController extends Controller
 
         $validated = $request->validate([
             'note' => ['required', 'string', 'max:2000'],
+            'progress' => ['nullable', 'integer', 'min:0', 'max:99'],
         ]);
 
         $before = $job->attributesToArray();
         $subtaskCount = $job->subtasks()->count();
         $completedSubtaskCount = $job->subtasks()->where('is_completed', true)->count();
-        $progress = $subtaskCount > 0
-            ? (int) round(($completedSubtaskCount / $subtaskCount) * 100)
-            : (int) $job->job_progress;
+        $canOverrideProgress = $user?->role === 'admin'
+            && $subtaskCount === 0
+            && (int) $job->job_status !== 4
+            && array_key_exists('progress', $validated)
+            && $validated['progress'] !== null;
+        $progress = $canOverrideProgress
+            ? (int) $validated['progress']
+            : ($subtaskCount > 0
+                ? (int) round(($completedSubtaskCount / $subtaskCount) * 100)
+                : (int) $job->job_progress);
 
         DB::transaction(function () use ($job, $validated, $user, $progress) {
             WorkOrderUpdate::create([
@@ -847,7 +954,7 @@ class TaskController extends Controller
         return back()->with('success', $title);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $job = WorkOrder::with(['user', 'creator', 'leader', 'collaborators'])->findOrFail($id);
         $this->authorize('delete', $job);
@@ -864,6 +971,13 @@ class TaskController extends Controller
         ]);
         $this->notifyJobDeleted($job, 'ผู้ดูแลระบบลบงาน "' . $job->job_topic . '" แล้ว');
         $job->delete();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'ลบงานสำเร็จ',
+            ]);
+        }
 
         return redirect()->route('board.index')->with('success', 'ลบงานสำเร็จ');
     }

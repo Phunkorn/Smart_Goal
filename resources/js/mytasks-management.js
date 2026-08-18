@@ -47,7 +47,8 @@
         });
     };
 
-    new MutationObserver(restoreProjectActions).observe(workspace.querySelector('[data-groups]'), {childList: true, subtree: true});
+    const groups = workspace.querySelector('[data-groups]');
+    if (groups) new MutationObserver(restoreProjectActions).observe(groups, {childList: true, subtree: true});
     restoreProjectActions();
     document.addEventListener('click', async (event) => {
         const editProject = event.target.closest('[data-edit-project]');
@@ -76,7 +77,7 @@
         const deleteProject = event.target.closest('[data-delete-project]');
         if (deleteProject) {
             const section = deleteProject.closest('[data-group-section], [data-project-card]');
-            const count = section.querySelectorAll('[data-row], [data-board-task]').length;
+            const count = Number(deleteProject.dataset.totalCount) || section.querySelectorAll('[data-row], [data-board-task]').length;
             const result = await Swal.fire({icon: 'warning', title: 'ลบโปรเจกต์นี้หรือไม่?', text: `โปรเจกต์ “${deleteProject.dataset.name}” พร้อมงาน ${count} รายการจะถูกลบ และไม่สามารถย้อนกลับได้`, showCancelButton: true, confirmButtonText: 'ลบโปรเจกต์', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
             if (!result.isConfirmed) return;
             deleteProject.disabled = true;
@@ -113,6 +114,61 @@
                 }
             } catch (error) { deleteTask.disabled = false; notify(error.message, false); }
         }
+    });
+})();
+
+(() => {
+    const workspace = document.querySelector('[data-workspace]');
+    if (!workspace || workspace.dataset.context !== 'admin-member') return;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const parseError = async (response) => {
+        const data = await response.json().catch(() => ({}));
+        return Object.values(data.errors || {}).flat()[0] || data.message || 'ดำเนินการไฟล์แนบโปรเจกต์ไม่สำเร็จ';
+    };
+
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-project-attachment-delete]');
+        if (!button) return;
+        event.preventDefault();
+        if (!window.confirm('ต้องการลบไฟล์แนบโปรเจกต์นี้ใช่หรือไม่?')) return;
+        button.disabled = true;
+        const response = await fetch(button.dataset.projectAttachmentDelete, {
+            method: 'DELETE',
+            headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest'},
+        });
+        if (!response.ok) {
+            button.disabled = false;
+            window.Swal?.fire({icon: 'error', title: 'ลบไฟล์ไม่สำเร็จ', text: await parseError(response)});
+            return;
+        }
+        window.location.reload();
+    });
+
+    document.addEventListener('change', async (event) => {
+        const input = event.target.closest('[data-project-attachment-input]');
+        if (!input?.files.length) return;
+        const container = input.closest('[data-project-attachments]');
+        if (!container?.dataset.uploadUrl) return;
+        const currentCount = Number(container.querySelector('[data-project-attachment-count]')?.textContent || 0);
+        if (currentCount + input.files.length > 5 || [...input.files].some((file) => file.size > 10 * 1024 * 1024)) {
+            input.value = '';
+            window.Swal?.fire({icon: 'warning', title: 'ตรวจสอบจำนวนหรือขนาดไฟล์', text: 'แนบได้รวมไม่เกิน 5 ไฟล์ และไฟล์ละไม่เกิน 10 MB'});
+            return;
+        }
+        input.disabled = true;
+        const body = new FormData();
+        [...input.files].forEach((file) => body.append('attachments[]', file));
+        const response = await fetch(container.dataset.uploadUrl, {
+            method: 'POST',
+            headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest'},
+            body,
+        });
+        if (!response.ok) {
+            input.disabled = false;
+            window.Swal?.fire({icon: 'error', title: 'แนบไฟล์ไม่สำเร็จ', text: await parseError(response)});
+            return;
+        }
+        window.location.reload();
     });
 })();
 

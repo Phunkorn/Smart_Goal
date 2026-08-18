@@ -9,9 +9,12 @@
 @section('content')
 @php
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
+    $statusLabels = [1 => 'ยังไม่เริ่ม', 2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน'];
+    $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
+    $workspaceContext = 'admin-member';
     $showCreateActions = false;
-    $showQuickAdd = false;
-    $taskLinkMode = true;
+    $showQuickAdd = true;
+    $taskLinkMode = false;
 @endphp
 <div class="work-board-page admin-work-board wb-dept-{{ $departmentTone }}">
     <nav class="wb-breadcrumb" aria-label="breadcrumb">
@@ -33,9 +36,17 @@
     </section>
 
     <div class="notion-workspace my-tasks-page admin-member-task-workspace" data-workspace
+        data-context="admin-member"
+        data-subject-user-id="{{ $member->id }}"
+        data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
         data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
         data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
-        data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}">
+        data-schedule-template="{{ route('tasks.schedule.update', ['id' => '__ID__']) }}"
+        data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}"
+        data-progress-template="{{ route('tasks.progress.store', ['id' => '__ID__']) }}"
+        data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
+        data-current-user-name="{{ auth()->user()->name }}"
+        data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.show', ['path' => auth()->user()->profile_image]) : '' }}">
         <nav class="notion-viewbar">
             <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i>ตาราง</button>
             <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i>บอร์ด</button>
@@ -50,15 +61,17 @@
             </div>
             <div class="notion-table-scroll">
                 <div class="project-board" data-project-board>
-                    @include('tasks.partials.project-board-card', compact('allTasks', 'manageableTaskLists', 'projectCreatorMeta', 'showQuickAdd', 'taskLinkMode'))
+                    @include('tasks.partials.project-board-card', compact('allTasks', 'manageableTaskLists', 'projectCreatorMeta', 'showQuickAdd', 'taskLinkMode', 'workspaceContext'))
                     <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานตามตัวกรอง</p></div>
                 </div>
                 <div class="mytasks-kanban-view" data-table-kanban>
-                    @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists', 'manageableTaskLists', 'projectCreatorMeta', 'showCreateActions', 'taskLinkMode'))
+                    @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists', 'manageableTaskLists', 'projectCreatorMeta', 'showCreateActions', 'showQuickAdd', 'taskLinkMode', 'workspaceContext'))
                 </div>
+                @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
             </div>
         </section>
         <div class="notion-toast" data-toast></div>
     </div>
+    @include('tasks.partials.workspace-interactions', compact('allTasks', 'availableCollaborators', 'showCreateActions', 'workspaceContext'))
 </div>
 @endsection

@@ -124,13 +124,19 @@
         }
 
         const add = event.target.closest('[data-add-in-group]');
-        if (add && root.dataset.quickUrl) {
+        if (add && (root.dataset.quickUrl || root.dataset.quickTemplate)) {
             const result = await Swal.fire({title: 'เพิ่มรายการใหม่', input: 'text', inputPlaceholder: 'ระบุชื่องาน', inputAttributes: {maxlength: 255}, showCancelButton: true, confirmButtonText: 'เพิ่มรายการ', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่องาน'});
             const title = result.value?.trim();
             if (!result.isConfirmed || !title) return;
             add.disabled = true;
             try {
-                await request(root.dataset.quickUrl, 'POST', {job_topic: title, work_order_list_id: +add.dataset.listId});
+                const quickUrl = root.dataset.quickTemplate
+                    ? root.dataset.quickTemplate.replace('__LIST__', add.dataset.listId)
+                    : root.dataset.quickUrl;
+                const payload = root.dataset.quickTemplate
+                    ? {job_topic: title}
+                    : {job_topic: title, work_order_list_id: +add.dataset.listId};
+                await request(quickUrl, 'POST', payload);
                 await Swal.fire({icon: 'success', title: 'เพิ่มรายการแล้ว', timer: 900, showConfirmButton: false});
                 location.reload();
             } catch (error) {

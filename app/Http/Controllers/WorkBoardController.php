@@ -261,10 +261,14 @@ class WorkBoardController extends Controller
         })->values();
         $taskLists = WorkOrderList::query()
             ->with('attachments')
+            ->withCount('workOrders')
             ->whereIn('id', $allJobs->pluck('work_order_list_id')->filter()->unique())
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+        $manageableTaskLists = $taskLists
+            ->filter(fn (WorkOrderList $list) => $request->user()->can('manage', $list))
+            ->values();
         $activeTasks = $jobs->reject(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $completedTasks = $jobs->filter(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
 
@@ -274,11 +278,16 @@ class WorkBoardController extends Controller
             'departmentCode' => WorkBoardDesign::departmentCode($department),
             'member' => $user,
             'taskLists' => $taskLists,
-            'manageableTaskLists' => $taskLists,
+            'manageableTaskLists' => $manageableTaskLists,
             'activeTasks' => $activeTasks,
             'completedTasks' => $completedTasks,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values(),
+            'availableCollaborators' => User::with('department')
+                ->where('role', 'user')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
             'employees' => User::with('department')->where('role', 'user')->orderBy('name')->get(),
             'departments' => Department::orderBy('department_name')->get(),
             'totals' => [

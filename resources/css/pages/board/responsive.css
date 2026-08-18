@@ -70,6 +70,11 @@
         grid-column: 1 / -1;
     }
 
+    .admin-board-overview .admin-board-filter-controls,
+    .admin-board-overview .admin-board-assignment-trigger {
+        width: 100%;
+    }
+
     .admin-board-overview .admin-department-table-head {
         display: none;
     }
@@ -114,6 +119,16 @@
 
     .admin-board-overview .admin-board-search {
         grid-column: auto;
+    }
+
+    .admin-board-overview .admin-board-filter-controls {
+        flex-wrap: wrap;
+    }
+
+    .admin-board-overview .admin-board-filter-submit,
+    .admin-board-overview .admin-board-filter-reset,
+    .admin-board-overview .admin-board-assignment-trigger {
+        width: 100%;
     }
 
     .admin-board-overview .admin-department-row {

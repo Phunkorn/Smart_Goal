@@ -19,8 +19,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 class MyTaskController extends Controller
 {
@@ -520,6 +522,78 @@ class MyTaskController extends Controller
         ]);
     }
 
+    public function storeListAttachments(Request $request, WorkOrderList $list): JsonResponse
+    {
+        $this->authorize('manage', $list);
+
+        $request->validate([
+            'attachments' => ['required', 'array', 'min:1', 'max:5'],
+            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+        ]);
+
+        $incomingFiles = $request->file('attachments', []);
+        abort_if(
+            $list->attachments()->count() + count($incomingFiles) > 5,
+            422,
+            'แนบไฟล์ของโปรเจกต์ได้รวมไม่เกิน 5 ไฟล์'
+        );
+
+        $this->assertAllowedAttachments($request, 'attachments');
+
+        $storedPaths = [];
+        try {
+            DB::transaction(function () use ($incomingFiles, $list, &$storedPaths) {
+                foreach ($incomingFiles as $file) {
+                    $path = $file->store('project-attachments/'.$list->id, 'public');
+                    $storedPaths[] = $path;
+
+                    WorkOrderListAttachment::create([
+                        'work_order_list_id' => $list->id,
+                        'file_path' => $path,
+                        'original_name' => $file->getClientOriginalName(),
+                        'file_type' => $file->getClientMimeType(),
+                        'uploaded_by' => Auth::id(),
+                    ]);
+                }
+
+                AuditTrail::log('attachments_uploaded', $list, 'เพิ่มไฟล์แนบโปรเจกต์: '.$list->name, [
+                    'count' => count($incomingFiles),
+                ]);
+            });
+        } catch (Throwable $exception) {
+            foreach (array_unique($storedPaths) as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $exception;
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'เพิ่มไฟล์แนบโปรเจกต์แล้ว',
+        ]);
+    }
+
+    public function destroyListAttachment(
+        WorkOrderList $list,
+        WorkOrderListAttachment $attachment
+    ): JsonResponse {
+        $this->authorize('manage', $list);
+        abort_unless((int) $attachment->work_order_list_id === (int) $list->id, 404);
+
+        $before = $attachment->attributesToArray();
+        $attachment->delete();
+
+        AuditTrail::log('attachment_deleted', $list, 'ลบไฟล์แนบโปรเจกต์: '.$list->name, [
+            'attachment' => $before,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'ลบไฟล์แนบโปรเจกต์แล้ว',
+        ]);
+    }
+
     public function destroy(int $job_id): JsonResponse
     {
         $workOrder = WorkOrder::with(['creator', 'user', 'leader', 'collaborators'])->findOrFail($job_id);
@@ -601,12 +675,13 @@ class MyTaskController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
+            'details' => 'nullable|string|max:2000',
         ]);
 
         $subtask = $workOrder->subtasks()->create([
             'created_by' => Auth::id(),
             'title' => $validated['title'],
-            'details' => null,
+            'details' => filled($validated['details'] ?? null) ? trim($validated['details']) : null,
             'sort_order' => (int) $workOrder->subtasks()->max('sort_order') + 1,
         ]);
 
@@ -615,6 +690,35 @@ class MyTaskController extends Controller
             'message' => 'เพิ่มงานย่อยแล้ว',
             'subtask_id' => $subtask->id,
         ], 201);
+    }
+
+    public function updateSubtask(Request $request, WorkOrderSubtask $subtask): JsonResponse
+    {
+        $subtask->load('workOrder.collaborators');
+        $this->authorize('update', $subtask->workOrder);
+        abort_if($this->isCompletedLocked($subtask->workOrder), 403);
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'details' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $before = $subtask->attributesToArray();
+        $subtask->update([
+            'title' => trim($validated['title']),
+            'details' => filled($validated['details'] ?? null) ? trim($validated['details']) : null,
+        ]);
+
+        AuditTrail::log('updated', $subtask->workOrder, 'แก้ไขงานย่อย: '.$subtask->title, [
+            'subtask_before' => $before,
+            'subtask_after' => $subtask->fresh()->attributesToArray(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'แก้ไขงานย่อยแล้ว',
+            'subtask_id' => $subtask->id,
+        ]);
     }
 
     public function toggleSubtask(Request $request, WorkOrderSubtask $subtask): JsonResponse

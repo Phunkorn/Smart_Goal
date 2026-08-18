@@ -361,7 +361,8 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
         if (deleteProject) {
             const header = deleteProject.closest('[data-project-header]');
             if (!header) return;
-            const result = await Swal.fire({icon: 'warning', title: 'ลบโปรเจกต์นี้หรือไม่?', text: `โปรเจกต์ “${deleteProject.dataset.name}” และงานทั้งหมดภายในจะถูกลบ`, showCancelButton: true, confirmButtonText: 'ลบโปรเจกต์', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
+            const total = Number(deleteProject.dataset.totalCount) || tasksForProject(header).length;
+            const result = await Swal.fire({icon: 'warning', title: 'ลบโปรเจกต์นี้หรือไม่?', text: `โปรเจกต์ “${deleteProject.dataset.name}” พร้อมงานทั้งหมด ${total} รายการจะถูกลบ`, showCancelButton: true, confirmButtonText: 'ลบโปรเจกต์', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
             if (!result.isConfirmed) return;
             deleteProject.disabled = true;
             fetch(deleteProject.dataset.url, {

@@ -2,6 +2,7 @@
     $projectCreatorMeta = $projectCreatorMeta ?? collect();
     $showQuickAdd = $showQuickAdd ?? true;
     $taskLinkMode = $taskLinkMode ?? false;
+    $workspaceContext = $workspaceContext ?? 'user';
     $thaiMonths = [1=>'ม.ค.',2=>'ก.พ.',3=>'มี.ค.',4=>'เม.ย.',5=>'พ.ค.',6=>'มิ.ย.',7=>'ก.ค.',8=>'ส.ค.',9=>'ก.ย.',10=>'ต.ค.',11=>'พ.ย.',12=>'ธ.ค.'];
     $projectGroups = collect();
     foreach ($taskLists as $list) {
@@ -44,14 +45,14 @@
                         <span class="board-project-priority priority-{{ $projectPriority[1] }}"><i class="bi bi-flag-fill"></i>{{ $projectPriority[0] }}</span>
                     @endcan
                 @endif
-                @if($projectAttachments->isNotEmpty())
-                    <details class="board-project-files"><summary title="ไฟล์แนบของโปรเจกต์"><i class="bi bi-paperclip"></i>{{ $projectAttachments->count() }} ไฟล์</summary><div>@foreach($projectAttachments as $attachment)<a href="{{ route('media.show', ['path' => $attachment->file_path]) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark"></i><span>{{ $attachment->original_name }}</span></a>@endforeach</div></details>
+                @if($projectAttachments->isNotEmpty() || ($workspaceContext === 'admin-member' && $project && auth()->user()->can('manage', $project)))
+                    <details class="board-project-files" data-project-attachments data-upload-url="{{ $project ? route('mytasks.lists.attachments.store', $project) : '' }}"><summary title="ไฟล์แนบของโปรเจกต์"><i class="bi bi-paperclip"></i><span data-project-attachment-count>{{ $projectAttachments->count() }}</span> ไฟล์</summary><div>@foreach($projectAttachments as $attachment)<span class="board-project-file"><a href="{{ route('media.show', ['path' => $attachment->file_path]) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark"></i><span>{{ $attachment->original_name }}</span></a>@if($workspaceContext === 'admin-member' && $project && auth()->user()->can('manage', $project))<button type="button" data-project-attachment-delete="{{ route('mytasks.lists.attachments.destroy', [$project, $attachment]) }}" aria-label="ลบไฟล์ {{ $attachment->original_name }}"><i class="bi bi-x-lg"></i></button>@endif</span>@endforeach @if($workspaceContext === 'admin-member' && $project && auth()->user()->can('manage', $project))<label class="board-project-file-upload"><i class="bi bi-plus-lg"></i> เพิ่มไฟล์<input type="file" multiple data-project-attachment-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>@endif</div></details>
                 @endif
                 <div class="board-project-actions">
-                    @if($project && (int) $project->user_id === (int) auth()->id())<button type="button" class="board-project-add" data-add-in-group data-list-id="{{ $project->id }}" title="เพิ่มรายการในโปรเจกต์ {{ $projectName }}"><i class="bi bi-plus-lg"></i><span>เพิ่มรายการ</span></button>@endif
+                    @if($showQuickAdd && $project && $manageableTaskLists->contains('id', $project->id))<button type="button" class="board-project-add" data-add-in-group data-list-id="{{ $project->id }}" title="เพิ่มรายการในโปรเจกต์ {{ $projectName }}"><i class="bi bi-plus-lg"></i><span>เพิ่มรายการ</span></button>@endif
                     @if($project && auth()->user()->can('manage', $project))
                         <button type="button" class="board-project-icon" data-board-edit-project data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.update', $project) }}" title="แก้ไขชื่อโปรเจกต์"><i class="bi bi-pencil"></i></button>
-                        <button type="button" class="board-project-icon is-danger" data-board-delete-project data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.destroy', $project) }}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>
+                        <button type="button" class="board-project-icon is-danger" data-board-delete-project data-name="{{ $projectName }}" data-total-count="{{ $project->work_orders_count ?? $projectTasks->count() }}" data-url="{{ route('mytasks.lists.destroy', $project) }}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>
                     @endif
                 </div>
             </header>
@@ -71,11 +72,12 @@
                         $dueLabel = $task->job_due_at ? $task->job_due_at->day.' '.$thaiMonths[$task->job_due_at->month].' '.($task->job_due_at->year + 543) : 'ไม่มีกำหนด';
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
                         $taskAdminSenderName = ! $uniformAdminName && $task->creator?->role === 'admin' ? $task->creator->name : null;
+                        $taskDeleteUrl = $workspaceContext === 'admin-member' ? route('admin.tasks.destroy', $task->job_id) : route('mytasks.destroy', $task->job_id);
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
                     <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
                         <div class="board-reference-task">
-                            <strong>{{ $task->job_topic }}</strong>
+                            <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="{{ $task->job_id }}"><strong>{{ $task->job_topic }}</strong></button>
                         </div>
                         @can('update', $task)
                             <details class="board-status-menu" data-board-status-menu>
@@ -104,11 +106,15 @@
                         <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="เพิ่มหรือลบผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="เพิ่มผู้ร่วมงาน"><i class="bi bi-person-plus-fill"></i></span></button></span>
                         <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-board-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
                         <span class="board-progress"><i><b style="width:{{ $taskProgress }}%"></b></i><strong>{{ $taskProgress }}%</strong></span>
-                        @if($project && auth()->user()->can('manage', $project))
+                        @if(auth()->user()->can('update', $task) || auth()->user()->can('delete', $task) || ($project && auth()->user()->can('manage', $project)))
                             <details class="task-more-menu board-reference-menu">
                                 <summary aria-label="เมนูจัดการโปรเจกต์"><i class="bi bi-three-dots-vertical"></i></summary>
                                 <div class="board-task-menu">
-                                    <button type="button" data-board-edit-project data-project-key="{{ $projectKey }}" data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.update', $project) }}"><i class="bi bi-pencil-square"></i><span><strong>แก้ไขรายการ</strong><small>แก้ไขชื่อ Project/List นี้เท่านั้น</small></span></button>
+                                    @can('update', $task)<button type="button" data-open-task-modal data-task-id="{{ $task->job_id }}"><i class="bi bi-pencil-square"></i><span><strong>แก้ไขงาน</strong><small>รายละเอียด สถานะ และกำหนดการ</small></span></button>@endcan
+                                    @if($project && auth()->user()->can('manage', $project))<button type="button" data-board-edit-project data-project-key="{{ $projectKey }}" data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.update', $project) }}"><i class="bi bi-folder2-open"></i><span><strong>แก้ไขโปรเจกต์</strong><small>แก้ไขชื่อ Project/List นี้</small></span></button>@endif
+                                    @if($workspaceContext === 'admin-member')
+                                        @can('delete', $task)<button type="button" class="danger" data-board-delete-task data-url="{{ $taskDeleteUrl }}"><i class="bi bi-trash3"></i><span><strong>ลบงาน</strong><small>นำงานนี้ออกจากโปรเจกต์</small></span></button>@endcan
+                                    @endif
                                 </div>
                             </details>
                         @else

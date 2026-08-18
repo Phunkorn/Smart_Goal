@@ -1,4 +1,6 @@
 @php
+    $showQuickAdd = $showQuickAdd ?? true;
+    $workspaceContext = $workspaceContext ?? 'user';
     $isLate = (int) $task->job_status !== 4 && $task->job_due_at?->isPast();
     $statusText = $isLate ? 'ล่าช้า' : ($statusLabels[(int) $task->job_status] ?? 'ยังไม่เริ่ม');
     $statusClass = $isLate ? 'late' : match((int) $task->job_status) {2=>'progress',3=>'review',4=>'done',5=>'paused',default=>'todo'};
@@ -16,13 +18,18 @@
         ? $task->job_start_at->day.' '.$thaiMonths[$task->job_start_at->month]
         : '-';
     $taskAdminSenderName = $task->creator?->role === 'admin' ? $task->creator->name : null;
+    $subtaskCount = (int) ($task->subtasks_count ?? $task->subtasks->count());
+    $canQuickAddToList = $showQuickAdd && $task->taskList && auth()->user()->can('manage', $task->taskList);
+    $taskDeleteUrl = $workspaceContext === 'admin-member'
+        ? route('admin.tasks.destroy', $task->job_id)
+        : route('mytasks.destroy', $task->job_id);
 @endphp
 @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => false])
 <div class="notion-row" data-row data-id="{{ $task->job_id }}"
     @if($task->taskList && auth()->user()->can('manage', $task->taskList))
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"
         data-list-delete-url="{{ route('mytasks.lists.destroy', $task->taskList) }}"
-    @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $task->taskList && (int) $task->taskList->user_id === (int) auth()->id() ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-details="{{ $task->job_details }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-start="{{ optional($task->job_start_at)->format('Y-m-d') }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
+    @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-details="{{ $task->job_details }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-progress="{{ $displayProgress }}" data-subtask-count="{{ $subtaskCount }}" data-start="{{ optional($task->job_start_at)->format('Y-m-d') }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
     <button type="button" class="row-title" data-open-task-modal><strong title="{{ $task->job_topic }}">{{ $task->job_topic }}</strong>@if($task->job_details)<small>{{ Str::limit($task->job_details, 80) }}</small>@endif</button>
     @php($taskPriorityClass = [1=>'routine',2=>'important',3=>'urgent',4=>'quick',5=>'flexible'][(int) $task->job_priority] ?? 'important')
     @can('update', $task)
@@ -55,7 +62,7 @@
         </span>
     </button>
     <button type="button" class="row-files {{ $attachmentCount ? 'has-files' : '' }}" data-open-attachments="{{ $task->job_id }}" title="ไฟล์แนบ {{ $attachmentCount }} ไฟล์"><i class="bi bi-paperclip"></i><b>{{ $attachmentCount }}</b></button>
-    <span class="row-progress"><i><b style="width:{{ $displayProgress }}%"></b></i><input type="number" data-field="progress" min="0" max="{{ (int)$task->job_status === 4 ? 100 : 99 }}" value="{{ $displayProgress }}" @disabled((int)$task->job_status === 4)>%</span>
+    <span class="row-progress"><i><b style="width:{{ $displayProgress }}%"></b></i><input type="number" data-field="progress" min="0" max="{{ (int)$task->job_status === 4 ? 100 : 99 }}" value="{{ $displayProgress }}" @disabled((int)$task->job_status === 4 || ($workspaceContext === 'admin-member' && $subtaskCount > 0))>%</span>
     <span class="row-actions">
         <details class="task-more-menu">
             <summary aria-label="เมนูจัดการงาน"><i class="bi bi-three-dots"></i></summary>
@@ -64,7 +71,11 @@
                 <button type="button" data-manage-team="{{ $task->job_id }}"><i class="bi bi-people"></i> จัดการผู้ร่วมงาน</button>
                 @if($attachmentCount)<button type="button" data-open-attachments="{{ $task->job_id }}"><i class="bi bi-paperclip"></i> ไฟล์แนบ <small>{{ $attachmentCount }}</small></button>@endif
                 <button type="button" data-open-task-modal><i class="bi bi-pencil-square"></i> แก้ไข</button>
-                @can('deleteOwn', $task)<button type="button" class="danger" data-delete-task-row data-url="{{ route('mytasks.destroy', $task->job_id) }}"><i class="bi bi-trash3"></i> ลบ</button>@endcan
+                @if($workspaceContext === 'admin-member')
+                    @can('delete', $task)<button type="button" class="danger" data-delete-task-row data-url="{{ $taskDeleteUrl }}"><i class="bi bi-trash3"></i> ลบ</button>@endcan
+                @else
+                    @can('deleteOwn', $task)<button type="button" class="danger" data-delete-task-row data-url="{{ $taskDeleteUrl }}"><i class="bi bi-trash3"></i> ลบ</button>@endcan
+                @endif
             </div>
         </details>
     </span>

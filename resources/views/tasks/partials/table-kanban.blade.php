@@ -2,7 +2,9 @@
 $manageableTaskLists = $manageableTaskLists ?? collect();
 $projectCreatorMeta = $projectCreatorMeta ?? collect();
 $showCreateActions = $showCreateActions ?? true;
+$showQuickAdd = $showQuickAdd ?? true;
 $taskLinkMode = $taskLinkMode ?? false;
+$workspaceContext = $workspaceContext ?? 'user';
 $defaultKanbanList = $manageableTaskLists->first() ?? $taskLists->first();
 $defaultKanbanListIsManageable = $defaultKanbanList
     && $manageableTaskLists->contains('id', $defaultKanbanList->id);
@@ -31,8 +33,10 @@ $statuses = [
                         @selected($defaultKanbanList && (int) $defaultKanbanList->id === (int) $list->id)>{{ $list->name }}</option>
                 @endforeach
             </select></label><span data-kanban-project-count></span>
+        @if($showCreateActions || $showQuickAdd)
         <div class="mytasks-kanban__actions">
 
+    @if($showCreateActions)
     <button
         type="button"
         class="mytasks-kanban__button mytasks-kanban__button--project"
@@ -41,7 +45,9 @@ $statuses = [
         <i class="bi bi-plus-lg"></i>
         เพิ่มโปรเจกต์
     </button>
+    @endif
 
+    @if($showQuickAdd)
     <button
         type="button"
         class="mytasks-kanban__button mytasks-kanban__button--task"
@@ -52,8 +58,10 @@ $statuses = [
         <i class="bi bi-plus-lg"></i>
         เพิ่มงาน
     </button>
+    @endif
 
 </div>
+        @endif
     </header>
     @forelse($taskLists as $list)
         @php
@@ -62,7 +70,7 @@ $statuses = [
         @endphp
         <div class="mytasks-kanban__project" data-kanban-panel="{{ $list->id }}" {{ $defaultKanbanList && (int) $defaultKanbanList->id === (int) $list->id ? '' : 'hidden' }}>
             <div class="mytasks-kanban__columns">
-                @include('tasks.partials.kanban-project-context', ['list' => $list, 'adminSenderName' => $uniformAdminName])
+                @include('tasks.partials.kanban-project-context', ['list' => $list, 'adminSenderName' => $uniformAdminName, 'workspaceContext' => $workspaceContext])
                 @foreach ($statuses as $status => [$label, $tone])
                     <section class="mytasks-kanban__column status-{{ $tone }}"
                         data-kanban-column="{{ $status }}">

@@ -41,11 +41,12 @@
 .admin-board-filter {
     display: grid;
     grid-template-columns:
-        minmax(320px, 1fr)
-        210px
-        240px
-        210px
-        auto;
+        minmax(260px, 1fr)
+        minmax(150px, 180px)
+        minmax(170px, 210px)
+        minmax(150px, 180px)
+        auto
+        minmax(280px, max-content);
     gap: 14px;
     padding: 18px;
     background: #fff;
@@ -108,6 +109,12 @@
     text-decoration: none;
 }
 
+.admin-board-filter-controls {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
 .admin-board-filter-submit {
     border: 1px solid var(--board-primary);
     background: var(--board-primary);
@@ -118,6 +125,34 @@
     border: 1px solid var(--board-line);
     background: #fff;
     color: var(--board-muted);
+}
+
+.admin-board-assignment-trigger {
+    min-height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 20px;
+    border: 1px solid var(--board-primary);
+    border-radius: 12px;
+    background: var(--board-primary);
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: 0 8px 18px rgba(91, 71, 224, .18);
+}
+
+.admin-board-assignment-trigger:hover {
+    filter: brightness(.96);
+}
+
+.admin-board-assignment-trigger:focus-visible {
+    outline: 3px solid rgba(91, 71, 224, .18);
+    outline-offset: 2px;
 }
 
 /* Panel */
@@ -413,23 +448,28 @@
     border-bottom: 0;
 }
 
-.admin-activity-icon,
-.admin-attention-icon {
-    width: 38px;
-    height: 38px;
+.admin-activity-row > .wb-avatar,
+.admin-attention-row > .wb-avatar {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
     display: grid;
     place-items: center;
+    overflow: hidden;
+    border: 1px solid #cbd5ff;
     border-radius: 50%;
+    background: var(--board-blue-soft);
+    color: var(--board-blue);
+    font-size: 11px;
+    font-weight: 800;
 }
 
-.admin-activity-icon {
-    background: var(--board-green-soft);
-    color: var(--board-green);
-}
-
-.admin-attention-icon {
-    background: var(--board-red-soft);
-    color: var(--board-red);
+.admin-activity-row > .wb-avatar img,
+.admin-attention-row > .wb-avatar img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
 }
 
 .admin-activity-row strong,
