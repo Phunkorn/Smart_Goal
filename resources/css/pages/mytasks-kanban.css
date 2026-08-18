@@ -300,3 +300,48 @@
 .my-tasks-page [data-kanban-project-count] { color:#718096; font-size:12px; white-space:nowrap; }
 .my-tasks-page .mytasks-kanban__actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
 @media (max-width:760px) { .my-tasks-page .mytasks-kanban__toolbar { align-items:stretch; flex-wrap:wrap; } .my-tasks-page .mytasks-kanban__project-picker { width:100%; } .my-tasks-page .mytasks-kanban__project-picker select { flex:1; min-width:0; } .my-tasks-page .mytasks-kanban__actions { width:100%; margin-left:0; } .my-tasks-page .mytasks-kanban__button { flex:1; } }
+
+/* Floating task priority badge: keep long task titles from being squeezed by the badge. */
+.my-tasks-page .mytasks-kanban__card {
+    position: relative;
+    overflow: visible;
+}
+
+.my-tasks-page .mytasks-kanban__card-head {
+    display: block;
+}
+
+.my-tasks-page .mytasks-kanban__card-head strong {
+    display: block;
+    width: 100%;
+}
+
+.my-tasks-page .mytasks-kanban__priority {
+    position: absolute;
+    top: -11px;
+    right: -8px;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 9px;
+    border: 1px solid rgba(194, 106, 5, .18);
+    border-radius: 7px;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, .10);
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-kanban__priority::before {
+    content: "\f3cc";
+    font-family: "bootstrap-icons";
+    font-size: 10px;
+}
+
+@media (max-width: 760px) {
+    .my-tasks-page .mytasks-kanban__priority {
+        top: -9px;
+        right: -6px;
+        padding: 4px 7px;
+        font-size: 9px;
+    }
+}
