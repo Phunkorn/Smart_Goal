@@ -222,9 +222,6 @@ class MyTaskController extends Controller
         $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
         abort_unless($assignee && $assignee->role !== 'viewer', 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
 
-        // กติกาการอนุมัติ (approval_status / approved_by / approved_at / leader_user_id)
-        // คำนวณจาก WorkOrderApprovalResolver ตัวเดียวกับที่ TaskController::store() ใช้
-        // เพื่อไม่ให้ logic เพี้ยนกันไปคนละทางระหว่างสองช่องทางสร้างงาน
         $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
         $sameDepartment = $approval['same_department'];
 
@@ -233,7 +230,6 @@ class MyTaskController extends Controller
             $firstItem = $projectItems->first();
             $projectName = trim((string) ($validated['project_name'] ?? '')) ?: $firstItem['job_topic'];
 
-            // Create a dedicated project group so the new work card is rendered beneath its group-head.
             $list = WorkOrderList::create([
                 'user_id' => $leaderId,
                 'name' => $projectName,
@@ -362,10 +358,6 @@ class MyTaskController extends Controller
         ], 201);
     }
 
-    /**
-     * Keep the HTTP contract for project creation in one place so store() can
-     * focus on authorization and orchestration.
-     */
     private function storeValidationRules(): array
     {
         return [
@@ -392,10 +384,6 @@ class MyTaskController extends Controller
         ];
     }
 
-    /**
-     * Normalize both the current multi-item payload and the legacy single-item
-     * payload into the same collection shape.
-     */
     private function normalizeProjectItems(array $validated): Collection
     {
         $projectItems = collect($validated['project_items'] ?? [])
@@ -852,7 +840,6 @@ class MyTaskController extends Controller
         }
     }
 
-    /** โปรเจกต์ปิดได้ต่อเมื่องานย่อยอย่างน้อยหนึ่งข้อถูกทำครบทั้งหมด */
     private function hasCompletedAllSubtasks(WorkOrder $workOrder): bool
     {
         $total = $workOrder->subtasks()->count();
@@ -898,33 +885,30 @@ class MyTaskController extends Controller
     }
 
     /**
-     * ดึงรายการ (list) ของผู้ใช้ปัจจุบันเท่านั้น
-     * หมายเหตุ: ตั้งใจไม่สร้าง "งานของฉัน" อัตโนมัติอีกต่อไป
-     * เพื่อให้ผู้ใช้ลบรายการสุดท้ายได้จริง โดยไม่มีอะไรมาสร้างกลับ
+     * Return every project list that the current user owns OR that contains at
+     * least one work order the current user can access. This keeps project
+     * visibility aligned with baseWorkOrderQuery() for same-department
+     * assignments, admin assignments and accepted collaborator access.
      */
     private function taskListsForCurrentUser()
     {
         $user = Auth::user();
-        $adminAssignedListIds = $this->baseWorkOrderQuery()
-            ->whereHas('creator', fn ($query) => $query->where('role', 'admin'))
+        $accessibleListIds = $this->baseWorkOrderQuery()
             ->whereNotNull('work_order_list_id')
             ->pluck('work_order_list_id')
+            ->filter()
             ->unique();
 
         return WorkOrderList::with('attachments')
-            ->where(function ($query) use ($user, $adminAssignedListIds) {
+            ->where(function ($query) use ($user, $accessibleListIds) {
                 $query->where('user_id', $user->id)
-                    ->orWhereIn('id', $adminAssignedListIds);
+                    ->orWhereIn('id', $accessibleListIds);
             })
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
     }
 
-    /**
-     * ย้ายงานเก่าที่ Admin เคยมอบหมายและยังปะปนอยู่ในรายการเดิม
-     * ให้เป็นโปรเจกต์แยกของผู้รับเพียงครั้งเดียว
-     */
     private function moveAdminAssignmentsToProjectGroups(User $user): void
     {
         $adminAssignments = WorkOrder::query()
