@@ -1,5 +1,8 @@
 @php
 $manageableTaskLists = $manageableTaskLists ?? collect();
+$projectCreatorMeta = $projectCreatorMeta ?? collect();
+$showCreateActions = $showCreateActions ?? true;
+$taskLinkMode = $taskLinkMode ?? false;
 $defaultKanbanList = $manageableTaskLists->first() ?? $taskLists->first();
 $defaultKanbanListIsManageable = $defaultKanbanList
     && $manageableTaskLists->contains('id', $defaultKanbanList->id);
@@ -53,17 +56,24 @@ $statuses = [
 </div>
     </header>
     @forelse($taskLists as $list)
+        @php
+            $creatorSummary = $projectCreatorMeta->get($list->id) ?? [];
+            $uniformAdminName = $creatorSummary['uniform_admin_name'] ?? null;
+        @endphp
         <div class="mytasks-kanban__project" data-kanban-panel="{{ $list->id }}" {{ $defaultKanbanList && (int) $defaultKanbanList->id === (int) $list->id ? '' : 'hidden' }}>
             <div class="mytasks-kanban__columns">
+                @include('tasks.partials.kanban-project-context', ['list' => $list, 'adminSenderName' => $uniformAdminName])
                 @foreach ($statuses as $status => [$label, $tone])
                     <section class="mytasks-kanban__column status-{{ $tone }}"
                         data-kanban-column="{{ $status }}">
                         <header><span><i></i>{{ $label }}</span><b data-kanban-count>0</b></header>
                         <div class="mytasks-kanban__cards">
                             @foreach ($allTasks->where('work_order_list_id', $list->id)->where('job_status', $status) as $task)
-                                @php(
-    $people = collect([$task->user])->filter()->concat($task->collaborators->where('pivot.status', 'accepted'))->unique('id')
-)
+                                @php
+                                    $people = collect([$task->user])->filter()->concat($task->collaborators->where('pivot.status', 'accepted'))->unique('id');
+                                    $taskAdminSenderName = ! $uniformAdminName && $task->creator?->role === 'admin' ? $task->creator->name : null;
+                                @endphp
+                                @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode, 'includeCollaborators' => true])
                                 <article class="mytasks-kanban__card priority-{{ $task->job_priority }}"
                                     data-kanban-card data-id="{{ $task->job_id }}" data-status="{{ $status }}"
                                     data-priority="{{ $task->job_priority }}">

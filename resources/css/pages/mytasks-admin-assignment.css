@@ -1,0 +1,29 @@
+.my-tasks-page .admin-assignment-marker {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 4px 8px;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.my-tasks-page .task-supporting-summary { display: grid; gap: 3px; margin-top: 4px; color: #667085; }
+.my-tasks-page .task-supporting-summary small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-tasks-page .task-subtask-summary { display: inline-flex; align-items: center; gap: 4px; color: #475467; font-weight: 600; }
+.my-tasks-page .task-direct-link { display: inline-flex; align-items: center; justify-content: center; color: #2f6fed; }
+.my-tasks-page .mytasks-kanban__project-context { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px 0; }
+.my-tasks-page .mytasks-kanban__columns > .mytasks-kanban__project-context { grid-column: 1 / -1; }
+.my-tasks-page .mytasks-kanban__project-files { position: relative; color: #475467; font-size: 12px; }
+.my-tasks-page .mytasks-kanban__project-files summary { cursor: pointer; list-style: none; }
+.my-tasks-page .mytasks-kanban__project-files div { position: absolute; z-index: 20; right: 0; display: grid; min-width: 220px; padding: 8px; border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; box-shadow: 0 12px 28px rgba(16, 24, 40, .14); }
+.my-tasks-page .mytasks-kanban__project-files a { padding: 6px; color: #344054; }
+.my-tasks-page .mytasks-kanban__collaborators { display: inline-flex; align-items: center; gap: 4px; color: #667085; font-size: 12px; }
+.admin-member-task-workspace [data-open-create],
+.admin-member-task-workspace [data-add-in-group] { display: none !important; }

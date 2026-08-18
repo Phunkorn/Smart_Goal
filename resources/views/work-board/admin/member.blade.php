@@ -1,0 +1,64 @@
+@extends('layouts.app')
+
+@section('title', 'Workspace งานของ '.$member->name)
+
+@push('styles')
+    @vite(['resources/css/pages/work-board.css', 'resources/css/pages/mytasks.css', 'resources/js/pages/mytasks/index.js'])
+@endpush
+
+@section('content')
+@php
+    $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
+    $showCreateActions = false;
+    $showQuickAdd = false;
+    $taskLinkMode = true;
+@endphp
+<div class="work-board-page admin-work-board wb-dept-{{ $departmentTone }}">
+    <nav class="wb-breadcrumb" aria-label="breadcrumb">
+        <a href="{{ route('board.index') }}">บอร์ดผู้ดูแลระบบ</a><i class="bi bi-chevron-right"></i>
+        <a href="{{ route('admin.work-board.department', $department) }}">{{ $department->department_name }}</a><i class="bi bi-chevron-right"></i>
+        <strong>{{ $member->name }}</strong>
+    </nav>
+
+    <section class="wb-profile-card admin-member-profile">
+        <div class="wb-profile-card__person">
+            @include('work-board.partials.avatar', ['user' => $member, 'size' => 'xl'])
+            <div><span class="wb-eyebrow">ADMIN MEMBER WORKSPACE</span><h1>{{ $member->name }}</h1><span>{{ $department->department_name }}</span><small><i class="bi bi-envelope"></i>{{ $member->email }}</small></div>
+        </div>
+        <div class="wb-profile-kpi"><i class="bi bi-folder2-open"></i><strong>{{ $totals['projects'] }}</strong><span>โปรเจกต์</span></div>
+        <div class="wb-profile-kpi"><i class="bi bi-list-check"></i><strong>{{ $totals['tasks'] }}</strong><span>งานทั้งหมด</span></div>
+        <a class="btn btn-primary admin-assign-button" href="{{ route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]) }}">
+            <i class="bi bi-person-plus-fill"></i>มอบหมายงาน
+        </a>
+    </section>
+
+    <div class="notion-workspace my-tasks-page admin-member-task-workspace" data-workspace
+        data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
+        data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
+        data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}">
+        <nav class="notion-viewbar">
+            <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i>ตาราง</button>
+            <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i>บอร์ด</button>
+        </nav>
+
+        <section class="notion-database">
+            <div class="notion-toolbar">
+                <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องานหรือโปรเจกต์"></label>
+                <label class="notion-group is-locked">สมาชิก <select disabled><option>{{ $member->name }}</option></select></label>
+                <label class="notion-filter"><i class="bi bi-funnel"></i><select data-filter><option value="">ทุกสถานะ</option><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="5">พักงาน</option><option value="late">ล่าช้า</option><option value="4">เสร็จแล้ว</option></select></label>
+                <button type="button" data-sort><i class="bi bi-sort-down"></i>กำหนดส่ง</button>
+            </div>
+            <div class="notion-table-scroll">
+                <div class="project-board" data-project-board>
+                    @include('tasks.partials.project-board-card', compact('allTasks', 'manageableTaskLists', 'projectCreatorMeta', 'showQuickAdd', 'taskLinkMode'))
+                    <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานตามตัวกรอง</p></div>
+                </div>
+                <div class="mytasks-kanban-view" data-table-kanban>
+                    @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists', 'manageableTaskLists', 'projectCreatorMeta', 'showCreateActions', 'taskLinkMode'))
+                </div>
+            </div>
+        </section>
+        <div class="notion-toast" data-toast></div>
+    </div>
+</div>
+@endsection

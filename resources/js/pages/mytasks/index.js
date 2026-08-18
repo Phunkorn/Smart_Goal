@@ -6,3 +6,4 @@ import '../../mytasks-project-board.js';
 import './table-kanban.js';
 import './task-timeline.js';
 import './table-controls.js';
+import './admin-assignment-markers.js';

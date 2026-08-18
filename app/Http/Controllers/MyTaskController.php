@@ -11,6 +11,7 @@ use App\Models\WorkOrderSubtask;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
+use App\Support\ProjectCreatorSummary;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -80,6 +81,7 @@ class MyTaskController extends Controller
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get();
+        $projectCreatorMeta = ProjectCreatorSummary::forListIds($taskLists->pluck('id'));
 
         return view('tasks.index', compact(
             'taskLists',
@@ -87,7 +89,8 @@ class MyTaskController extends Controller
             'visibleLists',
             'activeTasks',
             'completedTasks',
-            'availableCollaborators'
+            'availableCollaborators',
+            'projectCreatorMeta'
         ));
     }
 

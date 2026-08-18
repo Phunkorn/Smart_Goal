@@ -177,6 +177,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/admin/tasks/{id}', [TaskController::class, 'show'])
         ->middleware('admin')
         ->name('admin.tasks.show');
+
+    Route::prefix('admin/work-board')->name('admin.work-board.')->middleware('admin')->group(function () {
+        Route::get('/departments/{department}', [WorkBoardController::class, 'adminDepartment'])->name('department');
+        Route::get('/departments/{department}/members/{user}', [WorkBoardController::class, 'adminMember'])->name('member');
+    });
     // บอร์ดติดตามงานสำหรับพนักงาน
     Route::prefix('work-board')->name('work-board.')->middleware('role:user')->group(function () {
         Route::get('/', [WorkBoardController::class, 'index'])->name('index');

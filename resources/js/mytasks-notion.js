@@ -13,6 +13,7 @@
 
     const toast = (message, ok = true) => {
         const element = document.querySelector('[data-toast]');
+        if (!element) return;
         element.textContent = message;
         element.style.background = ok ? '#111827' : '#dc2626';
         element.classList.add('show');
@@ -35,8 +36,8 @@
     };
 
     const apply = () => {
-        const query = search.value.trim().toLowerCase();
-        const selectedStatus = filter.value;
+        const query = search?.value.trim().toLowerCase() || '';
+        const selectedStatus = filter?.value || '';
         let shown = 0;
         root.querySelectorAll('[data-row]').forEach((row) => {
             const matchesText = !query || row.textContent.toLowerCase().includes(query);
@@ -47,10 +48,12 @@
         root.querySelectorAll('[data-group-section]').forEach((group) => {
             group.hidden = ![...group.querySelectorAll('[data-row]')].some((row) => !row.hidden);
         });
-        root.querySelector('[data-empty]').hidden = shown > 0;
+        const empty = root.querySelector('[data-empty]');
+        if (empty) empty.hidden = shown > 0;
     };
 
     const regroup = () => {
+        if (!table || !groupSelect) return;
         const field = groupSelect.value;
         const labels = {status: {1:'ยังไม่เริ่ม',2:'กำลังทำ',3:'รอตรวจสอบ',4:'เสร็จแล้ว',5:'พักงาน'}, priority: {1:'routine',2:'สำคัญไม่ด่วน',3:'สำคัญด่วน',4:'ด่วนไม่ค่อยสำคัญ',5:'ไม่รีบ ไม่มีกำหนด'}};
         const groups = {};
@@ -77,22 +80,31 @@
         const field = event.target.dataset.field;
         if (!row || !field) return;
         const id = row.dataset.id;
+        const template = {
+            status: root.dataset.statusTemplate,
+            priority: root.dataset.priorityTemplate,
+            due: root.dataset.dueTemplate,
+            progress: root.dataset.progressTemplate,
+        }[field];
+        if (!template) return;
         try {
             if (field === 'status') {
-                await request(url(root.dataset.statusTemplate, id), 'PATCH', {job_status: +event.target.value});
+                await request(url(template, id), 'PATCH', {job_status: +event.target.value});
                 row.dataset.status = event.target.value;
             } else if (field === 'priority') {
-                await request(url(root.dataset.priorityTemplate, id), 'POST', {job_priority: +event.target.value});
+                await request(url(template, id), 'POST', {job_priority: +event.target.value});
                 row.dataset.priority = event.target.value;
             } else if (field === 'due') {
-                await request(url(root.dataset.dueTemplate, id), 'POST', {job_due_at: event.target.value});
+                await request(url(template, id), 'POST', {job_due_at: event.target.value});
                 row.dataset.due = event.target.value;
             } else if (field === 'progress') {
-                await request(url(root.dataset.progressTemplate, id), 'POST', {progress: +event.target.value, note: 'อัปเดตความคืบหน้าจากตารางงาน'});
+                await request(url(template, id), 'POST', {progress: +event.target.value, note: 'อัปเดตความคืบหน้าจากตารางงาน'});
+                const progressBar = event.target.closest('.row-progress')?.querySelector('b');
+                if (!progressBar) return;
                 event.target.closest('.row-progress').querySelector('b').style.width = `${event.target.value}%`;
             }
             toast('บันทึกการเปลี่ยนแปลงแล้ว');
-            if (groupSelect.value === field) regroup();
+            if (groupSelect?.value === field) regroup();
         } catch (error) {
             toast(error.message, false);
             location.reload();
@@ -103,13 +115,16 @@
         const collapse = event.target.closest('[data-collapse]');
         if (collapse) {
             const section = collapse.closest('[data-group-section]');
+            if (!section) return;
             const body = section.querySelector('[data-group-rows]');
+            if (!body) return;
             body.hidden = !body.hidden;
+            if (!collapse.querySelector('i')) return;
             collapse.querySelector('i').className = `bi bi-chevron-${body.hidden ? 'right' : 'down'}`;
         }
 
         const add = event.target.closest('[data-add-in-group]');
-        if (add) {
+        if (add && root.dataset.quickUrl) {
             const result = await Swal.fire({title: 'เพิ่มรายการใหม่', input: 'text', inputPlaceholder: 'ระบุชื่องาน', inputAttributes: {maxlength: 255}, showCancelButton: true, confirmButtonText: 'เพิ่มรายการ', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่องาน'});
             const title = result.value?.trim();
             if (!result.isConfirmed || !title) return;
@@ -125,38 +140,50 @@
         }
     });
 
-    search.addEventListener('input', apply);
-    filter.addEventListener('change', apply);
-    groupSelect.addEventListener('change', regroup);
-    root.querySelector('[data-sort]').onclick = () => {
+    search?.addEventListener('input', apply);
+    filter?.addEventListener('change', apply);
+    groupSelect?.addEventListener('change', regroup);
+    const sort = root.querySelector('[data-sort]');
+    sort?.addEventListener('click', () => {
         ascending = !ascending;
         root.querySelectorAll('[data-group-rows]').forEach((group) => {
             [...group.querySelectorAll('[data-row]')]
-                .sort((first, second) => ascending ? first.dataset.due.localeCompare(second.dataset.due) : second.dataset.due.localeCompare(first.dataset.due))
+                .sort((first, second) => {
+                    const firstDue = first.dataset.due || '';
+                    const secondDue = second.dataset.due || '';
+                    return ascending ? firstDue.localeCompare(secondDue) : secondDue.localeCompare(firstDue);
+                })
                 .forEach((row) => group.appendChild(row));
         });
-    };
+    });
     root.querySelectorAll('[data-summary-filter]').forEach((button) => button.onclick = () => {
+        if (!filter) return;
         filter.value = button.dataset.summaryFilter;
         apply();
     });
     root.querySelectorAll('[data-view-placeholder]').forEach((button) => button.onclick = () => toast('มุมมองนี้จะเพิ่มในขั้นถัดไป'));
 
     const modal = document.querySelector('[data-create-modal]');
-    document.querySelectorAll('[data-open-create]').forEach((button) => button.onclick = () => modal.hidden = false);
-    document.querySelectorAll('[data-close-create]').forEach((button) => button.onclick = () => modal.hidden = true);
-    modal.addEventListener('click', (event) => { if (event.target === modal) modal.hidden = true; });
-    document.querySelector('[data-create-form]').onsubmit = async (event) => {
-        event.preventDefault();
-        const button = event.target.querySelector('[type="submit"]');
-        button.disabled = true;
-        try {
-            await request(root.dataset.createUrl, 'POST', new FormData(event.target));
-            toast('สร้างโปรเจกต์แล้ว');
-            location.reload();
-        } catch (error) {
-            toast(error.message, false);
-            button.disabled = false;
-        }
-    };
+    const createForm = document.querySelector('[data-create-form]');
+    const openCreateButtons = [...document.querySelectorAll('[data-open-create]')];
+    const closeCreateButtons = [...document.querySelectorAll('[data-close-create]')];
+    if (modal && createForm && openCreateButtons.length && closeCreateButtons.length && root.dataset.createUrl) {
+        openCreateButtons.forEach((button) => button.onclick = () => modal.hidden = false);
+        closeCreateButtons.forEach((button) => button.onclick = () => modal.hidden = true);
+        modal.addEventListener('click', (event) => { if (event.target === modal) modal.hidden = true; });
+        createForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const button = event.target.querySelector('[type="submit"]');
+            if (!button) return;
+            button.disabled = true;
+            try {
+                await request(root.dataset.createUrl, 'POST', new FormData(event.target));
+                toast('สร้างโปรเจกต์แล้ว');
+                location.reload();
+            } catch (error) {
+                toast(error.message, false);
+                button.disabled = false;
+            }
+        });
+    }
 })();

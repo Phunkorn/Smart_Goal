@@ -1,4 +1,7 @@
 @php
+    $projectCreatorMeta = $projectCreatorMeta ?? collect();
+    $showQuickAdd = $showQuickAdd ?? true;
+    $taskLinkMode = $taskLinkMode ?? false;
     $thaiMonths = [1=>'ม.ค.',2=>'ก.พ.',3=>'มี.ค.',4=>'เม.ย.',5=>'พ.ค.',6=>'มิ.ย.',7=>'ก.ค.',8=>'ส.ค.',9=>'ก.ย.',10=>'ต.ค.',11=>'พ.ย.',12=>'ธ.ค.'];
     $projectGroups = collect();
     foreach ($taskLists as $list) {
@@ -22,12 +25,15 @@
             $projectKey = $project ? 'project-'.$project->id : 'general';
             $projectPriority = [1=>['สำคัญ/ต่ำ','low'],2=>['สำคัญ/กลาง','medium'],3=>['สำคัญ/สูง','high']][(int) ($project?->priority ?? 2)] ?? ['สำคัญ/กลาง','medium'];
             $projectAttachments = $project?->attachments ?? collect();
+            $creatorSummary = $project ? ($projectCreatorMeta->get($project->id) ?? []) : [];
+            $uniformAdminName = $creatorSummary['uniform_admin_name'] ?? null;
         @endphp
             <header class="board-project-group__header project-tone-{{ $project ? $projectPriority[1] : 'neutral' }}" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}">
                 <button type="button" class="board-project-collapse" data-board-collapse aria-label="ย่อหรือขยายโปรเจกต์"><i class="bi bi-caret-down-fill"></i></button>
                 <i class="board-project-folder bi bi-folder-fill" aria-hidden="true"></i>
                 <strong>{{ $projectName }}</strong>
                 <span><b data-board-visible-count data-board-total-count="{{ $projectTasks->count() }}">{{ $projectTasks->count() }}</b> งาน</span>
+                @include('tasks.partials.admin-assignment-marker', ['adminSenderName' => $uniformAdminName])
                 @if($project)
                     @can('manage', $project)
                         <details class="board-status-menu board-project-priority-menu" data-project-priority-menu data-url="{{ route('mytasks.lists.update', $project) }}">
@@ -64,7 +70,9 @@
                         $startLabel = $task->job_start_at ? $task->job_start_at->day.' '.$thaiMonths[$task->job_start_at->month].' '.($task->job_start_at->year + 543) : '-';
                         $dueLabel = $task->job_due_at ? $task->job_due_at->day.' '.$thaiMonths[$task->job_due_at->month].' '.($task->job_due_at->year + 543) : 'ไม่มีกำหนด';
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
+                        $taskAdminSenderName = ! $uniformAdminName && $task->creator?->role === 'admin' ? $task->creator->name : null;
                     @endphp
+                    @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
                     <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
                         <div class="board-reference-task">
                             <strong>{{ $task->job_topic }}</strong>

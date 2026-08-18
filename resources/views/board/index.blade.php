@@ -41,6 +41,9 @@
     $teamWorkload = ($workloadByUser ?? collect())->sortByDesc('active_count')->values();
 @endphp
 
+@if($canManageTasks)
+    @include('board.components.admin-assignment-trigger')
+@endif
 @include('board.components.admin-overview')
 
 @if($canManageTasks)
@@ -599,6 +602,26 @@
             setTaskPriority(task, task.querySelector(`.priority-option[data-value="${value}"]`));
         });
         reindexTasks();
+    })();
+
+    (function () {
+        const modal = document.getElementById('boardCreateTaskModal');
+        if (!modal) return;
+
+        document.querySelectorAll('[data-open-admin-assignment]').forEach((trigger) => {
+            trigger.addEventListener('click', () => bootstrap.Modal.getOrCreateInstance(modal).show());
+        });
+
+        const shouldOpen = @json(request()->boolean('open_assignment'));
+        const requestedAssignee = @json((string) request('assign_to'));
+        if (!shouldOpen) return;
+
+        if (requestedAssignee) {
+            const options = Array.from(modal.querySelectorAll('[data-admin-task]:first-child .assignee-option'));
+            options.find((option) => option.dataset.id === requestedAssignee)?.click();
+        }
+
+        bootstrap.Modal.getOrCreateInstance(modal).show();
     })();
 </script>
 @endpush

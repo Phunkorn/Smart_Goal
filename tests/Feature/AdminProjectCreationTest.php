@@ -72,6 +72,8 @@ class AdminProjectCreationTest extends TestCase
         $secondTask = WorkOrder::where('job_topic', 'Deploy release')->firstOrFail();
         $this->assertSame($project->id, $firstTask->work_order_list_id);
         $this->assertSame($project->id, $secondTask->work_order_list_id);
+        $this->assertSame($admin->id, $firstTask->created_by);
+        $this->assertSame($admin->id, $secondTask->created_by);
         $this->assertSame($assigneeOne->department_id, $firstTask->department_id);
         $this->assertSame('approved', $firstTask->approval_status);
         $this->assertSame($admin->id, $firstTask->approved_by);
@@ -87,6 +89,11 @@ class AdminProjectCreationTest extends TestCase
         $this->assertSame(2, SystemNotification::where('work_order_id', $firstTask->job_id)->count());
         $this->assertSame(2, SystemNotification::where('work_order_id', $secondTask->job_id)->count());
         $this->assertSame(1, SystemNotification::where('work_order_id', $firstTask->job_id)->where('user_id', $collaborator->id)->count());
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $assigneeOne->id,
+            'work_order_id' => $firstTask->job_id,
+            'message' => $admin->name.' มอบหมายงาน '.chr(34).'Prepare environment'.chr(34).' ให้คุณ',
+        ]);
 
         $listCount = WorkOrderList::count();
         $this->actingAs($assigneeOne)->get(route('mytasks.index'))
@@ -94,6 +101,7 @@ class AdminProjectCreationTest extends TestCase
             ->assertSee('Admin rollout')
             ->assertSee('brief.jpg')
             ->assertSee('Prepare environment')
+            ->assertSee('มอบหมายโดย '.$admin->name)
             ->assertDontSee('Deploy release')
             ->assertViewHas('manageableTaskLists', fn ($lists) => $lists->isEmpty())
             ->assertSee('data-manageable="0"', false)

@@ -222,10 +222,7 @@
 
                     <div class="admin-department-action">
 
-                        <a
-                            href="{{ route('board.index', [
-                                'department_id' => $row['id'],
-                            ]) }}">
+                        <a href="{{ route('admin.work-board.department', $row['id']) }}">
                             ดูรายละเอียด
                             <i class="bi bi-arrow-right"></i>
                         </a>

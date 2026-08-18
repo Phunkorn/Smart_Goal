@@ -377,7 +377,7 @@ class TaskController extends Controller
         }
 
         foreach ($createdJobs as $job) {
-            $this->notifyJobMembers($job, 'admin_created_task', 'มีงานใหม่', 'ผู้ดูแลระบบมอบหมายงาน '.$job->job_topic.' ให้คุณ');
+            $this->notifyJobMembers($job, 'admin_created_task', 'มีงานใหม่', $actor->name.' มอบหมายงาน '.chr(34).$job->job_topic.chr(34).' ให้คุณ');
         }
 
         return redirect()->route('board.index')

@@ -15,7 +15,9 @@
     $startLabel = $task->job_start_at
         ? $task->job_start_at->day.' '.$thaiMonths[$task->job_start_at->month]
         : '-';
+    $taskAdminSenderName = $task->creator?->role === 'admin' ? $task->creator->name : null;
 @endphp
+@include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => false])
 <div class="notion-row" data-row data-id="{{ $task->job_id }}"
     @if($task->taskList && auth()->user()->can('manage', $task->taskList))
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"

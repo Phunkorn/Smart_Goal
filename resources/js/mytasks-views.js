@@ -4,9 +4,9 @@
     const database = workspace.querySelector('.notion-database');
     const groupSelect = workspace.querySelector('[data-group]');
     const buttons = [...workspace.querySelectorAll('[data-view]')];
-    if (!database || !groupSelect || !buttons.length) return;
+    if (!database || !buttons.length) return;
 
-    let tableGrouping = groupSelect.value;
+    let tableGrouping = groupSelect?.value || 'project';
     const setView = (view, announce = true) => {
         if (!['table', 'board'].includes(view)) view = 'table';
         database.dataset.view = view;
@@ -16,9 +16,9 @@
             button.setAttribute('aria-selected', String(active));
         });
 
-        groupSelect.disabled = false;
-        groupSelect.closest('.notion-group')?.classList.remove('is-locked');
-        if (view === 'table' && groupSelect.value !== tableGrouping) {
+        if (groupSelect) groupSelect.disabled = false;
+        groupSelect?.closest('.notion-group')?.classList.remove('is-locked');
+        if (view === 'table' && groupSelect && groupSelect.value !== tableGrouping) {
             groupSelect.value = tableGrouping;
             groupSelect.dispatchEvent(new Event('change', {bubbles: true}));
         }
@@ -31,7 +31,7 @@
         button.onclick = () => setView(button.dataset.view);
     });
 
-    groupSelect.addEventListener('change', () => {
+    groupSelect?.addEventListener('change', () => {
         if (database.dataset.view !== 'board') tableGrouping = groupSelect.value;
     });
 
