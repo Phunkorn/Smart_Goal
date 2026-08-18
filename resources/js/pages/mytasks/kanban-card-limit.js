@@ -93,10 +93,10 @@
         }
     });
 
-    const observer = new MutationObserver((mutations) => {
-        if (mutations.some((mutation) => mutation.type === 'childList')) refreshAll();
-    });
+    // Refresh only after known task mutations. Avoid observing our own DOM changes,
+    // which previously caused an endless MutationObserver -> refreshAll loop.
+    document.addEventListener('mytasks:changed', () => setTimeout(refreshAll, 0));
+    kanban.addEventListener('drop', () => setTimeout(refreshAll, 0));
 
-    observer.observe(kanban, { childList: true, subtree: true });
     refreshAll();
 })();
