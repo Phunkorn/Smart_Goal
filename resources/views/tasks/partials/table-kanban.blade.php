@@ -1,4 +1,8 @@
 @php
+$manageableTaskLists = $manageableTaskLists ?? collect();
+$defaultKanbanList = $manageableTaskLists->first() ?? $taskLists->first();
+$defaultKanbanListIsManageable = $defaultKanbanList
+    && $manageableTaskLists->contains('id', $defaultKanbanList->id);
 $statuses = [
     1 => ['ยังไม่เริ่ม', 'todo'],
     2 => ['กำลังทำ', 'progress'],
@@ -19,7 +23,9 @@ $statuses = [
                 class="bi bi-folder2-open"></i><span>โปรเจกต์</span><select data-kanban-project
                 aria-label="เลือกโปรเจกต์">
                 @foreach ($taskLists as $list)
-                    <option value="{{ $list->id }}">{{ $list->name }}</option>
+                    <option value="{{ $list->id }}"
+                        data-manageable="{{ $manageableTaskLists->contains('id', $list->id) ? '1' : '0' }}"
+                        @selected($defaultKanbanList && (int) $defaultKanbanList->id === (int) $list->id)>{{ $list->name }}</option>
                 @endforeach
             </select></label><span data-kanban-project-count></span>
         <div class="mytasks-kanban__actions">
@@ -37,8 +43,8 @@ $statuses = [
         type="button"
         class="mytasks-kanban__button mytasks-kanban__button--task"
         data-add-in-group
-        data-list-id="{{ $taskLists->first()?->id }}"
-        @disabled($taskLists->isEmpty())
+        data-list-id="{{ $defaultKanbanListIsManageable ? $defaultKanbanList->id : '' }}"
+        @disabled(! $defaultKanbanListIsManageable)
     >
         <i class="bi bi-plus-lg"></i>
         เพิ่มงาน
@@ -47,7 +53,7 @@ $statuses = [
 </div>
     </header>
     @forelse($taskLists as $list)
-        <div class="mytasks-kanban__project" data-kanban-panel="{{ $list->id }}" {{ $loop->first ? '' : 'hidden' }}>
+        <div class="mytasks-kanban__project" data-kanban-panel="{{ $list->id }}" {{ $defaultKanbanList && (int) $defaultKanbanList->id === (int) $list->id ? '' : 'hidden' }}>
             <div class="mytasks-kanban__columns">
                 @foreach ($statuses as $status => [$label, $tone])
                     <section class="mytasks-kanban__column status-{{ $tone }}"

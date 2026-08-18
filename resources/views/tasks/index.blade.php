@@ -60,12 +60,12 @@
 
         <div class="notion-table-scroll">
             <div class="project-board" data-project-board>
-                @include('tasks.partials.project-board-card', compact('allTasks'))
+                @include('tasks.partials.project-board-card', compact('allTasks', 'manageableTaskLists'))
                 <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานในบอร์ดตามตัวกรองที่เลือก</p></div>
             </div>
 
             <div class="mytasks-kanban-view" data-table-kanban>
-                @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists'))
+                @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists', 'manageableTaskLists'))
             </div>
 
             <div class="notion-table" data-table>
@@ -88,7 +88,9 @@
                                 @endcan
                                 <small>{{ $listTasks->count() }} งาน</small>
                                 <div class="project-actions">
-                                    <button type="button" class="group-plus" data-add-in-group data-list-id="{{ $list->id }}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>
+                                    @if((int) $list->user_id === (int) auth()->id())
+                                        <button type="button" class="group-plus" data-add-in-group data-list-id="{{ $list->id }}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>
+                                    @endif
                                     @can('manage', $list)
                                         <button type="button" data-edit-project data-name="{{ $list->name }}" data-url="{{ route('mytasks.lists.update', $list) }}" title="แก้ไขชื่อโปรเจกต์"><i class="bi bi-pencil"></i></button>
                                         <button type="button" class="danger" data-delete-project data-name="{{ $list->name }}" data-url="{{ route('mytasks.lists.destroy', $list) }}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>
@@ -323,4 +325,3 @@
 </div>
 <div class="notion-toast" data-toast></div>
 @endsection
-

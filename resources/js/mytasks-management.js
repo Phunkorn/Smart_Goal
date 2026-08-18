@@ -36,10 +36,13 @@
             const safeName = (row.dataset.project || '').replace(/["<>]/g, '');
             const actions = document.createElement('div');
             actions.className = 'project-actions';
-            actions.innerHTML = `<button type="button" class="group-plus" data-add-in-group data-list-id="${row.dataset.listId}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>`;
+            if (row.dataset.listOwned === '1') {
+                actions.innerHTML = `<button type="button" class="group-plus" data-add-in-group data-list-id="${row.dataset.listId}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>`;
+            }
             if (row.dataset.listUpdateUrl && row.dataset.listDeleteUrl) {
                 actions.innerHTML += `<details class="project-more-menu"><summary aria-label="เมนูโปรเจกต์"><i class="bi bi-three-dots"></i></summary><div><button type="button" data-edit-project data-name="${safeName}" data-url="${row.dataset.listUpdateUrl}"><i class="bi bi-pencil"></i> แก้ไขชื่อ</button><button type="button" class="danger" data-delete-project data-name="${safeName}" data-url="${row.dataset.listDeleteUrl}"><i class="bi bi-trash3"></i> ลบโปรเจกต์</button></div></details>`;
             }
+            if (!actions.childElementCount) return;
             header.appendChild(actions);
         });
     };

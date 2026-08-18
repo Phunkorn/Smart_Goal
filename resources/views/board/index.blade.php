@@ -47,21 +47,52 @@
 <div class="modal fade" id="boardCreateTaskModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content border-0 shadow-lg">
-            <form action="{{ route('tasks.store') }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ route('admin.tasks.store') }}" method="POST" enctype="multipart/form-data" data-admin-project-form>
                 @csrf
                 <div class="modal-header board-modal-head">
                     <div>
-                        <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle-fill me-2 text-primary"></i>สร้างงานใหม่</h5>
-                        <div class="text-muted small">มอบหมายงานให้พนักงาน เลือกผู้ร่วมงานได้โดยไม่บังคับ</div>
+                        <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle-fill me-2 text-primary"></i>สร้างโปรเจกต์และมอบหมายงาน</h5>
+                        <div class="text-muted small">สร้างโปรเจกต์หนึ่งรายการ พร้อมงานภายในอย่างน้อยหนึ่งงาน</div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
 
                 <div class="modal-body">
+                    <section class="board-project-fields mb-4" aria-labelledby="boardProjectHeading">
+                        <h6 id="boardProjectHeading" class="fw-bold mb-3">ข้อมูลโปรเจกต์</h6>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold" for="boardProjectName">ชื่อโปรเจกต์ <span class="text-danger">*</span></label>
+                                <input type="text" name="project_name" id="boardProjectName" class="form-control" maxlength="80" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold" for="boardProjectPriority">ความสำคัญโปรเจกต์</label>
+                                <select name="project_priority" id="boardProjectPriority" class="form-select" required>
+                                    <option value="1">ต่ำ</option><option value="2" selected>กลาง</option><option value="3">สูง</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold" for="boardProjectAttachments">ไฟล์แนบโปรเจกต์</label>
+                                <input type="file" name="project_attachments[]" id="boardProjectAttachments" class="form-control" accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx" multiple>
+                                <div class="form-text">สูงสุด 5 ไฟล์ ไฟล์ละไม่เกิน 10 MB</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                        <h6 class="fw-bold mb-0">งานภายในโปรเจกต์</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-add-admin-task><i class="bi bi-plus-lg me-1"></i>เพิ่มงาน</button>
+                    </div>
+                    <div data-admin-task-list>
+                    <section class="board-project-task mb-3" data-admin-task data-task-index="0">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <strong data-task-title>งานที่ 1</strong>
+                            <button type="button" class="btn btn-sm btn-outline-danger d-none" data-remove-admin-task aria-label="ลบงานนี้"><i class="bi bi-trash"></i></button>
+                        </div>
                     <div class="row g-3">
                         <div class="col-md-7">
                             <label class="form-label fw-bold">ชื่องาน <span class="text-danger">*</span></label>
-                            <input type="text" name="job_topic" class="form-control form-control-lg" placeholder="เช่น ติดตั้งโปรแกรม / ตรวจสอบเอกสาร / โทรติดตามลูกค้า" required>
+                            <input type="text" name="tasks[0][job_topic]" class="form-control form-control-lg" placeholder="เช่น ติดตั้งโปรแกรม / ตรวจสอบเอกสาร / โทรติดตามลูกค้า" required>
                         </div>
                         <div class="col-md-5">
                             <label class="form-label fw-bold">ผู้รับผิดชอบ <span class="text-danger">*</span></label>
@@ -70,7 +101,7 @@
                                     <span class="assignee-picker-label text-muted" id="boardAssigneeLabel">เลือกผู้รับผิดชอบ...</span>
                                 </button>
                                 <div class="dropdown-menu assignee-picker-menu p-2 w-100">
-                                    <input type="search" class="form-control form-control-sm mb-2" id="boardAssigneeSearch" placeholder="พิมพ์ชื่อพนักงานหรือแผนก" autocomplete="off">
+                                    <input type="search" class="form-control form-control-sm mb-2" id="boardAssigneeSearch" data-task-assignee-search placeholder="พิมพ์ชื่อพนักงานหรือแผนก" autocomplete="off">
                                     <div class="assignee-picker-list" id="boardAssigneeList">
                                         @foreach($employees as $employee)
                                             <button type="button" class="assignee-option" data-id="{{ $employee->id }}" data-name="{{ $employee->name }}" data-dept="{{ optional($employee->department)->department_name ?? 'ไม่ระบุแผนก' }}" data-search="{{ Str::lower($employee->name . ' ' . optional($employee->department)->department_name) }}">
@@ -85,12 +116,12 @@
                                     <div class="text-muted small text-center py-2 d-none" id="boardAssigneeEmpty">ไม่พบพนักงานที่ตรงกับคำค้นหา</div>
                                 </div>
                             </div>
-                            <input type="hidden" name="user_id" id="boardTaskAssigneeId" required>
+                            <input type="hidden" name="tasks[0][user_id]" id="boardTaskAssigneeId" data-task-assignee required>
                         </div>
 
                         <div class="col-12">
                             <label class="form-label fw-bold">รายละเอียดงาน</label>
-                            <textarea name="job_details" class="form-control" rows="3" placeholder="อธิบายรายละเอียด เป้าหมาย หรือสิ่งที่ต้องส่งมอบ"></textarea>
+                            <textarea name="tasks[0][job_details]" class="form-control" rows="3" placeholder="อธิบายรายละเอียด เป้าหมาย หรือสิ่งที่ต้องส่งมอบ"></textarea>
                         </div>
 
                         <div class="col-12">
@@ -116,16 +147,16 @@
                                     </button>
                                 </div>
                             </div>
-                            <input type="hidden" name="job_priority" id="boardTaskPriority">
+                            <input type="hidden" name="tasks[0][job_priority]" id="boardTaskPriority" data-task-priority value="2">
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label fw-bold">วันที่เริ่ม <span class="text-danger">*</span></label>
-                            <input type="datetime-local" name="job_start_at" class="form-control" required>
+                            <input type="datetime-local" name="tasks[0][job_start_at]" class="form-control" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">กำหนดส่ง <span class="text-danger">*</span></label>
-                            <input type="datetime-local" name="job_due_at" class="form-control" required>
+                            <input type="datetime-local" name="tasks[0][job_due_at]" class="form-control" required>
                         </div>
 
                         <div class="col-12">
@@ -133,18 +164,18 @@
                                 <label class="form-label fw-bold mb-0">ผู้ร่วมงาน</label>
                                 <span class="text-muted small">ไม่จำเป็นต้องเลือก</span>
                             </div>
-                            <select class="form-select mb-2" id="boardCollaboratorDept">
+                            <select class="form-select mb-2" id="boardCollaboratorDept" data-task-collaborator-department>
                                 <option value="">1 เลือกแผนกก่อน...</option>
                                 @foreach($departments as $department)
                                     <option value="{{ $department->id }}">{{ $department->department_name }}</option>
                                 @endforeach
                             </select>
-                            <input type="search" class="form-control mb-2 d-none" id="boardCollaboratorSearch" placeholder="2) ค้นหาชื่อพนักงานในแผนกนี้" autocomplete="off">
+                            <input type="search" class="form-control mb-2 d-none" id="boardCollaboratorSearch" data-task-collaborator-search placeholder="2) ค้นหาชื่อพนักงานในแผนกนี้" autocomplete="off">
                             <div class="row g-2 board-collaborator-list" id="boardCollaboratorList">
                                 @foreach($employees as $employee)
                                     <div class="col-md-6 board-collab-item d-none" data-department-id="{{ $employee->department_id }}" data-search="{{ Str::lower($employee->name . ' ' . optional($employee->department)->department_name) }}">
                                         <label class="w-100 p-2 border rounded-3 d-flex gap-2 align-items-center board-collaborator-choice">
-                                            <input type="checkbox" name="collaborators[]" value="{{ $employee->id }}">
+                                            <input type="checkbox" name="tasks[0][collaborators][]" value="{{ $employee->id }}">
                                             <span class="avatar-mini">{{ mb_substr($employee->name, 0, 2) }}</span>
                                             <span>
                                                 <strong>{{ $employee->name }}</strong>
@@ -158,8 +189,16 @@
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label fw-bold">ไฟล์แนบ</label>
-                            <input type="file" name="attachments[]" id="boardAttachmentsInput" class="form-control" accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx" multiple>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <label class="form-label fw-bold mb-0">งานย่อย</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-add-admin-subtask><i class="bi bi-plus-lg me-1"></i>เพิ่มงานย่อย</button>
+                            </div>
+                            <div data-admin-subtask-list></div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold">ไฟล์แนบของงาน</label>
+                            <input type="file" name="tasks[0][attachments][]" id="boardAttachmentsInput" class="form-control" accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx" multiple>
                             <div class="text-muted small mt-1">
                                 รองรับเฉพาะไฟล์ <strong>รูปภาพ (JPG, PNG)</strong>, <strong>Word (DOC, DOCX)</strong>,
                                 <strong>Excel (XLS, XLSX)</strong> และ <strong>PowerPoint (PPT, PPTX)</strong> เท่านั้น
@@ -169,11 +208,13 @@
                             <div class="text-danger small mt-1 d-none" id="boardAttachmentsError"></div>
                         </div>
                     </div>
+                    </section>
+                    </div>
                 </div>
 
                 <div class="modal-footer board-modal-foot">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>บันทึกงาน</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>สร้างโปรเจกต์</button>
                 </div>
             </form>
         </div>
@@ -383,13 +424,181 @@
         });
     })();
 
-    document.querySelector('#boardCreateTaskModal form')?.addEventListener('submit', function (event) {
-        const assigneeId = document.getElementById('boardTaskAssigneeId')?.value;
-        if (!assigneeId) {
-            event.preventDefault();
-            alert('กรุณาเลือกผู้รับผิดชอบจากรายชื่อที่ระบบแนะนำ');
-        }
-    });
+    (function () {
+        const form = document.querySelector('[data-admin-project-form]');
+        const taskList = form?.querySelector('[data-admin-task-list]');
+        const addTaskButton = form?.querySelector('[data-add-admin-task]');
+        if (!form || !taskList || !addTaskButton) return;
+        const taskTemplate = taskList.querySelector('[data-admin-task]')?.cloneNode(true);
+        if (!taskTemplate) return;
+
+        const priorityTones = {
+            red: { text: 'var(--board-red)', soft: 'var(--board-red-soft)' },
+            amber: { text: 'var(--board-amber)', soft: 'var(--board-amber-soft)' },
+            gray: { text: '#475467', soft: 'var(--board-gray-soft)' },
+        };
+
+        const setTaskPriority = (task, option) => {
+            if (!option) return;
+
+            const value = option.dataset.value || '2';
+            const tone = option.dataset.tone || 'amber';
+            const colors = priorityTones[tone] || priorityTones.amber;
+            const toggle = task.querySelector('.priority-picker-toggle');
+            const label = task.querySelector('.priority-picker-label');
+
+            task.querySelector('[data-task-priority]').value = value;
+            task.querySelectorAll('.priority-option').forEach((item) => item.classList.toggle('active', item === option));
+
+            label.classList.remove('text-muted');
+            label.innerHTML = `<span class="priority-dot tone-dot-${tone}"></span><span>${option.dataset.label || ''}</span>`;
+            toggle.style.borderColor = colors.text;
+            toggle.style.background = colors.soft;
+            toggle.style.color = colors.text;
+            toggle.style.fontWeight = '600';
+        };
+
+        const reindexSubtasks = (task) => {
+            task.querySelectorAll('.board-project-subtask').forEach((row, subtaskIndex) => {
+                row.querySelectorAll('[name]').forEach((field) => {
+                    field.name = field.name.replace(/\[subtasks\]\[\d+\]/, `[subtasks][${subtaskIndex}]`);
+                });
+            });
+        };
+
+        const reindexTasks = () => {
+            const tasks = Array.from(taskList.querySelectorAll('[data-admin-task]'));
+            tasks.forEach((task, taskIndex) => {
+                task.dataset.taskIndex = taskIndex;
+                task.querySelector('[data-task-title]').textContent = `งานที่ ${taskIndex + 1}`;
+                task.querySelector('[data-remove-admin-task]')?.classList.toggle('d-none', tasks.length === 1);
+                task.querySelectorAll('[name]').forEach((field) => {
+                    field.name = field.name.replace(/tasks\[\d+\]/, `tasks[${taskIndex}]`);
+                });
+                reindexSubtasks(task);
+            });
+        };
+
+        const resetTask = (task) => {
+            task.querySelectorAll('input, textarea, select').forEach((field) => {
+                if (field.type === 'checkbox' || field.type === 'radio') field.checked = false;
+                else if (field.type === 'file') field.value = '';
+                else if (field.matches('[data-task-priority]')) field.value = '2';
+                else field.value = '';
+            });
+            task.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+            task.querySelector('.assignee-picker-label').textContent = 'เลือกผู้รับผิดชอบ...';
+            task.querySelector('.assignee-picker-label').classList.add('text-muted');
+            task.querySelectorAll('.assignee-option').forEach((option) => option.classList.remove('active', 'd-none'));
+            task.querySelector('.assignee-picker-menu .text-center')?.classList.add('d-none');
+            setTaskPriority(task, task.querySelector('.priority-option[data-value="2"]'));
+            const collaboratorSearch = task.querySelector('[data-task-collaborator-search]');
+            collaboratorSearch.classList.add('d-none');
+            collaboratorSearch.disabled = true;
+            task.querySelectorAll('.board-collab-item').forEach((item) => item.classList.add('d-none'));
+            task.querySelector('[data-admin-subtask-list]').innerHTML = '';
+        };
+
+        addTaskButton.addEventListener('click', () => {
+            const task = taskTemplate.cloneNode(true);
+            resetTask(task);
+            taskList.appendChild(task);
+            reindexTasks();
+        });
+
+        form.addEventListener('click', (event) => {
+            const removeTask = event.target.closest('[data-remove-admin-task]');
+            if (removeTask && taskList.querySelectorAll('[data-admin-task]').length > 1) {
+                removeTask.closest('[data-admin-task]').remove();
+                reindexTasks();
+                return;
+            }
+
+            const assigneeOption = event.target.closest('.assignee-option');
+            if (assigneeOption) {
+                const task = assigneeOption.closest('[data-admin-task]');
+                task.querySelectorAll('.assignee-option').forEach((option) => option.classList.remove('active'));
+                assigneeOption.classList.add('active');
+                task.querySelector('[data-task-assignee]').value = assigneeOption.dataset.id || '';
+                const label = task.querySelector('.assignee-picker-label');
+                label.textContent = `${assigneeOption.dataset.name} — ${assigneeOption.dataset.dept}`;
+                label.classList.remove('text-muted');
+                bootstrap.Dropdown.getOrCreateInstance(task.querySelector('.assignee-picker-toggle'))?.hide();
+                return;
+            }
+
+            const priorityOption = event.target.closest('.priority-option');
+            if (priorityOption) {
+                const task = priorityOption.closest('[data-admin-task]');
+                setTaskPriority(task, priorityOption);
+            }
+
+            const addSubtask = event.target.closest('[data-add-admin-subtask]');
+            if (addSubtask) {
+                const task = addSubtask.closest('[data-admin-task]');
+                const container = task.querySelector('[data-admin-subtask-list]');
+                const taskIndex = Number(task.dataset.taskIndex);
+                const subtaskIndex = container.children.length;
+                const row = document.createElement('div');
+                row.className = 'board-project-subtask row g-2 mb-2';
+                row.innerHTML = `<div class="col-md-5"><input class="form-control" name="tasks[${taskIndex}][subtasks][${subtaskIndex}][title]" maxlength="255" placeholder="ชื่องานย่อย"></div><div class="col-md-6"><input class="form-control" name="tasks[${taskIndex}][subtasks][${subtaskIndex}][details]" maxlength="2000" placeholder="รายละเอียด"></div><div class="col-md-1 d-grid"><button type="button" class="btn btn-outline-danger" data-remove-admin-subtask aria-label="ลบงานย่อย"><i class="bi bi-x-lg"></i></button></div>`;
+                container.appendChild(row);
+                reindexSubtasks(task);
+                return;
+            }
+
+            const removeSubtask = event.target.closest('[data-remove-admin-subtask]');
+            if (removeSubtask) {
+                const task = removeSubtask.closest('[data-admin-task]');
+                removeSubtask.closest('.board-project-subtask').remove();
+                reindexSubtasks(task);
+            }
+        });
+
+        form.addEventListener('input', (event) => {
+            if (event.target.matches('[data-task-assignee-search]')) {
+                const keyword = event.target.value.trim().toLowerCase();
+                event.target.closest('[data-admin-task]').querySelectorAll('.assignee-option').forEach((option) => {
+                    option.classList.toggle('d-none', !option.dataset.search.includes(keyword));
+                });
+            }
+
+            if (event.target.matches('[data-task-collaborator-search]')) {
+                const task = event.target.closest('[data-admin-task]');
+                const departmentId = task.querySelector('[data-task-collaborator-department]').value;
+                const keyword = event.target.value.trim().toLowerCase();
+                task.querySelectorAll('.board-collab-item').forEach((item) => {
+                    item.classList.toggle('d-none', item.dataset.departmentId !== departmentId || !item.dataset.search.includes(keyword));
+                });
+            }
+        });
+
+        form.addEventListener('change', (event) => {
+            if (!event.target.matches('[data-task-collaborator-department]')) return;
+            const task = event.target.closest('[data-admin-task]');
+            const departmentId = event.target.value;
+            const search = task.querySelector('[data-task-collaborator-search]');
+            search.value = '';
+            search.classList.toggle('d-none', !departmentId);
+            search.disabled = !departmentId;
+            task.querySelectorAll('.board-collab-item').forEach((item) => {
+                item.classList.toggle('d-none', !departmentId || item.dataset.departmentId !== departmentId);
+            });
+        });
+
+        form.addEventListener('submit', (event) => {
+            const missingAssignee = Array.from(form.querySelectorAll('[data-task-assignee]')).some((field) => !field.value);
+            if (missingAssignee) {
+                event.preventDefault();
+                alert('กรุณาเลือกผู้รับผิดชอบให้ครบทุกงาน');
+            }
+        });
+
+        taskList.querySelectorAll('[data-admin-task]').forEach((task) => {
+            const value = task.querySelector('[data-task-priority]').value || '2';
+            setTaskPriority(task, task.querySelector(`.priority-option[data-value="${value}"]`));
+        });
+        reindexTasks();
+    })();
 </script>
 @endpush
-

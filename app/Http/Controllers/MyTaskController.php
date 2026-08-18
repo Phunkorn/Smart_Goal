@@ -35,7 +35,8 @@ class MyTaskController extends Controller
 
         $this->moveAdminAssignmentsToProjectGroups($user);
         $taskLists = $this->taskListsForCurrentUser();
-        $defaultList = $taskLists->first();
+        $manageableTaskLists = $taskLists->where('user_id', $user->id)->values();
+        $defaultList = $manageableTaskLists->first();
 
         if ($defaultList) {
             WorkOrder::where(function ($query) use ($user) {
@@ -69,6 +70,7 @@ class MyTaskController extends Controller
             ->get();
 
         $taskLists = $this->taskListsForCurrentUser();
+        $manageableTaskLists = $taskLists->where('user_id', $user->id)->values();
 
         $visibleLists = $taskLists->where('is_visible', true)->values();
         $activeTasks = $workOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
@@ -81,6 +83,7 @@ class MyTaskController extends Controller
 
         return view('tasks.index', compact(
             'taskLists',
+            'manageableTaskLists',
             'visibleLists',
             'activeTasks',
             'completedTasks',
@@ -94,14 +97,21 @@ class MyTaskController extends Controller
 
         $this->authorize('create', WorkOrder::class);
 
-        $taskLists = $this->taskListsForCurrentUser();
+        $taskLists = $this->taskListsForCurrentUser()
+            ->where('user_id', $user->id)
+            ->values();
 
         $validated = $request->validate([
             'job_topic' => 'required|string|max:255',
             'work_order_list_id' => 'nullable|exists:work_order_lists,id',
         ]);
 
-        $list = $taskLists->firstWhere('id', (int) ($validated['work_order_list_id'] ?? 0)) ?? $taskLists->first();
+        $requestedListId = (int) ($validated['work_order_list_id'] ?? 0);
+        $list = $requestedListId
+            ? $taskLists->firstWhere('id', $requestedListId)
+            : $taskLists->first();
+
+        abort_if($requestedListId && ! $list, 403);
 
         if (! $list) {
             return response()->json([
@@ -788,8 +798,17 @@ class MyTaskController extends Controller
     private function taskListsForCurrentUser()
     {
         $user = Auth::user();
+        $adminAssignedListIds = $this->baseWorkOrderQuery()
+            ->whereHas('creator', fn ($query) => $query->where('role', 'admin'))
+            ->whereNotNull('work_order_list_id')
+            ->pluck('work_order_list_id')
+            ->unique();
 
-        return WorkOrderList::with('attachments')->where('user_id', $user->id)
+        return WorkOrderList::with('attachments')
+            ->where(function ($query) use ($user, $adminAssignedListIds) {
+                $query->where('user_id', $user->id)
+                    ->orWhereIn('id', $adminAssignedListIds);
+            })
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -811,8 +830,7 @@ class MyTaskController extends Controller
         }
 
         $listIds = $adminAssignments->pluck('work_order_list_id')->filter()->unique();
-        $lists = WorkOrderList::where('user_id', $user->id)
-            ->whereIn('id', $listIds)
+        $lists = WorkOrderList::whereIn('id', $listIds)
             ->get()
             ->keyBy('id');
         $tasksPerList = WorkOrder::whereIn('work_order_list_id', $listIds)
@@ -823,6 +841,10 @@ class MyTaskController extends Controller
         DB::transaction(function () use ($adminAssignments, $lists, $tasksPerList, $user) {
             foreach ($adminAssignments as $job) {
                 $currentList = $lists->get($job->work_order_list_id);
+                if ($currentList && (int) $currentList->user_id !== (int) $user->id) {
+                    continue;
+                }
+
                 $isDedicatedProject = $currentList
                     && $currentList->name === $job->job_topic
                     && (int) ($tasksPerList[$currentList->id] ?? 0) === 1;

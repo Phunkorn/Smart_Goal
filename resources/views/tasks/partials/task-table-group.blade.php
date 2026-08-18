@@ -48,6 +48,10 @@
     $currentUser = auth()->user();
     $realListId = is_numeric($listId) ? (int) $listId : null;
     $listOwnerId = $realListId ? optional($taskLists->firstWhere('id', $realListId))->user_id : null;
+    $canQuickAddToProject = $currentUser && (
+        ($isVirtual && ($manageableTaskLists ?? collect())->isNotEmpty())
+        || ($realListId && (int) $listOwnerId === (int) $currentUser->id)
+    );
     $projectCompleted = $allListTasks->isNotEmpty() && $allListTasks->every(fn ($task) => (int) $task->job_status === 4);
     $projectLeader = $projectTask?->leader ?: $projectTask?->user;
     $projectMembers = $allListTasks
@@ -243,7 +247,7 @@
                             </td>
                         </tr>
                     @endforelse
-                    @unless ($isCompletedBoard)
+                    @if (! $isCompletedBoard && $canQuickAddToProject)
                         <tr class="add-row">
                             <td></td>
                             <td colspan="6">
@@ -257,7 +261,7 @@
                                 </form>
                             </td>
                         </tr>
-                    @endunless
+                    @endif
                 </tbody>
             </table>
         </div>

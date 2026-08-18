@@ -8,6 +8,7 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Models\WorkOrderListAttachment;
 use App\Models\WorkOrderUpdate;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Throwable;
 
 class TaskController extends Controller
 {
@@ -148,6 +150,10 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->routeIs('admin.tasks.store')) {
+            return $this->storeAdminProject($request);
+        }
+
         $this->authorize('create', WorkOrder::class);
 
         $validated = $request->validate($this->storeValidationRules());
@@ -241,6 +247,161 @@ class TaskController extends Controller
 
         return redirect()->route(Auth::user()->role === 'admin' ? 'board.index' : 'mytasks.index')
             ->with('success', $message);
+    }
+
+    private function storeAdminProject(Request $request)
+    {
+        $this->authorize('create', WorkOrder::class);
+        $validator = validator($request->all(), $this->adminProjectValidationRules());
+        $validator->after(function ($validator) use ($request) {
+            foreach ((array) $request->input('tasks', []) as $taskIndex => $taskData) {
+                if (! is_array($taskData)) {
+                    continue;
+                }
+
+                $collaboratorIds = collect($taskData['collaborators'] ?? [])->map(fn ($id) => (int) $id);
+
+                if ($collaboratorIds->duplicates()->isNotEmpty()) {
+                    $validator->errors()->add("tasks.{$taskIndex}.collaborators", 'ผู้ร่วมงานภายในงานเดียวกันต้องไม่ซ้ำกัน');
+                }
+
+                if ($collaboratorIds->contains((int) ($taskData['user_id'] ?? 0))) {
+                    $validator->errors()->add("tasks.{$taskIndex}.collaborators", 'ผู้รับผิดชอบหลักต้องไม่อยู่ในรายชื่อผู้ร่วมงาน');
+                }
+            }
+        });
+        $validated = $validator->validate();
+        $this->assertAllowedAttachments($request, 'project_attachments');
+        foreach (array_keys($validated['tasks']) as $taskIndex) {
+            $this->assertAllowedAttachments($request, 'tasks.'.$taskIndex.'.attachments');
+        }
+
+        $actor = Auth::user();
+        $assignees = User::with('department')
+            ->whereIn('id', collect($validated['tasks'])->pluck('user_id')->unique())
+            ->get()
+            ->keyBy('id');
+
+        $storedPaths = [];
+
+        try {
+            $createdJobs = DB::transaction(function () use ($validated, $request, $actor, $assignees, &$storedPaths) {
+                $project = WorkOrderList::create([
+                    'user_id' => $actor->id,
+                    'name' => trim($validated['project_name']),
+                    'priority' => $validated['project_priority'],
+                    'is_visible' => true,
+                    'sort_order' => (int) WorkOrderList::where('user_id', $actor->id)->max('sort_order') + 1,
+                ]);
+
+                if ($request->hasFile('project_attachments')) {
+                    foreach ($request->file('project_attachments') as $file) {
+                        $path = $file->store('project-attachments/'.$project->id, 'public');
+                        $storedPaths[] = $path;
+                        WorkOrderListAttachment::create([
+                            'work_order_list_id' => $project->id,
+                            'file_path' => $path,
+                            'original_name' => $file->getClientOriginalName(),
+                            'file_type' => $file->getClientMimeType(),
+                            'uploaded_by' => $actor->id,
+                        ]);
+                    }
+                }
+
+                $jobs = collect();
+                foreach ($validated['tasks'] as $taskIndex => $taskData) {
+                    $assignee = $assignees->get((int) $taskData['user_id']);
+                    abort_unless($assignee, 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
+                    $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
+                    abort_unless($approval['approval_status'] === 'approved', 422, 'งานที่ผู้ดูแลระบบสร้างต้องได้รับอนุมัติทันที');
+
+                    $job = WorkOrder::create([
+                        'user_id' => $assignee->id,
+                        'created_by' => $actor->id,
+                        'leader_user_id' => $approval['leader_user_id'],
+                        'department_id' => $assignee->department_id,
+                        'work_order_list_id' => $project->id,
+                        'job_topic' => trim($taskData['job_topic']),
+                        'job_details' => filled($taskData['job_details'] ?? null) ? trim($taskData['job_details']) : null,
+                        'job_priority' => $taskData['job_priority'] ?? 2,
+                        'job_status' => 1,
+                        'approval_status' => $approval['approval_status'],
+                        'approved_by' => $approval['approved_by'],
+                        'approved_at' => $approval['approved_at'],
+                        'job_progress' => 0,
+                        'job_start_at' => Carbon::parse($taskData['job_start_at']),
+                        'job_due_at' => Carbon::parse($taskData['job_due_at']),
+                    ]);
+
+                    foreach (collect($taskData['subtasks'] ?? [])->filter(fn ($subtask) => filled($subtask['title'] ?? null))->values() as $subtaskIndex => $subtask) {
+                        $job->subtasks()->create([
+                            'created_by' => $actor->id,
+                            'title' => trim($subtask['title']),
+                            'details' => filled($subtask['details'] ?? null) ? trim($subtask['details']) : null,
+                            'sort_order' => $subtaskIndex + 1,
+                        ]);
+                    }
+
+                    $collaboratorIds = collect($taskData['collaborators'] ?? [])
+                        ->map(fn ($id) => (int) $id)
+                        ->reject(fn ($id) => $id === (int) $assignee->id)
+                        ->unique()
+                        ->values();
+                    foreach ($collaboratorIds as $collaboratorId) {
+                        $job->collaborators()->syncWithoutDetaching([
+                            $collaboratorId => ['added_by' => $actor->id, 'status' => 'accepted'],
+                        ]);
+                    }
+
+                    $this->storeAdminTaskFiles($request, $job, 'tasks.'.$taskIndex.'.attachments', $storedPaths);
+                    AuditTrail::log('created', $job, 'Admin สร้างงานในโปรเจกต์: '.$job->job_topic, [
+                        'after' => $job->attributesToArray(),
+                        'work_order_list_id' => $project->id,
+                    ]);
+                    $jobs->push($job);
+                }
+
+                AuditTrail::log('created', $project, 'Admin สร้างโปรเจกต์: '.$project->name, [
+                    'after' => $project->attributesToArray(),
+                    'task_count' => $jobs->count(),
+                ]);
+
+                return $jobs;
+            });
+        } catch (Throwable $exception) {
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $exception;
+        }
+
+        foreach ($createdJobs as $job) {
+            $this->notifyJobMembers($job, 'admin_created_task', 'มีงานใหม่', 'ผู้ดูแลระบบมอบหมายงาน '.$job->job_topic.' ให้คุณ');
+        }
+
+        return redirect()->route('board.index')
+            ->with('success', 'สร้างโปรเจกต์และมอบหมายงาน '.$createdJobs->count().' งานสำเร็จ');
+    }
+
+    private function storeAdminTaskFiles(Request $request, WorkOrder $job, string $field, array &$storedPaths): void
+    {
+        if (! $request->hasFile($field)) {
+            return;
+        }
+
+        foreach ($request->file($field) as $file) {
+            $path = $file->store('job-attachments/'.$job->job_id, 'public');
+            $storedPaths[] = $path;
+
+            JobImage::create([
+                'job_id' => $job->job_id,
+                'file_path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'file_type' => $file->getClientMimeType(),
+                'uploaded_by' => Auth::id(),
+            ]);
+        }
     }
 
     public function show($id)
@@ -878,6 +1039,30 @@ class TaskController extends Controller
                 'done_count' => $assignedJobs->where('job_status', 4)->count(),
             ];
         });
+    }
+
+    private function adminProjectValidationRules(): array
+    {
+        return [
+            'project_name' => ['required', 'string', 'max:80'],
+            'project_priority' => ['required', 'integer', 'in:1,2,3'],
+            'project_attachments' => ['nullable', 'array', 'max:5'],
+            'project_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'tasks' => ['required', 'array', 'min:1', 'max:20'],
+            'tasks.*.job_topic' => ['required', 'string', 'max:255'],
+            'tasks.*.job_details' => ['nullable', 'string', 'max:2000'],
+            'tasks.*.user_id' => ['required', 'integer', 'exists:users,id,role,user'],
+            'tasks.*.job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
+            'tasks.*.job_start_at' => ['required', 'date'],
+            'tasks.*.job_due_at' => ['required', 'date', 'after_or_equal:tasks.*.job_start_at'],
+            'tasks.*.collaborators' => ['nullable', 'array'],
+            'tasks.*.collaborators.*' => ['integer', 'exists:users,id,role,user'],
+            'tasks.*.attachments' => ['nullable', 'array', 'max:5'],
+            'tasks.*.attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'tasks.*.subtasks' => ['nullable', 'array', 'max:50'],
+            'tasks.*.subtasks.*.title' => ['nullable', 'string', 'max:255'],
+            'tasks.*.subtasks.*.details' => ['nullable', 'string', 'max:2000'],
+        ];
     }
 
     private function storeValidationRules(): array

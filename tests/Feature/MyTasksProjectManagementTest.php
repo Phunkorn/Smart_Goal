@@ -43,6 +43,24 @@ class MyTasksProjectManagementTest extends TestCase
         $this->assertCount(1, $project->attachments);
         $this->assertDatabaseMissing('job_images', ['job_id' => $job->job_id]);
         Storage::disk('public')->assertExists($project->attachments->first()->file_path);
+
+        $projectId = $project->id;
+        $attachmentId = $project->attachments->first()->id;
+        $attachmentPath = $project->attachments->first()->file_path;
+        $listCount = WorkOrderList::count();
+
+        $this->actingAs($actor)->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee('Project metadata')
+            ->assertSee('brief.png');
+
+        $this->assertSame($projectId, $job->fresh()->work_order_list_id);
+        $this->assertSame($listCount, WorkOrderList::count());
+        $this->assertDatabaseHas('work_order_list_attachments', [
+            'id' => $attachmentId,
+            'work_order_list_id' => $projectId,
+            'file_path' => $attachmentPath,
+        ]);
     }
 
     public function test_same_department_assignment_makes_assignee_project_leader_and_list_owner(): void

@@ -42,7 +42,7 @@
                     <details class="board-project-files"><summary title="ไฟล์แนบของโปรเจกต์"><i class="bi bi-paperclip"></i>{{ $projectAttachments->count() }} ไฟล์</summary><div>@foreach($projectAttachments as $attachment)<a href="{{ route('media.show', ['path' => $attachment->file_path]) }}" target="_blank" rel="noopener"><i class="bi bi-file-earmark"></i><span>{{ $attachment->original_name }}</span></a>@endforeach</div></details>
                 @endif
                 <div class="board-project-actions">
-                    @if($project)<button type="button" class="board-project-add" data-add-in-group data-list-id="{{ $project->id }}" title="เพิ่มรายการในโปรเจกต์ {{ $projectName }}"><i class="bi bi-plus-lg"></i><span>เพิ่มรายการ</span></button>@endif
+                    @if($project && (int) $project->user_id === (int) auth()->id())<button type="button" class="board-project-add" data-add-in-group data-list-id="{{ $project->id }}" title="เพิ่มรายการในโปรเจกต์ {{ $projectName }}"><i class="bi bi-plus-lg"></i><span>เพิ่มรายการ</span></button>@endif
                     @if($project && auth()->user()->can('manage', $project))
                         <button type="button" class="board-project-icon" data-board-edit-project data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.update', $project) }}" title="แก้ไขชื่อโปรเจกต์"><i class="bi bi-pencil"></i></button>
                         <button type="button" class="board-project-icon is-danger" data-board-delete-project data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.destroy', $project) }}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>

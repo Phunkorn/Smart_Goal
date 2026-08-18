@@ -41,6 +41,22 @@
         border-top: 1px solid var(--board-line);
     }
 
+    .board-project-fields,
+    .board-project-task {
+        padding: 16px;
+        border: 1px solid var(--board-line);
+        border-radius: 12px;
+        background: #fff;
+    }
+
+    .board-project-fields {
+        background: #f8fafc;
+    }
+
+    .board-project-subtask .form-control {
+        min-height: 38px;
+    }
+
     .board-collaborator-list {
         max-height: 190px;
         overflow: auto;
