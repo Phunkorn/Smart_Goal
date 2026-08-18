@@ -1,3 +1,5 @@
+import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
+
 (() => {
     const workspace = document.querySelector('[data-workspace]');
     const board = workspace?.querySelector('[data-project-board]');
@@ -241,7 +243,7 @@
                 header.classList.remove('project-tone-low', 'project-tone-medium', 'project-tone-high');
                 header.classList.add(meta.tone);
                 const summary = menu.querySelector('summary');
-                summary.classList.remove('priority-low', 'priority-medium', 'priority-high');
+                summary.classList.remove(...projectPriorityClasses);
                 summary.classList.add(meta.className);
                 summary.querySelector('[data-project-priority-label]').textContent = meta.projectLabel;
                 menu.querySelectorAll('[data-project-priority-value] .bi-check2').forEach((check) => check.remove());
@@ -264,7 +266,7 @@
                 task.classList.remove('task-priority-routine', 'task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
                 task.classList.add(`task-${meta.className}`);
                 const summary = menu.querySelector('summary');
-                summary.classList.remove('priority-routine', 'priority-important', 'priority-urgent', 'priority-quick', 'priority-flexible');
+                summary.classList.remove(...taskPriorityClasses);
                 summary.classList.add(meta.className);
                 summary.querySelector('[data-board-priority-label]').textContent = meta.label;
                 menu.querySelectorAll('[data-board-priority-value] .bi-check2').forEach((check) => check.remove());
@@ -287,7 +289,7 @@
                 task.dataset.status = String(value);
                 task.dataset.late = '0';
                 const summary = menu.querySelector('summary');
-                summary.classList.remove('status-todo', 'status-progress', 'status-review', 'status-done', 'status-paused', 'status-late');
+                summary.classList.remove(...statusClasses);
                 summary.classList.add(meta.className);
                 const label = summary.querySelector('[data-board-status-label]');
                 if (label) label.textContent = meta.label;

@@ -76,7 +76,17 @@
                         <section class="notion-group-section" data-group-section data-group-key="{{ $list->name }}">
                             <header>
                                 <button type="button" data-collapse title="ย่อ/ขยาย"><i class="bi bi-chevron-down"></i></button>
-                                <span class="project-pill">{{ $list->name }}</span><small>{{ $listTasks->count() }} งาน</small>
+                                @php($tableProjectPriority = [1=>['สำคัญ/ต่ำ','low'],2=>['สำคัญ/กลาง','medium'],3=>['สำคัญ/สูง','high']][(int) ($list->priority ?? 2)] ?? ['สำคัญ/กลาง','medium'])
+                                <span class="project-pill">{{ $list->name }}</span>
+                                @can('manage', $list)
+                                    <details class="board-project-priority-menu table-project-priority-menu" data-table-project-priority-menu data-url="{{ route('mytasks.lists.update', $list) }}">
+                                        <summary class="board-project-priority priority-{{ $tableProjectPriority[1] }}"><i class="bi bi-flag-fill"></i><span data-table-project-priority-label>{{ $tableProjectPriority[0] }}</span><i class="bi bi-chevron-down"></i></summary>
+                                        <div>@foreach([1=>['สำคัญ/ต่ำ','low'],2=>['สำคัญ/กลาง','medium'],3=>['สำคัญ/สูง','high']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-table-project-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$list->priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+                                    </details>
+                                @else
+                                    <span class="board-project-priority priority-{{ $tableProjectPriority[1] }}"><i class="bi bi-flag-fill"></i>{{ $tableProjectPriority[0] }}</span>
+                                @endcan
+                                <small>{{ $listTasks->count() }} งาน</small>
                                 <div class="project-actions">
                                     <button type="button" class="group-plus" data-add-in-group data-list-id="{{ $list->id }}" title="เพิ่มรายการ"><i class="bi bi-plus-lg"></i></button>
                                     @can('manage', $list)

@@ -101,17 +101,6 @@
     font-size: 11px;
 }
 
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-todo { background:#f1f5f9; color:#64748b; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-progress { background:#eaf2ff; color:#2563eb; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-review { background:#f2ebff; color:#7447b8; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-done { background:#e8f7f1; color:#07845f; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-paused { background:#fff4dc; color:#a86108; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.status-late { background:#feedef; color:#d9363e; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-1 { background:#eaf2ff; color:#2563eb; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-2 { background:#fff7d6; color:#a56a05; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-3 { background:#feedef; color:#d9363e; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-4 { background:#fff1df; color:#d66d08; }
-.my-tasks-page .notion-database[data-view="table"] .select-wrapper.priority-5 { background:#e8f7f1; color:#07845f; }
 
 .my-tasks-page .notion-database[data-view="table"] .row-owner,
 .my-tasks-page .notion-database[data-view="table"] .row-collaborators,
@@ -259,4 +248,35 @@
     .my-tasks-page .notion-database[data-view="table"] .notion-table {
         min-width: 1240px;
     }
+}
+
+/* Table reuses Board priority controls; only its fixed overlay placement is Table-specific. */
+.my-tasks-page .notion-database[data-view="table"] .table-project-priority-menu > div {
+    position: fixed;
+    left: var(--table-priority-menu-left, auto);
+    top: var(--table-priority-menu-top, auto);
+}
+/* Table uses the Board menu structure; these rules only preserve the compact table geometry. */
+.my-tasks-page .notion-database[data-view="table"] .table-status-menu,
+.my-tasks-page .notion-database[data-view="table"] .table-priority-menu {
+    position: relative;
+    justify-self: center;
+    min-width: 0;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .table-status-menu > summary,
+.my-tasks-page .notion-database[data-view="table"] .table-priority-menu > summary {
+    min-height: 30px;
+    max-width: 138px;
+    padding: 5px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .table-status-menu > div,
+.my-tasks-page .notion-database[data-view="table"] .table-priority-menu > div {
+    position: fixed;
+    left: var(--table-menu-left, auto);
+    top: var(--table-menu-top, auto);
+    z-index: 130;
 }
