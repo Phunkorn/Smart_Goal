@@ -3,6 +3,18 @@
 
 <?php
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
+    $today = now()->startOfDay();
+    $todayEnd = now()->endOfDay();
+    $todayTasks = $allTasks->filter(function ($task) use ($today, $todayEnd) {
+        $start = $task->job_start_at?->copy()->startOfDay();
+        $due = $task->job_due_at?->copy()->endOfDay();
+
+        if ((int) $task->job_status === 4) {
+            return $task->job_completed_at?->between($today, $todayEnd) ?? false;
+        }
+
+        return (! $start || $start->lte($todayEnd)) && (! $due || $due->gte($today));
+    })->values();
     $statusLabels = [1 => 'ยังไม่เริ่ม', 2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน'];
     $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
     $doneCount = $allTasks->where('job_status', 4)->count();
@@ -34,21 +46,7 @@
     data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.show', ['path' => auth()->user()->profile_image]) : '' }}">
     <section class="notion-heading">
         <div class="notion-heading-copy"><span class="heading-mark"><i class="bi bi-check2-square"></i></span><div><span class="notion-kicker">WORK MANAGEMENT</span><h1>งานของฉัน</h1><p>จัดลำดับงาน ติดตามความคืบหน้า และทำงานร่วมกับทีมในพื้นที่เดียว</p></div></div>
-
     </section>
-
-    {{-- <section class="notion-summary" aria-label="สรุปงาน">
-        <button class="overview-total" data-summary-filter=""><i class="bi bi-stack"></i><span><small>ภาพรวมงาน</small><strong>{{ $allTasks->count() }}</strong><em>งานทั้งหมด</em></span></button>
-        <div class="overview-states" aria-label="กรองตามสถานะ">
-            <button class="state-todo" data-summary-filter="1"><i></i><span>ยังไม่เริ่ม</span><strong>{{ $allTasks->where('job_status', 1)->count() }}</strong></button>
-            <button class="state-progress" data-summary-filter="2"><i></i><span>กำลังทำ</span><strong>{{ $allTasks->where('job_status', 2)->count() }}</strong></button>
-            <button class="state-review" data-summary-filter="3"><i></i><span>รอตรวจสอบ</span><strong>{{ $allTasks->where('job_status', 3)->count() }}</strong></button>
-            <button class="state-done" data-summary-filter="4"><i></i><span>เสร็จแล้ว</span><strong>{{ $doneCount }}</strong></button>
-            <button class="state-paused" data-summary-filter="5"><i></i><span>พักงาน</span><strong>{{ $allTasks->where('job_status', 5)->count() }}</strong></button>
-            <button class="state-late" data-summary-filter="late"><i></i><span>ล่าช้า</span><strong>{{ $lateCount }}</strong></button>
-        </div>
-        <div class="summary-progress"><span><small>ประสิทธิภาพโดยรวม</small><strong>{{ $overall }}%</strong></span><div><i style="width:{{ $overall }}%"></i></div><em>{{ $doneCount }} จาก {{ $allTasks->count() }} งานเสร็จสมบูรณ์</em></div>
-    </section> --}}
 
     <nav class="notion-viewbar">
         <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i> ตาราง</button>
@@ -70,7 +68,7 @@
             </div>
 
             <div class="mytasks-kanban-view" data-table-kanban>
-                @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists', 'manageableTaskLists', 'showCreateActions', 'showQuickAdd', 'taskLinkMode', 'workspaceContext'))
+                @include('tasks.partials.table-kanban', ['allTasks' => $todayTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
             </div>
 
             @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
