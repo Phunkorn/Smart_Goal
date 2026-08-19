@@ -3,6 +3,7 @@ import {buildMonthCalendar} from './calendar-model.js';
 
 const monthFormatter = new Intl.DateTimeFormat('th-TH', {month: 'long', year: 'numeric', timeZone: 'UTC'});
 const dateFormatter = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'});
+const shortDateFormatter = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'short', timeZone: 'UTC'});
 
 const element = (tag, className = '', text = '') => {
     const node = document.createElement(tag);
@@ -113,6 +114,29 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         });
     };
 
+    const milestoneLabel = ({task, kind}) => {
+        if (kind === 'start') {
+            return `เริ่ม: ${task.title} · ${shortDateFormatter.format(new Date(task.startStamp))}–${shortDateFormatter.format(new Date(task.dueStamp))}`;
+        }
+        if (kind === 'end') return `สิ้นสุด: ${task.title}`;
+        return task.title;
+    };
+
+    const makeMilestone = (milestone) => {
+        const task = milestone.task;
+        const status = statusMeta[task.status] || statusMeta[1];
+        const button = element('button', `mytasks-calendar__task mytasks-calendar__task--${milestone.kind} ${status.className}`);
+        button.type = 'button';
+        button.dataset.calendarTask = task.id;
+        button.setAttribute('aria-label', taskAriaLabel(task));
+        button.title = taskAriaLabel(task);
+
+        const priority = element('i', `priority-${task.priority}`);
+        priority.setAttribute('aria-hidden', 'true');
+        button.append(priority, element('span', '', milestoneLabel(milestone)));
+        return button;
+    };
+
     const makeDayCell = (day) => {
         const cell = element('div', 'mytasks-calendar__day');
         cell.setAttribute('role', 'gridcell');
@@ -123,6 +147,11 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         if (day.key === todayKey) cell.setAttribute('aria-current', 'date');
 
         cell.append(element('span', 'mytasks-calendar__day-number', String(day.day)));
+
+        const events = element('div', 'mytasks-calendar__events');
+        events.append(...day.visibleMilestones.map(makeMilestone));
+        cell.append(events);
+
         if (day.hiddenCount > 0) {
             const more = element('button', 'mytasks-calendar__more', `+ ${day.hiddenCount} งาน`);
             more.type = 'button';
@@ -135,26 +164,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         return cell;
     };
 
-    const makeTaskBar = (segment) => {
-        const task = segment.task;
-        const status = statusMeta[task.status] || statusMeta[1];
-        const button = element('button', `mytasks-calendar__task ${status.className}`);
-        button.type = 'button';
-        button.dataset.calendarTask = task.id;
-        button.style.setProperty('--calendar-column-start', segment.columnStart);
-        button.style.setProperty('--calendar-column-end', segment.columnEnd);
-        button.style.setProperty('--calendar-lane', segment.lane);
-        button.classList.toggle('continues-before', segment.continuesBefore);
-        button.classList.toggle('continues-after', segment.continuesAfter);
-        button.setAttribute('aria-label', taskAriaLabel(task));
-        button.title = taskAriaLabel(task);
-
-        const priority = element('i', `priority-${task.priority}`);
-        priority.setAttribute('aria-hidden', 'true');
-        button.append(priority, element('span', '', task.title));
-        return button;
-    };
-
     const render = () => {
         closePopover();
         monthData = buildMonthCalendar(readTasks(), selectedYear, selectedMonth);
@@ -162,7 +171,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         const weekNodes = monthData.weeks.map((week) => {
             const weekNode = element('div', 'mytasks-calendar__week');
             weekNode.setAttribute('role', 'row');
-            weekNode.append(...week.days.map(makeDayCell), ...week.visibleSegments.map(makeTaskBar));
+            weekNode.append(...week.days.map(makeDayCell));
             return weekNode;
         });
         grid.replaceChildren(...weekNodes);
