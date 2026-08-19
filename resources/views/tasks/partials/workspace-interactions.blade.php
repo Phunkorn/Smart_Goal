@@ -43,27 +43,18 @@
 ?>
 <script type="application/json" data-attachment-data>@json($attachmentData)</script>
 <?php
-    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['author' => $update->user?->name ?? 'ไม่ระบุ', 'avatar_url' => $update->user?->profile_image ? route('media.show', ['path' => $update->user->profile_image]) : null, 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'avatar_url' => $log->user?->profile_image ? route('media.show', ['path' => $log->user->profile_image]) : null, 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
+    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['id' => $update->id, 'author' => $update->user?->name ?? 'ไม่ระบุ', 'avatar_url' => $update->user?->profile_image ? route('media.show', ['path' => $update->user->profile_image]) : null, 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'avatar_url' => $log->user?->profile_image ? route('media.show', ['path' => $log->user->profile_image]) : null, 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
 ?>
 <script type="application/json" data-timeline-data>@json($timelineData)</script>
 <?php
     $taskManagementData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
-        'can_delete' => auth()->user()->can('delete', $task),
-        'delete_url' => $workspaceContext === 'admin-member' ? route('admin.tasks.destroy', $task->job_id) : null,
-        'can_override_progress' => $workspaceContext === 'admin-member'
-            && auth()->user()->role === 'admin'
-            && (int) $task->job_status !== 4
-            && $task->subtasks->isEmpty(),
-        'progress' => (int) $task->progress_from_subtasks,
-        'subtasks' => $task->subtasks->sortBy('sort_order')->map(fn ($subtask) => [
-            'id' => $subtask->id,
-            'title' => $subtask->title,
-            'details' => $subtask->details,
-            'completed' => (bool) $subtask->is_completed,
-            'toggle_url' => route('mytasks.subtasks.toggle', $subtask),
-            'update_url' => route('mytasks.subtasks.update', $subtask),
-        ])->values(),
-        'store_subtask_url' => route('mytasks.subtasks.store', $task->job_id),
+        'transitions' => app(\App\Services\TaskStatusTransitionService::class)->capabilities($task, auth()->user()),
+        'status' => (int) $task->job_status,
+        'submitted_by' => $task->reviewSubmitter?->name,
+        'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
+        'comment_url' => route('tasks.comments.store', $task),
+        'read_comments_url' => route('tasks.comments.read', $task),
+        'unread_comments' => (int) ($unreadCommentCounts[$task->job_id] ?? 0),
     ]]);
 ?>
 <script type="application/json" data-task-management-data>@json($taskManagementData)</script>
@@ -210,15 +201,6 @@
         <input name="assignee" readonly>
     </label>
 
-    @if($workspaceContext === 'admin-member')
-    <label class="task-field">
-        <span>ความคืบหน้า</span>
-        <input type="number" name="job_progress" data-modal-progress min="0" max="99">
-        <small data-modal-progress-help></small>
-    </label>
-    @endif
-
-
     <div class="task-field task-collaborator-field">
         <span>ผู้ร่วมงาน</span>
         <button type="button" class="task-collaborator-button" data-manage-team><i class="bi bi-people"></i><span>เพิ่มผู้ร่วมงาน</span></button>
@@ -229,25 +211,12 @@
         <label class="task-inline-drop" data-task-inline-drop><i class="bi bi-cloud-arrow-up"></i><strong>เลือกไฟล์หรือวางไฟล์ที่นี่</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB/ไฟล์ · รวมไม่เกิน 5 ไฟล์</small><input type="file" multiple data-task-inline-file-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>
     </section>
 
-    @if($workspaceContext === 'admin-member')
-    <section class="task-field task-subtask-field" data-task-subtasks>
-        <span>งานย่อย</span>
-        <div class="task-subtask-list" data-subtask-list></div>
-        <p data-subtask-empty>ยังไม่มีงานย่อย</p>
-        <div class="task-subtask-compose">
-            <input type="text" maxlength="255" data-subtask-title placeholder="ชื่องานย่อย">
-            <textarea maxlength="2000" rows="2" data-subtask-details placeholder="รายละเอียด (ไม่บังคับ)"></textarea>
-            <button type="button" class="task-secondary" data-add-subtask><i class="bi bi-plus-lg"></i> เพิ่มงานย่อย</button>
-        </div>
-    </section>
-    @endif
-
 </div>
         <section class="task-timeline" data-task-timeline hidden>
             <nav><button type="button" class="active" data-timeline-tab="updates">อัปเดต</button><button type="button" data-timeline-tab="activity">กิจกรรม</button></nav>
             <div data-timeline-items></div>
             <div class="task-timeline__compose"><textarea data-task-update-note maxlength="2000" placeholder="เขียนอัปเดต..."></textarea><button type="button" data-submit-task-update aria-label="ส่งอัปเดต"><i class="bi bi-send-fill"></i></button></div>
         </section>
-        <footer>@if($workspaceContext === 'admin-member')<button type="button" class="task-secondary task-danger" data-delete-active-task hidden>ลบงาน</button>@endif<button type="button" class="task-secondary" data-close-task>ยกเลิก</button><button type="submit" class="notion-primary">บันทึกการแก้ไข</button></footer>
+        <footer><button type="button" class="task-secondary" data-review-return hidden>ส่งกลับแก้ไข</button><button type="button" class="notion-primary" data-review-approve hidden>อนุมัติและปิดงาน</button><button type="button" class="notion-primary" data-reopen-task hidden>เปิดงานอีกครั้ง</button><button type="button" class="task-secondary" data-close-task>ยกเลิก</button><button type="submit" class="notion-primary">บันทึกการแก้ไข</button></footer>
     </form>
 </div>

@@ -1,5 +1,6 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
 import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -15,6 +16,7 @@ import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
     const attachmentModal = document.querySelector('[data-board-attachment-modal]');
     const attachmentDataNode = document.querySelector('[data-attachment-data]');
     const attachmentData = attachmentDataNode ? JSON.parse(attachmentDataNode.textContent || '{}') : {};
+    const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
     const endpoint = (template, id) => template.replace('__ID__', id);
     let ascending = true;
     const statusMeta = {
@@ -288,7 +290,9 @@ import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
             const meta = statusMeta[value];
             if (!menu || !task || !meta) return;
             statusOption.disabled = true;
-            request(endpoint(workspace.dataset.statusTemplate, task.dataset.taskId), 'PATCH', {job_status: value}).then(() => {
+            const payload = await confirmTaskTransition(Number(task.dataset.status), value, management[String(task.dataset.taskId)]?.transitions || {});
+            if (!payload) { statusOption.disabled = false; return; }
+            request(endpoint(workspace.dataset.statusTemplate, task.dataset.taskId), 'PATCH', payload).then(() => {
                 task.dataset.status = String(value);
                 task.dataset.late = '0';
                 const summary = menu.querySelector('summary');
@@ -334,6 +338,7 @@ import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
             const header = collapse.closest('[data-project-header]');
             const collapsed = header?.classList.toggle('is-collapsed');
             tasksForProject(header).forEach((task) => task.classList.toggle('is-project-collapsed', collapsed));
+            board.querySelector(`[data-completed-group][data-project-key="${CSS.escape(header.dataset.projectKey)}"]`)?.classList.toggle('is-project-collapsed', collapsed);
             collapse.setAttribute('aria-expanded', String(!collapsed));
             return;
         }

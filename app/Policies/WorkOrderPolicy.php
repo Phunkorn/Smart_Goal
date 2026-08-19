@@ -60,11 +60,38 @@ class WorkOrderPolicy
      */
     public function update(User $user, WorkOrder $workOrder): bool
     {
-        if ($user->role === 'viewer') {
+        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
             return false;
         }
 
         return $this->canWorkOnJob($workOrder, $user);
+    }
+
+    public function submitForReview(User $user, WorkOrder $workOrder): bool
+    {
+        return $user->role !== 'viewer' && (int) $workOrder->user_id === (int) $user->id;
+    }
+
+    public function review(User $user, WorkOrder $workOrder): bool
+    {
+        return $user->role !== 'viewer'
+            && (int) $this->approverId($workOrder) === (int) $user->id;
+    }
+
+    public function reopen(User $user, WorkOrder $workOrder): bool
+    {
+        return $user->role === 'admin' && (int) $workOrder->job_status === 4;
+    }
+
+    public function comment(User $user, WorkOrder $workOrder): bool
+    {
+        return $user->role !== 'viewer' && $this->canWorkOnJob($workOrder, $user);
+    }
+
+    public function respondToInvitation(User $user, WorkOrder $workOrder): bool
+    {
+        return $user->role !== 'viewer'
+            && $workOrder->collaborators->contains('id', $user->id);
     }
 
     /**
@@ -74,7 +101,7 @@ class WorkOrderPolicy
      */
     public function delete(User $user, WorkOrder $workOrder): bool
     {
-        return $user->role === 'admin';
+        return $user->role !== 'viewer' && $user->role === 'admin';
     }
 
     /**
@@ -99,7 +126,7 @@ class WorkOrderPolicy
      */
     public function approve(User $user): bool
     {
-        return $user->role === 'admin';
+        return $user->role !== 'viewer' && $user->role === 'admin';
     }
 
     /**
@@ -108,6 +135,10 @@ class WorkOrderPolicy
      */
     public function manageTeam(User $user, WorkOrder $workOrder): bool
     {
+        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
+            return false;
+        }
+
         return $user->role === 'admin'
             || in_array($user->id, [$workOrder->created_by, $workOrder->leader_user_id], true);
     }
@@ -125,5 +156,10 @@ class WorkOrderPolicy
             || $workOrder->collaborators->contains(
                 fn ($person) => $person->id === $user->id && $person->pivot?->status === 'accepted'
             );
+    }
+
+    private function approverId(WorkOrder $workOrder): ?int
+    {
+        return $workOrder->created_by ?: ($workOrder->leader_user_id ?: $workOrder->user_id);
     }
 }

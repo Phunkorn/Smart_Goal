@@ -1,4 +1,5 @@
 import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
+import {confirmTaskTransition, isModalStatusOptionDisabled} from './pages/mytasks/task-transitions.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -44,21 +45,11 @@ import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from '
         form.elements.job_priority.value = String(value); const summary = menu.querySelector('summary'); summary.classList.remove(...taskPriorityClasses); summary.classList.add(meta.className); summary.querySelector('[data-modal-priority-label]').textContent = meta.label; menu.querySelectorAll('[data-modal-priority-value] .bi-check2').forEach((check) => check.remove()); menu.querySelector(`[data-modal-priority-value="${value}"]`)?.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
     };
     const closeModalMenus = (except = null) => form.querySelectorAll('[data-modal-status-menu][open], [data-modal-priority-menu][open]').forEach((menu) => { if (menu !== except) menu.removeAttribute('open'); });
-    const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
     const rowForTrigger = (trigger) => {
         const id = trigger?.dataset.taskId
             || trigger?.closest('[data-board-task]')?.dataset.taskId
             || trigger?.dataset.openKanbanTask;
         return trigger?.closest('[data-row]') || (id ? workspace.querySelector(`[data-row][data-id="${CSS.escape(String(id))}"]`) : null);
-    };
-    const renderSubtasks = () => {
-        const panel = modal.querySelector('[data-task-subtasks]');
-        if (!panel || !activeRow) return;
-        const meta = management[String(activeRow.dataset.id)];
-        const items = meta?.subtasks || [];
-        const list = panel.querySelector('[data-subtask-list]');
-        list.innerHTML = items.map((item) => `<article class="${item.completed ? 'is-completed' : ''}"><button type="button" data-toggle-subtask="${item.id}" aria-label="${item.completed ? 'เปิดงานย่อยอีกครั้ง' : 'ทำงานย่อยเสร็จ'}"><i class="bi ${item.completed ? 'bi-check-circle-fill' : 'bi-circle'}"></i></button><span><strong>${escapeHtml(item.title)}</strong>${item.details ? `<small>${escapeHtml(item.details)}</small>` : ''}</span><button type="button" data-edit-subtask="${item.id}" aria-label="แก้ไขงานย่อย"><i class="bi bi-pencil"></i></button></article>`).join('');
-        panel.querySelector('[data-subtask-empty]').hidden = items.length > 0;
     };
     const open = (row) => {
         activeRow = row;
@@ -67,27 +58,28 @@ import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from '
         form.elements.job_status.value = row.querySelector('[data-field="status"]')?.value || row.dataset.status;
         form.elements.job_priority.value = row.querySelector('[data-field="priority"]')?.value || row.dataset.priority;
         setModalStatus(Number(form.elements.job_status.value));
-        const isLate = Number(form.elements.job_status.value) === 6;
-        form.querySelectorAll('[data-modal-status-value]').forEach((button) => {
-            button.disabled = isLate && ![4, 6].includes(Number(button.dataset.modalStatusValue));
-        });
         setModalPriority(Number(form.elements.job_priority.value));
         form.elements.job_due_at.value = row.querySelector('[data-field="due"]')?.value || row.dataset.due || '';
         form.elements.job_start_at.value = row.dataset.start || '';
         form.elements.assignee.value = row.dataset.assignee || '';
         const meta = management[String(row.dataset.id)] || {};
-        const progress = form.elements.job_progress;
-        if (progress) {
-            progress.value = meta.progress ?? row.dataset.progress ?? 0;
-            progress.disabled = !meta.can_override_progress;
-            const help = form.querySelector('[data-modal-progress-help]');
-            if (help) help.textContent = meta.can_override_progress ? 'กำหนดได้ 0–99%' : 'คำนวณอัตโนมัติจากงานย่อยหรือสถานะงาน';
-        }
+        const transitions = meta.transitions || {};
+        modal.querySelector('[data-review-approve]').hidden = !transitions.can_review;
+        modal.querySelector('[data-review-return]').hidden = !transitions.can_review;
+        modal.querySelector('[data-reopen-task]').hidden = !transitions.can_reopen;
+        form.querySelector('[type="submit"]').hidden = Boolean(transitions.is_final);
+        form.querySelectorAll('.task-edit-body input, .task-edit-body textarea, .task-edit-body select, .task-edit-body button').forEach((control) => {
+            control.disabled = Boolean(transitions.is_final);
+        });
+        form.querySelectorAll('[data-modal-status-value]').forEach((button) => {
+            button.disabled = isModalStatusOptionDisabled(
+                Number(form.elements.job_status.value),
+                Number(button.dataset.modalStatusValue),
+                transitions,
+            );
+        });
         const teamButton = form.querySelector('[data-manage-team]');
         if (teamButton) teamButton.dataset.manageTeam = row.dataset.id;
-        const deleteButton = form.querySelector('[data-delete-active-task]');
-        if (deleteButton) deleteButton.hidden = !(meta.can_delete && meta.delete_url);
-        renderSubtasks();
         modal.hidden = false;
         document.body.classList.add('modal-open');
         requestAnimationFrame(() => form.elements.job_topic.focus());
@@ -111,64 +103,19 @@ import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from '
             if (row) open(row);
             return;
         }
-        const addSubtask = event.target.closest('[data-add-subtask]');
-        if (addSubtask && activeRow) {
-            const panel = addSubtask.closest('[data-task-subtasks]');
-            const title = panel.querySelector('[data-subtask-title]').value.trim();
-            const details = panel.querySelector('[data-subtask-details]').value.trim();
-            if (!title) return;
-            const meta = management[String(activeRow.dataset.id)];
-            const editId = addSubtask.dataset.updateSubtask || '';
-            const item = meta?.subtasks.find((candidate) => String(candidate.id) === editId);
-            addSubtask.disabled = true;
+        const workflowAction = event.target.closest('[data-review-approve], [data-review-return], [data-reopen-task]');
+        if (workflowAction && activeRow) {
+            const current = Number(activeRow.dataset.status);
+            const target = workflowAction.matches('[data-review-return], [data-reopen-task]') ? 2 : 4;
+            const payload = await confirmTaskTransition(current, target, management[String(activeRow.dataset.id)]?.transitions || {});
+            if (!payload) return;
+            workflowAction.disabled = true;
             try {
-                await request(editId ? item.update_url : meta.store_subtask_url, editId ? 'PATCH' : 'POST', {title, details});
+                await request(endpoint(workspace.dataset.statusTemplate, activeRow.dataset.id), 'PATCH', payload);
                 window.location.reload();
             } catch (error) {
-                addSubtask.disabled = false;
                 notify(error.message, true);
-            }
-            return;
-        }
-        const editSubtask = event.target.closest('[data-edit-subtask]');
-        if (editSubtask && activeRow) {
-            const panel = editSubtask.closest('[data-task-subtasks]');
-            const item = management[String(activeRow.dataset.id)]?.subtasks.find((candidate) => String(candidate.id) === editSubtask.dataset.editSubtask);
-            if (!item) return;
-            panel.querySelector('[data-subtask-title]').value = item.title;
-            panel.querySelector('[data-subtask-details]').value = item.details || '';
-            const add = panel.querySelector('[data-add-subtask]');
-            add.dataset.updateSubtask = item.id;
-            add.innerHTML = '<i class="bi bi-check-lg"></i> บันทึกงานย่อย';
-            panel.querySelector('[data-subtask-title]').focus();
-            return;
-        }
-        const toggleSubtask = event.target.closest('[data-toggle-subtask]');
-        if (toggleSubtask && activeRow) {
-            const item = management[String(activeRow.dataset.id)]?.subtasks.find((candidate) => String(candidate.id) === toggleSubtask.dataset.toggleSubtask);
-            if (!item) return;
-            toggleSubtask.disabled = true;
-            try {
-                await request(item.toggle_url, 'PATCH', {completed: !item.completed});
-                window.location.reload();
-            } catch (error) {
-                toggleSubtask.disabled = false;
-                notify(error.message, true);
-            }
-            return;
-        }
-        const deleteTask = event.target.closest('[data-delete-active-task]');
-        if (deleteTask && activeRow) {
-            const meta = management[String(activeRow.dataset.id)];
-            const result = await window.Swal.fire({icon: 'warning', title: 'ลบงานนี้หรือไม่?', text: `“${activeRow.dataset.topic}” จะถูกนำออกจากโปรเจกต์`, showCancelButton: true, confirmButtonText: 'ลบงาน', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
-            if (!result.isConfirmed) return;
-            deleteTask.disabled = true;
-            try {
-                await request(meta.delete_url, 'DELETE', {});
-                window.location.reload();
-            } catch (error) {
-                deleteTask.disabled = false;
-                notify(error.message, true);
+                workflowAction.disabled = false;
             }
             return;
         }
@@ -185,6 +132,11 @@ import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from '
         const button = form.querySelector('[type="submit"]');
         const id = activeRow.dataset.id;
         const values = Object.fromEntries(new FormData(form));
+        const currentStatus = activeRow.querySelector('[data-field="status"]');
+        const statusPayload = currentStatus && currentStatus.value !== values.job_status
+            ? await confirmTaskTransition(Number(currentStatus.value), Number(values.job_status), management[String(id)]?.transitions || {})
+            : null;
+        if (currentStatus && currentStatus.value !== values.job_status && !statusPayload) return;
         button.disabled = true;
         button.textContent = 'กำลังบันทึก...';
         let mutationSucceeded = false;
@@ -195,20 +147,15 @@ import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from '
             });
             mutationSucceeded = true;
             const jobs = [];
-            const currentStatus = activeRow.querySelector('[data-field="status"]');
             const currentPriority = activeRow.querySelector('[data-field="priority"]');
             const currentDue = activeRow.querySelector('[data-field="due"]');
             const currentStart = activeRow.dataset.start || '';
-            if (currentStatus && currentStatus.value !== values.job_status) jobs.push(request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', {job_status: values.job_status}));
+            if (statusPayload) jobs.push(request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', statusPayload));
             if (currentPriority && currentPriority.value !== values.job_priority) jobs.push(request(endpoint(workspace.dataset.priorityTemplate, id), 'POST', {job_priority: values.job_priority}));
             if (workspace.dataset.scheduleTemplate && (currentStart !== values.job_start_at || (currentDue?.value || activeRow.dataset.due || '') !== values.job_due_at)) {
                 jobs.push(request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {job_start_at: values.job_start_at, job_due_at: values.job_due_at}));
             } else if (!workspace.dataset.scheduleTemplate && currentDue && currentDue.value !== values.job_due_at) {
                 jobs.push(request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: values.job_due_at}));
-            }
-            const meta = management[String(id)];
-            if (meta?.can_override_progress && Number(values.job_status) !== 4 && values.job_progress !== undefined && Number(values.job_progress) !== Number(meta.progress)) {
-                jobs.push(request(endpoint(workspace.dataset.progressTemplate, id), 'POST', {progress: Number(values.job_progress), note: 'Admin อัปเดตความคืบหน้าจาก Member Workspace'}));
             }
             await Promise.all(jobs);
 

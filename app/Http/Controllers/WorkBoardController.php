@@ -8,6 +8,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TodayWorkspace;
+use App\Services\TaskCommentService;
 use App\Support\WorkBoardDesign;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -256,6 +257,7 @@ class WorkBoardController extends Controller
                 'images',
                 'updates.user.department',
                 'activityLogs.user.department',
+                'reviewSubmitter',
             ])
             ->withCount('images')
             ->get();
@@ -278,6 +280,7 @@ class WorkBoardController extends Controller
         $activeTasks = $jobs->reject(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $completedTasks = $jobs->filter(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $todayTasks = TodayWorkspace::tasks($allJobs);
+        $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($allJobs->pluck('job_id'), $request->user());
 
         return view('work-board.admin.member', [
             'department' => $department,
@@ -289,6 +292,7 @@ class WorkBoardController extends Controller
             'activeTasks' => $activeTasks,
             'completedTasks' => $completedTasks,
             'todayTasks' => $todayTasks,
+            'unreadCommentCounts' => $unreadCommentCounts,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values(),
             'availableCollaborators' => User::with('department')

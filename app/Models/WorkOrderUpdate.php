@@ -12,7 +12,13 @@ class WorkOrderUpdate extends Model
         'user_id',
         'progress',
         'note',
+        'is_comment',
     ];
+
+    protected function casts(): array
+    {
+        return ['is_comment' => 'boolean'];
+    }
 
     public function workOrder(): BelongsTo
     {

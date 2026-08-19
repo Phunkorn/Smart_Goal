@@ -249,6 +249,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
                                         </div>
 
+                                        <div class="mytasks-kanban__footer-badges">
                                         <button
                                             type="button"
                                             class="mytasks-kanban__attachment"
@@ -258,6 +259,10 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                             <i class="bi bi-paperclip"></i>
                                             {{ $task->images_count ?? $task->images->count() }}
                                         </button>
+                                        @if(($unreadCommentCounts[$task->job_id] ?? 0) > 0)
+                                            <span class="mytasks-kanban__comments" data-unread-comments="{{ $task->job_id }}"><i class="bi bi-chat-left-text"></i><b>{{ $unreadCommentCounts[$task->job_id] }}</b></span>
+                                        @endif
+                                        </div>
 
                                     </footer>
 

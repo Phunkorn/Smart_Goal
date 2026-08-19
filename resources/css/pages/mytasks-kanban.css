@@ -164,6 +164,10 @@
     font-weight: 600;
 }
 
+.my-tasks-page .mytasks-kanban__footer-badges { display: flex; align-items: center; gap: 8px; }
+.my-tasks-page .mytasks-kanban__comments { display: inline-flex; align-items: center; gap: 4px; color: #2563eb; font-size: 11px; }
+.my-tasks-page .mytasks-kanban__comments b { font-weight: 700; }
+
 .my-tasks-page .mytasks-kanban__card footer {
     display: flex;
     align-items: center;

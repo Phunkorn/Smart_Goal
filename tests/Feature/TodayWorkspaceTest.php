@@ -194,10 +194,23 @@ class TodayWorkspaceTest extends TestCase
             ->assertSee('data-view="board"', false)
             ->assertSee('data-view="calendar"', false)
             ->assertSee('data-calendar', false)
+            ->assertSee('data-calendar-month', false)
+            ->assertSee('data-calendar-year', false)
+            ->assertSee('data-calendar-reset', false)
+            ->assertSee('data-calendar-detail', false)
+            ->assertDontSee('data-calendar-detail-edit', false)
+            ->assertDontSee('data-calendar-detail-timeline', false)
             ->assertSee('data-project-board', false)
             ->assertSee('data-table-kanban', false)
             ->assertSee('data-workspace-task-source', false)
+            ->assertSee('class="task-edit-modal notion-modal my-tasks-page" data-task-modal hidden', false)
+            ->assertDontSee('data-task-subtasks', false)
+            ->assertDontSee('data-add-subtask', false)
+            ->assertDontSee('data-delete-active-task', false)
+            ->assertDontSee('data-modal-progress', false)
+            ->assertSee('data-reopen-task', false)
             ->assertSee('data-id="'.$future->job_id.'"', false);
+        $this->assertSame(1, substr_count($response->getContent(), 'data-task-modal'));
         $response->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$today->job_id]);
         $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->contains($future->job_id));
     }

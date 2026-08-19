@@ -1,7 +1,9 @@
 import {synchronizeTaskSource} from './task-state.js';
+import {confirmTaskTransition} from './task-transitions.js';
 
 (() => {
     const root = document.querySelector('[data-workspace]'); const kanban = root?.querySelector('[data-kanban]'); if (!root || !kanban) return;
+    const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
 
     const priorityLabels = {
         1: 'routine',
@@ -40,7 +42,22 @@ import {synchronizeTaskSource} from './task-state.js';
     });
 
     let dragged = null;
-    kanban.querySelectorAll('[data-kanban-card]').forEach((card) => { card.draggable = true; card.querySelectorAll('*').forEach((item) => item.draggable = true); card.addEventListener('dragstart', (event) => { dragged = card; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', card.dataset.id); card.classList.add('is-dragging'); }); card.addEventListener('dragend', () => { card.classList.remove('is-dragging'); dragged = null; }); });
+    kanban.querySelectorAll('[data-kanban-card]').forEach((card) => {
+        const capabilities = management[String(card.dataset.id)]?.transitions || {};
+        card.draggable = !capabilities.is_final;
+        card.querySelectorAll('*').forEach((item) => item.draggable = false);
+        card.addEventListener('dragstart', (event) => {
+            if (capabilities.is_final) {
+                event.preventDefault();
+                return;
+            }
+            dragged = card;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', card.dataset.id);
+            card.classList.add('is-dragging');
+        });
+        card.addEventListener('dragend', () => { card.classList.remove('is-dragging'); dragged = null; });
+    });
 
     kanban.querySelectorAll('[data-kanban-column]').forEach((column) => {
         const dropZone = column.querySelector('.mytasks-kanban__cards');
@@ -59,19 +76,9 @@ import {synchronizeTaskSource} from './task-state.js';
             const status = Number(column.dataset.kanbanColumn);
             const previousZone = card.parentElement;
             const previousStatus = card.dataset.status;
-            if (Number(previousStatus) === status || (Number(previousStatus) === 6 && status !== 4)) return;
-
-            if (Number(previousStatus) === 6 && status === 4) {
-                const confirmation = await window.Swal.fire({
-                    icon: 'question',
-                    title: 'งานนี้เสร็จแล้วใช่ไหม?',
-                    showCancelButton: true,
-                    confirmButtonText: 'ใช่, เสร็จแล้ว',
-                    cancelButtonText: 'ยกเลิก',
-                    reverseButtons: true,
-                });
-                if (!confirmation.isConfirmed) return;
-            }
+            if (Number(previousStatus) === status) return;
+            const payload = await confirmTaskTransition(Number(previousStatus), status, management[String(card.dataset.id)]?.transitions || {});
+            if (!payload) return;
 
             card.dataset.status = String(status);
             dropZone?.append(card);
@@ -85,7 +92,7 @@ import {synchronizeTaskSource} from './task-state.js';
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
                     },
-                    body: JSON.stringify({job_status: status}),
+                    body: JSON.stringify(payload),
                 });
                 if (!response.ok) throw new Error('status update failed');
                 synchronizeTaskSource(root, card.dataset.id, {status});

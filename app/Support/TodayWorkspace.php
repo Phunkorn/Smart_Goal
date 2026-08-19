@@ -25,14 +25,14 @@ final class TodayWorkspace
     {
         $todayStartUtc = self::businessToday()->utc();
 
-        (clone $query)->whereNotIn('job_status', [4, 5, 6])
+        (clone $query)->whereNotIn('job_status', [3, 4, 5, 6])
             ->whereNotNull('job_due_at')->where('job_due_at', '<', $todayStartUtc)
             ->update(['job_status' => 6, 'late_at' => now()]);
     }
 
     public static function normalizeLateForTransition(WorkOrder $task): bool
     {
-        if (in_array((int) $task->job_status, [4, 5, 6], true)
+        if (in_array((int) $task->job_status, [3, 4, 5, 6], true)
             || ! $task->job_due_at
             || ! self::businessDate($task->job_due_at)->endOfDay()->lt(self::businessNow())) {
             return (int) $task->job_status === 6;

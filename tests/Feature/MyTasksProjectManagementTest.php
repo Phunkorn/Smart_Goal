@@ -318,7 +318,7 @@ class MyTasksProjectManagementTest extends TestCase
         ]);
     }
 
-    public function test_completed_project_is_locked_for_user_but_not_admin(): void
+    public function test_completed_task_fields_are_locked_for_user_and_admin(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $owner = User::factory()->create(['role' => 'user']);
@@ -356,7 +356,7 @@ class MyTasksProjectManagementTest extends TestCase
 
         $this->actingAs($owner)
             ->postJson(route('mytasks.updatePriority', $job->job_id), ['job_priority' => 3])
-            ->assertOk();
+            ->assertForbidden();
 
         $this->actingAs($owner)
             ->patchJson(route('mytasks.lists.update', $list), ['priority' => 3])
@@ -364,7 +364,7 @@ class MyTasksProjectManagementTest extends TestCase
 
         $this->actingAs($owner)
             ->postJson(route('tasks.progress.store', $job->job_id), ['note' => 'try update'])
-            ->assertStatus(422);
+            ->assertForbidden();
 
         $this->actingAs($admin)
             ->patchJson(route('mytasks.lists.update', $list), ['name' => 'Admin rename'])
@@ -372,10 +372,10 @@ class MyTasksProjectManagementTest extends TestCase
 
         $this->actingAs($admin)
             ->postJson(route('mytasks.updatePriority', $job->job_id), ['job_priority' => 3])
-            ->assertOk();
+            ->assertForbidden();
 
         $this->assertSame('Admin rename', $list->fresh()->name);
-        $this->assertSame(3, (int) $job->fresh()->job_priority);
+        $this->assertSame(2, (int) $job->fresh()->job_priority);
     }
 
     public function test_completed_status_always_persists_one_hundred_percent_progress(): void

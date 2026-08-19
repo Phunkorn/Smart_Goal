@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Models\JobImage;
-use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -14,6 +13,9 @@ use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\TodayWorkspace;
+use App\Support\WorkOrderAssignee;
+use App\Services\TaskStatusTransitionService;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -104,8 +106,8 @@ class TaskController extends Controller
 
         $departments = Department::orderBy('department_name')->get();
 
-        $employees = User::with('department')
-            ->where('role', 'user')
+        $employees = WorkOrderAssignee::query()
+            ->with('department')
             ->orderBy('name')
             ->get();
 
@@ -162,7 +164,9 @@ class TaskController extends Controller
         $this->assertAllowedAttachments($request, 'attachments');
 
         $actor = Auth::user();
-        $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
+        $assignee = isset($validated['user_id'])
+            ? WorkOrderAssignee::findWithDepartment((int) $validated['user_id'])
+            : $actor->loadMissing('department');
         abort_unless($assignee, 422);
 
         // กติกาการอนุมัติ (approval_status / approved_by / approved_at / leader_user_id)
@@ -350,7 +354,7 @@ class TaskController extends Controller
         }
 
         $actor = Auth::user();
-        $assignees = User::with('department')
+        $assignees = WorkOrderAssignee::query()->with('department')
             ->whereIn('id', collect($validated['tasks'])->pluck('user_id')->unique())
             ->get()
             ->keyBy('id');
@@ -544,29 +548,21 @@ class TaskController extends Controller
         return $this->jsonOrBack($request, true, 'บันทึกช่วงเวลางานแล้ว');
     }
 
-    public function updateStatus(Request $request, $id)
+    public function updateStatus(Request $request, $id, TaskStatusTransitionService $transitions)
     {
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize('update', $job);
+        $this->authorize('view', $job);
 
         $validated = $request->validate([
             'job_status' => ['required', 'integer', 'in:1,2,3,4,5,6'],
             'job_progress' => ['nullable', 'integer', 'min:0', 'max:100'],
             'completion_attachments' => ['nullable', 'array', 'max:5'],
             'completion_attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
+            'action' => ['nullable', 'string', 'in:reopen'],
+            'reason' => ['nullable', 'string', 'max:1000'],
         ]);
-
-        TodayWorkspace::normalizeLateForTransition($job);
-
-        if ((int) $job->job_status === 6 && ! in_array((int) $validated['job_status'], [4, 6], true)) {
-            return $this->jsonOrBack($request, false, 'งานล่าช้าสามารถย้ายไปเสร็จสิ้นได้เท่านั้น', 422);
-        }
-
-        if ((int) $job->job_status === 4 && (int) $validated['job_status'] !== 4 && $user?->role !== 'admin') {
-            return $this->jsonOrBack($request, false, 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะกลับได้', 422);
-        }
 
         if ($request->hasFile('completion_attachments') && $job->images()->count() + count($request->file('completion_attachments', [])) > 5) {
             return $this->jsonOrBack($request, false, 'เพิ่มไฟล์อ้างอิงงานได้สูงสุด 5 ไฟล์ต่องาน', 422);
@@ -574,32 +570,15 @@ class TaskController extends Controller
 
         $this->assertAllowedAttachments($request, 'completion_attachments');
 
-        $before = $job->attributesToArray();
-
-        DB::transaction(function () use ($job, $validated, $request) {
-            $newStatus = (int) $validated['job_status'];
-            $previousStatus = (int) $job->job_status;
-
-            $job->job_status = $newStatus;
-            $job->job_progress = $newStatus === 4 ? 100 : ($validated['job_progress'] ?? $job->job_progress ?? 0);
-            $job->job_completed_at = $newStatus === 4 ? ($job->job_completed_at ?: now()) : null;
-            if ($newStatus === 5 && $previousStatus !== 5) {
-                $job->paused_at = now();
-            } elseif ($newStatus !== 5 && $previousStatus === 5) {
-                $job->paused_at = null;
-            }
-            $job->save();
-
-            if ($newStatus === 4) {
-                $this->storeFiles($request, $job, 'completion_attachments');
-            }
-        });
-
-        $job->refresh();
-        AuditTrail::log('status_changed', $job, 'เปลี่ยนสถานะงาน: ' . $job->job_topic, [
-            'before' => $before,
-            'after' => $job->attributesToArray(),
+        $job = $transitions->transition($job, $user, (int) $validated['job_status'], [
+            'action' => $validated['action'] ?? null,
+            'reason' => $validated['reason'] ?? null,
+            'job_progress' => $validated['job_progress'] ?? $job->job_progress,
         ]);
+
+        if ((int) $job->job_status === 4 && $request->hasFile('completion_attachments')) {
+            $this->storeFiles($request, $job, 'completion_attachments');
+        }
 
         $message = (int) $validated['job_status'] === 4 ? 'ปิดงานสำเร็จ' : 'ปรับสถานะงานสำเร็จ';
 
@@ -697,25 +676,16 @@ class TaskController extends Controller
             ]);
 
             if ($pivotStatus === 'accepted') {
-                SystemNotification::create([
-                    'user_id' => $candidate->id,
-                    'work_order_id' => $job->job_id,
-                    'type' => 'collaborator_added',
-                    'title' => 'ถูกเพิ่มเข้าร่วมงาน',
-                    'message' => $actorLabel . ' เพิ่มคุณเข้าร่วมงาน "' . $job->job_topic . '"',
-                ]);
+                app(NotificationService::class)->notify([$candidate], 'collaborator_added', 'ถูกเพิ่มเข้าร่วมงาน',
+                    $actorLabel.' เพิ่มคุณเข้าร่วมงาน "'.$job->job_topic.'"', $job, $actor);
 
                 continue;
             }
 
             foreach ($admins as $admin) {
-                SystemNotification::create([
-                    'user_id' => $admin->id,
-                    'work_order_id' => $job->job_id,
-                    'type' => 'collaborator_approval_request',
-                    'title' => 'ขออนุมัติผู้ร่วมงานข้ามแผนก',
-                    'message' => $actorLabel . ' ขอเพิ่ม ' . $candidate->name . ' (' . ($candidate->department?->department_name ?? 'ไม่ระบุแผนก') . ') เข้าร่วมงาน "' . $job->job_topic . '"',
-                ]);
+                app(NotificationService::class)->notify([$admin], 'collaborator_approval_request', 'ขออนุมัติผู้ร่วมงานข้ามแผนก',
+                    $actorLabel.' ขอเพิ่ม '.$candidate->name.' ('.($candidate->department?->department_name ?? 'ไม่ระบุแผนก').') เข้าร่วมงาน "'.$job->job_topic.'"',
+                    $job, $actor);
             }
         }
 
@@ -736,13 +706,8 @@ class TaskController extends Controller
             'user_name' => $user->name,
         ]);
 
-        SystemNotification::create([
-            'user_id' => $user->id,
-            'work_order_id' => $job->job_id,
-            'type' => 'collaborator_removed',
-            'title' => 'ถูกนำออกจากงาน',
-            'message' => 'คุณถูกนำออกจากทีมงาน "' . $job->job_topic . '"',
-        ]);
+        app(NotificationService::class)->notifyRemovedParticipant($user, 'collaborator_removed', 'ถูกนำออกจากงาน',
+            'คุณถูกนำออกจากทีมงาน "'.$job->job_topic.'"', $job, Auth::user());
 
         return $this->jsonOrBack($request, true, 'นำผู้ร่วมงานออกจากทีมแล้ว');
     }
@@ -835,15 +800,9 @@ class TaskController extends Controller
         ]);
 
         $admins = User::where('role', 'admin')->where('id', '!=', $user->id)->get();
-        foreach ($admins as $admin) {
-            SystemNotification::create([
-                'user_id' => $admin->id,
-                'work_order_id' => $job->job_id,
-                'type' => 'delete_request',
-                'title' => 'มีคำขอลบงาน',
-                'message' => $user->name . ' ขออนุญาตลบงาน "' . $job->job_topic . '" เหตุผล: ' . Str::limit($validated['reason'], 180),
-            ]);
-        }
+        app(NotificationService::class)->notify($admins, 'delete_request', 'มีคำขอลบงาน',
+            $user->name.' ขออนุญาตลบงาน "'.$job->job_topic.'" เหตุผล: '.Str::limit($validated['reason'], 180),
+            $job, $user);
 
         return $this->jsonOrBack($request, true, 'ส่งคำขอลบงานให้ผู้ดูแลระบบแล้ว');
     }
@@ -908,13 +867,8 @@ class TaskController extends Controller
         ]);
 
         if ($requesterId && (int) $requesterId !== (int) Auth::id()) {
-            SystemNotification::create([
-                'user_id' => $requesterId,
-                'work_order_id' => $job->job_id,
-                'type' => 'delete_request_rejected',
-                'title' => 'คำขอลบงานถูกปฏิเสธ',
-                'message' => 'ผู้ดูแลระบบปฏิเสธคำขอลบงาน "' . $job->job_topic . '"',
-            ]);
+            app(NotificationService::class)->notify([$requesterId], 'delete_request_rejected', 'คำขอลบงานถูกปฏิเสธ',
+                'ผู้ดูแลระบบปฏิเสธคำขอลบงาน "'.$job->job_topic.'"', $job, Auth::user());
         }
 
         if ($request->expectsJson() || $request->ajax()) {
@@ -1004,9 +958,8 @@ class TaskController extends Controller
         ]);
 
         $job = WorkOrder::with('collaborators')->findOrFail($id);
+        $this->authorize('respondToInvitation', $job);
         $collaborator = $job->collaborators->firstWhere('id', Auth::id());
-
-        abort_unless($collaborator, 403);
 
         $job->collaborators()->updateExistingPivot(Auth::id(), [
             'status' => $validated['status'],
@@ -1032,15 +985,7 @@ class TaskController extends Controller
             ->reject(fn($userId) => (int) $userId === (int) Auth::id())
             ->values();
 
-        foreach ($userIds as $userId) {
-            SystemNotification::create([
-                'user_id' => $userId,
-                'work_order_id' => $job->job_id,
-                'type' => $type,
-                'title' => $safeTitle,
-                'message' => $safeMessage,
-            ]);
-        }
+        app(NotificationService::class)->notify($userIds, $type, $safeTitle, $safeMessage, $job, Auth::user());
     }
 
     private function notifyAdmins(WorkOrder $job, string $type, string $title, string $message): void
@@ -1055,15 +1000,7 @@ class TaskController extends Controller
         $safeTitle = Str::limit(strip_tags($title), 120, '');
         $safeMessage = Str::limit(strip_tags($message), 1000, '');
 
-        foreach (collect($userIds)->filter()->unique() as $userId) {
-            SystemNotification::create([
-                'user_id' => $userId,
-                'work_order_id' => $job->job_id,
-                'type' => $type,
-                'title' => $safeTitle,
-                'message' => $safeMessage,
-            ]);
-        }
+        app(NotificationService::class)->notify($userIds, $type, $safeTitle, $safeMessage, $job, Auth::user());
     }
 
     private function notifyJobDeleted(WorkOrder $job, string $message): void
@@ -1077,15 +1014,10 @@ class TaskController extends Controller
             ->reject(fn($userId) => (int) $userId === (int) Auth::id())
             ->values();
 
-        foreach ($userIds as $userId) {
-            SystemNotification::create([
-                'user_id' => $userId,
-                'work_order_id' => null,
-                'type' => 'task_deleted',
-                'title' => 'งานถูกลบแล้ว',
-                'message' => Str::limit(strip_tags($message), 1000, ''),
-            ]);
-        }
+        app(NotificationService::class)->notifyDetached($userIds, 'task_deleted', 'งานถูกลบแล้ว',
+            Str::limit(strip_tags($message), 1000, ''), Auth::user(), [
+                'deleted_work_order_id' => $job->job_id,
+            ], ['work_order_list_id' => $job->work_order_list_id]);
     }
 
     private function boardStats(Collection $jobs): array
@@ -1180,7 +1112,7 @@ class TaskController extends Controller
             'tasks' => ['required', 'array', 'min:1', 'max:20'],
             'tasks.*.job_topic' => ['required', 'string', 'max:255'],
             'tasks.*.job_details' => ['nullable', 'string', 'max:2000'],
-            'tasks.*.user_id' => ['required', 'integer', 'exists:users,id,role,user'],
+            'tasks.*.user_id' => WorkOrderAssignee::validationRules(),
             'tasks.*.job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
             'tasks.*.job_start_at' => ['required', 'date'],
             'tasks.*.job_due_at' => ['required', 'date', 'after_or_equal:tasks.*.job_start_at'],
@@ -1199,7 +1131,7 @@ class TaskController extends Controller
         return [
             'job_topic' => ['required', 'string', 'max:255'],
             'job_details' => ['nullable', 'string'],
-            'user_id' => ['nullable', 'exists:users,id,role,user'],
+            'user_id' => WorkOrderAssignee::validationRules(false),
             'department_id' => ['nullable', 'exists:departments,id'],
             'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
             'job_start_at' => ['required', 'date'],

@@ -42,6 +42,11 @@ class WorkOrder extends Model
         'job_completed_at',
         'paused_at',
         'late_at',
+        'submitted_for_review_by',
+        'submitted_for_review_at',
+        'final_approved_by',
+        'final_approved_at',
+        'review_return_reason',
     ];
 
     protected function casts(): array
@@ -53,6 +58,8 @@ class WorkOrder extends Model
             'paused_at' => 'datetime',
             'late_at' => 'datetime',
             'approved_at' => 'datetime',
+            'submitted_for_review_at' => 'datetime',
+            'final_approved_at' => 'datetime',
             'delete_requested_at' => 'datetime',
 
         ];
@@ -91,6 +98,16 @@ class WorkOrder extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function reviewSubmitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_for_review_by');
+    }
+
+    public function finalApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'final_approved_by');
     }
 
     public function department(): BelongsTo

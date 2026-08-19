@@ -1,5 +1,5 @@
 import {statusMeta, taskPriorityMeta} from './priority-meta.js';
-import {buildMonthCalendar} from './calendar-model.js';
+import {buddhistYear, buildMonthCalendar, calendarMonthForDate, moveCalendarMonth, resetCalendarMonth} from './calendar-model.js';
 
 const monthFormatter = new Intl.DateTimeFormat('th-TH', {month: 'long', year: 'numeric', timeZone: 'UTC'});
 const dateFormatter = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'});
@@ -20,14 +20,38 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const popover = calendar?.querySelector('[data-calendar-popover]');
     const popoverTitle = calendar?.querySelector('[data-calendar-popover-title]');
     const popoverList = calendar?.querySelector('[data-calendar-popover-list]');
-    if (!calendar || !source || !grid || !title || !popover || !popoverTitle || !popoverList) return;
+    const detail = workspace.querySelector('[data-calendar-detail]');
+    const monthSelect = calendar?.querySelector('[data-calendar-month]');
+    const yearSelect = calendar?.querySelector('[data-calendar-year]');
+    if (!calendar || !source || !grid || !title || !popover || !popoverTitle || !popoverList || !detail || !monthSelect || !yearSelect) return;
+
+    const json = (selector) => { const node = document.querySelector(selector); return node ? JSON.parse(node.textContent || '{}') : {}; };
+    const teamData = json('[data-team-data]');
+    const attachmentData = json('[data-attachment-data]');
 
     const now = new Date();
+    const initialSelection = Object.freeze(calendarMonthForDate(now));
     const todayKey = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
-    let selectedYear = now.getFullYear();
-    let selectedMonth = now.getMonth();
+    let selectedYear = initialSelection.year;
+    let selectedMonth = initialSelection.month;
     let monthData = null;
     let activeOverflow = null;
+
+    const ensureYearOption = (year) => {
+        if (!yearSelect.querySelector(`option[value="${year}"]`)) {
+            const option = element('option', '', String(buddhistYear(year)));
+            option.value = String(year);
+            yearSelect.append(option);
+            [...yearSelect.options].sort((left, right) => Number(left.value) - Number(right.value)).forEach((item) => yearSelect.append(item));
+        }
+    };
+    for (let year = now.getFullYear() - 5; year <= now.getFullYear() + 5; year += 1) ensureYearOption(year);
+
+    const synchronizeSelectors = () => {
+        ensureYearOption(selectedYear);
+        monthSelect.value = String(selectedMonth);
+        yearSelect.value = String(selectedYear);
+    };
 
     const readTasks = () => {
         const unique = new Map();
@@ -65,9 +89,30 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         activeOverflow = null;
     };
 
-    const openExistingTask = (id) => {
-        const row = [...source.querySelectorAll('[data-row]')].find((candidate) => String(candidate.dataset.id) === String(id));
-        row?.querySelector('[data-open-task-modal]')?.click();
+    const rowForTask = (id) => [...source.querySelectorAll('[data-row]')].find((candidate) => String(candidate.dataset.id) === String(id));
+    const displayDate = (value) => value ? dateFormatter.format(new Date(`${value}T00:00:00Z`)) : 'ไม่ระบุ';
+    const fillList = (target, items, empty) => target.replaceChildren(...(items.length ? items.map((item) => element('p', '', item)) : [element('p', 'is-empty', empty)]));
+    const closeDetail = () => { detail.hidden = true; detail.removeAttribute('data-task-id'); document.body.classList.remove('modal-open'); };
+    const openReadOnlyTask = (id) => {
+        const row = rowForTask(id);
+        if (!row) return;
+        const key = String(id);
+        const team = teamData[key] || {};
+        const files = attachmentData[key]?.files || [];
+        detail.dataset.taskId = key;
+        detail.querySelector('[data-calendar-detail-title]').textContent = row.dataset.topic || 'ไม่มีชื่องาน';
+        detail.querySelector('[data-calendar-detail-project]').textContent = row.dataset.project || 'งานทั่วไป';
+        detail.querySelector('[data-calendar-detail-status]').textContent = (statusMeta[Number(row.dataset.status)] || statusMeta[1]).label;
+        detail.querySelector('[data-calendar-detail-priority]').textContent = (taskPriorityMeta[Number(row.dataset.priority)] || taskPriorityMeta[2]).label;
+        detail.querySelector('[data-calendar-detail-start]').textContent = displayDate(row.dataset.start);
+        detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due);
+        detail.querySelector('[data-calendar-detail-assignee]').textContent = team.assignee?.name || row.dataset.assignee || 'ไม่ระบุ';
+        detail.querySelector('[data-calendar-detail-collaborators]').textContent = (team.collaborators || []).map((person) => `${person.name}${person.status === 'pending' ? ' (รอตอบรับ)' : ''}`).join(', ') || 'ไม่มีผู้ร่วมงาน';
+        detail.querySelector('[data-calendar-detail-description]').textContent = row.dataset.details || 'ไม่มีรายละเอียดเพิ่มเติม';
+        fillList(detail.querySelector('[data-calendar-detail-attachments]'), files.map((file) => file.name), 'ไม่มีไฟล์แนบ');
+        detail.hidden = false;
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => detail.querySelector('[data-calendar-detail-close]')?.focus());
     };
 
     const makePopoverTask = (task) => {
@@ -167,6 +212,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const render = () => {
         closePopover();
         monthData = buildMonthCalendar(readTasks(), selectedYear, selectedMonth);
+        synchronizeSelectors();
         title.textContent = monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
         const weekNodes = monthData.weeks.map((week) => {
             const weekNode = element('div', 'mytasks-calendar__week');
@@ -178,9 +224,15 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const moveMonth = (offset) => {
-        const target = new Date(Date.UTC(selectedYear, selectedMonth + offset, 1));
-        selectedYear = target.getUTCFullYear();
-        selectedMonth = target.getUTCMonth();
+        const target = moveCalendarMonth(selectedYear, selectedMonth, offset);
+        selectedYear = target.year;
+        selectedMonth = target.month;
+        render();
+    };
+
+    const resetCalendar = () => {
+        // Keep Calendar-only reset behavior centralized so future filters can join this action.
+        ({year: selectedYear, month: selectedMonth} = resetCalendarMonth(initialSelection));
         render();
     };
 
@@ -189,7 +241,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         if (task) {
             event.preventDefault();
             closePopover();
-            openExistingTask(task.dataset.calendarTask);
+            openReadOnlyTask(task.dataset.calendarTask);
             return;
         }
 
@@ -202,19 +254,28 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
         if (event.target.closest('[data-calendar-previous]')) moveMonth(-1);
         if (event.target.closest('[data-calendar-next]')) moveMonth(1);
+        if (event.target.closest('[data-calendar-reset]')) resetCalendar();
         if (event.target.closest('[data-calendar-today]')) {
-            selectedYear = now.getFullYear();
-            selectedMonth = now.getMonth();
+            ({year: selectedYear, month: selectedMonth} = calendarMonthForDate(new Date()));
             render();
         }
         if (event.target.closest('[data-calendar-popover-close]')) closePopover(true);
+        if (event.target.closest('[data-calendar-detail-close]')) closeDetail();
+    });
+
+    calendar.addEventListener('change', (event) => {
+        if (!event.target.matches('[data-calendar-month], [data-calendar-year]')) return;
+        selectedMonth = Number(monthSelect.value);
+        selectedYear = Number(yearSelect.value);
+        render();
     });
 
     document.addEventListener('click', (event) => {
         if (!popover.hidden && !popover.contains(event.target) && !event.target.closest('[data-calendar-more]')) closePopover();
     });
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !popover.hidden) closePopover(true);
+        if (event.key === 'Escape' && !detail.hidden) closeDetail();
+        else if (event.key === 'Escape' && !popover.hidden) closePopover(true);
     });
     document.addEventListener('mytasks:viewchange', (event) => {
         if (event.detail?.view === 'calendar') render();

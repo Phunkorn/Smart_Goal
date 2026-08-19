@@ -9,7 +9,8 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
-use App\Models\SystemNotification;
+use App\Http\Controllers\TaskCommentController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -280,6 +281,9 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/tasks/{id}/progress', [TaskController::class, 'updateProgress'])
         ->name('tasks.progress.store');
 
+    Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
+    Route::post('/tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->name('tasks.comments.read');
+
     Route::post('/tasks/{id}/delete-request', [TaskController::class, 'requestDelete'])
         ->name('tasks.deleteRequest.store');
 
@@ -287,10 +291,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->name('tasks.show');
 
     // การแจ้งเตือนของผู้ใช้ปัจจุบัน
-    Route::delete('/notifications/{notification}', function (SystemNotification $notification) {
-        abort_unless($notification->user_id === auth()->id(), 403);
-        $notification->delete();
-
-        return back()->with('success', 'ลบการแจ้งเตือนแล้ว');
-    })->name('notifications.destroy');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+    Route::patch('/notifications/{notification}/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 });

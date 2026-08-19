@@ -184,6 +184,24 @@
             border: 1px solid var(--border);
         }
 
+        .nav-item__label {
+            min-width: 0;
+        }
+
+        .nav-item__count {
+            flex: 0 0 auto;
+            margin-left: auto;
+            min-width: 1.35rem;
+            padding: .08rem .35rem;
+            border-radius: 999px;
+            background: var(--danger, #dc3545);
+            color: #fff;
+            font-size: .68rem;
+            font-weight: 700;
+            line-height: 1.35;
+            text-align: center;
+        }
+
         .sidebar-foot {
             border-top: 1px solid var(--border);
             padding: .9rem 1.1rem;
@@ -912,4 +930,3 @@
                 margin-right: .2rem;
             }
         }
-

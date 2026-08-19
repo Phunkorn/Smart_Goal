@@ -1,0 +1,18 @@
+.my-tasks-page .mytasks-calendar-detail { z-index: 1400; }
+.my-tasks-page .mytasks-calendar-detail__card { width: min(720px, calc(100vw - 28px)); max-height: calc(100vh - 28px); overflow: auto; border-radius: 16px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .28); }
+.my-tasks-page .mytasks-calendar-detail__card > header, .my-tasks-page .mytasks-calendar-detail__card > footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
+.my-tasks-page .mytasks-calendar-detail__card > header > div { display: grid; gap: 3px; }
+.my-tasks-page .mytasks-calendar-detail__card > header span { color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.my-tasks-page .mytasks-calendar-detail__card h2 { margin: 0; color: #0f172a; font-size: 20px; }
+.my-tasks-page .mytasks-calendar-detail__card header small { color: #64748b; }
+.my-tasks-page .mytasks-calendar-detail__card header button { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 8px; background: #f1f5f9; color: #475569; }
+.my-tasks-page .mytasks-calendar-detail__body { display: grid; gap: 18px; padding: 20px; }
+.my-tasks-page .mytasks-calendar-detail__meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.my-tasks-page .mytasks-calendar-detail__meta > div, .my-tasks-page .mytasks-calendar-detail__body > section { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafcff; }
+.my-tasks-page .mytasks-calendar-detail dt, .my-tasks-page .mytasks-calendar-detail h3 { margin: 0 0 5px; color: #64748b; font-size: 10px; font-weight: 800; }
+.my-tasks-page .mytasks-calendar-detail dd, .my-tasks-page .mytasks-calendar-detail p { margin: 0; color: #1e293b; font-size: 13px; white-space: pre-wrap; }
+.my-tasks-page .mytasks-calendar-detail__body > section > div { display: grid; gap: 6px; }
+.my-tasks-page .mytasks-calendar-detail__body > section > div p { padding: 7px 9px; border-radius: 7px; background: #fff; }
+.my-tasks-page .mytasks-calendar-detail__body .is-empty { color: #94a3b8; }
+.my-tasks-page .mytasks-calendar-detail__card > footer { justify-content: flex-end; border-top: 1px solid #e2e8f0; border-bottom: 0; }
+@media (max-width: 600px) { .my-tasks-page .mytasks-calendar-detail__meta { grid-template-columns: 1fr; } .my-tasks-page .mytasks-calendar-detail__card > header, .my-tasks-page .mytasks-calendar-detail__card > footer, .my-tasks-page .mytasks-calendar-detail__body { padding: 14px; } }

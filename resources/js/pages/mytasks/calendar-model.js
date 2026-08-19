@@ -1,5 +1,16 @@
 export const CALENDAR_DAY_MS = 24 * 60 * 60 * 1000;
 
+export const moveCalendarMonth = (year, month, offset) => {
+    const target = new Date(Date.UTC(Number(year), Number(month) + Number(offset), 1));
+    return {year: target.getUTCFullYear(), month: target.getUTCMonth()};
+};
+
+export const calendarMonthForDate = (date = new Date()) => ({year: date.getFullYear(), month: date.getMonth()});
+
+export const resetCalendarMonth = (initialSelection) => ({year: Number(initialSelection.year), month: Number(initialSelection.month)});
+
+export const buddhistYear = (gregorianYear) => Number(gregorianYear) + 543;
+
 export const parseCalendarDate = (value) => {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
     if (!match) return null;

@@ -31,63 +31,10 @@
             'viewer' => 'ผู้เข้าชม',
             default => 'พนักงาน',
         };
-        $pendingApprovalJobs = $isAdmin
-            ? \App\Models\WorkOrder::with(['creator', 'user'])->where('approval_status', 'pending')->latest('job_id')->take(3)->get()
-            : collect();
-        $pendingDeleteJobs = $isAdmin
-            ? \App\Models\WorkOrder::with(['deleteRequester', 'user'])->whereNotNull('delete_requested_at')->latest('delete_requested_at')->take(3)->get()
-            : collect();
-        $dueSoonJobs = \App\Models\WorkOrder::with('user')
-            ->where('approval_status', 'approved')
-            ->where('job_status', '!=', 4)
-            ->whereBetween('job_due_at', [now(), now()->addDays(2)])
-            ->where(function ($query) use ($currentUser, $isAdmin, $isViewer) {
-                if ($isAdmin || $isViewer) {
-                    return;
-                }
-
-                $query->where('user_id', $currentUser->id)
-                    ->orWhere('leader_user_id', $currentUser->id)
-                    ->orWhereHas('collaborators', function ($collaboratorQuery) use ($currentUser) {
-                        $collaboratorQuery
-                            ->where('users.id', $currentUser->id)
-                            ->where('work_order_collaborators.status', 'accepted');
-                    });
-            })
-            ->orderBy('job_due_at')
-            ->take(3)
-            ->get();
-        $decisionJobs = $isAdmin
-            ? collect()
-            : \App\Models\WorkOrder::where('created_by', $currentUser->id)
-                ->whereIn('approval_status', ['approved', 'rejected'])
-                ->latest('approved_at')
-                ->take(3)
-                ->get();
-        $pendingInvitations = \App\Models\WorkOrder::with('leader')
-            ->whereHas('collaborators', function ($query) use ($currentUser) {
-                $query
-                    ->where('users.id', $currentUser->id)
-                    ->where('work_order_collaborators.status', 'pending');
-            })
-            ->latest('job_id')
-            ->take(3)
-            ->get();
-        $systemNotifications = \App\Models\SystemNotification::with('workOrder')
-            ->where('user_id', $currentUser->id)
-            ->latest()
-            ->take(3)
-            ->get();
-        $notificationCount = ($isAdmin ? \App\Models\WorkOrder::where('approval_status', 'pending')->count() : 0)
-            + ($isAdmin ? \App\Models\WorkOrder::whereNotNull('delete_requested_at')->count() : 0)
-            + \App\Models\SystemNotification::where('user_id', $currentUser->id)->count()
-            + \App\Models\WorkOrder::whereHas('collaborators', function ($query) use ($currentUser) {
-                $query
-                    ->where('users.id', $currentUser->id)
-                    ->where('work_order_collaborators.status', 'pending');
-            })->count()
-            + $dueSoonJobs->count()
-            + $decisionJobs->count();
+        $notificationService = app(\App\Services\NotificationService::class);
+        $systemNotifications = $notificationService->dropdown($currentUser);
+        $notificationCount = $notificationService->unreadCount($currentUser);
+        $notificationDisplayCount = $notificationService->displayCount($notificationCount);
     @endphp
 
     <aside class="sidebar" id="appSidebar">
@@ -146,7 +93,14 @@
 
             @stack('sidebar_nav_extra')
 
-
+            <a href="{{ route('notifications.index') }}"
+                class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
+                <i class="bi bi-bell-fill"></i>
+                <span class="nav-item__label">การแจ้งเตือน</span>
+                @if($notificationCount > 0)
+                    <span class="nav-item__count" data-notification-count data-sidebar-notification-count>{{ $notificationDisplayCount }}</span>
+                @endif
+            </a>
 
             @if ($isAdmin)
                 <a href="{{ route('employees.index') }}"
@@ -218,71 +172,19 @@
                 <button class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false" title="แจ้งเตือน">
                     <i class="bi bi-bell-fill"></i>
                     @if($notificationCount > 0)
-                        <span class="notification-count">{{ $notificationCount > 99 ? '99+' : $notificationCount }}</span>
+                        <span class="notification-count" data-notification-count data-bell-notification-count>{{ $notificationDisplayCount }}</span>
                     @endif
                 </button>
                 <div class="dropdown-menu dropdown-menu-end p-2 notification-menu">
                     <div class="d-flex align-items-center justify-content-between px-2 py-2">
                         <strong>การแจ้งเตือน</strong>
-                        <span class="badge-soft {{ $notificationCount > 0 ? 'amber' : 'gray' }}">{{ $notificationCount }} รายการ</span>
+                        <span class="badge-soft {{ $notificationCount > 0 ? 'amber' : 'gray' }}" data-notification-summary>{{ $notificationCount }} รายการ</span>
                     </div>
-                    @if($pendingApprovalJobs->count() > 0)
-                        <div class="px-2 pb-1 text-muted notification-section-title">คำขอเปิดงานรออนุมัติ</div>
-                        @foreach($pendingApprovalJobs as $pendingJob)
-                            <div class="p-2 mb-2 notification-item">
-                                <div class="notification-title">{{ $pendingJob->job_topic }}</div>
-                                <div class="notification-meta notification-meta-spaced">
-                                    ผู้ขอ: {{ optional($pendingJob->creator)->name ?? optional($pendingJob->user)->name ?? '-' }}
-                                </div>
-                                <div class="d-flex gap-1">
-                                    <a href="{{ route('tasks.show', $pendingJob->job_id) }}" class="btn btn-sm btn-outline-secondary">ดู</a>
-                                    <form method="POST" action="{{ route('admin.tasks.approval', $pendingJob->job_id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input type="hidden" name="approval_status" value="approved">
-                                        <button type="submit" class="btn btn-sm btn-success">อนุมัติ</button>
-                                    </form>
-                                    <form method="POST" action="{{ route('admin.tasks.approval', $pendingJob->job_id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input type="hidden" name="approval_status" value="rejected">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">ปฏิเสธ</button>
-                                    </form>
-                                </div>
-                            </div>
-                        @endforeach
-                    @endif
-
-                    @if($pendingDeleteJobs->count() > 0)
-                        <div class="px-2 pb-1 text-muted notification-section-title">คำขอลบงาน</div>
-                        @foreach($pendingDeleteJobs as $deleteJob)
-                            <div class="p-2 mb-2 notification-item">
-                                <div class="notification-title">{{ $deleteJob->job_topic }}</div>
-                                <div class="notification-meta notification-meta-spaced">
-                                    ผู้ขอ: {{ optional($deleteJob->deleteRequester)->name ?? '-' }}
-                                </div>
-                                <div class="d-flex gap-1">
-                                    <a href="{{ route('tasks.show', $deleteJob->job_id) }}" class="btn btn-sm btn-outline-secondary">ดู</a>
-                                    <form method="POST" action="{{ route('admin.tasks.deleteRequest.approve', $deleteJob->job_id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">อนุมัติลบ</button>
-                                    </form>
-                                    <form method="POST" action="{{ route('admin.tasks.deleteRequest.reject', $deleteJob->job_id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <button type="submit" class="btn btn-sm btn-outline-secondary">ปฏิเสธ</button>
-                                    </form>
-                                </div>
-                            </div>
-                        @endforeach
-                    @endif
-
                     @if($systemNotifications->count() > 0)
                         <div class="px-2 pb-1 text-muted notification-section-title">การเปลี่ยนแปลงงาน</div>
                         @foreach($systemNotifications as $notice)
                             <div class="p-2 mb-2 notification-item d-flex gap-2 align-items-start {{ $notice->read_at ? '' : 'is-new' }}">
-                                <a href="{{ $notice->work_order_id ? route('tasks.show', $notice->work_order_id) : '#' }}" class="notification-body">
+                                <a href="{{ route('notifications.open', $notice) }}" class="notification-body">
                                     <div class="notification-title">
                                         {{ $notice->title }}
                                         @if(! $notice->read_at)
@@ -293,73 +195,16 @@
                                         {{ $notice->message }}
                                     </div>
                                 </a>
-                                <form method="POST" action="{{ route('notifications.destroy', $notice->id) }}">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="notification-delete" title="ลบการแจ้งเตือน">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </form>
                             </div>
                         @endforeach
                     @endif
 
-                    @if($pendingInvitations->count() > 0)
-                        <div class="px-2 pb-1 text-muted notification-section-title">คำเชิญร่วมงาน</div>
-                        @foreach($pendingInvitations as $inviteJob)
-                            <div class="p-2 mb-2 notification-item">
-                                <div class="notification-title">{{ $inviteJob->job_topic }}</div>
-                                <div class="notification-meta notification-meta-spaced">
-                                    ชวนโดย: {{ optional($inviteJob->leader)->name ?? '-' }}
-                                </div>
-                                <div class="d-flex gap-1">
-                                    <a href="{{ route('tasks.show', $inviteJob->job_id) }}" class="btn btn-sm btn-outline-secondary">ดู</a>
-                                    <form method="POST" action="{{ route('tasks.invitation.respond', $inviteJob->job_id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input type="hidden" name="status" value="accepted">
-                                        <button type="submit" class="btn btn-sm btn-success">รับ</button>
-                                    </form>
-                                    <form method="POST" action="{{ route('tasks.invitation.respond', $inviteJob->job_id) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input type="hidden" name="status" value="rejected">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">ปฏิเสธ</button>
-                                    </form>
-                                </div>
-                            </div>
-                        @endforeach
+                    @if($systemNotifications->isEmpty())
+                        <div class="text-center text-muted py-4 notification-dropdown-empty">ไม่มีการแจ้งเตือน</div>
+                    @elseif($systemNotifications->count() === 15)
+                        <div class="notification-more">แสดงการแจ้งเตือนล่าสุด 15 รายการ</div>
                     @endif
-
-                    @if($dueSoonJobs->count() > 0)
-                        <div class="px-2 pb-1 text-muted notification-section-title">งานใกล้ครบกำหนด</div>
-                        @foreach($dueSoonJobs as $dueJob)
-                            <a href="{{ route('tasks.show', $dueJob->job_id) }}" class="d-block p-2 mb-2 notification-item">
-                                <div class="notification-title">{{ $dueJob->job_topic }}</div>
-                                <div class="notification-meta notification-meta-tight">
-                                    กำหนดส่ง {{ $dueJob->job_due_at->locale('th')->isoFormat('D MMM YYYY HH:mm') }}
-                                </div>
-                            </a>
-                        @endforeach
-                    @endif
-
-                    @if($decisionJobs->count() > 0)
-                        <div class="px-2 pb-1 text-muted notification-section-title">ผลการอนุมัติงาน</div>
-                        @foreach($decisionJobs as $decisionJob)
-                            <a href="{{ route('tasks.show', $decisionJob->job_id) }}" class="d-block p-2 mb-2 notification-item">
-                                <div class="notification-title">{{ $decisionJob->job_topic }}</div>
-                                <div @class(['notification-meta', 'notification-meta-tight', 'notification-decision-approved' => $decisionJob->approval_status === 'approved', 'notification-decision-rejected' => $decisionJob->approval_status !== 'approved'])>
-                                    {{ $decisionJob->approval_status === 'approved' ? 'อนุมัติแล้ว' : 'ถูกปฏิเสธ' }}
-                                </div>
-                            </a>
-                        @endforeach
-                    @endif
-
-                    @if($notificationCount === 0)
-                        <div class="text-center text-muted py-4 notification-dropdown-empty">ไม่มีคำขอเปิดงานที่รออนุมัติ</div>
-                    @elseif($notificationCount > 12)
-                        <div class="notification-more">แสดงรายการล่าสุดบางส่วน เพื่อไม่ให้หน้าต่างแจ้งเตือนยาวเกินไป</div>
-                    @endif
+                    <a href="{{ route('notifications.index') }}" class="notification-more d-block text-center">ดูการแจ้งเตือนทั้งหมด</a>
                 </div>
             </div>
             <a href="{{ route('settings.index') }}" class="icon-btn" title="ช่วยเหลือและตั้งค่า"><i class="bi bi-question-circle"></i></a>
@@ -427,4 +272,3 @@
 </body>
 
 </html>
-

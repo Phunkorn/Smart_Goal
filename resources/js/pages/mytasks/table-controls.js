@@ -1,4 +1,5 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './priority-meta.js';
+import {confirmTaskTransition} from './task-transitions.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -8,6 +9,7 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const toast = document.querySelector('[data-toast]');
     const endpoint = (template, id) => template.replace('__ID__', id);
+    const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
 
     const notify = (message, ok = true) => {
         if (!toast) return;
@@ -128,7 +130,9 @@ import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, 
             if (!menu || !row || !statusMeta[value]) return;
             statusOption.disabled = true;
             try {
-                await request(endpoint(workspace.dataset.statusTemplate, row.dataset.id), 'PATCH', {job_status: value});
+                const payload = await confirmTaskTransition(Number(row.dataset.status), value, management[String(row.dataset.id)]?.transitions || {});
+                if (!payload) return;
+                await request(endpoint(workspace.dataset.statusTemplate, row.dataset.id), 'PATCH', payload);
                 updateStatusVisual(row, menu, value);
                 row.querySelector('input[data-field="status"]')?.setAttribute('value', String(value));
                 menu.removeAttribute('open');

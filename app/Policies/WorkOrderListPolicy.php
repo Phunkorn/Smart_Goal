@@ -27,7 +27,7 @@ class WorkOrderListPolicy
      */
     public function toggle(User $user, WorkOrderList $list): bool
     {
-        return $list->user_id === $user->id;
+        return $user->role !== 'viewer' && $list->user_id === $user->id;
     }
 
     /**

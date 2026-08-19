@@ -21,7 +21,9 @@
     @foreach($projectGroups as $group)
         @php
             $project = $group['list'];
-            $projectTasks = $group['tasks'];
+            $projectTasks = $group['tasks']->sortBy(fn ($task) => (int) $task->job_status === 4 ? 1 : 0)->values();
+            $completedProjectTasks = $projectTasks->where('job_status', 4)->values();
+            $firstCompletedId = $completedProjectTasks->first()?->job_id;
             $projectName = $project?->name ?? 'งานทั่วไป';
             $projectKey = $project ? 'project-'.$project->id : 'general';
             $projectPriority = [1=>['สำคัญ/ต่ำ','low'],2=>['สำคัญ/กลาง','medium'],3=>['สำคัญ/สูง','high']][(int) ($project?->priority ?? 2)] ?? ['สำคัญ/กลาง','medium'];
@@ -58,6 +60,11 @@
             </header>
 
                 @foreach($projectTasks as $task)
+                    @if((int) $task->job_status === 4 && (int) $task->job_id === (int) $firstCompletedId)
+                        <details class="board-completed-group" data-completed-group data-project-key="{{ $projectKey }}">
+                            <summary><i class="bi bi-caret-right-fill"></i><strong>งานที่เสร็จแล้ว</strong><span>{{ $completedProjectTasks->count() }} งาน</span></summary>
+                            <div class="board-completed-group__rows">
+                    @endif
                     @php
                         $taskIsLate = (int) $task->job_status !== 4 && $task->job_due_at?->isPast();
                         $taskIsSoon = ! $taskIsLate && (int) $task->job_status !== 4 && $task->job_due_at && now()->diffInDays($task->job_due_at, false) <= 3;
@@ -122,5 +129,6 @@
                         @endif
                     </article>
                 @endforeach
+                @if($completedProjectTasks->isNotEmpty())</div></details>@endif
     @endforeach
 </div>

@@ -17,6 +17,26 @@ class AdminProjectCreationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_project_rejects_viewer_assignee_from_crafted_request(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'must_change_password' => false, 'is_active' => true]);
+        $viewer = User::factory()->create(['role' => 'viewer', 'must_change_password' => false, 'is_active' => true]);
+
+        $this->actingAs($admin)->postJson(route('admin.tasks.store'), [
+            'project_name' => 'Invalid viewer project',
+            'project_priority' => 2,
+            'tasks' => [[
+                'job_topic' => 'Viewer cannot own this task',
+                'user_id' => $viewer->id,
+                'job_start_at' => now()->format('Y-m-d H:i:s'),
+                'job_due_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            ]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('tasks.0.user_id');
+
+        $this->assertDatabaseMissing('work_order_lists', ['name' => 'Invalid viewer project']);
+        $this->assertDatabaseMissing('work_orders', ['user_id' => $viewer->id]);
+    }
+
     public function test_admin_creates_project_with_multiple_tasks_and_nested_records(): void
     {
         Storage::fake('public');

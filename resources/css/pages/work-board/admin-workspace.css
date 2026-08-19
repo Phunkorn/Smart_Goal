@@ -39,21 +39,9 @@
 .admin-work-board [data-project-attachment-input] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .admin-work-board .board-project-file-upload,
 .admin-work-board .mytasks-kanban__project-files label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: #175cd3; }
-.admin-work-board .task-subtask-field { grid-column: 1 / -1; }
-.admin-work-board .task-subtask-list { display: grid; gap: 8px; margin-top: 8px; }
-.admin-work-board .task-subtask-list article { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px; border: 1px solid #e4e7ec; border-radius: 10px; }
-.admin-work-board .task-subtask-list article > button { border: 0; background: transparent; color: #475467; }
-.admin-work-board .task-subtask-list article > span { display: grid; gap: 2px; }
-.admin-work-board .task-subtask-list article small { color: #667085; }
-.admin-work-board .task-subtask-list article.is-completed strong { color: #667085; text-decoration: line-through; }
-.admin-work-board .task-subtask-compose { display: grid; gap: 8px; margin-top: 10px; }
-.admin-work-board .task-subtask-compose input,
-.admin-work-board .task-subtask-compose textarea { width: 100%; border: 1px solid #d0d5dd; border-radius: 9px; padding: 9px 11px; }
-.admin-work-board .task-danger { margin-right: auto; border-color: #fda29b; color: #b42318; }
 
 @media (max-width: 767px) {
     .admin-work-board .admin-member-selector__grid { grid-template-columns: 1fr; }
     .admin-work-board .admin-assign-button { width: 100%; }
     .admin-work-board .task-edit-card footer { flex-wrap: wrap; }
-    .admin-work-board .task-danger { width: 100%; margin-right: 0; }
 }

@@ -19,6 +19,7 @@ export default defineConfig({
                 'resources/css/pages/employee-show.css',
                 'resources/css/pages/errors.css',
                 'resources/css/pages/mytasks.css',
+                'resources/css/pages/notifications.css',
                 'resources/css/pages/report-employee.css',
                 'resources/css/pages/report-my.css',
                 'resources/css/pages/reports.css',

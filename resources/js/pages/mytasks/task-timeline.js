@@ -1,13 +1,122 @@
+import {commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead} from './task-comments-model.js';
+
 (() => {
     const root = document.querySelector('[data-workspace]');
     const modal = document.querySelector('[data-task-modal]');
     const panel = modal?.querySelector('[data-task-timeline]');
-    const node = document.querySelector('[data-timeline-data]');
-    if (!root || !modal || !panel || !node) return;
-    const timeline = JSON.parse(node.textContent || '{}'); let taskId = null; let tab = 'updates';
-    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const entry = (item) => `<article class="task-timeline-entry"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${esc(item.avatar_url)}" alt="">` : esc(Array.from(item.author || '?')[0] || '?')}</span><div><strong>${esc(item.author)}</strong><p>${esc(item.note)}</p><small>${esc(item.at)}</small></div></article>`;
-    const render = () => { const entries = timeline[String(taskId)]?.[tab] || []; panel.hidden = false; panel.querySelectorAll('[data-timeline-tab]').forEach((button) => button.classList.toggle('active', button.dataset.timelineTab === tab)); panel.querySelector('[data-timeline-items]').innerHTML = entries.map(entry).join('') || '<p class="task-timeline-empty">ยังไม่มีรายการ</p>'; };
-    document.addEventListener('click', (event) => { const row = event.target.closest('[data-open-task-modal]')?.closest('[data-row]'); if (row) { taskId = row.dataset.id; tab = 'updates'; render(); } const button = event.target.closest('[data-timeline-tab]'); if (button) { tab = button.dataset.timelineTab; render(); } });
-    panel.querySelector('[data-submit-task-update]')?.addEventListener('click', async () => { const input = panel.querySelector('[data-task-update-note]'); const button = panel.querySelector('[data-submit-task-update]'); const note = input.value.trim(); if (!taskId || !note || button.disabled) return; button.disabled = true; try { const response = await fetch(root.dataset.progressTemplate.replace('__ID__', taskId), {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content || ''}, body:JSON.stringify({note})}); if (!response.ok) throw new Error(); timeline[String(taskId)] ||= {updates:[], activity:[]}; timeline[String(taskId)].updates.unshift({author:root.dataset.currentUserName || 'ผู้ใช้', avatar_url:root.dataset.currentUserAvatar || null, note, at:new Intl.DateTimeFormat('th-TH',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date())}); input.value = ''; tab = 'updates'; render(); } catch (_) { window.Swal?.fire({icon:'error',title:'ส่งอัปเดตไม่สำเร็จ',text:'กรุณาลองใหม่อีกครั้ง'}); } finally { button.disabled = false; } });
+    const timelineNode = document.querySelector('[data-timeline-data]');
+    const managementNode = document.querySelector('[data-task-management-data]');
+    if (!root || !modal || !panel || !timelineNode || !managementNode) return;
+
+    const timeline = JSON.parse(timelineNode.textContent || '{}');
+    const management = JSON.parse(managementNode.textContent || '{}');
+    let taskId = null;
+    let tab = 'updates';
+
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[character]));
+    const entry = (item) => `<article class="task-timeline-entry"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div><strong>${escapeHtml(item.author)}</strong><p>${escapeHtml(item.note)}</p><small>${escapeHtml(item.at)}</small></div></article>`;
+    const compose = panel.querySelector('.task-timeline__compose');
+
+    const render = () => {
+        const entries = timeline[String(taskId)]?.[tab] || [];
+        panel.hidden = false;
+        panel.querySelectorAll('[data-timeline-tab]').forEach((button) => button.classList.toggle('active', button.dataset.timelineTab === tab));
+        panel.querySelector('[data-timeline-items]').innerHTML = entries.map(entry).join('') || '<p class="task-timeline-empty">ยังไม่มีรายการ</p>';
+        if (compose) compose.hidden = tab !== 'updates';
+    };
+
+    const clearBadges = () => {
+        document.querySelectorAll(`[data-unread-comments="${CSS.escape(String(taskId))}"]`).forEach((badge) => badge.remove());
+        if (management[String(taskId)]) management[String(taskId)].unread_comments = unreadCountAfterRead();
+    };
+
+    const updateNotificationCount = (count) => {
+        const value = Number(count || 0);
+        document.querySelectorAll('[data-notification-count]').forEach((badge) => {
+            badge.textContent = value > 99 ? '99+' : String(value);
+            badge.hidden = value === 0;
+        });
+        document.querySelectorAll('[data-notification-summary]').forEach((summary) => {
+            summary.textContent = `${value} รายการ`;
+            summary.classList.toggle('amber', value > 0);
+            summary.classList.toggle('gray', value === 0);
+        });
+    };
+
+    const markRead = async () => {
+        const url = management[String(taskId)]?.read_comments_url;
+        if (!url) return;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+        });
+        if (response.ok) {
+            clearBadges();
+            const payload = await response.json();
+            updateNotificationCount(payload.unread_count);
+        }
+    };
+
+    const selectUpdates = (shouldMarkRead = true) => {
+        tab = 'updates';
+        render();
+        if (shouldMarkCommentsRead(shouldMarkRead ? 'tab' : 'modal', tab)) markRead();
+    };
+
+    const triggerTaskId = (trigger) => trigger?.dataset.taskId
+        || trigger?.closest('[data-row]')?.dataset.id
+        || trigger?.closest('[data-board-task]')?.dataset.taskId;
+
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-open-task-modal]');
+        const openedTaskId = triggerTaskId(trigger);
+        if (openedTaskId) {
+            taskId = String(openedTaskId);
+            selectUpdates(false);
+        }
+
+        const button = event.target.closest('[data-timeline-tab]');
+        if (!button || !taskId) return;
+        tab = button.dataset.timelineTab;
+        render();
+        if (shouldMarkCommentsRead('tab', tab)) markRead();
+    });
+
+    panel.querySelector('[data-submit-task-update]')?.addEventListener('click', async () => {
+        const input = panel.querySelector('[data-task-update-note]');
+        const button = panel.querySelector('[data-submit-task-update]');
+        const message = input.value.trim();
+        const url = management[String(taskId)]?.comment_url;
+        if (!taskId || !url || !message || button.disabled) return;
+        button.disabled = true;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+                body: JSON.stringify({message}),
+            });
+            if (!response.ok) throw new Error();
+            const payload = await response.json();
+            prependComment(timeline, taskId, payload.comment);
+            input.value = '';
+            selectUpdates(true);
+        } catch (_) {
+            window.Swal?.fire({icon: 'error', title: 'ส่งความคิดเห็นไม่สำเร็จ', text: 'กรุณาลองใหม่อีกครั้ง'});
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    const deepLink = commentDeepLink(window.location.search);
+    const deepLinkedTaskId = deepLink.taskId;
+    if (deepLinkedTaskId) {
+        const trigger = document.querySelector(`[data-row][data-id="${CSS.escape(deepLinkedTaskId)}"] [data-open-task-modal], [data-open-task-modal][data-task-id="${CSS.escape(deepLinkedTaskId)}"]`);
+        if (trigger) {
+            trigger.click();
+            taskId = deepLinkedTaskId;
+            if (shouldMarkCommentsRead('deep-link', deepLink.tab)) selectUpdates(true);
+        }
+    }
 })();

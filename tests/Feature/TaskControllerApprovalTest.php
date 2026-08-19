@@ -95,6 +95,36 @@ class TaskControllerApprovalTest extends TestCase
         $this->assertSame($assignee->id, $job->leader_user_id);
     }
 
+    public function test_viewer_cannot_be_assigned_through_task_creation_endpoints_or_picker(): void
+    {
+        $department = Department::create(['department_name' => 'Management']);
+        $actor = $this->userInDepartment($department);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+        $viewer = $this->userInDepartment($department, 'viewer');
+
+        $this->actingAs($actor)
+            ->postJson(route('tasks.store'), $this->payload($viewer, 'Crafted viewer assignment'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('user_id');
+
+        $this->actingAs($actor)
+            ->postJson(route('mytasks.create'), $this->payload($viewer, 'Crafted My Tasks viewer assignment'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('user_id');
+
+        $this->assertDatabaseMissing('work_orders', ['user_id' => $viewer->id]);
+
+        $this->actingAs($admin)
+            ->get(route('board.index'))
+            ->assertOk()
+            ->assertSee('class="assignee-option" data-id="'.$actor->id.'"', false)
+            ->assertDontSee('class="assignee-option" data-id="'.$viewer->id.'"', false);
+    }
+
     private function userInDepartment(Department $department, string $role = 'user'): User
     {
         return User::factory()->create([

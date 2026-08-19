@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -13,6 +12,10 @@ use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TodayWorkspace;
+use App\Support\WorkOrderAssignee;
+use App\Services\TaskCommentService;
+use App\Services\TaskStatusTransitionService;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -69,6 +72,7 @@ class MyTaskController extends Controller
                 'images',
                 'updates.user.department',
                 'activityLogs.user.department',
+                'reviewSubmitter',
             ])
             ->withCount('images')
             ->orderByRaw('job_status = 4 asc')
@@ -83,6 +87,7 @@ class MyTaskController extends Controller
         $activeTasks = $workOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $completedTasks = $workOrders->filter(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $todayTasks = TodayWorkspace::tasks($workOrders);
+        $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($workOrders->pluck('job_id'), $user);
         $availableCollaborators = User::with('department')
             ->where('role', 'user')
             ->where('id', '!=', $user->id)
@@ -98,7 +103,8 @@ class MyTaskController extends Controller
             'completedTasks',
             'availableCollaborators',
             'projectCreatorMeta',
-            'todayTasks'
+            'todayTasks',
+            'unreadCommentCounts'
         ));
     }
 
@@ -225,8 +231,10 @@ class MyTaskController extends Controller
             ], 201);
         }
 
-        $assignee = User::with('department')->find($validated['user_id'] ?? $actor->id);
-        abort_unless($assignee && $assignee->role !== 'viewer', 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
+        $assignee = isset($validated['user_id'])
+            ? WorkOrderAssignee::findWithDepartment((int) $validated['user_id'])
+            : $actor->loadMissing('department');
+        abort_unless($assignee, 422, 'ผู้รับผิดชอบไม่ถูกต้อง');
 
         $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
         $sameDepartment = $approval['same_department'];
@@ -378,7 +386,7 @@ class MyTaskController extends Controller
             'project_items.*.subtasks' => ['nullable', 'array', 'max:50'],
             'project_items.*.subtasks.*.title' => ['nullable', 'string', 'max:255'],
             'project_items.*.subtasks.*.details' => ['nullable', 'string', 'max:2000'],
-            'user_id' => ['nullable', 'exists:users,id'],
+            'user_id' => WorkOrderAssignee::validationRules(false),
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id'],
             'job_start_at' => ['nullable', 'date'],
@@ -618,48 +626,20 @@ class MyTaskController extends Controller
         ]);
     }
 
-    public function toggleComplete(Request $request, int $job_id): JsonResponse
+    public function toggleComplete(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('update', $workOrder);
-        TodayWorkspace::normalizeLateForTransition($workOrder);
-        abort_if($this->isCompletedLocked($workOrder), 403);
+        $this->authorize('view', $workOrder);
 
         $validated = $request->validate([
             'completed' => 'required|boolean',
+            'action' => ['nullable', 'string', 'in:reopen'],
+            'reason' => ['nullable', 'string', 'max:1000'],
         ]);
-
-        if ((int) $workOrder->job_status === 6 && ! $validated['completed']) {
-            return response()->json(['ok' => false, 'message' => 'งานล่าช้าสามารถย้ายไปเสร็จสิ้นได้เท่านั้น'], 422);
-        }
-
-        if ((int) $workOrder->job_status === 4 && ! $validated['completed'] && Auth::user()?->role !== 'admin') {
-            return response()->json([
-                'ok' => false,
-                'message' => 'โปรเจกต์นี้ปิดแล้ว ไม่สามารถเปิดกลับได้',
-            ], 422);
-        }
-
-        if ($validated['completed'] && ! $this->hasCompletedAllSubtasks($workOrder)) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'กรุณาติ๊กงานย่อยให้ครบทุกข้อก่อนปิดโปรเจกต์',
-            ], 422);
-        }
-
-        $workOrder->update($validated['completed']
-            ? [
-                'job_status' => 4,
-                'job_progress' => 100,
-                'job_completed_at' => now(),
-                'paused_at' => null,
-            ]
-            : [
-                'job_status' => 2,
-                'job_progress' => min((int) $workOrder->job_progress, 99),
-                'job_completed_at' => null,
-                'paused_at' => null,
-            ]);
+        $workOrder = $transitions->transition($workOrder, $request->user(), $validated['completed'] ? 4 : 2, [
+            'action' => $validated['action'] ?? null,
+            'reason' => $validated['reason'] ?? null,
+        ]);
 
         return response()->json([
             'ok' => true,
@@ -741,53 +721,19 @@ class MyTaskController extends Controller
         ]);
     }
 
-    public function updateStatus(Request $request, int $job_id): JsonResponse
+    public function updateStatus(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
         $validated = $request->validate([
-            'job_status' => 'required|integer|in:2,4,5,6',
+            'job_status' => 'required|integer|in:1,2,3,4,5,6',
+            'action' => ['nullable', 'string', 'in:reopen'],
+            'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('update', $workOrder);
-        TodayWorkspace::normalizeLateForTransition($workOrder);
-
-        if ((int) $workOrder->job_status === 6 && ! in_array((int) $validated['job_status'], [4, 6], true)) {
-            return response()->json(['ok' => false, 'message' => 'งานล่าช้าสามารถย้ายไปเสร็จสิ้นได้เท่านั้น'], 422);
-        }
-
-        if ((int) $workOrder->job_status === 4 && (int) $validated['job_status'] !== 4 && Auth::user()?->role !== 'admin') {
-            return response()->json([
-                'ok' => false,
-                'message' => 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะกลับได้',
-            ], 422);
-        }
-
-        if ((int) $validated['job_status'] === 4 && ! $this->hasCompletedAllSubtasks($workOrder)) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'กรุณาติ๊กงานย่อยให้ครบทุกข้อก่อนปิดโปรเจกต์',
-            ], 422);
-        }
-
-        $updates = ['job_status' => $validated['job_status']];
-
-        if ((int) $validated['job_status'] === 5 && (int) $workOrder->job_status !== 5) {
-            $updates['paused_at'] = now();
-        } elseif ((int) $validated['job_status'] !== 5 && (int) $workOrder->job_status === 5) {
-            $updates['paused_at'] = null;
-        }
-
-        if ((int) $validated['job_status'] === 4) {
-            $updates['job_progress'] = 100;
-            $updates['job_completed_at'] = $workOrder->job_completed_at ?? now();
-        }
-
-        $before = $workOrder->attributesToArray();
-        $workOrder->update($updates);
-
-        AuditTrail::log('status_changed', $workOrder, 'เปลี่ยนสถานะงาน: '.$workOrder->job_topic, [
-            'before' => $before,
-            'after' => $workOrder->fresh()->attributesToArray(),
+        $this->authorize('view', $workOrder);
+        $workOrder = $transitions->transition($workOrder, $request->user(), (int) $validated['job_status'], [
+            'action' => $validated['action'] ?? null,
+            'reason' => $validated['reason'] ?? null,
         ]);
 
         return response()->json([
@@ -853,15 +799,7 @@ class MyTaskController extends Controller
         $safeTitle = Str::limit(strip_tags($title), 120, '');
         $safeMessage = Str::limit(strip_tags($message), 1000, '');
 
-        foreach (collect($userIds)->filter()->unique() as $userId) {
-            SystemNotification::create([
-                'user_id' => $userId,
-                'work_order_id' => $job->job_id,
-                'type' => $type,
-                'title' => $safeTitle,
-                'message' => $safeMessage,
-            ]);
-        }
+        app(NotificationService::class)->notify($userIds, $type, $safeTitle, $safeMessage, $job, Auth::user());
     }
 
     private function hasCompletedAllSubtasks(WorkOrder $workOrder): bool

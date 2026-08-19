@@ -27,34 +27,30 @@ test('a missing range boundary falls back to a one-day task', () => {
     assert.equal(normalizeCalendarTask({id: 3, start: '', due: ''}), null);
 });
 
-test('inclusive multi-day tasks split into continuous segments at week boundaries', () => {
+test('multi-day tasks render start and end milestones across week boundaries', () => {
     const calendar = buildMonthCalendar([
         {id: 1, title: 'Cross-week task', start: '2026-08-07', due: '2026-08-11'},
     ], 2026, 7);
-    const firstSegment = calendar.weeks[1].visibleSegments[0];
-    const secondSegment = calendar.weeks[2].visibleSegments[0];
+    const startDay = calendar.days.find((day) => day.key === '2026-08-07');
+    const endDay = calendar.days.find((day) => day.key === '2026-08-11');
 
-    assert.deepEqual([firstSegment.columnStart, firstSegment.columnEnd], [5, 8]);
-    assert.equal(firstSegment.continuesBefore, false);
-    assert.equal(firstSegment.continuesAfter, true);
-    assert.deepEqual([secondSegment.columnStart, secondSegment.columnEnd], [1, 3]);
-    assert.equal(secondSegment.continuesBefore, true);
-    assert.equal(secondSegment.continuesAfter, false);
+    assert.equal(startDay.visibleMilestones[0].kind, 'start');
+    assert.equal(endDay.visibleMilestones[0].kind, 'end');
     assert.equal(calendar.weeks[2].days[1].tasks.length, 1);
 });
 
-test('a task remains continuous when its range crosses into the next month', () => {
+test('a task keeps start and end milestones when its range crosses into the next month', () => {
     const calendar = buildMonthCalendar([
         {id: 1, title: 'Month boundary', start: '2026-08-30', due: '2026-09-02'},
     ], 2026, 7);
 
-    assert.equal(calendar.weeks[4].visibleSegments[0].continuesAfter, true);
-    assert.equal(calendar.weeks[5].visibleSegments[0].continuesBefore, true);
+    assert.equal(calendar.days.find((day) => day.key === '2026-08-30').visibleMilestones[0].kind, 'start');
+    assert.equal(calendar.days.find((day) => day.key === '2026-09-02').visibleMilestones[0].kind, 'end');
     assert.equal(calendar.weeks[5].days[2].key, '2026-09-02');
     assert.equal(calendar.weeks[5].days[2].tasks.length, 1);
 });
 
-test('only three overlapping lanes render and each day reports its hidden task count', () => {
+test('only three overlapping milestones render and each day reports its hidden task count', () => {
     const tasks = Array.from({length: 4}, (_, index) => ({
         id: index + 1,
         title: `Task ${index + 1}`,
@@ -65,13 +61,13 @@ test('only three overlapping lanes render and each day reports its hidden task c
     const week = calendar.weeks[2];
     const augustTenth = week.days.find((day) => day.key === '2026-08-10');
 
-    assert.equal(week.visibleSegments.length, 3);
-    assert.equal(week.segments.length, 4);
+    assert.equal(augustTenth.visibleMilestones.length, 3);
+    assert.equal(augustTenth.milestones.length, 4);
     assert.equal(augustTenth.tasks.length, 4);
     assert.equal(augustTenth.hiddenCount, 1);
 });
 
-test('a task hidden on a crowded day uses a free visible lane on following days', () => {
+test('a hidden start milestone does not hide its later end milestone', () => {
     const tasks = [
         {id: 1, title: 'Blocker 1', start: '2026-08-03', due: '2026-08-05'},
         {id: 2, title: 'Blocker 2', start: '2026-08-03', due: '2026-08-05'},
@@ -82,14 +78,13 @@ test('a task hidden on a crowded day uses a free visible lane on following days'
     const wednesday = week.days.find((day) => day.key === '2026-08-05');
     const thursday = week.days.find((day) => day.key === '2026-08-06');
     const friday = week.days.find((day) => day.key === '2026-08-07');
-    const visiblePiece = week.visibleSegments.find((segment) => segment.task.id === '4');
+    const visibleEnd = friday.visibleMilestones.find((milestone) => milestone.task.id === '4');
 
     assert.equal(wednesday.hiddenCount, 1);
     assert.equal(thursday.hiddenCount, 0);
     assert.equal(friday.hiddenCount, 0);
-    assert.deepEqual([visiblePiece.columnStart, visiblePiece.columnEnd], [4, 6]);
-    assert.equal(visiblePiece.continuesBefore, true);
-    assert.equal(visiblePiece.lane, 0);
+    assert.equal(wednesday.visibleMilestones.some((milestone) => milestone.task.id === '4'), false);
+    assert.equal(visibleEnd.kind, 'end');
 });
 
 test('successful mutations synchronize the shared task row and emit one common event', () => {
