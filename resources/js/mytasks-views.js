@@ -13,13 +13,16 @@
 
     let tableGrouping = groupSelect?.value || 'project';
     const setView = (view, announce = true) => {
-        if (!['table', 'board'].includes(view)) view = 'table';
+        if (!['table', 'board', 'calendar'].includes(view)) view = 'table';
         database.dataset.view = view;
         if (boardToolbar) boardToolbar.hidden = view !== 'board';
         buttons.forEach((button) => {
             const active = button.dataset.view === view;
             button.classList.toggle('active', active);
             button.setAttribute('aria-selected', String(active));
+        });
+        workspace.querySelectorAll('[data-view-panel]').forEach((panel) => {
+            panel.setAttribute('aria-hidden', String(panel.dataset.viewPanel !== view));
         });
 
         if (groupSelect) groupSelect.disabled = false;
@@ -30,6 +33,7 @@
         }
 
         try { localStorage.setItem('smart-goal-my-tasks-view', view); } catch (_) {}
+        document.dispatchEvent(new CustomEvent('mytasks:viewchange', {detail: {view}}));
         if (announce) document.querySelector('[data-toast]')?.dispatchEvent(new CustomEvent('viewchange'));
     };
 

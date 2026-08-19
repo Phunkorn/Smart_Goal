@@ -91,6 +91,27 @@ class TodayWorkspaceTest extends TestCase
         $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->contains($future->job_id));
     }
 
+    public function test_user_my_tasks_renders_calendar_without_removing_today_or_full_task_sources(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $today = $this->job($user, 2, now(), now()->addDay());
+        $future = $this->job($user, 1, now()->addMonth(), now()->addMonth()->addDays(3));
+
+        $response = $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+
+        $response
+            ->assertSee('data-view="table"', false)
+            ->assertSee('data-view="board"', false)
+            ->assertSee('data-view="calendar"', false)
+            ->assertSee('data-calendar', false)
+            ->assertSee('data-project-board', false)
+            ->assertSee('data-table-kanban', false)
+            ->assertSee('data-workspace-task-source', false)
+            ->assertSee('data-id="'.$future->job_id.'"', false);
+        $response->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$today->job_id]);
+        $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->contains($future->job_id));
+    }
+
     private function job(User $user, int $status, $start, $due, array $extra = []): WorkOrder
     {
         return WorkOrder::create(array_merge([

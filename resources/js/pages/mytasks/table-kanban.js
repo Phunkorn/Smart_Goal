@@ -1,3 +1,5 @@
+import {synchronizeTaskSource} from './task-state.js';
+
 (() => {
     const root = document.querySelector('[data-workspace]'); const kanban = root?.querySelector('[data-kanban]'); if (!root || !kanban) return;
 
@@ -86,6 +88,7 @@
                     body: JSON.stringify({job_status: status}),
                 });
                 if (!response.ok) throw new Error('status update failed');
+                synchronizeTaskSource(root, card.dataset.id, {status});
             } catch (error) {
                 card.dataset.status = previousStatus;
                 previousZone?.append(card);

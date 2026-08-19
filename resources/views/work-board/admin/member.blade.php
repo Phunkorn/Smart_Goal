@@ -47,9 +47,10 @@
         data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
         data-current-user-name="{{ auth()->user()->name }}"
         data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.show', ['path' => auth()->user()->profile_image]) : '' }}">
-        <nav class="notion-viewbar">
+        <nav class="notion-viewbar" role="tablist" aria-label="รูปแบบการแสดงงาน">
             <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i>ตาราง</button>
             <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i>บอร์ด</button>
+            <button type="button" data-view="calendar" role="tab" aria-selected="false" aria-controls="mytasks-calendar"><i class="bi bi-calendar3"></i>ปฏิทิน</button>
         </nav>
 
         <section class="notion-database">
@@ -67,6 +68,7 @@
                 <div class="mytasks-kanban-view" data-table-kanban>
                     @include('tasks.partials.table-kanban', ['allTasks' => $todayTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'projectCreatorMeta' => $projectCreatorMeta, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
                 </div>
+                @include('tasks.partials.calendar')
                 @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
             </div>
         </section>

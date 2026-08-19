@@ -36,9 +36,10 @@
         <div class="notion-heading-copy"><span class="heading-mark"><i class="bi bi-check2-square"></i></span><div><span class="notion-kicker">WORK MANAGEMENT</span><h1>งานของฉัน</h1><p>จัดลำดับงาน ติดตามความคืบหน้า และทำงานร่วมกับทีมในพื้นที่เดียว</p></div></div>
     </section>
 
-    <nav class="notion-viewbar">
+    <nav class="notion-viewbar" role="tablist" aria-label="รูปแบบการแสดงงาน">
         <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i> ตาราง</button>
         <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i> บอร์ด</button>
+        <button type="button" data-view="calendar" role="tab" aria-selected="false" aria-controls="mytasks-calendar"><i class="bi bi-calendar3"></i> ปฏิทิน</button>
     </nav>
 
     <section class="notion-database">
@@ -58,6 +59,8 @@
             <div class="mytasks-kanban-view" data-table-kanban>
                 @include('tasks.partials.table-kanban', ['allTasks' => $todayTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
             </div>
+
+            @include('tasks.partials.calendar')
 
             @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
         </div>
