@@ -46,7 +46,7 @@ export const normalizeCalendarTask = (task) => {
 
 const taskOrder = (left, right) => (
     left.startStamp - right.startStamp
-    || right.dueStamp - left.dueStamp
+    || left.dueStamp - right.dueStamp
     || String(left.title || '').localeCompare(String(right.title || ''), 'th')
     || left.id.localeCompare(right.id)
 );
@@ -70,101 +70,45 @@ export const buildMonthGrid = (year, month) => {
     });
 };
 
+const milestoneFor = (task, stamp) => {
+    if (task.startStamp === task.dueStamp) {
+        return {task, kind: 'single', stamp};
+    }
+
+    if (stamp === task.startStamp) {
+        return {task, kind: 'start', stamp};
+    }
+
+    if (stamp === task.dueStamp) {
+        return {task, kind: 'end', stamp};
+    }
+
+    return null;
+};
+
 export const buildMonthCalendar = (tasks, year, month, maxVisible = 3) => {
     const days = buildMonthGrid(year, month);
     const normalizedTasks = tasks.map(normalizeCalendarTask).filter(Boolean).sort(taskOrder);
-    const weeks = Array.from({length: 6}, (_, weekIndex) => {
-        const weekDays = days.slice(weekIndex * 7, (weekIndex + 1) * 7);
-        const weekStart = weekDays[0].stamp;
-        const weekEnd = weekDays[6].stamp;
 
-        const segments = normalizedTasks
-            .filter((task) => task.startStamp <= weekEnd && task.dueStamp >= weekStart)
-            .map((task) => ({
-                task,
-                startStamp: Math.max(task.startStamp, weekStart),
-                dueStamp: Math.min(task.dueStamp, weekEnd),
-            }))
-            .sort((left, right) => (
-                left.startStamp - right.startStamp
-                || right.dueStamp - left.dueStamp
-                || taskOrder(left.task, right.task)
-            ));
+    const renderedDays = days.map((day) => {
+        const activeTasks = normalizedTasks.filter((task) => task.startStamp <= day.stamp && task.dueStamp >= day.stamp);
+        const milestones = normalizedTasks
+            .map((task) => milestoneFor(task, day.stamp))
+            .filter(Boolean)
+            .sort((left, right) => taskOrder(left.task, right.task));
 
-        let previousLanes = new Map();
-        const dayLayouts = weekDays.map((day) => {
-            const dayTasks = normalizedTasks.filter((task) => task.startStamp <= day.stamp && task.dueStamp >= day.stamp);
-            const lanes = Array.from({length: maxVisible}, () => null);
-            const laneByTask = new Map();
-
-            dayTasks
-                .filter((task) => previousLanes.has(task.id))
-                .sort((left, right) => previousLanes.get(left.id) - previousLanes.get(right.id))
-                .forEach((task) => {
-                    const lane = previousLanes.get(task.id);
-                    if (lane >= maxVisible || lanes[lane] !== null) return;
-                    lanes[lane] = task.id;
-                    laneByTask.set(task.id, lane);
-                });
-
-            dayTasks.forEach((task) => {
-                if (laneByTask.has(task.id)) return;
-                const lane = lanes.findIndex((taskId) => taskId === null);
-                if (lane === -1) return;
-                lanes[lane] = task.id;
-                laneByTask.set(task.id, lane);
-            });
-
-            previousLanes = laneByTask;
-
-            return {
-                ...day,
-                tasks: dayTasks,
-                laneByTask,
-                hiddenCount: dayTasks.filter((task) => !laneByTask.has(task.id)).length,
-            };
-        });
-
-        const openPieces = new Map();
-        const visibleSegments = [];
-        dayLayouts.forEach((day, dayIndex) => {
-            const visibleToday = new Set();
-            day.laneByTask.forEach((lane, taskId) => {
-                visibleToday.add(taskId);
-                const existing = openPieces.get(taskId);
-                if (existing && existing.lane === lane && existing.columnEnd === dayIndex + 1) {
-                    existing.dueStamp = day.stamp;
-                    existing.columnEnd = dayIndex + 2;
-                    return;
-                }
-
-                const task = day.tasks.find((candidate) => candidate.id === taskId);
-                const piece = {
-                    task,
-                    startStamp: day.stamp,
-                    dueStamp: day.stamp,
-                    lane,
-                    columnStart: dayIndex + 1,
-                    columnEnd: dayIndex + 2,
-                };
-                visibleSegments.push(piece);
-                openPieces.set(taskId, piece);
-            });
-
-            [...openPieces.keys()].forEach((taskId) => {
-                if (!visibleToday.has(taskId)) openPieces.delete(taskId);
-            });
-        });
-
-        visibleSegments.forEach((segment) => {
-            segment.continuesBefore = segment.task.startStamp < segment.startStamp;
-            segment.continuesAfter = segment.task.dueStamp > segment.dueStamp;
-        });
-
-        const renderedDays = dayLayouts.map(({laneByTask, ...day}) => day);
-
-        return {days: renderedDays, segments, visibleSegments};
+        return {
+            ...day,
+            tasks: activeTasks,
+            milestones,
+            visibleMilestones: milestones.slice(0, maxVisible),
+            hiddenCount: Math.max(0, milestones.length - maxVisible),
+        };
     });
 
-    return {days, tasks: normalizedTasks, weeks};
+    const weeks = Array.from({length: 6}, (_, weekIndex) => ({
+        days: renderedDays.slice(weekIndex * 7, (weekIndex + 1) * 7),
+    }));
+
+    return {days: renderedDays, tasks: normalizedTasks, weeks};
 };
