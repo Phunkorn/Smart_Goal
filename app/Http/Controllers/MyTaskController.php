@@ -12,6 +12,7 @@ use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\ProjectCreatorSummary;
+use App\Support\TodayWorkspace;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -54,6 +55,9 @@ class MyTaskController extends Controller
                 ->update(['work_order_list_id' => $defaultList->id]);
         }
 
+        TodayWorkspace::synchronizeActiveToday($this->baseWorkOrderQuery());
+        TodayWorkspace::synchronizeLate($this->baseWorkOrderQuery());
+
         $workOrders = $this->baseWorkOrderQuery()
             ->with([
                 'taskList',
@@ -78,6 +82,7 @@ class MyTaskController extends Controller
         $visibleLists = $taskLists->where('is_visible', true)->values();
         $activeTasks = $workOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $completedTasks = $workOrders->filter(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
+        $todayTasks = TodayWorkspace::tasks($workOrders);
         $availableCollaborators = User::with('department')
             ->where('role', 'user')
             ->where('id', '!=', $user->id)
@@ -92,7 +97,8 @@ class MyTaskController extends Controller
             'activeTasks',
             'completedTasks',
             'availableCollaborators',
-            'projectCreatorMeta'
+            'projectCreatorMeta',
+            'todayTasks'
         ));
     }
 
@@ -616,11 +622,16 @@ class MyTaskController extends Controller
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorize('update', $workOrder);
+        TodayWorkspace::normalizeLateForTransition($workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         $validated = $request->validate([
             'completed' => 'required|boolean',
         ]);
+
+        if ((int) $workOrder->job_status === 6 && ! $validated['completed']) {
+            return response()->json(['ok' => false, 'message' => 'งานล่าช้าสามารถย้ายไปเสร็จสิ้นได้เท่านั้น'], 422);
+        }
 
         if ((int) $workOrder->job_status === 4 && ! $validated['completed'] && Auth::user()?->role !== 'admin') {
             return response()->json([
@@ -641,11 +652,13 @@ class MyTaskController extends Controller
                 'job_status' => 4,
                 'job_progress' => 100,
                 'job_completed_at' => now(),
+                'paused_at' => null,
             ]
             : [
                 'job_status' => 2,
                 'job_progress' => min((int) $workOrder->job_progress, 99),
                 'job_completed_at' => null,
+                'paused_at' => null,
             ]);
 
         return response()->json([
@@ -731,11 +744,16 @@ class MyTaskController extends Controller
     public function updateStatus(Request $request, int $job_id): JsonResponse
     {
         $validated = $request->validate([
-            'job_status' => 'required|integer|in:2,4,5',
+            'job_status' => 'required|integer|in:2,4,5,6',
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorize('update', $workOrder);
+        TodayWorkspace::normalizeLateForTransition($workOrder);
+
+        if ((int) $workOrder->job_status === 6 && ! in_array((int) $validated['job_status'], [4, 6], true)) {
+            return response()->json(['ok' => false, 'message' => 'งานล่าช้าสามารถย้ายไปเสร็จสิ้นได้เท่านั้น'], 422);
+        }
 
         if ((int) $workOrder->job_status === 4 && (int) $validated['job_status'] !== 4 && Auth::user()?->role !== 'admin') {
             return response()->json([
@@ -752,6 +770,12 @@ class MyTaskController extends Controller
         }
 
         $updates = ['job_status' => $validated['job_status']];
+
+        if ((int) $validated['job_status'] === 5 && (int) $workOrder->job_status !== 5) {
+            $updates['paused_at'] = now();
+        } elseif ((int) $validated['job_status'] !== 5 && (int) $workOrder->job_status === 5) {
+            $updates['paused_at'] = null;
+        }
 
         if ((int) $validated['job_status'] === 4) {
             $updates['job_progress'] = 100;

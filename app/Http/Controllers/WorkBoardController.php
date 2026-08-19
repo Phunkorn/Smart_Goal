@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Support\ProjectCreatorSummary;
+use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -237,9 +238,14 @@ class WorkBoardController extends Controller
     {
         abort_unless((int) $user->department_id === (int) $department->id && $user->role === 'user', 404);
 
-        $allJobs = WorkOrder::query()
+        $memberJobsQuery = WorkOrder::query()
             ->where('department_id', $department->id)
-            ->where('user_id', $user->id)
+            ->where('user_id', $user->id);
+
+        TodayWorkspace::synchronizeActiveToday($memberJobsQuery);
+        TodayWorkspace::synchronizeLate($memberJobsQuery);
+
+        $allJobs = $memberJobsQuery
             ->with([
                 'taskList.attachments',
                 'subtasks',
@@ -271,6 +277,7 @@ class WorkBoardController extends Controller
             ->values();
         $activeTasks = $jobs->reject(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $completedTasks = $jobs->filter(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
+        $todayTasks = TodayWorkspace::tasks($allJobs);
 
         return view('work-board.admin.member', [
             'department' => $department,
@@ -281,6 +288,7 @@ class WorkBoardController extends Controller
             'manageableTaskLists' => $manageableTaskLists,
             'activeTasks' => $activeTasks,
             'completedTasks' => $completedTasks,
+            'todayTasks' => $todayTasks,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values(),
             'availableCollaborators' => User::with('department')

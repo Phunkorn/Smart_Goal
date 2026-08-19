@@ -40,6 +40,8 @@ class WorkOrder extends Model
         'job_start_at',
         'job_due_at',
         'job_completed_at',
+        'paused_at',
+        'late_at',
     ];
 
     protected function casts(): array
@@ -48,6 +50,8 @@ class WorkOrder extends Model
             'job_start_at' => 'datetime',
             'job_due_at' => 'datetime',
             'job_completed_at' => 'datetime',
+            'paused_at' => 'datetime',
+            'late_at' => 'datetime',
             'approved_at' => 'datetime',
             'delete_requested_at' => 'datetime',
 

@@ -67,6 +67,10 @@ import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from '
         form.elements.job_status.value = row.querySelector('[data-field="status"]')?.value || row.dataset.status;
         form.elements.job_priority.value = row.querySelector('[data-field="priority"]')?.value || row.dataset.priority;
         setModalStatus(Number(form.elements.job_status.value));
+        const isLate = Number(form.elements.job_status.value) === 6;
+        form.querySelectorAll('[data-modal-status-value]').forEach((button) => {
+            button.disabled = isLate && ![4, 6].includes(Number(button.dataset.modalStatusValue));
+        });
         setModalPriority(Number(form.elements.job_priority.value));
         form.elements.job_due_at.value = row.querySelector('[data-field="due"]')?.value || row.dataset.due || '';
         form.elements.job_start_at.value = row.dataset.start || '';

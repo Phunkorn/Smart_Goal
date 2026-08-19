@@ -9,7 +9,7 @@
         5: 'ไม่รีบ ไม่มีกำหนด',
     };
 
-    const refresh = () => kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => { let total = 0; panel.querySelectorAll('[data-kanban-column]').forEach((column) => { const count = column.querySelectorAll('[data-kanban-card]').length; column.querySelector('[data-kanban-count]').textContent = count; total += count; }); if (!panel.hidden) kanban.querySelector('[data-kanban-project-count]').textContent = `${total} งาน`; });
+    const refresh = () => kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => { let total = 0; panel.querySelectorAll('[data-kanban-column]').forEach((column) => { const count = column.querySelectorAll('[data-kanban-card]').length; column.querySelector('[data-kanban-count]').textContent = count; total += count; }); const totalNode = kanban.querySelector('[data-kanban-project-count]'); if (!panel.hidden && totalNode) totalNode.textContent = `${total} งาน`; });
 
     kanban.querySelector('[data-kanban-project]')?.addEventListener('change', (event) => { kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => panel.hidden = panel.dataset.kanbanPanel !== event.target.value); const addButton = kanban.querySelector('[data-add-in-group]'); const manageable = event.target.selectedOptions[0]?.dataset.manageable === '1'; if (addButton) { addButton.dataset.listId = manageable ? event.target.value : ''; addButton.disabled = !manageable; } refresh(); });
 
@@ -40,7 +40,67 @@
     let dragged = null;
     kanban.querySelectorAll('[data-kanban-card]').forEach((card) => { card.draggable = true; card.querySelectorAll('*').forEach((item) => item.draggable = true); card.addEventListener('dragstart', (event) => { dragged = card; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', card.dataset.id); card.classList.add('is-dragging'); }); card.addEventListener('dragend', () => { card.classList.remove('is-dragging'); dragged = null; }); });
 
-    kanban.querySelectorAll('[data-kanban-column]').forEach((column) => { const dropZone = column.querySelector('.mytasks-kanban__cards'); const allowDrop = (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; column.classList.add('is-drop-target'); }; const drop = (event) => { event.preventDefault(); column.classList.remove('is-drop-target'); if (!dragged) return; const card = dragged; const status = Number(column.dataset.kanbanColumn); const previousZone = card.parentElement; const previousStatus = card.dataset.status; if (Number(previousStatus) === status) return; card.dataset.status = String(status); dropZone?.append(card); refresh(); fetch(root.dataset.statusTemplate.replace('__ID__', card.dataset.id), {method:'PATCH', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content || ''}, body:JSON.stringify({job_status:status})}).then(async (response) => { if (response.ok) return; const data = await response.json().catch(() => ({})); card.dataset.status = previousStatus; previousZone?.append(card); refresh(); window.Swal?.fire({icon:'error', title:'เปลี่ยนสถานะไม่สำเร็จ', text:data.message || 'กรุณาลองใหม่'}); }).catch(() => { card.dataset.status = previousStatus; previousZone?.append(card); refresh(); }); }; [column, dropZone].filter(Boolean).forEach((target) => { target.addEventListener('dragover', allowDrop); target.addEventListener('dragenter', allowDrop); target.addEventListener('drop', drop); target.addEventListener('dragleave', (event) => { if (!column.contains(event.relatedTarget)) column.classList.remove('is-drop-target'); }); }); });
+    kanban.querySelectorAll('[data-kanban-column]').forEach((column) => {
+        const dropZone = column.querySelector('.mytasks-kanban__cards');
+        const allowDrop = (event) => {
+            if (Number(dragged?.dataset.status) === 6 && Number(column.dataset.kanbanColumn) !== 4) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            column.classList.add('is-drop-target');
+        };
+        const drop = async (event) => {
+            event.preventDefault();
+            column.classList.remove('is-drop-target');
+            if (!dragged) return;
+
+            const card = dragged;
+            const status = Number(column.dataset.kanbanColumn);
+            const previousZone = card.parentElement;
+            const previousStatus = card.dataset.status;
+            if (Number(previousStatus) === status || (Number(previousStatus) === 6 && status !== 4)) return;
+
+            if (Number(previousStatus) === 6 && status === 4) {
+                const confirmation = await window.Swal.fire({
+                    icon: 'question',
+                    title: 'งานนี้เสร็จแล้วใช่ไหม?',
+                    showCancelButton: true,
+                    confirmButtonText: 'ใช่, เสร็จแล้ว',
+                    cancelButtonText: 'ยกเลิก',
+                    reverseButtons: true,
+                });
+                if (!confirmation.isConfirmed) return;
+            }
+
+            card.dataset.status = String(status);
+            dropZone?.append(card);
+            refresh();
+
+            try {
+                const response = await fetch(root.dataset.statusTemplate.replace('__ID__', card.dataset.id), {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({job_status: status}),
+                });
+                if (!response.ok) throw new Error('status update failed');
+            } catch (error) {
+                card.dataset.status = previousStatus;
+                previousZone?.append(card);
+                refresh();
+            }
+        };
+        [column, dropZone].filter(Boolean).forEach((target) => {
+            target.addEventListener('dragover', allowDrop);
+            target.addEventListener('dragenter', allowDrop);
+            target.addEventListener('drop', drop);
+            target.addEventListener('dragleave', (event) => {
+                if (!column.contains(event.relatedTarget)) column.classList.remove('is-drop-target');
+            });
+        });
+    });
 const projectPriorityMeta = {
     1: { label: 'สำคัญ/ต่ำ', className: 'priority-low' },
     2: { label: 'สำคัญ/กลาง', className: 'priority-medium' },

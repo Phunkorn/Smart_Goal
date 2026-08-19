@@ -184,8 +184,8 @@
 
     <label class="task-field">
         <span>สถานะ</span>
-        <select name="job_status" hidden aria-hidden="true" tabindex="-1"><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="4">เสร็จแล้ว</option><option value="5">พักงาน</option></select>
-        <details class="board-status-menu modal-status-menu" data-modal-status-menu><summary class="board-status-pill"><span data-modal-status-label></span><i class="bi bi-chevron-down"></i></summary><div>@foreach([1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']] as $value=>$meta)<button type="button" class="status-{{ $meta[1] }}" data-modal-status-value="{{ $value }}">{{ $meta[0] }}</button>@endforeach</div></details>
+        <select name="job_status" hidden aria-hidden="true" tabindex="-1"><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="4">เสร็จแล้ว</option><option value="5">พักงาน</option><option value="6">ล่าช้า</option></select>
+        <details class="board-status-menu modal-status-menu" data-modal-status-menu><summary class="board-status-pill"><span data-modal-status-label></span><i class="bi bi-chevron-down"></i></summary><div>@foreach([1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused'],6=>['ล่าช้า','late']] as $value=>$meta)<button type="button" class="status-{{ $meta[1] }}" data-modal-status-value="{{ $value }}">{{ $meta[0] }}</button>@endforeach</div></details>
     </label>
 
     <label class="task-field">

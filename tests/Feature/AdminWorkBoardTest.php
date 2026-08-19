@@ -85,7 +85,8 @@ class AdminWorkBoardTest extends TestCase
             ->assertDontSee('data-group>', false)
             ->assertSee(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]));
 
-        $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$memberTask->job_id]);
+        $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$memberTask->job_id])
+            ->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$memberTask->job_id]);
 
         $this->assertSame($admin->id, auth()->id());
         $this->assertSame($project->id, $memberTask->fresh()->work_order_list_id);

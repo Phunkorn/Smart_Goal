@@ -9,19 +9,7 @@
 @section('content')
 @php
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
-    $today = now()->startOfDay();
-    $todayEnd = now()->endOfDay();
-    $todayTasks = $allTasks->filter(function ($task) use ($today, $todayEnd) {
-        $start = $task->job_start_at?->copy()->startOfDay();
-        $due = $task->job_due_at?->copy()->endOfDay();
-
-        if ((int) $task->job_status === 4) {
-            return $task->job_completed_at?->between($today, $todayEnd) ?? false;
-        }
-
-        return (! $start || $start->lte($todayEnd)) && (! $due || $due->gte($today));
-    })->values();
-    $statusLabels = [1 => 'ยังไม่เริ่ม', 2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน'];
+    $statusLabels = [1 => 'ยังไม่เริ่ม', 2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน', 6 => 'ล่าช้า'];
     $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
     $workspaceContext = 'admin-member';
     $showCreateActions = false;
@@ -65,7 +53,7 @@
         </nav>
 
         <section class="notion-database">
-            <div class="notion-toolbar">
+            <div class="notion-toolbar" data-board-toolbar hidden>
                 <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องานหรือโปรเจกต์"></label>
                 <label class="notion-group is-locked">สมาชิก <select disabled><option>{{ $member->name }}</option></select></label>
                 <label class="notion-filter"><i class="bi bi-funnel"></i><select data-filter><option value="">ทุกสถานะ</option><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="5">พักงาน</option><option value="late">ล่าช้า</option><option value="4">เสร็จแล้ว</option></select></label>

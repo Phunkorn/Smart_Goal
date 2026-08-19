@@ -4,6 +4,7 @@ export const statusMeta = {
     3: {className: 'status-review', label: 'รอตรวจสอบ'},
     4: {className: 'status-done', label: 'เสร็จแล้ว'},
     5: {className: 'status-paused', label: 'พักงาน'},
+    6: {className: 'status-late', label: 'ล่าช้า'},
 };
 
 export const projectPriorityMeta = {
@@ -20,6 +21,6 @@ export const taskPriorityMeta = {
     5: {className: 'priority-flexible', label: 'ไม่รีบ ไม่มีกำหนด'},
 };
 
-export const statusClasses = [...Object.values(statusMeta).map(({className}) => className), 'status-late'];
+export const statusClasses = Object.values(statusMeta).map(({className}) => className);
 export const taskPriorityClasses = Object.values(taskPriorityMeta).map(({className}) => className);
 export const projectPriorityClasses = Object.values(projectPriorityMeta).map(({className}) => className);

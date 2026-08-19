@@ -102,9 +102,10 @@ class AdminProjectCreationTest extends TestCase
             ->assertSee('brief.jpg')
             ->assertSee('Prepare environment')
             ->assertSee('มอบหมายโดย '.$admin->name)
-            ->assertDontSee('Deploy release')
+            ->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$firstTask->job_id])
             ->assertViewHas('manageableTaskLists', fn ($lists) => $lists->isEmpty())
-            ->assertSee('data-manageable="0"', false)
+            ->assertSee('data-board-toolbar hidden', false)
+            ->assertDontSee('data-kanban-project', false)
             ->assertDontSee('data-add-in-group data-list-id="'.$project->id.'"', false);
         $this->assertSame($project->id, $firstTask->fresh()->work_order_list_id);
         $this->assertSame($project->id, $secondTask->fresh()->work_order_list_id);
@@ -236,10 +237,8 @@ class AdminProjectCreationTest extends TestCase
             ->assertViewHas('manageableTaskLists', fn ($lists) => $lists->pluck('id')->all() === [$ownedProject->id])
             ->assertDontSee('data-add-in-group data-list-id="'.$adminProject->id.'"', false);
 
-        $this->assertMatchesRegularExpression(
-            '/<option value="'.$ownedProject->id.'"[^>]*data-manageable="1"[^>]*selected/',
-            $response->getContent()
-        );
+        $response->assertDontSee('data-kanban-project', false)
+            ->assertDontSee('class="mytasks-kanban__toolbar"', false);
 
         $this->postJson(route('mytasks.store'), ['job_topic' => 'Owned quick task'])
             ->assertCreated();

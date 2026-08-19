@@ -28,7 +28,11 @@ final class WorkBoardDesign
 
     public static function statusKey(WorkOrder $job): string
     {
-        if ((int) $job->job_status !== 4 && $job->job_due_at?->copy()->endOfDay()->isPast()) {
+        if ((int) $job->job_status === 5) {
+            return 'paused';
+        }
+
+        if ((int) $job->job_status === 6 || ((int) $job->job_status !== 4 && $job->job_due_at?->copy()->endOfDay()->isPast())) {
             return 'late';
         }
 
@@ -36,7 +40,6 @@ final class WorkBoardDesign
             2 => 'doing',
             3 => 'review',
             4 => 'done',
-            5 => 'paused',
             default => 'todo',
         };
     }

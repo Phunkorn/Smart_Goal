@@ -1,7 +1,7 @@
 @php
     $showQuickAdd = $showQuickAdd ?? true;
     $workspaceContext = $workspaceContext ?? 'user';
-    $isLate = (int) $task->job_status !== 4 && $task->job_due_at?->isPast();
+    $isLate = (int) $task->job_status === 6;
     $statusText = $isLate ? 'ล่าช้า' : ($statusLabels[(int) $task->job_status] ?? 'ยังไม่เริ่ม');
     $statusClass = $isLate ? 'late' : match((int) $task->job_status) {2=>'progress',3=>'review',4=>'done',5=>'paused',default=>'todo'};
     $projectName = $task->taskList?->name ?? 'งานทั่วไป';

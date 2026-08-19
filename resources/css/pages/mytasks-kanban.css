@@ -59,6 +59,10 @@
     border-top-color: #d97706;
 }
 
+.my-tasks-page .mytasks-kanban__column.status-late {
+    border-top-color: #dc3d39;
+}
+
 /* CARD */
 
 .my-tasks-page .mytasks-kanban__cards {

@@ -13,6 +13,7 @@ use App\Models\WorkOrderUpdate;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
+use App\Support\TodayWorkspace;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -551,11 +552,17 @@ class TaskController extends Controller
         $this->authorize('update', $job);
 
         $validated = $request->validate([
-            'job_status' => ['required', 'integer', 'in:1,2,3,4,5'],
+            'job_status' => ['required', 'integer', 'in:1,2,3,4,5,6'],
             'job_progress' => ['nullable', 'integer', 'min:0', 'max:100'],
             'completion_attachments' => ['nullable', 'array', 'max:5'],
             'completion_attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
         ]);
+
+        TodayWorkspace::normalizeLateForTransition($job);
+
+        if ((int) $job->job_status === 6 && ! in_array((int) $validated['job_status'], [4, 6], true)) {
+            return $this->jsonOrBack($request, false, 'งานล่าช้าสามารถย้ายไปเสร็จสิ้นได้เท่านั้น', 422);
+        }
 
         if ((int) $job->job_status === 4 && (int) $validated['job_status'] !== 4 && $user?->role !== 'admin') {
             return $this->jsonOrBack($request, false, 'งานนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะกลับได้', 422);
@@ -571,10 +578,16 @@ class TaskController extends Controller
 
         DB::transaction(function () use ($job, $validated, $request) {
             $newStatus = (int) $validated['job_status'];
+            $previousStatus = (int) $job->job_status;
 
             $job->job_status = $newStatus;
             $job->job_progress = $newStatus === 4 ? 100 : ($validated['job_progress'] ?? $job->job_progress ?? 0);
             $job->job_completed_at = $newStatus === 4 ? ($job->job_completed_at ?: now()) : null;
+            if ($newStatus === 5 && $previousStatus !== 5) {
+                $job->paused_at = now();
+            } elseif ($newStatus !== 5 && $previousStatus === 5) {
+                $job->paused_at = null;
+            }
             $job->save();
 
             if ($newStatus === 4) {
@@ -740,6 +753,7 @@ class TaskController extends Controller
         $user = Auth::user();
 
         $this->authorize('update', $job);
+        TodayWorkspace::normalizeLateForTransition($job);
 
         if ($job->approval_status !== 'approved') {
             return $this->jsonOrBack($request, false, 'งานนี้ยังไม่ได้รับอนุมัติ', 422);
@@ -923,6 +937,7 @@ class TaskController extends Controller
         ]);
 
         $job = WorkOrder::with(['user', 'creator', 'leader', 'collaborators'])->findOrFail($id);
+        TodayWorkspace::normalizeLateForTransition($job);
         $before = $job->attributesToArray();
 
         $job->approval_status = $validated['approval_status'];

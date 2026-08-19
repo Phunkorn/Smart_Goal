@@ -4,12 +4,18 @@
     const database = workspace.querySelector('.notion-database');
     const groupSelect = workspace.querySelector('[data-group]');
     const buttons = [...workspace.querySelectorAll('[data-view]')];
-    if (!database || !buttons.length) return;
+    const boardToolbar = workspace.querySelector('[data-board-toolbar]');
+    if (!database) return;
+    if (!buttons.length) {
+        database.dataset.view = 'table';
+        return;
+    }
 
     let tableGrouping = groupSelect?.value || 'project';
     const setView = (view, announce = true) => {
         if (!['table', 'board'].includes(view)) view = 'table';
         database.dataset.view = view;
+        if (boardToolbar) boardToolbar.hidden = view !== 'board';
         buttons.forEach((button) => {
             const active = button.dataset.view === view;
             button.classList.toggle('active', active);

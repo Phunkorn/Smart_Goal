@@ -6,15 +6,16 @@ $showQuickAdd = $showQuickAdd ?? true;
 $taskLinkMode = $taskLinkMode ?? false;
 $workspaceContext = $workspaceContext ?? 'user';
 
-$defaultKanbanList = $manageableTaskLists->first() ?? $taskLists->first();
+$workspaceLists = collect([(object) ['id' => 0, 'name' => 'วันนี้']]);
+$defaultKanbanList = $workspaceLists->first();
 $defaultKanbanListIsManageable = $defaultKanbanList
     && $manageableTaskLists->contains('id', $defaultKanbanList->id);
 
 $statuses = [
-    1 => ['ยังไม่เริ่ม', 'todo'],
+    5 => ['พักงาน', 'paused'],
     2 => ['กำลังทำ', 'progress'],
     3 => ['รอตรวจสอบ', 'review'],
-    5 => ['พักงาน', 'paused'],
+    6 => ['ล่าช้า', 'late'],
     4 => ['เสร็จแล้ว', 'done'],
 ];
 
@@ -37,6 +38,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
 <section class="mytasks-kanban" data-kanban>
 
+    @if(false)
     <header class="mytasks-kanban__toolbar">
 
         <label class="mytasks-kanban__project-picker">
@@ -127,7 +129,8 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
     </header>
 
-    @forelse($taskLists as $list)
+    @endif
+    @forelse($workspaceLists as $list)
 
         @php
             $creatorSummary = $projectCreatorMeta->get($list->id) ?? [];
@@ -140,12 +143,6 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
             {{ $defaultKanbanList && (int) $defaultKanbanList->id === (int) $list->id ? '' : 'hidden' }}
         >
             <div class="mytasks-kanban__columns">
-
-                @include('tasks.partials.kanban-project-context', [
-                    'list' => $list,
-                    'adminSenderName' => $uniformAdminName,
-                    'workspaceContext' => $workspaceContext
-                ])
 
                 @foreach ($statuses as $status => [$label, $tone])
 
@@ -160,7 +157,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
                         <div class="mytasks-kanban__cards">
 
-                            @foreach ($allTasks->where('work_order_list_id', $list->id)->where('job_status', $status) as $task)
+                            @foreach ($allTasks->filter(fn ($task) => $status === 2 ? in_array((int) $task->job_status, [1, 2], true) : (int) $task->job_status === $status) as $task)
 
                                 @php
                                     $people = collect([$task->user])
@@ -187,7 +184,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                     class="mytasks-kanban__card priority-{{ $task->job_priority }}"
                                     data-kanban-card
                                     data-id="{{ $task->job_id }}"
-                                    data-status="{{ $status }}"
+                                    data-status="{{ $task->job_status }}"
                                     data-priority="{{ $task->job_priority }}"
                                 >
                                     <button
@@ -209,14 +206,16 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                         </div>
 
                                         <span class="mytasks-kanban__project-name">
-                                            โปรเจกต์: {{ $list->name }}
+                                            โปรเจกต์: {{ $task->taskList?->name ?? 'งานทั่วไป' }}
                                         </span>
 
-                                        <span class="mytasks-kanban__due {{ (int) $task->job_status !== 4 && $task->job_due_at?->isPast() ? 'is-late' : '' }}">
+                                        <span class="mytasks-kanban__due {{ (int) $task->job_status === 6 ? 'is-late' : '' }}">
                                             <i class="bi bi-calendar3"></i>
 
-                                            @if ((int) $task->job_status !== 4 && $task->job_due_at?->isPast())
-                                                เลยกำหนด {{ $task->job_due_at->diffForHumans(null, true) }}
+                                            @if ((int) $task->job_status === 6)
+                                                ล่าช้ามา {{ $task->late_at?->startOfDay()->diffInDays(now()->startOfDay()) ?? 0 }} วัน
+                                            @elseif ((int) $task->job_status === 5)
+                                                พักมา {{ $task->paused_at?->startOfDay()->diffInDays(now()->startOfDay()) ?? 0 }} วัน
                                             @else
                                                 กำหนดส่ง
                                                 {{ $task->job_due_at ? $task->job_due_at->translatedFormat('j M Y') : 'ไม่มีกำหนด' }}
