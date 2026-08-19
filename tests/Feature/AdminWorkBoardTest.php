@@ -7,6 +7,7 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -371,6 +372,74 @@ class AdminWorkBoardTest extends TestCase
             'href="'.route('tasks.show', $recentJob->job_id).'" class="admin-activity-row"',
             $viewerHtml
         );
+    }
+
+    public function test_admin_and_user_today_workspaces_share_inclusive_date_range_rules(): void
+    {
+        $department = Department::create(['department_name' => 'Operations']);
+        $admin = $this->user('admin', $department, 'Admin Owner');
+        $member = $this->user('user', $department, 'Member A');
+        $project = WorkOrderList::create([
+            'user_id' => $admin->id,
+            'name' => 'Range Project',
+            'priority' => 2,
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+        $rangeTask = $this->task($project, $admin, $member, 'Aug range task');
+        $rangeTask->update([
+            'job_status' => 2,
+            'job_progress' => 41,
+            'job_start_at' => '2026-08-16',
+            'job_due_at' => '2026-08-20',
+        ]);
+        $paused = $this->task($project, $admin, $member, 'Paused range task');
+        $paused->update([
+            'job_status' => 5,
+            'job_start_at' => '2026-08-16',
+            'job_due_at' => '2026-08-20',
+            'paused_at' => '2026-08-17 09:00:00',
+        ]);
+
+        foreach (range(16, 20) as $day) {
+            $this->travelTo(Carbon::parse("2026-08-{$day} 12:00:00"));
+            $userResponse = $this->actingAs($member)->get(route('mytasks.index'))->assertOk();
+            $adminResponse = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
+
+            $userIds = $userResponse->viewData('todayTasks')->pluck('job_id')->sort()->values()->all();
+            $adminIds = $adminResponse->viewData('todayTasks')->pluck('job_id')->sort()->values()->all();
+            $this->assertSame($userIds, $adminIds);
+            $this->assertContains($rangeTask->job_id, $adminIds);
+            $this->assertContains($paused->job_id, $adminIds);
+        }
+
+        $this->travelTo(Carbon::parse('2026-08-18 12:00:00'));
+        $adminResponse = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
+        $adminResponse
+            ->assertSee('16–20 ส.ค. 2569')
+            ->assertSee('วันที่ 3/5 • เหลือ 2 วัน');
+        $this->assertSame(41, (int) $rangeTask->fresh()->job_progress);
+
+        $completed = $this->task($project, $admin, $member, 'Completed early task');
+        $completed->update([
+            'job_status' => 4,
+            'job_start_at' => '2026-08-16',
+            'job_due_at' => '2026-08-20',
+            'job_completed_at' => '2026-08-18 10:00:00',
+        ]);
+        $sameDay = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
+        $this->assertTrue($sameDay->viewData('todayTasks')->contains('job_id', $completed->job_id));
+
+        $this->travelTo(Carbon::parse('2026-08-19 12:00:00'));
+        $nextDay = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
+        $this->assertFalse($nextDay->viewData('todayTasks')->contains('job_id', $completed->job_id));
+        $this->assertTrue($nextDay->viewData('todayTasks')->contains('job_id', $paused->job_id));
+
+        $this->travelTo(Carbon::parse('2026-08-21 12:00:00'));
+        $lateResponse = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
+        $this->assertSame(6, (int) $rangeTask->fresh()->job_status);
+        $this->assertTrue($lateResponse->viewData('todayTasks')->contains('job_id', $rangeTask->job_id));
+        $lateResponse->assertSee('ล่าช้า 1 วัน');
     }
 
     private function user(string $role, Department $department, string $name): User

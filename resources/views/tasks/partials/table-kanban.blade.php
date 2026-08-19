@@ -213,9 +213,14 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                             <i class="bi bi-calendar3"></i>
 
                                             @if ((int) $task->job_status === 6)
-                                                ล่าช้ามา {{ $task->late_at?->startOfDay()->diffInDays(now()->startOfDay()) ?? 0 }} วัน
+                                                ล่าช้า {{ \App\Support\TodayWorkspace::overdueDays($task) }} วัน
                                             @elseif ((int) $task->job_status === 5)
                                                 พักมา {{ $task->paused_at?->startOfDay()->diffInDays(now()->startOfDay()) ?? 0 }} วัน
+                                            @elseif (in_array((int) $task->job_status, [1, 2, 3], true) && ($timeProgress = \App\Support\TodayWorkspace::timeProgress($task)))
+                                                <span class="mytasks-kanban__date-progress">
+                                                    <span>{{ $timeProgress['range_label'] }}</span>
+                                                    <small>{{ $timeProgress['progress_label'] }}</small>
+                                                </span>
                                             @else
                                                 กำหนดส่ง
                                                 {{ $task->job_due_at ? $task->job_due_at->translatedFormat('j M Y') : 'ไม่มีกำหนด' }}
