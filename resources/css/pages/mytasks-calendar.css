@@ -2,6 +2,8 @@
     display: none;
     position: relative;
     width: 100%;
+    overflow: hidden;
+    border-radius: 0 0 14px 14px;
     background: #fff;
 }
 
@@ -25,14 +27,16 @@
     border-radius: 0 0 13px 13px;
 }
 
+/* Calendar header */
 .my-tasks-page .mytasks-calendar__toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 18px;
-    min-height: 76px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--sg-line);
+    min-height: 68px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #dfe7f1;
+    background: #fff;
 }
 
 .my-tasks-page .mytasks-calendar__toolbar > div:first-child {
@@ -41,40 +45,43 @@
 }
 
 .my-tasks-page .mytasks-calendar__toolbar > div:first-child > span {
-    color: var(--sg-faint);
-    font-size: 9px;
-    font-weight: 750;
-    letter-spacing: .12em;
+    color: #94a3b8;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .13em;
 }
 
 .my-tasks-page .mytasks-calendar__toolbar h2 {
     margin: 0;
-    color: var(--sg-ink);
-    font-size: 20px;
-    font-weight: 750;
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 780;
+    line-height: 1.2;
 }
 
 .my-tasks-page .mytasks-calendar__navigation {
     display: inline-flex;
     align-items: center;
     overflow: hidden;
-    border: 1px solid var(--sg-line2);
+    border: 1px solid #d7e1ed;
     border-radius: 9px;
     background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
 }
 
 .my-tasks-page .mytasks-calendar__navigation button {
     display: grid;
     place-items: center;
-    min-width: 38px;
-    height: 38px;
-    padding: 0 12px;
+    min-width: 36px;
+    height: 34px;
+    padding: 0 11px;
     border: 0;
-    border-right: 1px solid var(--sg-line);
+    border-right: 1px solid #e2e8f0;
     background: #fff;
-    color: var(--sg-muted);
-    font-size: 12px;
-    font-weight: 650;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
 }
 
 .my-tasks-page .mytasks-calendar__navigation button:last-child {
@@ -82,8 +89,8 @@
 }
 
 .my-tasks-page .mytasks-calendar__navigation button:hover {
-    background: var(--sg-surface-muted);
-    color: var(--sg-blue);
+    background: #f5f8fc;
+    color: #2563eb;
 }
 
 .my-tasks-page .mytasks-calendar__navigation button:focus-visible,
@@ -92,13 +99,17 @@
 .my-tasks-page .mytasks-calendar__popover button:focus-visible {
     position: relative;
     z-index: 20;
-    outline: 3px solid rgba(37, 99, 235, .22);
+    outline: 3px solid rgba(37, 99, 235, .20);
     outline-offset: 1px;
 }
 
+/* Month grid */
 .my-tasks-page .mytasks-calendar__viewport {
+    width: 100%;
     overflow-x: auto;
+    overflow-y: hidden;
     overscroll-behavior-inline: contain;
+    background: #fff;
 }
 
 .my-tasks-page .mytasks-calendar__canvas {
@@ -108,6 +119,7 @@
 
 .my-tasks-page .mytasks-calendar__grid {
     width: 100%;
+    border-collapse: collapse;
 }
 
 .my-tasks-page .mytasks-calendar__weekdays,
@@ -119,18 +131,19 @@
 }
 
 .my-tasks-page .mytasks-calendar__weekdays {
-    min-height: 38px;
-    border-bottom: 1px solid var(--sg-line);
+    min-height: 34px;
+    border-bottom: 1px solid #dfe7f1;
     background: #f8fafc;
 }
 
 .my-tasks-page .mytasks-calendar__weekdays span {
     display: grid;
     place-items: center;
-    border-right: 1px solid var(--sg-line);
+    min-width: 0;
+    border-right: 1px solid #e2e8f0;
     color: #64748b;
-    font-size: 10px;
-    font-weight: 750;
+    font-size: 9px;
+    font-weight: 800;
 }
 
 .my-tasks-page .mytasks-calendar__weekdays span:last-child {
@@ -139,9 +152,10 @@
 
 .my-tasks-page .mytasks-calendar__week {
     position: relative;
-    min-height: 150px;
+    min-height: 126px;
     overflow: hidden;
-    border-bottom: 1px solid var(--sg-line);
+    border-bottom: 1px solid #dfe7f1;
+    background: #fff;
     isolation: isolate;
 }
 
@@ -154,10 +168,10 @@
     grid-row: 1;
     width: 100%;
     min-width: 0;
-    min-height: 150px;
+    min-height: 126px;
     overflow: hidden;
-    padding: 8px;
-    border-right: 1px solid var(--sg-line);
+    padding: 7px 8px;
+    border-right: 1px solid #e2e8f0;
     background: #fff;
 }
 
@@ -180,24 +194,31 @@
 .my-tasks-page .mytasks-calendar__day-number {
     display: grid;
     place-items: center;
-    width: 25px;
-    height: 25px;
+    width: 24px;
+    height: 24px;
     margin-left: auto;
     border-radius: 50%;
     color: #475569;
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
 }
 
 .my-tasks-page .mytasks-calendar__day.is-outside .mytasks-calendar__day-number {
-    color: #a1adbd;
+    color: #a8b3c2;
+}
+
+.my-tasks-page .mytasks-calendar__day.is-today {
+    background: #fbfdff;
 }
 
 .my-tasks-page .mytasks-calendar__day.is-today .mytasks-calendar__day-number {
-    background: var(--sg-blue);
+    background: #2563eb;
     color: #fff;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, .24);
 }
 
+/* Multi-day event bars */
 .my-tasks-page .mytasks-calendar__task {
     grid-column: var(--calendar-column-start) / var(--calendar-column-end);
     grid-row: 1;
@@ -207,46 +228,49 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 22px;
+    height: 21px;
     width: auto;
     max-width: 100%;
     min-width: 0;
-    margin: calc(39px + (var(--calendar-lane) * 25px)) 3px 0;
+    margin: calc(34px + (var(--calendar-lane) * 23px)) 5px 0;
     padding: 0 7px;
     overflow: hidden;
     border: 1px solid #ccd8e7;
-    border-radius: 6px;
+    border-radius: 5px;
     background: #edf3fb;
     color: #334155;
     text-align: left;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+    cursor: pointer;
 }
 
 .my-tasks-page .mytasks-calendar__task:hover {
-    filter: brightness(.97);
-    box-shadow: 0 2px 5px rgba(15, 23, 42, .12);
+    filter: brightness(.985);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, .10);
 }
 
 .my-tasks-page .mytasks-calendar__task.continues-before {
-    margin-left: 0;
-    border-left: 0;
-    border-radius: 0 6px 6px 0;
+    margin-left: 1px;
+    padding-left: 7px;
+    border-left-color: transparent;
+    border-radius: 2px 5px 5px 2px;
 }
 
 .my-tasks-page .mytasks-calendar__task.continues-after {
-    margin-right: 0;
-    border-right: 0;
-    border-radius: 6px 0 0 6px;
+    margin-right: 1px;
+    border-right-color: transparent;
+    border-radius: 5px 2px 2px 5px;
 }
 
 .my-tasks-page .mytasks-calendar__task.continues-before.continues-after {
-    border-radius: 0;
+    margin-inline: 1px;
+    border-radius: 2px;
 }
 
 .my-tasks-page .mytasks-calendar__task > i {
-    width: 7px;
-    height: 7px;
-    flex: 0 0 7px;
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
     border-radius: 50%;
     background: #64748b;
 }
@@ -259,76 +283,82 @@
 .my-tasks-page .mytasks-calendar__task > span {
     min-width: 0;
     overflow: hidden;
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 9px;
+    font-weight: 750;
     line-height: 1;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .my-tasks-page .mytasks-calendar__task.status-progress {
-    border-color: #b9d3f7;
-    background: #eaf3ff;
+    border-color: #b7d2f5;
+    background: #edf5ff;
     color: #2259a8;
 }
 
 .my-tasks-page .mytasks-calendar__task.status-review {
-    border-color: #d5c5f3;
-    background: #f2edff;
+    border-color: #d7c9f2;
+    background: #f4f0ff;
     color: #6841b7;
 }
 
 .my-tasks-page .mytasks-calendar__task.status-done {
-    border-color: #b9decf;
-    background: #eaf8f2;
+    border-color: #b8decf;
+    background: #eef9f4;
     color: #267655;
 }
 
 .my-tasks-page .mytasks-calendar__task.status-paused {
-    border-color: #f1d29c;
-    background: #fff6e6;
-    color: #a85f05;
+    border-color: #efd39f;
+    background: #fff8ea;
+    color: #9a5a06;
 }
 
 .my-tasks-page .mytasks-calendar__task.status-late {
-    border-color: #f0bcbc;
-    background: #fff0f0;
-    color: #bd2f36;
+    border-color: #efbcbc;
+    background: #fff2f2;
+    color: #b92f36;
 }
 
+/* Per-day overflow */
 .my-tasks-page .mytasks-calendar__more {
     position: absolute;
-    right: 6px;
-    bottom: 6px;
-    left: 6px;
+    right: 7px;
+    bottom: 7px;
+    left: 7px;
     z-index: 8;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     width: auto;
     min-width: 0;
-    height: 24px;
+    height: 20px;
     padding: 0 7px;
     overflow: hidden;
-    border: 0;
+    border: 1px solid transparent;
     border-radius: 5px;
-    background: #eef3f8;
-    color: #52647b;
-    font-size: 10px;
-    font-weight: 700;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 800;
     line-height: 1;
     text-align: left;
     text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: pointer;
 }
 
 .my-tasks-page .mytasks-calendar__more:hover {
-    background: #e0ebfa;
-    color: var(--sg-blue);
+    border-color: #cfe0f7;
+    background: #eaf2fd;
+    color: #2563eb;
 }
 
+/* Day task popover */
 .my-tasks-page .mytasks-calendar__popover {
     position: fixed;
     z-index: 1250;
+    width: min(360px, calc(100vw - 24px));
     max-height: min(440px, calc(100vh - 24px));
     overflow: auto;
     border: 1px solid #d8e1ec;
@@ -348,30 +378,31 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 48px;
-    padding: 9px 10px 9px 14px;
-    border-bottom: 1px solid var(--sg-line);
+    min-height: 46px;
+    padding: 8px 9px 8px 13px;
+    border-bottom: 1px solid #e2e8f0;
     background: #fff;
 }
 
 .my-tasks-page .mytasks-calendar__popover > header strong {
-    color: var(--sg-ink);
-    font-size: 13px;
+    color: #0f172a;
+    font-size: 12px;
 }
 
 .my-tasks-page .mytasks-calendar__popover > header button {
     display: grid;
     place-items: center;
-    width: 30px;
-    height: 30px;
+    width: 29px;
+    height: 29px;
     border: 0;
     border-radius: 7px;
     background: transparent;
-    color: var(--sg-muted);
+    color: #64748b;
+    cursor: pointer;
 }
 
 .my-tasks-page .mytasks-calendar__popover > header button:hover {
-    background: var(--sg-surface-muted);
+    background: #f1f5f9;
 }
 
 .my-tasks-page .mytasks-calendar__popover > div {
@@ -386,13 +417,14 @@
     align-items: center;
     gap: 12px;
     width: 100%;
-    min-height: 58px;
+    min-height: 56px;
     padding: 8px 10px;
     border: 0;
     border-radius: 8px;
     background: #fff;
-    color: var(--sg-ink);
+    color: #0f172a;
     text-align: left;
+    cursor: pointer;
 }
 
 .my-tasks-page .mytasks-calendar__popover-task:hover {
@@ -412,8 +444,14 @@
     white-space: nowrap;
 }
 
-.my-tasks-page .mytasks-calendar__popover-task strong { font-size: 12px; }
-.my-tasks-page .mytasks-calendar__popover-task small { color: var(--sg-muted); font-size: 10px; }
+.my-tasks-page .mytasks-calendar__popover-task strong {
+    font-size: 12px;
+}
+
+.my-tasks-page .mytasks-calendar__popover-task small {
+    color: #64748b;
+    font-size: 10px;
+}
 
 .my-tasks-page .mytasks-calendar__popover-meta {
     display: grid;
@@ -455,7 +493,8 @@
     .my-tasks-page .mytasks-calendar__toolbar {
         align-items: flex-start;
         flex-direction: column;
-        padding: 13px 14px;
+        gap: 10px;
+        padding: 12px 13px;
     }
 
     .my-tasks-page .mytasks-calendar__navigation {
@@ -468,5 +507,10 @@
 
     .my-tasks-page .mytasks-calendar__canvas {
         min-width: 700px;
+    }
+
+    .my-tasks-page .mytasks-calendar__week,
+    .my-tasks-page .mytasks-calendar__day {
+        min-height: 122px;
     }
 }
