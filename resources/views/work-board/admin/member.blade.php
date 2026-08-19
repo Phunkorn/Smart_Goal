@@ -9,6 +9,18 @@
 @section('content')
 @php
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
+    $today = now()->startOfDay();
+    $todayEnd = now()->endOfDay();
+    $todayTasks = $allTasks->filter(function ($task) use ($today, $todayEnd) {
+        $start = $task->job_start_at?->copy()->startOfDay();
+        $due = $task->job_due_at?->copy()->endOfDay();
+
+        if ((int) $task->job_status === 4) {
+            return $task->job_completed_at?->between($today, $todayEnd) ?? false;
+        }
+
+        return (! $start || $start->lte($todayEnd)) && (! $due || $due->gte($today));
+    })->values();
     $statusLabels = [1 => 'ยังไม่เริ่ม', 2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน'];
     $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
     $workspaceContext = 'admin-member';
@@ -65,7 +77,7 @@
                     <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานตามตัวกรอง</p></div>
                 </div>
                 <div class="mytasks-kanban-view" data-table-kanban>
-                    @include('tasks.partials.table-kanban', compact('allTasks', 'taskLists', 'manageableTaskLists', 'projectCreatorMeta', 'showCreateActions', 'showQuickAdd', 'taskLinkMode', 'workspaceContext'))
+                    @include('tasks.partials.table-kanban', ['allTasks' => $todayTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'projectCreatorMeta' => $projectCreatorMeta, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
                 </div>
                 @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
             </div>
