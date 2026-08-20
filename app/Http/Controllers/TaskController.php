@@ -190,6 +190,7 @@ class TaskController extends Controller
             $job = WorkOrder::create([
                 'user_id' => $assignee->id,
                 'created_by' => $actor->id,
+                'assigned_by' => $actor->id,
                 'leader_user_id' => $approval['leader_user_id'],
                 'department_id' => $validated['department_id'] ?? $assignee->department_id,
                 'work_order_list_id' => $projectList?->id,
@@ -293,6 +294,7 @@ class TaskController extends Controller
             $job = WorkOrder::create([
                 'user_id' => $user->id,
                 'created_by' => $actor->id,
+                'assigned_by' => $actor->id,
                 'leader_user_id' => $approval['leader_user_id'],
                 'department_id' => $department->id,
                 'work_order_list_id' => $list->id,
@@ -402,6 +404,7 @@ class TaskController extends Controller
                     $job = WorkOrder::create([
                         'user_id' => $assignee->id,
                         'created_by' => $actor->id,
+                        'assigned_by' => $actor->id,
                         'leader_user_id' => $approval['leader_user_id'],
                         'department_id' => $assignee->department_id,
                         'work_order_list_id' => $project->id,

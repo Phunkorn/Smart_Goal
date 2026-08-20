@@ -169,6 +169,7 @@ class MyTaskController extends Controller
         $workOrder = WorkOrder::create([
             'user_id' => $user->id,
             'created_by' => $user->id,
+            'assigned_by' => $user->id,
             'leader_user_id' => $user->id,
             'department_id' => $user->department_id,
             'work_order_list_id' => $list->id,
@@ -287,6 +288,7 @@ class MyTaskController extends Controller
                 $job = WorkOrder::create([
                     'user_id' => $assignee->id,
                     'created_by' => $actor->id,
+                    'assigned_by' => $actor->id,
                     'leader_user_id' => $leaderId,
                     'department_id' => $assignee->department_id ?? $actor->department_id,
                     'work_order_list_id' => $list->id,
@@ -980,7 +982,7 @@ class MyTaskController extends Controller
             'responsible' => $query->where('user_id', $user->id),
             'created' => $query->where('created_by', $user->id),
             'assigned_by_me' => $query
-                ->where('created_by', $user->id)
+                ->where('assigned_by', $user->id)
                 ->where('user_id', '!=', $user->id),
             'collaborating' => $query->whereHas('collaborators', fn (Builder $collaboratorQuery) => $collaboratorQuery
                 ->where('users.id', $user->id)

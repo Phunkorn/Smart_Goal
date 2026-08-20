@@ -40,6 +40,7 @@ class MyTasksProjectManagementTest extends TestCase
 
         $this->assertSame(3, $project->priority);
         $this->assertSame(2, (int) $job->job_priority);
+        $this->assertSame($actor->id, $job->assigned_by);
         $this->assertCount(1, $project->attachments);
         $this->assertDatabaseMissing('job_images', ['job_id' => $job->job_id]);
         Storage::disk('public')->assertExists($project->attachments->first()->file_path);
@@ -84,6 +85,7 @@ class MyTasksProjectManagementTest extends TestCase
         $job = WorkOrder::where('job_topic', 'Same department task')->firstOrFail();
 
         $this->assertSame($assignee->id, $job->leader_user_id);
+        $this->assertSame($actor->id, $job->assigned_by);
         $this->assertSame('approved', $job->approval_status);
         $this->assertSame($assignee->id, $job->taskList->user_id);
         $this->assertDatabaseHas('activity_logs', [

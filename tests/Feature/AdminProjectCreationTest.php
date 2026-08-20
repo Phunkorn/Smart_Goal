@@ -94,6 +94,8 @@ class AdminProjectCreationTest extends TestCase
         $this->assertSame($project->id, $secondTask->work_order_list_id);
         $this->assertSame($admin->id, $firstTask->created_by);
         $this->assertSame($admin->id, $secondTask->created_by);
+        $this->assertSame($admin->id, $firstTask->assigned_by);
+        $this->assertSame($admin->id, $secondTask->assigned_by);
         $this->assertSame($assigneeOne->department_id, $firstTask->department_id);
         $this->assertSame('approved', $firstTask->approval_status);
         $this->assertSame($admin->id, $firstTask->approved_by);
@@ -265,6 +267,7 @@ class AdminProjectCreationTest extends TestCase
         $this->assertDatabaseHas('work_orders', [
             'job_topic' => 'Owned quick task',
             'work_order_list_id' => $ownedProject->id,
+            'assigned_by' => $assignee->id,
         ]);
     }
 

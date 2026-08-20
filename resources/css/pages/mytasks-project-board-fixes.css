@@ -52,35 +52,6 @@
     font-weight: 700;
 }
 
-/* Priority menus must escape the visual stacking of following task rows. */
-.my-tasks-page .project-board,
-.my-tasks-page .board-reference-list,
-.my-tasks-page .board-reference-row {
-    overflow: visible;
-}
-
-.my-tasks-page .board-reference-row {
-    position: relative;
-    z-index: 0;
-}
-
-.my-tasks-page .board-reference-row:has(.board-priority-menu[open]),
-.my-tasks-page .board-project-group__header:has(.board-project-priority-menu[open]) {
-    position: relative;
-    z-index: 1000 !important;
-}
-
-.my-tasks-page .board-priority-menu[open],
-.my-tasks-page .board-project-priority-menu[open] {
-    position: relative;
-    z-index: 1001 !important;
-}
-
-.my-tasks-page .board-priority-menu[open] > div,
-.my-tasks-page .board-project-priority-menu[open] > div {
-    z-index: 1002 !important;
-}
-
 /* User board cleanup: task rows stay neutral. Priority color belongs to the
  * badges only, not to a relationship/accent stripe on each row. */
 .my-tasks-page .board-reference-row,

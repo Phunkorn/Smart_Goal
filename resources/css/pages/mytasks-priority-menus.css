@@ -182,19 +182,9 @@
     justify-self: center;
 }
 
-.my-tasks-page .board-project-priority-menu[open],
-.my-tasks-page .board-priority-menu[open] {
-    z-index: 121;
-}
-
 .my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
-    overflow: visible;
-}
-
-.my-tasks-page .board-project-group__header:has(.board-project-priority-menu[open]),
-.my-tasks-page .board-reference-row:has(.board-priority-menu[open]) {
-    position: relative;
-    z-index: 120;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .my-tasks-page .board-project-priority-menu > summary,
@@ -341,7 +331,7 @@
 @media (min-width: 992px) {
 body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
     overflow-x: auto;
-    overflow-y: visible;
+    overflow-y: hidden;
 }
 
 body:not(.sidebar-collapsed) .my-tasks-page .board-reference-columns,
@@ -387,5 +377,35 @@ body:not(.sidebar-collapsed) .my-tasks-page .summary-progress {
         grid-column: 1 / -1;
         border-top: 1px solid var(--sg-line);
         border-left: 0;
+    }
+}
+
+/* Board dropdowns use one viewport coordinate system so horizontal scrolling
+   and clipped board containers cannot detach them from their triggers. */
+.my-tasks-page [data-project-board] [data-board-status-menu] > div,
+.my-tasks-page [data-project-board] [data-board-priority-menu] > div,
+.my-tasks-page [data-project-board] [data-project-priority-menu] > div,
+.my-tasks-page [data-project-board] .board-reference-menu > div,
+.my-tasks-page [data-project-board] [data-project-attachments] > div {
+    position: fixed;
+    top: var(--floating-menu-top, auto);
+    right: auto;
+    bottom: auto;
+    left: var(--floating-menu-left, auto);
+    z-index: 122;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+@media (max-width: 760px) {
+    .my-tasks-page [data-project-board] .board-reference-menu > div {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        width: auto;
+        max-height: calc(100vh - 24px);
     }
 }

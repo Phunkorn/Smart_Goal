@@ -1,4 +1,10 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
+import {
+    boardFloatingMenuSelector,
+    boardFloatingMenuSummarySelector,
+    calculateBoardFloatingMenuPosition,
+    resolveBoardFloatingMenu,
+} from './pages/mytasks/board-floating-menu.js';
 import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
 import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
 import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
@@ -73,25 +79,50 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
     const headerForTask = (task) => [...cardGrid.querySelectorAll('[data-project-header]')]
         .find((header) => header.dataset.projectKey === task.dataset.projectKey);
 
-    const closeStatusMenus = (except = null) => {
-        board.querySelectorAll('[data-board-status-menu][open], [data-board-priority-menu][open], [data-project-priority-menu][open]').forEach((menu) => {
-            if (menu !== except) menu.removeAttribute('open');
+    const closeBoardMenu = (menu) => {
+        if (!menu) return;
+        menu.removeAttribute('open');
+        menu.style.removeProperty('--floating-menu-left');
+        menu.style.removeProperty('--floating-menu-top');
+    };
+
+    const closeBoardMenus = (except = null) => {
+        board.querySelectorAll(boardFloatingMenuSelector).forEach((menu) => {
+            if (menu !== except && menu.hasAttribute('open')) closeBoardMenu(menu);
         });
     };
 
-    const positionStatusMenu = (menu) => {
-        const summary = menu.querySelector('summary');
-        if (!summary) return;
-        const rect = summary.getBoundingClientRect();
-        const menuWidth = 164;
-        const menuHeight = 220;
-        const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
-        const top = rect.bottom + menuHeight <= window.innerHeight - 8
-            ? rect.bottom + 6
-            : Math.max(8, rect.top - menuHeight - 6);
-        menu.style.setProperty('--status-menu-left', `${left}px`);
-        menu.style.setProperty('--status-menu-top', `${top}px`);
+    const positionBoardFloatingMenu = (menu) => {
+        const summary = menu.querySelector(':scope > summary');
+        const panel = menu.querySelector(':scope > div');
+        if (!summary || !panel) return false;
+
+        if (menu.matches('.board-reference-menu') && window.matchMedia('(max-width: 760px)').matches) {
+            menu.style.removeProperty('--floating-menu-left');
+            menu.style.removeProperty('--floating-menu-top');
+            return true;
+        }
+
+        const position = calculateBoardFloatingMenuPosition(
+            summary.getBoundingClientRect(),
+            panel.getBoundingClientRect(),
+            {width: window.innerWidth, height: window.innerHeight},
+            {align: menu.matches('.board-reference-menu') ? 'end' : 'start'},
+        );
+        menu.style.setProperty('--floating-menu-left', position.left + 'px');
+        menu.style.setProperty('--floating-menu-top', position.top + 'px');
+
+        return true;
     };
+
+    const closeMenusForViewportChange = () => closeBoardMenus();
+    const closeMenusForScroll = (event) => {
+        if (event.target?.closest?.(boardFloatingMenuSelector)) return;
+        closeBoardMenus();
+    };
+    window.addEventListener('resize', closeMenusForViewportChange, {passive: true});
+    window.addEventListener('scroll', closeMenusForScroll, {capture: true, passive: true});
+    document.addEventListener('mytasks:viewchange', closeMenusForViewportChange);
 
     const uploadAttachments = async (input) => {
         const files = [...(input.files || [])];
@@ -258,6 +289,14 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
     filterBoard(false);
 
     document.addEventListener('click', async (event) => {
+        const nativeSummary = event.target.closest('summary');
+        if (nativeSummary && board.contains(nativeSummary) && !nativeSummary.matches(boardFloatingMenuSummarySelector)) {
+            closeBoardMenus();
+            return;
+        }
+
+        if (!event.target.closest(boardFloatingMenuSelector)) closeBoardMenus();
+
         const attachmentOpen = event.target.closest('[data-board-open-attachments]');
         if (attachmentOpen) {
             event.preventDefault();
@@ -268,18 +307,24 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
             closeAttachmentModal();
             return;
         }
-        const statusSummary = event.target.closest('[data-board-status-menu] > summary, [data-board-priority-menu] > summary, [data-project-priority-menu] > summary');
-        if (statusSummary) {
-            const menu = statusSummary.closest('[data-board-status-menu]');
+        const menuSummary = event.target.closest(boardFloatingMenuSummarySelector);
+        if (menuSummary && board.contains(menuSummary)) {
+            const menu = resolveBoardFloatingMenu(menuSummary);
+            if (!menu || !board.contains(menu)) return;
             const wasOpen = menu.hasAttribute('open');
             event.preventDefault();
-            closeStatusMenus();
+            closeBoardMenus(menu);
             if (!wasOpen) {
                 menu.setAttribute('open', '');
-                positionStatusMenu(menu);
+                if (!positionBoardFloatingMenu(menu)) closeBoardMenu(menu);
+            } else {
+                closeBoardMenu(menu);
             }
             return;
         }
+
+        const manageMenuAction = event.target.closest('.board-reference-menu > div button, .board-reference-menu > div a');
+        if (manageMenuAction) closeBoardMenu(manageMenuAction.closest('.board-reference-menu'));
 
         const projectPriorityOption = event.target.closest('[data-project-priority-value]');
         if (projectPriorityOption) {
@@ -298,7 +343,7 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
                 summary.querySelector('[data-project-priority-label]').textContent = meta.projectLabel;
                 menu.querySelectorAll('[data-project-priority-value] .bi-check2').forEach((check) => check.remove());
                 projectPriorityOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
-                menu.removeAttribute('open');
+                closeBoardMenu(menu);
                 notify('เปลี่ยนความสำคัญโปรเจกต์แล้ว');
             }).catch((error) => notify(error.message, false)).finally(() => projectPriorityOption.disabled = false);
             return;
@@ -321,7 +366,7 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
                 summary.querySelector('[data-board-priority-label]').textContent = meta.label;
                 menu.querySelectorAll('[data-board-priority-value] .bi-check2').forEach((check) => check.remove());
                 taskPriorityOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
-                menu.removeAttribute('open');
+                closeBoardMenu(menu);
                 task.dataset.priority = String(value);
                 synchronizeTaskSource(workspace, task.dataset.taskId, {priority: value});
                 notify('เปลี่ยนความสำคัญงานแล้ว');
@@ -349,7 +394,7 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
                 if (label) label.textContent = meta.label;
                 menu.querySelectorAll('[data-board-status-value] .bi-check2').forEach((check) => check.remove());
                 statusOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
-                menu.removeAttribute('open');
+                closeBoardMenu(menu);
                 if (value === 4) {
                     const progress = task.querySelector('.board-progress');
                     const bar = progress?.querySelector('b');
@@ -370,8 +415,6 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
             input?.click();
             return;
         }
-
-        if (!event.target.closest('[data-board-status-menu]')) closeStatusMenus();
 
         const dueControl = event.target.closest('.board-due-editable');
         if (dueControl && !event.target.matches('input')) {
@@ -537,7 +580,7 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
     });
 
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') closeStatusMenus();
+        if (event.key === 'Escape') closeBoardMenus();
     });
 
     filterBoard();

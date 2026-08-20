@@ -107,6 +107,7 @@ class Import2026PlanCommandTest extends TestCase
         $this->assertSame($benz->id, $inProcess->user_id);
         $this->assertSame($komkrit->department_id, $done->department_id);
         $this->assertSame($admin->id, $done->created_by);
+        $this->assertSame($admin->id, $done->assigned_by);
         $this->assertSame('approved', $done->approval_status);
         $this->assertSame($admin->id, $done->approved_by);
         $this->assertSame($komkrit->id, $done->leader_user_id);

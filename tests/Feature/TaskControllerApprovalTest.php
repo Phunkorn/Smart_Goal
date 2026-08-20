@@ -34,6 +34,7 @@ class TaskControllerApprovalTest extends TestCase
         $this->assertSame($actor->id, $job->approved_by);
         $this->assertNotNull($job->approved_at);
         $this->assertSame($assignee->id, $job->leader_user_id);
+        $this->assertSame($actor->id, $job->assigned_by);
     }
 
     public function test_user_assigning_cross_department_via_tasks_is_pending_and_notifies_all_admins(): void
@@ -56,6 +57,7 @@ class TaskControllerApprovalTest extends TestCase
         $this->assertNull($job->approved_by);
         $this->assertNull($job->approved_at);
         $this->assertSame($actor->id, $job->leader_user_id);
+        $this->assertSame($actor->id, $job->assigned_by);
 
         $this->assertDatabaseHas('system_notifications', [
             'user_id' => $adminOne->id,
@@ -73,6 +75,12 @@ class TaskControllerApprovalTest extends TestCase
                 ->where('type', 'cross_department_pending')
                 ->count()
         );
+
+        $this->actingAs($adminOne)
+            ->patch(route('admin.tasks.approval', $job), ['approval_status' => 'approved'])
+            ->assertRedirect();
+
+        $this->assertSame($actor->id, $job->fresh()->assigned_by);
     }
 
     public function test_admin_created_task_via_tasks_is_always_approved_regardless_of_department(): void
@@ -93,6 +101,7 @@ class TaskControllerApprovalTest extends TestCase
         $this->assertSame($admin->id, $job->approved_by);
         $this->assertNotNull($job->approved_at);
         $this->assertSame($assignee->id, $job->leader_user_id);
+        $this->assertSame($admin->id, $job->assigned_by);
     }
 
     public function test_viewer_cannot_be_assigned_through_task_creation_endpoints_or_picker(): void

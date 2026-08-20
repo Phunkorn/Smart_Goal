@@ -22,6 +22,12 @@ class MyTasksTaskScopeTest extends TestCase
         $delegated = $this->task($assignee, $actor, $list, 'Delegated by actor');
         $selfAssigned = $this->task($actor, $actor, $list, 'Self assigned');
         $responsible = $this->task($actor, $other, $list, 'Assigned to actor');
+        $createdButAssignedByOther = $this->task($assignee, $actor, $list, 'Created but assigned by other', [
+            'assigned_by' => $other->id,
+        ]);
+        $legacyWithoutAssigner = $this->task($assignee, $actor, $list, 'Legacy without assigner', [
+            'assigned_by' => null,
+        ]);
         $collaborating = $this->task($other, $other, $list, 'Accepted collaboration');
         $collaborating->collaborators()->attach($actor->id, [
             'added_by' => $other->id,
@@ -36,9 +42,9 @@ class MyTasksTaskScopeTest extends TestCase
         $unrelated = $this->task($assignee, $other, $this->list($other), 'Unrelated task');
 
         $expected = [
-            'all' => [$delegated->job_id, $selfAssigned->job_id, $responsible->job_id, $collaborating->job_id],
+            'all' => [$delegated->job_id, $selfAssigned->job_id, $responsible->job_id, $createdButAssignedByOther->job_id, $legacyWithoutAssigner->job_id, $collaborating->job_id],
             'responsible' => [$selfAssigned->job_id, $responsible->job_id],
-            'created' => [$delegated->job_id, $selfAssigned->job_id],
+            'created' => [$delegated->job_id, $selfAssigned->job_id, $createdButAssignedByOther->job_id, $legacyWithoutAssigner->job_id],
             'assigned_by_me' => [$delegated->job_id],
             'collaborating' => [$collaborating->job_id],
         ];
@@ -173,6 +179,7 @@ class MyTasksTaskScopeTest extends TestCase
         return WorkOrder::create(array_merge([
             'user_id' => $assignee->id,
             'created_by' => $creator->id,
+            'assigned_by' => $creator->id,
             'leader_user_id' => $creator->id,
             'work_order_list_id' => $list->id,
             'job_topic' => $topic,

@@ -149,6 +149,7 @@ class AdminWorkBoardTest extends TestCase
         $this->assertSame($member->id, $job->user_id);
         $this->assertSame($department->id, $job->department_id);
         $this->assertSame($admin->id, $job->created_by);
+        $this->assertSame($admin->id, $job->assigned_by);
         $this->assertSame('approved', $job->approval_status);
         $this->assertDatabaseCount('work_order_lists', 1);
         $this->assertDatabaseHas('system_notifications', [

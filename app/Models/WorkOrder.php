@@ -23,6 +23,7 @@ class WorkOrder extends Model
     protected $fillable = [
         'user_id',
         'created_by',
+        'assigned_by',
         'leader_user_id',
         'department_id',
         'work_order_list_id',

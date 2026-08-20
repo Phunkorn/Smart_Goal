@@ -168,6 +168,7 @@ class Plan2026Importer
                         $attributes = [
                             'user_id' => $assignee->id,
                             'created_by' => $admin->id,
+                            'assigned_by' => $admin->id,
                             'leader_user_id' => $approval['leader_user_id'],
                             'department_id' => $assignee->department_id,
                             'work_order_list_id' => $project->id,
