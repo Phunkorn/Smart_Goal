@@ -37,6 +37,21 @@
     box-shadow: 0 0 0 2px rgba(37, 99, 235, .18);
 }
 
+.my-tasks-page .board-reference-comments {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    gap: 4px;
+    min-height: 20px;
+    margin-top: 3px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #eaf1ff;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+}
+
 /* Priority menus must escape the visual stacking of following task rows. */
 .my-tasks-page .project-board,
 .my-tasks-page .board-reference-list,

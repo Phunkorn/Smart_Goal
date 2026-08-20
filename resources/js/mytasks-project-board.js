@@ -1,4 +1,5 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
+import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
 import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
 import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 
@@ -18,7 +19,14 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
     const attachmentData = attachmentDataNode ? JSON.parse(attachmentDataNode.textContent || '{}') : {};
     const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
     const endpoint = (template, id) => template.replace('__ID__', id);
-    let ascending = true;
+    const persistFilterState = workspace.dataset.context === 'user';
+    const initialFilterState = persistFilterState
+        ? boardFilterStateFrom(new URLSearchParams(window.location.search))
+        : {search: '', status: '', dueSort: ''};
+    if (search) search.value = initialFilterState.search;
+    if (filter) filter.value = initialFilterState.status;
+    let dueSort = initialFilterState.dueSort;
+    let ascending = dueSort !== 'desc';
     const statusMeta = {
         1: {className: 'status-todo', label: 'ยังไม่เริ่ม'},
         2: {className: 'status-progress', label: 'กำลังทำ'},
@@ -164,16 +172,35 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
         document.body.style.overflow = 'hidden';
     };
 
-    const filterBoard = () => {
-        const query = search.value.trim().toLowerCase();
-        const status = filter.value;
+    const currentFilterState = () => ({
+        search: search?.value || '',
+        status: filter?.value || '',
+        dueSort,
+    });
+
+    const synchronizeFilterUrl = () => {
+        if (!persistFilterState) return;
+        const url = new URL(window.location.href);
+        url.search = parametersForTaskWorkspace(
+            url.searchParams,
+            currentFilterState(),
+            workspace.dataset.taskScope || 'all',
+        ).toString();
+        window.history.replaceState({}, '', url);
+    };
+
+    const filterBoard = (synchronizeUrl = true) => {
+        const state = currentFilterState();
+        const query = state.search.trim().toLowerCase();
+        const status = state.status;
         let visibleTasks = 0;
 
         board.querySelectorAll('[data-board-task]').forEach((task) => {
-            const searchable = `${task.dataset.projectName || ''} ${task.textContent}`.toLowerCase();
-            const textMatch = !query || searchable.includes(query);
-            const statusMatch = !status || (status === 'late' ? task.dataset.late === '1' : task.dataset.status === status);
-            task.hidden = !(textMatch && statusMatch);
+            task.hidden = !boardTaskMatches({
+                searchable: (task.dataset.projectName || '') + ' ' + task.textContent,
+                status: task.dataset.status,
+                late: task.dataset.late,
+            }, state);
             if (!task.hidden) visibleTasks++;
         });
 
@@ -188,18 +215,17 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 
         const empty = board.querySelector('[data-board-empty]');
         if (empty) empty.hidden = visibleTasks > 0;
+        if (synchronizeUrl) synchronizeFilterUrl();
     };
 
-    search.addEventListener('input', filterBoard);
-    filter.addEventListener('change', filterBoard);
-    workspace.querySelectorAll('[data-summary-filter]').forEach((button) => button.addEventListener('click', () => setTimeout(filterBoard)));
-    sort?.addEventListener('click', () => {
-        ascending = !ascending;
+    const sortBoard = () => {
         const groups = [...cardGrid.querySelectorAll('[data-project-header]')].map((header) => ({
             header,
             tasks: tasksForProject(header).sort((first, second) => ascending
                 ? (first.dataset.due || '9999-12-31').localeCompare(second.dataset.due || '9999-12-31')
                 : (second.dataset.due || '').localeCompare(first.dataset.due || '')),
+            completedGroup: [...cardGrid.querySelectorAll('[data-completed-group]')]
+                .find((group) => group.dataset.projectKey === header.dataset.projectKey),
         }));
 
         groups.sort((first, second) => {
@@ -207,8 +233,29 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
                 const secondDue = second.tasks[0]?.dataset.due || '9999-12-31';
                 return ascending ? firstDue.localeCompare(secondDue) : secondDue.localeCompare(firstDue);
             })
-            .forEach(({header, tasks}) => cardGrid.append(header, ...tasks));
+            .forEach(({header, tasks, completedGroup}) => {
+                const activeTasks = tasks.filter((task) => !task.closest('[data-completed-group]'));
+                const completedTasks = tasks.filter((task) => task.closest('[data-completed-group]'));
+                const completedRows = completedGroup?.querySelector('.board-completed-group__rows');
+
+                if (completedRows) completedRows.append(...completedTasks);
+                cardGrid.append(header, ...activeTasks);
+                if (completedGroup) cardGrid.append(completedGroup);
+            });
+    };
+
+    search?.addEventListener('input', () => filterBoard());
+    filter?.addEventListener('change', () => filterBoard());
+    workspace.querySelectorAll('[data-summary-filter]').forEach((button) => button.addEventListener('click', () => setTimeout(filterBoard)));
+    sort?.addEventListener('click', () => {
+        ascending = !ascending;
+        dueSort = ascending ? 'asc' : 'desc';
+        sortBoard();
+        synchronizeFilterUrl();
     });
+
+    if (dueSort) sortBoard();
+    filterBoard(false);
 
     document.addEventListener('click', async (event) => {
         const attachmentOpen = event.target.closest('[data-board-open-attachments]');

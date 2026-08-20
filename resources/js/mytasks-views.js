@@ -1,3 +1,5 @@
+import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
+
 (() => {
     const workspace = document.querySelector('[data-workspace]');
     if (!workspace) return;
@@ -5,6 +7,8 @@
     const groupSelect = workspace.querySelector('[data-group]');
     const buttons = [...workspace.querySelectorAll('[data-view]')];
     const boardToolbar = workspace.querySelector('[data-board-toolbar]');
+    const scopeControl = workspace.querySelector('[data-task-scope-control]');
+    const scopeSelect = workspace.querySelector('[data-task-scope]');
     if (!database) return;
     if (!buttons.length) {
         database.dataset.view = 'table';
@@ -16,6 +20,7 @@
         if (!['table', 'board', 'calendar'].includes(view)) view = 'table';
         database.dataset.view = view;
         if (boardToolbar) boardToolbar.hidden = view !== 'board';
+        if (scopeControl) scopeControl.hidden = view === 'calendar';
         buttons.forEach((button) => {
             const active = button.dataset.view === view;
             button.classList.toggle('active', active);
@@ -39,6 +44,19 @@
 
     buttons.forEach((button) => {
         button.onclick = () => setView(button.dataset.view);
+    });
+
+    scopeSelect?.addEventListener('change', () => {
+        if (workspace.dataset.context !== 'user') return;
+
+        const url = new URL(window.location.href);
+        const state = boardFilterStateFrom(url.searchParams);
+        url.search = parametersForTaskWorkspace(
+            url.searchParams,
+            state,
+            normalizeTaskScope(scopeSelect.value),
+        ).toString();
+        window.location.assign(url);
     });
 
     groupSelect?.addEventListener('change', () => {

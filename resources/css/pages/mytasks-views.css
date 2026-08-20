@@ -4,5 +4,64 @@
     font-weight: 650;
 }
 
+.my-tasks-page .mytasks-view-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.my-tasks-page .mytasks-view-controls .notion-viewbar {
+    margin-bottom: 0;
+}
+
+.my-tasks-page .mytasks-scope-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 42px;
+    padding: 0 10px;
+    border: 1px solid var(--sg-line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--sg-muted);
+}
+
+.my-tasks-page .mytasks-scope-control[hidden] {
+    display: none;
+}
+
+.my-tasks-page .mytasks-scope-control:focus-within {
+    border-color: #93b4fa;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+}
+
+.my-tasks-page .mytasks-scope-control select {
+    max-width: 210px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--sg-ink);
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+@media (max-width: 760px) {
+    .my-tasks-page .mytasks-view-controls {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .my-tasks-page .mytasks-scope-control {
+        justify-content: space-between;
+    }
+
+    .my-tasks-page .mytasks-scope-control select {
+        max-width: none;
+        width: 100%;
+    }
+}
+
 .my-tasks-page .notion-group.is-locked { opacity: .68; }
 .my-tasks-page .notion-group.is-locked::after { content: "ตามสถานะ"; color: var(--sg-blue); font-size: 11px; }

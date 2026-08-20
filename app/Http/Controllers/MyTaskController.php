@@ -17,6 +17,7 @@ use App\Services\TaskCommentService;
 use App\Services\TaskStatusTransitionService;
 use App\Services\NotificationService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,13 +33,25 @@ class MyTaskController extends Controller
 {
     use ValidatesAttachments;
 
-    public function index(): View|RedirectResponse
+    private const TASK_SCOPES = [
+        'all',
+        'responsible',
+        'created',
+        'assigned_by_me',
+        'collaborating',
+    ];
+
+    public function index(Request $request): View|RedirectResponse
     {
         $user = Auth::user();
 
         if ($user->role === 'viewer') {
             return redirect()->route('board.index');
         }
+
+        $taskScope = $user->role === 'user'
+            ? $this->normalizeTaskScope($request->query('task_scope'))
+            : 'all';
 
         $this->moveAdminAssignmentsToProjectGroups($user);
         $taskLists = $this->taskListsForCurrentUser();
@@ -80,13 +93,26 @@ class MyTaskController extends Controller
             ->latest('job_id')
             ->get();
 
+        $workspaceWorkOrders = $workOrders;
+        if ($taskScope !== 'all') {
+            $workspaceTaskIds = $this->applyTaskScope($this->baseWorkOrderQuery(), $user, $taskScope)
+                ->pluck('job_id');
+            $workspaceWorkOrders = $workOrders
+                ->whereIn('job_id', $workspaceTaskIds)
+                ->values();
+        }
+
         $taskLists = $this->taskListsForCurrentUser();
         $manageableTaskLists = $taskLists->where('user_id', $user->id)->values();
 
         $visibleLists = $taskLists->where('is_visible', true)->values();
-        $activeTasks = $workOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
-        $completedTasks = $workOrders->filter(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
-        $todayTasks = TodayWorkspace::tasks($workOrders);
+        $workspaceTaskLists = $taskScope === 'all'
+            ? $taskLists
+            : $taskLists->whereIn('id', $workspaceWorkOrders->pluck('work_order_list_id')->filter()->unique())->values();
+        $activeTasks = $workspaceWorkOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
+        $completedTasks = $workspaceWorkOrders->filter(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
+        $todayTasks = TodayWorkspace::tasks($workspaceWorkOrders);
+        $calendarTasks = $workOrders;
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($workOrders->pluck('job_id'), $user);
         $availableCollaborators = User::with('department')
             ->where('role', 'user')
@@ -99,12 +125,15 @@ class MyTaskController extends Controller
             'taskLists',
             'manageableTaskLists',
             'visibleLists',
+            'workspaceTaskLists',
             'activeTasks',
             'completedTasks',
+            'calendarTasks',
             'availableCollaborators',
             'projectCreatorMeta',
             'todayTasks',
-            'unreadCommentCounts'
+            'unreadCommentCounts',
+            'taskScope'
         ));
     }
 
@@ -936,6 +965,28 @@ class MyTaskController extends Controller
         }
 
         return $query;
+    }
+
+    private function normalizeTaskScope(mixed $taskScope): string
+    {
+        return is_string($taskScope) && in_array($taskScope, self::TASK_SCOPES, true)
+            ? $taskScope
+            : 'all';
+    }
+
+    private function applyTaskScope(Builder $query, User $user, string $taskScope): Builder
+    {
+        return match ($taskScope) {
+            'responsible' => $query->where('user_id', $user->id),
+            'created' => $query->where('created_by', $user->id),
+            'assigned_by_me' => $query
+                ->where('created_by', $user->id)
+                ->where('user_id', '!=', $user->id),
+            'collaborating' => $query->whereHas('collaborators', fn (Builder $collaboratorQuery) => $collaboratorQuery
+                ->where('users.id', $user->id)
+                ->where('work_order_collaborators.status', 'accepted')),
+            default => $query,
+        };
     }
 
     private function isCompletedLocked(WorkOrder $workOrder): bool

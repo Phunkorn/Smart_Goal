@@ -80,11 +80,15 @@
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
                         $taskAdminSenderName = ! $uniformAdminName && $task->creator?->role === 'admin' ? $task->creator->name : null;
                         $taskDeleteUrl = $workspaceContext === 'admin-member' ? route('admin.tasks.destroy', $task->job_id) : route('mytasks.destroy', $task->job_id);
+                        $unreadCommentCount = (int) ($unreadCommentCounts[$task->job_id] ?? 0);
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
                     <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
                         <div class="board-reference-task">
                             <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="{{ $task->job_id }}"><strong>{{ $task->job_topic }}</strong></button>
+                            @if($unreadCommentCount > 0)
+                                <span class="board-reference-comments" data-unread-comments="{{ $task->job_id }}"><i class="bi bi-chat-left-text"></i><b>{{ $unreadCommentCount }}</b></span>
+                            @endif
                         </div>
                         @can('update', $task)
                             <details class="board-status-menu" data-board-status-menu>

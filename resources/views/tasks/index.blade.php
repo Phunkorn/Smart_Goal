@@ -23,6 +23,7 @@
 @section('content')
 <div class="notion-workspace my-tasks-page" data-workspace
     data-context="user"
+    data-task-scope="{{ $taskScope }}"
     data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
     data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
     data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
@@ -36,11 +37,27 @@
         <div class="notion-heading-copy"><span class="heading-mark"><i class="bi bi-check2-square"></i></span><div><span class="notion-kicker">WORK MANAGEMENT</span><h1>งานของฉัน</h1><p>จัดลำดับงาน ติดตามความคืบหน้า และทำงานร่วมกับทีมในพื้นที่เดียว</p></div></div>
     </section>
 
-    <nav class="notion-viewbar" role="tablist" aria-label="รูปแบบการแสดงงาน">
-        <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i> ตาราง</button>
-        <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i> บอร์ด</button>
-        <button type="button" data-view="calendar" role="tab" aria-selected="false" aria-controls="mytasks-calendar"><i class="bi bi-calendar3"></i> ปฏิทิน</button>
-    </nav>
+    <div class="mytasks-view-controls">
+        <nav class="notion-viewbar" role="tablist" aria-label="รูปแบบการแสดงงาน">
+            <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i> ตาราง</button>
+            <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i> บอร์ด</button>
+            <button type="button" data-view="calendar" role="tab" aria-selected="false" aria-controls="mytasks-calendar"><i class="bi bi-calendar3"></i> ปฏิทิน</button>
+        </nav>
+
+        @if(auth()->user()->role === 'user')
+            <label class="mytasks-scope-control" data-task-scope-control>
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                <span class="visually-hidden">เลือกขอบเขตงาน</span>
+                <select data-task-scope aria-label="เลือกขอบเขตงาน">
+                    <option value="all" @selected($taskScope === 'all')>งานทั้งหมด</option>
+                    <option value="responsible" @selected($taskScope === 'responsible')>งานที่ฉันรับผิดชอบ</option>
+                    <option value="created" @selected($taskScope === 'created')>งานที่ฉันสร้าง</option>
+                    <option value="assigned_by_me" @selected($taskScope === 'assigned_by_me')>งานที่ฉันมอบหมาย</option>
+                    <option value="collaborating" @selected($taskScope === 'collaborating')>งานที่ฉันร่วมงาน</option>
+                </select>
+            </label>
+        @endif
+    </div>
 
     <section class="notion-database">
         <div class="notion-toolbar" data-board-toolbar hidden>
@@ -52,7 +69,14 @@
 
         <div class="notion-table-scroll">
             <div class="project-board" data-project-board>
-                @include('tasks.partials.project-board-card', compact('allTasks', 'manageableTaskLists', 'showQuickAdd', 'taskLinkMode', 'workspaceContext'))
+                @include('tasks.partials.project-board-card', [
+                    'allTasks' => $allTasks,
+                    'taskLists' => $workspaceTaskLists,
+                    'manageableTaskLists' => $manageableTaskLists,
+                    'showQuickAdd' => $showQuickAdd,
+                    'taskLinkMode' => $taskLinkMode,
+                    'workspaceContext' => $workspaceContext,
+                ])
                 <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานในบอร์ดตามตัวกรองที่เลือก</p></div>
             </div>
 
@@ -62,12 +86,25 @@
 
             @include('tasks.partials.calendar')
 
-            @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
+            @include('tasks.partials.workspace-task-source', [
+                'allTasks' => $calendarTasks,
+                'taskLists' => $taskLists,
+                'manageableTaskLists' => $manageableTaskLists,
+                'statusLabels' => $statusLabels,
+                'priorityLabels' => $priorityLabels,
+                'showQuickAdd' => $showQuickAdd,
+                'workspaceContext' => $workspaceContext,
+            ])
         </div>
 
     </section>
 </div>
 
-@include('tasks.partials.workspace-interactions', compact('allTasks', 'availableCollaborators', 'showCreateActions', 'workspaceContext'))
+@include('tasks.partials.workspace-interactions', [
+    'allTasks' => $calendarTasks,
+    'availableCollaborators' => $availableCollaborators,
+    'showCreateActions' => $showCreateActions,
+    'workspaceContext' => $workspaceContext,
+])
 <div class="notion-toast" data-toast></div>
 @endsection
