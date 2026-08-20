@@ -8,6 +8,7 @@ use App\Models\WorkOrder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Carbon\CarbonInterface;
 
 class NotificationService
@@ -58,6 +59,63 @@ class NotificationService
             ->reject(fn (User $user) => $actor && (int) $user->id === (int) $actor->id)
             ->map(fn (User $user) => $this->create($user, $type, $title, $message, null, $actor, $data,
                 $dedupePrefix ? $dedupePrefix.':'.$user->id : null, $metadata));
+    }
+
+    public function notifyTaskMembers(WorkOrder $task, string $type, string $title, string $message, User $actor): void
+    {
+        $task->loadMissing('collaborators');
+
+        $recipientIds = collect([$task->user_id, $task->created_by, $task->leader_user_id])
+            ->merge($task->collaborators->pluck('id'))
+            ->filter()
+            ->unique()
+            ->reject(fn ($userId) => (int) $userId === (int) $actor->id)
+            ->values();
+
+        $this->notify(
+            $recipientIds,
+            $type,
+            Str::limit(strip_tags($title), 120, ''),
+            Str::limit(strip_tags($message), 1000, ''),
+            $task,
+            $actor
+        );
+    }
+
+    public function notifyTaskAdmins(WorkOrder $task, string $type, string $title, string $message, User $actor): void
+    {
+        $adminIds = User::where('role', 'admin')->pluck('id')->all();
+
+        $this->notify(
+            $adminIds,
+            $type,
+            Str::limit(strip_tags($title), 120, ''),
+            Str::limit(strip_tags($message), 1000, ''),
+            $task,
+            $actor
+        );
+    }
+
+    public function notifyTaskDeleted(WorkOrder $task, string $message, User $actor): void
+    {
+        $task->loadMissing('collaborators');
+
+        $recipientIds = collect([$task->user_id, $task->created_by, $task->leader_user_id])
+            ->merge($task->collaborators->pluck('id'))
+            ->filter()
+            ->unique()
+            ->reject(fn ($userId) => (int) $userId === (int) $actor->id)
+            ->values();
+
+        $this->notifyDetached(
+            $recipientIds,
+            'task_deleted',
+            'งานถูกลบแล้ว',
+            Str::limit(strip_tags($message), 1000, ''),
+            $actor,
+            ['deleted_work_order_id' => $task->job_id],
+            ['work_order_list_id' => $task->work_order_list_id]
+        );
     }
 
     public function displayCount(int $count): string

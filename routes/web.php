@@ -5,7 +5,11 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TaskAttachmentController;
+use App\Http\Controllers\TaskCollaboratorController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskProgressController;
+use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
@@ -97,7 +101,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->name('employees.resetPassword');
 
     // การอนุมัติและจัดการงานโดยผู้ดูแลระบบ
-    Route::patch('/admin/tasks/{id}/approval', [TaskController::class, 'updateApproval'])
+    Route::patch('/admin/tasks/{id}/approval', [TaskStatusController::class, 'updateApproval'])
         ->middleware('admin')
         ->name('admin.tasks.approval');
 
@@ -130,7 +134,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('admin.trash.restore');
 
-    Route::patch('/tasks/{id}/invitation', [TaskController::class, 'respondInvitation'])
+    Route::patch('/tasks/{id}/invitation', [TaskCollaboratorController::class, 'respondInvitation'])
         ->name('tasks.invitation.respond');
 
     // การตั้งค่าส่วนตัว
@@ -263,22 +267,22 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('role:admin,user')
         ->name('tasks.schedule.update');
 
-    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])
+    Route::patch('/tasks/{id}/status', [TaskStatusController::class, 'updateStatus'])
         ->name('tasks.updateStatus');
 
-    Route::post('/tasks/{id}/attachments', [TaskController::class, 'uploadAttachments'])
+    Route::post('/tasks/{id}/attachments', [TaskAttachmentController::class, 'uploadAttachments'])
         ->name('tasks.attachments.store');
 
-    Route::delete('/tasks/{id}/attachments/{attachment}', [TaskController::class, 'destroyAttachment'])
+    Route::delete('/tasks/{id}/attachments/{attachment}', [TaskAttachmentController::class, 'destroyAttachment'])
         ->name('tasks.attachments.destroy');
 
-    Route::post('/tasks/{id}/collaborators', [TaskController::class, 'addCollaborators'])
+    Route::post('/tasks/{id}/collaborators', [TaskCollaboratorController::class, 'addCollaborators'])
         ->name('tasks.collaborators.store');
 
-    Route::delete('/tasks/{id}/collaborators/{user}', [TaskController::class, 'removeCollaborator'])
+    Route::delete('/tasks/{id}/collaborators/{user}', [TaskCollaboratorController::class, 'removeCollaborator'])
         ->name('tasks.collaborators.destroy');
 
-    Route::post('/tasks/{id}/progress', [TaskController::class, 'updateProgress'])
+    Route::post('/tasks/{id}/progress', [TaskProgressController::class, 'updateProgress'])
         ->name('tasks.progress.store');
 
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');

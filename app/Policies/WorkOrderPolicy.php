@@ -54,7 +54,8 @@ class WorkOrderPolicy
 
     /**
      * แก้ไข/ทำงานกับ WorkOrder ที่มีอยู่แล้ว ครอบคลุม:
-     * TaskController::updateStatus, uploadAttachments, updateProgress, requestDelete
+     * TaskStatusController::updateStatus, TaskAttachmentController::uploadAttachments,
+     * TaskProgressController::updateProgress, TaskController::requestDelete
      * MyTaskController::updateDueDate, toggleComplete, storeSubtask, toggleSubtask,
      * updateStatus, updatePriority
      */
@@ -122,7 +123,7 @@ class WorkOrderPolicy
     }
 
     /**
-     * อนุมัติ/ปฏิเสธการเปิดงาน (TaskController::updateApproval) — admin เท่านั้น
+     * อนุมัติ/ปฏิเสธการเปิดงาน (TaskStatusController::updateApproval) — admin เท่านั้น
      */
     public function approve(User $user): bool
     {
@@ -130,7 +131,7 @@ class WorkOrderPolicy
     }
 
     /**
-     * จัดการทีม (เพิ่ม/นำผู้ร่วมงานออก) — TaskController::addCollaborators,
+     * จัดการทีม (เพิ่ม/นำผู้ร่วมงานออก) — TaskCollaboratorController::addCollaborators,
      * removeCollaborator (เดิมคือ canManageTeam())
      */
     public function manageTeam(User $user, WorkOrder $workOrder): bool

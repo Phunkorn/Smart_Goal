@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class TaskAuthorizationTest extends TestCase
@@ -72,6 +75,81 @@ class TaskAuthorizationTest extends TestCase
         $this->actingAs($admin)
             ->delete(route('mytasks.destroy', $task))
             ->assertOk();
+    }
+
+    public function test_owner_can_upload_and_delete_task_attachment(): void
+    {
+        Storage::fake('public');
+
+        $owner = $this->user();
+        $task = $this->taskFor($owner);
+
+        $this->actingAs($owner)
+            ->postJson(route('tasks.attachments.store', $task), [
+                'completion_attachments' => [UploadedFile::fake()->image('evidence.png')],
+            ])
+            ->assertOk()
+            ->assertExactJson([
+                'ok' => true,
+                'message' => 'เพิ่มไฟล์อ้างอิงงานสำเร็จ',
+            ]);
+
+        $attachment = $task->images()->firstOrFail();
+        Storage::disk('public')->assertExists($attachment->file_path);
+
+        $this->actingAs($owner)
+            ->deleteJson(route('tasks.attachments.destroy', [$task, $attachment]))
+            ->assertOk()
+            ->assertExactJson([
+                'ok' => true,
+                'message' => 'ลบไฟล์แนบแล้ว',
+            ]);
+
+        $this->assertDatabaseMissing('job_images', ['id' => $attachment->id]);
+        Storage::disk('public')->assertMissing($attachment->file_path);
+    }
+
+    public function test_collaborator_can_respond_to_invitation_and_owner_can_remove_them(): void
+    {
+        $owner = $this->user();
+        $candidate = $this->user();
+        $task = $this->taskFor($owner);
+
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $task), [
+                'collaborators' => [$candidate->id],
+            ])
+            ->assertOk();
+
+        $this->assertSame('pending', $task->collaborators()->findOrFail($candidate->id)->pivot->status);
+
+        $this->actingAs($candidate)
+            ->patch(route('tasks.invitation.respond', $task), ['status' => 'accepted'])
+            ->assertRedirect();
+
+        $this->assertSame('accepted', $task->collaborators()->findOrFail($candidate->id)->pivot->status);
+
+        $this->actingAs($owner)
+            ->deleteJson(route('tasks.collaborators.destroy', [$task, $candidate]))
+            ->assertOk()
+            ->assertExactJson([
+                'ok' => true,
+                'message' => 'นำผู้ร่วมงานออกจากทีมแล้ว',
+            ]);
+
+        $this->assertDatabaseMissing('work_order_collaborators', [
+            'work_order_id' => $task->job_id,
+            'user_id' => $candidate->id,
+        ]);
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $candidate->id,
+            'work_order_id' => $task->job_id,
+            'type' => 'collaborator_removed',
+        ]);
+        $this->assertSame(1, SystemNotification::where('user_id', $candidate->id)
+            ->where('work_order_id', $task->job_id)
+            ->where('type', 'collaborator_removed')
+            ->count());
     }
 
     private function user(string $role = 'user'): User
