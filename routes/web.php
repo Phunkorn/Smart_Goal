@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
@@ -99,6 +100,13 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/employees/{user}/reset-password', [UserController::class, 'resetPassword'])
         ->middleware('admin')
         ->name('employees.resetPassword');
+
+    Route::prefix('admin/departments')->name('admin.departments.')->middleware('admin')->group(function () {
+        Route::get('/', [DepartmentController::class, 'index'])->name('index');
+        Route::post('/', [DepartmentController::class, 'store'])->name('store');
+        Route::patch('/{department}', [DepartmentController::class, 'update'])->name('update');
+        Route::delete('/{department}', [DepartmentController::class, 'destroy'])->name('destroy');
+    });
 
     // การอนุมัติและจัดการงานโดยผู้ดูแลระบบ
     Route::patch('/admin/tasks/{id}/approval', [TaskStatusController::class, 'updateApproval'])

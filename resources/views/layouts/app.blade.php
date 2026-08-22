@@ -107,6 +107,10 @@
                     class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
                     <i class="bi bi-people-fill"></i> พนักงาน
                 </a>
+                <a href="{{ route('admin.departments.index') }}"
+                    class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}">
+                    <i class="bi bi-diagram-3-fill"></i> จัดการแผนก
+                </a>
                 <a href="{{ route('reports.index') }}"
                     class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-bar-chart-line-fill"></i> รายงาน
