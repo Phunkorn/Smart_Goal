@@ -28,6 +28,7 @@ export default defineConfig({
                 'resources/js/app.js',
                 'resources/js/pages/mytasks/index.js',
                 'resources/js/pages/reports/index.js',
+                'resources/js/pages/reports/my.js',
             ],
             refresh: true,
         }),

@@ -1,129 +1,104 @@
 @extends('layouts.app')
-
 @section('title', 'รายงานของฉัน')
-
 @push('styles')
     @vite('resources/css/pages/report-my.css')
 @endpush
+@push('scripts')
+    @vite('resources/js/pages/reports/my.js')
+@endpush
 
 @section('content')
-@php
-    $maxMonth = max(1, $monthlySummary->max(fn ($month) => max($month['total'], $month['done'])));
-    $maxStatus = max(1, $statusSummary->max('value'));
-    $statusMap = [
-        1 => ['label' => 'รอดำเนินการ', 'tone' => 'amber'],
-        2 => ['label' => 'กำลังทำ', 'tone' => 'purple'],
-        3 => ['label' => 'ตรวจสอบ', 'tone' => 'blue'],
-        4 => ['label' => 'เสร็จสิ้น', 'tone' => 'green'],
-        5 => ['label' => 'พักงานชั่วคราว', 'tone' => 'gray'],
-    ];
-@endphp
-
-<div class="my-report-page">
-    <div class="my-report-head">
+<div class="personal-report">
+    <header class="personal-report__header">
         <div>
-            <div class="my-report-kicker"><i class="bi bi-clipboard-data-fill"></i> รายงานส่วนตัว</div>
-            <h1>สรุปงานของฉัน ปี {{ $year }}</h1>
-            <p>ดูงานที่รับผิดชอบ งานที่สร้าง งานที่เป็นหัวหน้า และงานที่เข้าร่วม เฉพาะบัญชีของคุณ</p>
+            <div class="personal-report__eyebrow"><i class="bi bi-activity" aria-hidden="true"></i> Personal workspace</div>
+            <h1>ภาพรวมงานของฉัน</h1>
+            <p>ติดตามงานที่ต้องลงมือทำ กำหนดส่ง และภาระงานในช่วง {{ $filters['period_label'] }}</p>
         </div>
-        <form method="GET" action="{{ route('reports.my') }}" class="year-form">
-            <select name="year" onchange="this.form.submit()">
-                @foreach($availableYears as $availableYear)
-                    <option value="{{ $availableYear }}" @selected($availableYear === $year)>ปี {{ $availableYear }}</option>
-                @endforeach
-            </select>
-            <a href="{{ route('reports.myExportCsv', ['year' => $year]) }}" class="report-action"><i class="bi bi-filetype-csv"></i> Export CSV</a>
-            <button type="button" class="report-action primary" onclick="window.print()"><i class="bi bi-filetype-pdf"></i> บันทึก PDF</button>
-        </form>
-    </div>
+        <div class="personal-report__actions">
+            <a href="{{ route('reports.myExportCsv', ['year' => $filters['year']]) }}" class="personal-report__button"><i class="bi bi-filetype-csv" aria-hidden="true"></i> ส่งออก CSV</a>
+            <button type="button" class="personal-report__button personal-report__button--primary" onclick="window.print()"><i class="bi bi-printer" aria-hidden="true"></i> บันทึก PDF</button>
+        </div>
+    </header>
 
-    <section class="metric-grid">
-        <div class="metric-card"><div class="label">งานทั้งหมดในปีนี้</div><div class="value">{{ $totalJobs }}</div></div>
-        <div class="metric-card"><div class="label">รับ/เกี่ยวข้องเดือนนี้</div><div class="value">{{ $thisMonthJobs }}</div></div>
-        <div class="metric-card"><div class="label">กำลังทำอยู่</div><div class="value">{{ $activeJobs }}</div></div>
-        <div class="metric-card"><div class="label">สำเร็จแล้ว</div><div class="value">{{ $completedJobs }}</div></div>
-        <div class="metric-card"><div class="label">ล่าช้า</div><div class="value">{{ $overdueJobs }}</div></div>
+    <form method="GET" action="{{ route('reports.my') }}" class="personal-report__filters" aria-label="ตัวกรองรายงานส่วนตัว">
+        <label><span>ช่วงเวลา</span><select name="period">
+            @foreach($filterOptions['periods'] as $value => $label)<option value="{{ $value }}" @selected($filters['period'] === $value)>{{ $label }}</option>@endforeach
+        </select></label>
+        <label><span>ปี</span><input type="number" name="year" min="2000" max="2100" value="{{ $filters['year'] }}"></label>
+        <label><span>สถานะ</span><select name="status"><option value="">ทุกสถานะ</option>
+            @foreach($filterOptions['statuses'] as $value => $label)<option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>@endforeach
+        </select></label>
+        <label><span>ความสำคัญ</span><select name="priority"><option value="">ทุกระดับ</option>
+            @foreach($filterOptions['priorities'] as $value => $meta)<option value="{{ $value }}" @selected($filters['priority'] === $value)>{{ $meta['label'] }}</option>@endforeach
+        </select></label>
+        <label class="personal-report__search"><span>ค้นหางาน</span><span class="personal-report__search-control"><i class="bi bi-search" aria-hidden="true"></i><input type="search" name="search" value="{{ $filters['search'] }}" placeholder="ชื่อหรืองานที่ต้องการ"></span></label>
+        <button type="submit" class="personal-report__apply">แสดงผล</button>
+    </form>
+
+    <section class="personal-report__metrics" aria-label="ตัวชี้วัดงาน">
+        @foreach([
+            ['label' => 'งานทั้งหมด', 'value' => $totalJobs, 'icon' => 'bi-list-check', 'tone' => 'blue'],
+            ['label' => 'กำลังทำ', 'value' => $inProgressJobs, 'icon' => 'bi-play-circle', 'tone' => 'indigo'],
+            ['label' => 'ครบกำหนดใน 7 วัน', 'value' => $dueSoonJobs, 'icon' => 'bi-calendar-event', 'tone' => 'amber'],
+            ['label' => 'เกินกำหนด', 'value' => $overdueJobs, 'icon' => 'bi-exclamation-circle', 'tone' => 'red'],
+        ] as $metric)
+            <article class="personal-report__metric personal-report__metric--{{ $metric['tone'] }}"><div><span>{{ $metric['label'] }}</span><strong>{{ number_format($metric['value']) }}</strong></div><i class="bi {{ $metric['icon'] }}" aria-hidden="true"></i></article>
+        @endforeach
     </section>
 
-    <div class="report-layout">
-        <div class="d-grid gap-3">
-            <section class="panel-report">
-                <h2>งานรายเดือน</h2>
-                <div class="desc">แท่งสีม่วงคืองานทั้งหมด สีเขียวคืองานที่เสร็จแล้วในเดือนนั้น</div>
-                <div class="monthly-list">
-                    @foreach($monthlySummary as $month)
-                        <div class="monthly-row">
-                            <div class="monthly-label">{{ $month['label'] }}</div>
-                            <div class="monthly-bars">
-                                <div class="monthly-track" title="งานทั้งหมด {{ $month['total'] }}">
-                                    <div class="monthly-fill tone-purple" style="--w: {{ round(($month['total'] / $maxMonth) * 100) }}%;"></div>
-                                </div>
-                                <div class="monthly-track" title="สำเร็จ {{ $month['done'] }}">
-                                    <div class="monthly-fill tone-green" style="--w: {{ round(($month['done'] / $maxMonth) * 100) }}%;"></div>
-                                </div>
-                            </div>
-                            <div class="monthly-count">{{ $month['total'] }} งาน / สำเร็จ {{ $month['done'] }}</div>
-                        </div>
-                    @endforeach
-                </div>
-            </section>
-
-            <section class="panel-report">
-                <h2>รายการงานย้อนหลัง</h2>
-                <div class="desc">แสดงเฉพาะงานที่เกี่ยวข้องกับบัญชีของคุณในปีที่เลือก</div>
-                <div class="job-table-wrap">
-                    <table class="job-table">
-                        <thead>
-                            <tr>
-                                <th>เลขงาน</th>
-                                <th>ชื่องาน</th>
-                                <th>แผนก</th>
-                                <th>สถานะ</th>
-                                <th>ความคืบหน้า</th>
-                                <th>กำหนดส่ง</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($jobs as $job)
-                                @php
-                                    $status = $statusMap[(int) $job->job_status] ?? $statusMap[1];
-                                    $isLate = $job->job_due_at && $job->job_status !== 4 && $job->job_due_at->lt(now());
-                                @endphp
-                                <tr>
-                                    <td>IT-{{ $job->job_id }}</td>
-                                    <td><a href="{{ route('tasks.show', $job->job_id) }}" class="job-link">{{ $job->job_topic }}</a></td>
-                                    <td>{{ optional($job->department)->department_name ?? '-' }}</td>
-                                    <td><span class="pill {{ $isLate ? 'red' : $status['tone'] }}">{{ $isLate ? 'ล่าช้า' : $status['label'] }}</span></td>
-                                    <td>{{ (int) $job->job_progress }}%</td>
-                                    <td>{{ optional($job->job_due_at)->format('d/m/Y') ?? '-' }}</td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6">
-                                        <div class="empty-report">ยังไม่มีงานในปีนี้</div>
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+    <section class="personal-report__panel personal-report__upcoming">
+        <div class="personal-report__section-head"><div><h2>งานที่กำลังจะถึง</h2><p>งานที่ยังไม่เสร็จ เรียงตามกำหนดส่งใกล้ที่สุด</p></div><span>{{ $upcomingJobs->count() }} งาน</span></div>
+        <div class="personal-report__schedule">
+            @forelse($upcomingJobs as $job)
+                <a href="{{ $job['url'] }}" class="personal-report__schedule-item">
+                    <span class="personal-report__priority-dot personal-report__tone--{{ $job['priority']['tone'] }}" aria-hidden="true"></span>
+                    <span class="personal-report__schedule-main"><strong>{{ $job['topic'] }}</strong><small>{{ $job['project'] }}</small></span>
+                    <span class="personal-report__schedule-meta"><span class="personal-report__tag personal-report__tag--{{ $job['priority']['tone'] }}">{{ $job['priority']['label'] }}</span><span class="personal-report__tag personal-report__tag--{{ $job['status']['tone'] }}">{{ $job['status']['label'] }}</span><time datetime="{{ $job['due_at']?->toDateString() }}">{{ $job['due_at']?->locale('th')->isoFormat('D MMM YY') ?? '-' }}</time></span>
+                </a>
+            @empty
+                <div class="personal-report__empty"><i class="bi bi-calendar2-check" aria-hidden="true"></i><strong>ไม่มีงานที่กำลังจะถึง</strong><span>งานที่มีวันครบกำหนดจะแสดงที่นี่</span></div>
+            @endforelse
         </div>
+    </section>
 
-        <aside class="panel-report">
-            <h2>สัดส่วนสถานะ</h2>
-            <div class="desc">ดูจำนวนงานของคุณในแต่ละสถานะ</div>
-            <div class="status-list">
-                @foreach($statusSummary as $item)
-                    <div class="status-row">
-                        <strong>{{ $item['label'] }}</strong>
-                        <div class="bar-track"><div class="bar-fill tone-{{ $item['tone'] }}" style="--w: {{ round(($item['value'] / $maxStatus) * 100) }}%;"></div></div>
-                        <strong>{{ $item['value'] }}</strong>
-                    </div>
-                @endforeach
+    <div class="personal-report__analytics">
+        <section class="personal-report__panel">
+            <div class="personal-report__section-head"><div><h2>ภาระงาน 3 เดือนข้างหน้า</h2><p>จำนวนงานตามเดือนที่ครบกำหนด</p></div></div>
+            <div class="personal-report__chart"><canvas id="personalWorkloadChart" aria-label="กราฟภาระงาน 3 เดือนข้างหน้า" role="img"></canvas></div>
+            <ul class="personal-report__chart-summary" aria-label="ข้อมูลภาระงานแบบข้อความ">@foreach($workloadSummary as $item)<li><span>{{ $item['label'] }}</span><strong>{{ $item['value'] }} งาน</strong></li>@endforeach</ul>
+        </section>
+        <section class="personal-report__panel">
+            <div class="personal-report__section-head"><div><h2>สัดส่วนความสำคัญ</h2><p>ครบทั้ง 5 ระดับที่ใช้กับงาน</p></div></div>
+            <div class="personal-report__priority-layout">
+                <div class="personal-report__chart personal-report__chart--doughnut"><canvas id="personalPriorityChart" aria-label="กราฟสัดส่วนความสำคัญของงาน" role="img"></canvas></div>
+                <ul class="personal-report__legend">@foreach($prioritySummary as $item)<li><span class="personal-report__priority-dot personal-report__tone--{{ $item['tone'] }}" aria-hidden="true"></span><span>{{ $item['label'] }}</span><strong>{{ $item['count'] }}</strong></li>@endforeach</ul>
             </div>
-        </aside>
+        </section>
     </div>
+
+    <div class="personal-report__lower-grid">
+        <section class="personal-report__panel">
+            <div class="personal-report__section-head"><div><h2>ต้องให้ความสนใจ</h2><p>งานเกินกำหนด ใกล้ครบกำหนด หรือสำคัญด่วน</p></div></div>
+            <div class="personal-report__attention-list">
+                @forelse($attentionJobs as $job)
+                    <a href="{{ $job['url'] }}" class="personal-report__attention-item"><span class="personal-report__attention-icon personal-report__tag--{{ $job['status']['tone'] }}"><i class="bi bi-exclamation-lg" aria-hidden="true"></i></span><span><strong>{{ $job['topic'] }}</strong><small>{{ $job['project'] }} · {{ $job['due_at']?->locale('th')->isoFormat('D MMM YY') ?? 'ไม่มีกำหนด' }}</small></span><span class="personal-report__attention-reason">{{ $job['reason'] }}</span></a>
+                @empty
+                    <div class="personal-report__empty personal-report__empty--compact"><i class="bi bi-check2-circle" aria-hidden="true"></i><strong>ยังไม่มีงานที่ต้องเร่งติดตาม</strong></div>
+                @endforelse
+            </div>
+        </section>
+        <section class="personal-report__panel">
+            <div class="personal-report__section-head"><div><h2>รายการงานส่วนตัว</h2><p>งานทั้งหมดตามตัวกรองที่เลือก</p></div><span>{{ $taskRows->count() }} งาน</span></div>
+            <div class="personal-report__task-list">
+                @forelse($taskRows as $job)
+                    <a href="{{ $job['url'] }}" class="personal-report__task-row"><span><strong>{{ $job['topic'] }}</strong><small>{{ $job['project'] }}</small></span><span class="personal-report__tag personal-report__tag--{{ $job['status']['tone'] }}">{{ $job['status']['label'] }}</span><span>{{ $job['progress'] }}%</span><time datetime="{{ $job['due_at']?->toDateString() }}">{{ $job['due_at']?->format('d/m/Y') ?? '-' }}</time></a>
+                @empty
+                    <div class="personal-report__empty personal-report__empty--compact"><i class="bi bi-inbox" aria-hidden="true"></i><strong>ไม่พบงานตามตัวกรอง</strong></div>
+                @endforelse
+            </div>
+        </section>
+    </div>
+    <script type="application/json" id="personalReportChartData">@json($chartData)</script>
 </div>
 @endsection
-

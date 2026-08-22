@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\AdminReportService;
+use App\Services\PersonalReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,6 +13,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
+    public function __construct(private readonly PersonalReportService $personalReports) {}
+
     public function index(Request $request, AdminReportService $reports)
     {
         abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
@@ -33,7 +36,7 @@ class ReportController extends Controller
     {
         abort_unless(Auth::user()?->role === 'user', 403);
 
-        return $this->personalReportView(Auth::user(), $request, 'reports.my');
+        return view('reports.my', $this->personalReports->build(Auth::user(), $request));
     }
 
     public function exportMyCsv(Request $request): StreamedResponse
@@ -124,17 +127,7 @@ class ReportController extends Controller
 
     private function personalJobsQuery(int $userId)
     {
-        return WorkOrder::query()
-            ->where(function ($query) use ($userId) {
-                $query->where('user_id', $userId)
-                    ->orWhere('created_by', $userId)
-                    ->orWhere('leader_user_id', $userId)
-                    ->orWhereHas('collaborators', function ($collaboratorQuery) use ($userId) {
-                        $collaboratorQuery
-                            ->where('users.id', $userId)
-                            ->where('work_order_collaborators.status', 'accepted');
-                    });
-            });
+        return $this->personalReports->queryFor($userId);
     }
 
     private function downloadEmployeeCsv(User $user, int $year): StreamedResponse
