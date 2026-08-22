@@ -1,0 +1,126 @@
+        @media (max-width: 991px) {
+            :root { --sidebar-w: 0px; }
+
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: min(84vw, 310px);
+                min-height: 100dvh;
+                height: 100dvh;
+                transform: translateX(-105%);
+                border-right: 1px solid var(--border);
+                border-bottom: 0;
+                box-shadow: 20px 0 45px rgba(26, 31, 54, .16);
+                transition: transform .22s ease;
+                z-index: 1050;
+            }
+
+            .topbar,
+            .main {
+                margin-left: 0;
+            }
+
+            .topbar {
+                height: 58px;
+                padding: 0 .85rem;
+                gap: .65rem;
+            }
+
+            .sidebar-nav {
+                display: block;
+                overflow-y: auto;
+                padding: .75rem;
+            }
+
+            .nav-section-label,
+            .sidebar-foot {
+                display: flex;
+            }
+
+            .nav-item {
+                margin-bottom: .25rem;
+                white-space: normal;
+                min-height: 42px;
+            }
+
+            .sidebar-brand {
+                padding: .85rem .85rem .85rem 1rem;
+                justify-content: space-between;
+            }
+
+            .sidebar-brand > div {
+                min-width: 0;
+            }
+
+            .sidebar-close,
+            .mobile-menu-btn {
+                display: flex;
+            }
+
+            .sidebar-close {
+                width: 36px;
+                height: 36px;
+                border-radius: 10px;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid var(--border);
+                background: var(--surface);
+                color: var(--text-muted);
+                flex: 0 0 auto;
+            }
+
+            .mobile-menu-btn {
+                width: 40px;
+                height: 40px;
+                border-radius: 10px;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid var(--border);
+                background: var(--surface);
+                color: var(--text);
+                font-size: 1.15rem;
+                flex: 0 0 auto;
+            }
+
+            .sidebar-backdrop {
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, .34);
+                z-index: 1040;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity .2s ease;
+            }
+
+            body.sidebar-open {
+                overflow: hidden;
+            }
+
+            body.sidebar-open .sidebar {
+                transform: translateX(0);
+            }
+
+            body.sidebar-open .sidebar-backdrop {
+                display: block;
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            .topbar .search {
+                max-width: none;
+                min-width: 0;
+                flex: 1;
+            }
+
+            .role-chip {
+                max-width: 44px;
+                padding: 0 .65rem;
+                overflow: hidden;
+            }
+
+            .role-chip i {
+                margin-right: .2rem;
+            }
+        }

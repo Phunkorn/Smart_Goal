@@ -3,7 +3,7 @@
 @section('title', 'Workspace งานของ '.$member->name)
 
 @push('styles')
-    @vite(['resources/css/pages/work-board.css', 'resources/css/pages/mytasks.css', 'resources/js/pages/mytasks/index.js'])
+    @vite(['resources/css/pages/work-board-admin.css', 'resources/css/pages/mytasks.css', 'resources/js/pages/mytasks/index.js'])
 @endpush
 
 @section('content')

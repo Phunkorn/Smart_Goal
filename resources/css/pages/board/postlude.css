@@ -1,0 +1,3 @@
+/* Shared responsive and overlay rules intentionally close every Board entry. */
+@import './responsive.css';
+@import './modal.css';

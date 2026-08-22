@@ -34,9 +34,9 @@
 }
 
 .project-create-body label > span {
-    color: #334155 !important;
-    font-size: 12px !important;
-    font-weight: 700 !important;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .project-create-body label > span em {

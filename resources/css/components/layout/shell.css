@@ -1,0 +1,48 @@
+        /* ---------- Main ---------- */
+        .main {
+            margin-left: var(--sidebar-w);
+            padding: 1.75rem;
+            transition: margin-left .22s ease;
+        }
+
+        body.sidebar-collapsed .sidebar {
+            transform: translateX(-105%);
+        }
+
+        body.sidebar-collapsed .topbar,
+        body.sidebar-collapsed .main {
+            margin-left: 0;
+        }
+
+        .page-head {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            margin-bottom: 1.4rem;
+            flex-wrap: wrap;
+            gap: .75rem;
+        }
+
+        .page-head h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text);
+        }
+
+        .page-head .eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .7rem;
+            color: var(--accent);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: .3rem;
+            display: block;
+            font-weight: 600;
+        }
+
+        .page-head p {
+            color: var(--text-muted);
+            margin: .25rem 0 0;
+            font-size: .85rem;
+        }

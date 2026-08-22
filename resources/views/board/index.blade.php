@@ -3,7 +3,7 @@
 @section('title', 'บอร์ดงาน')
 
 @push('styles')
-    @vite('resources/css/pages/board.css')
+    @vite(auth()->user()->role === 'admin' ? 'resources/css/pages/board-admin.css' : 'resources/css/pages/board.css')
 @endpush
 
 @section('content')

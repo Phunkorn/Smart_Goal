@@ -1,0 +1,4 @@
+/* Shared Board structure loaded before context-specific extensions. */
+@import './base.css';
+@import './table.css';
+@import './dashboard.css';

@@ -3,7 +3,7 @@
 @section('title', 'รายละเอียดแผนก '.$department->department_name)
 
 @push('styles')
-    @vite('resources/css/pages/work-board.css')
+    @vite('resources/css/pages/work-board-admin.css')
 @endpush
 
 @section('content')

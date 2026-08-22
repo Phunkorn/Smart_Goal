@@ -1,0 +1,3 @@
+/* Admin Work Board composition: shared core plus admin-only workspace delta. */
+@import './work-board.css';
+@import './work-board/admin.css';

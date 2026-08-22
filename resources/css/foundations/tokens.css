@@ -1,0 +1,55 @@
+:root {
+            /* ---- Light, executive-friendly palette (Premium Care blue) ---- */
+            --bg: #F5F7FC;
+            --surface: #FFFFFF;
+            --surface-2: #EEF2FA;
+            --border: #DDE4F2;
+            --text: #16233D;
+            --text-muted: #64748B;
+
+            --accent: #1E4FD6;
+            --accent-dim: #E7EDFC;
+            --accent-strong: #16389E;
+
+            --brand-red: #E8352B;
+            --brand-red-dim: #FDEAE9;
+
+            --green: #00C875;
+            --green-dim: #E3FAEF;
+            --amber: #FDAB3D;
+            --amber-dim: #FFF2DF;
+            --red: #E2445C;
+            --red-dim: #FCE9EC;
+            --blue: #579BFC;
+            --blue-dim: #EAF3FF;
+            --gray: #9699A6;
+            --gray-dim: #F0F1F5;
+
+            --radius: 12px;
+            --radius-sm: 8px;
+            --sidebar-w: 252px;
+            --shadow-sm: 0 1px 2px rgba(22, 35, 61, .05), 0 1px 6px rgba(22, 35, 61, .05);
+            --shadow-md: 0 4px 16px rgba(22, 35, 61, .10);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Sarabun', sans-serif;
+            font-size: .92rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }

@@ -4,17 +4,18 @@
  * Keep the import order stable: later component layers intentionally refine
  * the base workspace styles defined by mytasks-notion.css.
  */
-@import './mytasks-notion.css';
-@import './mytasks-table-refresh.css';
-@import './mytasks-task-modal.css';
-@import './mytasks-attachment-modal.css';
-@import './mytasks-views.css';
-@import './mytasks-project-board.css';
-@import './mytasks-project-board-fixes.css';
-@import './mytasks-priority-menus.css';
-@import './mytasks-modal-refresh.css';
-@import './mytasks-kanban.css';
-@import './mytasks-admin-assignment.css';
-@import './mytasks-calendar.css';
-@import './mytasks-calendar-navigation.css';
-@import './mytasks-calendar-detail.css';
+/* Shared task workspace core. Keep this order: structure before context overrides. */
+@import '../components/task-workspace/base.css';
+@import '../components/task-workspace/table.css';
+@import '../components/task-workspace/modal.css';
+@import '../components/task-workspace/attachments.css';
+@import '../components/task-workspace/views.css';
+
+/* My Tasks page composition. */
+@import './mytasks/project-board.css';
+@import '../components/task-workspace/dialogs.css';
+@import '../components/task-workspace/kanban.css';
+@import './mytasks/admin-assignment.css';
+@import '../components/task-workspace/calendar/base.css';
+@import '../components/task-workspace/calendar/navigation.css';
+@import '../components/task-workspace/calendar/detail.css';
