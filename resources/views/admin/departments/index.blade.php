@@ -14,24 +14,6 @@
         </button>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill me-1"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="ปิด"></button>
-        </div>
-    @endif
-
-    @if ($errors->any())
-        <div class="alert alert-danger" role="alert">
-            <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> ไม่สามารถบันทึกข้อมูลได้</div>
-            <ul class="mb-0 ps-3">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -66,11 +48,11 @@
                                             <i class="bi bi-pencil-square"></i> แก้ไข
                                         </button>
                                         <form method="POST" action="{{ route('admin.departments.destroy', $department) }}"
-                                            onsubmit="return confirm('ยืนยันการลบแผนกนี้?')">
+                                            class="delete-department-form" data-department-name="{{ $department->department_name }}">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" @disabled(! $canDelete)
-                                                title="{{ $canDelete ? 'ลบแผนก' : 'ยังมีพนักงานหรือข้อมูลงานเชื่อมโยงอยู่' }}"
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                title="{{ $canDelete ? 'ลบแผนก' : 'ตรวจสอบการลบแผนก' }}"
                                                 aria-label="ลบแผนก {{ $department->department_name }}">
                                                 <i class="bi bi-trash"></i> ลบ
                                             </button>
@@ -150,3 +132,45 @@
     </div>
 @endforeach
 @endsection
+
+@push('scripts')
+<script>
+    document.querySelectorAll('.delete-department-form').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const departmentName = form.dataset.departmentName ?? '';
+            const confirmation = await Swal.fire({
+                icon: 'warning',
+                title: 'ยืนยันการลบแผนก',
+                text: `ต้องการลบแผนก “${departmentName}” หรือไม่? การลบทำได้เฉพาะแผนกที่ไม่มีพนักงานและไม่มีข้อมูลงาน`,
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันลบ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626',
+                reverseButtons: true,
+            });
+
+            if (confirmation.isConfirmed) form.submit();
+        });
+    });
+
+    @if (session('success'))
+        Swal.fire({
+            icon: 'success',
+            title: 'สำเร็จ',
+            text: @json(session('success')),
+            confirmButtonText: 'ตกลง',
+        });
+    @endif
+
+    @if ($errors->any())
+        Swal.fire({
+            icon: 'error',
+            title: 'ดำเนินการไม่สำเร็จ',
+            text: @json($errors->first()),
+            confirmButtonText: 'ตกลง',
+        });
+    @endif
+</script>
+@endpush

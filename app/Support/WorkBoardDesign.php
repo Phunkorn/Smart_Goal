@@ -18,11 +18,22 @@ final class WorkBoardDesign
         'late' => ['label' => 'ล่าช้า', 'tone' => 'red', 'icon' => 'bi-exclamation-circle'],
     ];
 
-    public const PRIORITIES = [
+    public const TASK_PRIORITIES = [
+        1 => ['label' => 'routine', 'tone' => 'gray'],
+        2 => ['label' => 'สำคัญไม่ด่วน', 'tone' => 'blue'],
+        3 => ['label' => 'สำคัญด่วน', 'tone' => 'red'],
+        4 => ['label' => 'ด่วนไม่ค่อยสำคัญ', 'tone' => 'amber'],
+        5 => ['label' => 'ไม่รีบ ไม่มีกำหนด', 'tone' => 'green'],
+    ];
+
+    public const PROJECT_PRIORITIES = [
         1 => ['label' => 'ต่ำ', 'tone' => 'gray'],
         2 => ['label' => 'กลาง', 'tone' => 'amber'],
         3 => ['label' => 'สูง', 'tone' => 'red'],
     ];
+
+    /** @deprecated Use PROJECT_PRIORITIES for project priority metadata. */
+    public const PRIORITIES = self::PROJECT_PRIORITIES;
 
     private const DEPARTMENT_TONES = ['blue', 'teal', 'purple', 'amber', 'cyan', 'rose'];
 
@@ -54,6 +65,11 @@ final class WorkBoardDesign
     public static function priority(int $priority): array
     {
         return self::PRIORITIES[$priority] ?? self::PRIORITIES[2];
+    }
+
+    public static function taskPriority(int $priority): array
+    {
+        return self::TASK_PRIORITIES[$priority] ?? self::TASK_PRIORITIES[2];
     }
 
     public static function statusCounts(Collection $jobs): array

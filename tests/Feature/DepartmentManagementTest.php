@@ -25,7 +25,12 @@ class DepartmentManagementTest extends TestCase
             ->assertOk()
             ->assertSee('จัดการแผนก')
             ->assertSee('Operations')
-            ->assertSee(route('admin.departments.index'), false);
+            ->assertSee(route('admin.departments.index'), false)
+            ->assertSee('delete-department-form', false)
+            ->assertSee('Swal.fire', false)
+            ->assertSee('ยืนยันการลบแผนก')
+            ->assertDontSee('window.confirm', false)
+            ->assertDontSee('return confirm(', false);
 
         $listedDepartment = $response->viewData('departments')->firstWhere('id', $department->id);
 
@@ -83,6 +88,11 @@ class DepartmentManagementTest extends TestCase
 
         $this->assertSame($admin->id, $log->user_id);
         $this->assertSame('Customer Success', $log->changes['after']['department_name']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->assertSee("icon: 'success'", false);
     }
 
     public function test_department_name_is_required_and_limited_to_schema_length(): void
@@ -115,6 +125,11 @@ class DepartmentManagementTest extends TestCase
             ])
             ->assertSessionHasErrors('department_name');
 
+        $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->assertSee("icon: 'error'", false);
+
         $this->assertDatabaseCount('departments', 1);
     }
 
@@ -131,6 +146,11 @@ class DepartmentManagementTest extends TestCase
         $this->actingAs($admin)
             ->patch(route('admin.departments.update', $first), ['department_name' => ' FINANCE '])
             ->assertSessionHasErrors('department_name');
+
+        $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->assertSee("icon: 'error'", false);
 
         $this->assertDatabaseHas('departments', ['id' => $first->id, 'department_name' => 'operations']);
         $this->assertDatabaseHas('departments', ['id' => $second->id, 'department_name' => 'Finance']);
@@ -165,6 +185,11 @@ class DepartmentManagementTest extends TestCase
 
         $this->assertSame('Marketing', $log->changes['before']['department_name']);
         $this->assertSame('Digital Marketing', $log->changes['after']['department_name']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->assertSee("icon: 'success'", false);
     }
 
     public function test_empty_department_can_be_deleted_and_is_audited(): void
@@ -185,6 +210,11 @@ class DepartmentManagementTest extends TestCase
             'subject_type' => Department::class,
             'subject_id' => $departmentId,
         ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->assertSee("icon: 'success'", false);
     }
 
     public function test_department_with_user_cannot_be_deleted_or_null_the_relationship(): void
@@ -196,6 +226,11 @@ class DepartmentManagementTest extends TestCase
         $this->actingAs($admin)
             ->delete(route('admin.departments.destroy', $department))
             ->assertSessionHasErrors('department');
+
+        $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->assertSee("icon: 'error'", false);
 
         $this->assertDatabaseHas('departments', ['id' => $department->id]);
         $this->assertSame($department->id, $employee->fresh()->department_id);

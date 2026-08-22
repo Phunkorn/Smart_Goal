@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\AdminReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,77 +12,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
-    public function index()
+    public function index(Request $request, AdminReportService $reports)
     {
         abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
 
-        $jobs = WorkOrder::with(['user', 'department'])->get();
-        $totalJobs = $jobs->count();
-        $completedJobs = $jobs->where('job_status', 4)->count();
-        $pendingApproval = $jobs->where('approval_status', 'pending')->count();
-        $overdueJobs = $jobs->filter(fn ($job) => $this->isOverdue($job))->count();
-        $completionRate = $totalJobs > 0 ? round(($completedJobs / $totalJobs) * 100) : 0;
-
-        $statusSummary = collect([
-            ['label' => 'รออนุมัติ', 'value' => $pendingApproval, 'tone' => 'amber'],
-            ['label' => 'รอดำเนินการ', 'value' => $jobs->where('job_status', 1)->count(), 'tone' => 'gray'],
-            ['label' => 'กำลังทำ', 'value' => $jobs->where('job_status', 2)->count(), 'tone' => 'blue'],
-            ['label' => 'ตรวจสอบ', 'value' => $jobs->where('job_status', 3)->count(), 'tone' => 'purple'],
-            ['label' => 'พักงานชั่วคราว', 'value' => $jobs->where('job_status', 5)->count(), 'tone' => 'gray'],
-            ['label' => 'เสร็จสิ้น', 'value' => $completedJobs, 'tone' => 'green'],
-            ['label' => 'ล่าช้า', 'value' => $overdueJobs, 'tone' => 'red'],
-        ]);
-
-        $departmentSummary = Department::withCount('users')->orderBy('department_name')->get()->map(function ($department) use ($jobs) {
-            $departmentJobs = $jobs->where('department_id', $department->id);
-            $total = $departmentJobs->count();
-            $done = $departmentJobs->where('job_status', 4)->count();
-
-            return [
-                'name' => $department->department_name,
-                'employees' => $department->users_count,
-                'total' => $total,
-                'active' => $departmentJobs->where('job_status', '!=', 4)->count(),
-                'done' => $done,
-                'overdue' => $departmentJobs->filter(fn ($job) => $this->isOverdue($job))->count(),
-                'rate' => $total > 0 ? round(($done / $total) * 100) : 0,
-            ];
-        });
-
-        $employeeSummary = User::with('department')->orderBy('name')->get()->map(function ($user) use ($jobs) {
-            $userJobs = $jobs->where('user_id', $user->id);
-
-            return [
-                'id' => $user->id,
-                'name' => $user->name,
-                'department' => optional($user->department)->department_name ?? '-',
-                'total' => $userJobs->count(),
-                'active' => $userJobs->where('job_status', '!=', 4)->count(),
-                'done' => $userJobs->where('job_status', 4)->count(),
-            ];
-        })->sortByDesc('active')->values();
-
-        $monthlySummary = collect(range(5, 0))->map(function ($offset) use ($jobs) {
-            $month = now()->subMonths($offset);
-
-            return [
-                'label' => $month->locale('th')->isoFormat('MMM YYYY'),
-                'created' => $jobs->filter(fn ($job) => $job->created_at && $job->created_at->isSameMonth($month))->count(),
-                'done' => $jobs->filter(fn ($job) => $job->job_completed_at && $job->job_completed_at->isSameMonth($month))->count(),
-            ];
-        });
-
-        return view('reports.index', compact(
-            'totalJobs',
-            'completedJobs',
-            'pendingApproval',
-            'overdueJobs',
-            'completionRate',
-            'statusSummary',
-            'departmentSummary',
-            'employeeSummary',
-            'monthlySummary'
-        ));
+        return view('reports.index', $reports->build($request));
     }
 
     public function exportCsv(): StreamedResponse
