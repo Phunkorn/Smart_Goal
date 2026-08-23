@@ -86,9 +86,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/employees', [UserController::class, 'index'])
         ->name('employees.index');
 
-    Route::get('/employees/{user}', [UserController::class, 'show'])
-        ->name('employees.show');
-
     Route::post('/employees', [UserController::class, 'store'])
         ->middleware('admin')
         ->name('employees.store');
@@ -155,6 +152,9 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::patch('/settings', [SettingsController::class, 'update'])
         ->name('settings.update');
+
+    Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
+        ->name('settings.password.update');
 
     // รายงานของผู้ใช้ปัจจุบัน
     Route::get('/my-reports', [ReportController::class, 'myReport'])

@@ -1,13 +1,2 @@
-.settings-page { max-width:900px; margin:0 auto; }
-    .settings-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:22px; box-shadow:var(--shadow-sm); }
-    .settings-head { display:flex; gap:16px; align-items:center; margin-bottom:20px; }
-    .settings-avatar { width:78px; height:78px; border-radius:22px; overflow:hidden; background:var(--accent-dim); color:var(--accent-strong); display:grid; place-items:center; font-size:22px; font-weight:800; flex:0 0 auto; }
-    .settings-avatar img { width:100%; height:100%; object-fit:cover; }
-    .readonly-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
-    .readonly-box { border:1px solid var(--border); border-radius:12px; padding:12px; background:var(--surface-2); }
-    .readonly-box .label { color:var(--text-muted); font-size:12px; font-weight:800; margin-bottom:4px; }
-    .settings-user-name { font-size:20px; font-weight:800; margin:0; }
-    .settings-user-email { color:var(--text-muted); margin-top:4px; }
-    .settings-admin-note { font-size:12px; }
-    @media (max-width:700px){ .readonly-grid{grid-template-columns:1fr;} .settings-head{align-items:flex-start;flex-direction:column;} }
-
+@import './settings/base.css';
+@import './settings/security.css';

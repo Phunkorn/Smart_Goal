@@ -1,0 +1,12 @@
+.settings-security__header { display: flex; align-items: center; gap: 14px; }
+.settings-security__icon { display: grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border-radius: 13px; background: var(--accent-dim); color: var(--accent-strong); font-size: 1.2rem; }
+.settings-security__notice { display: flex; align-items: flex-start; gap: 9px; margin: 20px 24px 0; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-muted); font-size: .78rem; line-height: 1.55; }
+.settings-security__notice i { flex: 0 0 auto; color: var(--accent-strong); }
+.settings-password-form { display: grid; gap: 16px; }
+.settings-password-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.settings-password-form .settings-card__actions { margin-top: 4px; }
+
+@media (max-width: 700px) {
+    .settings-security__notice { margin: 18px 18px 0; }
+    .settings-password-grid { grid-template-columns: 1fr; }
+}

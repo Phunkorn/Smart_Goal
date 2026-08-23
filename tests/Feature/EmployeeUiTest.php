@@ -1,0 +1,101 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Department;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
+use Tests\TestCase;
+
+class EmployeeUiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_admin_employee_page_has_ordered_actions_and_resolvable_unique_modal_targets(): void
+    {
+        $admin = $this->user('admin');
+        $employee = $this->user('user', Department::create(['department_name' => 'Operations']));
+
+        $response = $this->actingAs($admin)
+            ->get(route('employees.index'))
+            ->assertOk()
+            ->assertSee('employee-page__header', false)
+            ->assertSee('employee-summary', false)
+            ->assertSee('employee-toolbar', false)
+            ->assertSee('employee-card__actions', false)
+            ->assertDontSee('employee-current-work', false)
+            ->assertDontSee('employee-meeting-link', false)
+            ->assertDontSee('modal-dialog-scrollable', false)
+            ->assertSee('ข้อมูลบัญชี')
+            ->assertSee('ข้อมูลติดต่อ')
+            ->assertSee('สิทธิ์และองค์กร')
+            ->assertSee('รูปภาพโปรไฟล์')
+            ->assertSee('id="createUserModalPassword"', false)
+            ->assertDontSee('id="editUserModal'.$employee->id.'Password"', false);
+
+        $html = $response->getContent();
+        $editPosition = strpos($html, 'employee-action--edit');
+        $resetPosition = strpos($html, 'employee-action--reset');
+        $deletePosition = strpos($html, 'employee-action--delete');
+
+        $this->assertIsInt($editPosition);
+        $this->assertIsInt($resetPosition);
+        $this->assertIsInt($deletePosition);
+        $this->assertTrue($editPosition < $resetPosition && $resetPosition < $deletePosition);
+        $this->assertStringNotContainsString('employee-action--view', $html);
+        $this->assertFalse(Route::has('employees.show'));
+
+        preg_match_all('/\sdata-bs-target="#([A-Za-z][A-Za-z0-9_-]*)"/', $html, $targets);
+        preg_match_all('/\sid="([A-Za-z][A-Za-z0-9_-]*)"/', $html, $ids);
+
+        $idCounts = array_count_values($ids[1]);
+        foreach ($targets[1] as $targetId) {
+            $this->assertSame(1, $idCounts[$targetId] ?? 0, "Modal target {$targetId} must resolve to one element.");
+        }
+
+        $this->assertSame([], array_filter($idCounts, fn (int $count) => $count > 1));
+    }
+
+    public function test_viewer_sees_employee_information_without_management_controls_or_modals(): void
+    {
+        $viewer = $this->user('viewer');
+        $employee = $this->user('user');
+
+        $this->actingAs($viewer)
+            ->get(route('employees.index'))
+            ->assertOk()
+            ->assertSee('@'.$employee->username)
+            ->assertDontSee('employee-current-work', false)
+            ->assertDontSee('employee-meeting-link', false)
+            ->assertDontSee('data-bs-target="#createUserModal"', false)
+            ->assertDontSee('data-bs-target="#editUserModal', false)
+            ->assertDontSee('data-bs-target="#resetPasswordModal', false)
+            ->assertDontSee('employee-card__actions', false)
+            ->assertDontSee('employee-delete-form', false);
+    }
+
+    public function test_employee_page_permissions_remain_admin_write_viewer_read_and_user_denied(): void
+    {
+        $viewer = $this->user('viewer');
+        $user = $this->user('user');
+
+        $this->actingAs($viewer)
+            ->post(route('employees.store'), [])
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->get(route('employees.index'))
+            ->assertForbidden();
+    }
+
+    private function user(string $role, ?Department $department = null): User
+    {
+        return User::factory()->create([
+            'role' => $role,
+            'department_id' => $department?->id,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+    }
+}

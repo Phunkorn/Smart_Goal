@@ -363,34 +363,6 @@ class MeetingManagementTest extends TestCase
         $this->assertSame($measure(1), $measure(10));
     }
 
-    public function test_employee_detail_links_to_the_single_meeting_page_for_admin_and_viewer(): void
-    {
-        $employee = $this->user();
-        $url = route('meetings.index', ['employee' => $employee->id]);
-
-        $this->actingAs($this->user('admin'))->get(route('employees.show', $employee))->assertOk()->assertSee($url, false);
-        $this->actingAs($this->user('viewer'))->get(route('employees.show', $employee))->assertOk()->assertSee($url, false);
-        $this->actingAs($this->user())->get(route('employees.show', $employee))->assertForbidden();
-    }
-
-    public function test_employee_detail_hides_meeting_action_for_unsupported_targets(): void
-    {
-        $adminActor = $this->user('admin');
-        $viewerActor = $this->user('viewer');
-        $inactiveEmployee = $this->user(isActive: false);
-        $adminTarget = $this->user('admin');
-        $viewerTarget = $this->user('viewer');
-
-        foreach ([$adminActor, $viewerActor] as $actor) {
-            foreach ([$inactiveEmployee, $adminTarget, $viewerTarget] as $target) {
-                $this->actingAs($actor)
-                    ->get(route('employees.show', $target))
-                    ->assertOk()
-                    ->assertDontSee(route('meetings.index', ['employee' => $target->id]), false);
-            }
-        }
-    }
-
     public function test_empty_meeting_index_has_one_create_cta_for_writers_and_none_for_viewer(): void
     {
         foreach ([$this->user('admin'), $this->user()] as $actor) {

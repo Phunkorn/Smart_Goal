@@ -7,9 +7,9 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\AuditTrail;
 use App\Support\PasswordPolicy;
+use App\Support\UserSessionSecurity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -21,7 +21,7 @@ class UserController extends Controller
     {
         abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
 
-        $employees = User::with(['jobs' => fn ($q) => $q->latest('job_id'), 'department'])
+        $employees = User::with('department')
             ->orderBy('name')
             ->get()
             ->sortBy(fn (User $user) => ['admin' => 0, 'viewer' => 1, 'user' => 2][$user->role] ?? 3)
@@ -29,26 +29,8 @@ class UserController extends Controller
 
         $departments = Department::orderBy('department_name')->get();
         $canManageEmployees = Auth::user()?->role === 'admin';
-        $roleCounts = [
-            'admin' => $employees->where('role', 'admin')->count(),
-            'viewer' => $employees->where('role', 'viewer')->count(),
-            'user' => $employees->where('role', 'user')->count(),
-        ];
 
-        return view('employees.index', compact('employees', 'departments', 'canManageEmployees', 'roleCounts'));
-    }
-
-    public function show(User $user)
-    {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
-
-        $user->load(['jobs' => fn ($q) => $q->latest('job_id'), 'department']);
-
-        $activeJob = $user->jobs->first(fn ($job) => in_array((int) $job->job_status, [1, 2, 3, 5], true));
-        $history = $user->jobs;
-        $completedCount = $user->jobs->where('job_status', 4)->count();
-
-        return view('employees.show', compact('user', 'activeJob', 'history', 'completedCount'));
+        return view('employees.index', compact('employees', 'departments', 'canManageEmployees'));
     }
 
     public function store(Request $request)
@@ -123,7 +105,7 @@ class UserController extends Controller
         $user->refresh();
 
         if (! $user->is_active || $credentialsChanged) {
-            $this->invalidateUserSessions($user);
+            UserSessionSecurity::invalidateAll($user);
         }
 
         AuditTrail::log('updated', $user, 'Admin updated employee: '.$user->name, [
@@ -172,7 +154,7 @@ class UserController extends Controller
         ]);
 
         $user->delete();
-        $this->invalidateUserSessions($user);
+        UserSessionSecurity::invalidateAll($user);
 
         return redirect()->route('employees.index')->with('success', 'ลบพนักงานสำเร็จ');
     }
@@ -195,7 +177,7 @@ class UserController extends Controller
             'must_change_password' => true,
             'remember_token' => Str::random(60),
         ])->save();
-        $this->invalidateUserSessions($user);
+        UserSessionSecurity::invalidateAll($user);
 
         AuditTrail::log('password_reset', $user, 'Admin reset password for employee: '.$user->name, [
             'before' => $before,
@@ -249,14 +231,5 @@ class UserController extends Controller
         unset($payload['password'], $payload['remember_token']);
 
         return $payload;
-    }
-
-    private function invalidateUserSessions(User $user): void
-    {
-        if (config('session.driver') !== 'database') {
-            return;
-        }
-
-        DB::table(config('session.table'))->where('user_id', $user->id)->delete();
     }
 }

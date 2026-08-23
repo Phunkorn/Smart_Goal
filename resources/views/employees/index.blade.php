@@ -17,118 +17,163 @@
         $filteredEmployees = $currentDeptId ? $employees->where('department_id', $currentDeptId)->values() : $employees;
     @endphp
 
-    <div class="employee-page">
-        <div class="employee-head">
+    <div class="employee-page" data-employee-page
+        data-success-message="{{ session('success') }}"
+        data-error-message="{{ $errors->first() }}"
+        data-open-modal="{{ old('_employee_form_modal') }}">
+        <header class="employee-page__header">
             <div>
+                <span class="eyebrow">จัดการบุคลากร</span>
                 <h1>พนักงาน</h1>
-                <p>จัดการบัญชี สิทธิ์ แผนก และดูงานที่แต่ละคนรับผิดชอบอยู่</p>
-                <div class="role-summary">
-                    <span class="summary-pill"><i class="bi bi-shield-check"></i> Admin {{ $roleCounts['admin'] ?? 0 }}</span>
-                    <span class="summary-pill"><i class="bi bi-eye"></i> Viewer {{ $roleCounts['viewer'] ?? 0 }}</span>
-                    <span class="summary-pill"><i class="bi bi-person-check"></i> พนักงาน
-                        {{ $roleCounts['user'] ?? 0 }}</span>
-                    <span class="summary-pill"><i class="bi bi-people"></i> ทั้งหมด {{ $employees->count() }}</span>
-                </div>
+                <p>ดูข้อมูลบัญชี สิทธิ์ แผนก และงานที่แต่ละคนรับผิดชอบ</p>
             </div>
 
             @if ($canManageEmployees)
-                <button type="button" class="btn-add-employee" data-bs-toggle="modal" data-bs-target="#createUserModal">
-                    <i class="bi bi-person-plus-fill"></i> เพิ่มพนักงาน
+                <button type="button" class="employee-button employee-button--primary" data-bs-toggle="modal"
+                    data-bs-target="#createUserModal">
+                    <i class="bi bi-person-plus" aria-hidden="true"></i>
+                    เพิ่มพนักงาน
                 </button>
             @endif
-        </div>
+        </header>
 
-        <div class="employee-toolbar">
-            <label class="employee-search">
-                <i class="bi bi-search"></i>
-                <input type="search" id="employeeSearchInput" placeholder="ค้นหาชื่อ อีเมล เบอร์โทร หรือแผนก"
-                    oninput="filterEmployees(this.value)">
+        <section class="employee-summary" aria-label="สรุปจำนวนบัญชีตามสิทธิ์">
+            <div class="employee-summary__item">
+                <span class="employee-summary__icon employee-summary__icon--all"><i class="bi bi-people" aria-hidden="true"></i></span>
+                <div><strong data-employee-summary-count="all">{{ $filteredEmployees->count() }}</strong><span>ทั้งหมด</span></div>
+            </div>
+            <div class="employee-summary__item">
+                <span class="employee-summary__icon employee-summary__icon--admin"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
+                <div><strong data-employee-summary-count="admin">{{ $filteredEmployees->where('role', 'admin')->count() }}</strong><span>Admin</span></div>
+            </div>
+            <div class="employee-summary__item">
+                <span class="employee-summary__icon employee-summary__icon--viewer"><i class="bi bi-eye" aria-hidden="true"></i></span>
+                <div><strong data-employee-summary-count="viewer">{{ $filteredEmployees->where('role', 'viewer')->count() }}</strong><span>ผู้เข้าชม</span></div>
+            </div>
+            <div class="employee-summary__item">
+                <span class="employee-summary__icon employee-summary__icon--user"><i class="bi bi-person-check" aria-hidden="true"></i></span>
+                <div><strong data-employee-summary-count="user">{{ $filteredEmployees->where('role', 'user')->count() }}</strong><span>พนักงาน</span></div>
+            </div>
+        </section>
+
+        <section class="employee-toolbar" aria-label="ค้นหาและกรองพนักงาน">
+            <label class="employee-search" for="employeeSearchInput">
+                <span>ค้นหา</span>
+                <span class="employee-search__control">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input type="search" id="employeeSearchInput" data-employee-search
+                        placeholder="ชื่อ Username อีเมล เบอร์โทร หรือแผนก" autocomplete="off">
+                </span>
             </label>
-            <a href="{{ route('employees.index') }}" class="dept-chip {{ !$currentDeptId ? 'active' : '' }}">ทั้งหมด
-                {{ $employees->count() }}</a>
-            @foreach ($departments as $department)
-                <a href="{{ route('employees.index', ['department_id' => $department->id]) }}"
-                    class="dept-chip {{ $currentDeptId === $department->id ? 'active' : '' }}">
-                    {{ $department->department_name }} {{ $employees->where('department_id', $department->id)->count() }}
-                </a>
-            @endforeach
+
+            <nav class="employee-department-filter" aria-label="กรองตามแผนก">
+                <span class="employee-department-filter__label">แผนก</span>
+                <div class="employee-department-filter__options">
+                    <a href="{{ route('employees.index') }}" class="employee-filter-chip {{ !$currentDeptId ? 'is-active' : '' }}"
+                        @if(!$currentDeptId) aria-current="page" @endif>
+                        ทั้งหมด <span>{{ $employees->count() }}</span>
+                    </a>
+                    @foreach ($departments as $department)
+                        <a href="{{ route('employees.index', ['department_id' => $department->id]) }}"
+                            class="employee-filter-chip {{ $currentDeptId === $department->id ? 'is-active' : '' }}"
+                            @if($currentDeptId === $department->id) aria-current="page" @endif>
+                            {{ $department->department_name }}
+                            <span>{{ $employees->where('department_id', $department->id)->count() }}</span>
+                        </a>
+                    @endforeach
+                </div>
+            </nav>
+        </section>
+
+        <div class="employee-results-meta" aria-live="polite">
+            <span>แสดง <strong data-employee-visible-count>{{ $filteredEmployees->count() }}</strong> บัญชี</span>
         </div>
 
-        <div class="employee-grid">
+        <div class="employee-grid" data-employee-grid>
             @forelse($filteredEmployees as $employee)
                 @php
-                    $latestJob = $employee->jobs->first();
                     $role = $roleMeta[$employee->role] ?? $roleMeta['user'];
-                    $searchText = Str::lower(
-                        $employee->name .
-                            ' ' .
-                            $employee->username .
-                            ' ' .
-                            $employee->email .
-                            ' ' .
-                            $employee->phone .
-                            ' ' .
-                            optional($employee->department)->department_name .
-                            ' ' .
-                            $role['label'],
-                    );
+                    $searchText = Str::lower(implode(' ', array_filter([
+                        $employee->name,
+                        $employee->username,
+                        $employee->email,
+                        $employee->phone,
+                        optional($employee->department)->department_name,
+                        $role['label'],
+                    ])));
                 @endphp
-                <article class="employee-card" data-search="{{ $searchText }}">
-                    <div class="employee-profile">
-                        <div class="employee-avatar">
-                            @if ($employee->profile_image)
-                                <img src="{{ route('media.show', ['path' => $employee->profile_image]) }}"
-                                    alt="{{ $employee->name }}">
-                            @else
-                                {{ mb_substr($employee->name, 0, 2) }}
-                            @endif
-                        </div>
-                        <div class="employee-info">
-                            <div class="employee-name">{{ $employee->name }}</div>
-                            <div class="employee-sub">{{ optional($employee->department)->department_name ?? 'ไม่มีแผนก' }}
+                <article class="employee-card" data-employee-card data-employee-role="{{ $employee->role }}" data-search="{{ $searchText }}">
+                    <div class="employee-card__header">
+                        <div class="employee-profile">
+                            <div class="employee-avatar">
+                                @if ($employee->profile_image)
+                                    <img src="{{ route('media.show', ['path' => $employee->profile_image]) }}"
+                                        alt="รูปโปรไฟล์ของ {{ $employee->name }}">
+                                @else
+                                    {{ mb_substr($employee->name, 0, 2) }}
+                                @endif
+                            </div>
+                            <div class="employee-profile__identity">
+                                <h2 title="{{ $employee->name }}">{{ $employee->name }}</h2>
+                                <p>{{ optional($employee->department)->department_name ?? 'ไม่ได้ระบุแผนก' }}</p>
                             </div>
                         </div>
+                        <span class="employee-status {{ $employee->is_active ? 'is-active' : 'is-inactive' }}">
+                            <span aria-hidden="true"></span>{{ $employee->is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' }}
+                        </span>
                     </div>
 
-                    <span class="role-pill {{ $role['class'] }}"><i
-                            class="bi {{ $role['icon'] }}"></i>{{ $role['label'] }}</span>
-
-                    <div class="employee-meta">
-                        <span><i class="bi bi-person-badge"></i>{{ '@'.$employee->username }}</span>
-                        <span><i class="bi bi-envelope"></i>{{ $employee->email ?: '-' }}</span>
-                        <span><i class="bi bi-telephone"></i>{{ $employee->phone ?: '-' }}</span>
-                    </div>
-
-                    <div class="work-now">
-                        <div class="work-label">กำลังทำอยู่</div>
-                        <div class="work-title">{{ $latestJob?->job_topic ?? 'ยังไม่มีงานที่มอบหมาย' }}</div>
-                    </div>
-
-                    <div class="card-actions">
-                        <a href="{{ route('employees.show', $employee->id) }}" class="mini-btn primary"><i
-                                class="bi bi-eye"></i> ดู</a>
-                        @if ($canManageEmployees)
-                        <button type="button" class="mini-btn employee-action-edit" data-bs-toggle="modal"
-                            data-bs-target="#editUserModal{{ $employee->id }}"
-                            ><i class="bi bi-pencil-square"></i>
-                            แก้ไข</button>
-                        <button type="button" class="mini-btn employee-action-reset" data-bs-toggle="modal"
-                            data-bs-target="#resetPasswordModal{{ $employee->id }}"
-                            ><i class="bi bi-key-fill"></i>
-                            รีเซ็ตรหัสผ่าน</button>
-                            @if ($employee->id !== auth()->id())
-                                <form method="POST" action="{{ route('employees.destroy', $employee->id) }}"
-                                    class="delete-user-form">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="mini-btn danger"><i class="bi bi-trash"></i> ลบ</button>
-                                </form>
-                            @endif
+                    <div class="employee-card__badges">
+                        <span class="employee-role employee-role--{{ $role['class'] }}">
+                            <i class="bi {{ $role['icon'] }}" aria-hidden="true"></i>{{ $role['label'] }}
+                        </span>
+                        @if($employee->must_change_password)
+                            <span class="employee-password-state"><i class="bi bi-key" aria-hidden="true"></i>รอตั้งรหัสผ่านใหม่</span>
                         @endif
                     </div>
+
+                    <dl class="employee-meta">
+                        <div><dt><i class="bi bi-person-badge" aria-hidden="true"></i>Username</dt><dd>{{ '@'.$employee->username }}</dd></div>
+                        <div><dt><i class="bi bi-envelope" aria-hidden="true"></i>Email</dt><dd>{{ $employee->email ?: 'ไม่ได้ระบุ' }}</dd></div>
+                        <div><dt><i class="bi bi-telephone" aria-hidden="true"></i>โทรศัพท์</dt><dd>{{ $employee->phone ?: 'ไม่ได้ระบุ' }}</dd></div>
+                    </dl>
+
+                    @if ($canManageEmployees)
+                        <div class="employee-card__actions">
+                            <button type="button" class="employee-action employee-action--edit" data-bs-toggle="modal"
+                                data-bs-target="#editUserModal{{ $employee->id }}">
+                                <i class="bi bi-pencil-square" aria-hidden="true"></i>แก้ไข
+                            </button>
+                            <button type="button" class="employee-action employee-action--reset" data-bs-toggle="modal"
+                                data-bs-target="#resetPasswordModal{{ $employee->id }}">
+                                <i class="bi bi-key" aria-hidden="true"></i>รีเซ็ตรหัสผ่าน
+                            </button>
+                            @if ($employee->id !== auth()->id())
+                                <form method="POST" action="{{ route('employees.destroy', $employee->id) }}"
+                                    class="employee-delete-form" data-employee-name="{{ $employee->name }}">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="employee-action employee-action--delete">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>ลบ
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
+                    @endif
                 </article>
             @empty
-                <div class="panel text-center p-4">ยังไม่มีพนักงานในเงื่อนไขนี้</div>
+                <div class="employee-empty-state">
+                    <i class="bi bi-people" aria-hidden="true"></i>
+                    <h2>ยังไม่มีพนักงานในเงื่อนไขนี้</h2>
+                    <p>ลองเลือกแผนกอื่น หรือเพิ่มบัญชีพนักงานใหม่</p>
+                </div>
             @endforelse
+        </div>
+
+        <div class="employee-empty-state" data-employee-search-empty hidden>
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <h2>ไม่พบพนักงานที่ค้นหา</h2>
+            <p>ลองตรวจคำค้น หรือค้นหาด้วยชื่อ Username อีเมล เบอร์โทร หรือแผนก</p>
         </div>
     </div>
 
@@ -145,90 +190,11 @@
                 'mode' => 'edit',
                 'employee' => $employee,
             ])
-            @include('employees.partials.reset-password-modal', [
-                'employee' => $employee,
-            ])
+            @include('employees.partials.reset-password-modal', ['employee' => $employee])
         @endforeach
     @endif
 @endsection
 
 @push('scripts')
-    <script>
-        function generateTempPassword(employeeId) {
-            const words = ['SmartGoal', 'PremiumCare', 'SecureTeam'];
-            const word = words[Math.floor(Math.random() * words.length)];
-            const digits = crypto.getRandomValues(new Uint32Array(1))[0].toString().slice(-5);
-            const input = document.getElementById('resetPasswordInput' + employeeId);
-            const password = word + '!' + digits;
-            if (input) input.value = password;
-        }
-
-        function filterEmployees(value) {
-            const keyword = value.trim().toLowerCase();
-            document.querySelectorAll('.employee-card[data-search]').forEach((card) => {
-                card.style.display = card.dataset.search.includes(keyword) ? '' : 'none';
-            });
-        }
-
-        function syncEmployeeRoleFields(scope) {
-            const role = scope.querySelector('[data-user-role]');
-            const department = scope.querySelector('[data-user-department]');
-            if (!role || !department) return;
-            const needsDepartment = role.value === 'user';
-            department.disabled = !needsDepartment;
-            department.required = needsDepartment;
-            if (!needsDepartment) department.value = '';
-        }
-
-        document.querySelectorAll('[data-employee-form]').forEach((form) => {
-            syncEmployeeRoleFields(form);
-            form.querySelector('[data-user-role]')?.addEventListener('change', () => syncEmployeeRoleFields(form));
-            form.querySelector('[data-profile-input]')?.addEventListener('change', function() {
-                const preview = form.querySelector('[data-profile-preview]');
-                const file = this.files?.[0];
-                if (!preview || !file) {
-                    if (preview) preview.style.display = 'none';
-                    return;
-                }
-                preview.src = URL.createObjectURL(file);
-                preview.style.display = 'block';
-            });
-        });
-
-        document.querySelectorAll('.delete-user-form').forEach((form) => {
-            form.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const confirm = await Swal.fire({
-                    icon: 'warning',
-                    title: 'ยืนยันลบพนักงาน?',
-                    text: 'บัญชีนี้จะถูกลบออกจากระบบ',
-                    showCancelButton: true,
-                    confirmButtonText: 'ลบ',
-                    cancelButtonText: 'ยกเลิก'
-                });
-                if (confirm.isConfirmed) form.submit();
-            });
-        });
-
-        @if (session('success'))
-            Swal.fire({
-                icon: 'success',
-                title: 'สำเร็จ',
-                text: @json(session('success')),
-                confirmButtonText: 'ตกลง'
-            });
-        @endif
-
-        @if ($errors->any())
-            Swal.fire({
-                icon: 'error',
-                title: 'ไม่สำเร็จ',
-                html: @json($errors->first()),
-                confirmButtonText: 'ตกลง'
-            });
-        @endif
-    </script>
+    @vite('resources/js/pages/employees/index.js')
 @endpush
-
-
-
