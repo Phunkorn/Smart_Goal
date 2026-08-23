@@ -56,6 +56,9 @@
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
                     <i class="bi bi-kanban-fill"></i> บอร์ดรวม
                 </a>
+                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
+                    <i class="bi bi-calendar-event-fill"></i> การประชุม
+                </a>
             @endif
 
             @if ($isViewer)
@@ -71,6 +74,9 @@
 
                 <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-bar-chart-line-fill"></i> รายงาน
+                </a>
+                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
+                    <i class="bi bi-calendar-event-fill"></i> การประชุม
                 </a>
             @endif
 
@@ -88,6 +94,9 @@
                 <a href="{{ route('reports.my') }}"
                     class="nav-item {{ request()->routeIs('reports.my') ? 'active' : '' }}">
                     <i class="bi bi-clipboard-data-fill"></i> รายงานของฉัน
+                </a>
+                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
+                    <i class="bi bi-calendar-event-fill"></i> การประชุม
                 </a>
             @endif
 

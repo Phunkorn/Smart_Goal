@@ -41,9 +41,16 @@
             <h1>{{ $user->name }}</h1>
             <p>{{ $user->position ?? '-' }} · {{ optional($user->department)->department_name ?? '-' }}</p>
         </div>
-        <span class="badge-soft {{ $statusInfo['tone'] }} employee-status-pill">
-            <span class="status-dot"></span> {{ $statusInfo['label'] }}
-        </span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            @if($user->role === 'user' && $user->is_active && is_null($user->deleted_at))
+                <a href="{{ route('meetings.index', ['employee' => $user->id]) }}" class="btn-outline-line">
+                    <i class="bi bi-calendar-event"></i> ดูการประชุม
+                </a>
+            @endif
+            <span class="badge-soft {{ $statusInfo['tone'] }} employee-status-pill">
+                <span class="status-dot"></span> {{ $statusInfo['label'] }}
+            </span>
+        </div>
     </div>
 
     <div class="row g-3">

@@ -88,6 +88,16 @@ class User extends Authenticatable
         return $this->hasMany(ActivityLog::class);
     }
 
+    public function createdMeetings(): HasMany
+    {
+        return $this->hasMany(Meeting::class, 'created_by');
+    }
+
+    public function attendedMeetings(): BelongsToMany
+    {
+        return $this->belongsToMany(Meeting::class, 'meeting_attendees')->withTimestamps();
+    }
+
     public function trashLogs(): HasMany
     {
         return $this->hasMany(TrashLog::class, 'deleted_by');

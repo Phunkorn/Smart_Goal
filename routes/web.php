@@ -3,19 +3,20 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MyTaskController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCollaboratorController;
+use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskProgressController;
 use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
-use App\Http\Controllers\TaskCommentController;
-use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -70,6 +71,9 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 */
 
 Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
+
+    Route::resource('meetings', MeetingController::class)
+        ->only(['index', 'store', 'show', 'update', 'destroy']);
 
     // หน้าหลักและบอร์ดภาพรวม
     Route::redirect('/dashboard', '/board')

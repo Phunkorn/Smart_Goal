@@ -1,0 +1,23 @@
+@media (max-width: 1000px) {
+    .meetings-page__filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .meetings-page__detail-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+    .meetings-page__header { align-items: flex-start; flex-direction: column; }
+    .meetings-page__actions { width: 100%; justify-content: flex-start; }
+    .meetings-page__card { align-items: flex-start; flex-wrap: wrap; }
+    .meetings-page__card-body { flex-basis: calc(100% - 80px); }
+    .meetings-page__card-actions { width: 100%; justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--border); }
+    .meetings-page__detail-meta { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+    .meetings-page__filters { grid-template-columns: 1fr; }
+    .meetings-page__filters .meetings-page__button { width: 100%; }
+    .meetings-page__card { gap: 12px; padding: 14px; }
+    .meetings-page__card-date { width: 48px; min-height: 54px; }
+    .meetings-page__meta { display: grid; gap: 7px; }
+    .meetings-page__panel { padding: 17px; }
+    .meeting-attendee-field__help { align-items: flex-start; flex-direction: column; }
+}
