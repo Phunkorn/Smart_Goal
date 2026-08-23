@@ -26,7 +26,7 @@
     <section class="wb-profile-card admin-member-profile">
         <div class="wb-profile-card__person">
             @include('work-board.partials.avatar', ['user' => $member, 'size' => 'xl'])
-            <div><span class="wb-eyebrow">ADMIN MEMBER WORKSPACE</span><h1>{{ $member->name }}</h1><span>{{ $department->department_name }}</span><small><i class="bi bi-envelope"></i>{{ $member->email }}</small></div>
+            <div><span class="wb-eyebrow">ADMIN MEMBER WORKSPACE</span><h1>{{ $member->name }}</h1><span>{{ $department->department_name }}</span><small><i class="bi bi-envelope"></i>{{ $member->email ?: '@'.$member->username }}</small></div>
         </div>
         <div class="wb-profile-kpi"><i class="bi bi-folder2-open"></i><strong>{{ $totals['projects'] }}</strong><span>โปรเจกต์</span></div>
         <div class="wb-profile-kpi"><i class="bi bi-list-check"></i><strong>{{ $totals['tasks'] }}</strong><span>งานทั้งหมด</span></div>

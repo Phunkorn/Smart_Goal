@@ -55,7 +55,7 @@
                 <a class="admin-member-selector__item" href="{{ route('admin.work-board.member', [$department, $person]) }}">
                     @include('work-board.partials.avatar', ['user' => $person, 'size' => 'lg'])
                     <strong>{{ $person->name }}</strong>
-                    <span>{{ $person->email }}</span>
+                    <span>{{ $person->email ?: '@'.$person->username }}</span>
                     <small><i class="bi bi-folder2"></i>{{ $person->board_project_count }} โปรเจกต์ <i class="bi bi-list-check"></i>{{ $person->board_jobs->count() }} งาน</small>
                 </a>
             @empty

@@ -94,7 +94,7 @@
                             </td>
                             <td>
                                 <div class="trash-title">{{ $trash->deletedBy?->name ?? 'ระบบ' }}</div>
-                                <div class="trash-muted">{{ $trash->deletedBy?->email }}</div>
+                                <div class="trash-muted">{{ $trash->deletedBy?->email ?: ($trash->deletedBy?->username ? '@'.$trash->deletedBy->username : '') }}</div>
                             </td>
                             <td>
                                 <strong>{{ optional($trash->deleted_at)->format('d/m/Y H:i') }}</strong>

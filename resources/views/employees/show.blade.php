@@ -73,8 +73,12 @@
                     {{ $user->department?->department_name ?? '-' }} </div>
                 <div class="text-start employee-contact-list">
                     <div class="d-flex align-items-center gap-2 py-2 employee-contact-row">
+                        <i class="bi bi-person-badge-fill"></i>
+                        {{ '@'.$user->username }}
+                    </div>
+                    <div class="d-flex align-items-center gap-2 py-2 employee-contact-row">
                         <i class="bi bi-envelope-fill"></i>
-                        {{ $user->email }}
+                        {{ $user->email ?: '-' }}
                     </div>
                     <div class="d-flex align-items-center gap-2 py-2 employee-contact-row">
                         <i class="bi bi-telephone-fill"></i>

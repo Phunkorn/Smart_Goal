@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -59,6 +60,7 @@ class UserController extends Controller
 
         $employee = User::create([
             'name' => $validated['name'],
+            'username' => $validated['username'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'department_id' => $validated['role'] === 'user' ? $validated['department_id'] : null,
@@ -82,9 +84,12 @@ class UserController extends Controller
 
         $validated = $this->validateUser($request, $user);
         $before = $this->auditUserPayload($user);
+        $usernameChanged = $user->username !== $validated['username'];
+        $emailChanged = $user->email !== $validated['email'];
 
         $data = [
             'name' => $validated['name'],
+            'username' => $validated['username'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'role' => $validated['role'],
@@ -92,9 +97,19 @@ class UserController extends Controller
             'is_active' => $validated['is_active'],
         ];
 
+        if ($emailChanged) {
+            $data['email_verified_at'] = null;
+        }
+
         if (! empty($validated['password'])) {
             $data['password'] = Hash::make($validated['password']);
             $data['must_change_password'] = true;
+        }
+
+        $credentialsChanged = $usernameChanged || array_key_exists('password', $data);
+
+        if ($credentialsChanged || ! $validated['is_active']) {
+            $data['remember_token'] = Str::random(60);
         }
 
         if ($request->hasFile('profile_image')) {
@@ -104,10 +119,10 @@ class UserController extends Controller
             $data['profile_image'] = $this->storeProfileImage($request);
         }
 
-        $user->update($data);
+        $user->forceFill($data)->save();
         $user->refresh();
 
-        if (! $user->is_active || array_key_exists('password', $data)) {
+        if (! $user->is_active || $credentialsChanged) {
             $this->invalidateUserSessions($user);
         }
 
@@ -115,6 +130,14 @@ class UserController extends Controller
             'before' => $before,
             'after' => $this->auditUserPayload($user),
         ]);
+
+        if ($usernameChanged && (int) $user->id === (int) Auth::id()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login');
+        }
 
         return redirect()->route('employees.index')->with('success', 'แก้ไขข้อมูลพนักงานสำเร็จ');
     }
@@ -167,10 +190,11 @@ class UserController extends Controller
 
         $before = $this->auditUserPayload($user);
 
-        $user->update([
+        $user->forceFill([
             'password' => Hash::make($validated['password']),
             'must_change_password' => true,
-        ]);
+            'remember_token' => Str::random(60),
+        ])->save();
         $this->invalidateUserSessions($user);
 
         AuditTrail::log('password_reset', $user, 'Admin reset password for employee: '.$user->name, [
@@ -183,14 +207,27 @@ class UserController extends Controller
 
     private function validateUser(Request $request, ?User $user = null): array
     {
+        $request->merge([
+            'username' => User::normalizeUsername($request->input('username')),
+            'email' => $request->filled('email') ? trim((string) $request->input('email')) : null,
+        ]);
+
         $passwordRule = $user
             ? ['nullable', 'string', 'confirmed', PasswordPolicy::rule()]
             : ['required', 'string', 'confirmed', PasswordPolicy::rule()];
 
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'username' => [
+                'required',
+                'string',
+                'min:3',
+                'max:50',
+                'regex:/\A[a-z0-9._-]+\z/',
+                Rule::unique('users', 'username')->ignore($user?->id),
+            ],
             'phone' => ['nullable', 'string', 'max:30'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
             'password' => $passwordRule,
             'role' => ['required', Rule::in(['admin', 'user', 'viewer'])],
             'is_active' => ['required', 'boolean'],

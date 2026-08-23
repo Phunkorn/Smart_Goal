@@ -6,9 +6,9 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Services\TaskCommentService;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TodayWorkspace;
-use App\Services\TaskCommentService;
 use App\Support\WorkBoardDesign;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -80,7 +80,8 @@ class WorkBoardController extends Controller
             }
 
             return str_contains(mb_strtolower($member->name), $search)
-                || str_contains(mb_strtolower($member->email), $search)
+                || str_contains(mb_strtolower($member->username), $search)
+                || str_contains(mb_strtolower((string) $member->email), $search)
                 || $memberJobs->contains(fn (WorkOrder $job) => str_contains(
                     mb_strtolower($job->job_topic.' '.$job->job_details.' '.($job->taskList?->name ?? '')),
                     $search
@@ -197,7 +198,7 @@ class WorkBoardController extends Controller
                 }
 
                 return $search === ''
-                    || str_contains(mb_strtolower($member->name.' '.$member->email), $search)
+                    || str_contains(mb_strtolower($member->name.' '.$member->username.' '.($member->email ?? '')), $search)
                     || $memberJobs->contains(fn (WorkOrder $job) => str_contains(
                         mb_strtolower($job->job_topic.' '.$job->job_details.' '.($job->taskList?->name ?? '')),
                         $search

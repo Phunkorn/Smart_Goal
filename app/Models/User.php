@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -16,6 +17,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
+        'username',
         'email',
         'phone',
         'password',
@@ -39,6 +41,16 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    public static function normalizeUsername(mixed $username): string
+    {
+        return Str::lower(trim((string) $username));
+    }
+
+    public function setUsernameAttribute(mixed $username): void
+    {
+        $this->attributes['username'] = self::normalizeUsername($username);
     }
 
     public function jobs()

@@ -26,12 +26,17 @@
                             <input type="text" name="name" class="form-control" value="{{ old('name', $employee->name ?? '') }}" required>
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label fw-bold">Username</label>
+                            <input type="text" name="username" class="form-control" value="{{ old('username', $employee->username ?? '') }}" minlength="3" maxlength="50" pattern="[A-Za-z0-9._-]+" autocomplete="off" required>
+                            <div class="form-help">ใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง ระบบจะบันทึกเป็นตัวพิมพ์เล็ก</div>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">เบอร์โทรศัพท์</label>
                             <input type="text" name="phone" class="form-control" value="{{ old('phone', $employee->phone ?? '') }}" placeholder="08xxxxxxxx">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Email</label>
-                            <input type="email" name="email" class="form-control" value="{{ old('email', $employee->email ?? '') }}" required>
+                            <label class="form-label fw-bold">Email <span class="text-muted fw-normal">(ไม่บังคับ)</span></label>
+                            <input type="email" name="email" class="form-control" value="{{ old('email', $employee->email ?? '') }}" autocomplete="email">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">สิทธิ์การใช้งาน</label>

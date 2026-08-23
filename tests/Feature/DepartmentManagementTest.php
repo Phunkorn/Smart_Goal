@@ -276,6 +276,7 @@ class DepartmentManagementTest extends TestCase
         $this->actingAs($admin)
             ->post(route('employees.store'), [
                 'name' => 'Invalid Department User',
+                'username' => 'invalid-department-user',
                 'email' => 'invalid-department@example.com',
                 'password' => 'StrongPassword1!',
                 'password_confirmation' => 'StrongPassword1!',

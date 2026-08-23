@@ -27,7 +27,7 @@
             </div>
             <div>
                 <h2 class="settings-user-name">{{ $user->name }}</h2>
-                <div class="settings-user-email">{{ $user->email }}</div>
+                <div class="settings-user-email">{{ $user->email ?: '@'.$user->username }}</div>
             </div>
         </div>
 

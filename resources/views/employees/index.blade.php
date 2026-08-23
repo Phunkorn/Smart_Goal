@@ -62,6 +62,8 @@
                     $searchText = Str::lower(
                         $employee->name .
                             ' ' .
+                            $employee->username .
+                            ' ' .
                             $employee->email .
                             ' ' .
                             $employee->phone .
@@ -92,7 +94,8 @@
                             class="bi {{ $role['icon'] }}"></i>{{ $role['label'] }}</span>
 
                     <div class="employee-meta">
-                        <span><i class="bi bi-envelope"></i>{{ $employee->email }}</span>
+                        <span><i class="bi bi-person-badge"></i>{{ '@'.$employee->username }}</span>
+                        <span><i class="bi bi-envelope"></i>{{ $employee->email ?: '-' }}</span>
                         <span><i class="bi bi-telephone"></i>{{ $employee->phone ?: '-' }}</span>
                     </div>
 

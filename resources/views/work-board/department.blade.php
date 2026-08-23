@@ -47,7 +47,7 @@
             <article class="wb-member-row">
                 <div class="wb-member-identity">
                     @include('work-board.partials.avatar', ['user' => $person, 'size' => 'lg'])
-                    <div><strong>{{ $person->name }}</strong><span>{{ $person->email }}</span><small><i class="bi bi-folder"></i> {{ $person->board_projects->count() }} โปรเจกต์ · <i class="bi bi-list-check"></i> {{ $person->board_jobs->count() }} งาน</small></div>
+                    <div><strong>{{ $person->name }}</strong><span>{{ $person->email ?: '@'.$person->username }}</span><small><i class="bi bi-folder"></i> {{ $person->board_projects->count() }} โปรเจกต์ · <i class="bi bi-list-check"></i> {{ $person->board_jobs->count() }} งาน</small></div>
                 </div>
                 <div class="wb-project-stack">
                     @forelse($person->board_projects->take(3) as $project)

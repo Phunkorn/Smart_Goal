@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -29,8 +29,12 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
+        $request->merge([
+            'username' => User::normalizeUsername($request->input('username')),
+        ]);
+
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
+            'username' => ['required', 'string', 'min:3', 'max:50', 'regex:/\A[a-z0-9._-]+\z/'],
             'password' => ['required'],
         ]);
 
@@ -42,9 +46,9 @@ class AuthController extends Controller
 
             return back()
                 ->withErrors([
-                    'email' => 'อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+                    'username' => 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
                 ])
-                ->onlyInput('email');
+                ->onlyInput('username');
         }
 
         RateLimiter::clear($throttleKey);
@@ -73,7 +77,7 @@ class AuthController extends Controller
         return redirect()
             ->route('login')
             ->withErrors([
-                'email' => 'บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
+                'username' => 'บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
             ]);
     }
 
@@ -124,12 +128,12 @@ class AuthController extends Controller
         $seconds = RateLimiter::availableIn($this->throttleKey($request));
 
         throw ValidationException::withMessages([
-            'email' => "พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอ {$seconds} วินาที แล้วลองใหม่",
+            'username' => "พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอ {$seconds} วินาที แล้วลองใหม่",
         ]);
     }
 
     private function throttleKey(Request $request): string
     {
-        return Str::lower($request->input('email')).'|'.$request->ip();
+        return User::normalizeUsername($request->input('username')).'|'.$request->ip();
     }
 }

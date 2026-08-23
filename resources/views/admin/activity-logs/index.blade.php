@@ -5,6 +5,7 @@
     $fieldLabels = [
         'id' => 'รหัส',
         'name' => 'ชื่อ',
+        'username' => 'ชื่อผู้ใช้',
         'email' => 'อีเมล',
         'phone' => 'เบอร์โทรศัพท์',
         'role' => 'สิทธิ์การใช้งาน',
@@ -208,7 +209,7 @@
                             </td>
                             <td>
                                 <div class="log-desc">{{ $log->user?->name ?? 'ระบบ' }}</div>
-                                <div class="log-muted">{{ $log->user?->email }}</div>
+                                <div class="log-muted">{{ $log->user?->email ?: ($log->user?->username ? '@'.$log->user->username : '') }}</div>
                             </td>
                             <td>
                                 @php

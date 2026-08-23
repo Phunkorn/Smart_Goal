@@ -26,7 +26,7 @@ class EnsureUserIsActive
         }
 
         return redirect()->route('login')->withErrors([
-            'email' => 'บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
+            'username' => 'บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
         ]);
     }
 }

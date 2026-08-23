@@ -23,7 +23,7 @@
         <section class="auth-card">
             <div class="card-head">
                 <h2>เข้าสู่ระบบ</h2>
-                <p>กรอกอีเมลและรหัสผ่านเพื่อเริ่มต้นการทำงาน</p>
+                <p>กรอกชื่อผู้ใช้และรหัสผ่านเพื่อเริ่มต้นการทำงาน</p>
             </div>
 
             @if ($errors->any())
@@ -36,10 +36,10 @@
             <form method="POST" action="{{ route('login.submit') }}" data-login-form>
                 @csrf
                 <div class="field">
-                    <label for="email">อีเมล</label>
+                    <label for="username">ชื่อผู้ใช้</label>
                     <div class="control">
                         <i class="bi bi-person-fill"></i>
-                        <input type="email" id="email" name="email" value="{{ old('email') }}" placeholder="name@company.co.th" required autofocus autocomplete="email">
+                        <input type="text" id="username" name="username" value="{{ old('username') }}" placeholder="ชื่อผู้ใช้" required autofocus autocomplete="username">
                     </div>
                 </div>
 
