@@ -7,9 +7,9 @@ use App\Models\JobImage;
 use App\Models\WorkOrder;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
+use App\Support\ProtectedMedia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 class TaskAttachmentController extends Controller
 {
@@ -52,7 +52,7 @@ class TaskAttachmentController extends Controller
         abort_unless((int) $attachment->job_id === (int) $job->job_id, 404);
         abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
 
-        Storage::disk('public')->delete($attachment->file_path);
+        ProtectedMedia::deleteAttachment($attachment->file_path);
         $attachment->delete();
         AuditTrail::log('attachment_deleted', $job, 'ลบไฟล์อ้างอิงงาน: '.$job->job_topic);
 

@@ -12,6 +12,13 @@ class UsernameEmployeeManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('session.driver', 'database');
+    }
+
     public function test_admin_creates_a_normalized_username_without_email(): void
     {
         $admin = $this->user('admin');
@@ -86,6 +93,38 @@ class UsernameEmployeeManagementTest extends TestCase
         $this->assertNull($employee->email_verified_at);
         $this->assertNotSame('old-remember-token', $employee->remember_token);
         $this->assertDatabaseMissing('sessions', ['id' => 'employee-session']);
+    }
+
+    public function test_credential_change_fails_before_mutation_without_database_sessions(): void
+    {
+        config()->set('session.driver', 'array');
+        $admin = $this->user('admin');
+        $employee = User::factory()->create([
+            'username' => 'unchanged-user',
+            'remember_token' => 'unchanged-remember-token',
+            'role' => 'viewer',
+            'must_change_password' => false,
+        ]);
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($admin)
+                ->patch(route('employees.update', $employee), $this->employeePayload([
+                    'name' => $employee->name,
+                    'username' => 'must-not-persist',
+                    'email' => $employee->email,
+                    'role' => 'viewer',
+                    'password' => '',
+                    'password_confirmation' => '',
+                ]));
+            $this->fail('Credential changes should fail before mutation without database sessions.');
+        } catch (\LogicException $exception) {
+            $this->assertStringContainsString('SESSION_DRIVER=database', $exception->getMessage());
+        }
+
+        $employee->refresh();
+        $this->assertSame('unchanged-user', $employee->username);
+        $this->assertSame('unchanged-remember-token', $employee->remember_token);
     }
 
     public function test_admin_changing_own_username_must_log_in_again(): void

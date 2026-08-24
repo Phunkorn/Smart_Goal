@@ -11,6 +11,7 @@ use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\ProjectCreatorSummary;
+use App\Support\ProtectedMedia;
 use App\Support\TodayWorkspace;
 use App\Support\WorkOrderAssignee;
 use App\Services\TaskCommentService;
@@ -24,7 +25,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
@@ -234,7 +234,7 @@ class MyTaskController extends Controller
 
                 if ($request->hasFile('attachments')) {
                     foreach ($request->file('attachments') as $file) {
-                        $path = $file->store('project-attachments/'.$list->id, 'public');
+                        $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$list->id);
                         WorkOrderListAttachment::create([
                             'work_order_list_id' => $list->id,
                             'file_path' => $path,
@@ -343,7 +343,7 @@ class MyTaskController extends Controller
 
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('project-attachments/'.$list->id, 'public');
+                    $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$list->id);
                     WorkOrderListAttachment::create([
                         'work_order_list_id' => $list->id,
                         'file_path' => $path,
@@ -577,7 +577,7 @@ class MyTaskController extends Controller
         try {
             DB::transaction(function () use ($incomingFiles, $list, &$storedPaths) {
                 foreach ($incomingFiles as $file) {
-                    $path = $file->store('project-attachments/'.$list->id, 'public');
+                    $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$list->id);
                     $storedPaths[] = $path;
 
                     WorkOrderListAttachment::create([
@@ -595,7 +595,7 @@ class MyTaskController extends Controller
             });
         } catch (Throwable $exception) {
             foreach (array_unique($storedPaths) as $path) {
-                Storage::disk('public')->delete($path);
+                ProtectedMedia::deleteAttachment($path);
             }
 
             throw $exception;

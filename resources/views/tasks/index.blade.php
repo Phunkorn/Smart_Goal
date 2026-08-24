@@ -32,7 +32,7 @@
     data-quick-url="{{ route('mytasks.store') }}"
     data-create-url="{{ route('mytasks.create') }}"
     data-current-user-name="{{ auth()->user()->name }}"
-    data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.show', ['path' => auth()->user()->profile_image]) : '' }}">
+    data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.profile', auth()->user()) : '' }}">
     <section class="notion-heading">
         <div class="notion-heading-copy"><span class="heading-mark"><i class="bi bi-check2-square"></i></span><div><span class="notion-kicker">WORK MANAGEMENT</span><h1>งานของฉัน</h1><p>จัดลำดับงาน ติดตามความคืบหน้า และทำงานร่วมกับทีมในพื้นที่เดียว</p></div></div>
     </section>

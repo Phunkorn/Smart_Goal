@@ -40,6 +40,7 @@ class AdminProjectCreationTest extends TestCase
     public function test_admin_creates_project_with_multiple_tasks_and_nested_records(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
 
         $admin = User::factory()->create(['role' => 'admin', 'must_change_password' => false, 'is_active' => true]);
         $department = Department::create(['department_name' => 'Operations']);
@@ -274,6 +275,7 @@ class AdminProjectCreationTest extends TestCase
     public function test_failed_project_graph_removes_only_files_written_by_the_request(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
 
         $admin = User::factory()->create(['role' => 'admin', 'must_change_password' => false, 'is_active' => true]);
         $department = Department::create(['department_name' => 'QA']);
@@ -312,6 +314,7 @@ class AdminProjectCreationTest extends TestCase
         $this->assertDatabaseCount('activity_logs', 0);
         Storage::disk('public')->assertExists('existing/keep.txt');
         $this->assertSame(['existing/keep.txt'], Storage::disk('public')->allFiles());
+        $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
     private function employee(Department $department): User

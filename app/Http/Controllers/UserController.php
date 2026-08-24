@@ -92,6 +92,7 @@ class UserController extends Controller
 
         if ($credentialsChanged || ! $validated['is_active']) {
             $data['remember_token'] = Str::random(60);
+            UserSessionSecurity::assertSupportedDriver();
         }
 
         if ($request->hasFile('profile_image')) {
@@ -142,6 +143,7 @@ class UserController extends Controller
             return back()->withErrors(['user' => 'พนักงานคนนี้ยังมีข้อมูลงานผูกอยู่ กรุณาปิดงานหรือย้ายผู้รับผิดชอบก่อนลบ']);
         }
 
+        UserSessionSecurity::assertSupportedDriver();
         $payload = $this->auditUserPayload($user);
 
         if ($user->profile_image) {
@@ -170,6 +172,7 @@ class UserController extends Controller
             'password.min' => 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
         ]);
 
+        UserSessionSecurity::assertSupportedDriver();
         $before = $this->auditUserPayload($user);
 
         $user->forceFill([

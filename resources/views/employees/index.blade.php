@@ -107,7 +107,7 @@
                         <div class="employee-profile">
                             <div class="employee-avatar">
                                 @if ($employee->profile_image)
-                                    <img src="{{ route('media.show', ['path' => $employee->profile_image]) }}"
+                                    <img src="{{ route('media.profile', $employee) }}"
                                         alt="รูปโปรไฟล์ของ {{ $employee->name }}">
                                 @else
                                     {{ mb_substr($employee->name, 0, 2) }}

@@ -22,7 +22,7 @@
 <?php
     $ownerData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
         'name' => $task->user?->name ?? 'ไม่ระบุผู้รับผิดชอบ',
-        'avatar_url' => $task->user?->profile_image ? route('media.show', ['path' => $task->user->profile_image]) : null,
+        'avatar_url' => $task->user?->profile_image ? route('media.profile', $task->user) : null,
         'initial' => Str::substr($task->user?->name ?? '?', 0, 1),
     ]]);
 ?>
@@ -36,14 +36,14 @@
         'upload_url' => route('tasks.attachments.store', $task->job_id),
         'files' => $task->images->map(fn ($file) => [
             'name' => $file->original_name ?? basename($file->file_path),
-            'url' => route('media.show', ['path' => $file->file_path]),
+            'url' => route('media.task-attachments.show', $file),
             'delete_url' => route('tasks.attachments.destroy', [$task->job_id, $file]),
         ])->values(),
     ]]);
 ?>
 <script type="application/json" data-attachment-data>@json($attachmentData)</script>
 <?php
-    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['id' => $update->id, 'author' => $update->user?->name ?? 'ไม่ระบุ', 'avatar_url' => $update->user?->profile_image ? route('media.show', ['path' => $update->user->profile_image]) : null, 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'avatar_url' => $log->user?->profile_image ? route('media.show', ['path' => $log->user->profile_image]) : null, 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
+    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['id' => $update->id, 'author' => $update->user?->name ?? 'ไม่ระบุ', 'avatar_url' => $update->user?->profile_image ? route('media.profile', $update->user) : null, 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'avatar_url' => $log->user?->profile_image ? route('media.profile', $log->user) : null, 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
 ?>
 <script type="application/json" data-timeline-data>@json($timelineData)</script>
 <?php

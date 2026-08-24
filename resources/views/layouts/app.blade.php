@@ -151,7 +151,7 @@
         <div class="sidebar-foot">
             <div class="avatar">
                 @if($currentUser->profile_image)
-                    <img src="{{ route('media.show', ['path' => $currentUser->profile_image]) }}" alt="{{ $currentUser->name }}">
+                    <img src="{{ route('media.profile', $currentUser) }}" alt="{{ $currentUser->name }}">
                 @else
                     {{ strtoupper(substr($currentUser->name, 0, 2)) }}
                 @endif

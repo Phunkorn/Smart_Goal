@@ -12,6 +12,24 @@ use App\Models\WorkOrderList;
  */
 class WorkOrderListPolicy
 {
+    public function view(User $user, WorkOrderList $list): bool
+    {
+        if (in_array($user->role, ['admin', 'viewer'], true) || (int) $list->user_id === (int) $user->id) {
+            return true;
+        }
+
+        return $list->workOrders()
+            ->where(function ($query) use ($user): void {
+                $query->where('user_id', $user->id)
+                    ->orWhere('created_by', $user->id)
+                    ->orWhere('leader_user_id', $user->id)
+                    ->orWhereHas('collaborators', fn ($collaborators) => $collaborators
+                        ->where('users.id', $user->id)
+                        ->where('work_order_collaborators.status', 'accepted'));
+            })
+            ->exists();
+    }
+
     /**
      * สร้างรายการใหม่ (MyTaskController::storeList)
      */

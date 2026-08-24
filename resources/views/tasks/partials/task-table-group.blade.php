@@ -198,7 +198,7 @@
                 <div class="member-profile">
                     <div class="member-profile-avatar" style="background:{{ $avatarColors[$index % count($avatarColors)] }}">
                         @if ($person->profile_image)
-                            <img src="{{ route('media.show', ['path' => $person->profile_image]) }}" alt="{{ $person->name }}">
+                            <img src="{{ route('media.profile', $person) }}" alt="{{ $person->name }}">
                         @else
                             {{ Str::of($person->name ?? 'U')->substr(0, 2)->upper() }}
                         @endif

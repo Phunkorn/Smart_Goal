@@ -4,14 +4,13 @@ namespace App\Support;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 final class UserSessionSecurity
 {
     public static function invalidateAll(User $user): void
     {
-        if (! self::usesDatabaseSessions()) {
-            return;
-        }
+        self::assertSupportedDriver();
 
         DB::table(self::sessionTable())
             ->where('user_id', $user->id)
@@ -20,9 +19,7 @@ final class UserSessionSecurity
 
     public static function invalidateOthers(User $user, string $currentSessionId): void
     {
-        if (! self::usesDatabaseSessions()) {
-            return;
-        }
+        self::assertSupportedDriver();
 
         DB::table(self::sessionTable())
             ->where('user_id', $user->id)
@@ -30,9 +27,13 @@ final class UserSessionSecurity
             ->delete();
     }
 
-    private static function usesDatabaseSessions(): bool
+    public static function assertSupportedDriver(): void
     {
-        return config('session.driver') === 'database';
+        if (config('session.driver') !== 'database') {
+            throw new LogicException(
+                'Security-sensitive session revocation requires SESSION_DRIVER=database.'
+            );
+        }
     }
 
     private static function sessionTable(): string

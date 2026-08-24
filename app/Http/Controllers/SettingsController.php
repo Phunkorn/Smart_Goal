@@ -55,6 +55,7 @@ class SettingsController extends Controller
             'password.confirmed' => 'รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน',
         ]);
 
+        UserSessionSecurity::assertSupportedDriver();
         $user = $request->user();
         $currentSessionId = $request->session()->getId();
 

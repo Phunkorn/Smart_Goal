@@ -12,6 +12,13 @@ class SettingsPasswordTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('session.driver', 'database');
+    }
+
     public function test_authenticated_user_can_change_password_with_the_current_password(): void
     {
         $user = $this->user();

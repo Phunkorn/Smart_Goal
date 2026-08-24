@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\PasswordPolicy;
+use App\Support\UserSessionSecurity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -108,11 +111,27 @@ class AuthController extends Controller
             'password.min' => 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
         ]);
 
+        UserSessionSecurity::assertSupportedDriver();
         $user = $request->user();
+        $currentSessionId = $request->session()->getId();
 
-        $user->password = Hash::make($request->input('password'));
-        $user->must_change_password = false;
-        $user->save();
+        DB::transaction(function () use ($user, $request, $currentSessionId): void {
+            $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+
+            abort_unless($lockedUser->must_change_password, 403);
+
+            $lockedUser->forceFill([
+                'password' => Hash::make($request->input('password')),
+                'must_change_password' => false,
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            UserSessionSecurity::invalidateOthers($lockedUser, $currentSessionId);
+        });
+
+        $user->refresh();
+        Auth::setUser($user);
+        $request->session()->regenerate();
 
         return redirect()
             ->route('welcome')

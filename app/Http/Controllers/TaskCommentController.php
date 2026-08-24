@@ -20,7 +20,7 @@ class TaskCommentController extends Controller
 
         return response()->json(['ok' => true, 'comment' => [
             'id' => $comment->id, 'author' => $comment->user?->name ?? 'ไม่ระบุ',
-            'avatar_url' => $comment->user?->profile_image ? route('media.show', ['path' => $comment->user->profile_image]) : null,
+            'avatar_url' => $comment->user?->profile_image ? route('media.profile', $comment->user) : null,
             'note' => $comment->note, 'at' => $comment->created_at->locale('th')->translatedFormat('j M Y H:i'),
         ]], 201);
     }

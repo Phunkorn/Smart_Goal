@@ -47,7 +47,7 @@
         <span class="board-status-pill status-{{ $statusClass }}">{{ $statusText }}</span>
         <span class="board-priority priority-{{ $taskPriorityClass }}"><i class="bi bi-flag-fill" aria-hidden="true"></i>{{ $priorityLabels[(int) $task->job_priority] ?? $priorityLabels[2] }}</span>
     @endcan    <button type="button" class="row-owner" data-open-owner="{{ $task->job_id }}" title="{{ $assigneeName }}">
-        <i>@if($task->user?->profile_image)<img src="{{ route('media.show', ['path' => $task->user->profile_image]) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i>
+        <i>@if($task->user?->profile_image)<img src="{{ route('media.profile', $task->user) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i>
     </button>
     <label class="row-duration {{ $isLate ? 'is-late' : '' }}">
         <span class="row-duration-copy"><span>{{ $startLabel }}</span><i class="bi bi-arrow-right"></i><span data-due-label>{{ $dueLabel }}</span></span>
@@ -55,8 +55,8 @@
     </label>
     <button type="button" class="row-collaborators" data-manage-team="{{ $task->job_id }}" title="จัดการผู้ร่วมงาน">
         <span class="collaborator-stack">
-            @foreach($acceptedCollaborators->take(3) as $person)<i class="collaborator-avatar" title="{{ $person->name }}">@if($person->profile_image)<img src="{{ route('media.show', ['path' => $person->profile_image]) }}" alt="">@else{{ Str::substr($person->name, 0, 1) }}@endif</i>@endforeach
-            @foreach($pendingCollaborators->take(max(0, 3 - $acceptedCollaborators->take(3)->count())) as $person)<i class="collaborator-avatar pending" title="{{ $person->name }} — รอตอบรับ">@if($person->profile_image)<img src="{{ route('media.show', ['path' => $person->profile_image]) }}" alt="">@else{{ Str::substr($person->name, 0, 1) }}@endif<b></b></i>@endforeach
+            @foreach($acceptedCollaborators->take(3) as $person)<i class="collaborator-avatar" title="{{ $person->name }}">@if($person->profile_image)<img src="{{ route('media.profile', $person) }}" alt="">@else{{ Str::substr($person->name, 0, 1) }}@endif</i>@endforeach
+            @foreach($pendingCollaborators->take(max(0, 3 - $acceptedCollaborators->take(3)->count())) as $person)<i class="collaborator-avatar pending" title="{{ $person->name }} — รอตอบรับ">@if($person->profile_image)<img src="{{ route('media.profile', $person) }}" alt="">@else{{ Str::substr($person->name, 0, 1) }}@endif<b></b></i>@endforeach
             @if($acceptedCollaborators->count() + $pendingCollaborators->count() > 3)<b class="collaborator-more">+{{ $acceptedCollaborators->count() + $pendingCollaborators->count() - 3 }}</b>@endif
             @if($acceptedCollaborators->isEmpty() && $pendingCollaborators->isEmpty())<i class="collaborator-empty bi bi-person-plus"></i>@endif
         </span>

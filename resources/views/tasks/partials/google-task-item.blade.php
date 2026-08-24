@@ -197,7 +197,7 @@
                     <section data-task-activity-panel="attachments" hidden>
                         <div class="attachment-list">
                             @forelse ($task->images as $file)
-                                <a href="{{ route('media.show', ['path' => $file->file_path]) }}" target="_blank" rel="noopener" class="attachment-item"><i class="bi bi-paperclip"></i><span>{{ $file->original_name ?: basename($file->file_path) }}</span></a>
+                                <a href="{{ route('media.task-attachments.show', $file) }}" target="_blank" rel="noopener" class="attachment-item"><i class="bi bi-paperclip"></i><span>{{ $file->original_name ?: basename($file->file_path) }}</span></a>
                             @empty
                                 <div class="subtask-empty">ยังไม่มีไฟล์อ้างอิงงาน</div>
                             @endforelse
@@ -276,7 +276,7 @@
                 <h3>ไฟล์อ้างอิง</h3>
                 <div class="attachment-list">
                     @forelse ($task->images->take(4) as $file)
-                        <a href="{{ route('media.show', ['path' => $file->file_path]) }}" target="_blank" rel="noopener" class="attachment-item">
+                        <a href="{{ route('media.task-attachments.show', $file) }}" target="_blank" rel="noopener" class="attachment-item">
                             <i class="bi bi-paperclip"></i>
                             <span>{{ Str::limit($file->original_name ?: basename($file->file_path), 30) }}</span>
                         </a>

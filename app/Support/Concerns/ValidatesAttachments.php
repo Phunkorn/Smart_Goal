@@ -4,6 +4,7 @@ namespace App\Support\Concerns;
 
 use App\Models\JobImage;
 use App\Models\WorkOrder;
+use App\Support\ProtectedMedia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -79,7 +80,7 @@ trait ValidatesAttachments
         }
 
         foreach ($request->file($field) as $file) {
-            $path = $file->store('job-attachments/'.$job->job_id, 'public');
+            $path = ProtectedMedia::storeAttachment($file, 'job-attachments/'.$job->job_id);
 
             JobImage::create([
                 'job_id' => $job->job_id,

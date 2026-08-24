@@ -80,6 +80,7 @@ class TaskAuthorizationTest extends TestCase
     public function test_owner_can_upload_and_delete_task_attachment(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
 
         $owner = $this->user();
         $task = $this->taskFor($owner);
@@ -95,7 +96,7 @@ class TaskAuthorizationTest extends TestCase
             ]);
 
         $attachment = $task->images()->firstOrFail();
-        Storage::disk('public')->assertExists($attachment->file_path);
+        Storage::disk('local')->assertExists($attachment->file_path);
 
         $this->actingAs($owner)
             ->deleteJson(route('tasks.attachments.destroy', [$task, $attachment]))
@@ -106,7 +107,7 @@ class TaskAuthorizationTest extends TestCase
             ]);
 
         $this->assertDatabaseMissing('job_images', ['id' => $attachment->id]);
-        Storage::disk('public')->assertMissing($attachment->file_path);
+        Storage::disk('local')->assertMissing($attachment->file_path);
     }
 
     public function test_collaborator_can_respond_to_invitation_and_owner_can_remove_them(): void

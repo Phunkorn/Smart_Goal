@@ -22,7 +22,7 @@
                 <div class="settings-profile">
                     <div class="settings-profile__avatar">
                         @if($user->profile_image)
-                            <img src="{{ route('media.show', ['path' => $user->profile_image]) }}" alt="รูปโปรไฟล์ของ {{ $user->name }}">
+                            <img src="{{ route('media.profile', $user) }}" alt="รูปโปรไฟล์ของ {{ $user->name }}">
                         @else
                             {{ mb_substr($user->name, 0, 2) }}
                         @endif

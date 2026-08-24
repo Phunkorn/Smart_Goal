@@ -244,6 +244,7 @@ class AdminWorkBoardTest extends TestCase
     public function test_admin_can_upload_and_delete_project_attachments_from_member_workspace(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
         $department = Department::create(['department_name' => 'Design']);
         $admin = $this->user('admin', $department, 'Admin');
         $member = $this->user('user', $department, 'Member');
@@ -256,13 +257,13 @@ class AdminWorkBoardTest extends TestCase
             ])
             ->assertOk();
         $attachment = $project->attachments()->firstOrFail();
-        Storage::disk('public')->assertExists($attachment->file_path);
+        Storage::disk('local')->assertExists($attachment->file_path);
 
         $this->actingAs($admin)
             ->deleteJson(route('mytasks.lists.attachments.destroy', [$project, $attachment]))
             ->assertOk();
         $this->assertDatabaseMissing('work_order_list_attachments', ['id' => $attachment->id]);
-        Storage::disk('public')->assertMissing($attachment->file_path);
+        Storage::disk('local')->assertMissing($attachment->file_path);
     }
 
     public function test_admin_task_delete_returns_json_for_workspace_requests(): void
@@ -363,7 +364,7 @@ class AdminWorkBoardTest extends TestCase
 
         $this->assertStringContainsString('href="'.$recentUrl.'" class="admin-activity-row"', $html);
         $this->assertStringContainsString('Recent User · Sales', $html);
-        $this->assertStringContainsString(route('media.show', ['path' => $recentAssignee->profile_image]), $html);
+        $this->assertStringContainsString(route('media.profile', $recentAssignee), $html);
         $this->assertStringContainsString('href="'.$attentionUrl.'" class="admin-attention-row"', $html);
         $this->assertStringContainsString('Attention User · IT', $html);
         $this->assertStringContainsString('title="Attention User"> AT </span>', $html);

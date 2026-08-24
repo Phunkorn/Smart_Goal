@@ -46,7 +46,7 @@
         data-progress-template="{{ route('tasks.progress.store', ['id' => '__ID__']) }}"
         data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
         data-current-user-name="{{ auth()->user()->name }}"
-        data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.show', ['path' => auth()->user()->profile_image]) : '' }}">
+        data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.profile', auth()->user()) : '' }}">
         <nav class="notion-viewbar" role="tablist" aria-label="รูปแบบการแสดงงาน">
             <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i>ตาราง</button>
             <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i>บอร์ด</button>

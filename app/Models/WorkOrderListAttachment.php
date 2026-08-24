@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\ProtectedMedia;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class WorkOrderListAttachment extends Model
 {
@@ -19,7 +19,7 @@ class WorkOrderListAttachment extends Model
     protected static function booted(): void
     {
         static::deleting(function (WorkOrderListAttachment $attachment) {
-            Storage::disk('public')->delete($attachment->file_path);
+            ProtectedMedia::deleteAttachment($attachment->file_path);
         });
     }
 

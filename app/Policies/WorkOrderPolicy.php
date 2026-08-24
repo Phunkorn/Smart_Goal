@@ -49,7 +49,9 @@ class WorkOrderPolicy
     {
         return in_array($user->role, ['admin', 'viewer'], true)
             || in_array($user->id, [$workOrder->user_id, $workOrder->created_by, $workOrder->leader_user_id], true)
-            || $workOrder->collaborators->contains('id', $user->id);
+            || $workOrder->collaborators->contains(
+                fn ($person) => $person->id === $user->id && $person->pivot?->status === 'accepted'
+            );
     }
 
     /**

@@ -20,6 +20,7 @@ class MyTasksProjectManagementTest extends TestCase
     public function test_project_priority_and_attachments_belong_to_project_not_first_task(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
         $department = Department::create(['department_name' => 'IT']);
         $actor = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
 
@@ -43,7 +44,7 @@ class MyTasksProjectManagementTest extends TestCase
         $this->assertSame($actor->id, $job->assigned_by);
         $this->assertCount(1, $project->attachments);
         $this->assertDatabaseMissing('job_images', ['job_id' => $job->job_id]);
-        Storage::disk('public')->assertExists($project->attachments->first()->file_path);
+        Storage::disk('local')->assertExists($project->attachments->first()->file_path);
 
         $projectId = $project->id;
         $attachmentId = $project->attachments->first()->id;

@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MeetingController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
@@ -18,7 +19,6 @@ use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
@@ -163,12 +163,15 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/my-reports/export.csv', [ReportController::class, 'exportMyCsv'])
         ->name('reports.myExportCsv');
 
-    // เปิดไฟล์จากพื้นที่ public storage ผ่านเส้นทางที่ตรวจสอบแล้ว
-    Route::get('/media/{path}', function (string $path) {
-        abort_unless(Storage::disk('public')->exists($path), 404);
-
-        return response()->file(Storage::disk('public')->path($path));
-    })->where('path', '.*')->name('media.show');
+    Route::get('/media/profile-images/{user}', [MediaController::class, 'profile'])
+        ->name('media.profile');
+    Route::get('/media/task-attachments/{attachment}', [MediaController::class, 'taskAttachment'])
+        ->name('media.task-attachments.show');
+    Route::get('/media/project-attachments/{attachment}', [MediaController::class, 'projectAttachment'])
+        ->name('media.project-attachments.show');
+    Route::get('/media/{path}', [MediaController::class, 'legacy'])
+        ->where('path', '.*')
+        ->name('media.show');
     // รายงานภาพรวมและรายงานรายพนักงาน
     Route::get('/reports', [ReportController::class, 'index'])
         ->name('reports.index');

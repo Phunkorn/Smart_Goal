@@ -11,6 +11,7 @@ use App\Models\WorkOrderList;
 use App\Models\WorkOrderListAttachment;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
+use App\Support\ProtectedMedia;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
 use App\Services\NotificationService;
@@ -19,7 +20,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -382,7 +382,7 @@ class TaskController extends Controller
 
                 if ($request->hasFile('project_attachments')) {
                     foreach ($request->file('project_attachments') as $file) {
-                        $path = $file->store('project-attachments/'.$project->id, 'public');
+                        $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$project->id);
                         $storedPaths[] = $path;
                         WorkOrderListAttachment::create([
                             'work_order_list_id' => $project->id,
@@ -457,7 +457,7 @@ class TaskController extends Controller
             });
         } catch (Throwable $exception) {
             foreach ($storedPaths as $path) {
-                Storage::disk('public')->delete($path);
+                ProtectedMedia::deleteAttachment($path);
             }
 
             throw $exception;
@@ -484,7 +484,7 @@ class TaskController extends Controller
         }
 
         foreach ($request->file($field) as $file) {
-            $path = $file->store('job-attachments/'.$job->job_id, 'public');
+            $path = ProtectedMedia::storeAttachment($file, 'job-attachments/'.$job->job_id);
             $storedPaths[] = $path;
 
             JobImage::create([

@@ -5,12 +5,20 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 class AuthenticationSecurityTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('session.driver', 'database');
+    }
 
     public function test_inactive_users_cannot_authenticate(): void
     {
@@ -216,6 +224,88 @@ class AuthenticationSecurityTest extends TestCase
         $this->assertFalse($user->fresh()->must_change_password);
     }
 
+    public function test_first_password_change_revokes_real_sessions_and_remember_cookie_but_preserves_current_session(): void
+    {
+        config()->set('session.driver', 'database');
+        $temporaryPassword = 'TemporaryPassword!123';
+        $user = User::factory()->create([
+            'password' => Hash::make($temporaryPassword),
+            'remember_token' => null,
+            'must_change_password' => true,
+            'is_active' => true,
+        ]);
+        $currentDevice = $this->loginAsNewBrowser($user, $temporaryPassword);
+        $otherDevice = $this->loginAsNewBrowser($user, $temporaryPassword);
+        $rememberedDevice = $this->loginAsNewBrowser($user, $temporaryPassword, true);
+        $this->assertNotSame($currentDevice['session'], $otherDevice['session']);
+        $this->assertNotSame($currentDevice['session'], $rememberedDevice['session']);
+
+        $this->useBrowserCookies([
+            config('session.cookie') => $otherDevice['session'],
+        ])->get(route('password.setup'))->assertOk();
+        $this->useBrowserCookies([
+            Auth::guard()->getRecallerName() => $rememberedDevice['remember'],
+        ])->get(route('password.setup'))->assertOk();
+
+        $changePassword = $this->useBrowserCookies([
+            config('session.cookie') => $currentDevice['session'],
+        ])->post(route('password.update.first'), [
+            'password' => 'PermanentPassword!456',
+            'password_confirmation' => 'PermanentPassword!456',
+        ]);
+        $changePassword->assertRedirect(route('welcome'));
+        $currentSessionCookie = $changePassword->getCookie(config('session.cookie'));
+
+        $this->assertNotNull($currentSessionCookie);
+        $this->assertNotSame($currentDevice['session'], $currentSessionCookie->getValue());
+        $this->assertDatabaseMissing('sessions', ['id' => $otherDevice['session']]);
+        $this->useBrowserCookies([
+            config('session.cookie') => $currentSessionCookie->getValue(),
+        ])->get(route('welcome'))->assertOk();
+
+        $revokedSessionResponse = $this->useBrowserCookies([
+            config('session.cookie') => $otherDevice['session'],
+        ])->get(route('mytasks.index'));
+        $this->assertArrayNotHasKey(Auth::guard()->getRecallerName(), request()->cookies->all());
+        $this->assertNull(request()->session()->get(Auth::guard()->getName()));
+        $this->assertGuest();
+        $revokedSessionResponse->assertRedirect(route('login'));
+        $this->useBrowserCookies([
+            Auth::guard()->getRecallerName() => $rememberedDevice['remember'],
+        ])->get(route('mytasks.index'))->assertRedirect(route('login'));
+
+        $user->refresh();
+        $this->assertFalse($user->must_change_password);
+        $this->assertFalse(Hash::check($temporaryPassword, $user->password));
+        $this->assertTrue(Hash::check('PermanentPassword!456', $user->password));
+    }
+
+    public function test_first_password_change_fails_closed_without_database_sessions(): void
+    {
+        config()->set('session.driver', 'array');
+        $user = User::factory()->create([
+            'password' => Hash::make('TemporaryPassword!123'),
+            'must_change_password' => true,
+            'is_active' => true,
+        ]);
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($user)->post(route('password.update.first'), [
+                'password' => 'PermanentPassword!456',
+                'password_confirmation' => 'PermanentPassword!456',
+            ]);
+            $this->fail('Password setup should fail without database-backed session revocation.');
+        } catch (\LogicException $exception) {
+            $this->assertStringContainsString('SESSION_DRIVER=database', $exception->getMessage());
+        }
+
+        $user->refresh();
+        $this->assertTrue($user->must_change_password);
+        $this->assertTrue(Hash::check('TemporaryPassword!123', $user->password));
+    }
+
     public function test_non_admin_cannot_manage_employees(): void
     {
         $user = User::factory()->create(['role' => 'user', 'must_change_password' => false]);
@@ -251,5 +341,40 @@ class AuthenticationSecurityTest extends TestCase
             ->assertRedirect(route('employees.index'));
 
         $this->assertTrue($employee->fresh()->must_change_password);
+    }
+
+    /** @return array{session: string, remember: ?string} */
+    private function loginAsNewBrowser(User $user, string $password, bool $remember = false): array
+    {
+        $response = $this->useBrowserCookies([])->post(route('login.submit'), [
+            'username' => $user->username,
+            'password' => $password,
+            'remember' => $remember ? '1' : '0',
+        ]);
+        $response->assertRedirect(route('password.setup'));
+        $sessionCookie = $response->getCookie(config('session.cookie'));
+        $rememberCookie = $response->getCookie(Auth::guard()->getRecallerName());
+
+        $this->assertNotNull($sessionCookie);
+
+        if ($remember) {
+            $this->assertNotNull($rememberCookie);
+        }
+
+        return [
+            'session' => $sessionCookie->getValue(),
+            'remember' => $rememberCookie?->getValue(),
+        ];
+    }
+
+    private function useBrowserCookies(array $cookies): static
+    {
+        Auth::forgetGuards();
+        $this->app['session']->forgetDrivers();
+        $this->app->forgetInstance('session.store');
+        $this->defaultCookies = [];
+        $this->unencryptedCookies = [];
+
+        return $this->withCookies($cookies);
     }
 }
