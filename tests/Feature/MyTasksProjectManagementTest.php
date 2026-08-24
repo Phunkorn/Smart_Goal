@@ -421,4 +421,74 @@ class MyTasksProjectManagementTest extends TestCase
         $this->assertSame(3, (int) $project->priority);
         $this->assertSame(0, $project->workOrders()->count());
     }
+
+    public function test_opening_my_tasks_never_absorbs_another_members_ungrouped_task(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $collaborator = User::factory()->create(['role' => 'user']);
+        $collaboratorList = WorkOrderList::create([
+            'user_id' => $collaborator->id,
+            'name' => 'Collaborator own project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $job = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => null,
+            'job_topic' => 'Ungrouped shared task',
+            'job_priority' => 2,
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_progress' => 0,
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+        $job->collaborators()->attach($collaborator->id, [
+            'added_by' => $owner->id,
+            'status' => 'accepted',
+        ]);
+
+        $this->actingAs($collaborator)->get(route('mytasks.index'))->assertOk();
+
+        $this->assertNull(
+            $job->fresh()->work_order_list_id,
+            'Opening My Tasks must not move an ungrouped task owned by someone else into the viewer project.'
+        );
+        $this->assertSame(0, $collaboratorList->workOrders()->count());
+    }
+
+    public function test_opening_my_tasks_keeps_own_ungrouped_task_in_the_general_bucket(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $ownList = WorkOrderList::create([
+            'user_id' => $owner->id,
+            'name' => 'Owner project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $job = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => null,
+            'job_topic' => 'Ungrouped own task',
+            'job_priority' => 2,
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_progress' => 0,
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+
+        $response = $this->actingAs($owner)->get(route('mytasks.index'))->assertOk();
+
+        $this->assertNull($job->fresh()->work_order_list_id);
+        $this->assertSame(0, $ownList->workOrders()->count());
+        $response->assertSee('งานทั่วไป');
+        $response->assertSee('Ungrouped own task');
+    }
 }

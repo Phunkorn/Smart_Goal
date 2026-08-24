@@ -271,6 +271,7 @@ final class AdminReportService
             2 => 'doing',
             3 => 'review',
             5 => 'paused',
+            6 => 'late',
             default => 'todo',
         };
     }

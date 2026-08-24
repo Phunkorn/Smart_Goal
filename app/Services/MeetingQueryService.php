@@ -6,8 +6,10 @@ use App\Models\Department;
 use App\Models\Meeting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 final class MeetingQueryService
 {
@@ -92,6 +94,46 @@ final class MeetingQueryService
             'inspectedEmployee' => $employeeIsRelated ? User::with('department')->find($employeeId) : null,
             'nowBangkok' => CarbonImmutable::now(self::BUSINESS_TIMEZONE),
         ];
+    }
+
+    /**
+     * ประชุมที่ทับซ้อนช่วงเวลาที่ขอ สำหรับวางบนปฏิทินของหน้า "งานของฉัน"
+     *
+     * สิทธิ์ถูกบังคับที่ SQL ผ่าน visibleQuery() ตัวเดียวกับหน้ารายการประชุม
+     * ห้ามกรองสิทธิ์ฝั่ง frontend และห้ามดึงทั้งระบบโดยไม่มีขอบเขต
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function calendarMeetings(User $viewer, CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        $windowStart = CarbonImmutable::instance($from)->utc();
+        $windowEnd = CarbonImmutable::instance($to)->utc();
+
+        return $this->visibleQuery($viewer)
+            ->with('creator:id,name')
+            ->where('starts_at', '<=', $windowEnd)
+            ->where('ends_at', '>=', $windowStart)
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get(['id', 'title', 'location', 'starts_at', 'ends_at', 'created_by'])
+            ->map(function (Meeting $meeting): array {
+                $startsAt = CarbonImmutable::instance($meeting->starts_at)->setTimezone(self::BUSINESS_TIMEZONE);
+                $endsAt = CarbonImmutable::instance($meeting->ends_at)->setTimezone(self::BUSINESS_TIMEZONE);
+
+                return [
+                    'id' => 'meeting-'.$meeting->id,
+                    'type' => 'meeting',
+                    'title' => $meeting->title,
+                    'location' => $meeting->location ?: 'ไม่ระบุสถานที่',
+                    'organizer' => $meeting->creator?->name ?? 'ไม่ระบุผู้จัด',
+                    'start' => $startsAt->format('Y-m-d'),
+                    'due' => $endsAt->format('Y-m-d'),
+                    'startTime' => $startsAt->format('H:i'),
+                    'endTime' => $endsAt->format('H:i'),
+                    'url' => route('meetings.show', $meeting),
+                ];
+            })
+            ->values();
     }
 
     public function visibleQuery(User $viewer): Builder

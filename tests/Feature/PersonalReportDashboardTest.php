@@ -132,6 +132,45 @@ class PersonalReportDashboardTest extends TestCase
         $this->assertStringNotContainsString($hidden->job_topic, $content);
     }
 
+    public function test_late_status_is_selectable_and_labelled_in_the_personal_report(): void
+    {
+        $person = $this->user();
+        $late = $this->task([
+            'user_id' => $person->id,
+            'job_topic' => 'Late lifecycle task',
+            'job_status' => 6,
+            'job_due_at' => now()->addWeek(),
+        ]);
+
+        $response = $this->actingAs($person)->get(route('reports.my', [
+            'period' => 'this_month', 'status' => 6,
+        ]));
+
+        $response->assertOk();
+        $this->assertSame(6, $response->viewData('filters')['status']);
+        $this->assertSame(1, $response->viewData('totalJobs'));
+        $this->assertSame('late', $response->viewData('taskRows')->firstWhere('id', $late->job_id)['status']['key']);
+        $this->assertArrayHasKey(6, $response->viewData('filterOptions')['statuses']);
+    }
+
+    public function test_late_task_is_exported_with_its_real_status_label(): void
+    {
+        $person = $this->user();
+        $this->task([
+            'user_id' => $person->id,
+            'job_topic' => 'Late export task',
+            'job_status' => 6,
+            'job_due_at' => now()->addWeek(),
+        ]);
+
+        $response = $this->actingAs($person)->get(route('reports.myExportCsv', ['year' => now()->year]));
+        $content = $response->streamedContent();
+
+        $response->assertOk();
+        $this->assertStringContainsString('Late export task', $content);
+        $this->assertStringContainsString('ล่าช้า', $content);
+    }
+
     private function user(string $role = 'user'): User
     {
         return User::factory()->create([

@@ -37,7 +37,7 @@
             <div class="wb-task-table__head"><span>งาน</span><span>รายละเอียด</span><span>สถานะ</span><span>ความสำคัญ</span><span>กำหนดส่ง</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>การดำเนินการ</span></div>
             @foreach($group['jobs'] as $job)
                 @php($status = \App\Support\WorkBoardDesign::status($job))
-                @php($priority = \App\Support\WorkBoardDesign::priority((int) $job->job_priority))
+                @php($priority = \App\Support\WorkBoardDesign::taskPriority((int) $job->job_priority))
                 <article class="wb-task-row">
                     <div class="wb-task-name"><i class="wb-mini-dot wb-tone-{{ $status['tone'] }}"></i><strong>{{ $job->job_topic }}</strong></div>
                     <p>{{ $job->job_details ?: 'ไม่มีรายละเอียดงาน' }}</p>

@@ -260,13 +260,12 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::match(['post', 'patch'], '/my-tasks/{job_id}/due-date', [MyTaskController::class, 'updateDueDate'])
         ->name('mytasks.updateDueDate');
 
+    // ปฏิทินขอประชุมทีละช่วงเดือน สิทธิ์ถูกบังคับที่ SQL ผ่าน MeetingQueryService::visibleQuery()
+    Route::get('/my-tasks/calendar/meetings', [MyTaskController::class, 'calendarMeetings'])
+        ->name('mytasks.calendar.meetings');
+
     Route::get('/my-tasks', [MyTaskController::class, 'index'])
         ->name('mytasks.index');
-
-    // หน้าตัวอย่างสำหรับตรวจสอบรูปแบบ UI ของงาน
-    Route::get('/tasks/demo-notion', function () {
-        return view('tasks.demo-notion');
-    })->name('tasks.demoNotion');
 
     // งานที่ใช้ร่วมกันระหว่าง Admin และ User
     // การสร้างและแก้รายละเอียดจำกัด role ที่ระดับ route ส่วนสิทธิ์รายงานตรวจซ้ำใน Policy

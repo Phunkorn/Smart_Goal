@@ -14,10 +14,12 @@ use App\Support\ProjectCreatorSummary;
 use App\Support\ProtectedMedia;
 use App\Support\TodayWorkspace;
 use App\Support\WorkOrderAssignee;
+use App\Services\MeetingQueryService;
 use App\Services\TaskCommentService;
 use App\Services\TaskStatusTransitionService;
 use App\Services\NotificationService;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -41,6 +43,27 @@ class MyTaskController extends Controller
         'collaborating',
     ];
 
+    /** มุมมองที่ทุก role ซึ่งเข้าหน้านี้ได้มี panel รองรับจริง */
+    private const WORKSPACE_VIEWS = ['table', 'board', 'calendar'];
+
+    /**
+     * พนักงานเท่านั้นที่ได้มุมมอง "ประชุม" เพราะเมนูการประชุมถูกย้ายออกจาก Sidebar ของ role นี้
+     * Admin และ Viewer ยังมีเมนู "การประชุม" ของตัวเองอยู่ จึงไม่ต้องมี view ซ้ำ
+     */
+    private const MEMBER_WORKSPACE_VIEWS = ['table', 'board', 'calendar', 'meeting'];
+
+    /** มุมมองตั้งต้นหลังเข้าสู่ระบบ และเมื่อค่าที่ร้องขอใช้ไม่ได้ */
+    private const DEFAULT_WORKSPACE_VIEW = 'calendar';
+
+    /** คีย์ session ที่จำมุมมองล่าสุดของผู้ใช้ ต้องตรงกับที่ AuthController เขียนตอน login */
+    public const WORKSPACE_VIEW_SESSION_KEY = 'mytasks.view';
+
+    /** เพดานช่วงเวลาต่อ 1 คำขอของ endpoint ปฏิทิน กันการดึงประชุมทั้งระบบ */
+    private const CALENDAR_RANGE_MAX_DAYS = 366;
+
+    /** ประชุมที่ฝังมากับ HTML ตั้งต้น: เดือนปัจจุบัน บวกกันชนหน้าหลัง 1 เดือน */
+    private const CALENDAR_PRELOAD_MONTHS = 1;
+
     public function index(Request $request): View|RedirectResponse
     {
         $user = Auth::user();
@@ -53,23 +76,14 @@ class MyTaskController extends Controller
             ? $this->normalizeTaskScope($request->query('task_scope'))
             : 'all';
 
-        $this->moveAdminAssignmentsToProjectGroups($user);
-        $taskLists = $this->taskListsForCurrentUser();
-        $manageableTaskLists = $taskLists->where('user_id', $user->id)->values();
-        $defaultList = $manageableTaskLists->first();
+        $workspaceView = $this->resolveWorkspaceView($request, $user);
 
-        if ($defaultList) {
-            WorkOrder::where(function ($query) use ($user) {
-                $query->where('user_id', $user->id)
-                    ->orWhere('created_by', $user->id)
-                    ->orWhere('leader_user_id', $user->id)
-                    ->orWhereHas('collaborators', fn ($collaboratorQuery) => $collaboratorQuery
-                        ->where('users.id', $user->id)
-                        ->where('work_order_collaborators.status', 'accepted'));
-            })
-                ->whereNull('work_order_list_id')
-                ->update(['work_order_list_id' => $defaultList->id]);
-        }
+        $this->moveAdminAssignmentsToProjectGroups($user);
+
+        // ไม่มีการยัดงานที่ยังไม่มีโปรเจกต์เข้าโปรเจกต์แรกของผู้ที่เปิดหน้านี้อีกต่อไป
+        // เพราะงานเหล่านั้นถูกแสดงในกลุ่ม "งานทั่วไป" อยู่แล้ว (project-board-card.blade.php
+        // และ workspace-task-source.blade.php) ส่วนของเดิมทำให้งานของเพื่อนร่วมงาน
+        // ถูกดูดเข้าโปรเจกต์ของคนที่บังเอิญเปิดหน้า "งานของฉัน" ก่อน
 
         TodayWorkspace::synchronizeActiveToday($this->baseWorkOrderQuery());
         TodayWorkspace::synchronizeLate($this->baseWorkOrderQuery());
@@ -121,7 +135,25 @@ class MyTaskController extends Controller
             ->get();
         $projectCreatorMeta = ProjectCreatorSummary::forListIds($taskLists->pluck('id'));
 
+        // ประชุมถูก query ต่อเมื่อผู้ใช้เปิดมุมมองนั้นจริง เพื่อไม่ให้ทุกการเปิดหน้างานมีคิวรีเพิ่ม
+        $meetings = app(MeetingQueryService::class);
+        $meetingData = $workspaceView === 'meeting'
+            ? $meetings->indexData($request, $user)
+            : [];
+
+        // ฝังเฉพาะช่วงแคบ ๆ ให้ปฏิทินวาดรอบแรกได้ทันทีโดยไม่ต้องรอ fetch (จึงไม่กระพริบ)
+        $calendarWindow = $this->calendarPreloadWindow();
+        $calendarMeetings = $meetings->calendarMeetings($user, $calendarWindow['from'], $calendarWindow['to']);
+        $calendarMeetingRange = [
+            'start' => $calendarWindow['from']->format('Y-m-d'),
+            'end' => $calendarWindow['to']->format('Y-m-d'),
+        ];
+
         return view('tasks.index', compact(
+            'workspaceView',
+            'meetingData',
+            'calendarMeetings',
+            'calendarMeetingRange',
             'taskLists',
             'manageableTaskLists',
             'visibleLists',
@@ -135,6 +167,82 @@ class MyTaskController extends Controller
             'unreadCommentCounts',
             'taskScope'
         ));
+    }
+
+    /**
+     * ประชุมของช่วงเดือนที่ปฏิทินร้องขอ
+     *
+     * ปฏิทินเลือกปีได้ ±5 ปีและกดเดือนถัดไปได้ไม่จำกัด การฝัง JSON ล่วงหน้าอย่างเดียว
+     * จึงทำให้ประชุมหายเงียบ ๆ เมื่อเลื่อนไกล endpoint นี้เติมให้ทีละช่วงโดยมีเพดานชัดเจน
+     */
+    public function calendarMeetings(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        abort_if($user->role === 'viewer', 403);
+
+        $validated = $request->validate([
+            'start' => ['required', 'date_format:Y-m-d'],
+            'end' => ['required', 'date_format:Y-m-d', 'after_or_equal:start'],
+        ]);
+
+        $from = CarbonImmutable::createFromFormat('Y-m-d', $validated['start'], MeetingQueryService::BUSINESS_TIMEZONE)->startOfDay();
+        $to = CarbonImmutable::createFromFormat('Y-m-d', $validated['end'], MeetingQueryService::BUSINESS_TIMEZONE)->endOfDay();
+
+        abort_if($from->diffInDays($to) > self::CALENDAR_RANGE_MAX_DAYS, 422, 'ช่วงเวลาที่ขอกว้างเกินไป');
+
+        return response()->json([
+            'meetings' => app(MeetingQueryService::class)->calendarMeetings($user, $from, $to),
+        ]);
+    }
+
+    /**
+     * ลำดับความสำคัญของแหล่งข้อมูลมุมมอง: `?view=` → session → ค่าตั้งต้น (ปฏิทิน)
+     *
+     * server เป็นผู้ตัดสินตั้งแต่ HTML แรก เพื่อไม่ให้หน้าจอกระพริบจากตารางไปปฏิทิน
+     * ค่าที่ร้องขอมาแต่ใช้ไม่ได้ (สะกดผิด หรือเป็นมุมมองที่ role นั้นไม่มี panel รองรับ)
+     * จะ fallback เป็นปฏิทินและต้องไม่ถูกจำลง session
+     */
+    private function resolveWorkspaceView(Request $request, User $user): string
+    {
+        $allowed = $this->availableWorkspaceViews($user);
+        $requested = $request->query('view');
+
+        if (is_string($requested) && $requested !== '') {
+            if (! in_array($requested, $allowed, true)) {
+                return self::DEFAULT_WORKSPACE_VIEW;
+            }
+
+            $request->session()->put(self::WORKSPACE_VIEW_SESSION_KEY, $requested);
+
+            return $requested;
+        }
+
+        $remembered = $request->session()->get(self::WORKSPACE_VIEW_SESSION_KEY);
+
+        return is_string($remembered) && in_array($remembered, $allowed, true)
+            ? $remembered
+            : self::DEFAULT_WORKSPACE_VIEW;
+    }
+
+    /**
+     * @return array{from: CarbonImmutable, to: CarbonImmutable}
+     */
+    private function calendarPreloadWindow(): array
+    {
+        $now = CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE);
+
+        return [
+            'from' => $now->subMonthsNoOverflow(self::CALENDAR_PRELOAD_MONTHS)->startOfMonth(),
+            'to' => $now->addMonthsNoOverflow(self::CALENDAR_PRELOAD_MONTHS)->endOfMonth(),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function availableWorkspaceViews(User $user): array
+    {
+        return $user->role === 'user' ? self::MEMBER_WORKSPACE_VIEWS : self::WORKSPACE_VIEWS;
     }
 
     public function storeQuickTask(Request $request): JsonResponse
@@ -833,14 +941,6 @@ class MyTaskController extends Controller
         app(NotificationService::class)->notify($userIds, $type, $safeTitle, $safeMessage, $job, Auth::user());
     }
 
-    private function hasCompletedAllSubtasks(WorkOrder $workOrder): bool
-    {
-        $total = $workOrder->subtasks()->count();
-
-        return $total > 0
-            && $workOrder->subtasks()->where('is_completed', false)->doesntExist();
-    }
-
     private function notifyAdmins(WorkOrder $job, string $type, string $title, string $message): void
     {
         $adminIds = User::where('role', 'admin')->pluck('id')->all();
@@ -902,41 +1002,28 @@ class MyTaskController extends Controller
             ->get();
     }
 
+    /**
+     * งานที่ Admin มอบหมายและยังไม่มีโปรเจกต์ จะถูกจัดให้มีโปรเจกต์ของตัวเอง
+     * เพื่อให้แสดงเป็นกลุ่มงานในหน้า "งานของฉัน"
+     *
+     * ทำเฉพาะงานที่ยังไม่มีโปรเจกต์เท่านั้น งานที่ถูกจัดเข้าโปรเจกต์ไว้แล้ว
+     * (เช่น Admin เพิ่มงานเข้าโปรเจกต์ของสมาชิกผ่านหน้า work-board) ต้องคงอยู่ที่เดิม
+     * มิฉะนั้นการเปิดหน้านี้จะย้อนสิ่งที่ Admin เพิ่งทำไป
+     */
     private function moveAdminAssignmentsToProjectGroups(User $user): void
     {
-        $adminAssignments = WorkOrder::query()
+        $ungroupedAdminAssignments = WorkOrder::query()
             ->where('user_id', $user->id)
+            ->whereNull('work_order_list_id')
             ->whereHas('creator', fn ($query) => $query->where('role', 'admin'))
             ->get();
 
-        if ($adminAssignments->isEmpty()) {
+        if ($ungroupedAdminAssignments->isEmpty()) {
             return;
         }
 
-        $listIds = $adminAssignments->pluck('work_order_list_id')->filter()->unique();
-        $lists = WorkOrderList::whereIn('id', $listIds)
-            ->get()
-            ->keyBy('id');
-        $tasksPerList = WorkOrder::whereIn('work_order_list_id', $listIds)
-            ->selectRaw('work_order_list_id, count(*) as total')
-            ->groupBy('work_order_list_id')
-            ->pluck('total', 'work_order_list_id');
-
-        DB::transaction(function () use ($adminAssignments, $lists, $tasksPerList, $user) {
-            foreach ($adminAssignments as $job) {
-                $currentList = $lists->get($job->work_order_list_id);
-                if ($currentList && (int) $currentList->user_id !== (int) $user->id) {
-                    continue;
-                }
-
-                $isDedicatedProject = $currentList
-                    && $currentList->name === $job->job_topic
-                    && (int) ($tasksPerList[$currentList->id] ?? 0) === 1;
-
-                if ($isDedicatedProject) {
-                    continue;
-                }
-
+        DB::transaction(function () use ($ungroupedAdminAssignments, $user) {
+            foreach ($ungroupedAdminAssignments as $job) {
                 $projectList = WorkOrderList::create([
                     'user_id' => $user->id,
                     'name' => $job->job_topic,

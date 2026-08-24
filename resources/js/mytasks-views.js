@@ -5,26 +5,40 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
     if (!workspace) return;
     const database = workspace.querySelector('.notion-database');
     const groupSelect = workspace.querySelector('[data-group]');
-    const buttons = [...workspace.querySelectorAll('[data-view]')];
+    const tabs = [...workspace.querySelectorAll('[data-view]')];
     const boardToolbar = workspace.querySelector('[data-board-toolbar]');
     const scopeControl = workspace.querySelector('[data-task-scope-control]');
     const scopeSelect = workspace.querySelector('[data-task-scope]');
     if (!database) return;
-    if (!buttons.length) {
+    if (!tabs.length) {
         database.dataset.view = 'table';
         return;
     }
 
+    // มุมมองที่หน้านี้มีปุ่มจริง — หน้าที่ไม่มี panel ของมุมมองนั้นต้องสลับไปหาไม่ได้
+    const knownViews = tabs.map((tab) => tab.dataset.view);
+    // ปุ่มที่มี data-view-navigate ต้องโหลดหน้าใหม่ เพราะ panel ของมันถูก render จาก server เท่านั้น
+    const clientViews = tabs.filter((tab) => !('viewNavigate' in tab.dataset)).map((tab) => tab.dataset.view);
+    const fallbackView = clientViews.includes('calendar') ? 'calendar' : (clientViews[0] || 'table');
+    // เขียน History เฉพาะหน้าที่ server อ่าน ?view= จริง กันไม่ให้ URL ของหน้าอื่นเปื้อน
+    const historyEnabled = workspace.dataset.context === 'user';
+    const serverView = knownViews.includes(database.dataset.view) ? database.dataset.view : fallbackView;
+
     let tableGrouping = groupSelect?.value || 'project';
-    const setView = (view, announce = true) => {
-        if (!['table', 'board', 'calendar'].includes(view)) view = 'table';
+
+    /**
+     * เปลี่ยนเฉพาะ DOM ห้ามแตะ History เด็ดขาด
+     * เพราะถูกเรียกจาก popstate ด้วย ถ้าเขียน History ซ้ำจะเกิด entry ซ้อนหรือวนลูป
+     */
+    const applyView = (requestedView, announce = true) => {
+        const view = knownViews.includes(requestedView) ? requestedView : fallbackView;
         database.dataset.view = view;
         if (boardToolbar) boardToolbar.hidden = view !== 'board';
-        if (scopeControl) scopeControl.hidden = view === 'calendar';
-        buttons.forEach((button) => {
-            const active = button.dataset.view === view;
-            button.classList.toggle('active', active);
-            button.setAttribute('aria-selected', String(active));
+        if (scopeControl) scopeControl.hidden = view === 'calendar' || view === 'meeting';
+        tabs.forEach((tab) => {
+            const active = tab.dataset.view === view;
+            tab.classList.toggle('active', active);
+            tab.setAttribute('aria-selected', String(active));
         });
         workspace.querySelectorAll('[data-view-panel]').forEach((panel) => {
             panel.setAttribute('aria-hidden', String(panel.dataset.viewPanel !== view));
@@ -37,13 +51,31 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
             groupSelect.dispatchEvent(new Event('change', {bubbles: true}));
         }
 
-        try { localStorage.setItem('smart-goal-my-tasks-view', view); } catch (_) {}
         document.dispatchEvent(new CustomEvent('mytasks:viewchange', {detail: {view}}));
         if (announce) document.querySelector('[data-toast]')?.dispatchEvent(new CustomEvent('viewchange'));
+        return view;
     };
 
-    buttons.forEach((button) => {
-        button.onclick = () => setView(button.dataset.view);
+    /** ผู้ใช้กดเปลี่ยนมุมมองเอง จึงต้องสร้าง History entry ให้ย้อนกลับได้ */
+    const selectView = (view) => {
+        if (!clientViews.includes(view)) return;
+        applyView(view);
+        if (!historyEnabled) return;
+
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('view') === view) return;
+        url.searchParams.set('view', view);
+        window.history.pushState({mytasksView: view}, '', url);
+    };
+
+    tabs.forEach((tab) => {
+        if ('viewNavigate' in tab.dataset) return;
+        tab.addEventListener('click', () => selectView(tab.dataset.view));
+    });
+
+    window.addEventListener('popstate', () => {
+        const view = new URL(window.location.href).searchParams.get('view');
+        applyView(knownViews.includes(view) ? view : serverView, false);
     });
 
     scopeSelect?.addEventListener('change', () => {
@@ -51,11 +83,13 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
 
         const url = new URL(window.location.href);
         const state = boardFilterStateFrom(url.searchParams);
-        url.search = parametersForTaskWorkspace(
+        const parameters = parametersForTaskWorkspace(
             url.searchParams,
             state,
             normalizeTaskScope(scopeSelect.value),
-        ).toString();
+        );
+        parameters.set('view', database.dataset.view);
+        url.search = parameters.toString();
         window.location.assign(url);
     });
 
@@ -63,7 +97,15 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
         if (database.dataset.view !== 'board') tableGrouping = groupSelect.value;
     });
 
-    let saved = 'table';
-    try { saved = localStorage.getItem('smart-goal-my-tasks-view') || 'table'; } catch (_) {}
-    setView(saved, false);
+    // server ตัดสินมุมมองมาแล้ว init จึงแค่ประกาศสถานะ ไม่ต้องอ่านค่าที่ไหนมาทับ (จึงไม่กระพริบ)
+    applyView(serverView, false);
+
+    // replaceState ไม่สร้าง entry ใหม่ ใช้เพื่อให้ URL ตั้งต้นมี ?view= ไว้เป็นจุดอ้างอิงของ Back/Forward
+    if (historyEnabled) {
+        const initialUrl = new URL(window.location.href);
+        if (initialUrl.searchParams.get('view') !== serverView) {
+            initialUrl.searchParams.set('view', serverView);
+            window.history.replaceState({mytasksView: serverView}, '', initialUrl);
+        }
+    }
 })();

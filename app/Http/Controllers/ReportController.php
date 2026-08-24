@@ -174,6 +174,7 @@ class ReportController extends Controller
             3 => 'ตรวจสอบ',
             4 => 'เสร็จสิ้น',
             5 => 'พักงานชั่วคราว',
+            6 => 'ล่าช้า',
         ][$status] ?? 'รอดำเนินการ';
     }
 

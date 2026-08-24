@@ -1,5 +1,4 @@
 @extends('layouts.app')
-@section('content')
 
 @php
     $fieldLabels = [
@@ -139,7 +138,6 @@
     };
 @endphp
 
-<div class="admin-log-page">
 @section('title', 'บันทึกระบบ')
 
 @push('styles')
@@ -283,7 +281,7 @@
                                                                         <div class="log-change-field">{{ $fieldLabel }}</div>
                                                                         <div class="log-change-value">
                                                                             @if ($isImageField && $oldValue)
-                                                                                <img src="{{ asset('storage/' . $oldValue) }}" alt="รูปโปรไฟล์" class="log-avatar">
+                                                                                @include('admin.activity-logs.components.profile-image', ['path' => $oldValue, 'label' => 'รูปโปรไฟล์'])
                                                                             @else
                                                                                 {{ $formattedOld }}
                                                                             @endif
@@ -296,7 +294,7 @@
                                                                         <div class="log-change-field">{{ $fieldLabel }}</div>
                                                                         <div class="log-change-value">
                                                                             @if ($isImageField && $newValue)
-                                                                                <img src="{{ asset('storage/' . $newValue) }}" alt="รูปโปรไฟล์" class="log-avatar">
+                                                                                @include('admin.activity-logs.components.profile-image', ['path' => $newValue, 'label' => 'รูปโปรไฟล์'])
                                                                             @else
                                                                                 {{ $formattedNew }}
                                                                             @endif
@@ -310,13 +308,13 @@
                                                                         @if ($isImageField)
                                                                             <div class="log-avatar-group">
                                                                                 @if ($oldValue)
-                                                                                    <img src="{{ asset('storage/' . $oldValue) }}" alt="รูปโปรไฟล์เดิม" class="log-avatar log-avatar-old">
+                                                                                    @include('admin.activity-logs.components.profile-image', ['path' => $oldValue, 'label' => 'รูปโปรไฟล์เดิม', 'extraClass' => 'log-avatar-old'])
                                                                                 @else
                                                                                     <span class="log-value-old">{{ $formattedOld }}</span>
                                                                                 @endif
                                                                                 <i class="bi bi-arrow-right log-change-arrow"></i>
                                                                                 @if ($newValue)
-                                                                                    <img src="{{ asset('storage/' . $newValue) }}" alt="รูปโปรไฟล์ใหม่" class="log-avatar log-avatar-new">
+                                                                                    @include('admin.activity-logs.components.profile-image', ['path' => $newValue, 'label' => 'รูปโปรไฟล์ใหม่', 'extraClass' => 'log-avatar-new'])
                                                                                 @else
                                                                                     <span class="log-value-new">{{ $formattedNew }}</span>
                                                                                 @endif

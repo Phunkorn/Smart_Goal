@@ -94,6 +94,7 @@ final class PersonalReportService
                     3 => 'รอตรวจสอบ',
                     4 => 'เสร็จสิ้น',
                     5 => 'พักงาน',
+                    6 => 'ล่าช้า',
                 ],
                 'priorities' => WorkBoardDesign::TASK_PRIORITIES,
             ],
@@ -177,7 +178,7 @@ final class PersonalReportService
             'start_utc' => $start->startOfDay()->utc(),
             'end_utc' => $end->endOfDay()->utc(),
             'year' => $this->selectedYear($request, $now),
-            'status' => in_array($status, range(1, 5), true) ? $status : null,
+            'status' => in_array($status, range(1, 6), true) ? $status : null,
             'priority' => array_key_exists($priority, WorkBoardDesign::TASK_PRIORITIES) ? $priority : null,
             'search' => mb_substr(trim($request->string('search')->toString()), 0, 100),
         ];
@@ -228,6 +229,7 @@ final class PersonalReportService
             3 => 'review',
             4 => 'done',
             5 => 'paused',
+            6 => 'late',
             default => 'todo',
         };
 

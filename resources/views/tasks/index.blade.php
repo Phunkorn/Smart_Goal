@@ -9,6 +9,8 @@
     $lateCount = $allTasks->filter(fn ($task) => (int) $task->job_status !== 4 && $task->job_due_at?->isPast())->count();
     $overall = $allTasks->count() ? (int) round($doneCount / $allTasks->count() * 100) : 0;
     $workspaceContext = 'user';
+    // Controller เป็นผู้ตัดสินมุมมองตั้งต้น ค่า default ที่นี่ไว้กันหน้าพังหากถูก render จากที่อื่น
+    $workspaceView = $workspaceView ?? 'table';
     $showCreateActions = true;
     $showQuickAdd = true;
     $taskLinkMode = false;
@@ -38,14 +40,29 @@
     </section>
 
     <div class="mytasks-view-controls">
-        <nav class="notion-viewbar" role="tablist" aria-label="รูปแบบการแสดงงาน">
-            <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i> ตาราง</button>
-            <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i> บอร์ด</button>
-            <button type="button" data-view="calendar" role="tab" aria-selected="false" aria-controls="mytasks-calendar"><i class="bi bi-calendar3"></i> ปฏิทิน</button>
-        </nav>
+        @php
+            $workspaceViews = [
+                ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
+                ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
+                ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทิน', 'controls' => 'mytasks-calendar'],
+            ];
+
+            // เฉพาะพนักงานเท่านั้นที่เมนู "การประชุม" ถูกย้ายมาเป็น view ที่ 4 ที่นี่
+            // panel ประชุมถูก render จาก server เท่านั้น ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
+            if (auth()->user()->role === 'user') {
+                $workspaceViews[] = [
+                    'view' => 'meeting',
+                    'icon' => 'bi-calendar-event-fill',
+                    'label' => 'ประชุม',
+                    'href' => route('mytasks.index', ['view' => 'meeting']),
+                ];
+            }
+        @endphp
+
+        @include('tasks.partials.viewbar', ['views' => $workspaceViews, 'activeView' => $workspaceView])
 
         @if(auth()->user()->role === 'user')
-            <label class="mytasks-scope-control" data-task-scope-control>
+            <label class="mytasks-scope-control" data-task-scope-control {{ in_array($workspaceView, ['calendar', 'meeting'], true) ? 'hidden' : '' }}>
                 <i class="bi bi-funnel" aria-hidden="true"></i>
                 <span class="visually-hidden">เลือกขอบเขตงาน</span>
                 <select data-task-scope aria-label="เลือกขอบเขตงาน">
@@ -57,10 +74,18 @@
                 </select>
             </label>
         @endif
+
+        {{-- ปุ่มเดียวที่เปิด modal สร้างโปรเจกต์ ต้องอยู่นอก <nav role="tablist"> เพื่อไม่ให้ปน role="tab" --}}
+        @if($showCreateActions)
+            <button type="button" class="mytasks-kanban__button mytasks-kanban__button--project mytasks-view-controls__create" data-open-create>
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> เพิ่มโปรเจกต์
+            </button>
+        @endif
     </div>
 
-    <section class="notion-database">
-        <div class="notion-toolbar" data-board-toolbar hidden>
+    {{-- server เป็นผู้ตัดสินมุมมองตั้งแต่ HTML แรก จึงไม่มีการกระพริบจากตารางไปปฏิทิน --}}
+    <section class="notion-database" data-view="{{ $workspaceView }}">
+        <div class="notion-toolbar" data-board-toolbar {{ $workspaceView !== 'board' ? 'hidden' : '' }}>
             <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องาน โปรเจกต์ หรือผู้รับผิดชอบ..."></label>
             <label class="notion-group">จัดกลุ่มตาม <select data-group><option value="project">โปรเจกต์</option><option value="status">สถานะ</option><option value="assignee">ผู้รับผิดชอบ</option><option value="priority">ความสำคัญ</option></select></label>
             <label class="notion-filter"><i class="bi bi-funnel"></i><select data-filter><option value="">ทุกสถานะ</option><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="5">พักงาน</option><option value="late">ล่าช้า</option><option value="4">เสร็จแล้ว</option></select></label>
@@ -96,6 +121,17 @@
                 'workspaceContext' => $workspaceContext,
             ])
         </div>
+
+        @if($workspaceView === 'meeting')
+            {{-- ใช้ partial ชุดเดียวกับหน้า /meetings ห้ามคัดลอก HTML หรือ JavaScript ซ้ำ --}}
+            <div class="mytasks-meeting-view" data-view-panel="meeting" role="tabpanel" aria-label="มุมมองการประชุม">
+                @include('meetings.components.meeting-list', array_merge($meetingData, [
+                    'meetingFormAction' => route('mytasks.index'),
+                    'meetingBaseQuery' => ['view' => 'meeting'],
+                    'meetingEmbedded' => true,
+                ]))
+            </div>
+        @endif
 
     </section>
 </div>

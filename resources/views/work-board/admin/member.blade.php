@@ -47,13 +47,11 @@
         data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
         data-current-user-name="{{ auth()->user()->name }}"
         data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.profile', auth()->user()) : '' }}">
-        <nav class="notion-viewbar" role="tablist" aria-label="รูปแบบการแสดงงาน">
-            <button class="active" type="button" data-view="table" role="tab" aria-selected="true"><i class="bi bi-table"></i>ตาราง</button>
-            <button type="button" data-view="board" role="tab" aria-selected="false"><i class="bi bi-layout-three-columns"></i>บอร์ด</button>
-            <button type="button" data-view="calendar" role="tab" aria-selected="false" aria-controls="mytasks-calendar"><i class="bi bi-calendar3"></i>ปฏิทิน</button>
-        </nav>
+        {{-- Admin Member Workspace ไม่มี panel "ประชุม" จึงต้องได้แค่ 3 มุมมองเสมอ --}}
+        @include('tasks.partials.viewbar', ['activeView' => 'table'])
 
-        <section class="notion-database">
+        {{-- Admin Member Workspace ไม่มี view state ฝั่ง server จึงเริ่มที่ตารางเสมอ --}}
+        <section class="notion-database" data-view="table">
             <div class="notion-toolbar" data-board-toolbar hidden>
                 <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องานหรือโปรเจกต์"></label>
                 <label class="notion-group is-locked">สมาชิก <select disabled><option>{{ $member->name }}</option></select></label>

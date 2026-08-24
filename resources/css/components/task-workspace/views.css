@@ -1,7 +1,43 @@
-.my-tasks-page .notion-viewbar button[aria-selected="true"] {
+.my-tasks-page .notion-viewbar button[aria-selected="true"],
+.my-tasks-page .notion-viewbar a[aria-selected="true"] {
     color: var(--sg-ink);
     border-bottom-color: var(--sg-blue);
     font-weight: 650;
+}
+
+/* มุมมองที่ต้องโหลดหน้าใหม่ถูก render เป็น <a> จึงต้องได้รูปลักษณ์เดียวกับปุ่มมุมมองอื่น */
+.my-tasks-page .notion-viewbar a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 108px;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--sg-muted);
+    font-size: 12px;
+    text-decoration: none;
+}
+
+.my-tasks-page .notion-viewbar a:hover {
+    background: rgba(255, 255, 255, .55);
+}
+
+.my-tasks-page .notion-viewbar a.active {
+    background: #fff;
+    color: var(--sg-ink);
+    font-weight: 650;
+    box-shadow: 0 2px 7px rgba(30, 55, 90, .1);
+}
+
+@media (max-width: 760px) {
+    .my-tasks-page .notion-viewbar a {
+        min-width: 0;
+        flex: 1;
+        padding-inline: 8px;
+    }
 }
 
 .my-tasks-page .mytasks-view-controls {
@@ -13,6 +49,11 @@
 
 .my-tasks-page .mytasks-view-controls .notion-viewbar {
     margin-bottom: 0;
+}
+
+/* ปุ่มสร้างโปรเจกต์อยู่ท้ายแถวควบคุมมุมมอง จึงถูกดันไปชิดขวาสุดบนจอกว้าง */
+.my-tasks-page .mytasks-view-controls__create {
+    margin-inline-start: auto;
 }
 
 .my-tasks-page .mytasks-scope-control {
@@ -53,6 +94,11 @@
         flex-direction: column;
     }
 
+    /* แถวเรียงเป็นคอลัมน์แล้ว auto margin จะกลายเป็นแกนขวาง ทำให้ปุ่มไม่ยืดเต็มความกว้าง */
+    .my-tasks-page .mytasks-view-controls__create {
+        margin-inline-start: 0;
+    }
+
     .my-tasks-page .mytasks-scope-control {
         justify-content: space-between;
     }
@@ -61,6 +107,24 @@
         max-width: none;
         width: 100%;
     }
+}
+
+/*
+ * มุมมอง "ประชุม" — panel ถูก render จาก server เฉพาะเมื่อเลือกมุมมองนี้
+ * แต่ยังต้องมีกฎครบทั้งสองทาง เพราะผู้ใช้สลับกลับไปตาราง/บอร์ด/ปฏิทิน ฝั่ง client ได้
+ */
+.my-tasks-page .mytasks-meeting-view {
+    display: none;
+    padding: 16px;
+}
+
+.my-tasks-page .notion-database[data-view="meeting"] .mytasks-meeting-view {
+    display: block;
+}
+
+.my-tasks-page .notion-database[data-view="meeting"] .notion-toolbar,
+.my-tasks-page .notion-database[data-view="meeting"] .notion-table-scroll {
+    display: none;
 }
 
 .my-tasks-page .notion-group.is-locked { opacity: .68; }

@@ -32,9 +32,6 @@ final class WorkBoardDesign
         3 => ['label' => 'สูง', 'tone' => 'red'],
     ];
 
-    /** @deprecated Use PROJECT_PRIORITIES for project priority metadata. */
-    public const PRIORITIES = self::PROJECT_PRIORITIES;
-
     private const DEPARTMENT_TONES = ['blue', 'teal', 'purple', 'amber', 'cyan', 'rose'];
 
     public static function statusKey(WorkOrder $job): string
@@ -60,11 +57,6 @@ final class WorkBoardDesign
         $key = self::statusKey($job);
 
         return ['key' => $key, ...self::STATUSES[$key]];
-    }
-
-    public static function priority(int $priority): array
-    {
-        return self::PRIORITIES[$priority] ?? self::PRIORITIES[2];
     }
 
     public static function taskPriority(int $priority): array

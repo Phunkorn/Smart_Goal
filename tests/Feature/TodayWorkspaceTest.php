@@ -215,6 +215,65 @@ class TodayWorkspaceTest extends TestCase
         $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->contains($future->job_id));
     }
 
+    public function test_pending_task_is_never_auto_started_or_auto_marked_late(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $started = $this->job($user, 1, now()->subDay(), now()->addDay(), ['approval_status' => 'pending']);
+        $overdue = $this->job($user, 1, now()->subWeek(), now()->subDay(), ['approval_status' => 'pending']);
+
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+
+        $this->assertSame(1, (int) $started->fresh()->job_status);
+        $this->assertSame(1, (int) $overdue->fresh()->job_status);
+        $this->assertNull($overdue->fresh()->late_at);
+    }
+
+    public function test_rejected_task_is_never_auto_started_or_auto_marked_late(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $started = $this->job($user, 1, now()->subDay(), now()->addDay(), ['approval_status' => 'rejected']);
+        $overdue = $this->job($user, 1, now()->subWeek(), now()->subDay(), ['approval_status' => 'rejected']);
+
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+
+        $this->assertSame(1, (int) $started->fresh()->job_status);
+        $this->assertSame(1, (int) $overdue->fresh()->job_status);
+        $this->assertNull($overdue->fresh()->late_at);
+    }
+
+    public function test_approved_task_still_auto_starts_and_auto_marks_late(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $started = $this->job($user, 1, now()->subDay(), now()->addDay());
+        $overdue = $this->job($user, 1, now()->subWeek(), now()->subDay());
+
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+
+        $this->assertSame(2, (int) $started->fresh()->job_status);
+        $this->assertSame(6, (int) $overdue->fresh()->job_status);
+        $this->assertNotNull($overdue->fresh()->late_at);
+    }
+
+    public function test_pending_overdue_task_only_enters_the_lifecycle_after_admin_approval(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $user = User::factory()->create(['role' => 'user']);
+        $job = $this->job($user, 1, now()->subWeek(), now()->subDay(), ['approval_status' => 'pending']);
+
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+        $this->assertSame(1, (int) $job->fresh()->job_status);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.tasks.approval', $job->job_id), ['approval_status' => 'approved'])
+            ->assertRedirect();
+
+        $this->assertSame('approved', $job->fresh()->approval_status);
+        $this->assertSame(2, (int) $job->fresh()->job_status);
+
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+        $this->assertSame(6, (int) $job->fresh()->job_status);
+    }
+
     private function job(User $user, int $status, $start, $due, array $extra = []): WorkOrder
     {
         return WorkOrder::create(array_merge([

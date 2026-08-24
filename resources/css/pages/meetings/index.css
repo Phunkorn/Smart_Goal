@@ -16,8 +16,12 @@
     align-items: center;
 }
 
+/* เมื่อถูกฝังในหน้าอื่น กรอบภายนอกคุมความกว้างเองแล้ว และหัวเรื่องลดระดับเป็น h2 กัน h1 ซ้อน */
+.meetings-page--embedded { max-width: none; }
+
 .meetings-page__header { justify-content: space-between; gap: 24px; margin-bottom: 18px; }
 .meetings-page__header h1 { margin: 5px 0 3px; font-size: clamp(1.65rem, 2.6vw, 2.2rem); font-weight: 800; letter-spacing: -.025em; }
+.meetings-page__header h2 { margin: 5px 0 3px; font-size: clamp(1.35rem, 2.2vw, 1.8rem); font-weight: 800; letter-spacing: -.025em; }
 .meetings-page__header p { margin: 0; color: var(--text-muted); }
 .meetings-page__eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--accent); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .meetings-page__actions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }

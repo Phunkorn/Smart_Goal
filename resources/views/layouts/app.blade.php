@@ -80,27 +80,32 @@
                 </a>
             @endif
 
-            <div class="nav-section-label">{{ $isAdmin ? 'การจัดการ' : 'พื้นที่ของฉัน' }}</div>
+            @if ($isAdmin || $isViewer)
+                <div class="nav-section-label">{{ $isAdmin ? 'การจัดการ' : 'พื้นที่ของฉัน' }}</div>
+            @else
+                {{-- พนักงาน: "งานของฉัน" เป็นศูนย์กลางงานและการประชุม จึงมาเป็นลำดับแรก --}}
+                {{-- เมนู "การประชุม" ย้ายไปเป็น view ที่ 4 ในหน้างานของฉัน (route เดิมยังใช้งานได้) --}}
+                <div class="nav-section-label">งานของฉัน</div>
 
-            @if (! $isAdmin && ! $isViewer)
-                <a href="{{ route('work-board.index') }}"
-                    class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
-                    <i class="bi bi-kanban-fill"></i> บอร์ดงาน
-                </a>
                 <a href="{{ route('mytasks.index') }}"
                     class="nav-item {{ request()->routeIs('mytasks.*') ? 'active' : '' }}">
                     <i class="bi bi-briefcase"></i> งานของฉัน
+                </a>
+                <a href="{{ route('work-board.index') }}"
+                    class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
+                    <i class="bi bi-kanban-fill"></i> บอร์ดงาน
                 </a>
                 <a href="{{ route('reports.my') }}"
                     class="nav-item {{ request()->routeIs('reports.my') ? 'active' : '' }}">
                     <i class="bi bi-clipboard-data-fill"></i> รายงานของฉัน
                 </a>
-                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
-                    <i class="bi bi-calendar-event-fill"></i> การประชุม
-                </a>
             @endif
 
             @stack('sidebar_nav_extra')
+
+            @if (! $isAdmin && ! $isViewer)
+                <div class="nav-section-label">การสื่อสาร</div>
+            @endif
 
             <a href="{{ route('notifications.index') }}"
                 class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
@@ -137,7 +142,11 @@
                 </a>
             @endif
 
-                   <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
+            @if (! $isAdmin && ! $isViewer)
+                <div class="nav-section-label">ระบบ</div>
+            @endif
+
+            <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
                 <i class="bi bi-gear-fill"></i> ตั้งค่า
             </a>
 

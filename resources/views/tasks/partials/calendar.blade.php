@@ -1,8 +1,34 @@
-<section class="mytasks-calendar" id="mytasks-calendar" data-calendar data-view-panel="calendar" role="tabpanel" aria-hidden="true" aria-labelledby="mytasks-calendar-title">
+@php
+    /**
+     * ปฏิทินรวมงานและการประชุม แต่ Admin Member Workspace ดูงานของ "สมาชิกคนอื่น"
+     * จึงต้องไม่มีประชุมของผู้ดูแลปนเข้าไป — จำกัดไว้เฉพาะบริบทของเจ้าของหน้าเท่านั้น
+     */
+    $calendarShowsMeetings = ($workspaceContext ?? 'user') === 'user';
+    $calendarMeetings = $calendarShowsMeetings ? ($calendarMeetings ?? collect()) : collect();
+    $calendarMeetingRange = $calendarShowsMeetings ? ($calendarMeetingRange ?? null) : null;
+@endphp
+
+<section class="mytasks-calendar" id="mytasks-calendar" data-calendar data-view-panel="calendar" role="tabpanel" aria-hidden="true" aria-labelledby="mytasks-calendar-title"
+    @if($calendarShowsMeetings)
+        data-meetings-endpoint="{{ route('mytasks.calendar.meetings') }}"
+        @if($calendarMeetingRange)
+            data-meetings-loaded-start="{{ $calendarMeetingRange['start'] }}"
+            data-meetings-loaded-end="{{ $calendarMeetingRange['end'] }}"
+        @endif
+    @endif
+>
     <header class="mytasks-calendar__toolbar">
         <div>
             <span>MONTH VIEW</span>
             <h2 id="mytasks-calendar-title" data-calendar-title aria-live="polite"></h2>
+
+            @if($calendarShowsMeetings)
+                <p class="mytasks-calendar__legend">
+                    <span class="mytasks-calendar__legend-item"><i class="bi bi-check2-square" aria-hidden="true"></i> งาน</span>
+                    <span class="mytasks-calendar__legend-item mytasks-calendar__legend-item--meeting"><i class="bi bi-calendar-event-fill" aria-hidden="true"></i> ประชุม</span>
+                    <span class="mytasks-calendar__loading" data-calendar-loading role="status" aria-live="polite" hidden><i class="bi bi-arrow-repeat" aria-hidden="true"></i> กำลังโหลดการประชุม</span>
+                </p>
+            @endif
         </div>
         <div class="mytasks-calendar__navigation" aria-label="เปลี่ยนเดือน">
             <button type="button" class="mytasks-calendar__reset" data-calendar-reset>คืนค่า</button>
@@ -32,6 +58,12 @@
         </header>
         <div data-calendar-popover-list></div>
     </div>
+
+    @if($calendarShowsMeetings)
+        {{-- ประชุมของช่วงเดือนตั้งต้น ฝังมาเพื่อให้รอบแรกวาดได้ทันทีโดยไม่ต้องรอ fetch --}}
+        {{-- คง JSON_HEX_* ตามค่าเริ่มต้นของ @json ไว้ เพื่อไม่ให้ชื่อประชุมหลุดออกจาก <script> ได้ --}}
+        <script type="application/json" data-calendar-meetings>@json($calendarMeetings, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)</script>
+    @endif
 </section>
 
 <div class="notion-modal mytasks-calendar-detail" data-calendar-detail hidden>

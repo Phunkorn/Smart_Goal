@@ -67,7 +67,7 @@
     data-search="{{ $search }}"
     data-status="{{ $isOverdue ? 'overdue' : $statusValue }}"
     data-priority="{{ (int) $task->job_priority }}"
-    data-due="{{ optional($task->job_due_at)->format('Y-m-d') }}">
+    data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
     <td class="check-col" data-label="">
         <button type="button"
             class="task-check {{ $isCompleted ? 'is-on' : '' }}"

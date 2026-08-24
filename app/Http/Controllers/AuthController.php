@@ -72,6 +72,10 @@ class AuthController extends Controller
         }
 
         if ($user->role === 'user') {
+            // session()->regenerate() เปลี่ยนแค่ session ID ไม่ล้างค่าเดิม (Store::migrate(false))
+            // จึงต้องเซ็ตมุมมองตั้งต้นให้ชัดเจน มิฉะนั้นผู้ที่เคยเลือกตารางไว้จะไม่ได้ปฏิทิน
+            $request->session()->put(MyTaskController::WORKSPACE_VIEW_SESSION_KEY, 'calendar');
+
             return redirect()->route('mytasks.index');
         }
 

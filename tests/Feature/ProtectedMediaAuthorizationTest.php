@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\JobImage;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -227,6 +228,87 @@ class ProtectedMediaAuthorizationTest extends TestCase
         $this->actingAs($viewer)->get(route('media.show', ['path' => $path]))->assertOk();
         Storage::disk('public')->assertExists($path);
         Storage::disk('local')->assertMissing($path);
+    }
+
+    public function test_activity_log_renders_a_still_available_profile_image_through_protected_media(): void
+    {
+        $admin = $this->user('admin');
+        $employee = $this->user();
+        $path = 'profiles/audited.jpg';
+        Storage::disk('public')->put($path, 'profile');
+        $employee->update(['profile_image' => $path]);
+
+        $this->activityLog($admin, $employee, ['after' => ['profile_image' => $path]]);
+
+        $response = $this->actingAs($admin)->get(route('admin.activity-logs.index'))->assertOk();
+
+        $response->assertSee(route('media.show', ['path' => $path]), false);
+        $response->assertDontSee('ไม่พบรูปเดิม');
+        $this->assertStringNotContainsString('/storage/'.$path, $response->getContent());
+    }
+
+    public function test_activity_log_shows_a_placeholder_instead_of_a_broken_historical_profile_image(): void
+    {
+        $admin = $this->user('admin');
+        $employee = $this->user();
+
+        // สภาพจริงหลังเปลี่ยนรูป: ไฟล์เดิมถูกลบ และ path เดิมไม่ใช่รูปปัจจุบันของใครแล้ว
+        $oldPath = 'profiles/removed-old.jpg';
+        $currentPath = 'profiles/current-new.jpg';
+        Storage::disk('public')->put($currentPath, 'current');
+        $employee->update(['profile_image' => $currentPath]);
+        Storage::disk('public')->assertMissing($oldPath);
+
+        $this->activityLog($admin, $employee, [
+            'before' => ['profile_image' => $oldPath],
+            'after' => ['profile_image' => $currentPath],
+        ], 'updated');
+
+        $response = $this->actingAs($admin)->get(route('admin.activity-logs.index'))->assertOk();
+        $content = $response->getContent();
+
+        // ไม่มี <img> ที่ชี้ไปยังรูปเดิมที่หายไป จึงไม่เกิด broken image
+        $this->assertStringNotContainsString(route('media.show', ['path' => $oldPath]), $content);
+        $this->assertStringNotContainsString('/storage/'.$oldPath, $content);
+        $response->assertSee('ไม่พบรูปเดิม');
+
+        // ห้ามเอารูปปัจจุบันมาสวมเป็นรูปเดิม: ต้องปรากฏครั้งเดียวคือฝั่ง "หลัง"
+        $this->assertSame(
+            1,
+            substr_count($content, route('media.show', ['path' => $currentPath])),
+            'The current avatar must never stand in for the historical one.'
+        );
+    }
+
+    public function test_activity_log_placeholder_also_covers_a_path_whose_file_vanished(): void
+    {
+        $admin = $this->user('admin');
+        $employee = $this->user();
+
+        // path ยังเป็นรูปปัจจุบันของผู้ใช้ แต่ไฟล์บนดิสก์หายไป (เช่นถูกลบนอกระบบ)
+        $path = 'profiles/orphaned.jpg';
+        $employee->update(['profile_image' => $path]);
+        Storage::disk('public')->assertMissing($path);
+
+        $this->activityLog($admin, $employee, ['after' => ['profile_image' => $path]]);
+
+        $response = $this->actingAs($admin)->get(route('admin.activity-logs.index'))->assertOk();
+
+        $this->assertStringNotContainsString(route('media.show', ['path' => $path]), $response->getContent());
+        $response->assertSee('ไม่พบรูปเดิม');
+    }
+
+    private function activityLog(User $actor, User $subject, array $changes, string $action = 'created'): ActivityLog
+    {
+        return ActivityLog::create([
+            'user_id' => $actor->id,
+            'action' => $action,
+            'subject_type' => User::class,
+            'subject_id' => $subject->id,
+            'description' => 'Admin touched employee: '.$subject->name,
+            'changes' => $changes,
+            'created_at' => now(),
+        ]);
     }
 
     public function test_invalid_traversal_mismatched_and_missing_attachment_paths_return_not_found(): void

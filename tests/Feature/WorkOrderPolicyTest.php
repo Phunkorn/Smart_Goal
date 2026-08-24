@@ -246,4 +246,33 @@ class WorkOrderPolicyTest extends TestCase
             'job_due_at' => now()->addDay()->toDateTimeString(),
         ];
     }
+    public function test_invitation_can_only_be_answered_once(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $invitee = User::factory()->create(['role' => 'user']);
+        $job = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'job_topic' => 'Invitation replay guard',
+            'job_priority' => 2,
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_progress' => 0,
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+        $job->collaborators()->attach($invitee->id, ['added_by' => $owner->id, 'status' => 'pending']);
+
+        $this->actingAs($invitee)
+            ->patch(route('tasks.invitation.respond', $job->job_id), ['status' => 'rejected'])
+            ->assertRedirect();
+        $this->assertSame('rejected', $job->collaborators()->first()->pivot->status);
+
+        $this->actingAs($invitee)
+            ->patch(route('tasks.invitation.respond', $job->job_id), ['status' => 'accepted'])
+            ->assertStatus(422);
+        $this->assertSame('rejected', $job->collaborators()->first()->pivot->status);
+    }
+
 }

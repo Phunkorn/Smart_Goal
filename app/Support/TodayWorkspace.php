@@ -11,11 +11,19 @@ final class TodayWorkspace
 {
     public const BUSINESS_TIMEZONE = 'Asia/Bangkok';
 
+    /**
+     * วงจรสถานะอัตโนมัติ (auto-start / auto-late) ต้องแตะเฉพาะงานที่ได้รับอนุมัติแล้ว
+     * งานที่ยัง 'pending' (มอบหมายข้ามแผนก รอ Admin ตัดสินใจ) หรือถูก 'rejected'
+     * ห้ามถูกดันเป็น "กำลังทำ" หรือ "ล่าช้า" ก่อนที่ Admin จะอนุมัติ
+     */
+    private const AUTOMATED_APPROVAL_STATUS = 'approved';
+
     public static function synchronizeActiveToday(Builder $query): void
     {
         $tomorrowStartUtc = self::businessToday()->addDay()->utc();
 
-        (clone $query)->where('job_status', 1)
+        (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
+            ->where('job_status', 1)
             ->whereNotNull('job_start_at')
             ->where('job_start_at', '<', $tomorrowStartUtc)
             ->update(['job_status' => 2]);
@@ -25,14 +33,16 @@ final class TodayWorkspace
     {
         $todayStartUtc = self::businessToday()->utc();
 
-        (clone $query)->whereNotIn('job_status', [3, 4, 5, 6])
+        (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
+            ->whereNotIn('job_status', [3, 4, 5, 6])
             ->whereNotNull('job_due_at')->where('job_due_at', '<', $todayStartUtc)
             ->update(['job_status' => 6, 'late_at' => now()]);
     }
 
     public static function normalizeLateForTransition(WorkOrder $task): bool
     {
-        if (in_array((int) $task->job_status, [3, 4, 5, 6], true)
+        if ($task->approval_status !== self::AUTOMATED_APPROVAL_STATUS
+            || in_array((int) $task->job_status, [3, 4, 5, 6], true)
             || ! $task->job_due_at
             || ! self::businessDate($task->job_due_at)->endOfDay()->lt(self::businessNow())) {
             return (int) $task->job_status === 6;
@@ -116,6 +126,18 @@ final class TodayWorkspace
         $due = self::businessDate($task->job_due_at);
 
         return $start->lte($due) && $today->betweenIncluded($start, $due);
+    }
+
+    /**
+     * วันที่แบบ Y-m-d สำหรับส่งให้ปฏิทินและบอร์ดฝั่ง client
+     *
+     * config('app.timezone') คือ UTC ถ้า format ตรง ๆ งานที่ครบกำหนดหลังเที่ยงคืนเวลาไทย
+     * จะถูกวางผิดไป 1 วัน จุดที่ผลิตวันที่ให้ frontend จึงต้องผ่านเมธอดนี้ทุกจุด
+     * แปลงเฉพาะตอนแสดงผล ไม่แตะค่าที่เก็บใน Database
+     */
+    public static function calendarDate(?CarbonInterface $date): string
+    {
+        return $date ? self::businessDate($date)->format('Y-m-d') : '';
     }
 
     private static function businessNow(?CarbonInterface $date = null): CarbonInterface

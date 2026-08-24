@@ -28,25 +28,12 @@ class TaskController extends Controller
     use RespondsWithTaskResult;
     use ValidatesAttachments;
 
-    private const STATUS_META = [
-        1 => ['key' => 'todo', 'label' => 'รอดำเนินการ', 'tone' => 'gray', 'icon' => 'bi-clock'],
-        2 => ['key' => 'inprogress', 'label' => 'กำลังทำ', 'tone' => 'blue', 'icon' => 'bi-lightning-charge-fill'],
-        3 => ['key' => 'review', 'label' => 'ตรวจสอบ', 'tone' => 'amber', 'icon' => 'bi-eye'],
-        4 => ['key' => 'done', 'label' => 'เสร็จสิ้น', 'tone' => 'green', 'icon' => 'bi-check-circle-fill'],
-        5 => ['key' => 'paused', 'label' => 'พักงานชั่วคราว', 'tone' => 'gray', 'icon' => 'bi-pause-circle'],
-    ];
-
     /**
      * ค่าคงที่ ALLOWED_ATTACHMENT_EXTENSIONS / ALLOWED_ATTACHMENT_MIMES / ATTACHMENT_MAX_KB
      * และเมธอด assertAllowedAttachments() / storeFiles() ย้ายไปอยู่ที่ trait
      * App\Support\Concerns\ValidatesAttachments เพื่อใช้ allow-list เดียวกันกับ
      * MyTaskController (หน้า "งานของฉัน") ด้วย ป้องกันช่องโหว่หลุดจากจุดใดจุดหนึ่ง
      */
-    private const PRIORITY_META = [
-        1 => ['label' => 'ต่ำ', 'tone' => 'gray'],
-        2 => ['label' => 'กลาง', 'tone' => 'amber'],
-        3 => ['label' => 'สูง', 'tone' => 'red'],
-    ];
     public function index(Request $request)
     {
         $this->authorize('viewAny', WorkOrder::class);

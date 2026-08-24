@@ -69,7 +69,41 @@ class WorkBoardTest extends TestCase
             ->assertSee($job->job_topic)
             ->assertSee($job->job_details)
             ->assertSee($collaborator->name, false)
-            ->assertSee('สูง');
+            ->assertSee('สำคัญด่วน');
+    }
+
+    public function test_member_board_labels_every_task_priority_with_the_five_level_scale(): void
+    {
+        $department = Department::create(['department_name' => 'Priority Dept']);
+        $viewer = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+        $assignee = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+        $project = WorkOrderList::create(['user_id' => $assignee->id, 'name' => 'Priority project']);
+
+        foreach ([1, 2, 3, 4, 5] as $priority) {
+            WorkOrder::create([
+                'user_id' => $assignee->id,
+                'created_by' => $assignee->id,
+                'leader_user_id' => $assignee->id,
+                'department_id' => $department->id,
+                'work_order_list_id' => $project->id,
+                'job_topic' => 'Priority task '.$priority,
+                'job_priority' => $priority,
+                'job_status' => 2,
+                'approval_status' => 'approved',
+                'job_progress' => 0,
+                'job_start_at' => now(),
+                'job_due_at' => now()->addWeek(),
+            ]);
+        }
+
+        $this->actingAs($viewer)
+            ->get(route('work-board.member', [$department, $assignee]))
+            ->assertOk()
+            ->assertSee('routine')
+            ->assertSee('สำคัญไม่ด่วน')
+            ->assertSee('สำคัญด่วน')
+            ->assertSee('ด่วนไม่ค่อยสำคัญ')
+            ->assertSee('ไม่รีบ ไม่มีกำหนด');
     }
 
     public function test_work_board_rejects_non_user_role_and_mismatched_department_member(): void

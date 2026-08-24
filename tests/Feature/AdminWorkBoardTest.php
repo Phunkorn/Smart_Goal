@@ -488,4 +488,80 @@ class AdminWorkBoardTest extends TestCase
             'job_due_at' => now()->addDay(),
         ]);
     }
+    public function test_task_added_by_admin_stays_in_its_project_after_member_opens_my_tasks(): void
+    {
+        $department = Department::create(['department_name' => 'Retention IT']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $member = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+
+        $list = WorkOrderList::create([
+            'user_id' => $member->id,
+            'name' => 'Member multi task project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        foreach (['Existing A', 'Existing B'] as $topic) {
+            WorkOrder::create([
+                'user_id' => $member->id,
+                'created_by' => $member->id,
+                'leader_user_id' => $member->id,
+                'department_id' => $department->id,
+                'work_order_list_id' => $list->id,
+                'job_topic' => $topic,
+                'job_priority' => 2,
+                'job_status' => 2,
+                'approval_status' => 'approved',
+                'job_progress' => 0,
+                'job_start_at' => now(),
+                'job_due_at' => now()->addDay(),
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->postJson(
+                route('admin.work-board.member.tasks.store', [$department, $member, $list]),
+                ['job_topic' => 'Admin added task']
+            )
+            ->assertCreated();
+
+        $added = WorkOrder::where('job_topic', 'Admin added task')->firstOrFail();
+        $this->assertSame($list->id, (int) $added->work_order_list_id);
+
+        $this->actingAs($member)->get(route('mytasks.index'))->assertOk();
+
+        $this->assertSame(
+            $list->id,
+            (int) $added->fresh()->work_order_list_id,
+            'Opening My Tasks must not undo a task placement made by an admin.'
+        );
+        $this->assertSame(1, WorkOrderList::where('user_id', $member->id)->count());
+    }
+
+    public function test_ungrouped_admin_assignment_still_receives_its_own_project(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $member = User::factory()->create(['role' => 'user']);
+
+        $job = WorkOrder::create([
+            'user_id' => $member->id,
+            'created_by' => $admin->id,
+            'leader_user_id' => $member->id,
+            'work_order_list_id' => null,
+            'job_topic' => 'Loose admin assignment',
+            'job_priority' => 2,
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_progress' => 0,
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+
+        $this->actingAs($member)->get(route('mytasks.index'))->assertOk();
+
+        $project = WorkOrderList::where('user_id', $member->id)->firstOrFail();
+        $this->assertSame('Loose admin assignment', $project->name);
+        $this->assertSame($project->id, (int) $job->fresh()->work_order_list_id);
+    }
+
 }

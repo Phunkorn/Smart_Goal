@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Support\ProtectedMedia;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -36,7 +38,51 @@ class ActivityLogController extends Controller
             ->pluck('action');
 
         $users = User::orderBy('name')->get(['id', 'name', 'email']);
+        $resolvableProfileImages = $this->resolvableProfileImages($logs->items());
 
-        return view('admin.activity-logs.index', compact('logs', 'actions', 'users'));
+        return view('admin.activity-logs.index', compact('logs', 'actions', 'users', 'resolvableProfileImages'));
+    }
+
+    /**
+     * activity log เก็บรูปโปรไฟล์ไว้เป็น "path ณ ตอนนั้น" ไม่ใช่สำเนาไฟล์ และ
+     * UserController/SettingsController จะลบไฟล์เดิมทิ้งทุกครั้งที่เปลี่ยนรูป
+     * path เก่าจึงมักชี้ไปยังไฟล์ที่ไม่มีอยู่แล้ว
+     *
+     * เมธอดนี้คืนเฉพาะ path ที่ยังเปิดดูได้จริง คือยังเป็นรูปโปรไฟล์ปัจจุบันของผู้ใช้
+     * (เงื่อนไขเดียวกับที่ MediaController::legacy() ใช้ resolve) และไฟล์ยังอยู่บนดิสก์
+     * เพื่อให้ view เลือกแสดง placeholder แทนการยิง <img> ที่จะได้ 404
+     *
+     * @param  array<int, ActivityLog>  $logs
+     * @return Collection<string, int>  path => index สำหรับเรียก has() แบบ O(1)
+     */
+    private function resolvableProfileImages(array $logs): Collection
+    {
+        $paths = collect($logs)
+            ->flatMap(function (ActivityLog $log): array {
+                $changes = is_array($log->changes)
+                    ? $log->changes
+                    : json_decode($log->changes ?? '[]', true);
+
+                return [
+                    data_get($changes, 'before.profile_image'),
+                    data_get($changes, 'old.profile_image'),
+                    data_get($changes, 'after.profile_image'),
+                    data_get($changes, 'new.profile_image'),
+                ];
+            })
+            ->filter(fn ($path) => is_string($path) && $path !== '')
+            ->unique()
+            ->values();
+
+        if ($paths->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('profile_image', $paths)
+            ->pluck('profile_image')
+            ->filter(fn (string $path) => ProtectedMedia::profileAbsolutePath($path) !== null)
+            ->values()
+            ->flip();
     }
 }

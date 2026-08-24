@@ -55,6 +55,62 @@ export const normalizeCalendarTask = (task) => {
     };
 };
 
+/**
+ * ปฏิทินวางได้ทั้งงานและการประชุม รูปทรงข้อมูลจึงเหมือนกัน ต่างที่ `type`
+ * รายการที่ไม่ระบุ type ถือเป็นงานเสมอ เพื่อให้ผู้เรียกเดิมทำงานได้เหมือนก่อน
+ */
+export const normalizeCalendarEvent = (event) => {
+    const normalized = normalizeCalendarTask(event);
+    if (!normalized) return null;
+
+    return {...normalized, type: event?.type === 'meeting' ? 'meeting' : 'task'};
+};
+
+export const calendarMonthKey = (year, month) => `${year}-${String(Number(month) + 1).padStart(2, '0')}`;
+
+/**
+ * เดือนรอบ ๆ เดือนที่กำลังดูซึ่งยังไม่เคยโหลดประชุมมาก่อน
+ * แยกเป็นฟังก์ชันบริสุทธิ์เพื่อให้ทดสอบ logic การ fetch ได้โดยไม่ต้องมี DOM
+ */
+export const monthsNeedingFetch = (year, month, loadedKeys = [], padding = 1) => {
+    const loaded = new Set(loadedKeys);
+    const missing = [];
+
+    for (let offset = -padding; offset <= padding; offset += 1) {
+        const target = moveCalendarMonth(year, month, offset);
+        const key = calendarMonthKey(target.year, target.month);
+        if (!loaded.has(key)) missing.push({...target, key});
+    }
+
+    return missing;
+};
+
+/**
+ * ช่วงวันที่ต่อเนื่องที่ครอบคลุมทุกเดือนที่ยังขาด
+ * `keys` คือทุกเดือนภายในช่วง ไม่ใช่เฉพาะเดือนที่ขาด เพราะ 1 คำขอได้ข้อมูลมาทั้งช่วง
+ */
+export const rangeForMonths = (months) => {
+    if (!months.length) return null;
+
+    const sorted = [...months].sort((left, right) => Date.UTC(left.year, left.month) - Date.UTC(right.year, right.month));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const lastStamp = Date.UTC(last.year, last.month, 1);
+    const keys = [];
+    let cursor = {year: first.year, month: first.month};
+
+    while (Date.UTC(cursor.year, cursor.month, 1) <= lastStamp) {
+        keys.push(calendarMonthKey(cursor.year, cursor.month));
+        cursor = moveCalendarMonth(cursor.year, cursor.month, 1);
+    }
+
+    return {
+        start: calendarDateKey(Date.UTC(first.year, first.month, 1)),
+        end: calendarDateKey(Date.UTC(last.year, last.month + 1, 0)),
+        keys,
+    };
+};
+
 const taskOrder = (left, right) => (
     left.startStamp - right.startStamp
     || left.dueStamp - right.dueStamp
@@ -99,7 +155,12 @@ const milestoneFor = (task, stamp) => {
 
 export const buildMonthCalendar = (tasks, year, month, maxVisible = 3) => {
     const days = buildMonthGrid(year, month);
-    const normalizedTasks = tasks.map(normalizeCalendarTask).filter(Boolean).sort(taskOrder);
+    // id ของงานและประชุมใช้คนละ prefix การกันซ้ำจึงตัดรายการที่มาถึงสองรอบออกได้ตรง ๆ
+    const unique = new Map();
+    tasks.map(normalizeCalendarEvent).filter(Boolean).forEach((event) => {
+        if (!unique.has(event.id)) unique.set(event.id, event);
+    });
+    const normalizedTasks = [...unique.values()].sort(taskOrder);
 
     const renderedDays = days.map((day) => {
         const activeTasks = normalizedTasks.filter((task) => task.startStamp <= day.stamp && task.dueStamp >= day.stamp);

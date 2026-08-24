@@ -107,7 +107,10 @@ class TaskCollaboratorController extends Controller
 
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $this->authorize('respondToInvitation', $job);
-        $collaborator = $job->collaborators->firstWhere('id', Auth::id());
+
+        // ตอบคำเชิญได้ครั้งเดียว มิฉะนั้นผู้ที่กดปฏิเสธไปแล้วจะยิงซ้ำเพื่อเข้าร่วมงานเองได้
+        $invitation = $job->collaborators->firstWhere('id', Auth::id());
+        abort_unless($invitation?->pivot?->status === 'pending', 422, 'คำเชิญนี้ได้รับการตอบกลับไปแล้ว');
 
         $job->collaborators()->updateExistingPivot(Auth::id(), [
             'status' => $validated['status'],
