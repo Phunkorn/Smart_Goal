@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\PasswordPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -341,6 +342,221 @@ class AuthenticationSecurityTest extends TestCase
             ->assertRedirect(route('employees.index'));
 
         $this->assertTrue($employee->fresh()->must_change_password);
+    }
+
+    public function test_first_password_shorter_than_the_minimum_is_rejected(): void
+    {
+        $this->assertFirstPasswordViolatesPolicy('Sh0rt!Aa');
+    }
+
+    public function test_first_password_without_a_lowercase_letter_is_rejected(): void
+    {
+        $this->assertFirstPasswordViolatesPolicy('UPPERCASE!123');
+    }
+
+    public function test_first_password_without_an_uppercase_letter_is_rejected(): void
+    {
+        $this->assertFirstPasswordViolatesPolicy('lowercase!123');
+    }
+
+    public function test_first_password_without_a_number_is_rejected(): void
+    {
+        $this->assertFirstPasswordViolatesPolicy('NoDigitsHere!');
+    }
+
+    public function test_first_password_without_a_symbol_is_rejected(): void
+    {
+        $this->assertFirstPasswordViolatesPolicy('NoSymbols12345');
+    }
+
+    public function test_first_password_is_rejected_when_the_confirmation_does_not_match(): void
+    {
+        $user = $this->userAwaitingFirstPassword();
+
+        $this->actingAs($user)
+            ->post(route('password.update.first'), [
+                'password' => 'ValidPassword!123',
+                'password_confirmation' => 'DifferentPassword!456',
+            ])
+            ->assertSessionHasErrors(['password' => 'รหัสผ่านทั้งสองช่องไม่ตรงกัน'])
+            ->assertSessionDoesntHaveErrors('password_confirmation');
+
+        $user->refresh();
+        $this->assertTrue($user->must_change_password);
+        $this->assertTrue(Hash::check('TemporaryPassword!123', $user->password));
+    }
+
+    public function test_first_password_matching_every_policy_rule_is_accepted(): void
+    {
+        $user = $this->userAwaitingFirstPassword();
+
+        $this->actingAs($user)
+            ->post(route('password.update.first'), [
+                'password' => 'PolicyPerfect!2026',
+                'password_confirmation' => 'PolicyPerfect!2026',
+            ])
+            ->assertRedirect(route('welcome'))
+            ->assertSessionHasNoErrors();
+
+        $user->refresh();
+        $this->assertFalse($user->must_change_password);
+        $this->assertTrue(Hash::check('PolicyPerfect!2026', $user->password));
+    }
+
+    public function test_password_policy_failures_report_the_shared_thai_requirement(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'must_change_password' => false]);
+        $employee = User::factory()->create(['must_change_password' => false]);
+        $staff = User::factory()->create(['role' => 'user', 'must_change_password' => false]);
+
+        $this->actingAs($admin)
+            ->patch(route('employees.resetPassword', $employee), ['password' => 'weak'])
+            ->assertSessionHasErrors(['password' => PasswordPolicy::description()]);
+
+        $this->actingAs($staff)
+            ->patch(route('settings.password.update'), [
+                'current_password' => 'password',
+                'password' => 'weak',
+                'password_confirmation' => 'weak',
+            ])
+            ->assertSessionHasErrors(['password' => PasswordPolicy::description()]);
+    }
+
+    public function test_login_is_throttled_after_five_failed_attempts(): void
+    {
+        $user = User::factory()->create([
+            'username' => 'throttle-user',
+            'role' => 'user',
+            'must_change_password' => false,
+        ]);
+        $key = 'throttle-user|127.0.0.1';
+        RateLimiter::clear($key);
+
+        foreach (range(1, 5) as $ignored) {
+            $this->post(route('login.submit'), [
+                'username' => $user->username,
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('username');
+        }
+
+        $this->assertSame(5, RateLimiter::attempts($key));
+
+        $throttled = $this->post(route('login.submit'), [
+            'username' => $user->username,
+            'password' => 'password',
+        ])->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+        $this->assertStringContainsString(
+            'พยายามเข้าสู่ระบบหลายครั้งเกินไป',
+            $throttled->getSession()->get('errors')->first('username')
+        );
+        $this->assertGreaterThan(0, RateLimiter::availableIn($key));
+        $this->assertLessThanOrEqual(60, RateLimiter::availableIn($key));
+
+        RateLimiter::clear($key);
+    }
+
+    public function test_login_rate_limit_shares_one_bucket_across_username_casing(): void
+    {
+        $user = User::factory()->create([
+            'username' => 'mixed-case-user',
+            'role' => 'user',
+            'must_change_password' => false,
+        ]);
+        $key = 'mixed-case-user|127.0.0.1';
+        RateLimiter::clear($key);
+
+        foreach (['MIXED-CASE-USER', '  Mixed-Case-User  ', 'mixed-CASE-user', 'MiXeD-cAsE-uSeR', 'mixed-case-USER'] as $variation) {
+            $this->post(route('login.submit'), [
+                'username' => $variation,
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('username');
+        }
+
+        $this->assertSame(5, RateLimiter::attempts($key));
+
+        $throttled = $this->post(route('login.submit'), [
+            'username' => 'MIXED-CASE-USER',
+            'password' => 'password',
+        ])->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+        $this->assertStringContainsString(
+            'พยายามเข้าสู่ระบบหลายครั้งเกินไป',
+            $throttled->getSession()->get('errors')->first('username')
+        );
+        $this->assertSame($user->username, 'mixed-case-user');
+
+        RateLimiter::clear($key);
+    }
+
+    public function test_successful_login_clears_the_rate_limiter(): void
+    {
+        $user = User::factory()->create([
+            'username' => 'clearing-user',
+            'role' => 'user',
+            'must_change_password' => false,
+        ]);
+        $key = 'clearing-user|127.0.0.1';
+        RateLimiter::clear($key);
+
+        foreach (range(1, 4) as $ignored) {
+            $this->post(route('login.submit'), [
+                'username' => 'CLEARING-USER',
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('username');
+        }
+
+        $this->assertSame(4, RateLimiter::attempts($key));
+
+        $this->post(route('login.submit'), [
+            'username' => 'clearing-user',
+            'password' => 'password',
+        ])->assertRedirect(route('mytasks.index'));
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame(0, RateLimiter::attempts($key));
+
+        $this->post(route('logout'))->assertRedirect(route('login'));
+
+        // The bucket is empty again, so the next failure returns credentials wording, not throttling.
+        $afterReset = $this->post(route('login.submit'), [
+            'username' => 'clearing-user',
+            'password' => 'wrong-password',
+        ])->assertSessionHasErrors('username');
+
+        $this->assertStringNotContainsString(
+            'พยายามเข้าสู่ระบบหลายครั้งเกินไป',
+            $afterReset->getSession()->get('errors')->first('username')
+        );
+
+        RateLimiter::clear($key);
+    }
+
+    private function userAwaitingFirstPassword(): User
+    {
+        return User::factory()->create([
+            'password' => Hash::make('TemporaryPassword!123'),
+            'must_change_password' => true,
+            'is_active' => true,
+        ]);
+    }
+
+    private function assertFirstPasswordViolatesPolicy(string $password): void
+    {
+        $user = $this->userAwaitingFirstPassword();
+
+        $this->actingAs($user)
+            ->post(route('password.update.first'), [
+                'password' => $password,
+                'password_confirmation' => $password,
+            ])
+            ->assertSessionHasErrors(['password' => PasswordPolicy::description()]);
+
+        $user->refresh();
+        $this->assertTrue($user->must_change_password);
+        $this->assertTrue(Hash::check('TemporaryPassword!123', $user->password));
     }
 
     /** @return array{session: string, remember: ?string} */

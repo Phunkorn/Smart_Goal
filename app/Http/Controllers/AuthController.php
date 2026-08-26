@@ -112,7 +112,7 @@ class AuthController extends Controller
         ], [
             'password.required' => 'กรุณากรอกรหัสผ่านใหม่',
             'password.confirmed' => 'รหัสผ่านทั้งสองช่องไม่ตรงกัน',
-            'password.min' => 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
+            ...PasswordPolicy::messages(),
         ]);
 
         UserSessionSecurity::assertSupportedDriver();

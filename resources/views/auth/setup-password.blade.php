@@ -1,3 +1,6 @@
+@php
+    $minLength = \App\Support\PasswordPolicy::MIN_LENGTH;
+@endphp
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -28,9 +31,17 @@
             @endif
             <form method="POST" action="{{ route('password.update.first') }}">
                 @csrf
-                <div class="field"><label for="password">รหัสผ่านใหม่</label><div class="control"><i class="bi bi-lock"></i><input type="password" id="password" name="password" placeholder="อย่างน้อย 8 ตัวอักษร" required autocomplete="new-password" oninput="checkPassword()"><button type="button" class="icon-button" onclick="togglePassword('password', this)" aria-label="แสดงหรือซ่อนรหัสผ่าน"><i class="bi bi-eye-fill"></i></button></div></div>
+                <div class="field"><label for="password">รหัสผ่านใหม่</label><div class="control"><i class="bi bi-lock"></i><input type="password" id="password" name="password" placeholder="อย่างน้อย {{ $minLength }} ตัวอักษร" minlength="{{ $minLength }}" required autocomplete="new-password" oninput="checkPassword()"><button type="button" class="icon-button" onclick="togglePassword('password', this)" aria-label="แสดงหรือซ่อนรหัสผ่าน"><i class="bi bi-eye-fill"></i></button></div></div>
                 <div class="field"><label for="password_confirmation">ยืนยันรหัสผ่าน</label><div class="control"><i class="bi bi-lock-fill"></i><input type="password" id="password_confirmation" name="password_confirmation" placeholder="กรอกรหัสผ่านอีกครั้ง" required autocomplete="new-password" oninput="checkPassword()"><button type="button" class="icon-button" onclick="togglePassword('password_confirmation', this)" aria-label="แสดงหรือซ่อนรหัสผ่าน"><i class="bi bi-eye-fill"></i></button></div></div>
-                <div class="rules" aria-live="polite"><div class="rule" id="rule-length"><i class="bi bi-circle"></i> อย่างน้อย 12 ตัวอักษร</div><div class="rule" id="rule-complexity"><i class="bi bi-circle"></i> มีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ ตัวเลข และสัญลักษณ์</div><div class="rule" id="rule-match"><i class="bi bi-circle"></i> รหัสผ่านทั้งสองช่องต้องตรงกัน</div></div>
+                <div class="rules" id="passwordRules" data-min-length="{{ $minLength }}" aria-live="polite">
+                    <p class="rules-title">รหัสผ่านต้องมีครบทุกข้อ</p>
+                    <div class="rule rule--wide" id="rule-length"><i class="bi bi-circle"></i> อย่างน้อย {{ $minLength }} ตัวอักษร</div>
+                    <div class="rule" id="rule-lowercase"><i class="bi bi-circle"></i> ตัวพิมพ์เล็ก (a-z)</div>
+                    <div class="rule" id="rule-uppercase"><i class="bi bi-circle"></i> ตัวพิมพ์ใหญ่ (A-Z)</div>
+                    <div class="rule" id="rule-number"><i class="bi bi-circle"></i> ตัวเลข (0-9)</div>
+                    <div class="rule" id="rule-symbol"><i class="bi bi-circle"></i> สัญลักษณ์ (! @ # $)</div>
+                    <div class="rule rule--wide" id="rule-match"><i class="bi bi-circle"></i> รหัสผ่านทั้งสองช่องต้องตรงกัน</div>
+                </div>
                 <button type="submit" class="submit" id="submitBtn" disabled>บันทึกรหัสผ่าน</button>
             </form>
         </section>
@@ -38,7 +49,23 @@
     <script>
         function togglePassword(inputId, button){const input=document.getElementById(inputId);const icon=button.querySelector('i');const hidden=input.type==='password';input.type=hidden?'text':'password';icon.classList.toggle('bi-eye-fill',!hidden);icon.classList.toggle('bi-eye-slash-fill',hidden)}
         function setRule(id,ok){const rule=document.getElementById(id);const icon=rule.querySelector('i');rule.classList.toggle('ok',ok);icon.className=ok?'bi bi-check-circle-fill':'bi bi-circle'}
-        function checkPassword(){const p=document.getElementById('password').value;const c=document.getElementById('password_confirmation').value;const length=p.length>=12;const complex=/[a-z]/.test(p)&&/[A-Z]/.test(p)&&/\d/.test(p)&&/[^A-Za-z0-9]/.test(p);const match=p.length>0&&p===c;setRule('rule-length',length);setRule('rule-complexity',complex);setRule('rule-match',match);document.getElementById('submitBtn').disabled=!(length&&complex&&match)}
+        // ตัวช่วยเตือนเท่านั้น การบังคับจริงอยู่ที่ App\Support\PasswordPolicy ฝั่งเซิร์ฟเวอร์
+        function checkPassword(){
+            const minLength=Number(document.getElementById('passwordRules').dataset.minLength);
+            const p=document.getElementById('password').value;
+            const c=document.getElementById('password_confirmation').value;
+            const checks={
+                'rule-length':[...p].length>=minLength,
+                'rule-lowercase':/\p{Ll}/u.test(p),
+                'rule-uppercase':/\p{Lu}/u.test(p),
+                'rule-number':/\p{N}/u.test(p),
+                'rule-symbol':/[\p{Z}\p{S}\p{P}]/u.test(p),
+                'rule-match':p.length>0&&p===c,
+            };
+            let allPassed=true;
+            for(const [id,ok] of Object.entries(checks)){setRule(id,ok);allPassed=allPassed&&ok}
+            document.getElementById('submitBtn').disabled=!allPassed;
+        }
     </script>
 </body>
 </html>

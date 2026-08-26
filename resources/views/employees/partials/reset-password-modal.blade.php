@@ -27,12 +27,12 @@
                     <label for="resetPasswordInput{{ $employee->id }}" class="form-label">รหัสผ่านชั่วคราว</label>
                     <div class="employee-reset-modal__input-group">
                         <input type="text" name="password" id="resetPasswordInput{{ $employee->id }}"
-                            class="form-control" minlength="12" autocomplete="off" required>
+                            class="form-control" minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="off" required>
                         <button type="button" class="employee-button employee-button--secondary" data-generate-password="{{ $employee->id }}">
                             <i class="bi bi-shuffle" aria-hidden="true"></i>สุ่มรหัส
                         </button>
                     </div>
-                    <p class="employee-form-help">อย่างน้อย 12 ตัวอักษร พร้อมตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ ตัวเลข และสัญลักษณ์</p>
+                    <p class="employee-form-help">{{ \App\Support\PasswordPolicy::description() }}</p>
                 </div>
                 <div class="modal-footer employee-form-modal__footer">
                     <button type="button" class="employee-button employee-button--secondary" data-bs-dismiss="modal">ยกเลิก</button>

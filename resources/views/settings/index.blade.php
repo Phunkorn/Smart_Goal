@@ -122,17 +122,17 @@
                         <label for="newPassword" class="form-label">รหัสผ่านใหม่ <span aria-hidden="true">*</span></label>
                         <input id="newPassword" type="password" name="password"
                             class="form-control @error('password') is-invalid @enderror"
-                            minlength="12" autocomplete="new-password" required>
+                            minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
                         @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div>
                         <label for="newPasswordConfirmation" class="form-label">ยืนยันรหัสผ่านใหม่ <span aria-hidden="true">*</span></label>
                         <input id="newPasswordConfirmation" type="password" name="password_confirmation"
-                            class="form-control" minlength="12" autocomplete="new-password" required>
+                            class="form-control" minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
                     </div>
                 </div>
 
-                <p class="settings-form__help">อย่างน้อย 12 ตัวอักษร และต้องมีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ ตัวเลข และสัญลักษณ์</p>
+                <p class="settings-form__help">{{ \App\Support\PasswordPolicy::description() }}</p>
 
                 <div class="settings-card__actions">
                     <button type="submit" class="btn btn-primary settings-primary-button">

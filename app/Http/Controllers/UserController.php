@@ -169,7 +169,7 @@ class UserController extends Controller
             'password' => ['required', 'string', PasswordPolicy::rule()],
         ], [
             'password.required' => 'กรุณากรอกรหัสผ่านชั่วคราว',
-            'password.min' => 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
+            ...PasswordPolicy::messages(),
         ]);
 
         UserSessionSecurity::assertSupportedDriver();
@@ -218,6 +218,9 @@ class UserController extends Controller
             'is_active' => ['required', 'boolean'],
             'department_id' => ['nullable', 'required_if:role,user', 'exists:departments,id'],
             'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ], [
+            'password.confirmed' => 'รหัสผ่านทั้งสองช่องไม่ตรงกัน',
+            ...PasswordPolicy::messages(),
         ]);
     }
 

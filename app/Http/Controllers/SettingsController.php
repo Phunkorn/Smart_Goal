@@ -53,6 +53,7 @@ class SettingsController extends Controller
             'current_password.current_password' => 'รหัสผ่านปัจจุบันไม่ถูกต้อง',
             'password.required' => 'กรุณากรอกรหัสผ่านใหม่',
             'password.confirmed' => 'รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน',
+            ...PasswordPolicy::messages(),
         ]);
 
         UserSessionSecurity::assertSupportedDriver();

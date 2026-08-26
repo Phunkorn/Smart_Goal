@@ -120,16 +120,16 @@
                                     <label for="{{ $modalId }}Password" class="form-label">รหัสผ่านชั่วคราว</label>
                                     <input id="{{ $modalId }}Password" type="password" name="password"
                                         class="form-control {{ $useOldValues && $errors->has('password') ? 'is-invalid' : '' }}"
-                                        minlength="12" autocomplete="new-password" required>
+                                        minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
                                     @if($useOldValues) @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
                                 </div>
                                 <div class="col-md-6">
                                     <label for="{{ $modalId }}PasswordConfirmation" class="form-label">ยืนยันรหัสผ่าน</label>
                                     <input id="{{ $modalId }}PasswordConfirmation" type="password" name="password_confirmation"
-                                        class="form-control" minlength="12" autocomplete="new-password" required>
+                                        class="form-control" minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
                                 </div>
                             </div>
-                            <p class="employee-form-help">อย่างน้อย 12 ตัวอักษร และต้องมีตัวพิมพ์เล็ก ตัวพิมพ์ใหญ่ ตัวเลข และสัญลักษณ์</p>
+                            <p class="employee-form-help">{{ \App\Support\PasswordPolicy::description() }}</p>
                         </section>
                     @endunless
 
