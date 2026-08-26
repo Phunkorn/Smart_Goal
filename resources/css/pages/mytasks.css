@@ -8,6 +8,8 @@
 @import '../components/task-workspace/base.css';
 @import '../components/task-workspace/table.css';
 @import '../components/task-workspace/modal.css';
+@import '../components/task-workspace/workspace-modal.css';
+@import '../components/people-selector.css';
 @import '../components/task-workspace/attachments.css';
 @import '../components/task-workspace/views.css';
 
@@ -19,3 +21,4 @@
 @import '../components/task-workspace/calendar/base.css';
 @import '../components/task-workspace/calendar/navigation.css';
 @import '../components/task-workspace/calendar/detail.css';
+@import '../components/task-workspace/calendar/quick-view.css';

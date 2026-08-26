@@ -210,7 +210,7 @@ class MeetingManagementTest extends TestCase
             ->getContent();
         foreach ([$attendeeA, $attendeeB, $attendeeC] as $selectedAttendee) {
             $this->assertMatchesRegularExpression(
-                '/value="'.$selectedAttendee->id.'"[^>]*data-meeting-attendee-checkbox[^>]*checked/',
+                '/value="'.$selectedAttendee->id.'"[^>]*data-people-checkbox[^>]*checked/',
                 $editHtml
             );
         }
@@ -245,17 +245,19 @@ class MeetingManagementTest extends TestCase
         $response = $this->actingAs($creator)
             ->get(route('meetings.index', ['period' => 'all']))
             ->assertOk()
-            ->assertSee('data-meeting-department-filter', false)
+            ->assertSee('data-people-department', false)
             ->assertSee('data-department-id="'.$this->department->id.'"', false)
             ->assertSee($this->department->department_name)
             ->assertSee('data-department-id="'.$marketing->id.'"', false)
             ->assertSee($marketing->department_name)
-            ->assertSee('value="'.$marketingUser->id.'" data-meeting-attendee-checkbox', false)
-            ->assertDontSee('value="'.$inactive->id.'" data-meeting-attendee-checkbox', false)
-            ->assertDontSee('value="'.$deleted->id.'" data-meeting-attendee-checkbox', false)
             ->assertDontSee('data-meeting-attendee-select', false);
 
-        $this->assertSame(0, preg_match('/<select[^>]*name="attendees\[\]"[^>]*multiple/i', $response->getContent()));
+        $html = $response->getContent();
+        // ตัวเลือกผู้เข้าร่วมใช้ component กลาง (data-people-*) ร่วมกับผู้ร่วมงานของงานแล้ว
+        $this->assertMatchesRegularExpression('/value="'.$marketingUser->id.'"[^>]*data-people-checkbox/', $html);
+        $this->assertDoesNotMatchRegularExpression('/value="'.$inactive->id.'"[^>]*data-people-checkbox/', $html);
+        $this->assertDoesNotMatchRegularExpression('/value="'.$deleted->id.'"[^>]*data-people-checkbox/', $html);
+        $this->assertSame(0, preg_match('/<select[^>]*name="attendees\[\]"[^>]*multiple/i', $html));
     }
 
     public function test_creator_and_admin_can_update_delete_but_attendee_and_unrelated_user_cannot(): void

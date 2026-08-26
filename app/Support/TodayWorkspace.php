@@ -140,6 +140,22 @@ final class TodayWorkspace
         return $date ? self::businessDate($date)->format('Y-m-d') : '';
     }
 
+    /**
+     * ป้ายช่วงวันที่แบบไทย (พ.ศ.) ไม่ผูกกับ "วันนี้" เหมือน timeProgress()
+     *
+     * timeProgress() คืน null เมื่องานยังไม่เริ่มหรือพ้นกำหนดไปแล้ว เพราะมันคำนวณความคืบหน้า
+     * ของช่วงที่ "กำลังดำเนินอยู่" เท่านั้น แต่บางหน้า (เช่น Calendar Quick View) ต้องแสดงช่วงวันที่
+     * เสมอไม่ว่าสถานะงานจะเป็นอะไร จึงแยกป้ายช่วงวันที่ล้วน ๆ ออกมาเป็นเมธอดสาธารณะของตัวเอง
+     */
+    public static function dateRangeLabel(?CarbonInterface $start, ?CarbonInterface $due): ?string
+    {
+        if (! $start || ! $due) {
+            return null;
+        }
+
+        return self::thaiDateRange(self::businessDate($start), self::businessDate($due));
+    }
+
     private static function businessNow(?CarbonInterface $date = null): CarbonInterface
     {
         return ($date ?? now())->copy()->setTimezone(self::BUSINESS_TIMEZONE);

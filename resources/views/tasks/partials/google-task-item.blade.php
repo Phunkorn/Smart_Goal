@@ -81,7 +81,7 @@
     </td>
 
     <td class="name-col" data-label="งาน">
-        <button type="button" class="expand-task" data-expand-task="{{ $task->job_id }}" aria-label="ดูรายละเอียดงาน">
+        <button type="button" class="expand-task" data-expand-task="{{ $task->job_id }}" aria-label="ดูข้อมูลงาน">
             <i class="bi bi-chevron-right"></i>
         </button>
         <div class="task-name-wrap">
@@ -91,9 +91,6 @@
                     <span class="approval-badge">รออนุมัติจาก Admin</span>
                 @endif
             </div>
-            @if ($task->job_details)
-                <div class="task-detail-line">{{ $task->job_details }}</div>
-            @endif
         </div>
     </td>
 

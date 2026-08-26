@@ -129,44 +129,13 @@
 }
 
 .team-modal-card {
-    width: min(700px, 100%);
-}
-
-.team-modal-body {
-    gap: 14px;
-    padding: 18px 20px 22px;
-}
-
-.team-invite {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px 12px;
-    padding: 16px;
-}
-
-.team-invite select {
-    display: block;
-    width: 100%;
-    min-height: 112px;
-    border: 1px solid #cbd7e6;
-    background: #fff;
-    color: #172033;
-}
-
-.team-invite select:disabled {
-    background: #f1f5f9;
-    color: #94a3b8;
-}
-
-.team-invite > button {
-    align-self: end;
-    min-height: 42px;
-    padding-inline: 16px;
-}
-
-.team-invite > button:disabled {
-    background: #cbd5e1;
-    box-shadow: none;
-    cursor: not-allowed;
+    /*
+     * ความสูงคงที่เช่นเดียวกับ Task Workspace เพื่อไม่ให้กล่องยืดตามจำนวนสมาชิก
+     * เลื่อนเฉพาะรายการภายใน (ผู้ใช้ที่เลือกได้ และทีมปัจจุบัน)
+     */
+    width: min(940px, 100%);
+    height: min(620px, calc(100dvh - 48px));
+    max-height: calc(100dvh - 48px);
 }
 
 @media (max-width: 640px) {
@@ -177,14 +146,6 @@
 
     .project-create-files {
         grid-column: auto;
-    }
-
-    .team-invite {
-        grid-template-columns: 1fr;
-    }
-
-    .team-invite > button {
-        width: 100%;
     }
 }
 
@@ -249,4 +210,153 @@
     color: #172033;
     font-size: 20px;
     font-weight: 750;
+}
+
+/* ---------- Team Manager ---------- */
+
+/*
+ * component เดียวที่ดูแลทั้งการเลือกคนเพิ่มและการจัดการทีมปัจจุบัน
+ * เดิมเป็นสองระบบแยกกัน (.team-members-panel + .team-invite) จึงแสดงคนซ้ำสองที่
+ * และมีตัวนับสองตัวที่ขัดกันเอง — ทั้งสองบล็อกนั้นถูกลบออกแล้ว ไม่ได้ซ่อนไว้
+ */
+.team-manager {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.team-manager__body {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    align-content: start;
+    gap: 14px;
+    overflow: auto;
+    padding: 18px 22px;
+    background: var(--sg-surface-muted);
+}
+
+.team-manager__notice {
+    margin: 0;
+    padding: 9px 11px;
+    border-radius: 8px;
+    background: var(--sg-red-soft);
+    color: var(--sg-red);
+    font-size: 11px;
+}
+
+.team-manager__notice[hidden] {
+    display: none;
+}
+
+/* footer อยู่ใน flow ปกติ ไม่ทับ help text ของ selector */
+.team-manager__footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 22px;
+    border-top: 1px solid var(--sg-line);
+    background: #fff;
+}
+
+.team-manager__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    color: var(--sg-faint);
+    font-size: 11px;
+}
+
+.team-manager__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.team-manager__actions button {
+    min-height: 40px;
+    padding-inline: 16px;
+}
+
+.team-manager__actions button:disabled {
+    background: #cbd5e1;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+/* ทีมปัจจุบัน — แสดงที่เดียว อยู่เหนือรายการที่เตรียมเพิ่มในคอลัมน์ขวา */
+.team-current {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--sg-line);
+}
+
+.team-current__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.team-current__head strong {
+    color: var(--sg-ink);
+    font-size: 12px;
+}
+
+.team-current__head span {
+    color: var(--sg-faint);
+    font-size: 10px;
+}
+
+.team-current .team-member-list {
+    max-height: 168px;
+    overflow-y: auto;
+}
+
+.team-current .team-member {
+    padding: 8px 4px;
+}
+
+.team-current__empty {
+    margin: 0;
+    padding: 14px 8px;
+    color: var(--sg-faint);
+    font-size: 11px;
+    text-align: center;
+}
+
+.team-current__empty[hidden] {
+    display: none;
+}
+
+/* บัญชีที่ถูกปิดยังอยู่ในทีมเพื่อรักษาประวัติ แต่ต้องอ่านออกทันทีว่าใช้งานไม่ได้แล้ว */
+.team-state.inactive {
+    background: #eef1f5;
+    color: #64748b;
+}
+
+@media (max-width: 900px) {
+    .team-manager__body {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    .team-manager__footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .team-manager__actions button {
+        min-height: 44px;
+        flex: 1;
+    }
 }

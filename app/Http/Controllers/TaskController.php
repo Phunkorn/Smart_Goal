@@ -369,13 +369,15 @@ class TaskController extends Controller
 
                 if ($request->hasFile('project_attachments')) {
                     foreach ($request->file('project_attachments') as $file) {
+                        // getMimeType() ตรวจจากเนื้อไฟล์จริง ต่างจาก getClientMimeType() ที่ปลอมได้ และต้องอ่านก่อนย้ายไฟล์
+                        $mimeType = $file->getMimeType();
                         $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$project->id);
                         $storedPaths[] = $path;
                         WorkOrderListAttachment::create([
                             'work_order_list_id' => $project->id,
                             'file_path' => $path,
                             'original_name' => $file->getClientOriginalName(),
-                            'file_type' => $file->getClientMimeType(),
+                            'file_type' => $mimeType,
                             'uploaded_by' => $actor->id,
                         ]);
                     }
@@ -471,6 +473,8 @@ class TaskController extends Controller
         }
 
         foreach ($request->file($field) as $file) {
+            // getMimeType() ตรวจจากเนื้อไฟล์จริง ต่างจาก getClientMimeType() ที่ปลอมได้ และต้องอ่านก่อนย้ายไฟล์
+            $mimeType = $file->getMimeType();
             $path = ProtectedMedia::storeAttachment($file, 'job-attachments/'.$job->job_id);
             $storedPaths[] = $path;
 
@@ -478,7 +482,7 @@ class TaskController extends Controller
                 'job_id' => $job->job_id,
                 'file_path' => $path,
                 'original_name' => $file->getClientOriginalName(),
-                'file_type' => $file->getClientMimeType(),
+                'file_type' => $mimeType,
                 'uploaded_by' => Auth::id(),
             ]);
         }
@@ -510,9 +514,13 @@ class TaskController extends Controller
 
         $before = $job->attributesToArray();
         $job->job_topic = trim($validated['job_topic']);
-        $job->job_details = isset($validated['job_details'])
-            ? trim($validated['job_details'])
-            : null;
+
+        // Task Workspace ไม่ส่ง job_details มาแล้ว จึงต้องแตะคอลัมน์นี้เฉพาะเมื่อผู้เรียกส่งมาจริง
+        // ถ้าเขียนทับด้วย null ทุกครั้ง ข้อมูลเดิมของงานเก่าจะถูกล้างทิ้งตั้งแต่กดบันทึกครั้งแรก
+        if ($request->has('job_details')) {
+            $job->job_details = trim((string) ($validated['job_details'] ?? ''));
+        }
+
         $job->save();
         $job->refresh();
 

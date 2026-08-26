@@ -1,0 +1,308 @@
+/*
+ * ตัวเลือกบุคคลแบบใช้ร่วมกัน — ผู้เข้าร่วมประชุมและผู้ร่วมงานของงานใช้ไฟล์นี้ไฟล์เดียว
+ * ใช้ design token กลางจาก foundations/tokens.css จึงพกไปใช้ในหน้าไหนก็ได้
+ */
+
+.people-selector-field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.people-selector-field__head,
+.people-selector-field__help {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.people-selector-field__head span,
+.people-selector-field__help {
+    color: var(--text-muted);
+    font-size: .72rem;
+}
+
+.people-selector-field__label {
+    margin: 0;
+    color: var(--text);
+    font-size: .8rem;
+    font-weight: 700;
+}
+
+.people-selector-field__notice {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: .72rem;
+}
+
+.people-selector {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1.25fr) minmax(220px, .75fr);
+    gap: 10px;
+}
+
+.people-selector__browser {
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+}
+
+.people-selector__search {
+    position: relative;
+    display: block;
+}
+
+.people-selector__search i {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    translate: 0 -50%;
+    color: var(--text-muted);
+}
+
+.people-selector__search input {
+    width: 100%;
+    min-height: 36px;
+    padding: 0 10px 0 34px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    outline: 0;
+}
+
+.people-selector__search input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.people-selector__departments {
+    display: flex;
+    min-width: 0;
+    gap: 5px;
+    overflow-x: auto;
+    padding: 1px 1px 3px;
+    scrollbar-width: thin;
+}
+
+.people-selector__department {
+    min-height: 32px;
+    flex: 0 0 auto;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: .72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.people-selector__department:hover,
+.people-selector__department:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent-strong);
+}
+
+.people-selector__department.is-active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.people-selector__department:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.people-selector__options {
+    min-height: 96px;
+    max-height: 148px;
+    padding: 4px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.people-selector__option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 44px;
+    margin: 0;
+    padding: 5px 8px;
+    border-radius: calc(var(--radius-sm) - 2px);
+    cursor: pointer;
+}
+
+.people-selector__option:hover {
+    background: var(--surface-2);
+}
+
+.people-selector__option.is-selected {
+    background: var(--accent-dim);
+}
+
+/* เลือกไม่ได้ต้องดูออกทันที และต้องไม่มี cursor ที่ชวนให้คิดว่ากดได้ */
+.people-selector__option.is-disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.people-selector__option[hidden] {
+    display: none;
+}
+
+.people-selector__option .form-check-input {
+    width: 1.08rem;
+    height: 1.08rem;
+    flex: 0 0 auto;
+    margin: 0;
+    border-color: var(--border);
+    cursor: pointer;
+}
+
+.people-selector__option .form-check-input:checked {
+    border-color: var(--accent);
+    background-color: var(--accent);
+}
+
+.people-selector__option > span {
+    display: grid;
+    min-width: 0;
+    line-height: 1.25;
+}
+
+.people-selector__option strong {
+    overflow: hidden;
+    color: var(--text);
+    font-size: .78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.people-selector__option small {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: .68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.people-selector__empty {
+    margin: 0;
+    padding: 14px 8px;
+    color: var(--text-muted);
+    font-size: .73rem;
+    text-align: center;
+}
+
+.people-selector__empty[hidden] {
+    display: none;
+}
+
+.people-selector__selected {
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.people-selector__selected-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.people-selector__selected-head strong {
+    color: var(--text);
+    font-size: .76rem;
+}
+
+.people-selector__selected-head span {
+    color: var(--text-muted);
+    font-size: .66rem;
+}
+
+.people-selector__chips {
+    display: flex;
+    align-content: flex-start;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-height: 184px;
+    overflow-y: auto;
+}
+
+.people-selector__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    padding: 3px 4px 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--accent-strong);
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.people-selector__chip > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.people-selector__chip button {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.people-selector__chip button:hover,
+.people-selector__chip button:focus-visible {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.people-selector__chip button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+@media (max-width: 767.98px) {
+    .people-selector {
+        grid-template-columns: 1fr;
+    }
+
+    .people-selector__options {
+        max-height: 180px;
+    }
+
+    .people-selector__chips {
+        max-height: none;
+    }
+}
+
+@media (max-width: 520px) {
+    .people-selector-field__help {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

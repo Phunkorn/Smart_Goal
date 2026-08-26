@@ -203,7 +203,11 @@ class TodayWorkspaceTest extends TestCase
             ->assertSee('data-project-board', false)
             ->assertSee('data-table-kanban', false)
             ->assertSee('data-workspace-task-source', false)
-            ->assertSee('class="task-edit-modal notion-modal my-tasks-page" data-task-modal hidden', false)
+            // overlay ใช้ theme scope (sg-task-theme) ไม่ใช่ page-layout class
+            // เพื่อไม่ให้ width/margin ของหน้ารั่วลงมาบีบ backdrop
+            ->assertSee('class="task-workspace-modal notion-modal sg-task-theme" data-task-modal hidden', false)
+            ->assertDontSee('task-workspace-modal notion-modal my-tasks-page', false)
+            ->assertSee('class="task-workspace"', false)
             ->assertDontSee('data-task-subtasks', false)
             ->assertDontSee('data-add-subtask', false)
             ->assertDontSee('data-delete-active-task', false)
@@ -272,6 +276,19 @@ class TodayWorkspaceTest extends TestCase
 
         $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
         $this->assertSame(6, (int) $job->fresh()->job_status);
+    }
+
+    public function test_date_range_label_works_regardless_of_task_status_or_today(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $done = $this->job($user, 4, '2026-08-16', '2026-08-20', ['job_completed_at' => '2026-08-18 10:00:00']);
+        $future = $this->job($user, 1, '2026-09-01', '2026-09-01');
+
+        // ไม่ต้อง travelTo เพราะ dateRangeLabel ต้องไม่ขึ้นกับ "วันนี้" เหมือน timeProgress()
+        $this->assertSame('16–20 ส.ค. 2569', TodayWorkspace::dateRangeLabel($done->job_start_at, $done->job_due_at));
+        $this->assertSame('1 ก.ย. 2569', TodayWorkspace::dateRangeLabel($future->job_start_at, $future->job_due_at));
+        $this->assertNull(TodayWorkspace::dateRangeLabel(null, $future->job_due_at));
+        $this->assertNull(TodayWorkspace::dateRangeLabel($future->job_start_at, null));
     }
 
     private function job(User $user, int $status, $start, $due, array $extra = []): WorkOrder

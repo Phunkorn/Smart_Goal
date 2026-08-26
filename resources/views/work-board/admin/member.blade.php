@@ -35,7 +35,7 @@
         </a>
     </section>
 
-    <div class="notion-workspace my-tasks-page admin-member-task-workspace" data-workspace
+    <div class="notion-workspace my-tasks-page sg-task-theme admin-member-task-workspace" data-workspace
         data-context="admin-member"
         data-subject-user-id="{{ $member->id }}"
         data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
@@ -72,6 +72,12 @@
         </section>
         <div class="notion-toast" data-toast></div>
     </div>
-    @include('tasks.partials.workspace-interactions', compact('allTasks', 'availableCollaborators', 'showCreateActions', 'workspaceContext'))
+    @include('tasks.partials.workspace-interactions', array_merge(
+        compact('allTasks', 'availableCollaborators', 'showCreateActions', 'workspaceContext'),
+        [
+            'workspaceRootLabel' => $member->name,
+            'workspaceRootUrl' => route('admin.work-board.member', [$department, $member]),
+        ]
+    ))
 </div>
 @endsection

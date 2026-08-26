@@ -1,4 +1,5 @@
 import {commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead} from './task-comments-model.js';
+import {shouldSendUpdate} from './task-workspace-model.js';
 
 (() => {
     const root = document.querySelector('[data-workspace]');
@@ -19,11 +20,17 @@ import {commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfte
     const entry = (item) => `<article class="task-timeline-entry"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div><strong>${escapeHtml(item.author)}</strong><p>${escapeHtml(item.note)}</p><small>${escapeHtml(item.at)}</small></div></article>`;
     const compose = panel.querySelector('.task-timeline__compose');
 
+    const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม' : 'ยังไม่มีรายการอัปเดต';
+
     const render = () => {
         const entries = timeline[String(taskId)]?.[tab] || [];
         panel.hidden = false;
-        panel.querySelectorAll('[data-timeline-tab]').forEach((button) => button.classList.toggle('active', button.dataset.timelineTab === tab));
-        panel.querySelector('[data-timeline-items]').innerHTML = entries.map(entry).join('') || '<p class="task-timeline-empty">ยังไม่มีรายการ</p>';
+        panel.querySelectorAll('[data-timeline-tab]').forEach((button) => {
+            const active = button.dataset.timelineTab === tab;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-selected', String(active));
+        });
+        panel.querySelector('[data-timeline-items]').innerHTML = entries.map(entry).join('') || `<p class="task-timeline-empty">${emptyLabel()}</p>`;
         if (compose) compose.hidden = tab !== 'updates';
     };
 
@@ -89,7 +96,8 @@ import {commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfte
         const button = panel.querySelector('[data-submit-task-update]');
         const message = input.value.trim();
         const url = management[String(taskId)]?.comment_url;
-        if (!taskId || !url || !message || button.disabled) return;
+        // pending มาจากปุ่มที่ถูก disable ระหว่างรอ ทำให้กดรัว ๆ ไม่เกิดข้อความซ้ำ
+        if (!shouldSendUpdate({taskId, url, message, pending: button.disabled})) return;
         button.disabled = true;
         try {
             const response = await fetch(url, {

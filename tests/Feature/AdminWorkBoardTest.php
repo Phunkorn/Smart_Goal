@@ -83,7 +83,11 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee('data-table-kanban', false)
             ->assertSee('data-context="admin-member"', false)
             ->assertSee('data-task-modal', false)
-            ->assertSee('class="task-edit-modal notion-modal my-tasks-page" data-task-modal hidden', false)
+            // overlay ใช้ theme scope (sg-task-theme) ไม่ใช่ page-layout class
+            // เพื่อไม่ให้ width/margin ของหน้ารั่วลงมาบีบ backdrop
+            ->assertSee('class="task-workspace-modal notion-modal sg-task-theme" data-task-modal hidden', false)
+            ->assertDontSee('task-workspace-modal notion-modal my-tasks-page', false)
+            ->assertSee('class="task-workspace"', false)
             ->assertSee('data-team-data', false)
             ->assertSee('data-attachment-data', false)
             ->assertSee('data-timeline-data', false)
@@ -98,7 +102,9 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee('data-quick-template', false)
             ->assertSee('data-row', false)
             ->assertSee('data-total-count="2"', false)
-            ->assertSee('name="assignee" readonly', false)
+            // ผู้รับผิดชอบเป็นข้อมูลอ่านอย่างเดียวใน Workspace ใหม่ จึงไม่ใช่ช่องกรอกอีกต่อไป
+            ->assertSee('data-workspace-assignee', false)
+            ->assertSee('name="assignee" type="hidden"', false)
             ->assertDontSee('data-create-modal', false)
             ->assertDontSee('data-create-form', false)
             ->assertDontSee('data-group>', false)

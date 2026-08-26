@@ -23,7 +23,7 @@
 @endpush
 
 @section('content')
-<div class="notion-workspace my-tasks-page" data-workspace
+<div class="notion-workspace my-tasks-page sg-task-theme" data-workspace
     data-context="user"
     data-task-scope="{{ $taskScope }}"
     data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
@@ -141,6 +141,8 @@
     'availableCollaborators' => $availableCollaborators,
     'showCreateActions' => $showCreateActions,
     'workspaceContext' => $workspaceContext,
+    'workspaceRootLabel' => 'งานของฉัน',
+    'workspaceRootUrl' => route('mytasks.index'),
 ])
 <div class="notion-toast" data-toast></div>
 @endsection

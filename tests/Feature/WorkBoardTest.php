@@ -67,7 +67,8 @@ class WorkBoardTest extends TestCase
             ->get(route('work-board.member', [$department, $assignee]))
             ->assertOk()
             ->assertSee($job->job_topic)
-            ->assertSee($job->job_details)
+            // โครงสร้างใหม่คือ โปรเจกต์ > รายการงาน จึงไม่แสดงรายละเอียดงานบนบอร์ดอีกต่อไป
+            ->assertDontSee($job->job_details)
             ->assertSee($collaborator->name, false)
             ->assertSee('สำคัญด่วน');
     }

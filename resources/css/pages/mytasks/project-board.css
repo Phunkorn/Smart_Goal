@@ -13,10 +13,10 @@
 .my-tasks-page .board-reference-row{min-height:58px;margin:0;border:0;border-bottom:1px solid #e9edf3;border-radius:0;background:#fff;box-shadow:none;transition:background .12s}.my-tasks-page .board-reference-row:last-child{border-bottom:0;border-radius:0 0 12px 12px}.my-tasks-page .board-reference-row:hover{background:#fbfcfe}
 .my-tasks-page .board-completed-group{border-bottom:1px solid #e2e8f0;background:#f8fafc}.my-tasks-page .board-completed-group.is-project-collapsed{display:none}.my-tasks-page .board-completed-group>summary{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 14px;color:#64748b;cursor:pointer;list-style:none}.my-tasks-page .board-completed-group>summary::-webkit-details-marker{display:none}.my-tasks-page .board-completed-group>summary i{font-size:9px;transition:transform .15s}.my-tasks-page .board-completed-group[open]>summary i{transform:rotate(90deg)}.my-tasks-page .board-completed-group>summary strong{font-size:12px}.my-tasks-page .board-completed-group>summary span{font-size:10px}.my-tasks-page .board-completed-group__rows{background:#fff}
 .my-tasks-page .board-reference-task{display:grid;align-content:center;width:100%;height:100%;padding-block:3px;border:0;background:transparent;color:inherit;text-align:left;cursor:default}.my-tasks-page .board-reference-task strong{overflow:hidden;color:#101d33;font-size:13px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-reference-task>span{overflow:hidden;margin-top:2px;color:#76869d;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-reference-task small{display:inline-flex;align-items:center;gap:3px;margin-top:2px;color:#8290a4;font-size:10px}
-.my-tasks-page .board-status-pill{display:inline-flex;align-items:center;gap:6px;justify-self:start;padding:6px 9px;border-radius:99px;font-size:11px;font-weight:650;white-space:nowrap}.my-tasks-page .board-status-pill>i{width:7px;height:7px;border-radius:50%;background:currentColor}.my-tasks-page .board-status-pill.status-todo{background:#f0f2f5;color:#68768a}.my-tasks-page .board-status-pill.status-progress{background:#e8f1fe;color:#286acb}.my-tasks-page .board-status-pill.status-review{background:#f0eafd;color:#8152d4}.my-tasks-page .board-status-pill.status-done{background:#e7f7ef;color:#07845f}.my-tasks-page .board-status-pill.status-paused{background:#fff1dc;color:#b46908}.my-tasks-page .board-status-pill.status-late{background:#fdebea;color:#dc3d39}
-.my-tasks-page .board-status-menu{position:relative;justify-self:start}.my-tasks-page .board-status-menu summary{cursor:pointer;list-style:none}.my-tasks-page .board-status-menu summary::-webkit-details-marker{display:none}.my-tasks-page .board-status-menu summary>i:last-child{width:auto;height:auto;margin-left:2px;background:transparent;font-size:8px}.my-tasks-page .board-status-menu>div{position:fixed;left:var(--status-menu-left,auto);top:var(--status-menu-top,auto);z-index:95;display:grid;gap:5px;width:164px;padding:8px;border:1px solid #d9e2ed;border-radius:11px;background:#fff;box-shadow:0 14px 32px rgba(15,23,42,.16)}.my-tasks-page .board-status-menu>div button{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 10px;border:1px solid currentColor;border-radius:999px;background:#fff;font-size:11px;font-weight:650;text-align:left}.my-tasks-page .board-status-menu>div button>i{width:7px;height:7px;border-radius:50%;background:currentColor}.my-tasks-page .board-status-menu>div button>span{margin-left:auto}.my-tasks-page .board-status-menu>div .status-todo{border-color:#d7dde5;background:#f5f6f8;color:#68768a}.my-tasks-page .board-status-menu>div .status-progress{border-color:#bdd4f7;background:#edf4fe;color:#286acb}.my-tasks-page .board-status-menu>div .status-review{border-color:#d7c5f5;background:#f4effd;color:#8152d4}.my-tasks-page .board-status-menu>div .status-done{border-color:#bde4d3;background:#edf9f3;color:#07845f}.my-tasks-page .board-status-menu>div .status-paused{border-color:#f0d29f;background:#fff7e9;color:#a86108}
-.my-tasks-page .board-priority{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;white-space:nowrap}.my-tasks-page .board-priority.priority-low{color:#64748b}.my-tasks-page .board-priority.priority-medium{color:#b56708}.my-tasks-page .board-priority.priority-high{color:#d33b34}
-.my-tasks-page .board-inline-select{cursor:pointer}.my-tasks-page .board-inline-select select{max-width:94px;padding:0 14px 0 0;border:0;outline:0;background:transparent;color:inherit;font:inherit;cursor:pointer}.my-tasks-page .board-priority.board-inline-select select{max-width:60px}.my-tasks-page .board-inline-select select option{color:#263650;background:#fff}
+:is(.my-tasks-page,.sg-task-theme) .board-status-pill{display:inline-flex;align-items:center;gap:6px;justify-self:start;padding:6px 9px;border-radius:99px;font-size:11px;font-weight:650;white-space:nowrap}:is(.my-tasks-page,.sg-task-theme) .board-status-pill>i{width:7px;height:7px;border-radius:50%;background:currentColor}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-todo{background:#f0f2f5;color:#68768a}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-progress{background:#e8f1fe;color:#286acb}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-review{background:#f0eafd;color:#8152d4}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-done{background:#e7f7ef;color:#07845f}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-paused{background:#fff1dc;color:#b46908}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-late{background:#fdebea;color:#dc3d39}
+:is(.my-tasks-page,.sg-task-theme) .board-status-menu{position:relative;justify-self:start}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary{cursor:pointer;list-style:none}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary::-webkit-details-marker{display:none}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary>i:last-child{width:auto;height:auto;margin-left:2px;background:transparent;font-size:8px}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div{position:fixed;left:var(--status-menu-left,auto);top:var(--status-menu-top,auto);z-index:95;display:grid;gap:5px;width:164px;padding:8px;border:1px solid #d9e2ed;border-radius:11px;background:#fff;box-shadow:0 14px 32px rgba(15,23,42,.16)}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 10px;border:1px solid currentColor;border-radius:999px;background:#fff;font-size:11px;font-weight:650;text-align:left}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button>i{width:7px;height:7px;border-radius:50%;background:currentColor}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button>span{margin-left:auto}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-todo{border-color:#d7dde5;background:#f5f6f8;color:#68768a}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-progress{border-color:#bdd4f7;background:#edf4fe;color:#286acb}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-review{border-color:#d7c5f5;background:#f4effd;color:#8152d4}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-done{border-color:#bde4d3;background:#edf9f3;color:#07845f}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-paused{border-color:#f0d29f;background:#fff7e9;color:#a86108}
+:is(.my-tasks-page,.sg-task-theme) .board-priority{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;white-space:nowrap}:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-low{color:#64748b}:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-medium{color:#b56708}:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-high{color:#d33b34}
+.my-tasks-page .board-inline-select{cursor:pointer}.my-tasks-page .board-inline-select select{max-width:94px;padding:0 14px 0 0;border:0;outline:0;background:transparent;color:inherit;font:inherit;cursor:pointer}:is(.my-tasks-page,.sg-task-theme) .board-priority.board-inline-select select{max-width:60px}.my-tasks-page .board-inline-select select option{color:#263650;background:#fff}
 .my-tasks-page .board-owner{display:flex;align-items:center;gap:8px}.my-tasks-page .board-owner>i{display:grid;place-items:center;width:29px;height:29px;flex:0 0 29px;border-radius:50%;background:#2f6fe4;color:#fff;font-size:10px;font-style:normal;font-weight:700}.my-tasks-page .board-owner strong{overflow:hidden;color:#263650;font-size:12px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-department{display:flex;align-items:center;gap:6px;color:#536277}.my-tasks-page .board-department>i{font-size:13px}.my-tasks-page .board-department strong{overflow:hidden;font-size:11px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-attachments{display:inline-flex;align-items:center;justify-self:start;gap:5px;padding:5px 7px;border:0;border-radius:7px;background:transparent;color:#8a97a9;font-size:13px;cursor:pointer}.my-tasks-page .board-attachments:hover{background:#edf4ff;color:#2f6fe4}.my-tasks-page .board-attachments.has-files{color:#2f6fe4}.my-tasks-page .board-attachments strong{font-size:11px;font-weight:750}
 .my-tasks-page .board-collaborators{display:flex;align-items:center}.my-tasks-page .board-collaborators>button{display:flex;align-items:center;padding:0 0 0 7px;border:0;background:transparent;cursor:pointer}.my-tasks-page .board-collaborators button>i,.my-tasks-page .board-collaborators button>b,.my-tasks-page .board-team-add{display:grid;place-items:center;width:27px;height:27px;margin-left:-7px;border:2px solid #fff;border-radius:50%;background:#7653df;color:#fff;font-size:8px;font-style:normal;font-weight:700}.my-tasks-page .board-collaborators button>i:nth-child(2){background:#e54a43}.my-tasks-page .board-collaborators button>i.is-pending{border-style:dashed;background:#c7790a}.my-tasks-page .board-collaborators button>b{background:#edf1f5;color:#657489}.my-tasks-page .board-team-add{margin-left:2px;border:1px dashed #9eb5d6;background:#f4f8ff;color:#3972d1}.my-tasks-page .board-team-add>i{font-size:11px}
 .my-tasks-page .board-due{display:inline-flex;align-items:center;gap:5px;color:#536277;font-size:11px;font-weight:550;white-space:nowrap}.my-tasks-page .board-due.is-soon{color:#bd6a00;font-weight:700}.my-tasks-page .board-due.is-late{color:#dc3d39;font-weight:700}.my-tasks-page .board-due-editable{position:relative;min-height:30px;cursor:pointer}.my-tasks-page .board-due-editable input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
@@ -224,8 +224,8 @@
     justify-self: center;
 }
 
-.my-tasks-page .board-status-menu,
-.my-tasks-page .board-priority-menu {
+:is(.my-tasks-page,.sg-task-theme) .board-status-menu,
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu {
     justify-self: center;
 }
 
@@ -270,14 +270,14 @@
 }
 
 .my-tasks-page .board-project-priority-menu,
-.my-tasks-page .board-priority-menu {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu {
     position: relative;
     justify-self: start;
 }
 
 /* Task priority belongs to the centered priority column. Keep only the
    project-header control aligned with the project title on the left. */
-.my-tasks-page .board-priority-menu,
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu,
 .my-tasks-page .board-reference-row > .board-priority {
     justify-self: center;
 }
@@ -288,25 +288,25 @@
 }
 
 .my-tasks-page .board-project-priority-menu > summary,
-.my-tasks-page .board-priority-menu > summary {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu > summary {
     border-radius: 8px;
     cursor: pointer;
     list-style: none;
 }
 
 .my-tasks-page .board-project-priority-menu > summary::-webkit-details-marker,
-.my-tasks-page .board-priority-menu > summary::-webkit-details-marker {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu > summary::-webkit-details-marker {
     display: none;
 }
 
 .my-tasks-page .board-project-priority-menu > summary > i:last-child,
-.my-tasks-page .board-priority-menu > summary > i:last-child {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu > summary > i:last-child {
     margin-left: 3px;
     font-size: 9px;
 }
 
 .my-tasks-page .board-project-priority-menu > div,
-.my-tasks-page .board-priority-menu > div {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu > div {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
@@ -322,7 +322,7 @@
 }
 
 .my-tasks-page .board-project-priority-menu > div button,
-.my-tasks-page .board-priority-menu > div button {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu > div button {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -338,32 +338,32 @@
 }
 
 .my-tasks-page .board-project-priority-menu > div button > span,
-.my-tasks-page .board-priority-menu > div button > span {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu > div button > span {
     margin-left: auto;
 }
 
 .my-tasks-page .board-project-priority-menu .priority-low,
-.my-tasks-page .board-priority-menu .priority-low {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-low {
     border-color: #d1d8e1;
     background: #f4f6f8;
     color: #64748b;
 }
 
 .my-tasks-page .board-project-priority-menu .priority-medium,
-.my-tasks-page .board-priority-menu .priority-medium {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-medium {
     border-color: #e8c98f;
     background: #fff5df;
     color: #a86108;
 }
 
 .my-tasks-page .board-project-priority-menu .priority-high,
-.my-tasks-page .board-priority-menu .priority-high {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-high {
     border-color: #efb4b1;
     background: #ffe9e7;
     color: #cf312d;
 }
 
-.my-tasks-page .board-priority-menu .board-priority {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .board-priority {
     gap: 6px;
     padding: 5px 7px;
     border-radius: 7px;
@@ -373,58 +373,58 @@
     border-radius: 8px;
 }
 
-.my-tasks-page .board-priority-menu .board-priority:hover {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .board-priority:hover {
     background: #f4f7fb;
 }
 
-.my-tasks-page .board-priority-menu > div {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu > div {
     width: 190px;
 }
 
-.my-tasks-page .board-priority-menu .priority-urgent,
-.my-tasks-page .board-priority.priority-urgent {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-urgent,
+:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-urgent {
     border-color: #efb4b1;
     background: #ffe9e7;
     color: #cf312d;
 }
 
-.my-tasks-page .board-priority-menu .priority-quick,
-.my-tasks-page .board-priority.priority-quick {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-quick,
+:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-quick {
     border-color: #efc28e;
     background: #fff1df;
     color: #d66d08;
 }
 
-.my-tasks-page .board-priority-menu .priority-important,
-.my-tasks-page .board-priority.priority-important {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-important,
+:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-important {
     border-color: #e8cf87;
     background: #fff7d6;
     color: #a56a05;
 }
 
-.my-tasks-page .board-priority-menu .priority-flexible,
-.my-tasks-page .board-priority.priority-flexible {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-flexible,
+:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-flexible {
     border-color: #aedaC8;
     background: #e7f7ef;
     color: #07845f;
 }
 
-.my-tasks-page .board-priority-menu .priority-routine,
-.my-tasks-page .board-priority.priority-routine {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-routine,
+:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-routine {
     border-color: #b9d1f5;
     background: #e8f1fe;
     color: #286acb;
 }
 
-.my-tasks-page .board-priority-menu .board-priority {
+:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .board-priority {
     border: 1px solid transparent;
 }
 
-.my-tasks-page .priority-option-1 { color: #286acb; }
-.my-tasks-page .priority-option-2 { color: #a56a05; }
-.my-tasks-page .priority-option-3 { color: #cf312d; }
-.my-tasks-page .priority-option-4 { color: #d66d08; }
-.my-tasks-page .priority-option-5 { color: #07845f; }
+:is(.my-tasks-page,.sg-task-theme) .priority-option-1 { color: #286acb; }
+:is(.my-tasks-page,.sg-task-theme) .priority-option-2 { color: #a56a05; }
+:is(.my-tasks-page,.sg-task-theme) .priority-option-3 { color: #cf312d; }
+:is(.my-tasks-page,.sg-task-theme) .priority-option-4 { color: #d66d08; }
+:is(.my-tasks-page,.sg-task-theme) .priority-option-5 { color: #07845f; }
 
 /* The expanded desktop sidebar reduces the workspace without changing the
    viewport media-query width. Keep the board grid inside that real space. */
@@ -627,3 +627,83 @@ body:not(.sidebar-collapsed) .my-tasks-page .summary-progress {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 }
+
+/*
+ * ปิด Horizontal Scrollbar เฉพาะมุมมองบอร์ดของหน้า "งานของฉัน"
+ *
+ * ประกาศไว้ท้ายไฟล์เพราะกฎ overflow-x:auto เดิมมี specificity เท่ากัน (บรรทัด 285)
+ * และสูงกว่าเมื่อ Sidebar กางอยู่ (บรรทัด 432) จึงต้องอาศัยทั้ง selector และลำดับ source
+ *
+ * ไม่แตะ overflow ของ html/body และไม่แตะ .notion-table-scroll ของมุมมองอื่น
+ * ตาราง ปฏิทิน ประชุม และ Kanban ยังใช้กฎเดิมทุกประการ
+ */
+.my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
+    overflow-x: hidden;
+}
+
+.my-tasks-page .notion-database[data-view="board"] .project-board,
+.my-tasks-page .notion-database[data-view="board"] .board-reference-list {
+    max-width: 100%;
+    min-width: 0;
+}
+
+/*
+ * เมื่อไม่มี scrollbar แล้ว ส่วนที่กว้างเกินกรอบจะถูกตัดทิ้งจากขวาสุด ซึ่งคือคอลัมน์ปุ่มจัดการ
+ * กริดเดิมต้องการอย่างน้อย 1068px (คอลัมน์ชื่องาน 300px + คอลัมน์คงที่ 768px)
+ * ขณะที่พื้นที่จริงคือ viewport - sidebar(252px หรือ 0) - padding ของ .main (56px)
+ * จึงขาดในช่วง 761-823px และช่วง 992-1005px ตอน Sidebar กาง
+ *
+ * แก้โดยให้คอลัมน์ชื่องานและคอลัมน์กลางยุบได้ (ขอบล่าง 0) แต่คงคอลัมน์ปุ่มไว้เท่าเดิม
+ * ค่าความกว้างสูงสุดของทุกคอลัมน์ยังเป็นค่าเดิม จอกว้างจึงเห็นเหมือนเดิมทุกประการ
+ */
+.my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
+.my-tasks-page .notion-database[data-view="board"] .board-reference-row {
+    grid-template-columns:
+        minmax(0, 1fr)
+        minmax(0, 112px)
+        minmax(0, 158px)
+        minmax(0, 112px)
+        minmax(0, 112px)
+        minmax(0, 72px)
+        minmax(0, 92px)
+        minmax(0, 72px)
+        38px;
+}
+
+@media (min-width: 992px) {
+    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
+        overflow-x: hidden;
+    }
+
+    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
+        min-width: 0;
+    }
+
+    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
+    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
+        grid-template-columns:
+            minmax(0, 1fr)
+            minmax(0, 104px)
+            minmax(0, 136px)
+            minmax(0, 104px)
+            minmax(0, 104px)
+            minmax(0, 66px)
+            minmax(0, 82px)
+            minmax(0, 68px)
+            34px;
+    }
+}
+
+/* มือถือใช้เลย์เอาต์ 2 คอลัมน์เดิม กฎบอร์ดด้านบน specificity สูงกว่าจึงต้องคืนค่าให้ชัด */
+@media (max-width: 760px) {
+    .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+}
+
+/*
+ * เมนูสถานะและความสำคัญด้านบนถูกขยายขอบเขตจาก .my-tasks-page เป็น
+ * :is(.my-tasks-page, .sg-task-theme) เพราะ Task Workspace เป็น overlay ที่อยู่คนละกิ่ง
+ * กับ page wrapper จึงต้องพึ่ง theme scope แทน page-layout scope
+ * :is() มี specificity เท่ากับอาร์กิวเมนต์ที่สูงสุด (1 class) การลำดับ cascade จึงไม่เปลี่ยน
+ */

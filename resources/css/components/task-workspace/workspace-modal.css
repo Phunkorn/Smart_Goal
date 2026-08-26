@@ -1,0 +1,815 @@
+/*
+ * Task Workspace — หน้าจัดการรายการงานแบบเต็มจอ ใช้ร่วมกันทั้ง Admin และ User
+ *
+ * เลย์เอาต์: Header / Summary Bar / สองคอลัมน์ (ไฟล์แนบ + ไทม์ไลน์) / Footer
+ * Desktop ตั้งแต่ 1100px: Header กับ Footer อยู่กับที่ ไม่มี scroll ในตัวหน้า
+ * มีเพียงไทม์ไลน์และรายการไฟล์เท่านั้นที่เลื่อนภายในตัวเองเมื่อรายการยาวเกิน
+ * Tablet และ Mobile: เรียงลงเป็นชั้นเดียว ใช้ scroll ของทั้งหน้าแทน ไม่มี nested scroll
+ */
+
+.task-workspace-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* reset ชุดเดียวกับ .task-edit-modal (modal.css:1) กันค่า layout จากภายนอกรั่วลงมาบีบ backdrop */
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 24px;
+    overflow: auto;
+    background: rgba(15, 23, 42, .45);
+}
+
+.task-workspace-modal[hidden] {
+    display: none;
+}
+
+.task-workspace {
+    display: flex;
+    width: min(1180px, 100%);
+    /*
+     * ต้องมี height ที่แน่นอน ไม่ใช่แค่ max-height
+     * ถ้ามีแต่ max-height กล่องจะยุบตามเนื้อหา ทำให้ไทม์ไลน์ยังไม่ scroll
+     * จนกว่าข้อความจะดันการ์ดจนชนเพดาน (ประมาณ 6 ข้อความ)
+     * 760px คือค่าที่ดีไซน์ก่อนหน้าใช้จริงมาแล้ว (modal.css:13)
+     * ส่วน calc(100dvh - 48px) คือหัก padding 24px บนล่างของ overlay
+     */
+    height: min(760px, calc(100dvh - 48px));
+    max-height: calc(100dvh - 48px);
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 16px;
+    background: #f7f9fc;
+    box-shadow: 0 28px 70px rgba(15, 23, 42, .28);
+}
+
+/* ---------- Header ---------- */
+
+.task-workspace__header {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 18px 60px 16px 24px;
+    border-bottom: 1px solid #e6ecf4;
+    background: #fff;
+}
+
+.task-workspace__breadcrumb {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    color: #94a3b8;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* ชื่อโปรเจกต์ยาวต้องถูกตัด ไม่ใช่ดันหน้าจนเกิด horizontal scroll */
+.task-workspace__breadcrumb a:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.task-workspace__breadcrumb a {
+    color: #6b8bbd;
+    text-decoration: none;
+}
+
+.task-workspace__breadcrumb a:hover {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.task-workspace__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+    min-width: 0;
+}
+
+.task-workspace__title h2 {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-workspace__title input {
+    min-width: 0;
+    flex: 1;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid #93b4fa;
+    border-radius: 8px;
+    background: #fff;
+    color: #0f172a;
+    font: inherit;
+    font-size: 19px;
+    font-weight: 800;
+}
+
+.task-workspace__rename {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: #eef4ff;
+    color: #2563eb;
+    cursor: pointer;
+}
+
+.task-workspace__rename:hover {
+    background: #dfeaff;
+}
+
+.task-workspace__subtitle {
+    margin: 3px 0 0;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.task-workspace__close {
+    position: absolute;
+    top: 16px;
+    right: 18px;
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.task-workspace__close:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+/* ---------- Summary Bar ---------- */
+
+.task-workspace__summary {
+    display: grid;
+    flex: 0 0 auto;
+    margin: 14px 16px 0;
+    /*
+     * ไม่ใช้ 6 คอลัมน์เท่ากัน เพราะ pill สถานะ/ความสำคัญเป็น white-space:nowrap ย่อไม่ได้
+     * ขณะที่ช่องวันที่ต้องการเพียง ~80px จึงแบ่งน้ำหนักตามความยาวข้อความจริงของแต่ละช่อง
+     */
+    grid-template-columns: 1.1fr 1.25fr 1.05fr 1.05fr 1.1fr 1.15fr;
+    overflow: hidden;
+    border: 1px solid #e6ecf4;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.task-workspace__cell {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border-right: 1px solid #edf1f7;
+    margin: 0;
+}
+
+.task-workspace__cell:last-child {
+    border-right: 0;
+}
+
+.task-workspace__cell-icon {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    place-items: center;
+    border-radius: 9px;
+    font-size: 14px;
+}
+
+.task-workspace__cell-icon.tone-status { background: #e8f0ff; color: #2563eb; }
+.task-workspace__cell-icon.tone-priority { background: #fff4dd; color: #d97706; }
+.task-workspace__cell-icon.tone-date { background: #eaf1ff; color: #3b6fd4; }
+.task-workspace__cell-icon.tone-person { background: #eef2f7; color: #52647b; }
+.task-workspace__cell-icon.tone-team { background: #e9f0ff; color: #4257c4; }
+
+.task-workspace__cell-body {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+}
+
+/* grid item มี min-width:auto โดยปริยาย ต้องบังคับเป็น 0 ไม่งั้น pill ดันเซลล์จนล้นกรอบ */
+.task-workspace__cell-body > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* เผื่อจอแคบสุด ให้ตัดด้วย ellipsis แทนการถูกกรอบเฉือนกลางตัวอักษร */
+.task-workspace .board-status-pill > span,
+.task-workspace .board-priority > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.task-workspace__cell-label {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.task-workspace__cell-static {
+    min-width: 0;
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-workspace__date {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #0f172a;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.task-workspace__date:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, .35);
+    outline-offset: 2px;
+}
+
+.task-workspace__cell-action {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #2563eb;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.task-workspace__cell-action:hover {
+    text-decoration: underline;
+}
+
+/*
+ * อ่านอย่างเดียวต้องไม่มีอะไรชวนให้เข้าใจว่ากดได้
+ * ครอบทั้งกรณีไม่มีสิทธิ์แก้ทั้งหน้า และกรณีวันที่เริ่มที่แก้ได้เฉพาะ Workspace ของผู้ดูแล
+ */
+.task-workspace[data-readonly="true"] .task-workspace__date,
+.task-workspace__date[readonly] {
+    color: #52647b;
+    cursor: default;
+    pointer-events: none;
+}
+
+.task-workspace__date[readonly]::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
+.task-workspace__cell-static[hidden] {
+    display: none;
+}
+
+/*
+ * เมนูสถานะและความสำคัญอยู่ในแถบสรุปที่สูงเพียงแถวเดียวและมี overflow:hidden
+ * เมนูความสำคัญเดิมเป็น position:absolute จึงถูกกรอบตัดเกือบทั้งอัน
+ * ที่นี่บังคับให้ทั้งสองเมนูเป็น fixed แล้วให้ JavaScript คำนวณตำแหน่งจากปุ่มจริง
+ *
+ * ต้องนำหน้าด้วย theme scope เพื่อให้ specificity ชนะกฎเดิมใน project-board.css
+ * ซึ่งถูก import หลังไฟล์นี้ (0,4,0 เทียบกับ 0,3,0)
+ */
+:is(.my-tasks-page,.sg-task-theme) .task-workspace .board-status-menu > div,
+:is(.my-tasks-page,.sg-task-theme) .task-workspace .board-priority-menu > div {
+    position: fixed;
+    top: var(--workspace-menu-top, auto);
+    left: var(--workspace-menu-left, auto);
+    z-index: 1300;
+    max-height: min(320px, calc(100dvh - 24px));
+    overflow-y: auto;
+}
+
+/* ---------- Panels ---------- */
+
+.task-workspace__panels {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px 16px;
+}
+
+.task-workspace__panel {
+    display: flex;
+    min-height: 0;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #e6ecf4;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.task-workspace__panel-head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+}
+
+.task-workspace__panel-icon {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    place-items: center;
+    border-radius: 9px;
+    background: #eef2f7;
+    color: #52647b;
+}
+
+.task-workspace__panel-head strong {
+    min-width: 0;
+    flex: 1;
+    color: #0f172a;
+    font-size: 14px;
+}
+
+.task-workspace__add-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid #d7e1ef;
+    border-radius: 8px;
+    background: #fff;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.task-workspace__add-file:hover {
+    border-color: #9fb9df;
+    background: #f6faff;
+}
+
+.task-workspace__add-file input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.task-workspace__add-file.is-dragover {
+    border-color: #2563eb;
+    background: #eef4ff;
+}
+
+.task-workspace__add-file[hidden] {
+    display: none;
+}
+
+.task-workspace__panel-body {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 14px 14px;
+    overflow: auto;
+}
+
+.task-workspace__file-status {
+    margin: 0;
+    color: #52647b;
+    font-size: 11px;
+}
+
+.task-workspace__file-status.is-error {
+    color: #b91c1c;
+}
+
+.task-workspace__file-status[hidden] {
+    display: none;
+}
+
+/* ---------- Timeline ---------- */
+
+.task-workspace__tabs {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 6px 14px 0;
+    border-bottom: 1px solid #edf1f7;
+}
+
+.task-workspace__tabs button {
+    padding: 9px 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: #64748b;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.task-workspace__tabs button:hover {
+    color: #2563eb;
+}
+
+.task-workspace__tabs button.active {
+    border-bottom-color: #2563eb;
+    color: #2563eb;
+}
+
+.task-workspace__timeline-items {
+    display: grid;
+    min-height: 0;
+    align-content: start;
+    flex: 1 1 auto;
+    gap: 12px;
+    padding: 14px;
+    overflow: auto;
+}
+
+.task-workspace__timeline-items .task-timeline-empty {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 8px;
+    min-height: 160px;
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.task-workspace__timeline-items .task-timeline-empty::before {
+    content: "\F3E5";
+    color: #c7d5e8;
+    font-family: bootstrap-icons;
+    font-size: 40px;
+    font-weight: 400;
+}
+
+.task-workspace .task-timeline__compose {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    margin: 0 14px 14px;
+    padding: 6px 6px 6px 12px;
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.task-workspace .task-timeline__compose textarea {
+    /* textarea มีความกว้างตั้งต้นจาก cols ต้องบังคับ min-width:0 ไม่งั้นดันกล่องจนล้นบนจอแคบ */
+    min-width: 0;
+    min-height: 34px;
+    max-height: 96px;
+    flex: 1;
+    padding: 8px 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #172033;
+    font: inherit;
+    font-size: 13px;
+    resize: none;
+}
+
+.task-workspace [data-submit-task-update] {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: #2563eb;
+    color: #fff;
+    cursor: pointer;
+}
+
+.task-workspace [data-submit-task-update]:hover {
+    background: #1d4fd7;
+}
+
+.task-workspace [data-submit-task-update]:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+}
+
+.task-workspace .task-timeline__compose[hidden] {
+    display: none;
+}
+
+/* ---------- Footer ---------- */
+
+.task-workspace__footer {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 12px 16px;
+    border-top: 1px solid #e6ecf4;
+    background: #fff;
+}
+
+.task-workspace__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.task-workspace__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.task-workspace__actions button {
+    min-height: 38px;
+    padding: 0 18px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.task-workspace__actions button:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.task-workspace__actions button[hidden] {
+    display: none;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1099px) {
+    .task-workspace-modal {
+        padding: 0;
+        /*
+         * ห้ามใช้ align-items:stretch ที่นี่
+         * flex item จะถูกบังคับความสูงเท่ากรอบ (100dvh) แล้ว overflow:hidden ของการ์ด
+         * จะเฉือนเนื้อหาส่วนที่เกินหน้าจอทิ้ง โดยที่ผู้ใช้เลื่อนลงไปดูไม่ได้เลย
+         */
+        align-items: flex-start;
+    }
+
+    /* มือถือและแท็บเล็ตเลื่อนทั้งหน้าเพียงชั้นเดียว panel ภายในจึงต้องไม่มี scroll ของตัวเอง */
+    .task-workspace {
+        width: 100%;
+        /* มือถือใช้ scroll ชั้นเดียวของ overlay การ์ดจึงต้องสูงตามเนื้อหา ไม่ใช่ความสูงคงที่ */
+        height: auto;
+        max-height: none;
+        min-height: 100dvh;
+        overflow: visible;
+        border-radius: 0;
+    }
+
+    .task-workspace__summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .task-workspace__cell {
+        border-right: 0;
+        border-bottom: 1px solid #edf1f7;
+    }
+
+    .task-workspace__panels {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .task-workspace__panel-body,
+    .task-workspace__timeline-items {
+        overflow: visible;
+    }
+
+    .task-workspace__timeline-items {
+        max-height: none;
+    }
+
+    .task-workspace__panel--files .task-workspace__panel-body {
+        min-height: 96px;
+    }
+}
+
+@media (max-width: 640px) {
+    .task-workspace__summary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .task-workspace__header {
+        padding: 16px 56px 14px 16px;
+    }
+
+    .task-workspace__footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .task-workspace__actions {
+        justify-content: stretch;
+    }
+
+    .task-workspace__actions button {
+        min-height: 44px;
+        flex: 1;
+    }
+}
+
+/* ---------- รายการไฟล์แนบ ---------- */
+
+.task-workspace .task-inline-files {
+    display: grid;
+    align-content: start;
+    gap: 7px;
+}
+
+.task-workspace .task-inline-files article {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 7px 9px;
+    border: 1px solid #e1e8f1;
+    border-radius: 8px;
+}
+
+.task-workspace .task-inline-files a {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    color: #40516a;
+    text-decoration: none;
+}
+
+.task-workspace .task-inline-files a:hover {
+    color: #2563eb;
+}
+
+.task-workspace .task-inline-files a span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-workspace .task-inline-files article > button {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.task-workspace .task-inline-files article > button:hover {
+    background: #fff1f1;
+    color: #dc2626;
+}
+
+/* Empty state ของไฟล์แนบตามแบบที่อนุมัติ: กรอบเส้นประกลางพื้นที่ */
+.task-workspace .task-inline-files > p {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 8px;
+    min-height: 96px;
+    margin: 0;
+    border: 1px dashed #d7e1ef;
+    border-radius: 10px;
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+.task-workspace .task-inline-files > p::before {
+    content: "\F3D8";
+    color: #c7d5e8;
+    font-family: bootstrap-icons;
+    font-size: 22px;
+}
+
+/* ---------- รายการไทม์ไลน์ ---------- */
+
+.task-workspace .task-timeline-entry {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+}
+
+.task-workspace .task-timeline-entry__avatar {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #e8eef7;
+    color: #52647b;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.task-workspace .task-timeline-entry__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.task-workspace .task-timeline-entry > div {
+    min-width: 0;
+}
+
+.task-workspace .task-timeline-entry strong,
+.task-workspace .task-timeline-entry small {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.task-workspace .task-timeline-entry strong {
+    color: #0f172a;
+    font-size: 13px;
+}
+
+.task-workspace .task-timeline-entry p {
+    margin: 3px 0;
+    color: #40516a;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.task-workspace .task-timeline-entry small {
+    color: #718096;
+    font-size: 10px;
+}
+
+
+/* ---------- ชั้นของ modal ---------- */
+
+/*
+ * ล็อก scroll ของหน้าเมื่อมี modal เปิดอยู่ ตัวนับชั้นอยู่ใน components/modal-stack.js
+ * เดิมคลาสนี้ถูก add/remove โดยไม่มีการนับ และไม่มีกฎ CSS รองรับเลย
+ */
+body.modal-open {
+    overflow: hidden;
+}
+
+/*
+ * เปิด modal ซ้อนกันแล้วต้องเห็นพื้นหลังทึบชั้นเดียว
+ * ชั้นที่ไม่ใช่บนสุดจึงถอด backdrop ออก แต่ยังคงกล่องและ z-index ไว้ตามเดิม
+ */
+[data-modal-backdrop="off"] {
+    background: transparent;
+    backdrop-filter: none;
+}

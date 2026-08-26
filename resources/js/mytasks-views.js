@@ -5,7 +5,19 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
     if (!workspace) return;
     const database = workspace.querySelector('.notion-database');
     const groupSelect = workspace.querySelector('[data-group]');
-    const tabs = [...workspace.querySelectorAll('[data-view]')];
+    /**
+     * ต้องจำกัดที่ role="tab" เท่านั้น — `data-view` ถูกใช้สองความหมายในหน้านี้:
+     * เป็น "ปุ่มสลับมุมมอง" บนแถบ .notion-viewbar (role="tab") และเป็น "สถานะมุมมองปัจจุบัน"
+     * บน <section class="notion-database" data-view="..."> ซึ่งครอบ panel ทั้งหมดรวมถึงปฏิทิน
+     *
+     * เดิมเลือกด้วย '[data-view]' เปล่า ๆ จึงจับ section ตัวครอบมาเป็น "ปุ่ม" ด้วย ผลคือ
+     * click listener ของปุ่มสลับมุมมองถูกผูกไว้กับ section ที่ครอบทั้งปฏิทิน คลิกอะไรก็ตาม
+     * ข้างใน (chip งาน/ประชุม, ปุ่มเปลี่ยนเดือน, ช่องวันที่) จะ bubble ขึ้นมาโดน listener นี้
+     * แล้วยิง selectView() → applyView() → event 'mytasks:viewchange' ทุกครั้ง
+     * ทำให้ปฏิทินถูกสั่ง re-render และ Quick View ที่เพิ่งเปิดถูกปิดทิ้งทันที
+     * (และ section ยังโดนใส่ class active/aria-selected ทั้งที่ไม่ใช่ tab)
+     */
+    const tabs = [...workspace.querySelectorAll('[role="tab"][data-view]')];
     const boardToolbar = workspace.querySelector('[data-board-toolbar]');
     const scopeControl = workspace.querySelector('[data-task-scope-control]');
     const scopeSelect = workspace.querySelector('[data-task-scope]');

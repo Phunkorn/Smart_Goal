@@ -30,8 +30,11 @@ class TaskCollaboratorController extends Controller
             ->filter()
             ->unique();
 
+        // บัญชีที่ถูกปิดใช้งาน login ไม่ได้และไม่ได้รับแจ้งเตือน จึงต้องไม่ถูกเพิ่มเข้าทีม
+        // ใช้กติกาเดียวกับ TaskCollaboratorOptions ที่สร้างรายชื่อให้ UI
         $eligibleUsers = User::with('department')
             ->where('role', 'user')
+            ->where('is_active', true)
             ->whereIn('id', $validated['collaborators'])
             ->get();
 

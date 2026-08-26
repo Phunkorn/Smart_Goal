@@ -8,6 +8,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Services\TaskCommentService;
 use App\Support\ProjectCreatorSummary;
+use App\Support\TaskCollaboratorOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
 use Illuminate\Http\Request;
@@ -296,11 +297,7 @@ class WorkBoardController extends Controller
             'unreadCommentCounts' => $unreadCommentCounts,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values(),
-            'availableCollaborators' => User::with('department')
-                ->where('role', 'user')
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(),
+            'availableCollaborators' => TaskCollaboratorOptions::forActor($request->user()),
             'employees' => User::with('department')->where('role', 'user')->orderBy('name')->get(),
             'departments' => Department::orderBy('department_name')->get(),
             'totals' => [

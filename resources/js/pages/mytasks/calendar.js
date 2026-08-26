@@ -1,4 +1,6 @@
 import {statusMeta, taskPriorityMeta} from './priority-meta.js';
+import {modalStack} from '../../components/modal-stack.js';
+import {createCalendarQuickView} from './calendar-quick-view.js';
 import {
     buddhistYear,
     buildMonthCalendar,
@@ -111,6 +113,10 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         if (loadingIndicator) loadingIndicator.hidden = !isLoading;
     };
 
+    const quickViewTemplate = calendar.dataset.taskQuickviewTemplate || '';
+    const taskDetailTemplate = calendar.dataset.taskDetailTemplate || '';
+    const quickView = createCalendarQuickView(document);
+
     const readEvents = () => {
         const unique = new Map();
         source.querySelectorAll('[data-row]').forEach((row) => {
@@ -119,6 +125,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 id,
                 taskId: row.dataset.id,
                 type: 'task',
+                entityId: Number(row.dataset.id),
+                quickViewUrl: quickViewTemplate.replace('__ID__', row.dataset.id),
+                detailUrl: taskDetailTemplate.replace('__ID__', row.dataset.id),
                 title: row.dataset.topic || 'ไม่มีชื่องาน',
                 project: row.dataset.project || 'งานทั่วไป',
                 status: Number(row.dataset.status) || 1,
@@ -156,9 +165,20 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const rowForTask = (id) => [...source.querySelectorAll('[data-row]')].find((candidate) => String(candidate.dataset.id) === String(id));
+
+    /**
+     * คลิกงานบนปฏิทินต้องเปิด Task Workspace ชุดเดียวกับตารางและบอร์ด
+     * ถ้าหน้านั้นไม่ได้ฝัง Workspace ไว้ ให้ตกกลับไปใช้การ์ดอ่านอย่างเดียวเหมือนเดิม
+     */
+    const openTaskWorkspace = (id) => {
+        const trigger = rowForTask(id)?.querySelector('[data-open-task-modal]');
+        if (!document.querySelector('[data-task-modal]') || !trigger) return false;
+        trigger.click();
+        return true;
+    };
     const displayDate = (value) => value ? dateFormatter.format(new Date(`${value}T00:00:00Z`)) : 'ไม่ระบุ';
     const fillList = (target, items, empty) => target.replaceChildren(...(items.length ? items.map((item) => element('p', '', item)) : [element('p', 'is-empty', empty)]));
-    const closeDetail = () => { detail.hidden = true; detail.removeAttribute('data-task-id'); document.body.classList.remove('modal-open'); };
+    const closeDetail = () => { modalStack(document).close(detail); detail.removeAttribute('data-task-id'); };
     const openReadOnlyTask = (id) => {
         const row = rowForTask(id);
         if (!row) return;
@@ -174,11 +194,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due);
         detail.querySelector('[data-calendar-detail-assignee]').textContent = team.assignee?.name || row.dataset.assignee || 'ไม่ระบุ';
         detail.querySelector('[data-calendar-detail-collaborators]').textContent = (team.collaborators || []).map((person) => `${person.name}${person.status === 'pending' ? ' (รอตอบรับ)' : ''}`).join(', ') || 'ไม่มีผู้ร่วมงาน';
-        detail.querySelector('[data-calendar-detail-description]').textContent = row.dataset.details || 'ไม่มีรายละเอียดเพิ่มเติม';
         fillList(detail.querySelector('[data-calendar-detail-attachments]'), files.map((file) => file.name), 'ไม่มีไฟล์แนบ');
-        detail.hidden = false;
-        document.body.classList.add('modal-open');
-        requestAnimationFrame(() => detail.querySelector('[data-calendar-detail-close]')?.focus());
+        modalStack(document).open(detail);
     };
 
     const makePopoverTask = (event) => {
@@ -187,7 +204,15 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         if (isMeeting) node.href = event.url;
         else node.type = 'button';
         node.dataset.calendarTask = event.id;
+        node.dataset.calendarEventType = event.type;
+        if (event.quickViewUrl) node.dataset.calendarQuickView = event.quickViewUrl;
+        if (event.detailUrl) node.dataset.calendarDetailUrl = event.detailUrl;
         node.setAttribute('aria-label', eventAriaLabel(event));
+        if (event.quickViewUrl) {
+            node.setAttribute('aria-haspopup', 'dialog');
+            node.setAttribute('aria-expanded', 'false');
+            node.setAttribute('aria-controls', 'calendar-quick-view-popover');
+        }
 
         const copy = element('span');
         copy.append(
@@ -255,8 +280,15 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         else node.type = 'button';
         node.dataset.calendarTask = event.id;
         node.dataset.calendarEventType = event.type;
+        if (event.quickViewUrl) node.dataset.calendarQuickView = event.quickViewUrl;
+        if (event.detailUrl) node.dataset.calendarDetailUrl = event.detailUrl;
         node.setAttribute('aria-label', eventAriaLabel(event));
         node.title = eventAriaLabel(event);
+        if (event.quickViewUrl) {
+            node.setAttribute('aria-haspopup', 'dialog');
+            node.setAttribute('aria-expanded', 'false');
+            node.setAttribute('aria-controls', 'calendar-quick-view-popover');
+        }
 
         // ไอคอนนำหน้าทำให้แยกประเภทได้โดยไม่ต้องพึ่งสีอย่างเดียว
         const marker = element('i', isMeeting ? 'bi bi-calendar-event-fill' : `priority-${event.priority}`);
@@ -294,6 +326,11 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     const render = () => {
         closePopover();
+        // ห้ามปิด Quick View ตรงนี้ — render() ถูกเรียกจาก ensureMeetingsForSelectedMonth()
+        // ทุกครั้งที่ fetch ประชุมพื้นหลังเสร็จ (ทุกครั้งที่เปิดหน้า/เปลี่ยนเดือน) ถ้าปิดที่นี่
+        // Quick View ที่เพิ่งเปิดจะถูกปิดทิ้งเองทันทีที่ fetch นั้นตอบกลับ ทำให้ดูเหมือนคลิก
+        // Event ไม่ได้ผลเลย จุดที่ต้องปิดจริงคือตอน "เปลี่ยนเดือน" (goToMonth) และตอนข้อมูล
+        // ถูก invalidate จริง (mytasks:viewchange / mytasks:changed) เท่านั้น
         monthData = buildMonthCalendar(readEvents(), selectedYear, selectedMonth);
         synchronizeSelectors();
         title.textContent = monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
@@ -348,6 +385,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const goToMonth = (year, month) => {
+        // เดือนใหม่รื้อ chip เดิมทั้งหมด anchor ของ Quick View ที่เปิดอยู่จะหลุดออกจาก DOM
+        // ต้องปิดก่อนเสมอ ต่างจาก render() เฉย ๆ ที่อาจถูกเรียกจาก fetch พื้นหลังโดยเดือนไม่เปลี่ยน
+        quickView?.close();
         selectedYear = year;
         selectedMonth = month;
         render();
@@ -368,12 +408,27 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     calendar.addEventListener('click', (event) => {
         const chip = event.target.closest('[data-calendar-task]');
         if (chip) {
-            // ประชุมเป็นลิงก์จริง ปล่อยให้เบราว์เซอร์พาไปหน้ารายละเอียดตามปกติ
-            if (chip.dataset.calendarEventType === 'meeting' || chip.tagName === 'A') return;
+            // เปิดในแท็บใหม่ด้วย Ctrl/Cmd/Shift ยังต้องทำงานตามปกติของลิงก์
+            if (event.metaKey || event.ctrlKey || event.shiftKey) return;
 
             event.preventDefault();
             closePopover();
-            openReadOnlyTask(String(chip.dataset.calendarTask).replace(/^task-/, ''));
+
+            const quickViewUrl = chip.dataset.calendarQuickView;
+            if (quickView && quickViewUrl) {
+                // detailUrl มาจาก event ที่ระบบสร้างเอง ไม่ใช่จาก HTML ที่ endpoint ตอบกลับ
+                quickView.open(quickViewUrl, chip, chip.dataset.calendarDetailUrl || '');
+                return;
+            }
+
+            // ไม่มี Quick View (เช่นหน้าที่ไม่ได้ฝัง shell) จึงค่อยตกไปใช้เส้นทางเดิม
+            if (chip.dataset.calendarEventType === 'meeting') {
+                if (chip.href) window.location.assign(chip.href);
+                return;
+            }
+
+            const taskId = String(chip.dataset.calendarTask).replace(/^task-/, '');
+            if (!openTaskWorkspace(taskId)) openReadOnlyTask(taskId);
             return;
         }
 
@@ -403,15 +458,31 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     document.addEventListener('click', (event) => {
         if (!popover.hidden && !popover.contains(event.target) && !event.target.closest('[data-calendar-more]')) closePopover();
     });
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !detail.hidden) closeDetail();
-        else if (event.key === 'Escape' && !popover.hidden) closePopover(true);
+    calendar.addEventListener('keydown', (event) => {
+        if (event.key !== ' ' && event.key !== 'Spacebar') return;
+        const chip = event.target.closest('[data-calendar-task]');
+        if (!chip || chip.tagName !== 'A') return;
+
+        event.preventDefault();
+        chip.click();
     });
+
+    document.addEventListener('keydown', (event) => {
+        // การ์ดรายละเอียดปิดผ่าน modal stack เพื่อไม่ให้ Escape ทะลุไปปิดชั้นอื่น
+        if (event.key === 'Escape' && detail.hidden && !popover.hidden) closePopover(true);
+    });
+    detail.addEventListener('modalstack:dismiss', closeDetail);
+
     document.addEventListener('mytasks:viewchange', (event) => {
+        quickView?.close();
         if (event.detail?.view === 'calendar') render();
         else closePopover();
     });
-    document.addEventListener('mytasks:changed', render);
+    document.addEventListener('mytasks:changed', () => {
+        // ข้อมูลงานถูกแก้จากที่อื่น (เช่น Task Workspace) เนื้อหาที่ Quick View แสดงอยู่อาจไม่ตรงแล้ว
+        quickView?.close();
+        render();
+    });
     window.addEventListener('resize', () => closePopover());
     window.addEventListener('scroll', (event) => {
         if (!popover.contains(event.target)) closePopover();

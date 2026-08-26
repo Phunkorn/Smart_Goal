@@ -120,11 +120,6 @@
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label fw-bold">รายละเอียดงาน</label>
-                            <textarea name="tasks[0][job_details]" class="form-control" rows="3" placeholder="อธิบายรายละเอียด เป้าหมาย หรือสิ่งที่ต้องส่งมอบ"></textarea>
-                        </div>
-
-                        <div class="col-12">
                             <label class="form-label fw-bold">ความสำคัญ</label>
                             <div class="priority-picker dropdown">
                                 <button type="button" class="priority-picker-toggle form-control form-control-lg d-flex align-items-center justify-content-between dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">

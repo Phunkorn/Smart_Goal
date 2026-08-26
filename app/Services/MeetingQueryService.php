@@ -130,6 +130,10 @@ final class MeetingQueryService
                     'due' => $endsAt->format('Y-m-d'),
                     'startTime' => $startsAt->format('H:i'),
                     'endTime' => $endsAt->format('H:i'),
+                    // ปฏิทินต้องรู้ปลายทางทั้งสองแบบตั้งแต่ต้น: ดูย่อในหน้าเดิม และเปิดหน้าเต็ม
+                    'entityId' => $meeting->id,
+                    'quickViewUrl' => route('mytasks.quickview.meeting', $meeting),
+                    'detailUrl' => route('meetings.show', $meeting),
                     'url' => route('meetings.show', $meeting),
                 ];
             })

@@ -1,4 +1,4 @@
-@if(filled($adminSenderName ?? null) || $task->job_details || $task->subtasks->isNotEmpty() || ($taskLinkMode ?? false) || ($includeCollaborators ?? false))
+@if(filled($adminSenderName ?? null) || $task->subtasks->isNotEmpty() || ($taskLinkMode ?? false) || ($includeCollaborators ?? false))
     <template data-task-support-source data-task-id="{{ $task->job_id }}">
         @include('tasks.partials.admin-assignment-marker', ['adminSenderName' => $adminSenderName ?? null])
         @include('tasks.partials.task-subtasks-summary', ['task' => $task])

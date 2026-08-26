@@ -80,13 +80,18 @@ trait ValidatesAttachments
         }
 
         foreach ($request->file($field) as $file) {
+            // getClientMimeType() คือค่า Content-Type ที่ client ส่งมา ปลอมได้และยาวไม่จำกัด
+            // ต้องใช้ getMimeType() ที่ตรวจจากเนื้อไฟล์จริง ซึ่งเป็นแหล่งเดียวกับที่
+            // assertAllowedAttachments() ใช้ตรวจ allow-list ค่าที่เก็บจึงถูกจำกัดชุดและความยาวเสมอ
+            // ต้องอ่านก่อน storeAttachment() เพราะหลังย้ายไฟล์ออกจากที่พักชั่วคราวจะอ่านไม่ได้แล้ว
+            $mimeType = $file->getMimeType();
             $path = ProtectedMedia::storeAttachment($file, 'job-attachments/'.$job->job_id);
 
             JobImage::create([
                 'job_id' => $job->job_id,
                 'file_path' => $path,
                 'original_name' => $file->getClientOriginalName(),
-                'file_type' => $file->getClientMimeType(),
+                'file_type' => $mimeType,
                 'uploaded_by' => Auth::id(),
             ]);
         }

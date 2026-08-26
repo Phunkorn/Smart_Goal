@@ -9,6 +9,14 @@
 @endphp
 
 <section class="mytasks-calendar" id="mytasks-calendar" data-calendar data-view-panel="calendar" role="tabpanel" aria-hidden="true" aria-labelledby="mytasks-calendar-title"
+    data-task-quickview-template="{{ route('mytasks.quickview.task', ['id' => '__ID__']) }}"
+    {{--
+        รายละเอียดเต็มของงานคือ Task Workspace ที่เปิดผ่าน deep link บน "หน้าปัจจุบัน"
+        fullUrlWithQuery รักษา query เดิมไว้ (view=calendar ฯลฯ) และแทนค่า open_task เดิมถ้ามีอยู่แล้ว
+        ห้ามให้ quick-view endpoint สร้าง URL นี้ เพราะ current URL ของ AJAX คือตัว endpoint เอง
+        ไม่ใช่หน้า Calendar ต้นทาง — Admin ที่เปิดจาก Member Workspace จะถูกพาไป /my-tasks ผิดหน้า
+    --}}
+    data-task-detail-template="{{ request()->fullUrlWithQuery(['open_task' => '__ID__']) }}"
     @if($calendarShowsMeetings)
         data-meetings-endpoint="{{ route('mytasks.calendar.meetings') }}"
         @if($calendarMeetingRange)
@@ -68,12 +76,14 @@
 
 <div class="notion-modal mytasks-calendar-detail" data-calendar-detail hidden>
         <section class="mytasks-calendar-detail__card" role="dialog" aria-modal="true" aria-labelledby="calendar-detail-title">
-            <header><div><span>CALENDAR TASK</span><h2 id="calendar-detail-title" data-calendar-detail-title></h2><small data-calendar-detail-project></small></div><button type="button" data-calendar-detail-close aria-label="ปิดรายละเอียดงาน"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header>
+            <header><div><span>CALENDAR TASK</span><h2 id="calendar-detail-title" data-calendar-detail-title></h2><small data-calendar-detail-project></small></div><button type="button" data-calendar-detail-close aria-label="ปิดข้อมูลงาน"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header>
             <div class="mytasks-calendar-detail__body">
                 <dl class="mytasks-calendar-detail__meta"><div><dt>สถานะ</dt><dd data-calendar-detail-status></dd></div><div><dt>ความสำคัญ</dt><dd data-calendar-detail-priority></dd></div><div><dt>วันที่เริ่ม</dt><dd data-calendar-detail-start></dd></div><div><dt>กำหนดส่ง</dt><dd data-calendar-detail-due></dd></div><div><dt>ผู้รับผิดชอบ</dt><dd data-calendar-detail-assignee></dd></div><div><dt>ผู้ร่วมงาน</dt><dd data-calendar-detail-collaborators></dd></div></dl>
-                <section><h3>รายละเอียดงาน</h3><p data-calendar-detail-description></p></section>
+                
                 <section><h3>ไฟล์แนบ</h3><div data-calendar-detail-attachments></div></section>
             </div>
             <footer><button type="button" class="task-secondary" data-calendar-detail-close>ปิด</button></footer>
         </section>
     </div>
+
+@include('calendar.quick-view-modal')

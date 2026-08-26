@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Meeting;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -12,6 +13,7 @@ use App\Support\Concerns\ValidatesAttachments;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\ProjectCreatorSummary;
 use App\Support\ProtectedMedia;
+use App\Support\TaskCollaboratorOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkOrderAssignee;
 use App\Services\MeetingQueryService;
@@ -27,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
@@ -128,11 +131,7 @@ class MyTaskController extends Controller
         $todayTasks = TodayWorkspace::tasks($workspaceWorkOrders);
         $calendarTasks = $workOrders;
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($workOrders->pluck('job_id'), $user);
-        $availableCollaborators = User::with('department')
-            ->where('role', 'user')
-            ->where('id', '!=', $user->id)
-            ->orderBy('name')
-            ->get();
+        $availableCollaborators = TaskCollaboratorOptions::forActor($user);
         $projectCreatorMeta = ProjectCreatorSummary::forListIds($taskLists->pluck('id'));
 
         // ประชุมถูก query ต่อเมื่อผู้ใช้เปิดมุมมองนั้นจริง เพื่อไม่ให้ทุกการเปิดหน้างานมีคิวรีเพิ่ม
@@ -192,6 +191,48 @@ class MyTaskController extends Controller
 
         return response()->json([
             'meetings' => app(MeetingQueryService::class)->calendarMeetings($user, $from, $to),
+        ]);
+    }
+
+    /**
+     * Quick View ของงานบนปฏิทิน — คืน HTML ของ partial เพื่อ reuse formatter ของ Blade
+     *
+     * โหลดตอนคลิกเท่านั้น ไม่ฝังมากับหน้าปฏิทิน และตรวจสิทธิ์ด้วย WorkOrderPolicy::view
+     * ทุกครั้ง การซ่อนปุ่มฝั่ง client ไม่ถือเป็นการป้องกัน
+     */
+    public function taskQuickView(Request $request, int $id): View
+    {
+        $task = WorkOrder::with([
+            'taskList',
+            'user.department',
+            'creator',
+            'collaborators.department',
+            'updates.user',
+        ])->withCount('images')->findOrFail($id);
+
+        $this->authorize('view', $task);
+
+        return view('calendar.quick-view.task', [
+            'task' => $task,
+            // ผู้ใช้คลิกที่หมุด "วันเริ่ม" หรือ "กำหนดส่ง" ให้บอกกลับว่ามาจากหมุดไหน
+            'milestone' => in_array($request->query('milestone'), ['start', 'end', 'single'], true)
+                ? $request->query('milestone')
+                : 'single',
+        ]);
+    }
+
+    /**
+     * Quick View ของการประชุม — ใช้ MeetingPolicy::view ตัวเดียวกับหน้ารายละเอียดเดิม
+     */
+    public function meetingQuickView(Meeting $meeting): View
+    {
+        Gate::authorize('view', $meeting);
+
+        $meeting->load(['creator.department', 'attendees.department']);
+
+        return view('calendar.quick-view.meeting', [
+            'meeting' => $meeting,
+            'nowBangkok' => CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE),
         ]);
     }
 
@@ -342,12 +383,14 @@ class MyTaskController extends Controller
 
                 if ($request->hasFile('attachments')) {
                     foreach ($request->file('attachments') as $file) {
+                        // getMimeType() ตรวจจากเนื้อไฟล์จริง ต่างจาก getClientMimeType() ที่ปลอมได้ และต้องอ่านก่อนย้ายไฟล์
+                        $mimeType = $file->getMimeType();
                         $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$list->id);
                         WorkOrderListAttachment::create([
                             'work_order_list_id' => $list->id,
                             'file_path' => $path,
                             'original_name' => $file->getClientOriginalName(),
-                            'file_type' => $file->getClientMimeType(),
+                            'file_type' => $mimeType,
                             'uploaded_by' => $actor->id,
                         ]);
                     }
@@ -451,12 +494,14 @@ class MyTaskController extends Controller
 
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {
+                    // getMimeType() ตรวจจากเนื้อไฟล์จริง ต่างจาก getClientMimeType() ที่ปลอมได้ และต้องอ่านก่อนย้ายไฟล์
+                    $mimeType = $file->getMimeType();
                     $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$list->id);
                     WorkOrderListAttachment::create([
                         'work_order_list_id' => $list->id,
                         'file_path' => $path,
                         'original_name' => $file->getClientOriginalName(),
-                        'file_type' => $file->getClientMimeType(),
+                        'file_type' => $mimeType,
                         'uploaded_by' => $actor->id,
                     ]);
                 }
@@ -685,6 +730,8 @@ class MyTaskController extends Controller
         try {
             DB::transaction(function () use ($incomingFiles, $list, &$storedPaths) {
                 foreach ($incomingFiles as $file) {
+                    // getMimeType() ตรวจจากเนื้อไฟล์จริง ต่างจาก getClientMimeType() ที่ปลอมได้ และต้องอ่านก่อนย้ายไฟล์
+                    $mimeType = $file->getMimeType();
                     $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$list->id);
                     $storedPaths[] = $path;
 
@@ -692,7 +739,7 @@ class MyTaskController extends Controller
                         'work_order_list_id' => $list->id,
                         'file_path' => $path,
                         'original_name' => $file->getClientOriginalName(),
-                        'file_type' => $file->getClientMimeType(),
+                        'file_type' => $mimeType,
                         'uploaded_by' => Auth::id(),
                     ]);
                 }

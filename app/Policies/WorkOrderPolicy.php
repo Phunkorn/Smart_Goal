@@ -138,12 +138,19 @@ class WorkOrderPolicy
      */
     public function manageTeam(User $user, WorkOrder $workOrder): bool
     {
-        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
+        if ($user->role === 'viewer') {
             return false;
         }
 
-        return $user->role === 'admin'
-            || in_array($user->id, [$workOrder->created_by, $workOrder->leader_user_id], true);
+        // Admin จัดการทีมได้แม้งานปิดแล้ว ซึ่งตรงกับที่ TaskCollaboratorController
+        // และธง locked ใน Blade สื่อไว้ตลอด (เดิมเงื่อนไข job_status === 4 อยู่เหนือบรรทัดนี้
+        // จึงบล็อกทุก role รวม Admin ทำให้ abort_if ใน controller กลายเป็น dead code)
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        return (int) $workOrder->job_status !== 4
+            && in_array($user->id, [$workOrder->created_by, $workOrder->leader_user_id], true);
     }
 
     /**

@@ -40,7 +40,6 @@
                 @php($priority = \App\Support\WorkBoardDesign::taskPriority((int) $job->job_priority))
                 <article class="wb-task-row">
                     <div class="wb-task-name"><i class="wb-mini-dot wb-tone-{{ $status['tone'] }}"></i><strong>{{ $job->job_topic }}</strong></div>
-                    <p>{{ $job->job_details ?: 'ไม่มีรายละเอียดงาน' }}</p>
                     <span class="wb-status wb-tone-{{ $status['tone'] }}"><i></i>{{ $status['label'] }}</span>
                     <span class="wb-priority wb-tone-{{ $priority['tone'] }}"><i class="bi bi-flag-fill"></i>{{ $priority['label'] }}</span>
                     <time class="{{ $status['key'] === 'late' ? 'is-late' : '' }}">{{ $job->job_due_at?->locale('th')->translatedFormat('j M Y') ?? '-' }}</time>
@@ -49,7 +48,7 @@
                         @if($job->collaborators->count() > 3)<span class="wb-avatar wb-avatar--sm">+{{ $job->collaborators->count() - 3 }}</span>@endif
                     </div>
                     <span class="wb-file-count"><i class="bi bi-paperclip"></i>{{ $job->images_count ?: '-' }}</span>
-                    <div class="wb-task-action">@can('view', $job)<a href="{{ route('tasks.show', $job->job_id) }}" title="เปิดรายละเอียดงาน"><i class="bi bi-box-arrow-up-right"></i></a>@else<span>-</span>@endcan</div>
+                    <div class="wb-task-action">@can('view', $job)<a href="{{ route('tasks.show', $job->job_id) }}" title="เปิดข้อมูลงาน"><i class="bi bi-box-arrow-up-right"></i></a>@else<span>-</span>@endcan</div>
                 </article>
             @endforeach
         </section>

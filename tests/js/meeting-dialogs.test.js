@@ -17,6 +17,8 @@ const bladeSources = [
     'components/meeting-card.blade.php',
 ].map((file) => readFileSync(new URL(`../../resources/views/meetings/${file}`, import.meta.url), 'utf8')).join('\n');
 const formSource = readFileSync(new URL('../../resources/views/meetings/components/form-modal.blade.php', import.meta.url), 'utf8');
+// ตัวเลือกผู้เข้าร่วมถูกยกไปเป็น component กลางที่ใช้ร่วมกับผู้ร่วมงานของงานแล้ว
+const peopleSelectorSource = readFileSync(new URL('../../resources/views/components/people-selector.blade.php', import.meta.url), 'utf8');
 const formCss = readFileSync(new URL('../../resources/css/pages/meetings/form.css', import.meta.url), 'utf8');
 
 test('meeting feedback and deletion use SweetAlert2', () => {
@@ -118,10 +120,13 @@ test('meeting modal keeps shared compact markup and viewport scroll fallback', (
     assert.match(formSource, /modal-dialog modal-lg modal-dialog-centered/);
     assert.doesNotMatch(formSource, /modal-dialog-scrollable/);
     assert.match(formSource, /rows="2"/);
-    assert.match(formSource, /data-meeting-attendee-checkbox/);
-    assert.match(formSource, /name="attendees\[\]"/);
-    assert.match(formSource, /data-meeting-department-filter/);
-    assert.match(formSource, /data-meeting-selected-attendees/);
+    // หน้าประชุมต้องเรียก component กลาง ไม่ใช่ประกาศ markup ของตัวเอง
+    assert.match(formSource, /@include\('components\.people-selector'/);
+    assert.match(formSource, /'inputName' => 'attendees\[\]'/);
+    assert.match(peopleSelectorSource, /data-people-checkbox/);
+    assert.match(peopleSelectorSource, /data-people-department/);
+    assert.match(peopleSelectorSource, /data-people-chips/);
+    assert.doesNotMatch(peopleSelectorSource, /<select[^>]*multiple/);
     assert.doesNotMatch(formSource, /<select[^>]*name="attendees\[\]"[^>]*multiple/);
     assert.doesNotMatch(source, /selectedOptions|ctrlKey|shiftKey|data-meeting-attendee-select/);
     assert.doesNotMatch(formCss, /(?:^|\n)\s*\.modal(?:\s|\{|\.|#|:)/);
