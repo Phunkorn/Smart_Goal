@@ -31,7 +31,8 @@ export function taskWorkspaceMarkup({
     const managementData = {
         [String(taskId)]: {
             transitions: {},
-            can_update: true,
+            can_work: true,
+            can_comment: true,
             can_manage_team: true,
             project: 'โปรเจกต์ทดสอบ',
             status: 2,

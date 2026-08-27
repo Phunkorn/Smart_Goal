@@ -28,6 +28,7 @@ export default defineConfig({
                 'resources/css/pages/settings.css',
                 'resources/js/app.js',
                 'resources/js/pages/employees/index.js',
+                'resources/js/pages/board/assignment-approval.js',
                 'resources/js/pages/mytasks/index.js',
                 'resources/js/pages/meetings/index.js',
                 'resources/js/pages/reports/index.js',

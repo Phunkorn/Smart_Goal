@@ -1,5 +1,5 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './priority-meta.js';
-import {confirmTaskTransition} from './task-transitions.js';
+import {canTransitionTo, confirmTaskTransition} from './task-transitions.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -96,6 +96,15 @@ import {confirmTaskTransition} from './task-transitions.js';
     new MutationObserver(restoreProjectPriorityControls).observe(table.querySelector('[data-groups]'), {childList: true, subtree: true});
     restoreProjectPriorityControls();
 
+    const refreshStatusControls = (row) => {
+        const capabilities = management[String(row.dataset.id)]?.transitions || {};
+        row.querySelectorAll('[data-table-status-value]').forEach((button) => {
+            button.disabled = !canTransitionTo(Number(row.dataset.status), Number(button.dataset.tableStatusValue), capabilities);
+        });
+    };
+
+    table.querySelectorAll('[data-row]').forEach(refreshStatusControls);
+
     document.addEventListener('mytasks:changed', (event) => {
         const task = event.detail;
         const row = table.querySelector(`[data-row][data-id="${task.id}"]`);
@@ -128,12 +137,15 @@ import {confirmTaskTransition} from './task-transitions.js';
             const row = statusOption.closest('[data-row]');
             const value = Number(statusOption.dataset.tableStatusValue);
             if (!menu || !row || !statusMeta[value]) return;
+            if (!canTransitionTo(Number(row.dataset.status), value, management[String(row.dataset.id)]?.transitions || {})) return;
             statusOption.disabled = true;
             try {
                 const payload = await confirmTaskTransition(Number(row.dataset.status), value, management[String(row.dataset.id)]?.transitions || {});
                 if (!payload) return;
-                await request(endpoint(workspace.dataset.statusTemplate, row.dataset.id), 'PATCH', payload);
+                const data = await request(endpoint(workspace.dataset.statusTemplate, row.dataset.id), 'PATCH', payload);
+                if (data.transitions) management[String(row.dataset.id)].transitions = data.transitions;
                 updateStatusVisual(row, menu, value);
+                refreshStatusControls(row);
                 row.querySelector('input[data-field="status"]')?.setAttribute('value', String(value));
                 menu.removeAttribute('open');
                 document.dispatchEvent(new CustomEvent('mytasks:changed', {detail: {id: row.dataset.id, topic: row.dataset.topic, status: value, priority: Number(row.dataset.priority)}}));
@@ -141,7 +153,7 @@ import {confirmTaskTransition} from './task-transitions.js';
             } catch (error) {
                 notify(error.message, false);
             } finally {
-                statusOption.disabled = false;
+                refreshStatusControls(row);
             }
             return;
         }

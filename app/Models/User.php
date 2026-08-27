@@ -76,7 +76,7 @@ class User extends Authenticatable
     public function joinedJobs(): BelongsToMany
     {
         return $this->belongsToMany(WorkOrder::class, 'work_order_collaborators', 'user_id', 'work_order_id')
-            ->withPivot('added_by', 'status', 'responded_at')
+            ->withPivot('added_by', 'decided_by', 'status', 'responded_at')
             ->withTimestamps();
     }
 

@@ -7,7 +7,7 @@ import {
 } from './pages/mytasks/board-floating-menu.js';
 import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
 import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
-import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
+import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -24,6 +24,15 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
     const attachmentDataNode = document.querySelector('[data-attachment-data]');
     const attachmentData = attachmentDataNode ? JSON.parse(attachmentDataNode.textContent || '{}') : {};
     const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
+
+    const refreshStatusControls = (task) => {
+        const capabilities = management[String(task.dataset.taskId)]?.transitions || {};
+        task.querySelectorAll('[data-board-status-value]').forEach((button) => {
+            button.disabled = !canTransitionTo(Number(task.dataset.status), Number(button.dataset.boardStatusValue), capabilities);
+        });
+    };
+
+    board.querySelectorAll('[data-board-task]').forEach(refreshStatusControls);
     const endpoint = (template, id) => template.replace('__ID__', id);
     const persistFilterState = workspace.dataset.context === 'user';
     const initialFilterState = persistFilterState
@@ -384,7 +393,8 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
             statusOption.disabled = true;
             const payload = await confirmTaskTransition(Number(task.dataset.status), value, management[String(task.dataset.taskId)]?.transitions || {});
             if (!payload) { statusOption.disabled = false; return; }
-            request(endpoint(workspace.dataset.statusTemplate, task.dataset.taskId), 'PATCH', payload).then(() => {
+            request(endpoint(workspace.dataset.statusTemplate, task.dataset.taskId), 'PATCH', payload).then((data) => {
+                if (data.transitions) management[String(task.dataset.taskId)].transitions = data.transitions;
                 task.dataset.status = String(value);
                 task.dataset.late = '0';
                 const summary = menu.querySelector('summary');
@@ -403,9 +413,10 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
                     if (text) text.textContent = '100%';
                 }
                 synchronizeTaskSource(workspace, task.dataset.taskId, {status: value});
+                refreshStatusControls(task);
                 notify('เปลี่ยนสถานะงานแล้ว');
                 filterBoard();
-            }).catch((error) => notify(error.message, false)).finally(() => statusOption.disabled = false);
+            }).catch((error) => notify(error.message, false)).finally(() => refreshStatusControls(task));
             return;
         }
 
@@ -477,6 +488,25 @@ import {confirmTaskTransition} from './pages/mytasks/task-transitions.js';
                 deleteProject.disabled = false;
                 notify(error.message, false);
             });
+            return;
+        }
+
+        const renameTask = event.target.closest('[data-board-rename-task]');
+        if (renameTask) {
+            const task = renameTask.closest('[data-board-task]');
+            if (!task) return;
+            const result = await Swal.fire({title: 'แก้ไขชื่อรายการงาน', input: 'text', inputValue: renameTask.dataset.name, inputAttributes: {maxlength: 255}, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่อรายการงาน'});
+            const name = result.value?.trim();
+            if (!result.isConfirmed || !name || name === renameTask.dataset.name) return;
+            renameTask.disabled = true;
+            request(renameTask.dataset.url, 'PATCH', {job_topic: name}).then(() => {
+                task.dataset.topic = name;
+                const title = task.querySelector('.board-reference-task__open strong');
+                if (title) title.textContent = name;
+                renameTask.dataset.name = name;
+                synchronizeTaskSource(workspace, task.dataset.taskId, {topic: name});
+                notify('แก้ไขชื่อรายการงานแล้ว');
+            }).catch((error) => notify(error.message, false)).finally(() => renameTask.disabled = false);
             return;
         }
 

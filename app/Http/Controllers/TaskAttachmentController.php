@@ -21,7 +21,7 @@ class TaskAttachmentController extends Controller
         $job = WorkOrder::with(['collaborators', 'images'])->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize('update', $job);
+        $this->authorize('work', $job);
         abort_if((int) $job->job_status === 4 && $user?->role !== 'admin', 403);
 
         $request->validate([
@@ -48,7 +48,7 @@ class TaskAttachmentController extends Controller
     public function destroyAttachment(Request $request, $id, JobImage $attachment)
     {
         $job = WorkOrder::findOrFail($id);
-        $this->authorize('update', $job);
+        $this->authorize('work', $job);
         abort_unless((int) $attachment->job_id === (int) $job->job_id, 404);
         abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
 

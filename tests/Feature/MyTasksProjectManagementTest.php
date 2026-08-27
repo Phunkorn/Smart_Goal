@@ -2,9 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\ActivityLog;
 use App\Models\Department;
-use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -16,6 +14,66 @@ use Tests\TestCase;
 class MyTasksProjectManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_board_task_menu_only_targets_the_task_and_project_header_edit_remains_available(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $list = WorkOrderList::create([
+            'user_id' => $owner->id,
+            'name' => 'Menu project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+        $task = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'job_topic' => 'Menu task',
+            'job_priority' => 2,
+            'job_status' => 1,
+            'approval_status' => 'approved',
+            'job_progress' => 0,
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+
+        $content = $this->actingAs($owner)
+            ->get(route('mytasks.index', ['view' => 'board']))
+            ->assertOk()
+            ->assertSee('data-board-edit-project', false)
+            ->getContent();
+
+        preg_match('/<article[^>]*data-board-task[^>]*data-task-id="'.$task->job_id.'"[^>]*>(.*?)<\/article>/s', $content, $matches);
+        $this->assertNotEmpty($matches, 'ไม่พบ task card ที่ต้องตรวจเมนู');
+        $taskCard = $matches[0];
+
+        $this->assertStringContainsString('bi-three-dots-vertical', $taskCard);
+        $this->assertStringContainsString('แก้ไขชื่อรายการงาน', $taskCard);
+        $this->assertStringContainsString('ลบรายการงาน', $taskCard);
+        $this->assertStringContainsString('data-task-id="'.$task->job_id.'"', $taskCard);
+        $this->assertStringContainsString('data-url="'.route('tasks.details.update', $task).'"', $taskCard);
+        $this->assertStringContainsString('data-url="'.route('mytasks.destroy', $task).'"', $taskCard);
+        $this->assertStringNotContainsString('แก้ไขโปรเจกต์', $taskCard);
+        $this->assertStringNotContainsString(route('mytasks.lists.update', $list), $taskCard);
+
+        $this->actingAs($owner)
+            ->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Renamed task item'])
+            ->assertOk();
+        $this->assertSame('Renamed task item', $task->fresh()->job_topic);
+        $this->assertSame('Menu project', $list->fresh()->name);
+
+        $this->actingAs($owner)
+            ->deleteJson(route('mytasks.destroy', $task))
+            ->assertOk();
+        $this->assertSoftDeleted($task);
+        $this->assertDatabaseHas('work_order_lists', ['id' => $list->id, 'name' => 'Menu project']);
+
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.lists.update', $list), ['name' => 'Renamed project'])
+            ->assertOk();
+        $this->assertSame('Renamed project', $list->fresh()->name);
+    }
 
     public function test_project_priority_and_attachments_belong_to_project_not_first_task(): void
     {

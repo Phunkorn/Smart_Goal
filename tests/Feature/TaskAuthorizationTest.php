@@ -110,10 +110,11 @@ class TaskAuthorizationTest extends TestCase
         Storage::disk('local')->assertMissing($attachment->file_path);
     }
 
-    public function test_collaborator_can_respond_to_invitation_and_owner_can_remove_them(): void
+    public function test_admin_approves_collaborator_invitation_and_owner_can_remove_them(): void
     {
         $owner = $this->user();
         $candidate = $this->user();
+        $admin = $this->user('admin');
         $task = $this->taskFor($owner);
 
         $this->actingAs($owner)
@@ -126,7 +127,11 @@ class TaskAuthorizationTest extends TestCase
 
         $this->actingAs($candidate)
             ->patch(route('tasks.invitation.respond', $task), ['status' => 'accepted'])
-            ->assertRedirect();
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
+            ->assertOk();
 
         $this->assertSame('accepted', $task->collaborators()->findOrFail($candidate->id)->pivot->status);
 

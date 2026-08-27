@@ -114,7 +114,7 @@ initializePeopleSelectors(document);
      */
     const applyPermissions = (meta) => {
         const transitions = meta.transitions || {};
-        const canUpdate = meta.can_update !== false && !transitions.is_final;
+        const canUpdate = meta.can_work === true && !transitions.is_final;
         form.dataset.readonly = canUpdate ? 'false' : 'true';
 
         renameButton.hidden = !canUpdate;

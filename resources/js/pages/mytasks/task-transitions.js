@@ -8,8 +8,26 @@ export function transitionKind(currentStatus, targetStatus, capabilities = {}) {
     return 'standard';
 }
 
+export function canTransitionTo(currentStatus, targetStatus, capabilities = {}) {
+    const allowed = capabilities.allowed_statuses;
+    if (!Array.isArray(allowed)) return Number(currentStatus) === Number(targetStatus) || capabilities.can_edit === true;
+
+    return allowed.map(Number).includes(Number(targetStatus));
+}
+
+export function canDragTask(currentStatus, capabilities = {}) {
+    return capabilities.can_edit === true
+        && capabilities.is_final !== true
+        && Array.isArray(capabilities.allowed_statuses)
+        && capabilities.allowed_statuses.some((status) => Number(status) !== Number(currentStatus));
+}
+
 export function isModalStatusOptionDisabled(currentStatus, optionStatus, capabilities = {}) {
-    if (capabilities.is_final) return true;
+    if (capabilities.is_final === true) return true;
+    if (Array.isArray(capabilities.allowed_statuses)) {
+        return !canTransitionTo(currentStatus, optionStatus, capabilities);
+    }
+
     if (Number(currentStatus) !== 6) return false;
 
     const allowed = [6];

@@ -111,6 +111,10 @@
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
                         $taskAdminSenderName = ! $uniformAdminName && $task->creator?->role === 'admin' ? $task->creator->name : null;
                         $taskDeleteUrl = $workspaceContext === 'admin-member' ? route('admin.tasks.destroy', $task->job_id) : route('mytasks.destroy', $task->job_id);
+                        $canDeleteTask = $workspaceContext === 'admin-member'
+                            ? auth()->user()->can('delete', $task)
+                            : auth()->user()->can('deleteOwn', $task);
+                        $canManageTeam = auth()->user()->can('manageTeam', $task);
                         $unreadCommentCount = (int) ($unreadCommentCounts[$task->job_id] ?? 0);
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
@@ -121,7 +125,7 @@
                                 <span class="board-reference-comments" data-unread-comments="{{ $task->job_id }}"><i class="bi bi-chat-left-text"></i><b>{{ $unreadCommentCount }}</b></span>
                             @endif
                         </div>
-                        @can('update', $task)
+                        @can('work', $task)
                             <details class="board-status-menu" data-board-status-menu>
                                 <summary class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}"><span data-board-status-label>{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span><i class="bi bi-chevron-down"></i></summary>
                                 <div>
@@ -139,24 +143,21 @@
                             <span class="board-priority priority-{{ $priority[1] }}">{{ $priority[0] }}</span>
                         @endcan
                         <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
-                        @can('update', $task)
+                        @can('work', $task)
                             <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="date" data-board-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" aria-label="เลือกกำหนดส่ง"></label>
                         @else
                             <span class="board-due {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $dueLabel }}</span>
                         @endcan
                         <button type="button" class="board-owner" data-open-owner="{{ $task->job_id }}" title="ดูผู้รับผิดชอบ: {{ $assigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $assigneeName }}"><i>@if($task->user?->profile_image)<img src="{{ route('media.profile', $task->user) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i></button>
-                        <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="เพิ่มหรือลบผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="เพิ่มผู้ร่วมงาน"><i class="bi bi-person-plus-fill"></i></span></button></span>
+                        <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="{{ $canManageTeam ? 'จัดการ' : 'ดู' }}ผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $canManageTeam ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}"><i class="bi {{ $canManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>
                         <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-board-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
                         <span class="board-progress"><i><b style="width:{{ $taskProgress }}%"></b></i><strong>{{ $taskProgress }}%</strong></span>
-                        @if(auth()->user()->can('update', $task) || auth()->user()->can('delete', $task) || ($project && auth()->user()->can('manage', $project)))
+                        @if(auth()->user()->can('work', $task) || $canDeleteTask)
                             <details class="task-more-menu board-reference-menu">
-                                <summary aria-label="เมนูจัดการโปรเจกต์"><i class="bi bi-three-dots-vertical"></i></summary>
+                                <summary aria-label="เมนูจัดการรายการงาน"><i class="bi bi-three-dots-vertical"></i></summary>
                                 <div class="board-task-menu">
-                                    @can('update', $task)<button type="button" data-open-task-modal data-task-id="{{ $task->job_id }}"><i class="bi bi-pencil-square"></i><span><strong>แก้ไขงาน</strong><small>รายละเอียด สถานะ และกำหนดการ</small></span></button>@endcan
-                                    @if($project && auth()->user()->can('manage', $project))<button type="button" data-board-edit-project data-project-key="{{ $projectKey }}" data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.update', $project) }}"><i class="bi bi-folder2-open"></i><span><strong>แก้ไขโปรเจกต์</strong><small>แก้ไขชื่อ Project/List นี้</small></span></button>@endif
-                                    @if($workspaceContext === 'admin-member')
-                                        @can('delete', $task)<button type="button" class="danger" data-board-delete-task data-url="{{ $taskDeleteUrl }}"><i class="bi bi-trash3"></i><span><strong>ลบงาน</strong><small>นำงานนี้ออกจากโปรเจกต์</small></span></button>@endcan
-                                    @endif
+                                    @can('work', $task)<button type="button" data-board-rename-task data-task-id="{{ $task->job_id }}" data-name="{{ $task->job_topic }}" data-url="{{ route('tasks.details.update', $task) }}"><i class="bi bi-pencil-square"></i><span><strong>แก้ไขชื่อรายการงาน</strong><small>แก้ไขชื่อของรายการนี้</small></span></button>@endcan
+                                    @if($canDeleteTask)<button type="button" class="danger" data-board-delete-task data-url="{{ $taskDeleteUrl }}"><i class="bi bi-trash3"></i><span><strong>ลบรายการงาน</strong><small>นำรายการนี้ออกจากโปรเจกต์</small></span></button>@endif
                                 </div>
                             </details>
                         @else

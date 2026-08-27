@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RespondsWithTaskResult;
 use App\Models\WorkOrder;
+use App\Services\CollaboratorInvitationService;
 use App\Services\NotificationService;
 use App\Services\TaskStatusTransitionService;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
-use App\Support\TodayWorkspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TaskStatusController extends Controller
 {
@@ -22,11 +23,10 @@ class TaskStatusController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize((int) $job->job_status === 4 ? 'reopen' : 'update', $job);
+        $this->authorize((int) $job->job_status === 4 ? 'reopen' : 'work', $job);
 
         $validated = $request->validate([
             'job_status' => ['required', 'integer', 'in:1,2,3,4,5,6'],
-            'job_progress' => ['nullable', 'integer', 'min:0', 'max:100'],
             'completion_attachments' => ['nullable', 'array', 'max:5'],
             'completion_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
             'action' => ['nullable', 'string', 'in:reopen'],
@@ -42,7 +42,6 @@ class TaskStatusController extends Controller
         $job = $transitions->transition($job, $user, (int) $validated['job_status'], [
             'action' => $validated['action'] ?? null,
             'reason' => $validated['reason'] ?? null,
-            'job_progress' => $validated['job_progress'] ?? $job->job_progress,
         ]);
 
         if ((int) $job->job_status === 4 && $request->hasFile('completion_attachments')) {
@@ -51,10 +50,20 @@ class TaskStatusController extends Controller
 
         $message = (int) $validated['job_status'] === 4 ? 'ปิดงานสำเร็จ' : 'ปรับสถานะงานสำเร็จ';
 
-        return $this->jsonOrBack($request, true, $message);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'job_id' => $job->job_id,
+                'job_status' => (int) $job->job_status,
+                'transitions' => $transitions->capabilities($job, $user),
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
 
-    public function updateApproval(Request $request, $id)
+    public function updateApproval(Request $request, $id, CollaboratorInvitationService $invitations)
     {
         $this->authorize('approve', WorkOrder::class);
 
@@ -62,36 +71,60 @@ class TaskStatusController extends Controller
             'approval_status' => ['required', 'in:approved,rejected'],
         ]);
 
-        $job = WorkOrder::with(['user', 'creator', 'leader', 'collaborators'])->findOrFail($id);
-        TodayWorkspace::normalizeLateForTransition($job);
-        $before = $job->attributesToArray();
+        $result = DB::transaction(function () use ($id, $validated, $invitations): array {
+            $job = WorkOrder::query()
+                ->with(['user', 'creator', 'leader', 'collaborators'])
+                ->lockForUpdate()
+                ->findOrFail($id);
 
-        $job->approval_status = $validated['approval_status'];
-        $job->approved_by = Auth::id();
-        $job->approved_at = now();
+            $this->authorize('approve', $job);
 
-        if ($validated['approval_status'] === 'approved' && (int) $job->job_status === 1) {
-            $job->job_status = 2;
+            if ($job->approval_status !== 'pending') {
+                return ['changed' => false, 'job' => $job];
+            }
+
+            $before = $job->attributesToArray();
+            $job->forceFill([
+                'approval_status' => $validated['approval_status'],
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
+                'job_status' => $validated['approval_status'] === 'approved' && (int) $job->job_status === 1
+                    ? 2
+                    : $job->job_status,
+            ])->save();
+
+            $job->refresh();
+            if ($validated['approval_status'] === 'approved') {
+                $invitations->activateAfterAssignmentApproval($job, Auth::user());
+            } else {
+                $invitations->rejectPendingAfterAssignmentRejection($job, Auth::user());
+            }
+            AuditTrail::log('approval_updated', $job, 'Admin อัปเดตการอนุมัติงาน: '.$job->job_topic, [
+                'before' => $before,
+                'after' => $job->attributesToArray(),
+            ]);
+            app(NotificationService::class)->notifyAssignmentDecision(
+                $job,
+                Auth::user(),
+                $validated['approval_status']
+            );
+
+            return ['changed' => true, 'job' => $job];
+        });
+
+        if (! $result['changed']) {
+            return $this->jsonOrBack(
+                $request,
+                false,
+                'คำขอนี้ถูกอนุมัติหรือปฏิเสธไปแล้ว กรุณารีเฟรชรายการ',
+                409
+            );
         }
 
-        $job->save();
+        $title = $validated['approval_status'] === 'approved'
+            ? 'อนุมัติการมอบหมายงานแล้ว'
+            : 'ปฏิเสธการมอบหมายงานแล้ว';
 
-        $job->refresh();
-        AuditTrail::log('approval_updated', $job, 'Admin อัปเดตการอนุมัติงาน: '.$job->job_topic, [
-            'before' => $before,
-            'after' => $job->attributesToArray(),
-        ]);
-
-        if ($validated['approval_status'] === 'approved') {
-            $title = 'งานได้รับอนุมัติแล้ว';
-            $message = 'ผู้ดูแลระบบอนุมัติงาน "'.$job->job_topic.'" แล้ว';
-        } else {
-            $title = 'งานไม่ผ่านการอนุมัติ';
-            $message = 'ผู้ดูแลระบบปฏิเสธคำขอเปิดงาน "'.$job->job_topic.'"';
-        }
-
-        app(NotificationService::class)->notifyTaskMembers($job, 'admin_approval', $title, $message, Auth::user());
-
-        return back()->with('success', $title);
+        return $this->jsonOrBack($request, true, $title);
     }
 }

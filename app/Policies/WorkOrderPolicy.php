@@ -50,6 +50,10 @@ class WorkOrderPolicy
      */
     public function view(User $user, WorkOrder $workOrder): bool
     {
+        if ($workOrder->approval_status !== 'approved') {
+            return $user->role === 'admin' || $this->isAssignmentRequester($workOrder, $user);
+        }
+
         return in_array($user->role, ['admin', 'viewer'], true)
             || $this->isTaskParticipant($workOrder, $user)
             || ($workOrder->work_order_list_id
@@ -58,10 +62,8 @@ class WorkOrderPolicy
 
     /**
      * แก้ไข/ทำงานกับ WorkOrder ที่มีอยู่แล้ว ครอบคลุม:
-     * TaskStatusController::updateStatus, TaskAttachmentController::uploadAttachments,
-     * TaskProgressController::updateProgress, TaskController::requestDelete
-     * MyTaskController::updateDueDate, toggleComplete, storeSubtask, toggleSubtask,
-     * updateStatus, updatePriority
+     * Management-level task changes. Worker actions use work() so a direct
+     * collaborator never inherits team, delete, assignment, or approval power.
      */
     public function update(User $user, WorkOrder $workOrder): bool
     {
@@ -69,17 +71,40 @@ class WorkOrderPolicy
             return false;
         }
 
+        if ($workOrder->approval_status !== 'approved') {
+            return $user->role === 'admin';
+        }
+
         return $this->isTaskEditor($workOrder, $user);
+    }
+
+    /**
+     * Worker-level mutations only. Direct accepted collaborators work on the
+     * task, but this ability is deliberately not used by team/delete/approval
+     * endpoints.
+     */
+    public function work(User $user, WorkOrder $workOrder): bool
+    {
+        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
+            return false;
+        }
+
+        return $workOrder->approval_status === 'approved'
+            && $this->isTaskParticipant($workOrder, $user);
     }
 
     public function submitForReview(User $user, WorkOrder $workOrder): bool
     {
-        return $user->role !== 'viewer' && (int) $workOrder->user_id === (int) $user->id;
+        return $workOrder->approval_status === 'approved'
+            && $user->role !== 'viewer'
+            && ($this->isTaskParticipant($workOrder, $user))
+            && ! $this->isAssignmentApprover($workOrder, $user);
     }
 
     public function review(User $user, WorkOrder $workOrder): bool
     {
-        return $user->role !== 'viewer'
+        return $workOrder->approval_status === 'approved'
+            && $user->role !== 'viewer'
             && (int) $this->approverId($workOrder) === (int) $user->id;
     }
 
@@ -90,13 +115,14 @@ class WorkOrderPolicy
 
     public function comment(User $user, WorkOrder $workOrder): bool
     {
-        return $user->role !== 'viewer' && $this->isTaskParticipant($workOrder, $user);
+        return $workOrder->approval_status === 'approved'
+            && $user->role !== 'viewer'
+            && $this->isTaskParticipant($workOrder, $user);
     }
 
     public function respondToInvitation(User $user, WorkOrder $workOrder): bool
     {
-        return $user->role !== 'viewer'
-            && $workOrder->collaborators->contains('id', $user->id);
+        return false;
     }
 
     /**
@@ -120,6 +146,10 @@ class WorkOrderPolicy
             return false;
         }
 
+        if ($workOrder->approval_status !== 'approved') {
+            return $user->role === 'admin';
+        }
+
         return $user->role === 'admin'
             || $workOrder->user_id === $user->id
             || $workOrder->created_by === $user->id
@@ -132,6 +162,11 @@ class WorkOrderPolicy
     public function approve(User $user): bool
     {
         return $user->role !== 'viewer' && $user->role === 'admin';
+    }
+
+    public function approveCollaborator(User $user): bool
+    {
+        return $user->role === 'admin';
     }
 
     /**
@@ -149,6 +184,10 @@ class WorkOrderPolicy
         // จึงบล็อกทุก role รวม Admin ทำให้ abort_if ใน controller กลายเป็น dead code)
         if ($user->role === 'admin') {
             return true;
+        }
+
+        if ($workOrder->approval_status !== 'approved') {
+            return false;
         }
 
         return (int) $workOrder->job_status !== 4
@@ -189,6 +228,7 @@ class WorkOrderPolicy
     private function acceptedProjectIds(User $user): array
     {
         return $this->acceptedProjectIdsByUser[$user->id] ??= WorkOrder::query()
+            ->where('approval_status', 'approved')
             ->whereNotNull('work_order_list_id')
             ->whereHas('collaborators', fn ($query) => $query
                 ->where('users.id', $user->id)
@@ -199,8 +239,23 @@ class WorkOrderPolicy
             ->all();
     }
 
+    private function isAssignmentRequester(WorkOrder $workOrder, User $user): bool
+    {
+        return in_array($user->id, [
+            $workOrder->created_by,
+            $workOrder->assigned_by,
+            $workOrder->leader_user_id,
+        ], true);
+    }
+
     private function approverId(WorkOrder $workOrder): ?int
     {
         return $workOrder->created_by ?: ($workOrder->leader_user_id ?: $workOrder->user_id);
+    }
+
+    private function isAssignmentApprover(WorkOrder $workOrder, User $user): bool
+    {
+        return (int) $this->approverId($workOrder) === (int) $user->id
+            && (int) $workOrder->user_id !== (int) $user->id;
     }
 }

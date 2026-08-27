@@ -21,16 +21,7 @@ class WorkOrderListPolicy
             return true;
         }
 
-        return $list->workOrders()
-            ->where(function ($query) use ($user): void {
-                $query->where('user_id', $user->id)
-                    ->orWhere('created_by', $user->id)
-                    ->orWhere('leader_user_id', $user->id)
-                    ->orWhereHas('collaborators', fn ($collaborators) => $collaborators
-                        ->where('users.id', $user->id)
-                        ->where('work_order_collaborators.status', 'accepted'));
-            })
-            ->exists();
+        return $list->workOrders()->involving($user)->exists();
     }
 
     /**
@@ -85,6 +76,7 @@ class WorkOrderListPolicy
     {
         return $this->acceptedProjectIdsByUser[$user->id] ??= $user->joinedJobs()
             ->wherePivot('status', 'accepted')
+            ->where('approval_status', 'approved')
             ->whereNotNull('work_order_list_id')
             ->distinct()
             ->pluck('work_order_list_id')

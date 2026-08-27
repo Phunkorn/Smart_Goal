@@ -19,3 +19,7 @@ export function prependComment(timeline, taskId, comment) {
 export function unreadCountAfterRead() {
     return 0;
 }
+
+export function canComposeComment(taskManagement) {
+    return taskManagement?.can_comment === true && Boolean(taskManagement.comment_url);
+}

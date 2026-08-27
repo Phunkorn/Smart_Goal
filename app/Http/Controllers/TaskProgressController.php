@@ -21,7 +21,7 @@ class TaskProgressController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize('update', $job);
+        $this->authorize('work', $job);
         TodayWorkspace::normalizeLateForTransition($job);
 
         if ($job->approval_status !== 'approved') {
@@ -75,6 +75,15 @@ class TaskProgressController extends Controller
             'note' => Str::limit($validated['note'], 200),
         ]);
 
-        return $this->jsonOrBack($request, true, 'อัปเดตความคืบหน้าสำเร็จ');
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'อัปเดตความคืบหน้าสำเร็จ',
+                'job_id' => $job->job_id,
+                'progress' => (int) $job->progress_from_subtasks,
+            ]);
+        }
+
+        return back()->with('success', 'อัปเดตความคืบหน้าสำเร็จ');
     }
 }

@@ -86,6 +86,12 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'job_topic' => 'Approved request',
             'job_details' => 'Requested details',
         ]);
+        $this->assertDatabaseHas('work_order_collaborators', [
+            'work_order_id' => $jobId,
+            'user_id' => $collaborator->id,
+            'status' => 'accepted',
+            'decided_by' => $owner->id,
+        ]);
         $this->assertDatabaseHas('work_order_list_task_requests', [
             'id' => $taskRequest->id,
             'status' => 'approved',
@@ -371,6 +377,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
         $anchor = $this->task($owner, $project);
         $anchor->collaborators()->attach($collaborator->id, ['status' => 'accepted']);
         $taskRequest = $this->request($collaborator, $project, 'Cross department');
+        $admin = $this->user(['role' => 'admin']);
 
         $response = $this->actingAs($owner)
             ->patchJson(route('mytasks.task-requests.approve', $taskRequest))
@@ -381,6 +388,38 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'approval_status' => 'pending',
             'approved_by' => null,
         ]);
+        $this->assertDatabaseHas('work_order_collaborators', [
+            'work_order_id' => $response->json('job_id'),
+            'user_id' => $collaborator->id,
+            'status' => 'pending',
+            'decided_by' => null,
+        ]);
+
+        $job = WorkOrder::findOrFail($response->json('job_id'));
+        $this->actingAs($collaborator)->get(route('tasks.show', $job))->assertForbidden();
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.approval', $job), ['approval_status' => 'approved'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('work_order_collaborators', [
+            'work_order_id' => $job->job_id,
+            'user_id' => $collaborator->id,
+            'status' => 'accepted',
+            'decided_by' => $admin->id,
+        ]);
+        $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $job))->assertOk();
+        $this->assertSame(1, SystemNotification::where('user_id', $collaborator->id)
+            ->where('work_order_id', $job->job_id)
+            ->where('type', 'task_assigned')
+            ->count());
+
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.approval', $job), ['approval_status' => 'approved'])
+            ->assertConflict();
+        $this->assertSame(1, SystemNotification::where('user_id', $collaborator->id)
+            ->where('work_order_id', $job->job_id)
+            ->where('type', 'task_assigned')
+            ->count());
     }
 
     public function test_page_renders_request_action_for_collaborator_and_pending_queue_for_owner(): void
@@ -397,6 +436,9 @@ class ProjectTaskRequestWorkflowTest extends TestCase
     private function collaborativeProject(): array
     {
         [$owner, $collaborator, $project, $anchor] = $this->projectFixture();
+        $department = Department::create(['department_name' => 'Request team']);
+        $owner->update(['department_id' => $department->id]);
+        $collaborator->update(['department_id' => $department->id]);
         $anchor->collaborators()->attach($collaborator->id, ['status' => 'accepted']);
 
         return [$owner, $collaborator, $project, $anchor];

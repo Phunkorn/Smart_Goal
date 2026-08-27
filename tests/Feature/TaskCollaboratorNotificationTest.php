@@ -199,6 +199,56 @@ class TaskCollaboratorNotificationTest extends TestCase
         ]);
     }
 
+    public function test_admin_approval_turns_cross_department_collaborator_into_worker_exactly_once(): void
+    {
+        $ownerDepartment = Department::create(['department_name' => 'IT']);
+        $otherDepartment = Department::create(['department_name' => 'Marketing']);
+        $owner = $this->user('user', $ownerDepartment);
+        $candidate = $this->user('user', $otherDepartment);
+        $admin = $this->user('admin');
+        $task = $this->taskFor($owner, $ownerDepartment);
+
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
+            ->assertOk();
+
+        $this->actingAs($candidate)->get(route('tasks.show', $task))->assertForbidden();
+        $this->actingAs($candidate)
+            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
+            ->assertForbidden();
+
+        $this->actingAs($admin)->get(route('board.index', ['approval_queue' => 'collaborator']))
+            ->assertOk()
+            ->assertSee($candidate->name)
+            ->assertSee(route('admin.tasks.collaborators.approval', [$task, $candidate]), false);
+
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
+            ->assertOk();
+
+        $pivot = $task->fresh()->collaborators()->findOrFail($candidate->id)->pivot;
+        $this->assertSame('accepted', $pivot->status);
+        $this->assertSame($admin->id, $pivot->decided_by);
+        $this->assertNotNull($pivot->responded_at);
+        $this->actingAs($candidate)->get(route('mytasks.quickview.task', $task))->assertOk();
+        $this->actingAs($candidate)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2])
+            ->assertOk();
+
+        $this->assertSame(1, SystemNotification::where('user_id', $candidate->id)
+            ->where('work_order_id', $task->job_id)
+            ->where('type', 'collaborator_added')
+            ->count());
+
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
+            ->assertConflict();
+        $this->assertSame(1, SystemNotification::where('user_id', $candidate->id)
+            ->where('work_order_id', $task->job_id)
+            ->where('type', 'collaborator_added')
+            ->count());
+    }
+
     public function test_viewer_and_inactive_accounts_are_never_added_or_notified(): void
     {
         $department = Department::create(['department_name' => 'IT']);

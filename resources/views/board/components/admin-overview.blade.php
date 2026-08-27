@@ -60,6 +60,11 @@
         </div>
     </header>
 
+    @include('board.components.assignment-approval-queue', ['pendingAssignments' => $pendingAssignments])
+    @include('board.components.collaborator-approval-queue', [
+        'pendingCollaboratorTasks' => $pendingCollaboratorTasks,
+        'pendingCollaboratorInviters' => $pendingCollaboratorInviters,
+    ])
 
     {{-- FILTER --}}
     <form method="GET" action="{{ route('board.index') }}" class="admin-board-filter">

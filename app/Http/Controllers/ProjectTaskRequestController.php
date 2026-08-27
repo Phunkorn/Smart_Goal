@@ -130,6 +130,14 @@ class ProjectTaskRequestController extends Controller
                 'job_due_at' => $locked->job_due_at,
             ]);
 
+            $collaboratorStatus = $workOrder->approval_status === 'approved' ? 'accepted' : 'pending';
+            $workOrder->collaborators()->attach($locked->requester_id, [
+                'added_by' => $owner->id,
+                'decided_by' => $collaboratorStatus === 'accepted' ? $owner->id : null,
+                'status' => $collaboratorStatus,
+                'responded_at' => $collaboratorStatus === 'accepted' ? now() : null,
+            ]);
+
             $locked->update([
                 'status' => 'approved',
                 'decided_by' => $owner->id,
@@ -144,14 +152,39 @@ class ProjectTaskRequestController extends Controller
                 'approval_status' => $approval['approval_status'],
             ]);
 
-            $notifications->notify(
-                [$locked->requester_id],
-                'project_task_request_approved',
-                'คำขอเพิ่มงานได้รับการอนุมัติ',
-                'งาน “'.$locked->job_topic.'” ถูกสร้างในโปรเจกต์แล้ว',
-                $workOrder,
-                $owner
-            );
+            if ($workOrder->approval_status === 'approved') {
+                $notifications->notify(
+                    [$locked->requester_id],
+                    'project_task_request_approved',
+                    'คำขอเพิ่มงานได้รับการอนุมัติ',
+                    'งาน “'.$locked->job_topic.'” ถูกสร้างในโปรเจกต์แล้ว',
+                    $workOrder,
+                    $owner
+                );
+            } else {
+                // The project owner approved the request, but the resulting cross-department
+                // assignment is still private until an admin approves it.
+                $notifications->notifyDetached(
+                    [$locked->requester_id],
+                    'project_task_request_approved',
+                    'คำขอเพิ่มงานได้รับการอนุมัติ',
+                    'งาน “'.$locked->job_topic.'” ถูกสร้างแล้วและกำลังรอผู้ดูแลระบบอนุมัติการมอบหมาย',
+                    $owner,
+                    ['task_request_id' => $locked->id],
+                    [
+                        'work_order_id' => $workOrder->job_id,
+                        'work_order_list_id' => $workOrder->work_order_list_id,
+                    ]
+                );
+
+                $workOrder->loadMissing(['user', 'collaborators']);
+                $notifications->notifyAssignmentCreated(
+                    $workOrder,
+                    $owner,
+                    $locked->requester,
+                    false
+                );
+            }
 
             return ['work_order' => $workOrder];
         });

@@ -5,11 +5,11 @@ namespace App\Services;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
+use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
-use Carbon\CarbonInterface;
 
 class NotificationService
 {
@@ -82,7 +82,7 @@ class NotificationService
         );
     }
 
-    public function notifyTaskAdmins(WorkOrder $task, string $type, string $title, string $message, User $actor): void
+    public function notifyTaskAdmins(WorkOrder $task, string $type, string $title, string $message, User $actor, ?string $dedupePrefix = null): void
     {
         $adminIds = User::where('role', 'admin')->pluck('id')->all();
 
@@ -92,7 +92,103 @@ class NotificationService
             Str::limit(strip_tags($title), 120, ''),
             Str::limit(strip_tags($message), 1000, ''),
             $task,
-            $actor
+            $actor,
+            [],
+            $dedupePrefix
+        );
+    }
+
+    public function notifyAssignmentCreated(WorkOrder $task, User $actor, User $assignee, bool $sameDepartment): void
+    {
+        if ($actor->role === 'admin') {
+            $this->notify(
+                [$assignee->id],
+                'admin_created_task',
+                'มีงานใหม่',
+                'ผู้ดูแลระบบมอบหมายงาน "'.$task->job_topic.'" ให้คุณ',
+                $task,
+                $actor,
+                [],
+                'assignment-created:'.$task->job_id.':recipient'
+            );
+
+            return;
+        }
+
+        if ($sameDepartment) {
+            $this->notify(
+                [$assignee->id],
+                'task_assigned',
+                'มีงานใหม่',
+                $actor->name.' มอบหมายงาน "'.$task->job_topic.'" ให้คุณ',
+                $task,
+                $actor,
+                [],
+                'assignment-created:'.$task->job_id.':recipient'
+            );
+
+            $this->notifyTaskAdmins(
+                $task,
+                'same_department_assignment',
+                'มีการมอบหมายงานภายในแผนก',
+                $actor->name.' มอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name,
+                $actor,
+                'assignment-created:'.$task->job_id.':admins'
+            );
+
+            return;
+        }
+
+        $this->notifyTaskAdmins(
+            $task,
+            'cross_department_pending',
+            'มีคำขอมอบหมายงานข้ามแผนกรอตรวจสอบ',
+            $actor->name.' ต้องการมอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name.' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติหรือปฏิเสธ',
+            $actor,
+            'assignment-created:'.$task->job_id.':admins'
+        );
+    }
+
+    public function notifyAssignmentDecision(WorkOrder $task, User $admin, string $decision): void
+    {
+        $task->loadMissing(['user', 'creator']);
+        $requesterId = $task->assigned_by ?: $task->created_by;
+
+        if ($decision === 'approved') {
+            $this->notify(
+                [$task->user_id],
+                'task_assigned',
+                'ได้รับมอบหมายงานแล้ว',
+                'ผู้ดูแลระบบอนุมัติงาน "'.$task->job_topic.'" และมอบหมายให้คุณแล้ว',
+                $task,
+                $admin,
+                [],
+                'assignment-decision:'.$task->job_id.':recipient'
+            );
+
+            $this->notify(
+                [$requesterId],
+                'assignment_approved',
+                'อนุมัติการมอบหมายงานแล้ว',
+                'ผู้ดูแลระบบอนุมัติการมอบหมายงาน "'.$task->job_topic.'" แล้ว',
+                $task,
+                $admin,
+                [],
+                'assignment-decision:'.$task->job_id.':requester'
+            );
+
+            return;
+        }
+
+        $this->notify(
+            [$requesterId],
+            'assignment_rejected',
+            'ปฏิเสธการมอบหมายงาน',
+            'ผู้ดูแลระบบปฏิเสธการมอบหมายงาน "'.$task->job_topic.'"',
+            $task,
+            $admin,
+            [],
+            'assignment-decision:'.$task->job_id.':requester'
         );
     }
 
@@ -167,6 +263,18 @@ class NotificationService
     public function target(SystemNotification $notification, User $viewer): string
     {
         $task = $notification->workOrder;
+
+        if ($viewer->role === 'admin' && in_array($notification->type, [
+            'cross_department_pending',
+            'collaborator_approval_request',
+        ], true)) {
+            return route('board.index', [
+                'approval_queue' => $notification->type === 'collaborator_approval_request'
+                    ? 'collaborator'
+                    : 'assignment',
+            ]);
+        }
+
         if (! $task) {
             if (str_starts_with($notification->type, 'project_task_request_')
                 && $notification->project
@@ -180,10 +288,14 @@ class NotificationService
             return route('notifications.index');
         }
 
-        if (! Gate::forUser($viewer)->allows('view', $task)) return route('notifications.index');
+        if (! Gate::forUser($viewer)->allows('view', $task)) {
+            return route('notifications.index');
+        }
 
         $query = ['open_task' => $task->job_id];
-        if ($notification->category === 'comment') $query['task_tab'] = 'updates';
+        if ($notification->category === 'comment') {
+            $query['task_tab'] = 'updates';
+        }
 
         if ($viewer->role === 'admin' && $task->user?->role === 'user' && $task->user?->department_id) {
             return route('admin.work-board.member', [
@@ -191,7 +303,9 @@ class NotificationService
                 'user' => $task->user_id,
             ] + $query);
         }
-        if ($viewer->role === 'viewer') return route('tasks.show', $task->job_id);
+        if ($viewer->role === 'viewer') {
+            return route('tasks.show', $task->job_id);
+        }
 
         return route('mytasks.index', $query);
     }

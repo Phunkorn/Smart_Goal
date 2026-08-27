@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Builder;
 
 class SystemNotification extends Model
 {
@@ -89,8 +89,10 @@ class SystemNotification extends Model
             'submitted_for_review', 'review_approved', 'review_returned', 'task_reopened', 'self_closed' => 'review',
             'task_comment' => 'comment',
             'deadline_due_today', 'deadline_overdue' => 'deadline',
-            'task_assigned', 'admin_created_task', 'cross_department_pending', 'admin_approval',
+            'task_assigned', 'admin_created_task', 'same_department_assignment',
+            'cross_department_pending', 'assignment_approved', 'assignment_rejected', 'admin_approval',
             'collaborator_added', 'collaborator_removed', 'collaborator_approval_request',
+            'collaborator_approved', 'collaborator_rejected',
             'project_task_request_submitted', 'project_task_request_approved', 'project_task_request_rejected',
             'delete_request', 'delete_request_rejected', 'task_deleted' => 'task',
             default => 'system',

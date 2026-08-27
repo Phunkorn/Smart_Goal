@@ -157,7 +157,7 @@ class WorkOrder extends Model
     public function collaborators(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'work_order_collaborators', 'work_order_id', 'user_id')
-            ->withPivot('added_by', 'status', 'responded_at')
+            ->withPivot('added_by', 'decided_by', 'status', 'responded_at')
             ->withTimestamps();
     }
 
@@ -168,12 +168,24 @@ class WorkOrder extends Model
         }
 
         return $query->where(function (Builder $query) use ($user): void {
-            $query->where('user_id', $user->id)
-                ->orWhere('created_by', $user->id)
-                ->orWhere('leader_user_id', $user->id)
-                ->orWhereHas('collaborators', fn (Builder $collaborators) => $collaborators
-                    ->where('users.id', $user->id)
-                    ->where('work_order_collaborators.status', 'accepted'));
+            $query->where(function (Builder $approved) use ($user): void {
+                $approved->where('approval_status', 'approved')
+                    ->where(function (Builder $participant) use ($user): void {
+                        $participant->where('user_id', $user->id)
+                            ->orWhere('created_by', $user->id)
+                            ->orWhere('leader_user_id', $user->id)
+                            ->orWhereHas('collaborators', fn (Builder $collaborators) => $collaborators
+                                ->where('users.id', $user->id)
+                                ->where('work_order_collaborators.status', 'accepted'));
+                    });
+            })->orWhere(function (Builder $unapproved) use ($user): void {
+                $unapproved->where('approval_status', '!=', 'approved')
+                    ->where(function (Builder $requester) use ($user): void {
+                        $requester->where('created_by', $user->id)
+                            ->orWhere('assigned_by', $user->id)
+                            ->orWhere('leader_user_id', $user->id);
+                    });
+            });
         });
     }
 
@@ -185,12 +197,16 @@ class WorkOrder extends Model
 
         return $query->where(function (Builder $query) use ($user): void {
             $query->involving($user)
-                ->orWhereIn('work_order_list_id', WorkOrder::query()
-                    ->select('work_order_list_id')
-                    ->whereNotNull('work_order_list_id')
-                    ->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
-                        ->where('users.id', $user->id)
-                        ->where('work_order_collaborators.status', 'accepted')));
+                ->orWhere(function (Builder $projectTasks) use ($user): void {
+                    $projectTasks->where('approval_status', 'approved')
+                        ->whereIn('work_order_list_id', WorkOrder::query()
+                            ->select('work_order_list_id')
+                            ->where('approval_status', 'approved')
+                            ->whereNotNull('work_order_list_id')
+                            ->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
+                                ->where('users.id', $user->id)
+                                ->where('work_order_collaborators.status', 'accepted')));
+                });
         });
     }
 

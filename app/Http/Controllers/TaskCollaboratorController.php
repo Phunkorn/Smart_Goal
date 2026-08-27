@@ -5,16 +5,18 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\RespondsWithTaskResult;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\CollaboratorInvitationService;
 use App\Services\NotificationService;
 use App\Support\AuditTrail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TaskCollaboratorController extends Controller
 {
     use RespondsWithTaskResult;
 
-    public function addCollaborators(Request $request, $id)
+    public function addCollaborators(Request $request, $id, CollaboratorInvitationService $invitations)
     {
         $job = WorkOrder::with(['collaborators', 'user.department', 'leader.department'])->findOrFail($id);
         $this->authorize('manageTeam', $job);
@@ -44,45 +46,8 @@ class TaskCollaboratorController extends Controller
             ->values();
 
         $actor = Auth::user();
-        $actorLabel = $actor?->role === 'admin' ? 'ผู้ดูแลระบบ' : ($actor?->name ?? 'หัวหน้างาน');
-        $jobDepartmentId = $job->department_id ?: $job->user?->department_id;
-        $admins = User::where('role', 'admin')->get();
-
         foreach ($newUsers as $candidate) {
-            $sameDepartment = $jobDepartmentId && (int) $candidate->department_id === (int) $jobDepartmentId;
-            $pivotStatus = $sameDepartment || $actor?->role === 'admin' ? 'accepted' : 'pending';
-
-            $job->collaborators()->syncWithoutDetaching([
-                $candidate->id => [
-                    'added_by' => Auth::id(),
-                    'status' => $pivotStatus,
-                    'responded_at' => $pivotStatus === 'accepted' ? now() : null,
-                ],
-            ]);
-
-            // ต้องโหลด collaborators ใหม่ทุกครั้งที่แก้ pivot เพราะ WorkOrderPolicy::view()
-            // ตัดสินจาก $workOrder->collaborators ที่อยู่ใน memory ถ้ายังเป็นชุดเดิมจากบรรทัด
-            // WorkOrder::with(['collaborators', ...]) ด้านบน Gate ใน NotificationService::notify()
-            // จะมองไม่เห็นผู้ร่วมงานคนที่เพิ่งเพิ่ม แล้วกรอง notification ทิ้งเงียบ ๆ โดยไม่มี error
-            $job->load('collaborators');
-
-            AuditTrail::log('collaborator_added', $job, 'เพิ่มผู้ร่วมโปรเจกต์ในงาน: '.$job->job_topic, [
-                'user_id' => $candidate->id,
-                'status' => $pivotStatus,
-            ]);
-
-            if ($pivotStatus === 'accepted') {
-                app(NotificationService::class)->notify([$candidate], 'collaborator_added', 'ถูกเพิ่มเข้าร่วมงาน',
-                    $actorLabel.' เพิ่มคุณเข้าร่วมงาน "'.$job->job_topic.'"', $job, $actor);
-
-                continue;
-            }
-
-            foreach ($admins as $admin) {
-                app(NotificationService::class)->notify([$admin], 'collaborator_approval_request', 'ขออนุมัติผู้ร่วมงานข้ามแผนก',
-                    $actorLabel.' ขอเพิ่ม '.$candidate->name.' ('.($candidate->department?->department_name ?? 'ไม่ระบุแผนก').') เข้าร่วมงาน "'.$job->job_topic.'"',
-                    $job, $actor);
-            }
+            $invitations->invite($job, $candidate, $actor);
         }
 
         return $this->jsonOrBack($request, true, $newUsers->isEmpty() ? 'พนักงานคนนี้อยู่ในรายการเชิญหรือทีมแล้ว' : 'เพิ่ม/ส่งคำขอผู้ร่วมงานสำเร็จ');
@@ -129,5 +94,88 @@ class TaskCollaboratorController extends Controller
         $message = $validated['status'] === 'accepted' ? 'รับเข้าร่วมงานแล้ว' : 'ปฏิเสธคำเชิญแล้ว';
 
         return back()->with('success', $message);
+    }
+
+    public function decideCollaborator(Request $request, $id, User $user)
+    {
+        $this->authorize('approveCollaborator', WorkOrder::class);
+
+        $validated = $request->validate([
+            'status' => ['required', 'in:accepted,rejected'],
+        ]);
+
+        $result = DB::transaction(function () use ($id, $user, $validated): array {
+            $job = WorkOrder::with(['user.department', 'creator', 'leader', 'collaborators'])
+                ->lockForUpdate()
+                ->findOrFail($id);
+            $this->authorize('approveCollaborator', $job);
+
+            $pivot = DB::table('work_order_collaborators')
+                ->where('work_order_id', $job->job_id)
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $pivot || $pivot->status !== 'pending' || $job->approval_status !== 'approved') {
+                return ['changed' => false, 'job' => $job];
+            }
+
+            DB::table('work_order_collaborators')
+                ->where('id', $pivot->id)
+                ->update([
+                    'status' => $validated['status'],
+                    'decided_by' => Auth::id(),
+                    'responded_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            $job->load('collaborators');
+            $actor = Auth::user();
+            $inviter = $pivot->added_by ? User::find($pivot->added_by) : null;
+
+            if ($validated['status'] === 'accepted') {
+                app(NotificationService::class)->notify(
+                    [$user],
+                    'collaborator_added',
+                    'ได้รับอนุมัติให้ร่วมงานแล้ว',
+                    'ผู้ดูแลระบบอนุมัติให้คุณร่วมงาน "'.$job->job_topic.'" แล้ว',
+                    $job,
+                    $actor,
+                    [],
+                    'collaborator-decision:'.$job->job_id.':'.$user->id.':accepted'
+                );
+            }
+
+            if ($inviter) {
+                app(NotificationService::class)->notify(
+                    [$inviter],
+                    $validated['status'] === 'accepted' ? 'collaborator_approved' : 'collaborator_rejected',
+                    $validated['status'] === 'accepted' ? 'อนุมัติผู้ร่วมงานแล้ว' : 'ปฏิเสธผู้ร่วมงานแล้ว',
+                    'ผู้ดูแลระบบ'.($validated['status'] === 'accepted' ? 'อนุมัติ' : 'ปฏิเสธ').'การเพิ่ม '.$user->name.' ในงาน "'.$job->job_topic.'"',
+                    $job,
+                    $actor,
+                    [],
+                    'collaborator-decision:'.$job->job_id.':'.$user->id.':inviter'
+                );
+            }
+
+            AuditTrail::log('collaborator_'.$validated['status'], $job, 'ผู้ดูแลระบบตัดสินคำขอผู้ร่วมงาน: '.$job->job_topic, [
+                'user_id' => $user->id,
+                'status' => $validated['status'],
+                'decided_by' => Auth::id(),
+            ]);
+
+            return ['changed' => true, 'job' => $job];
+        });
+
+        if (! $result['changed']) {
+            return $this->jsonOrBack($request, false, 'คำขอผู้ร่วมงานนี้ถูกตัดสินไปแล้วหรือไม่พร้อมให้อนุมัติ', 409);
+        }
+
+        return $this->jsonOrBack(
+            $request,
+            true,
+            $validated['status'] === 'accepted' ? 'อนุมัติผู้ร่วมงานแล้ว' : 'ปฏิเสธผู้ร่วมงานแล้ว'
+        );
     }
 }

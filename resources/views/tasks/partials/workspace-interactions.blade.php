@@ -6,8 +6,8 @@
         'topic' => $task->job_topic,
         'locked' => (int) $task->job_status === 4 && auth()->user()->role !== 'admin',
         'can_manage' => auth()->user()->can('manageTeam', $task),
-        'add_url' => route('tasks.collaborators.store', $task->job_id),
-        'remove_url' => route('tasks.collaborators.destroy', [$task->job_id, '__USER__']),
+        'add_url' => auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.store', $task->job_id) : null,
+        'remove_url' => auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.destroy', [$task->job_id, '__USER__']) : null,
         'assignee' => ['id' => $task->user?->id, 'name' => $task->user?->name ?? 'ไม่ระบุ', 'department' => $task->user?->department?->department_name],
         // ผู้รับผิดชอบ ผู้สร้าง และหัวหน้างาน ลบออกจากทีมไม่ได้ (TaskCollaboratorController:87)
         'protected_ids' => array_values(array_filter([$task->user_id, $task->created_by, $task->leader_user_id])),
@@ -36,12 +36,12 @@
     $attachmentData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
         'id' => $task->job_id,
         'topic' => $task->job_topic,
-        'can_upload' => auth()->user()->can('update', $task),
-        'upload_url' => route('tasks.attachments.store', $task->job_id),
+        'can_upload' => auth()->user()->can('work', $task),
+        'upload_url' => auth()->user()->can('work', $task) ? route('tasks.attachments.store', $task->job_id) : null,
         'files' => $task->images->map(fn ($file) => [
             'name' => $file->original_name ?? basename($file->file_path),
             'url' => route('media.task-attachments.show', $file),
-            'delete_url' => route('tasks.attachments.destroy', [$task->job_id, $file]),
+            'delete_url' => auth()->user()->can('work', $task) ? route('tasks.attachments.destroy', [$task->job_id, $file]) : null,
         ])->values(),
     ]]);
 ?>
@@ -55,13 +55,14 @@
         'transitions' => app(\App\Services\TaskStatusTransitionService::class)->capabilities($task, auth()->user()),
         // ใช้ตัดสินว่า Summary Bar จะเป็นตัวควบคุมที่กดได้ หรือแสดงเป็นข้อความอ่านอย่างเดียว
         // การซ่อนปุ่มเป็นเรื่อง UI เท่านั้น สิทธิ์จริงยังถูกตรวจซ้ำที่ Policy ฝั่ง server ทุกครั้ง
-        'can_update' => auth()->user()->can('update', $task),
+        'can_work' => auth()->user()->can('work', $task),
+        'can_comment' => auth()->user()->can('comment', $task),
         'can_manage_team' => auth()->user()->can('manageTeam', $task),
         'project' => $task->taskList?->name ?? 'งานทั่วไป',
         'status' => (int) $task->job_status,
         'submitted_by' => $task->reviewSubmitter?->name,
         'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
-        'comment_url' => route('tasks.comments.store', $task),
+        'comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
         'read_comments_url' => route('tasks.comments.read', $task),
         'unread_comments' => (int) ($unreadCommentCounts[$task->job_id] ?? 0),
     ]]);

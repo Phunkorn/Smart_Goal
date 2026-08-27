@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead} from '../../resources/js/pages/mytasks/task-comments-model.js';
+import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead} from '../../resources/js/pages/mytasks/task-comments-model.js';
 
 test('opening a modal alone does not mark comments read but selecting Updates does', () => {
     assert.equal(shouldMarkCommentsRead('modal', 'updates'), false);
@@ -20,4 +20,11 @@ test('a returned comment is rendered from the front of the Updates collection', 
 
 test('successful read state clears the task unread badge count', () => {
     assert.equal(unreadCountAfterRead(5), 0);
+});
+
+test('comment composer requires both policy permission and an actionable URL', () => {
+    assert.equal(canComposeComment({can_comment: true, comment_url: '/tasks/42/comments'}), true);
+    assert.equal(canComposeComment({can_comment: false, comment_url: null}), false);
+    assert.equal(canComposeComment({can_comment: true, comment_url: null}), false);
+    assert.equal(canComposeComment(), false);
 });

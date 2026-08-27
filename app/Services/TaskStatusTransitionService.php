@@ -22,7 +22,7 @@ class TaskStatusTransitionService
         $selfTask = $this->isSelfTask($task, $actor);
 
         return [
-            'can_edit' => Gate::forUser($actor)->allows('update', $task),
+            'can_edit' => Gate::forUser($actor)->allows('work', $task),
             'can_submit_review' => in_array($status, [2, 6], true) && ! $selfTask
                 && Gate::forUser($actor)->allows('submitForReview', $task),
             'can_review' => $status === 3 && Gate::forUser($actor)->allows('review', $task),
@@ -31,13 +31,14 @@ class TaskStatusTransitionService
             'is_final' => $status === 4,
             'is_self_task' => $selfTask,
             'approver_id' => $this->approverId($task),
+            'allowed_statuses' => $this->allowedStatuses($task, $actor),
         ];
     }
 
     public function transition(WorkOrder $task, User $actor, int $targetStatus, array $options = []): WorkOrder
     {
         if ($actor->role === 'viewer') {
-            throw new AuthorizationException();
+            throw new AuthorizationException;
         }
 
         $task->loadMissing(['collaborators', 'subtasks']);
@@ -63,7 +64,7 @@ class TaskStatusTransitionService
 
         $before = $task->attributesToArray();
 
-        return DB::transaction(function () use ($task, $actor, $targetStatus, $options, $action, $reason, $before, $from) {
+        return DB::transaction(function () use ($task, $actor, $targetStatus, $action, $reason, $before, $from) {
             $updates = ['job_status' => $targetStatus];
 
             if ($action === 'submitted_for_review') {
@@ -102,9 +103,12 @@ class TaskStatusTransitionService
                     'paused_at' => null,
                 ];
             } else {
-                if ($targetStatus === 5) $updates['paused_at'] = now();
-                if ($from === 5 && $targetStatus !== 5) $updates['paused_at'] = null;
-                if (array_key_exists('job_progress', $options)) $updates['job_progress'] = (int) $options['job_progress'];
+                if ($targetStatus === 5) {
+                    $updates['paused_at'] = now();
+                }
+                if ($from === 5 && $targetStatus !== 5) {
+                    $updates['paused_at'] = null;
+                }
             }
 
             $task->update($updates);
@@ -123,24 +127,38 @@ class TaskStatusTransitionService
     private function resolveAction(WorkOrder $task, User $actor, int $from, int $to, array $options): string
     {
         if ($from === 4) {
-            if ($to === 2 && ($options['action'] ?? null) === 'reopen') return 'task_reopened';
+            if ($to === 2 && ($options['action'] ?? null) === 'reopen') {
+                return 'task_reopened';
+            }
             $this->reject('งานนี้ปิดแล้ว ต้องใช้คำสั่งเปิดงานอีกครั้งเท่านั้น');
         }
 
         if ($to === 4) {
-            if ($this->isSelfTask($task, $actor)) return 'self_closed';
-            if ($from === 3) return 'review_approved';
+            if ($this->isSelfTask($task, $actor)) {
+                return 'self_closed';
+            }
+            if ($from === 3) {
+                return 'review_approved';
+            }
             $this->reject('งานนี้ต้องส่งตรวจสอบก่อนปิดงาน');
         }
 
         if ($to === 3) {
-            if (in_array($from, [2, 6], true) && ! $this->isSelfTask($task, $actor)) return 'submitted_for_review';
+            if (in_array($from, [2, 6], true) && ! $this->isSelfTask($task, $actor)) {
+                return 'submitted_for_review';
+            }
             $this->reject('สามารถส่งตรวจได้จากสถานะกำลังทำหรือล่าช้าเท่านั้น');
         }
 
-        if ($from === 3 && $to === 2) return 'review_returned';
-        if ($from === 6) $this->reject('งานล่าช้าต้องส่งตรวจสอบก่อนเปลี่ยนสถานะ');
-        if (($from === 1 && $to === 2) || ($from === 2 && $to === 5) || ($from === 5 && $to === 2)) return 'status_changed';
+        if ($from === 3 && $to === 2) {
+            return 'review_returned';
+        }
+        if ($from === 6) {
+            $this->reject('งานล่าช้าต้องส่งตรวจสอบก่อนเปลี่ยนสถานะ');
+        }
+        if (($from === 1 && $to === 2) || ($from === 2 && $to === 5) || ($from === 5 && $to === 2)) {
+            return 'status_changed';
+        }
 
         $this->reject('ไม่อนุญาตให้เปลี่ยนสถานะงานในลักษณะนี้');
     }
@@ -151,10 +169,12 @@ class TaskStatusTransitionService
             'submitted_for_review' => 'submitForReview',
             'review_approved', 'review_returned' => 'review',
             'task_reopened' => 'reopen',
-            default => 'update',
+            default => 'work',
         };
 
-        if (! Gate::forUser($actor)->allows($ability, $task)) throw new AuthorizationException();
+        if (! Gate::forUser($actor)->allows($ability, $task)) {
+            throw new AuthorizationException;
+        }
     }
 
     private function notify(WorkOrder $task, User $actor, string $action, string $reason): void
@@ -168,7 +188,9 @@ class TaskStatusTransitionService
         };
 
         $recipientIds = $recipientIds->filter()->map(fn ($id) => (int) $id)->unique()->reject(fn ($id) => $id === (int) $actor->id);
-        if ($recipientIds->isEmpty()) return;
+        if ($recipientIds->isEmpty()) {
+            return;
+        }
 
         [$title, $message] = match ($action) {
             'submitted_for_review' => ['มีงานรอตรวจสอบ', $actor->name.' ส่งงาน “'.$task->job_topic.'” เพื่อตรวจสอบ'],
@@ -195,6 +217,44 @@ class TaskStatusTransitionService
     private function approverId(WorkOrder $task): ?int
     {
         return $task->created_by ?: ($task->leader_user_id ?: $task->user_id);
+    }
+
+    /** @return array<int> */
+    private function allowedStatuses(WorkOrder $task, User $actor): array
+    {
+        $status = (int) $task->job_status;
+        $allowed = [$status];
+
+        if ($status === 4) {
+            if (Gate::forUser($actor)->allows('reopen', $task)) {
+                $allowed[] = 2;
+            }
+
+            return array_values(array_unique($allowed));
+        }
+
+        if (Gate::forUser($actor)->allows('work', $task)) {
+            $allowed = array_merge($allowed, match ($status) {
+                1 => [2],
+                2 => [5],
+                5 => [2],
+                default => [],
+            });
+        }
+
+        if (in_array($status, [2, 6], true) && Gate::forUser($actor)->allows('submitForReview', $task)) {
+            $allowed[] = 3;
+        }
+
+        if ($status === 3 && Gate::forUser($actor)->allows('review', $task)) {
+            $allowed = array_merge($allowed, [2, 4]);
+        }
+
+        if ($this->isSelfTask($task, $actor)) {
+            $allowed[] = 4;
+        }
+
+        return array_values(array_unique($allowed));
     }
 
     private function isSelfTask(WorkOrder $task, User $actor): bool

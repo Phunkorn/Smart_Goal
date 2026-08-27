@@ -116,6 +116,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('admin.tasks.approval');
 
+    Route::patch('/admin/tasks/{id}/collaborators/{user}/approval', [TaskCollaboratorController::class, 'decideCollaborator'])
+        ->middleware('admin')
+        ->name('admin.tasks.collaborators.approval');
+
     Route::delete('/admin/tasks/{id}', [TaskController::class, 'destroy'])
         ->middleware('admin')
         ->name('admin.tasks.destroy');

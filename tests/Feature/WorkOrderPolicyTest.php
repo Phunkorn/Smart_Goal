@@ -174,7 +174,7 @@ class WorkOrderPolicyTest extends TestCase
 
     // ---------- update (work-on-job access) shared by both controllers ----------
 
-    public function test_collaborators_cannot_update_progress_regardless_of_invitation_status(): void
+    public function test_accepted_collaborator_can_update_progress_but_pending_collaborator_cannot(): void
     {
         $owner = $this->user();
         $accepted = $this->user();
@@ -186,7 +186,7 @@ class WorkOrderPolicyTest extends TestCase
 
         $this->actingAs($accepted)
             ->post(route('tasks.progress.store', $task), ['note' => 'อัปเดตความคืบหน้า'])
-            ->assertForbidden();
+            ->assertRedirect();
 
         $this->actingAs($pending)
             ->post(route('tasks.progress.store', $task), ['note' => 'อัปเดตความคืบหน้า'])
@@ -245,10 +245,12 @@ class WorkOrderPolicyTest extends TestCase
             'job_due_at' => now()->addDay()->toDateTimeString(),
         ];
     }
-    public function test_invitation_can_only_be_answered_once(): void
+
+    public function test_cross_department_invitation_requires_admin_decision_and_can_only_be_decided_once(): void
     {
         $owner = User::factory()->create(['role' => 'user']);
         $invitee = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $job = WorkOrder::create([
             'user_id' => $owner->id,
             'created_by' => $owner->id,
@@ -265,13 +267,17 @@ class WorkOrderPolicyTest extends TestCase
 
         $this->actingAs($invitee)
             ->patch(route('tasks.invitation.respond', $job->job_id), ['status' => 'rejected'])
-            ->assertRedirect();
+            ->assertForbidden();
+        $this->assertSame('pending', $job->fresh()->collaborators()->first()->pivot->status);
+
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.collaborators.approval', [$job->job_id, $invitee->id]), ['status' => 'rejected'])
+            ->assertOk();
         $this->assertSame('rejected', $job->collaborators()->first()->pivot->status);
 
-        $this->actingAs($invitee)
-            ->patch(route('tasks.invitation.respond', $job->job_id), ['status' => 'accepted'])
-            ->assertStatus(422);
-        $this->assertSame('rejected', $job->collaborators()->first()->pivot->status);
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.collaborators.approval', [$job->job_id, $invitee->id]), ['status' => 'accepted'])
+            ->assertConflict();
+        $this->assertSame('rejected', $job->fresh()->collaborators()->first()->pivot->status);
     }
-
 }

@@ -8,18 +8,19 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderListAttachment;
 use App\Models\WorkOrderSubtask;
+use App\Services\CollaboratorInvitationService;
+use App\Services\MeetingQueryService;
+use App\Services\NotificationService;
+use App\Services\TaskCommentService;
+use App\Services\TaskStatusTransitionService;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
-use App\Support\WorkOrderApprovalResolver;
 use App\Support\ProjectCreatorSummary;
 use App\Support\ProtectedMedia;
 use App\Support\TaskCollaboratorOptions;
 use App\Support\TodayWorkspace;
+use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
-use App\Services\MeetingQueryService;
-use App\Services\TaskCommentService;
-use App\Services\TaskStatusTransitionService;
-use App\Services\NotificationService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -354,7 +355,7 @@ class MyTaskController extends Controller
      * - มอบหมายให้พนักงานต่างแผนก => สถานะ "รออนุมัติ" และแจ้งเตือนไปยัง Admin ทุกคน
      *   ให้เป็นผู้ตัดสินใจรับหรือปฏิเสธงานแทน (ผ่านปุ่มอนุมัติ/ปฏิเสธที่มีอยู่แล้วในหน้าบอร์ด)
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CollaboratorInvitationService $invitations): JsonResponse
     {
         $actor = Auth::user();
 
@@ -420,7 +421,7 @@ class MyTaskController extends Controller
         $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
         $sameDepartment = $approval['same_department'];
 
-        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $approval, $request, $projectItems) {
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $approval, $request, $projectItems, $invitations) {
             $leaderId = $approval['leader_user_id'];
             $firstItem = $projectItems->first();
             $projectName = trim((string) ($validated['project_name'] ?? '')) ?: $firstItem['job_topic'];
@@ -477,12 +478,10 @@ class MyTaskController extends Controller
                     ->values();
 
                 foreach ($collaborators as $userId) {
-                    $job->collaborators()->syncWithoutDetaching([
-                        $userId => [
-                            'added_by' => $actor->id,
-                            'status' => 'pending',
-                        ],
-                    ]);
+                    $candidate = User::find($userId);
+                    if ($candidate) {
+                        $invitations->invite($job, $candidate, $actor);
+                    }
                 }
 
                 AuditTrail::log('created', $job, ($sameDepartment ? 'สร้างโปรเจกต์: ' : 'ส่งคำขอเปิดงานข้ามแผนก: ').$job->job_topic, [
@@ -512,14 +511,16 @@ class MyTaskController extends Controller
 
         $job->refresh();
 
+        app(NotificationService::class)->notifyAssignmentCreated(
+            $job,
+            $actor,
+            $assignee,
+            $sameDepartment
+        );
+
         if ($sameDepartment) {
-            if ((int) $assignee->id !== (int) $actor->id) {
-                $this->notifyUsers([$assignee->id], $job, 'task_assigned', 'มีงานใหม่', $actor->name.' มอบหมายงาน "'.$job->job_topic.'" ให้คุณ');
-            }
             $message = 'เพิ่มโปรเจกต์สำเร็จ';
         } else {
-            $this->notifyAdmins($job, 'cross_department_pending', 'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
-                $actor->name.' ต้องการมอบหมายงาน "'.$job->job_topic.'" ให้ '.$assignee->name.' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ');
             $message = 'ส่งคำขอเปิดงานข้ามแผนกแล้ว รอผู้ดูแลระบบตรวจสอบก่อนเริ่มงาน';
         }
 
@@ -815,7 +816,7 @@ class MyTaskController extends Controller
     public function toggleComplete(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'update', $workOrder);
+        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'work', $workOrder);
 
         $validated = $request->validate([
             'completed' => 'required|boolean',
@@ -837,7 +838,7 @@ class MyTaskController extends Controller
     public function storeSubtask(Request $request, int $job_id): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('update', $workOrder);
+        $this->authorize('work', $workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         $validated = $request->validate([
@@ -862,7 +863,7 @@ class MyTaskController extends Controller
     public function updateSubtask(Request $request, WorkOrderSubtask $subtask): JsonResponse
     {
         $subtask->load('workOrder.collaborators');
-        $this->authorize('update', $subtask->workOrder);
+        $this->authorize('work', $subtask->workOrder);
         abort_if($this->isCompletedLocked($subtask->workOrder), 403);
 
         $validated = $request->validate([
@@ -891,7 +892,7 @@ class MyTaskController extends Controller
     public function toggleSubtask(Request $request, WorkOrderSubtask $subtask): JsonResponse
     {
         $subtask->load('workOrder.collaborators');
-        $this->authorize('update', $subtask->workOrder);
+        $this->authorize('work', $subtask->workOrder);
         abort_if($this->isCompletedLocked($subtask->workOrder), 403);
 
         $validated = $request->validate([
@@ -916,7 +917,7 @@ class MyTaskController extends Controller
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'update', $workOrder);
+        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'work', $workOrder);
         $workOrder = $transitions->transition($workOrder, $request->user(), (int) $validated['job_status'], [
             'action' => $validated['action'] ?? null,
             'reason' => $validated['reason'] ?? null,
@@ -927,6 +928,7 @@ class MyTaskController extends Controller
             'message' => (int) $validated['job_status'] === 4 ? 'ปิดงานสำเร็จ' : 'ปรับสถานะงานสำเร็จ',
             'job_id' => $workOrder->job_id,
             'job_status' => $workOrder->job_status,
+            'transitions' => $transitions->capabilities($workOrder, $request->user()),
         ]);
     }
 
@@ -937,7 +939,7 @@ class MyTaskController extends Controller
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('update', $workOrder);
+        $this->authorize('work', $workOrder);
 
         $before = $workOrder->attributesToArray();
         $workOrder->update(['job_priority' => $validated['job_priority']]);
@@ -962,7 +964,7 @@ class MyTaskController extends Controller
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('update', $workOrder);
+        $this->authorize('work', $workOrder);
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         $before = $workOrder->attributesToArray();

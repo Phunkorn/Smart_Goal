@@ -1,4 +1,4 @@
-import {commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead} from './task-comments-model.js';
+import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead} from './task-comments-model.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
 
 (() => {
@@ -31,7 +31,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             button.setAttribute('aria-selected', String(active));
         });
         panel.querySelector('[data-timeline-items]').innerHTML = entries.map(entry).join('') || `<p class="task-timeline-empty">${emptyLabel()}</p>`;
-        if (compose) compose.hidden = tab !== 'updates';
+        if (compose) compose.hidden = tab !== 'updates' || !canComposeComment(management[String(taskId)]);
     };
 
     const clearBadges = () => {

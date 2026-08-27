@@ -125,16 +125,18 @@ final class PersonalReportService
 
     public function queryFor(int $userId): Builder
     {
-        return WorkOrder::query()->where(function (Builder $query) use ($userId): void {
-            $query->where('user_id', $userId)
-                ->orWhere('created_by', $userId)
-                ->orWhere('leader_user_id', $userId)
-                ->orWhereHas('collaborators', function (Builder $collaboratorQuery) use ($userId): void {
-                    $collaboratorQuery
-                        ->where('users.id', $userId)
-                        ->where('work_order_collaborators.status', 'accepted');
-                });
-        });
+        return WorkOrder::query()
+            ->where('approval_status', 'approved')
+            ->where(function (Builder $query) use ($userId): void {
+                $query->where('user_id', $userId)
+                    ->orWhere('created_by', $userId)
+                    ->orWhere('leader_user_id', $userId)
+                    ->orWhereHas('collaborators', function (Builder $collaboratorQuery) use ($userId): void {
+                        $collaboratorQuery
+                            ->where('users.id', $userId)
+                            ->where('work_order_collaborators.status', 'accepted');
+                    });
+            });
     }
 
     private function filteredJobs(User $user, array $filters): Collection

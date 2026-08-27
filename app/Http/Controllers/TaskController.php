@@ -9,12 +9,13 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderListAttachment;
+use App\Services\CollaboratorInvitationService;
+use App\Services\NotificationService;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProtectedMedia;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
-use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -46,10 +47,36 @@ class TaskController extends Controller
         $query = WorkOrder::with([
             'user.department',
             'department',
-            'creator',
+            'creator.department',
             'leader',
+            'taskList',
             'collaborators.department',
         ]);
+
+        $pendingAssignments = (clone $query)
+            ->where('approval_status', 'pending')
+            ->latest('job_id')
+            ->get();
+        $pendingCollaboratorTasks = WorkOrder::with([
+            'taskList',
+            'creator.department',
+            'collaborators' => fn ($collaborators) => $collaborators
+                ->where('work_order_collaborators.status', 'pending')
+                ->with('department'),
+        ])
+            ->where('approval_status', 'approved')
+            ->whereHas('collaborators', fn ($collaborators) => $collaborators
+                ->where('work_order_collaborators.status', 'pending'))
+            ->latest('job_id')
+            ->get();
+        $pendingCollaboratorInviters = User::query()
+            ->with('department')
+            ->whereIn('id', $pendingCollaboratorTasks
+                ->flatMap(fn (WorkOrder $task) => $task->collaborators->pluck('pivot.added_by'))
+                ->filter()
+                ->unique())
+            ->get()
+            ->keyBy('id');
         if ($currentDeptId) {
             $query->where('department_id', $currentDeptId);
         }
@@ -61,12 +88,12 @@ class TaskController extends Controller
         if ($search !== '') {
             $query->where(function ($query) use ($search) {
                 $query
-                    ->where('job_topic', 'like', '%' . $search . '%')
+                    ->where('job_topic', 'like', '%'.$search.'%')
                     ->orWhereHas('user', function ($userQuery) use ($search) {
-                        $userQuery->where('name', 'like', '%' . $search . '%');
+                        $userQuery->where('name', 'like', '%'.$search.'%');
                     })
                     ->orWhereHas('department', function ($departmentQuery) use ($search) {
-                        $departmentQuery->where('department_name', 'like', '%' . $search . '%');
+                        $departmentQuery->where('department_name', 'like', '%'.$search.'%');
                     });
             });
         }
@@ -101,13 +128,11 @@ class TaskController extends Controller
 
         $attentionJobs = $jobs
             ->filter(
-                fn(WorkOrder $job) =>
-                $job->approval_status !== 'rejected'
+                fn (WorkOrder $job) => $job->approval_status !== 'rejected'
                     && ($job->is_overdue || $this->isDueSoon($job))
             )
             ->sortBy(
-                fn(WorkOrder $job) =>
-                optional($job->job_due_at)->timestamp ?? PHP_INT_MAX
+                fn (WorkOrder $job) => optional($job->job_due_at)->timestamp ?? PHP_INT_MAX
             )
             ->values();
 
@@ -133,14 +158,17 @@ class TaskController extends Controller
             'attentionJobs',
             'workloadByDepartment',
             'workloadByUser',
-            'canManageTasks'
+            'canManageTasks',
+            'pendingAssignments',
+            'pendingCollaboratorTasks',
+            'pendingCollaboratorInviters'
         ));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, CollaboratorInvitationService $invitations)
     {
         if ($request->routeIs('admin.tasks.store')) {
-            return $this->storeAdminProject($request);
+            return $this->storeAdminProject($request, $invitations);
         }
 
         $this->authorize('create', WorkOrder::class);
@@ -160,7 +188,7 @@ class TaskController extends Controller
         // เพื่อไม่ให้ logic เพี้ยนกันไปคนละทางระหว่างสองช่องทางสร้างงาน
         $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
 
-        $job = DB::transaction(function () use ($validated, $actor, $assignee, $request, $approval) {
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $request, $approval, $invitations) {
             $initialStatus = (int) ($validated['job_status'] ?? 1);
             $projectList = null;
 
@@ -195,46 +223,31 @@ class TaskController extends Controller
             ]);
 
             $collaborators = collect($validated['collaborators'] ?? [])
-                ->map(fn($id) => (int) $id)
-                ->reject(fn($id) => $id === (int) $assignee->id)
+                ->map(fn ($id) => (int) $id)
+                ->reject(fn ($id) => $id === (int) $assignee->id)
                 ->unique()
                 ->values();
 
             foreach ($collaborators as $userId) {
-                $job->collaborators()->syncWithoutDetaching([
-                    $userId => [
-                        'added_by' => $actor->id,
-                        'status' => $actor->role === 'admin' ? 'accepted' : 'pending',
-                    ],
-                ]);
+                $candidate = User::find($userId);
+                if ($candidate) {
+                    $invitations->invite($job, $candidate, $actor);
+                }
             }
 
             $this->storeFiles($request, $job, 'attachments');
-
-            if ($actor->role === 'admin') {
-                app(NotificationService::class)->notifyTaskMembers(
-                    $job,
-                    'admin_created_task',
-                    'มีงานใหม่',
-                    'ผู้ดูแลระบบมอบหมายงาน "' . $job->job_topic . '" ให้คุณ',
-                    Auth::user()
-                );
-            } elseif (! $approval['same_department']) {
-                // มอบหมายข้ามแผนก -> ต้องแจ้งเตือน admin ทุกคนให้เข้ามาอนุมัติ/ปฏิเสธ
-                app(NotificationService::class)->notifyTaskAdmins(
-                    $job,
-                    'cross_department_pending',
-                    'มีคำขอเปิดงานข้ามแผนกรอตรวจสอบ',
-                    $actor->name . ' ต้องการมอบหมายงาน "' . $job->job_topic . '" ให้ ' . $assignee->name . ' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติ/ปฏิเสธ',
-                    Auth::user()
-                );
-            }
 
             return $job;
         });
 
         $job->refresh();
-        AuditTrail::log('created', $job, ($actor->role === 'admin' ? 'Admin สร้างงาน: ' : 'ผู้ใช้ส่งคำขอเปิดงาน: ') . $job->job_topic, [
+        app(NotificationService::class)->notifyAssignmentCreated(
+            $job,
+            $actor,
+            $assignee,
+            $approval['same_department']
+        );
+        AuditTrail::log('created', $job, ($actor->role === 'admin' ? 'Admin สร้างงาน: ' : 'ผู้ใช้ส่งคำขอเปิดงาน: ').$job->job_topic, [
             'after' => $job->attributesToArray(),
         ]);
 
@@ -306,13 +319,7 @@ class TaskController extends Controller
             return $job;
         });
 
-        app(NotificationService::class)->notifyTaskMembers(
-            $job,
-            'admin_created_task',
-            'มีงานใหม่',
-            'ผู้ดูแลระบบมอบหมายงาน "'.$job->job_topic.'" ให้คุณ',
-            Auth::user()
-        );
+        app(NotificationService::class)->notifyAssignmentCreated($job, $actor, $user, true);
 
         return response()->json([
             'ok' => true,
@@ -322,7 +329,7 @@ class TaskController extends Controller
         ], 201);
     }
 
-    private function storeAdminProject(Request $request)
+    private function storeAdminProject(Request $request, CollaboratorInvitationService $invitations)
     {
         $this->authorize('create', WorkOrder::class);
         $validator = validator($request->all(), $this->adminProjectValidationRules());
@@ -358,7 +365,7 @@ class TaskController extends Controller
         $storedPaths = [];
 
         try {
-            $createdJobs = DB::transaction(function () use ($validated, $request, $actor, $assignees, &$storedPaths) {
+            $createdJobs = DB::transaction(function () use ($validated, $request, $actor, $assignees, &$storedPaths, $invitations) {
                 $project = WorkOrderList::create([
                     'user_id' => $actor->id,
                     'name' => trim($validated['project_name']),
@@ -424,9 +431,10 @@ class TaskController extends Controller
                         ->unique()
                         ->values();
                     foreach ($collaboratorIds as $collaboratorId) {
-                        $job->collaborators()->syncWithoutDetaching([
-                            $collaboratorId => ['added_by' => $actor->id, 'status' => 'accepted'],
-                        ]);
+                        $candidate = User::find($collaboratorId);
+                        if ($candidate) {
+                            $invitations->invite($job, $candidate, $actor);
+                        }
                     }
 
                     $this->storeAdminTaskFiles($request, $job, 'tasks.'.$taskIndex.'.attachments', $storedPaths);
@@ -453,12 +461,11 @@ class TaskController extends Controller
         }
 
         foreach ($createdJobs as $job) {
-            app(NotificationService::class)->notifyTaskMembers(
+            app(NotificationService::class)->notifyAssignmentCreated(
                 $job,
-                'admin_created_task',
-                'มีงานใหม่',
-                $actor->name.' มอบหมายงาน '.chr(34).$job->job_topic.chr(34).' ให้คุณ',
-                Auth::user()
+                $actor,
+                $assignees->get((int) $job->user_id),
+                true
             );
         }
 
@@ -501,7 +508,7 @@ class TaskController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize('update', $job);
+        $this->authorize('work', $job);
 
         if ((int) $job->job_status === 4 && $user?->role !== 'admin') {
             return $this->jsonOrBack($request, false, 'งานนี้ปิดแล้ว ไม่สามารถแก้ไขรายละเอียดได้', 422);
@@ -524,7 +531,7 @@ class TaskController extends Controller
         $job->save();
         $job->refresh();
 
-        AuditTrail::log('updated', $job, 'แก้ไขรายละเอียดงาน: ' . $job->job_topic, [
+        AuditTrail::log('updated', $job, 'แก้ไขรายละเอียดงาน: '.$job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
         ]);
@@ -537,7 +544,7 @@ class TaskController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize('update', $job);
+        $this->authorize('work', $job);
         abort_if((int) $job->job_status === 4 && $user?->role !== 'admin', 403);
 
         $validated = $request->validate([
@@ -579,7 +586,7 @@ class TaskController extends Controller
         $job->delete_request_reason = $validated['reason'];
         $job->save();
 
-        AuditTrail::log('delete_requested', $job, 'ส่งคำขอลบงาน: ' . $job->job_topic, [
+        AuditTrail::log('delete_requested', $job, 'ส่งคำขอลบงาน: '.$job->job_topic, [
             'reason' => Str::limit($validated['reason'], 500),
             'requested_by' => $user->id,
         ]);
@@ -603,7 +610,7 @@ class TaskController extends Controller
 
         app(NotificationService::class)->notifyTaskDeleted(
             $job,
-            'ผู้ดูแลระบบอนุมัติคำขอลบงาน "' . $job->job_topic . '" แล้ว',
+            'ผู้ดูแลระบบอนุมัติคำขอลบงาน "'.$job->job_topic.'" แล้ว',
             Auth::user()
         );
         AuditTrail::trash($job, Auth::user(), [
@@ -613,7 +620,7 @@ class TaskController extends Controller
             'leader' => $job->leader?->only(['id', 'name', 'email']),
             'collaborators' => $job->collaborators->map->only(['id', 'name', 'email'])->values()->all(),
         ]);
-        AuditTrail::log('deleted', $job, 'Admin ลบงาน: ' . $job->job_topic, [
+        AuditTrail::log('deleted', $job, 'Admin ลบงาน: '.$job->job_topic, [
             'before' => $job->attributesToArray(),
         ]);
         $job->delete();
@@ -649,7 +656,7 @@ class TaskController extends Controller
 
         $job->refresh();
 
-        AuditTrail::log('delete_request_rejected', $job, 'Admin ปฏิเสธคำขอลบงาน: ' . $job->job_topic, [
+        AuditTrail::log('delete_request_rejected', $job, 'Admin ปฏิเสธคำขอลบงาน: '.$job->job_topic, [
             'before' => $before,
             'after' => $job->attributesToArray(),
             'requested_by' => $requesterId,
@@ -683,12 +690,12 @@ class TaskController extends Controller
             'leader' => $job->leader?->only(['id', 'name', 'email']),
             'collaborators' => $job->collaborators->map->only(['id', 'name', 'email'])->values()->all(),
         ]);
-        AuditTrail::log('deleted', $job, 'Admin ลบงาน: ' . $job->job_topic, [
+        AuditTrail::log('deleted', $job, 'Admin ลบงาน: '.$job->job_topic, [
             'before' => $job->attributesToArray(),
         ]);
         app(NotificationService::class)->notifyTaskDeleted(
             $job,
-            'ผู้ดูแลระบบลบงาน "' . $job->job_topic . '" แล้ว',
+            'ผู้ดูแลระบบลบงาน "'.$job->job_topic.'" แล้ว',
             Auth::user()
         );
         $job->delete();
@@ -822,7 +829,7 @@ class TaskController extends Controller
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id,role,user'],
             'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:' . implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:' . self::ATTACHMENT_MAX_KB],
+            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
         ];
     }
 

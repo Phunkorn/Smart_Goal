@@ -1,4 +1,5 @@
 /* Admin Board composition preserves the historical cascade order. */
 @import './board/core.css';
 @import './board/admin-overview.css';
+@import './board/assignment-approval.css';
 @import './board/postlude.css';

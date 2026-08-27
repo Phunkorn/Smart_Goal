@@ -1,5 +1,5 @@
 import {synchronizeTaskSource} from './task-state.js';
-import {confirmTaskTransition} from './task-transitions.js';
+import {canDragTask, canTransitionTo, confirmTaskTransition} from './task-transitions.js';
 
 (() => {
     const root = document.querySelector('[data-workspace]'); const kanban = root?.querySelector('[data-kanban]'); if (!root || !kanban) return;
@@ -42,12 +42,16 @@ import {confirmTaskTransition} from './task-transitions.js';
     });
 
     let dragged = null;
+    const canDragCard = (card) => canDragTask(
+        Number(card.dataset.status),
+        management[String(card.dataset.id)]?.transitions || {}
+    );
+
     kanban.querySelectorAll('[data-kanban-card]').forEach((card) => {
-        const capabilities = management[String(card.dataset.id)]?.transitions || {};
-        card.draggable = !capabilities.is_final;
+        card.draggable = canDragCard(card);
         card.querySelectorAll('*').forEach((item) => item.draggable = false);
         card.addEventListener('dragstart', (event) => {
-            if (capabilities.is_final) {
+            if (!canDragCard(card)) {
                 event.preventDefault();
                 return;
             }
@@ -62,7 +66,8 @@ import {confirmTaskTransition} from './task-transitions.js';
     kanban.querySelectorAll('[data-kanban-column]').forEach((column) => {
         const dropZone = column.querySelector('.mytasks-kanban__cards');
         const allowDrop = (event) => {
-            if (Number(dragged?.dataset.status) === 6 && Number(column.dataset.kanbanColumn) !== 4) return;
+            const capabilities = management[String(dragged?.dataset.id)]?.transitions || {};
+            if (!canTransitionTo(Number(dragged?.dataset.status), Number(column.dataset.kanbanColumn), capabilities)) return;
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
             column.classList.add('is-drop-target');
@@ -77,6 +82,8 @@ import {confirmTaskTransition} from './task-transitions.js';
             const previousZone = card.parentElement;
             const previousStatus = card.dataset.status;
             if (Number(previousStatus) === status) return;
+            const capabilities = management[String(card.dataset.id)]?.transitions || {};
+            if (!canTransitionTo(Number(previousStatus), status, capabilities)) return;
             const payload = await confirmTaskTransition(Number(previousStatus), status, management[String(card.dataset.id)]?.transitions || {});
             if (!payload) return;
 
@@ -94,10 +101,14 @@ import {confirmTaskTransition} from './task-transitions.js';
                     },
                     body: JSON.stringify(payload),
                 });
-                if (!response.ok) throw new Error('status update failed');
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'status update failed');
+                if (data.transitions) management[String(card.dataset.id)].transitions = data.transitions;
+                card.draggable = canDragCard(card);
                 synchronizeTaskSource(root, card.dataset.id, {status});
             } catch (error) {
                 card.dataset.status = previousStatus;
+                card.draggable = canDragCard(card);
                 previousZone?.append(card);
                 refresh();
             }
