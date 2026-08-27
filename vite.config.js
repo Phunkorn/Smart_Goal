@@ -8,6 +8,7 @@ export default defineConfig({
             input: [
                 'resources/css/components/layout.css',
                 'resources/css/pages/admin-activity-logs.css',
+                'resources/css/pages/admin-departments.css',
                 'resources/css/pages/admin-trash.css',
                 'resources/css/pages/auth-login.css',
                 'resources/css/pages/auth-setup-password.css',

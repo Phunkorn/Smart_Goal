@@ -23,7 +23,8 @@ class DepartmentManagementTest extends TestCase
         $response = $this->actingAs($admin)
             ->get(route('admin.departments.index'))
             ->assertOk()
-            ->assertSee('จัดการแผนก')
+            ->assertSee('แผนกทั้งหมด')
+            ->assertSee('ภาพรวมแผนกและสมาชิกในองค์กร')
             ->assertSee('Operations')
             ->assertSee(route('admin.departments.index'), false)
             ->assertSee('delete-department-form', false)
@@ -36,6 +37,60 @@ class DepartmentManagementTest extends TestCase
 
         $this->assertSame(1, $listedDepartment->users_count);
         $this->assertSame(1, $listedDepartment->jobs_count);
+    }
+
+    public function test_department_cards_show_only_the_member_count_and_a_detail_link(): void
+    {
+        $admin = $this->user('admin');
+        $department = Department::create(['department_name' => 'Accounting Team']);
+        $employee = $this->user('user', $department);
+        $this->workOrder($employee, $department);
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->assertSee('departments-grid', false)
+            ->assertSee('สร้างแผนกใหม่')
+            ->assertSee('ข้อมูลล่าสุดจากระบบ Smart Goal')
+            ->assertSee('สมาชิก')
+            ->assertSee('ดูรายละเอียด')
+            ->assertSee(route('admin.work-board.department', $department), false);
+
+        // การ์ดต้องเรียบตามสเปก จึงห้ามมี progress bar หรือ metric โปรเจกต์/งานหลุดกลับเข้ามา
+        $response->assertDontSee('progress', false)
+            ->assertDontSee('โปรเจกต์')
+            ->assertDontSee('WorkOrder');
+
+        $listedDepartment = $response->viewData('departments')->firstWhere('id', $department->id);
+
+        $this->assertSame('AC', $listedDepartment->board_code);
+        $this->assertSame(1, $listedDepartment->member_count);
+    }
+
+    public function test_member_count_ignores_admins_viewers_and_deactivated_accounts(): void
+    {
+        $admin = $this->user('admin');
+        $department = Department::create(['department_name' => 'Mixed Roster']);
+
+        $this->user('user', $department);
+        $this->user('admin', $department);
+        $this->user('viewer', $department);
+        User::factory()->create([
+            'role' => 'user',
+            'department_id' => $department->id,
+            'must_change_password' => false,
+            'is_active' => false,
+        ]);
+
+        $listedDepartment = $this->actingAs($admin)
+            ->get(route('admin.departments.index'))
+            ->assertOk()
+            ->viewData('departments')
+            ->firstWhere('id', $department->id);
+
+        $this->assertSame(1, $listedDepartment->member_count);
+        // users_count ยังนับทุกบัญชีเพราะเป็นเงื่อนไขกันลบแผนก ไม่ใช่ตัวเลขที่โชว์บนการ์ด
+        $this->assertSame(4, $listedDepartment->users_count);
     }
 
     public function test_user_and_viewer_cannot_access_any_department_management_route(): void

@@ -144,5 +144,6 @@
     'workspaceRootLabel' => 'งานของฉัน',
     'workspaceRootUrl' => route('mytasks.index'),
 ])
+@include('tasks.components.project-task-request-modal')
 <div class="notion-toast" data-toast></div>
 @endsection

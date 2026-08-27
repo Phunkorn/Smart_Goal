@@ -23,6 +23,9 @@ use App\Models\WorkOrder;
  */
 class WorkOrderPolicy
 {
+    /** @var array<int, array<int>> */
+    private array $acceptedProjectIdsByUser = [];
+
     /**
      * ดูบอร์ดงานทั้งหมด (TaskController::index)
      */
@@ -48,10 +51,9 @@ class WorkOrderPolicy
     public function view(User $user, WorkOrder $workOrder): bool
     {
         return in_array($user->role, ['admin', 'viewer'], true)
-            || in_array($user->id, [$workOrder->user_id, $workOrder->created_by, $workOrder->leader_user_id], true)
-            || $workOrder->collaborators->contains(
-                fn ($person) => $person->id === $user->id && $person->pivot?->status === 'accepted'
-            );
+            || $this->isTaskParticipant($workOrder, $user)
+            || ($workOrder->work_order_list_id
+                && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
     }
 
     /**
@@ -67,7 +69,7 @@ class WorkOrderPolicy
             return false;
         }
 
-        return $this->canWorkOnJob($workOrder, $user);
+        return $this->isTaskEditor($workOrder, $user);
     }
 
     public function submitForReview(User $user, WorkOrder $workOrder): bool
@@ -88,7 +90,7 @@ class WorkOrderPolicy
 
     public function comment(User $user, WorkOrder $workOrder): bool
     {
-        return $user->role !== 'viewer' && $this->canWorkOnJob($workOrder, $user);
+        return $user->role !== 'viewer' && $this->isTaskParticipant($workOrder, $user);
     }
 
     public function respondToInvitation(User $user, WorkOrder $workOrder): bool
@@ -156,16 +158,45 @@ class WorkOrderPolicy
     /**
      * เดิมคือ TaskController::canWorkOnJob() / MyTaskController::authorizeWorkOrderAccess()
      */
-    private function canWorkOnJob(WorkOrder $workOrder, User $user): bool
+    private function isTaskEditor(WorkOrder $workOrder, User $user): bool
     {
         if ($user->role === 'admin') {
             return true;
         }
 
-        return in_array($user->id, [$workOrder->user_id, $workOrder->created_by, $workOrder->leader_user_id], true)
-            || $workOrder->collaborators->contains(
-                fn ($person) => $person->id === $user->id && $person->pivot?->status === 'accepted'
+        return in_array($user->id, [$workOrder->user_id, $workOrder->created_by, $workOrder->leader_user_id], true);
+    }
+
+    private function isTaskParticipant(WorkOrder $workOrder, User $user): bool
+    {
+        if ($this->isTaskEditor($workOrder, $user)) {
+            return true;
+        }
+
+        if ($workOrder->relationLoaded('collaborators')) {
+            return $workOrder->collaborators->contains(
+                fn ($person) => (int) $person->id === (int) $user->id && $person->pivot?->status === 'accepted'
             );
+        }
+
+        return $workOrder->collaborators()
+            ->where('users.id', $user->id)
+            ->wherePivot('status', 'accepted')
+            ->exists();
+    }
+
+    /** @return array<int> */
+    private function acceptedProjectIds(User $user): array
+    {
+        return $this->acceptedProjectIdsByUser[$user->id] ??= WorkOrder::query()
+            ->whereNotNull('work_order_list_id')
+            ->whereHas('collaborators', fn ($query) => $query
+                ->where('users.id', $user->id)
+                ->where('work_order_collaborators.status', 'accepted'))
+            ->distinct()
+            ->pluck('work_order_list_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     private function approverId(WorkOrder $workOrder): ?int

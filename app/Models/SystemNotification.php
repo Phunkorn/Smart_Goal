@@ -91,6 +91,7 @@ class SystemNotification extends Model
             'deadline_due_today', 'deadline_overdue' => 'deadline',
             'task_assigned', 'admin_created_task', 'cross_department_pending', 'admin_approval',
             'collaborator_added', 'collaborator_removed', 'collaborator_approval_request',
+            'project_task_request_submitted', 'project_task_request_approved', 'project_task_request_rejected',
             'delete_request', 'delete_request_rejected', 'task_deleted' => 'task',
             default => 'system',
         };

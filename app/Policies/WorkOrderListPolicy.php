@@ -12,6 +12,9 @@ use App\Models\WorkOrderList;
  */
 class WorkOrderListPolicy
 {
+    /** @var array<int, array<int>> */
+    private array $acceptedProjectIdsByUser = [];
+
     public function view(User $user, WorkOrderList $list): bool
     {
         if (in_array($user->role, ['admin', 'viewer'], true) || (int) $list->user_id === (int) $user->id) {
@@ -59,5 +62,33 @@ class WorkOrderListPolicy
         }
 
         return $user->role === 'admin' || (int) $list->user_id === (int) $user->id;
+    }
+
+    public function requestTask(User $user, WorkOrderList $list): bool
+    {
+        $owner = $list->relationLoaded('user') ? $list->user : $list->user()->first();
+
+        return $user->role !== 'viewer'
+            && (int) $list->user_id !== (int) $user->id
+            && $owner?->is_active
+            && $owner->role !== 'viewer'
+            && in_array((int) $list->id, $this->acceptedProjectIds($user), true);
+    }
+
+    public function reviewTaskRequests(User $user, WorkOrderList $list): bool
+    {
+        return $user->role !== 'viewer' && (int) $list->user_id === (int) $user->id;
+    }
+
+    /** @return array<int> */
+    private function acceptedProjectIds(User $user): array
+    {
+        return $this->acceptedProjectIdsByUser[$user->id] ??= $user->joinedJobs()
+            ->wherePivot('status', 'accepted')
+            ->whereNotNull('work_order_list_id')
+            ->distinct()
+            ->pluck('work_order_list_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 }

@@ -1,80 +1,71 @@
 @extends('layouts.app')
 
-@section('title', 'จัดการแผนก')
+@section('title', 'แผนกทั้งหมด')
+
+@push('styles')
+    @vite('resources/css/pages/admin-departments.css')
+@endpush
 
 @section('content')
-<div class="container-fluid px-0">
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+<div class="departments-page">
+    <header class="departments-page__head">
         <div>
-            <h1 class="h2 fw-bold mb-1">จัดการแผนก</h1>
-            <p class="text-muted mb-0">เพิ่ม แก้ไข และตรวจสอบการใช้งานแผนกในระบบ Smart Goal</p>
+            <h1>แผนกทั้งหมด</h1>
+            <p>ภาพรวมแผนกและสมาชิกในองค์กร</p>
         </div>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createDepartmentModal">
-            <i class="bi bi-plus-lg me-1"></i> เพิ่มแผนก
+        <button type="button" class="departments-create" data-bs-toggle="modal" data-bs-target="#createDepartmentModal">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i> สร้างแผนกใหม่
         </button>
-    </div>
+    </header>
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th scope="col" class="px-4 py-3">ชื่อแผนก</th>
-                            <th scope="col" class="text-center py-3">พนักงาน</th>
-                            <th scope="col" class="text-center py-3">WorkOrder</th>
-                            <th scope="col" class="text-end px-4 py-3">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($departments as $department)
-                            @php($canDelete = $department->users_count === 0 && $department->jobs_count === 0)
-                            <tr>
-                                <td class="px-4">
-                                    <div class="fw-bold">{{ $department->department_name }}</div>
-                                    <small class="text-muted">รหัสแผนก #{{ $department->id }}</small>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge text-bg-light border">{{ $department->users_count }}</span>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge text-bg-light border">{{ $department->jobs_count }}</span>
-                                </td>
-                                <td class="text-end px-4">
-                                    <div class="d-inline-flex flex-wrap justify-content-end gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                                            data-bs-target="#editDepartmentModal{{ $department->id }}"
-                                            aria-label="แก้ไขแผนก {{ $department->department_name }}">
-                                            <i class="bi bi-pencil-square"></i> แก้ไข
-                                        </button>
-                                        <form method="POST" action="{{ route('admin.departments.destroy', $department) }}"
-                                            class="delete-department-form" data-department-name="{{ $department->department_name }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                title="{{ $canDelete ? 'ลบแผนก' : 'ตรวจสอบการลบแผนก' }}"
-                                                aria-label="ลบแผนก {{ $department->department_name }}">
-                                                <i class="bi bi-trash"></i> ลบ
-                                            </button>
-                                        </form>
-                                    </div>
-                                    @unless ($canDelete)
-                                        <small class="d-block text-muted mt-1">ลบไม่ได้เนื่องจากยังมีข้อมูลเชื่อมโยง</small>
-                                    @endunless
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="text-center text-muted py-5">
-                                    <i class="bi bi-diagram-3 fs-2 d-block mb-2"></i>
-                                    ยังไม่มีแผนกในระบบ
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+    <div class="departments-grid">
+        @forelse ($departments as $department)
+            @php($canDelete = $department->users_count === 0 && $department->jobs_count === 0)
+            <article class="department-card">
+                <div class="department-card__head">
+                    <span class="department-card__mark" aria-hidden="true">{{ $department->board_code }}</span>
+                    <div class="department-card__identity">
+                        <h2>{{ $department->department_name }}</h2>
+                        <p>ข้อมูลล่าสุดจากระบบ Smart Goal</p>
+                    </div>
+                    <div class="department-card__manage">
+                        <button type="button" class="department-card__icon-button" data-bs-toggle="modal"
+                            data-bs-target="#editDepartmentModal{{ $department->id }}"
+                            aria-label="แก้ไขแผนก {{ $department->department_name }}">
+                            <i class="bi bi-pencil" aria-hidden="true"></i>
+                        </button>
+                        <form method="POST" action="{{ route('admin.departments.destroy', $department) }}"
+                            class="delete-department-form" data-department-name="{{ $department->department_name }}">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="department-card__icon-button department-card__icon-button--danger"
+                                title="{{ $canDelete ? 'ลบแผนก' : 'ลบไม่ได้เนื่องจากยังมีข้อมูลเชื่อมโยง' }}"
+                                aria-label="ลบแผนก {{ $department->department_name }}">
+                                <i class="bi bi-trash" aria-hidden="true"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                @unless ($canDelete)
+                    <p class="department-card__locked">ลบไม่ได้เนื่องจากยังมีข้อมูลเชื่อมโยง</p>
+                @endunless
+
+                <div class="department-card__foot">
+                    <p class="department-card__members">
+                        <strong>{{ number_format($department->member_count) }}</strong> สมาชิก
+                    </p>
+                    <a class="department-card__detail" href="{{ route('admin.work-board.department', $department) }}">
+                        ดูรายละเอียด
+                    </a>
+                </div>
+            </article>
+        @empty
+            <div class="departments-empty">
+                <h2>ยังไม่มีแผนกในระบบ</h2>
+                <p>เมื่อสร้างแผนกแล้ว รายการจะแสดงที่นี่โดยอัตโนมัติ</p>
             </div>
-        </div>
+        @endforelse
     </div>
 </div>
 
@@ -84,9 +75,7 @@
             <form method="POST" action="{{ route('admin.departments.store') }}">
                 @csrf
                 <div class="modal-header">
-                    <h2 class="modal-title fs-5 fw-bold" id="createDepartmentModalLabel">
-                        <i class="bi bi-plus-circle me-1"></i> เพิ่มแผนก
-                    </h2>
+                    <h2 class="modal-title fs-5 fw-bold" id="createDepartmentModalLabel">สร้างแผนกใหม่</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
                 </div>
                 <div class="modal-body">
@@ -112,9 +101,7 @@
                     @csrf
                     @method('PATCH')
                     <div class="modal-header">
-                        <h2 class="modal-title fs-5 fw-bold" id="editDepartmentModalLabel{{ $department->id }}">
-                            <i class="bi bi-pencil-square me-1"></i> แก้ไขชื่อแผนก
-                        </h2>
+                        <h2 class="modal-title fs-5 fw-bold" id="editDepartmentModalLabel{{ $department->id }}">แก้ไขชื่อแผนก</h2>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
                     </div>
                     <div class="modal-body">

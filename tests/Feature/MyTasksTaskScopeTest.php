@@ -42,7 +42,7 @@ class MyTasksTaskScopeTest extends TestCase
         $unrelated = $this->task($assignee, $other, $this->list($other), 'Unrelated task');
 
         $expected = [
-            'all' => [$delegated->job_id, $selfAssigned->job_id, $responsible->job_id, $createdButAssignedByOther->job_id, $legacyWithoutAssigner->job_id, $collaborating->job_id],
+            'all' => [$delegated->job_id, $selfAssigned->job_id, $responsible->job_id, $createdButAssignedByOther->job_id, $legacyWithoutAssigner->job_id, $collaborating->job_id, $pending->job_id],
             'responsible' => [$selfAssigned->job_id, $responsible->job_id],
             'created' => [$delegated->job_id, $selfAssigned->job_id, $createdButAssignedByOther->job_id, $legacyWithoutAssigner->job_id],
             'assigned_by_me' => [$delegated->job_id],
@@ -57,7 +57,7 @@ class MyTasksTaskScopeTest extends TestCase
 
             $this->assertEqualsCanonicalizing($taskIds, $this->workspaceTaskIds($response));
             $this->assertContains($delegated->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
-            $this->assertNotContains($pending->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
+            $this->assertContains($pending->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
             $this->assertNotContains($unrelated->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
         }
 

@@ -73,6 +73,46 @@ class WorkBoardTest extends TestCase
             ->assertSee('สำคัญด่วน');
     }
 
+    public function test_department_list_is_a_card_grid_showing_only_the_member_count(): void
+    {
+        $department = Department::create(['department_name' => 'Callcenter']);
+        $viewer = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+        $teammate = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+        $project = WorkOrderList::create(['user_id' => $teammate->id, 'name' => 'โปรเจกต์ที่ต้องไม่โผล่']);
+        WorkOrder::create([
+            'user_id' => $teammate->id,
+            'department_id' => $department->id,
+            'work_order_list_id' => $project->id,
+            'job_topic' => 'งานที่ต้องไม่โผล่',
+            'approval_status' => 'approved',
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+
+        $response = $this->actingAs($viewer)
+            ->get(route('work-board.index'))
+            ->assertOk()
+            ->assertSee('wb-department-grid', false)
+            ->assertSee('wb-department-card', false)
+            ->assertSee('แผนกทั้งหมด')
+            ->assertSee('ภาพรวมแผนกและสมาชิกในองค์กร')
+            ->assertSee('ข้อมูลล่าสุดจากระบบ Smart Goal')
+            ->assertSee('สมาชิก')
+            ->assertSee('ดูรายละเอียด')
+            ->assertSee(route('work-board.department', $department), false);
+
+        // การ์ดต้องเหลือแค่จำนวนสมาชิก ห้ามให้ metric โปรเจกต์/งาน หรือ layout แบบแถวเดิมกลับมา
+        $response->assertDontSee('โปรเจกต์')
+            ->assertDontSee('wb-department-row', false)
+            ->assertDontSee('wb-department-stat', false)
+            ->assertDontSee('progress', false);
+
+        $listed = $response->viewData('departments')->firstWhere('id', $department->id);
+
+        $this->assertSame('CA', $listed->board_code);
+        $this->assertSame(2, $listed->member_count);
+    }
+
     public function test_member_board_labels_every_task_priority_with_the_five_level_scale(): void
     {
         $department = Department::create(['department_name' => 'Priority Dept']);

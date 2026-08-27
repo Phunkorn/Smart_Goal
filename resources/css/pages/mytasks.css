@@ -15,6 +15,7 @@
 
 /* My Tasks page composition. */
 @import './mytasks/project-board.css';
+@import './mytasks/task-request.css';
 @import '../components/task-workspace/dialogs.css';
 @import '../components/task-workspace/kanban.css';
 @import './mytasks/admin-assignment.css';

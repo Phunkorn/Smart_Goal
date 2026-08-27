@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -175,7 +174,7 @@ class WorkOrderPolicyTest extends TestCase
 
     // ---------- update (work-on-job access) shared by both controllers ----------
 
-    public function test_accepted_collaborator_can_update_progress_but_pending_collaborator_cannot(): void
+    public function test_collaborators_cannot_update_progress_regardless_of_invitation_status(): void
     {
         $owner = $this->user();
         $accepted = $this->user();
@@ -187,7 +186,7 @@ class WorkOrderPolicyTest extends TestCase
 
         $this->actingAs($accepted)
             ->post(route('tasks.progress.store', $task), ['note' => 'อัปเดตความคืบหน้า'])
-            ->assertRedirect();
+            ->assertForbidden();
 
         $this->actingAs($pending)
             ->post(route('tasks.progress.store', $task), ['note' => 'อัปเดตความคืบหน้า'])

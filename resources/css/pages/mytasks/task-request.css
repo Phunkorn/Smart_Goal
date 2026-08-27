@@ -1,0 +1,137 @@
+.my-tasks-page .board-project-request {
+    color: var(--sg-blue);
+}
+
+.my-tasks-page .project-task-requests {
+    border: 1px solid #f3d59f;
+    border-radius: 10px;
+    background: var(--sg-amber-soft);
+    margin: .5rem 0 .75rem;
+}
+
+.my-tasks-page .project-task-requests > summary {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    gap: .55rem;
+    padding: .75rem 1rem;
+}
+
+.my-tasks-page .project-task-requests > summary span {
+    color: var(--sg-muted);
+    font-size: .82rem;
+}
+
+.my-tasks-page .project-task-requests__list {
+    display: grid;
+    gap: .5rem;
+    padding: 0 .75rem .75rem;
+}
+
+.my-tasks-page .project-task-requests__list article {
+    align-items: center;
+    background: var(--sg-card);
+    border: 1px solid var(--sg-line);
+    border-radius: 10px;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    padding: .75rem;
+}
+
+.my-tasks-page .project-task-requests__list article.is-highlighted {
+    border-color: var(--sg-blue);
+    box-shadow: 0 0 0 2px var(--sg-blue-soft);
+}
+
+.my-tasks-page .project-task-requests__list article span,
+.my-tasks-page .project-task-requests__list article p {
+    color: var(--sg-muted);
+    display: block;
+    font-size: .82rem;
+    margin: .2rem 0 0;
+}
+
+.my-tasks-page .project-task-requests__actions,
+.my-tasks-page .project-task-requests__actions form {
+    align-items: center;
+    display: flex;
+    gap: .4rem;
+}
+
+.project-task-request-modal__card {
+    background: var(--sg-card);
+    border-radius: 12px;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .2);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    width: min(620px, calc(100vw - 2rem));
+}
+
+.project-task-request-modal__card > header,
+.project-task-request-modal__card footer {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+}
+
+.project-task-request-modal__card > header {
+    border-bottom: 1px solid var(--sg-line);
+}
+
+.project-task-request-modal__card > header span,
+.project-task-request-modal__card > header small {
+    color: var(--sg-muted);
+    display: block;
+    font-size: .75rem;
+}
+
+.project-task-request-modal__card > header strong {
+    display: block;
+    font-size: 1.15rem;
+}
+
+.project-task-request-modal__body {
+    display: grid;
+    gap: 1rem;
+    padding: 1.25rem;
+}
+
+.project-task-request-modal__body label > span {
+    display: block;
+    font-size: .85rem;
+    font-weight: 600;
+    margin-bottom: .35rem;
+}
+
+.project-task-request-modal__body > p {
+    color: var(--sg-muted);
+    font-size: .85rem;
+    margin: 0;
+}
+
+.project-task-request-modal__grid {
+    display: grid;
+    gap: .75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-task-request-modal__card footer {
+    border-top: 1px solid var(--sg-line);
+    gap: .5rem;
+    justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+    .my-tasks-page .project-task-requests__list article,
+    .my-tasks-page .project-task-requests__actions,
+    .my-tasks-page .project-task-requests__actions form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .project-task-request-modal__grid {
+        grid-template-columns: 1fr;
+    }
+}

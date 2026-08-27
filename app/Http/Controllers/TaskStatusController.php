@@ -22,7 +22,7 @@ class TaskStatusController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize('view', $job);
+        $this->authorize((int) $job->job_status === 4 ? 'reopen' : 'update', $job);
 
         $validated = $request->validate([
             'job_status' => ['required', 'integer', 'in:1,2,3,4,5,6'],

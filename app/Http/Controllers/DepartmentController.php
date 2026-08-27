@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Support\AuditTrail;
+use App\Support\WorkBoardDesign;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,11 +19,21 @@ class DepartmentController extends Controller
 
         $departments = Department::query()
             ->withCount([
+                // users_count / jobs_count คุมเงื่อนไขการลบ จึงต้องนับรวมข้อมูลที่ถูกลบแบบ soft delete
                 'users' => fn ($query) => $query->withTrashed(),
                 'jobs' => fn ($query) => $query->withTrashed(),
+                // member_count คือตัวเลขที่แสดงบนการ์ด ใช้นิยามเดียวกับบอร์ดทุกแผนก
+                'users as member_count' => fn ($query) => $query
+                    ->where('role', 'user')
+                    ->where('is_active', true),
             ])
             ->orderBy('department_name')
             ->get();
+
+        $departments->each(fn (Department $department) => $department->setAttribute(
+            'board_code',
+            WorkBoardDesign::departmentCode($department)
+        ));
 
         return view('admin.departments.index', compact('departments'));
     }

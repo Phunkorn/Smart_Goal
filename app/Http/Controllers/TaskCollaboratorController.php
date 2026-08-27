@@ -60,6 +60,12 @@ class TaskCollaboratorController extends Controller
                 ],
             ]);
 
+            // ต้องโหลด collaborators ใหม่ทุกครั้งที่แก้ pivot เพราะ WorkOrderPolicy::view()
+            // ตัดสินจาก $workOrder->collaborators ที่อยู่ใน memory ถ้ายังเป็นชุดเดิมจากบรรทัด
+            // WorkOrder::with(['collaborators', ...]) ด้านบน Gate ใน NotificationService::notify()
+            // จะมองไม่เห็นผู้ร่วมงานคนที่เพิ่งเพิ่ม แล้วกรอง notification ทิ้งเงียบ ๆ โดยไม่มี error
+            $job->load('collaborators');
+
             AuditTrail::log('collaborator_added', $job, 'เพิ่มผู้ร่วมโปรเจกต์ในงาน: '.$job->job_topic, [
                 'user_id' => $candidate->id,
                 'status' => $pivotStatus,

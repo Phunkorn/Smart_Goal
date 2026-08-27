@@ -38,4 +38,9 @@ class WorkOrderList extends Model
     {
         return $this->hasMany(WorkOrderListAttachment::class, 'work_order_list_id');
     }
+
+    public function taskRequests(): HasMany
+    {
+        return $this->hasMany(WorkOrderListTaskRequest::class);
+    }
 }

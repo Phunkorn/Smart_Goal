@@ -9,3 +9,4 @@ import './task-timeline.js';
 import './table-controls.js';
 import './admin-assignment-markers.js';
 import './calendar.js';
+import './task-request.js';

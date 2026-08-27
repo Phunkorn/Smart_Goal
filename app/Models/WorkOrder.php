@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -158,6 +159,39 @@ class WorkOrder extends Model
         return $this->belongsToMany(User::class, 'work_order_collaborators', 'work_order_id', 'user_id')
             ->withPivot('added_by', 'status', 'responded_at')
             ->withTimestamps();
+    }
+
+    public function scopeInvolving(Builder $query, User $user): Builder
+    {
+        if ($user->role === 'admin') {
+            return $query;
+        }
+
+        return $query->where(function (Builder $query) use ($user): void {
+            $query->where('user_id', $user->id)
+                ->orWhere('created_by', $user->id)
+                ->orWhere('leader_user_id', $user->id)
+                ->orWhereHas('collaborators', fn (Builder $collaborators) => $collaborators
+                    ->where('users.id', $user->id)
+                    ->where('work_order_collaborators.status', 'accepted'));
+        });
+    }
+
+    public function scopeVisibleInProjectsFor(Builder $query, User $user): Builder
+    {
+        if ($user->role === 'admin') {
+            return $query;
+        }
+
+        return $query->where(function (Builder $query) use ($user): void {
+            $query->involving($user)
+                ->orWhereIn('work_order_list_id', WorkOrder::query()
+                    ->select('work_order_list_id')
+                    ->whereNotNull('work_order_list_id')
+                    ->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
+                        ->where('users.id', $user->id)
+                        ->where('work_order_collaborators.status', 'accepted')));
+        });
     }
 
     protected function progressFromSubtasks(): Attribute

@@ -41,10 +41,20 @@
 .wb-panel__head { display: flex; align-items: center; padding: 20px 22px; border-bottom: 1px solid var(--wb-line); }
 .wb-panel__head h2 { margin: 0; font-size: 18px; font-weight: 750; }
 .wb-panel__head p { margin: 3px 0 0; color: var(--wb-muted); font-size: 12px; }
-.wb-department-row { display: grid; grid-template-columns: minmax(300px, 1.4fr) repeat(3, minmax(120px, .55fr)) 150px; align-items: center; min-height: 94px; padding: 14px 22px; border-bottom: 1px solid var(--wb-line); }
-.wb-department-row:last-child { border-bottom: 0; }
-.wb-department-row:hover { background: #f9fbfe; }
-.wb-department-row__identity { display: flex; align-items: center; gap: 15px; min-width: 0; }
+.wb-section-head { margin-bottom: 14px; }
+.wb-section-head h2 { margin: 0; font-size: 18px; font-weight: 750; }
+.wb-section-head p { margin: 3px 0 0; color: var(--wb-muted); font-size: 12px; }
+.wb-department-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.wb-department-card { display: flex; flex-direction: column; gap: 18px; padding: 18px 20px; border: 1px solid var(--wb-line); border-radius: 14px; background: var(--wb-surface); }
+.wb-department-card:hover { border-color: #c8d7ea; }
+.wb-department-card__head { display: flex; align-items: center; gap: 14px; }
+.wb-department-card__identity { min-width: 0; }
+.wb-department-card__identity h3 { overflow: hidden; margin: 0; font-size: 16px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.wb-department-card__identity span { display: block; margin-top: 3px; color: var(--wb-muted); font-size: 11px; }
+.wb-department-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; }
+.wb-department-card__members { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--wb-muted); font-size: 12px; }
+.wb-department-card__members strong { color: var(--wb-ink); font-size: 21px; font-weight: 800; line-height: 1; }
+.wb-department-empty { grid-column: 1 / -1; border: 1px solid var(--wb-line); border-radius: 14px; background: var(--wb-surface); }
 .wb-department-mark {
     width: 52px;
     height: 52px;
@@ -86,12 +96,6 @@
     border-color: #dac9fa;
     color: #7047b7;
 }
-.wb-department-row__identity h3 { overflow: hidden; margin: 0; font-size: 17px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.wb-department-row__identity span { display: block; margin-top: 3px; color: var(--wb-muted); font-size: 11px; }
-.wb-department-stat { min-height: 44px; display: flex; align-items: center; gap: 9px; padding-left: 22px; border-left: 1px solid var(--wb-line); }
-.wb-department-stat i { color: #65738d; font-size: 19px; }
-.wb-department-stat strong { font-size: 19px; }
-.wb-department-stat span { color: var(--wb-muted); font-size: 11px; }
 .wb-detail-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; justify-self: end; min-height: 39px; padding: 8px 14px; border: 1px solid #cfdced; border-radius: 10px; color: var(--wb-blue); background: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .wb-detail-link:hover { border-color: #9dbaf0; background: #f5f9ff; }
 
@@ -167,8 +171,7 @@
     .wb-overview { display: grid; grid-template-columns: repeat(3, 1fr); overflow: visible; }
     .wb-kpi { min-width: 0; border-bottom: 1px solid var(--wb-line); }
     .wb-overview .wb-summary { grid-column: 1 / -1; overflow-x: auto; }
-    .wb-department-row { grid-template-columns: 1fr repeat(3, 100px); gap: 12px; }
-    .wb-department-row .wb-detail-link { grid-column: 1 / -1; justify-self: stretch; }
+    .wb-department-grid { grid-template-columns: 1fr; }
     .wb-toolbar { flex-wrap: wrap; }.wb-search { min-width: 100%; }.wb-toolbar select { flex: 1; }
 }
 
@@ -176,7 +179,8 @@
     .wb-page-head { align-items: flex-start; }.wb-page-head h1 { font-size: 27px; }
     .wb-overview { grid-template-columns: 1fr; }.wb-overview .wb-summary { grid-column: 1; }
     .wb-kpi { border-right: 0; }.wb-summary { min-width: 560px; }
-    .wb-department-row { grid-template-columns: repeat(3, 1fr); padding: 16px; }
-    .wb-department-row__identity { grid-column: 1 / -1; }.wb-department-stat { display: grid; place-items: center; gap: 1px; padding: 10px 4px 0; border-left: 0; border-top: 1px solid var(--wb-line); text-align: center; }
+    .wb-department-card { padding: 16px; }
+    .wb-department-card__foot { flex-direction: column; align-items: flex-start; gap: 14px; }
+    .wb-department-card .wb-detail-link { width: 100%; }
     .wb-profile-card__person { min-width: 290px; }.wb-profile-card .wb-summary { min-width: 560px; }
 }

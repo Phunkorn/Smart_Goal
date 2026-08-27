@@ -3,10 +3,11 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
-use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ProjectTaskRequestController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaskAttachmentController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
+use App\Models\WorkOrderListTaskRequest;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -241,6 +243,14 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::delete('/my-tasks/lists/{list}/attachments/{attachment}', [MyTaskController::class, 'destroyListAttachment'])
         ->name('mytasks.lists.attachments.destroy');
+
+    Route::post('/my-tasks/lists/{list}/task-requests', [ProjectTaskRequestController::class, 'store'])
+        ->middleware('throttle:'.WorkOrderListTaskRequest::SUBMIT_RATE_LIMITER)
+        ->name('mytasks.lists.task-requests.store');
+    Route::patch('/my-tasks/task-requests/{taskRequest}/approve', [ProjectTaskRequestController::class, 'approve'])
+        ->name('mytasks.task-requests.approve');
+    Route::patch('/my-tasks/task-requests/{taskRequest}/reject', [ProjectTaskRequestController::class, 'reject'])
+        ->name('mytasks.task-requests.reject');
 
     Route::patch('/my-tasks/{job_id}/complete', [MyTaskController::class, 'toggleComplete'])
         ->name('mytasks.complete');

@@ -90,6 +90,11 @@ class User extends Authenticatable
         return $this->hasMany(WorkOrderList::class);
     }
 
+    public function requestedProjectTasks(): HasMany
+    {
+        return $this->hasMany(WorkOrderListTaskRequest::class, 'requester_id');
+    }
+
     public function notifications(): HasMany
     {
         return $this->hasMany(SystemNotification::class);

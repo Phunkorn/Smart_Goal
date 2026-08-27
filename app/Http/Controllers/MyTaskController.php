@@ -91,7 +91,7 @@ class MyTaskController extends Controller
         TodayWorkspace::synchronizeActiveToday($this->baseWorkOrderQuery());
         TodayWorkspace::synchronizeLate($this->baseWorkOrderQuery());
 
-        $workOrders = $this->baseWorkOrderQuery()
+        $workOrders = WorkOrder::query()->visibleInProjectsFor($user)
             ->with([
                 'taskList',
                 'subtasks',
@@ -815,7 +815,7 @@ class MyTaskController extends Controller
     public function toggleComplete(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('view', $workOrder);
+        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'update', $workOrder);
 
         $validated = $request->validate([
             'completed' => 'required|boolean',
@@ -916,7 +916,7 @@ class MyTaskController extends Controller
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('view', $workOrder);
+        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'update', $workOrder);
         $workOrder = $transitions->transition($workOrder, $request->user(), (int) $validated['job_status'], [
             'action' => $validated['action'] ?? null,
             'reason' => $validated['reason'] ?? null,
@@ -1039,7 +1039,14 @@ class MyTaskController extends Controller
             ->filter()
             ->unique();
 
-        return WorkOrderList::with('attachments')
+        return WorkOrderList::with([
+            'user',
+            'attachments',
+            'taskRequests' => fn ($query) => $query
+                ->where('status', 'pending')
+                ->with('requester')
+                ->oldest(),
+        ])
             ->where(function ($query) use ($user, $accessibleListIds) {
                 $query->where('user_id', $user->id)
                     ->orWhereIn('id', $accessibleListIds);
@@ -1087,20 +1094,7 @@ class MyTaskController extends Controller
     {
         $user = Auth::user();
 
-        $query = WorkOrder::query()->with(['collaborators']);
-
-        if ($user->role !== 'admin') {
-            $query->where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                    ->orWhere('created_by', $user->id)
-                    ->orWhere('leader_user_id', $user->id)
-                    ->orWhereHas('collaborators', fn ($collaboratorQuery) => $collaboratorQuery
-                        ->where('users.id', $user->id)
-                        ->where('work_order_collaborators.status', 'accepted'));
-            });
-        }
-
-        return $query;
+        return WorkOrder::query()->with(['collaborators'])->involving($user);
     }
 
     private function normalizeTaskScope(mixed $taskScope): string

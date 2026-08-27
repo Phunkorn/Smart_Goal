@@ -12,9 +12,8 @@
 
     <header class="wb-page-head">
         <div>
-            <span class="wb-eyebrow">ORGANIZATION WORKSPACE</span>
             <h1>บอร์ดทุกแผนก</h1>
-            <p>ภาพรวมโปรเจกต์และงานของทุกแผนกในองค์กร</p>
+            <p>ภาพรวมแผนกและสมาชิกในองค์กร</p>
         </div>
     </header>
 
@@ -25,25 +24,33 @@
         @include('work-board.partials.status-summary')
     </section> --}}
 
-    <section class="wb-panel">
-        <div class="wb-panel__head">
-            <div><h2>แผนกทั้งหมด</h2><p>{{ number_format($departments->count()) }} แผนกในระบบ</p></div>
+    <section aria-labelledby="wb-departments-title">
+        <div class="wb-section-head">
+            <h2 id="wb-departments-title">แผนกทั้งหมด</h2>
+            <p>{{ number_format($departments->count()) }} แผนกในระบบ</p>
         </div>
 
-        @forelse($departments as $department)
-            <article class="wb-department-row wb-dept-{{ $department->board_tone }}">
-                <div class="wb-department-row__identity">
-                    <span class="wb-department-mark">{{ $department->board_code }}</span>
-                    <div><h3>{{ $department->department_name }}</h3><span>ข้อมูลล่าสุดจากระบบ Smart Goal</span></div>
+        <div class="wb-department-grid">
+            @forelse($departments as $department)
+                <article class="wb-department-card wb-dept-{{ $department->board_tone }}">
+                    <div class="wb-department-card__head">
+                        <span class="wb-department-mark" aria-hidden="true">{{ $department->board_code }}</span>
+                        <div class="wb-department-card__identity">
+                            <h3>{{ $department->department_name }}</h3>
+                            <span>ข้อมูลล่าสุดจากระบบ Smart Goal</span>
+                        </div>
+                    </div>
+                    <div class="wb-department-card__foot">
+                        <p class="wb-department-card__members"><strong>{{ number_format($department->member_count) }}</strong> สมาชิก</p>
+                        <a class="wb-detail-link" href="{{ route('work-board.department', $department) }}">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                </article>
+            @empty
+                <div class="wb-department-empty">
+                    <div class="wb-empty"><i class="bi bi-building"></i><h3>ยังไม่มีข้อมูลแผนก</h3><p>เมื่อเพิ่มแผนกแล้ว รายการจะแสดงที่นี่โดยอัตโนมัติ</p></div>
                 </div>
-                <div class="wb-department-stat"><i class="bi bi-people"></i><strong>{{ number_format($department->member_count) }}</strong><span>สมาชิก</span></div>
-                <div class="wb-department-stat"><i class="bi bi-folder2"></i><strong>{{ number_format($department->project_count) }}</strong><span>โปรเจกต์</span></div>
-                <div class="wb-department-stat"><i class="bi bi-list-check"></i><strong>{{ number_format($department->task_count) }}</strong><span>งาน</span></div>
-                <a class="wb-detail-link" href="{{ route('work-board.department', $department) }}">ดูรายละเอียด <i class="bi bi-arrow-right"></i></a>
-            </article>
-        @empty
-            <div class="wb-empty"><i class="bi bi-building"></i><h3>ยังไม่มีข้อมูลแผนก</h3><p>เมื่อเพิ่มแผนกแล้ว รายการจะแสดงที่นี่โดยอัตโนมัติ</p></div>
-        @endforelse
+            @endforelse
+        </div>
     </section>
 </div>
 @endsection

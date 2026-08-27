@@ -167,7 +167,20 @@ class NotificationService
     public function target(SystemNotification $notification, User $viewer): string
     {
         $task = $notification->workOrder;
-        if (! $task || ! Gate::forUser($viewer)->allows('view', $task)) return route('notifications.index');
+        if (! $task) {
+            if (str_starts_with($notification->type, 'project_task_request_')
+                && $notification->project
+                && Gate::forUser($viewer)->allows('view', $notification->project)) {
+                return route('mytasks.index', [
+                    'view' => 'board',
+                    'task_request' => $notification->data['task_request_id'] ?? null,
+                ]);
+            }
+
+            return route('notifications.index');
+        }
+
+        if (! Gate::forUser($viewer)->allows('view', $task)) return route('notifications.index');
 
         $query = ['open_task' => $task->job_id];
         if ($notification->category === 'comment') $query['task_tab'] = 'updates';
