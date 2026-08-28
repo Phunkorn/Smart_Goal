@@ -699,6 +699,113 @@ body:not(.sidebar-collapsed) .my-tasks-page .summary-progress {
     .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
+
+    .my-tasks-page [data-board-toolbar] {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: stretch;
+    }
+
+    .my-tasks-page [data-board-toolbar] .notion-search {
+        grid-column: 1 / -1;
+    }
+
+    .my-tasks-page [data-board-toolbar] .notion-group,
+    .my-tasks-page [data-board-toolbar] .notion-filter {
+        min-width: 0;
+        width: 100%;
+        justify-content: center;
+        gap: 4px;
+        padding-inline: 5px;
+        font-size: 0;
+    }
+
+    .my-tasks-page [data-board-toolbar] > button {
+        min-width: 0;
+        width: 100%;
+        justify-content: center;
+        gap: 4px;
+        padding-inline: 5px;
+        font-size: 11px;
+    }
+
+    .my-tasks-page [data-board-toolbar] select,
+    .my-tasks-page [data-board-toolbar] i {
+        min-width: 0;
+        font-size: 11px;
+    }
+
+    .my-tasks-page [data-board-toolbar] select {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .my-tasks-page .board-project-group__header {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        gap: 7px;
+        min-width: 0;
+        padding: 8px 10px;
+    }
+
+    .my-tasks-page .board-project-collapse {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .my-tasks-page .board-project-folder {
+        grid-column: 2;
+        grid-row: 1;
+        margin-right: 0;
+    }
+
+    .my-tasks-page .board-project-group__header > strong {
+        grid-column: 3;
+        grid-row: 1;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .my-tasks-page .board-project-group__header > span:not(.admin-assignment-marker) {
+        grid-column: 4;
+        grid-row: 1;
+        margin-left: 0;
+    }
+
+    .my-tasks-page .board-project-rule {
+        display: none;
+    }
+
+    .my-tasks-page .board-project-priority-menu,
+    .my-tasks-page .board-project-group__header > .board-project-priority {
+        grid-column: 1 / 3;
+        grid-row: 2;
+        min-width: 0;
+        margin-left: 0;
+    }
+
+    .my-tasks-page .board-project-files {
+        grid-column: 3;
+        grid-row: 2;
+        min-width: 0;
+        margin-left: 0;
+    }
+
+    .my-tasks-page .board-project-actions {
+        grid-column: 4;
+        grid-row: 2;
+        min-width: 0;
+        margin-left: 0;
+    }
+
+    .my-tasks-page .board-project-group__header > .admin-assignment-marker {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        min-width: 0;
+        margin-left: 0;
+        overflow-wrap: anywhere;
+        white-space: normal;
+    }
 }
 
 /*

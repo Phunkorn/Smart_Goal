@@ -321,6 +321,19 @@
 .my-tasks-page .mytasks-kanban__actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
 @media (max-width:760px) { .my-tasks-page .mytasks-kanban__toolbar { align-items:stretch; flex-wrap:wrap; } .my-tasks-page .mytasks-kanban__project-picker { width:100%; } .my-tasks-page .mytasks-kanban__project-picker select { flex:1; min-width:0; } .my-tasks-page .mytasks-kanban__actions { width:100%; margin-left:0; } .my-tasks-page .mytasks-kanban__button { flex:1; } }
 
+@media (max-width: 760px) {
+    .my-tasks-page .mytasks-kanban__columns {
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+    }
+
+    .my-tasks-page .mytasks-kanban__column,
+    .my-tasks-page .mytasks-kanban__card {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
 /* Floating task priority badge: keep long task titles from being squeezed by the badge. */
 .my-tasks-page .mytasks-kanban__card {
     position: relative;

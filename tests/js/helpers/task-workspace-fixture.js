@@ -161,8 +161,8 @@ let importCounter = 0;
  * โหลด mytasks-task-modal.js ใหม่ทุกครั้ง เพราะ IIFE ในไฟล์ผูกกับ document ตอน evaluate
  * ใช้ query string กัน ESM cache
  */
-export async function mountTaskWorkspace(options = {}) {
-    const env = mountDom();
+export async function mountTaskWorkspace(options = {}, {url = 'http://localhost/'} = {}) {
+    const env = mountDom(undefined, {url});
     env.document.body.innerHTML = taskWorkspaceMarkup(options);
     globalThis.fetch = async () => ({ok: true, json: async () => ({})});
 

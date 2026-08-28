@@ -10,6 +10,18 @@ export function commentDeepLink(search) {
     };
 }
 
+/**
+ * Task deep-link เป็น state แบบใช้ครั้งเดียว หลังเปิดงานสำเร็จต้องลบเฉพาะ key
+ * ของ deep-link โดยรักษา path, query อื่น และ hash ของหน้าต้นทางไว้ทั้งหมด
+ */
+export function withoutTaskDeepLink(href) {
+    const url = new URL(href);
+    url.searchParams.delete('open_task');
+    url.searchParams.delete('task_tab');
+
+    return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export function prependComment(timeline, taskId, comment) {
     timeline[String(taskId)] ||= {updates: [], activity: []};
     timeline[String(taskId)].updates.unshift(comment);

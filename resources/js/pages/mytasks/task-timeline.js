@@ -1,4 +1,4 @@
-import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead} from './task-comments-model.js';
+import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
 
 (() => {
@@ -123,8 +123,13 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const trigger = document.querySelector(`[data-row][data-id="${CSS.escape(deepLinkedTaskId)}"] [data-open-task-modal], [data-open-task-modal][data-task-id="${CSS.escape(deepLinkedTaskId)}"]`);
         if (trigger) {
             trigger.click();
-            taskId = deepLinkedTaskId;
-            if (shouldMarkCommentsRead('deep-link', deepLink.tab)) selectUpdates(true);
+            // ล้าง query เฉพาะเมื่อ Workspace เปิดสำเร็จจริง เพื่อไม่ให้ invalid/inaccessible id
+            // ไปเปลี่ยน state หรือเปิด Task อื่นโดยไม่ตั้งใจ
+            if (!modal.hidden) {
+                taskId = deepLinkedTaskId;
+                if (shouldMarkCommentsRead('deep-link', deepLink.tab)) selectUpdates(true);
+                window.history.replaceState(window.history.state, '', withoutTaskDeepLink(window.location.href));
+            }
         }
     }
 })();

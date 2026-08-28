@@ -64,3 +64,74 @@
 }
 
 .my-tasks-page .mytasks-calendar__popover-task.is-meeting strong { color: #4c2f8c; }
+
+@media (max-width: 760px) {
+    .my-tasks-page .mytasks-calendar__viewport {
+        overflow-x: hidden;
+    }
+
+    .my-tasks-page .mytasks-calendar__canvas {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .my-tasks-page .mytasks-calendar__weekdays span {
+        overflow: hidden;
+        font-size: 8px;
+        text-overflow: clip;
+        white-space: nowrap;
+    }
+
+    .my-tasks-page .mytasks-calendar__week,
+    .my-tasks-page .mytasks-calendar__day {
+        min-height: 92px;
+    }
+
+    .my-tasks-page .mytasks-calendar__day {
+        padding: 4px 2px 24px;
+    }
+
+    .my-tasks-page .mytasks-calendar__day-number {
+        width: 20px;
+        height: 20px;
+        margin-inline: auto;
+    }
+
+    .my-tasks-page .mytasks-calendar__events {
+        justify-items: center;
+        gap: 2px;
+        margin-top: 2px;
+    }
+
+    .my-tasks-page .mytasks-calendar__task {
+        position: relative;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .my-tasks-page .mytasks-calendar__task > i {
+        margin: 0;
+    }
+
+    .my-tasks-page .mytasks-calendar__task > span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .my-tasks-page .mytasks-calendar__more {
+        right: 2px;
+        left: 2px;
+        padding: 0;
+        overflow: hidden;
+        text-align: center;
+        white-space: nowrap;
+    }
+}

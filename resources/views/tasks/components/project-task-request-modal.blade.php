@@ -9,7 +9,6 @@
         'errors' => $projectTaskRequestErrors->getMessages(),
         'old' => [
             'job_topic' => old('job_topic'),
-            'request_details' => old('request_details'),
             'job_priority' => old('job_priority'),
             'job_start_at' => old('job_start_at'),
             'job_due_at' => old('job_due_at'),
@@ -28,7 +27,6 @@
             <div class="project-task-request-modal__body">
                 <div class="alert alert-danger py-2 mb-0" role="alert" data-project-task-request-general-error hidden></div>
                 <label><span>ชื่องาน</span><input class="form-control" name="job_topic" maxlength="255" required><div class="invalid-feedback" data-project-task-request-error="job_topic"></div></label>
-                <label><span>รายละเอียดโดยย่อ</span><input class="form-control" name="request_details" maxlength="5000"><div class="invalid-feedback" data-project-task-request-error="request_details"></div></label>
                 <div class="project-task-request-modal__grid">
                     <label><span>ความสำคัญ</span><select class="form-select" name="job_priority" required><option value="1">Routine</option><option value="2" selected>สำคัญไม่ด่วน</option><option value="3">สำคัญด่วน</option><option value="4">ด่วนไม่สำคัญ</option><option value="5">ไม่รีบ</option></select><div class="invalid-feedback" data-project-task-request-error="job_priority"></div></label>
                     <label><span>วันที่เริ่ม</span><input class="form-control" type="date" name="job_start_at" required><div class="invalid-feedback" data-project-task-request-error="job_start_at"></div></label>

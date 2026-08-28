@@ -18,6 +18,8 @@ export function mountDom(html = '<!doctype html><html><body></body></html>', {ur
         callback(0);
         return 0;
     };
+    window.CSS ||= {};
+    window.CSS.escape ||= (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character.codePointAt(0).toString(16)} `);
 
     const previous = {
         document: globalThis.document,
@@ -25,6 +27,7 @@ export function mountDom(html = '<!doctype html><html><body></body></html>', {ur
         Element: globalThis.Element,
         HTMLElement: globalThis.HTMLElement,
         CustomEvent: globalThis.CustomEvent,
+        CSS: globalThis.CSS,
         requestAnimationFrame: globalThis.requestAnimationFrame,
     };
 
@@ -33,6 +36,7 @@ export function mountDom(html = '<!doctype html><html><body></body></html>', {ur
     globalThis.Element = window.Element;
     globalThis.HTMLElement = window.HTMLElement;
     globalThis.CustomEvent = window.CustomEvent;
+    globalThis.CSS = window.CSS;
     globalThis.requestAnimationFrame = window.requestAnimationFrame;
 
     return {

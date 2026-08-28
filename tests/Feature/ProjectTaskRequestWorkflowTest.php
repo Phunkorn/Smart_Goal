@@ -28,7 +28,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'requester_id' => $collaborator->id,
             'status' => 'pending',
             'job_topic' => 'Requested task',
-            'job_details' => 'Requested details',
+            'job_details' => null,
             'work_order_id' => null,
         ]);
         $this->assertDatabaseMissing('work_orders', ['job_topic' => 'Requested task']);
@@ -84,7 +84,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'user_id' => $collaborator->id,
             'created_by' => $owner->id,
             'job_topic' => 'Approved request',
-            'job_details' => 'Requested details',
+            'job_details' => null,
         ]);
         $this->assertDatabaseHas('work_order_collaborators', [
             'work_order_id' => $jobId,
@@ -106,6 +106,22 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'user_id' => $collaborator->id,
             'type' => 'project_task_request_approved',
             'work_order_id' => $jobId,
+        ]);
+    }
+
+    public function test_legacy_request_details_are_preserved_when_owner_approves(): void
+    {
+        [$owner, $collaborator, $project] = $this->collaborativeProject();
+        $taskRequest = $this->request($collaborator, $project, 'Legacy detailed request', 'Legacy request details');
+
+        $response = $this->actingAs($owner)
+            ->patchJson(route('mytasks.task-requests.approve', $taskRequest))
+            ->assertOk();
+
+        $this->assertDatabaseHas('work_orders', [
+            'job_id' => $response->json('job_id'),
+            'job_topic' => 'Legacy detailed request',
+            'job_details' => 'Legacy request details',
         ]);
     }
 
@@ -428,7 +444,12 @@ class ProjectTaskRequestWorkflowTest extends TestCase
         $this->request($collaborator, $project, 'Pending UI request');
 
         $this->actingAs($collaborator)->get(route('mytasks.index', ['view' => 'table']))
-            ->assertOk()->assertSee('ขอเพิ่มงาน');
+            ->assertOk()
+            ->assertSee('ขอเพิ่มงาน')
+            ->assertSee('data-task-modal hidden', false)
+            ->assertSee('data-project-task-request-modal hidden', false)
+            ->assertDontSee('name="request_details"', false)
+            ->assertDontSee('รายละเอียดโดยย่อ');
         $this->actingAs($owner)->get(route('mytasks.index', ['view' => 'table']))
             ->assertOk()->assertSee('Pending UI request')->assertSee('อนุมัติ');
     }
@@ -454,7 +475,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
         return [$owner, $collaborator, $project, $anchor];
     }
 
-    private function request(User $requester, WorkOrderList $project, string $topic): WorkOrderListTaskRequest
+    private function request(User $requester, WorkOrderList $project, string $topic, ?string $details = null): WorkOrderListTaskRequest
     {
         $payload = $this->payload($topic);
 
@@ -463,7 +484,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'requester_id' => $requester->id,
             'status' => 'pending',
             'job_topic' => $payload['job_topic'],
-            'job_details' => $payload['request_details'],
+            'job_details' => $details,
             'job_priority' => $payload['job_priority'],
             'job_start_at' => $payload['job_start_at'],
             'job_due_at' => $payload['job_due_at'],
@@ -474,7 +495,6 @@ class ProjectTaskRequestWorkflowTest extends TestCase
     {
         return [
             'job_topic' => $topic,
-            'request_details' => 'Requested details',
             'job_priority' => 2,
             'job_start_at' => now()->addDay()->format('Y-m-d'),
             'job_due_at' => now()->addDays(3)->format('Y-m-d'),
