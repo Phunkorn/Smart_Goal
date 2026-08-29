@@ -6,10 +6,14 @@
      * $meetingFormAction ปลายทางของฟอร์มกรองและลิงก์ล้างตัวกรอง
      * $meetingBaseQuery  query string ที่ต้องติดไปกับทุกการกรอง (เช่น ['view' => 'meeting'])
      * $meetingEmbedded   true เมื่อถูกฝังในหน้าอื่น ทำให้หัวเรื่องลดระดับเป็น h2 กัน h1 ซ้อน
+     * $meetingCanCreate  false เพื่อซ่อนปุ่ม "นัดประชุม" และ modal สร้าง ในหน้าที่การสร้าง
+     *                    จะพาผู้ใช้ออกจากบริบทเดิม (MeetingController::store() redirect ไป meetings.show)
+     *                    เป็นการซ่อน UI เท่านั้น สิทธิ์จริงยังตัดสินที่ MeetingPolicy เหมือนเดิม
      */
     $meetingFormAction = $meetingFormAction ?? route('meetings.index');
     $meetingBaseQuery = $meetingBaseQuery ?? [];
     $meetingEmbedded = $meetingEmbedded ?? false;
+    $meetingCanCreate = ($meetingCanCreate ?? true) && auth()->user()->can('create', App\Models\Meeting::class);
     $meetingClearUrl = $meetingFormAction.($meetingBaseQuery ? '?'.http_build_query($meetingBaseQuery) : '');
     $meetingFeedback = [
         'success' => session('meeting_success'),
@@ -32,7 +36,7 @@
             @endif
             <p>{{ $inspectedEmployee ? 'การประชุมที่ '.$inspectedEmployee->name.' เป็นผู้สร้างหรือผู้เข้าร่วม' : 'นัดหมายและติดตามการประชุมที่เกี่ยวข้องกับคุณ' }}</p>
         </div>
-        @can('create', App\Models\Meeting::class)<button class="meetings-page__button meetings-page__button--primary" type="button" data-meeting-modal-trigger="createMeetingModal" aria-controls="createMeetingModal" aria-haspopup="dialog" data-meeting-create><i class="bi bi-plus-lg" aria-hidden="true"></i> นัดประชุม</button>@endcan
+        @if($meetingCanCreate)<button class="meetings-page__button meetings-page__button--primary" type="button" data-meeting-modal-trigger="createMeetingModal" aria-controls="createMeetingModal" aria-haspopup="dialog" data-meeting-create><i class="bi bi-plus-lg" aria-hidden="true"></i> นัดประชุม</button>@endif
     </header>
 
     <form class="meetings-page__filters" method="GET" action="{{ $meetingFormAction }}">
@@ -51,11 +55,11 @@
         @forelse($meetings as $meeting)
             @include('meetings.components.meeting-card', compact('meeting', 'nowBangkok', 'inspectedEmployee'))
         @empty
-            <div class="meetings-page__empty"><i class="bi bi-calendar2-x" aria-hidden="true"></i><h2>{{ $inspectedEmployee ? $inspectedEmployee->name.' ไม่มีการประชุมในช่วงเวลานี้' : 'ไม่พบการประชุมในช่วงเวลานี้' }}</h2><p>ลองเปลี่ยนคำค้นหาหรือช่วงเวลา@if(auth()->user()->can('create', App\Models\Meeting::class)) หรือสร้างนัดหมายใหม่จากปุ่ม “นัดประชุม” ด้านบน@endif</p></div>
+            <div class="meetings-page__empty"><i class="bi bi-calendar2-x" aria-hidden="true"></i><h2>{{ $inspectedEmployee ? $inspectedEmployee->name.' ไม่มีการประชุมในช่วงเวลานี้' : 'ไม่พบการประชุมในช่วงเวลานี้' }}</h2><p>ลองเปลี่ยนคำค้นหาหรือช่วงเวลา@if($meetingCanCreate) หรือสร้างนัดหมายใหม่จากปุ่ม “นัดประชุม” ด้านบน@endif</p></div>
         @endforelse
     </section>
 
     @if($meetings->hasPages())<div class="meetings-page__pagination">{{ $meetings->links('pagination::bootstrap-5') }}</div>@endif
-    @can('create', App\Models\Meeting::class) @include('meetings.components.form-modal', ['formMeeting' => null, 'attendeeOptions' => $attendeeOptions, 'attendeeDepartments' => $attendeeDepartments]) @endcan
+    @if($meetingCanCreate) @include('meetings.components.form-modal', ['formMeeting' => null, 'attendeeOptions' => $attendeeOptions, 'attendeeDepartments' => $attendeeDepartments]) @endif
     <script type="application/json" data-meeting-feedback>@json($meetingFeedback)</script>
 </div>

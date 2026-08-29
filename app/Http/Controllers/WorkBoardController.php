@@ -3,20 +3,35 @@
 namespace App\Http\Controllers;
 
 use App\Models\Department;
+use App\Models\Meeting;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Services\DepartmentWorkBoardQuery;
+use App\Services\MeetingQueryService;
 use App\Services\TaskCommentService;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TaskCollaboratorOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
+use App\Support\WorkOrderAssignee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 
 class WorkBoardController extends Controller
 {
+    /**
+     * มุมมองของ Admin Member Workspace
+     *
+     * เก็บสถานะไว้ที่ query string อย่างเดียว ห้าม reuse session key ของ "งานของฉัน"
+     * (MyTaskController::WORKSPACE_VIEW_SESSION_KEY) เพราะจะทำให้มุมมองของหน้าสมาชิก
+     * กับมุมมองของ Admin ในหน้างานของตัวเองทับกัน
+     */
+    private const MEMBER_WORKSPACE_VIEWS = ['table', 'board', 'calendar', 'meeting'];
+
+    private const DEFAULT_MEMBER_WORKSPACE_VIEW = 'table';
+
     public function __construct(private readonly DepartmentWorkBoardQuery $departmentWorkBoard) {}
 
     public function index()
@@ -72,7 +87,7 @@ class WorkBoardController extends Controller
         return view('work-board.components.member-preview', [
             'department' => $department,
             'member' => $user,
-            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user, false),
+            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
             'isAdmin' => false,
         ]);
     }
@@ -97,7 +112,7 @@ class WorkBoardController extends Controller
         return view('work-board.components.member-preview', [
             'department' => $department,
             'member' => $user,
-            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user, true),
+            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
             'isAdmin' => true,
         ]);
     }
@@ -105,6 +120,8 @@ class WorkBoardController extends Controller
     public function adminMember(Request $request, Department $department, User $user)
     {
         abort_unless((int) $user->department_id === (int) $department->id && $user->role === 'user', 404);
+
+        $workspaceView = $this->resolveMemberWorkspaceView($request);
 
         $memberJobsQuery = WorkOrder::query()
             ->where('department_id', $department->id)
@@ -149,7 +166,17 @@ class WorkBoardController extends Controller
         $todayTasks = TodayWorkspace::tasks($allJobs);
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($allJobs->pluck('job_id'), $request->user());
 
+        // ประชุมถูก query ต่อเมื่อ Admin เปิดมุมมองนั้นจริง เหมือนที่หน้า "งานของฉัน" ทำ
+        // scope มาจาก $user ที่ route ผูกมา ไม่ใช่ `?employee=` จึงแก้ค่าจาก URL ให้ข้ามไปดูคนอื่นไม่ได้
+        $meetingData = [];
+        if ($workspaceView === 'meeting') {
+            Gate::authorize('viewAny', Meeting::class);
+            $meetingData = app(MeetingQueryService::class)->indexData($request, $request->user(), $user);
+        }
+
         return view('work-board.admin.member', [
+            'workspaceView' => $workspaceView,
+            'meetingData' => $meetingData,
             'department' => $department,
             'departmentTone' => WorkBoardDesign::departmentTone($department),
             'departmentCode' => WorkBoardDesign::departmentCode($department),
@@ -163,7 +190,8 @@ class WorkBoardController extends Controller
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values(),
             'availableCollaborators' => TaskCollaboratorOptions::forActor($request->user()),
-            'employees' => User::with('department')->where('role', 'user')->orderBy('name')->get(),
+            // ใช้ตัวกรองเดียวกับหน้าบอร์ดรวม เพื่อให้โมดัลมอบหมายงานที่ใช้ร่วมกันเห็นรายชื่อชุดเดียวกัน
+            'employees' => WorkOrderAssignee::query()->with('department')->orderBy('name')->get(),
             'departments' => Department::orderBy('department_name')->get(),
             'totals' => [
                 'projects' => $allJobs->pluck('work_order_list_id')->filter()->unique()->count(),
@@ -172,6 +200,16 @@ class WorkBoardController extends Controller
             'statusCounts' => WorkBoardDesign::statusCounts($allJobs),
             'statusMeta' => WorkBoardDesign::STATUSES,
         ]);
+    }
+
+    /** `?view=` ที่ไม่อยู่ใน allow-list ต้องตกกลับมุมมองตั้งต้น ไม่ใช่ render panel ที่หน้านี้ไม่มี */
+    private function resolveMemberWorkspaceView(Request $request): string
+    {
+        $requested = $request->string('view')->toString();
+
+        return in_array($requested, self::MEMBER_WORKSPACE_VIEWS, true)
+            ? $requested
+            : self::DEFAULT_MEMBER_WORKSPACE_VIEW;
     }
 
     private function approvedJobs()

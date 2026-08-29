@@ -26,9 +26,19 @@ final class MeetingQueryService
         'all' => 'ทั้งหมด',
     ];
 
-    public function indexData(Request $request, User $viewer): array
+    /**
+     * @param  User|null  $scopedEmployee  บังคับให้รายการเป็นของสมาชิกคนนี้เท่านั้น
+     *                                     ใช้กับหน้าที่บริบทถูกกำหนดโดย route แล้ว เช่น Admin Member Workspace
+     *                                     ค่านี้ชนะ `?employee=` ที่ส่งมากับ request เสมอ และไม่ผ่าน
+     *                                     normalizeEmployeeId() จึง scope ถูกแม้สมาชิกถูกปิดใช้งานอยู่
+     */
+    public function indexData(Request $request, User $viewer, ?User $scopedEmployee = null): array
     {
         $filters = $this->normalizeFilters($request, $viewer);
+
+        if ($scopedEmployee) {
+            $filters['employee_id'] = (int) $scopedEmployee->id;
+        }
         $now = CarbonImmutable::now(self::BUSINESS_TIMEZONE);
         $query = $this->visibleQuery($viewer)
             ->with([
@@ -67,12 +77,14 @@ final class MeetingQueryService
             'meetings' => $meetings,
             'filters' => $filters,
             'periodOptions' => self::PERIODS,
-            'employeeOptions' => $this->employeeOptions($viewer),
+            // บริบทที่ถูกล็อกไว้กับสมาชิกคนเดียวต้องไม่มีตัวเลือกสลับไปดูคนอื่น
+            // partial ซ่อน <select name="employee"> เองเมื่อรายการนี้ว่าง
+            'employeeOptions' => $scopedEmployee ? collect() : $this->employeeOptions($viewer),
             'attendeeOptions' => $viewer->can('create', Meeting::class) ? $this->attendeeOptions() : collect(),
             'attendeeDepartments' => $viewer->can('create', Meeting::class) ? $this->attendeeDepartments() : collect(),
-            'inspectedEmployee' => $filters['employee_id']
-                ? User::with('department')->find($filters['employee_id'])
-                : null,
+            'inspectedEmployee' => $scopedEmployee
+                ? $scopedEmployee->loadMissing('department')
+                : ($filters['employee_id'] ? User::with('department')->find($filters['employee_id']) : null),
             'nowBangkok' => $now,
         ];
     }

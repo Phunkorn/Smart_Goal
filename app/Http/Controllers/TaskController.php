@@ -442,8 +442,36 @@ class TaskController extends Controller
             );
         }
 
-        return redirect()->route('board.index')
+        return redirect()->to($this->adminProjectRedirectUrl($request))
             ->with('success', 'สร้างโปรเจกต์และมอบหมายงาน '.$createdJobs->count().' งานสำเร็จ');
+    }
+
+    /**
+     * ปลายทางหลังสร้างโปรเจกต์สำเร็จ
+     *
+     * ฟอร์มส่งมาเพียง context ว่าเปิดมาจาก Member Workspace ไหน ไม่ใช่ URL สำเร็จรูป
+     * เพื่อไม่ให้เกิดช่อง open redirect เซิร์ฟเวอร์จึงตรวจ context ซ้ำด้วยเงื่อนไข
+     * เดียวกับ WorkBoardController::adminMember() แล้วประกอบ named route เอง
+     * ถ้า context ไม่ครบหรือถูกแก้ค่า ให้ตกกลับบอร์ดรวมเสมอ
+     */
+    private function adminProjectRedirectUrl(Request $request): string
+    {
+        if ($request->input('assignment_origin') !== 'admin-member') {
+            return route('board.index');
+        }
+
+        $department = Department::find($request->integer('origin_department_id'));
+        $member = User::find($request->integer('origin_member_id'));
+
+        if (! $department || ! $member) {
+            return route('board.index');
+        }
+
+        if ($member->role !== WorkOrderAssignee::ROLE || (int) $member->department_id !== (int) $department->id) {
+            return route('board.index');
+        }
+
+        return route('admin.work-board.member', [$department, $member]);
     }
 
     private function storeAdminTaskFiles(Request $request, WorkOrder $job, string $field, array &$storedPaths): void

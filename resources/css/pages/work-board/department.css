@@ -433,7 +433,38 @@
     line-height: 1.5;
 }
 
+/* CTA เข้าพื้นที่งานของสมาชิก แสดงเฉพาะ Admin และแยกจาก action ของรายการงาน */
+.work-board-department-page .wb-member-preview__workspace-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    border: 1px solid var(--wb-blue);
+    border-radius: 11px;
+    color: #fff;
+    background: var(--wb-blue);
+    font-size: 12.5px;
+    font-weight: 700;
+}
+
+.work-board-department-page .wb-member-preview__workspace-link:hover {
+    filter: brightness(.96);
+    color: #fff;
+}
+
+.work-board-department-page .wb-member-preview__workspace-link:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, .28);
+    outline-offset: 2px;
+}
+
 .work-board-department-page .wb-member-preview__section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     margin: 0 0 10px;
 }
 

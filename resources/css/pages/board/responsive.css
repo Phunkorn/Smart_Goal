@@ -109,6 +109,11 @@
         gap: 12px;
     }
 
+    .admin-board-overview .admin-board-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
     .admin-board-overview .admin-board-header h1 {
         font-size: 24px;
     }

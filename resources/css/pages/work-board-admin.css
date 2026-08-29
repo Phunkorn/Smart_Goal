@@ -1,3 +1,7 @@
 /* Admin Work Board composition: shared core plus admin-only workspace delta. */
 @import './work-board.css';
+/* Admin Member Workspace เปิดโมดัลมอบหมายงานชุดเดียวกับ Admin Board Overview
+   จึงต้องได้ token และ component ของโมดัลนั้นมาด้วย */
+@import './board/tokens.css';
+@import './board/modal.css';
 @import './work-board/admin.css';

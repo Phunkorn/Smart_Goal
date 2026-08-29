@@ -32,8 +32,13 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
     // ปุ่มที่มี data-view-navigate ต้องโหลดหน้าใหม่ เพราะ panel ของมันถูก render จาก server เท่านั้น
     const clientViews = tabs.filter((tab) => !('viewNavigate' in tab.dataset)).map((tab) => tab.dataset.view);
     const fallbackView = clientViews.includes('calendar') ? 'calendar' : (clientViews[0] || 'table');
-    // เขียน History เฉพาะหน้าที่ server อ่าน ?view= จริง กันไม่ให้ URL ของหน้าอื่นเปื้อน
-    const historyEnabled = workspace.dataset.context === 'user';
+    /**
+     * เขียน History เฉพาะหน้าที่ server อ่าน ?view= จริง กันไม่ให้ URL ของหน้าอื่นเปื้อน
+     *
+     * หน้าเป็นผู้ประกาศความสามารถนี้เองผ่าน data-view-history ไม่ใช่ให้ JS เดาจาก context
+     * เพราะตอนนี้มีสองหน้าที่ resolve ?view= ฝั่ง server แล้ว (งานของฉัน และ Admin Member Workspace)
+     */
+    const historyEnabled = workspace.dataset.viewHistory === 'true';
     const serverView = knownViews.includes(database.dataset.view) ? database.dataset.view : fallbackView;
 
     let tableGrouping = groupSelect?.value || 'project';

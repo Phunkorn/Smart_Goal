@@ -52,7 +52,7 @@ let fixtureCount = 0;
  * โครงสร้างต้องสะท้อนหน้าจริง: viewbar อยู่นอก .notion-database และ .notion-database
  * เป็นตัวครอบ panel ทั้งหมด (รวมปฏิทิน) พร้อม data-view เป็น "สถานะ" ไม่ใช่ปุ่ม
  */
-async function boot(t, {withCalendar = true} = {}) {
+async function boot(t, {withCalendar = true, viewHistory = true} = {}) {
     const env = mountDom();
     t.after(env.cleanup);
 
@@ -65,7 +65,7 @@ async function boot(t, {withCalendar = true} = {}) {
     };
 
     env.document.body.innerHTML = `
-        <div data-workspace data-context="user">
+        <div data-workspace data-context="user"${viewHistory ? ' data-view-history="true"' : ''}>
             ${VIEWBAR}
             <section class="notion-database" data-view="calendar">
                 <div data-workspace-task-source hidden>
@@ -198,4 +198,60 @@ test('ปุ่มควบคุมปฏิทินยังทำงาน�
     ui.click('[data-calendar-today]');
     assert.equal(ui.title(), before, 'ปุ่มวันนี้ต้องกลับมาเดือนปัจจุบัน');
     await flush(30);
+});
+
+/**
+ * View state ฝั่ง server: หน้าที่ resolve ?view= เองต้องประกาศ data-view-history
+ * เพื่อให้ deep link / refresh / back-forward ทำงาน ส่วนหน้าที่ไม่ได้อ่าน ?view=
+ * ต้องไม่ถูกเขียน History เปื้อน — เดิมกฎนี้ hardcode ไว้ที่ data-context="user"
+ * ซึ่งกันหน้า Admin Member Workspace ที่ตอนนี้ resolve ?view= แล้วออกไปด้วย
+ */
+test('หน้าที่ประกาศ data-view-history ต้องเขียน ?view= ลง History เมื่อผู้ใช้สลับมุมมอง', async (t) => {
+    const ui = await boot(t, {withCalendar: false});
+    await flush(30);
+
+    // replaceState ตอน init ต้องปักมุมมองตั้งต้นไว้เป็นจุดอ้างอิงของ Back/Forward
+    assert.equal(new URL(ui.window.location.href).searchParams.get('view'), 'calendar');
+
+    const before = ui.window.history.length;
+    ui.click('[role="tab"][data-view="table"]');
+
+    assert.equal(new URL(ui.window.location.href).searchParams.get('view'), 'table');
+    assert.ok(ui.window.history.length > before, 'การสลับมุมมองต้องสร้าง History entry ให้ย้อนกลับได้');
+
+    // กดปุ่มเดิมซ้ำต้องไม่สร้าง entry ซ้อน
+    const afterFirst = ui.window.history.length;
+    ui.click('[role="tab"][data-view="table"]');
+    assert.equal(ui.window.history.length, afterFirst);
+});
+
+test('หน้าที่ไม่ประกาศ data-view-history ต้องสลับมุมมองได้โดยไม่แตะ URL เลย', async (t) => {
+    const ui = await boot(t, {withCalendar: false, viewHistory: false});
+    await flush(30);
+
+    assert.equal(new URL(ui.window.location.href).searchParams.has('view'), false,
+        'หน้าที่ไม่ได้อ่าน ?view= ต้องไม่ถูก replaceState ใส่ query ให้');
+
+    const seen = [];
+    ui.document.addEventListener('mytasks:viewchange', (e) => seen.push(e.detail.view));
+    ui.click('[role="tab"][data-view="table"]');
+
+    assert.deepEqual(seen, ['table'], 'การสลับมุมมองฝั่ง client ต้องยังทำงาน');
+    assert.equal(ui.database.dataset.view, 'table');
+    assert.equal(new URL(ui.window.location.href).searchParams.has('view'), false);
+});
+
+test('ปุ่มมุมมองที่ต้องโหลดหน้าใหม่ (data-view-navigate) ต้องไม่ถูก JS ดักคลิกหรือแตะ History', async (t) => {
+    const ui = await boot(t, {withCalendar: false});
+    await flush(30);
+
+    const seen = [];
+    ui.document.addEventListener('mytasks:viewchange', (e) => seen.push(e.detail.view));
+    const before = ui.window.history.length;
+
+    ui.click('[data-view="meeting"]');
+
+    assert.deepEqual(seen, [], 'ปุ่มประชุมต้องปล่อยให้เบราว์เซอร์ navigate เอง');
+    assert.equal(ui.database.dataset.view, 'calendar', 'มุมมองปัจจุบันต้องไม่ถูกสลับฝั่ง client');
+    assert.equal(ui.window.history.length, before);
 });

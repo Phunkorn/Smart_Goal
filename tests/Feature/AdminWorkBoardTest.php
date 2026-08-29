@@ -126,8 +126,17 @@ class AdminWorkBoardTest extends TestCase
             ->assertDontSee('data-create-modal', false)
             ->assertDontSee('data-create-form', false)
             ->assertDontSee('data-group>', false)
-            ->assertSee(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]));
+            // ปุ่มมอบหมายงานเปิดโมดัลในหน้าเดิม ไม่พา Admin กลับไปหน้าบอร์ดรวมอีกต่อไป
+            ->assertSee('<button type="button" class="btn btn-primary admin-assign-button" data-open-admin-assignment>', false)
+            ->assertDontSee(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]))
+            ->assertSee('data-admin-assignment-modal', false)
+            ->assertSee('name="assignment_origin" value="admin-member"', false)
+            ->assertSee('name="origin_department_id" value="'.$department->id.'"', false)
+            ->assertSee('name="origin_member_id" value="'.$member->id.'"', false)
+            ->assertSee('data-default-assignee-id="'.$member->id.'"', false)
+            ->assertSee('name="tasks[0][user_id]" data-task-assignee value="'.$member->id.'"', false);
         $this->assertSame(1, substr_count($response->getContent(), 'data-task-modal'));
+        $this->assertSame(1, substr_count($response->getContent(), 'data-admin-assignment-modal'));
 
         $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$memberTask->job_id])
             ->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$memberTask->job_id]);
@@ -200,13 +209,16 @@ class AdminWorkBoardTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_preview_preserves_unapproved_visibility_and_never_links_to_wrong_member_context(): void
+    public function test_admin_preview_hides_unapproved_work_and_never_links_to_wrong_member_context(): void
     {
+        // Preview เปลี่ยนเป็นรายการ "งานที่ต้องจัดการวันนี้" งานที่ยังรออนุมัติจึงไม่อยู่ที่นี่แล้ว
+        // เพราะมันไม่เคยเข้าวงจร auto-start/auto-late และมีหน้า "คำขออนุมัติ" เป็นเจ้าของอยู่แล้ว
         $department = Department::create(['department_name' => 'Preview']);
         $admin = $this->user('admin', $department, 'Admin');
         $member = $this->user('user', $department, 'Member');
         $otherMember = $this->user('user', $department, 'Other');
         $project = WorkOrderList::create(['user_id' => $admin->id, 'name' => 'Preview Project', 'priority' => 2]);
+        $approved = $this->task($project, $admin, $member, 'Approved today task');
         $pending = $this->task($project, $admin, $member, 'Pending admin-visible task');
         $pending->update(['approval_status' => 'pending', 'approved_by' => null, 'approved_at' => null]);
         $otherTask = $this->task($project, $admin, $otherMember, 'Wrong member task');
@@ -214,9 +226,15 @@ class AdminWorkBoardTest extends TestCase
         $response = $this->actingAs($admin)
             ->get(route('admin.work-board.member.preview', [$department, $member]))
             ->assertOk()
-            ->assertSee('Pending admin-visible task')
+            ->assertSee('Approved today task')
+            ->assertDontSee('Pending admin-visible task')
             ->assertDontSee('Wrong member task')
             ->assertSee(route('admin.work-board.member', [
+                $department,
+                $member,
+                'open_task' => $approved->job_id,
+            ]), false)
+            ->assertDontSee(route('admin.work-board.member', [
                 $department,
                 $member,
                 'open_task' => $pending->job_id,
@@ -228,6 +246,12 @@ class AdminWorkBoardTest extends TestCase
             ]), false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'data-preview-task-link'));
+
+        // งานที่รออนุมัติต้องยังอยู่ครบใน Member Workspace เต็ม ไม่ได้หายไปจากระบบ
+        $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$department, $member]))
+            ->assertOk()
+            ->assertSee('Pending admin-visible task');
     }
 
     public function test_admin_workspace_can_update_schedule_and_override_progress_only_without_subtasks(): void
@@ -511,6 +535,77 @@ class AdminWorkBoardTest extends TestCase
         $this->assertSame(6, (int) $rangeTask->fresh()->job_status);
         $this->assertTrue($lateResponse->viewData('todayTasks')->contains('job_id', $rangeTask->job_id));
         $lateResponse->assertSee('ล่าช้า 1 วัน');
+    }
+
+    public function test_member_without_tasks_shows_admin_workspace_entry_while_user_preview_stays_read_only(): void
+    {
+        $department = Department::create(['department_name' => 'Empty Desk']);
+        $admin = $this->user('admin', $department, 'Admin');
+        $member = $this->user('user', $department, 'Idle Member');
+        $teammate = $this->user('user', $department, 'Teammate');
+        $workspaceUrl = route('admin.work-board.member', [$department, $member]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.work-board.member.preview', [$department, $member]))
+            ->assertOk()
+            ->assertSee('data-preview-empty', false)
+            ->assertSee('วันนี้ไม่มีงานที่ต้องติดตาม')
+            ->assertSee('เปิดพื้นที่งานของสมาชิกเพื่อดูงานทั้งหมด หรือสร้างโปรเจกต์และมอบหมายงานใหม่')
+            ->assertSee('เปิดพื้นที่งานของสมาชิก')
+            ->assertSee('href="'.$workspaceUrl.'"', false)
+            ->assertSee('data-preview-workspace-link', false)
+            // CTA ต้องไม่ใช่ลิงก์รายการงาน เพื่อไม่ให้แย่ง action จาก task list
+            ->assertDontSee('data-preview-task-link', false);
+
+        $this->actingAs($teammate)
+            ->get(route('work-board.member', [$department, $member]))
+            ->assertOk()
+            ->assertSee('data-preview-readonly', false)
+            ->assertSee('ดูแบบอ่านอย่างเดียว')
+            ->assertSee('เมื่อมีงานที่ต้องจัดการในวันนี้ รายการจะแสดงที่นี่')
+            ->assertDontSee('เปิดพื้นที่งานของสมาชิก')
+            ->assertDontSee('data-preview-workspace-link', false)
+            ->assertDontSee($workspaceUrl, false);
+
+        // ซ่อนปุ่มไม่ใช่ security boundary — route ฝั่ง Admin ต้องยังปฏิเสธ user/viewer เหมือนเดิม
+        $this->actingAs($teammate)->get($workspaceUrl)->assertForbidden();
+        $viewer = $this->user('viewer', $department, 'Viewer');
+        $this->actingAs($viewer)->get($workspaceUrl)->assertForbidden();
+        $this->actingAs($admin)->get(route('admin.work-board.member.preview', [$department, $viewer]))->assertNotFound();
+    }
+
+    public function test_member_workspace_without_tasks_opens_with_zero_totals_and_in_page_assignment_modal(): void
+    {
+        $department = Department::create(['department_name' => 'Blank']);
+        $otherDepartment = Department::create(['department_name' => 'Elsewhere']);
+        $admin = $this->user('admin', $department, 'Admin');
+        $member = $this->user('user', $department, 'Fresh Member');
+        $outsider = $this->user('user', $otherDepartment, 'Outsider');
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$department, $member]))
+            ->assertOk()
+            ->assertViewHas('totals', ['projects' => 0, 'tasks' => 0])
+            ->assertSee('admin-assign-button', false)
+            ->assertSee('data-open-admin-assignment', false)
+            ->assertSee('data-admin-assignment-modal', false)
+            ->assertSee('action="'.route('admin.tasks.store').'"', false)
+            // งานแรกใน Modal ต้องตั้งต้นที่สมาชิกคนนี้ และงานที่เพิ่มใหม่ใช้ค่าเดียวกัน
+            ->assertSee('data-default-assignee-id="'.$member->id.'"', false)
+            ->assertSee('name="tasks[0][user_id]" data-task-assignee value="'.$member->id.'"', false)
+            ->assertSee('name="assignment_origin" value="admin-member"', false)
+            ->assertSee('name="origin_department_id" value="'.$department->id.'"', false)
+            ->assertSee('name="origin_member_id" value="'.$member->id.'"', false)
+            // ยังคงเป็นการเปิดในหน้าเดิม ไม่มีลิงก์ออกไปบอร์ดรวมพร้อม query string
+            ->assertDontSee(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]))
+            // ไม่มี validation error ค้างอยู่ Modal จึงต้องยังไม่เปิดเอง
+            ->assertDontSee('data-open-on-load', false);
+
+        // ผู้รับผิดชอบที่เลือกได้ต้องเป็น role user เท่านั้น (รวมคนต่างแผนก ตาม logic เดิมของ modal)
+        $this->assertStringContainsString('data-id="'.$outsider->id.'"', $response->getContent());
+        $viewer = $this->user('viewer', $department, 'Viewer');
+        $this->assertStringNotContainsString('data-id="'.$viewer->id.'"', $response->getContent());
+        $this->assertSame(1, substr_count($response->getContent(), 'data-admin-assignment-modal'));
     }
 
     private function user(string $role, Department $department, string $name): User

@@ -3,7 +3,12 @@
 @section('title', 'Workspace งานของ '.$member->name)
 
 @push('styles')
-    @vite(['resources/css/pages/work-board-admin.css', 'resources/css/pages/mytasks.css', 'resources/js/pages/mytasks/index.js'])
+    @vite([
+        'resources/css/pages/work-board-admin.css',
+        'resources/css/pages/mytasks.css',
+        'resources/js/pages/mytasks/index.js',
+        'resources/js/pages/board/admin-assignment.js',
+    ])
 @endpush
 
 @section('content')
@@ -15,6 +20,22 @@
     $showCreateActions = false;
     $showQuickAdd = true;
     $taskLinkMode = false;
+    // Controller เป็นผู้ตัดสินมุมมอง ค่า default ที่นี่ไว้กันหน้าพังหากถูก render จากที่อื่น
+    $workspaceView = $workspaceView ?? 'table';
+
+    // แถบมุมมองใช้ pattern เดียวกับ "งานของฉัน" — "ประชุม" ถูก render จาก server เท่านั้น
+    // ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
+    $workspaceViews = [
+        ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
+        ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
+        ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทิน', 'controls' => 'mytasks-calendar'],
+        [
+            'view' => 'meeting',
+            'icon' => 'bi-calendar-event-fill',
+            'label' => 'ประชุม',
+            'href' => route('admin.work-board.member', [$department, $member, 'view' => 'meeting']),
+        ],
+    ];
 @endphp
 <div class="work-board-page admin-work-board wb-dept-{{ $departmentTone }}">
     <nav class="wb-breadcrumb" aria-label="breadcrumb">
@@ -24,19 +45,25 @@
     </nav>
 
     <section class="wb-profile-card admin-member-profile">
-        <div class="wb-profile-card__person">
+        <div class="wb-profile-card__person admin-member-profile__identity">
             @include('work-board.partials.avatar', ['user' => $member, 'size' => 'xl'])
             <div><span class="wb-eyebrow">ADMIN MEMBER WORKSPACE</span><h1>{{ $member->name }}</h1><span>{{ $department->department_name }}</span><small><i class="bi bi-envelope"></i>{{ $member->email ?: '@'.$member->username }}</small></div>
         </div>
-        <div class="wb-profile-kpi"><i class="bi bi-folder2-open"></i><strong>{{ $totals['projects'] }}</strong><span>โปรเจกต์</span></div>
-        <div class="wb-profile-kpi"><i class="bi bi-list-check"></i><strong>{{ $totals['tasks'] }}</strong><span>งานทั้งหมด</span></div>
-        <a class="btn btn-primary admin-assign-button" href="{{ route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]) }}">
-            <i class="bi bi-person-plus-fill"></i>มอบหมายงาน
-        </a>
+        <div class="admin-member-profile__actions">
+            <div class="admin-member-profile__metrics">
+                <div class="wb-profile-kpi admin-member-profile__metric"><i class="bi bi-folder2-open"></i><strong>{{ $totals['projects'] }}</strong><span>โปรเจกต์</span></div>
+                <div class="wb-profile-kpi admin-member-profile__metric"><i class="bi bi-list-check"></i><strong>{{ $totals['tasks'] }}</strong><span>งานทั้งหมด</span></div>
+            </div>
+            {{-- เปิดโมดัลมอบหมายงานในหน้าเดิม ไม่พา Admin ออกไปที่บอร์ดรวม --}}
+            <button type="button" class="btn btn-primary admin-assign-button" data-open-admin-assignment>
+                <i class="bi bi-person-plus-fill"></i>มอบหมายงาน
+            </button>
+        </div>
     </section>
 
     <div class="notion-workspace my-tasks-page sg-task-theme admin-member-task-workspace" data-workspace
         data-context="admin-member"
+        data-view-history="true"
         data-subject-user-id="{{ $member->id }}"
         data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
         data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
@@ -47,11 +74,10 @@
         data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
         data-current-user-name="{{ auth()->user()->name }}"
         data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.profile', auth()->user()) : '' }}">
-        {{-- Admin Member Workspace ไม่มี panel "ประชุม" จึงต้องได้แค่ 3 มุมมองเสมอ --}}
-        @include('tasks.partials.viewbar', ['activeView' => 'table'])
+        @include('tasks.partials.viewbar', ['views' => $workspaceViews, 'activeView' => $workspaceView])
 
-        {{-- Admin Member Workspace ไม่มี view state ฝั่ง server จึงเริ่มที่ตารางเสมอ --}}
-        <section class="notion-database" data-view="table">
+        {{-- server ตัดสินมุมมองตั้งแต่ HTML แรก จึงไม่มีการกระพริบตอนเปิดหน้า --}}
+        <section class="notion-database" data-view="{{ $workspaceView }}">
             <div class="notion-toolbar" data-board-toolbar hidden>
                 <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องานหรือโปรเจกต์"></label>
                 <label class="notion-group is-locked">สมาชิก <select disabled><option>{{ $member->name }}</option></select></label>
@@ -69,6 +95,25 @@
                 @include('tasks.partials.calendar')
                 @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
             </div>
+
+            @if($workspaceView === 'meeting')
+                {{--
+                    ใช้ partial ชุดเดียวกับหน้า /meetings และมุมมอง "ประชุม" ของงานของฉัน
+                    ห้ามคัดลอก HTML หรือ JavaScript ซ้ำ
+
+                    scope ของรายการถูกบังคับที่ MeetingQueryService ฝั่ง server ด้วย $member
+                    ส่วน meetingCanCreate=false เพราะการสร้างประชุมจะ redirect ไป meetings.show
+                    ซึ่งพา Admin ออกจาก Member Workspace
+                --}}
+                <div class="mytasks-meeting-view" data-view-panel="meeting" role="tabpanel" aria-label="การประชุมของ {{ $member->name }}">
+                    @include('meetings.components.meeting-list', array_merge($meetingData, [
+                        'meetingFormAction' => route('admin.work-board.member', [$department, $member]),
+                        'meetingBaseQuery' => ['view' => 'meeting'],
+                        'meetingEmbedded' => true,
+                        'meetingCanCreate' => false,
+                    ]))
+                </div>
+            @endif
         </section>
         <div class="notion-toast" data-toast></div>
     </div>
@@ -79,5 +124,17 @@
             'workspaceRootUrl' => route('admin.work-board.member', [$department, $member]),
         ]
     ))
+
 </div>
+
+{{-- โมดัลชุดเดียวกับ Admin Board Overview เพียงแต่ผูก origin ไว้กับสมาชิกคนนี้
+     วางนอก .work-board-page เพื่อไม่ให้ stacking context ของหน้าไปทับ overlay ของ Bootstrap --}}
+@include('board.components.admin-assignment-modal', [
+    'assignmentOrigin' => ['department_id' => $department->id, 'member_id' => $member->id],
+    'defaultAssigneeId' => $member->id,
+])
 @endsection
+
+@push('scripts')
+@include('board.components.admin-assignment-flash')
+@endpush

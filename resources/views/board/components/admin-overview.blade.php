@@ -58,6 +58,10 @@
                 ภาพรวมการทำงานและประสิทธิภาพของทุกแผนกในองค์กร
             </p>
         </div>
+
+        @if($canManageTasks)
+            @include('board.components.admin-assignment-trigger')
+        @endif
     </header>
 
     <section class="admin-board-panel admin-department-panel">

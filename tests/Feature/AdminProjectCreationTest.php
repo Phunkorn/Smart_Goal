@@ -317,6 +317,133 @@ class AdminProjectCreationTest extends TestCase
         $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
+    public function test_project_created_from_member_workspace_returns_to_that_workspace_with_the_new_work(): void
+    {
+        $department = Department::create(['department_name' => 'Delivery']);
+        $admin = User::factory()->create(['role' => 'admin', 'department_id' => $department->id, 'must_change_password' => false, 'is_active' => true]);
+        $member = $this->employee($department);
+
+        $this->actingAs($admin)
+            ->from(route('admin.work-board.member', [$department, $member]))
+            ->post(route('admin.tasks.store'), [
+                'project_name' => 'Workspace originated project',
+                'project_priority' => 2,
+                'assignment_origin' => 'admin-member',
+                'origin_department_id' => $department->id,
+                'origin_member_id' => $member->id,
+                'tasks' => [$this->taskPayload('First workspace task', $member)],
+            ])
+            ->assertRedirect(route('admin.work-board.member', [$department, $member]))
+            ->assertSessionHas('success');
+
+        $project = WorkOrderList::where('name', 'Workspace originated project')->firstOrFail();
+        $job = WorkOrder::where('job_topic', 'First workspace task')->firstOrFail();
+        $this->assertSame($project->id, $job->work_order_list_id);
+        $this->assertSame($member->id, $job->user_id);
+        // Ownership contract ของโปรเจกต์ที่ Admin สร้างต้องไม่เปลี่ยนเพราะ origin
+        $this->assertSame($admin->id, $project->user_id);
+        $this->assertSame($admin->id, $job->created_by);
+        $this->assertSame('approved', $job->approval_status);
+
+        $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$department, $member]))
+            ->assertOk()
+            ->assertSee('Workspace originated project')
+            ->assertSee('First workspace task')
+            ->assertViewHas('totals', ['projects' => 1, 'tasks' => 1]);
+    }
+
+    public function test_tampered_assignment_origin_never_redirects_outside_the_allowed_workspace(): void
+    {
+        $department = Department::create(['department_name' => 'Origin']);
+        $otherDepartment = Department::create(['department_name' => 'Other']);
+        $admin = User::factory()->create(['role' => 'admin', 'department_id' => $department->id, 'must_change_password' => false, 'is_active' => true]);
+        $member = $this->employee($department);
+        $outsider = $this->employee($otherDepartment);
+        $viewer = User::factory()->create(['role' => 'viewer', 'department_id' => $department->id, 'must_change_password' => false, 'is_active' => true]);
+
+        $tamperedOrigins = [
+            // สมาชิกอยู่คนละแผนกกับ origin ที่ส่งมา
+            ['assignment_origin' => 'admin-member', 'origin_department_id' => $department->id, 'origin_member_id' => $outsider->id],
+            // role ไม่ใช่ user
+            ['assignment_origin' => 'admin-member', 'origin_department_id' => $department->id, 'origin_member_id' => $viewer->id],
+            // ไม่มีตัวตนในระบบ
+            ['assignment_origin' => 'admin-member', 'origin_department_id' => 99999, 'origin_member_id' => 99999],
+            // origin ไม่ใช่ค่าที่ระบบรู้จัก
+            ['assignment_origin' => 'https://evil.example.com', 'origin_department_id' => $department->id, 'origin_member_id' => $member->id],
+            // ไม่ส่ง context มาเลย
+            [],
+        ];
+
+        foreach ($tamperedOrigins as $index => $origin) {
+            $this->actingAs($admin)
+                ->post(route('admin.tasks.store'), array_merge($origin, [
+                    'project_name' => 'Tampered project '.$index,
+                    'project_priority' => 2,
+                    'tasks' => [$this->taskPayload('Tampered task '.$index, $member)],
+                ]))
+                ->assertRedirect(route('board.index'));
+        }
+
+        $this->assertSame(count($tamperedOrigins), WorkOrder::count());
+    }
+
+    public function test_project_created_from_board_overview_still_returns_to_the_board_index(): void
+    {
+        $department = Department::create(['department_name' => 'Overview']);
+        $admin = User::factory()->create(['role' => 'admin', 'department_id' => $department->id, 'must_change_password' => false, 'is_active' => true]);
+        $member = $this->employee($department);
+
+        $this->actingAs($admin)
+            ->from(route('board.index'))
+            ->post(route('admin.tasks.store'), [
+                'project_name' => 'Board overview project',
+                'project_priority' => 2,
+                'tasks' => [$this->taskPayload('Overview task', $member)],
+            ])
+            ->assertRedirect(route('board.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('work_orders', ['job_topic' => 'Overview task', 'user_id' => $member->id]);
+    }
+
+    public function test_validation_failure_from_member_workspace_reopens_the_modal_with_old_input(): void
+    {
+        $department = Department::create(['department_name' => 'Validation']);
+        $admin = User::factory()->create(['role' => 'admin', 'department_id' => $department->id, 'must_change_password' => false, 'is_active' => true]);
+        $member = $this->employee($department);
+        $workspaceUrl = route('admin.work-board.member', [$department, $member]);
+
+        $this->actingAs($admin)
+            ->from($workspaceUrl)
+            ->post(route('admin.tasks.store'), [
+                // ชื่อโปรเจกต์ว่าง จึงต้องไม่ผ่าน validation
+                'project_name' => '',
+                'project_priority' => 2,
+                'assignment_origin' => 'admin-member',
+                'origin_department_id' => $department->id,
+                'origin_member_id' => $member->id,
+                'tasks' => [
+                    array_merge($this->taskPayload('Kept task one', $member), ['job_priority' => 3]),
+                    $this->taskPayload('Kept task two', $member),
+                ],
+            ])
+            ->assertRedirect($workspaceUrl)
+            ->assertSessionHasErrors('project_name');
+
+        $this->assertDatabaseMissing('work_orders', ['job_topic' => 'Kept task one']);
+
+        $this->actingAs($admin)
+            ->get($workspaceUrl)
+            ->assertOk()
+            ->assertSee('data-open-on-load="1"', false)
+            ->assertSee('data-admin-assignment-errors', false)
+            ->assertSee('value="Kept task one"', false)
+            ->assertSee('value="Kept task two"', false)
+            ->assertSee('name="tasks[1][job_topic]"', false)
+            ->assertSee('name="tasks[0][job_priority]" data-task-priority value="3"', false);
+    }
+
     private function employee(Department $department): User
     {
         return User::factory()->create([

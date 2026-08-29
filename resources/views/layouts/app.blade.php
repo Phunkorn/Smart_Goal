@@ -65,13 +65,11 @@
             @if ($isAdmin)
                 <div class="nav-section-label">ผู้บริหาร</div>
 
+                {{-- เมนู "การประชุม" ย้ายไปเป็น view ที่ 4 ของ Admin Member Workspace แล้ว
+                     เพื่อให้ผู้ดูแลดูประชุมในบริบทของสมาชิกที่กำลังเปิดอยู่ (route เดิมยังใช้งานได้) --}}
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดรวม</span>
-                </a>
-                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
-                    <i class="bi bi-calendar-event"></i>
-                    <span class="nav-item__label">การประชุม</span>
                 </a>
             @endif
 

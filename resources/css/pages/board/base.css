@@ -1,25 +1,6 @@
 /* Board page shell, filters, metrics, cards, and shared status treatments. */
-:root {
-        --board-bg: #f4f6fb;
-        --board-surface: #ffffff;
-        --board-soft: #f8fafc;
-        --board-line: #e2e8f0;
-        --board-text: #172033;
-        --board-muted: #667085;
-        --board-primary: #5b47e0;
-        --board-primary-soft: #efecff;
-        --board-blue: #2563eb;
-        --board-blue-soft: #eff6ff;
-        --board-green: #079455;
-        --board-green-soft: #ecfdf3;
-        --board-amber: #b54708;
-        --board-amber-soft: #fffaeb;
-        --board-red: #d92d20;
-        --board-red-soft: #fef3f2;
-        --board-gray-soft: #f1f5f9;
-        --board-radius: 14px;
-        --board-shadow: 0 14px 36px rgba(15, 23, 42, .06);
-    }
+@import './tokens.css';
+
 
     body {  background: var(--board-bg); }
 

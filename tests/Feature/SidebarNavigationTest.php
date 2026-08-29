@@ -39,15 +39,19 @@ class SidebarNavigationTest extends TestCase
         $this->assertLessThan($reportPosition, $workBoardPosition, '"บอร์ดงาน" ต้องอยู่ก่อน "รายงานของฉัน"');
     }
 
-    public function test_admin_sidebar_keeps_the_meetings_menu_and_its_own_sections(): void
+    public function test_admin_sidebar_hides_the_meetings_menu_and_keeps_its_own_sections(): void
     {
+        // "การประชุม" ของ Admin ย้ายไปเป็น view ที่ 4 ของ Admin Member Workspace แล้ว
+        // sidebar จึงต้องไม่มีเมนูนี้อีก แต่ section อื่นต้องไม่ถูกกระทบ
         $admin = $this->userWithRole('admin');
 
         $this->actingAs($admin)
             ->get(route('board.index'))
             ->assertOk()
-            ->assertSee('href="'.route('meetings.index').'"', false)
+            ->assertDontSee('href="'.route('meetings.index').'"', false)
+            ->assertDontSee('<span class="nav-item__label">การประชุม</span>', false)
             ->assertSee('<div class="nav-section-label">ผู้บริหาร</div>', false)
+            ->assertSee('href="'.route('board.index').'"', false)
             ->assertSee('<div class="nav-section-label">การจัดการ</div>', false)
             ->assertDontSee('<div class="nav-section-label">การสื่อสาร</div>', false);
     }

@@ -1,5 +1,11 @@
 @php
+    use App\Support\TodayWorkspace;
     use App\Support\WorkBoardDesign;
+
+    /**
+     * Preview แสดงเฉพาะ "งานที่ต้องจัดการวันนี้" ที่ DepartmentWorkBoardQuery::previewTasks() คัดมาแล้ว
+     * ประวัติงานทั้งหมดและงานที่เสร็จแล้วอยู่ที่ Member Workspace เต็ม ไม่ใช่ที่นี่
+     */
 @endphp
 
 <section class="wb-member-preview" data-member-preview-content data-preview-member-id="{{ $member->id }}">
@@ -11,7 +17,15 @@
         </div>
     </header>
 
-    @unless($isAdmin)
+    @if($isAdmin)
+        {{-- Admin เข้าพื้นที่งานได้เสมอ แม้สมาชิกยังไม่มีงาน route ยังคงตรวจสิทธิ์ฝั่ง Server ตามเดิม --}}
+        <a class="wb-member-preview__workspace-link"
+            href="{{ route('admin.work-board.member', [$department, $member]) }}"
+            data-preview-workspace-link>
+            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+            <span>เปิดพื้นที่งานของสมาชิก</span>
+        </a>
+    @else
         <div class="wb-member-preview__readonly" data-preview-readonly>
             <i class="bi bi-lock" aria-hidden="true"></i>
             <div>
@@ -19,10 +33,13 @@
                 <span>ข้อมูลนี้เป็นภาพรวมงาน ไม่สามารถแก้ไขหรือเปิดพื้นที่งานของผู้อื่นได้</span>
             </div>
         </div>
-    @endunless
+    @endif
 
     <div class="wb-member-preview__section-heading">
-        <h4>รายการงานที่ได้รับมอบหมาย</h4>
+        <h4>งานที่ต้องจัดการวันนี้</h4>
+        @if($tasks->isNotEmpty())
+            <span class="wb-count-chip" data-preview-task-count>{{ $tasks->count() }} งาน</span>
+        @endif
     </div>
 
     <div class="wb-preview-task-list" data-preview-task-list>
@@ -51,9 +68,16 @@
                         <span class="wb-priority wb-tone-{{ $priority['tone'] }}">
                             <i class="bi bi-flag-fill" aria-hidden="true"></i>{{ $priority['label'] }}
                         </span>
-                        <time datetime="{{ $task->latest_activity_at?->toIso8601String() }}">
-                            <i class="bi bi-clock-history" aria-hidden="true"></i>
-                            {{ $task->latest_activity_at?->locale('th')->translatedFormat('j M Y H:i') ?? 'ยังไม่มีการอัปเดต' }}
+                        @php($bucket = $task->today_bucket ?? 'active')
+                        @php($overdueDays = $bucket === 'late' ? TodayWorkspace::overdueDays($task) : 0)
+                        <time datetime="{{ $task->job_due_at?->toIso8601String() }}" data-preview-task-timing="{{ $bucket }}">
+                            <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                            @switch($bucket)
+                                @case('late'){{ $overdueDays > 0 ? 'ล่าช้า '.$overdueDays.' วัน' : 'เลยกำหนดแล้ว' }}@break
+                                @case('due_today')กำหนดส่งวันนี้@break
+                                @case('starts_today')เริ่มวันนี้@break
+                                @default{{ 'กำหนดส่ง '.(TodayWorkspace::dateRangeLabel($task->job_due_at, $task->job_due_at) ?? 'ไม่ระบุ') }}
+                            @endswitch
                         </time>
                     </div>
                 </div>
@@ -67,9 +91,13 @@
             @endif
         @empty
             <div class="wb-preview-empty" data-preview-empty>
-                <span><i class="bi bi-inbox" aria-hidden="true"></i></span>
-                <h5>ยังไม่มีงานที่ได้รับมอบหมาย</h5>
-                <p>เมื่อมีงานของสมาชิก รายการจะแสดงที่นี่</p>
+                <span><i class="bi bi-check2-circle" aria-hidden="true"></i></span>
+                <h5>วันนี้ไม่มีงานที่ต้องติดตาม</h5>
+                @if($isAdmin)
+                    <p>เปิดพื้นที่งานของสมาชิกเพื่อดูงานทั้งหมด หรือสร้างโปรเจกต์และมอบหมายงานใหม่</p>
+                @else
+                    <p>เมื่อมีงานที่ต้องจัดการในวันนี้ รายการจะแสดงที่นี่</p>
+                @endif
             </div>
         @endforelse
     </div>

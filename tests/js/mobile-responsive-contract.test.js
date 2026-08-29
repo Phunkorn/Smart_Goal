@@ -49,3 +49,48 @@ test('mobile calendar navigation has deterministic control and selector rows', a
     assert.match(mobile, /label:nth-of-type\(2\)[^{]*\{[^}]*grid-column:\s*3 \/ 5/s);
     assert.match(mobile, /\[data-calendar-month\][^}]*\[data-calendar-year\]\s*\{[^}]*min-width:\s*0/s);
 });
+
+test('admin member profile owns a desktop/tablet/mobile composition instead of scrolling sideways', async () => {
+    const source = await css('resources/css/pages/work-board/admin.css');
+    const desktop = source.slice(0, source.indexOf('@media'));
+    const tablet = source.slice(source.indexOf('@media (max-width: 1024px)'), source.indexOf('@media (max-width: 767px)'));
+    const mobile = source.slice(source.indexOf('@media (max-width: 767px)'));
+
+    // Desktop: identity ซ้าย actions ขวา และต้องยกเลิก overflow-x:auto ที่ .wb-profile-card ตั้งไว้
+    assert.match(desktop, /\.admin-member-profile\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto/s);
+    assert.match(desktop, /\.admin-member-profile\s*\{[^}]*overflow:\s*visible/s);
+    assert.doesNotMatch(source, /\.admin-member-profile[^}]*overflow-x:\s*auto/s);
+    assert.match(desktop, /\.admin-member-profile__identity\s*\{[^}]*min-width:\s*0/s);
+    assert.match(desktop, /\.admin-member-profile__metrics\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
+
+    // Tablet: การ์ดเหลือคอลัมน์เดียว KPI กับปุ่มลงมาอยู่แถวถัดไป
+    assert.match(tablet, /\.admin-member-profile\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+    assert.match(tablet, /\.admin-member-profile__actions\s*\{[^}]*flex-wrap:\s*wrap/s);
+    assert.match(tablet, /\.admin-member-profile__metrics\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/s);
+
+    // Mobile: คอลัมน์เดียว KPI สองช่อง และปุ่มเต็มความกว้าง
+    assert.match(mobile, /\.admin-member-profile__actions\s*\{[^}]*flex-direction:\s*column/s);
+    assert.match(mobile, /\.admin-member-profile__metrics\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/s);
+    assert.match(mobile, /\.admin-assign-button\s*\{[^}]*width:\s*100%/s);
+
+    // Touch target และ focus ต้องมองเห็นได้
+    assert.match(desktop, /\.admin-assign-button\s*\{[^}]*min-height:\s*44px/s);
+    assert.match(desktop, /\.admin-assign-button:focus-visible\s*\{[^}]*outline:/s);
+});
+
+test('the shared assignment modal ships with the admin work board entry point', async () => {
+    const entry = await css('resources/css/pages/work-board-admin.css');
+    const modal = await css('resources/css/pages/board/modal.css');
+
+    assert.match(entry, /@import '\.\/board\/tokens\.css';/);
+    assert.match(entry, /@import '\.\/board\/modal\.css';/);
+    // token ต้องมาก่อน component ที่ใช้ token และ delta ของ admin ต้องปิดท้าย cascade
+    assert.ok(entry.indexOf("'./board/tokens.css'") < entry.indexOf("'./board/modal.css'"));
+    assert.ok(entry.indexOf("'./board/modal.css'") < entry.indexOf("'./work-board/admin.css'"));
+
+    // modal ต้องพึ่งพาเฉพาะ class ไม่ใช่ id ของงานแรก จึงใช้ได้กับทุกแถวงาน
+    assert.match(modal, /\.board-collaborator-hint\s*\{/);
+    assert.doesNotMatch(modal, /#boardCollaboratorHint/);
+    assert.doesNotMatch(modal, /#boardCollaboratorList/);
+    assert.match(modal, /\.avatar-mini\s*\{/);
+});

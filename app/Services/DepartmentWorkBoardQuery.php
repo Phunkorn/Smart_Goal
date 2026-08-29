@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -15,6 +16,11 @@ use Illuminate\Support\Facades\DB;
 
 final class DepartmentWorkBoardQuery
 {
+    private const DONE_STATUS = 4;
+
+    /** ล่าช้าก่อน แล้วครบกำหนดวันนี้ ตามด้วยงานที่กำลังทำอยู่ และปิดท้ายด้วยงานที่เพิ่งเริ่มวันนี้ */
+    private const TODAY_BUCKET_ORDER = ['late' => 0, 'due_today' => 1, 'active' => 2, 'starts_today' => 3];
+
     /**
      * Build the lightweight member directory without loading every task model.
      *
@@ -110,11 +116,34 @@ final class DepartmentWorkBoardQuery
         return compact('members', 'projects');
     }
 
-    /** @return Collection<int, WorkOrder> */
-    public function previewTasks(Department $department, User $member, bool $isAdmin): Collection
+    /**
+     * งานที่สมาชิก "ต้องจัดการวันนี้" สำหรับ Preview แบบ offcanvas
+     *
+     * สมาชิกภาพของรายการมาจาก TodayWorkspace::tasks() ตัวเดียวกับหน้า "งานของฉัน"
+     * และ Member Workspace เต็ม — ห้ามนิยาม "งานวันนี้" ขึ้นใหม่ที่นี่
+     *
+     * Preview เพิ่มข้อจำกัดของตัวเองสองข้อเท่านั้น:
+     *   1) เอาเฉพาะงานที่อนุมัติแล้ว งานที่รออนุมัติเป็นเรื่องของหน้า "คำขออนุมัติ"
+     *      และไม่เคยเข้าวงจร auto-start/auto-late จึงไม่ควรปนอยู่ในรายการของวันนี้
+     *   2) ตัดงานที่เสร็จแล้วออกทั้งหมด เพราะ Preview ตอบว่า "วันนี้ต้องทำอะไร"
+     *      ไม่ใช่ประวัติงาน ส่วนงานที่เสร็จแล้วยังดูได้ครบใน Member Workspace เต็ม
+     *
+     * @return Collection<int, WorkOrder>
+     */
+    public function previewTasks(Department $department, User $member): Collection
     {
-        $tasks = $this->departmentTasks($department, $isAdmin)
-            ->where('user_id', $member->id)
+        $memberTasks = WorkOrder::query()
+            ->where('department_id', $department->id)
+            ->where('user_id', $member->id);
+
+        // ต้องปรับสถานะอัตโนมัติให้เป็นปัจจุบันก่อน เหมือนที่ adminMember() และ MyTaskController::index() ทำ
+        // มิฉะนั้นงานที่เลยกำหนดจะยังเป็น status 1-3 แล้วตกช่วง active range ของ TodayWorkspace
+        // ทำให้งานล่าช้าหายไปจาก Preview ทั้งที่เป็นงานที่ต้องติดตามที่สุด
+        TodayWorkspace::synchronizeActiveToday($memberTasks);
+        TodayWorkspace::synchronizeLate($memberTasks);
+
+        $tasks = $memberTasks
+            ->where('approval_status', 'approved')
             ->select([
                 'job_id',
                 'user_id',
@@ -124,25 +153,45 @@ final class DepartmentWorkBoardQuery
                 'job_priority',
                 'job_status',
                 'approval_status',
+                'job_start_at',
                 'job_due_at',
-                'updated_at',
+                'job_completed_at',
             ])
             ->with('taskList:id,name')
-            ->withMax('updates', 'created_at')
-            ->orderByDesc('updated_at')
-            ->orderByDesc('job_id')
             ->get();
 
-        return $tasks->map(function (WorkOrder $task): WorkOrder {
-            $latestActivity = collect([
-                $task->updated_at,
-                $task->updates_max_created_at ? Carbon::parse($task->updates_max_created_at) : null,
-            ])->filter()->sortDesc()->first();
+        return TodayWorkspace::tasks($tasks)
+            ->reject(fn (WorkOrder $task) => (int) $task->job_status === self::DONE_STATUS)
+            ->each(fn (WorkOrder $task) => $task->setAttribute('today_bucket', $this->todayBucket($task)))
+            ->sortBy(fn (WorkOrder $task) => [
+                self::TODAY_BUCKET_ORDER[$task->today_bucket],
+                $task->job_due_at?->getTimestamp() ?? PHP_INT_MAX,
+                $task->job_id,
+            ])
+            ->values();
+    }
 
-            $task->setAttribute('latest_activity_at', $latestActivity);
+    /**
+     * กลุ่มความเร่งด่วนของงานในรายการวันนี้ ใช้ทั้งการเรียงลำดับและป้ายกำกับใน Blade
+     * จึงคำนวณที่เดียวแล้วติดไปกับตัวงาน
+     */
+    private function todayBucket(WorkOrder $task): string
+    {
+        if (WorkBoardDesign::statusKey($task) === 'late') {
+            return 'late';
+        }
 
-            return $task;
-        });
+        $today = TodayWorkspace::calendarDate(now());
+
+        if (TodayWorkspace::calendarDate($task->job_due_at) === $today) {
+            return 'due_today';
+        }
+
+        if (TodayWorkspace::calendarDate($task->job_start_at) === $today) {
+            return 'starts_today';
+        }
+
+        return 'active';
     }
 
     private function departmentTasks(Department $department, bool $isAdmin): Builder

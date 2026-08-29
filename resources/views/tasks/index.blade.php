@@ -25,6 +25,7 @@
 @section('content')
 <div class="notion-workspace my-tasks-page sg-task-theme" data-workspace
     data-context="user"
+    data-view-history="true"
     data-task-scope="{{ $taskScope }}"
     data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
     data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"

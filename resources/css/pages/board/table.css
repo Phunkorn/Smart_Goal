@@ -90,27 +90,6 @@
         min-width: 0;
     }
 
-    .avatar-mini {
-        width: 30px;
-        height: 30px;
-        border-radius: 10px;
-        display: grid;
-        place-items: center;
-        color: #fff;
-        background: var(--board-primary);
-        font-weight: 800;
-        font-size: 11px;
-        flex: 0 0 auto;
-        overflow: hidden;
-    }
-
-    .avatar-mini img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
     .person-name {
         font-weight: 800;
         color: var(--board-text);
