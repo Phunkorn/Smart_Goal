@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\Department;
 use App\Models\SystemNotification;
 use App\Models\User;
@@ -217,7 +218,7 @@ class TaskCollaboratorNotificationTest extends TestCase
             ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
             ->assertForbidden();
 
-        $this->actingAs($admin)->get(route('board.index', ['approval_queue' => 'collaborator']))
+        $this->actingAs($admin)->get(route('admin.approvals.index', ['approval_queue' => 'collaborator']))
             ->assertOk()
             ->assertSee($candidate->name)
             ->assertSee(route('admin.tasks.collaborators.approval', [$task, $candidate]), false);
@@ -239,6 +240,7 @@ class TaskCollaboratorNotificationTest extends TestCase
             ->where('work_order_id', $task->job_id)
             ->where('type', 'collaborator_added')
             ->count());
+        $this->assertSame(1, ActivityLog::where('subject_id', $task->job_id)->where('action', 'collaborator_accepted')->count());
 
         $this->actingAs($admin)
             ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
@@ -247,6 +249,7 @@ class TaskCollaboratorNotificationTest extends TestCase
             ->where('work_order_id', $task->job_id)
             ->where('type', 'collaborator_added')
             ->count());
+        $this->assertSame(1, ActivityLog::where('subject_id', $task->job_id)->where('action', 'collaborator_accepted')->count());
     }
 
     public function test_viewer_and_inactive_accounts_are_never_added_or_notified(): void

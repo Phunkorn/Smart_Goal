@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Services\DepartmentWorkBoardQuery;
 use App\Services\TaskCommentService;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TaskCollaboratorOptions;
@@ -16,6 +17,8 @@ use Illuminate\Support\Collection;
 
 class WorkBoardController extends Controller
 {
+    public function __construct(private readonly DepartmentWorkBoardQuery $departmentWorkBoard) {}
+
     public function index()
     {
         $departments = Department::query()
@@ -51,189 +54,51 @@ class WorkBoardController extends Controller
 
     public function department(Request $request, Department $department)
     {
-        $allJobs = $this->approvedJobs()
-            ->where('department_id', $department->id)
-            ->with('taskList:id,name')
-            ->get();
-
-        $projects = $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values();
-        $members = User::query()
-            ->where('department_id', $department->id)
-            ->where('role', 'user')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
-
-        $filteredJobs = $this->filterJobs($allJobs, $request, false);
-        $jobsByUser = $filteredJobs->groupBy('user_id');
-        $search = mb_strtolower(trim($request->string('search')->toString()));
-        $hasJobFilter = $request->filled('status') || $request->integer('project_id') || $request->filled('due');
-
-        $members = $members->filter(function (User $member) use ($jobsByUser, $search, $hasJobFilter): bool {
-            $memberJobs = $jobsByUser->get($member->id, collect());
-
-            if ($hasJobFilter && $memberJobs->isEmpty()) {
-                return false;
-            }
-
-            if ($search === '') {
-                return true;
-            }
-
-            return str_contains(mb_strtolower($member->name), $search)
-                || str_contains(mb_strtolower($member->username), $search)
-                || str_contains(mb_strtolower((string) $member->email), $search)
-                || $memberJobs->contains(fn (WorkOrder $job) => str_contains(
-                    mb_strtolower($job->job_topic.' '.$job->job_details.' '.($job->taskList?->name ?? '')),
-                    $search
-                ));
-        })->map(function (User $member) use ($jobsByUser): User {
-            $memberJobs = $jobsByUser->get($member->id, collect());
-            $projectRows = $memberJobs->groupBy(fn (WorkOrder $job) => $job->work_order_list_id ?: 'none')
-                ->map(function (Collection $jobs): array {
-                    $representative = $jobs->sortByDesc('job_id')->first();
-
-                    return [
-                        'name' => $representative->taskList?->name ?? 'งานทั่วไป',
-                        'count' => $jobs->count(),
-                        'status' => WorkBoardDesign::status($representative),
-                    ];
-                })->values();
-
-            $member->setAttribute('board_jobs', $memberJobs);
-            $member->setAttribute('board_projects', $projectRows);
-            $member->setAttribute('board_status_counts', WorkBoardDesign::statusCounts($memberJobs));
-            $member->setAttribute('latest_due_at', $memberJobs->max('job_due_at'));
-
-            return $member;
-        });
-
-        $members = (match ($request->string('sort')->toString()) {
-            'tasks_desc' => $members->sortByDesc(fn (User $user) => $user->board_jobs->count()),
-            'due_asc' => $members->sortBy(fn (User $user) => $user->latest_due_at?->timestamp ?? PHP_INT_MAX),
-            default => $members->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE),
-        })->values();
+        $directory = $this->departmentWorkBoard->directory($department, $request, false);
 
         return view('work-board.department', [
             'department' => $department,
             'departmentTone' => WorkBoardDesign::departmentTone($department),
             'departmentCode' => WorkBoardDesign::departmentCode($department),
-            'members' => $members,
-            'projects' => $projects,
-            'totals' => [
-                'members' => User::where('department_id', $department->id)->where('role', 'user')->where('is_active', true)->count(),
-                'projects' => $allJobs->pluck('work_order_list_id')->filter()->unique()->count(),
-                'tasks' => $allJobs->count(),
-            ],
-            'statusCounts' => WorkBoardDesign::statusCounts($allJobs),
             'statusMeta' => WorkBoardDesign::STATUSES,
+            ...$directory,
         ]);
     }
 
-    public function member(Request $request, Department $department, User $user)
+    public function member(Department $department, User $user)
     {
-        abort_unless((int) $user->department_id === (int) $department->id && $user->role === 'user', 404);
+        $this->ensurePreviewMember($department, $user);
 
-        $allJobs = $this->approvedJobs()
-            ->where('department_id', $department->id)
-            ->where('user_id', $user->id)
-            ->with([
-                'taskList:id,name',
-                'collaborators:id,name,profile_image',
-            ])
-            ->withCount('images')
-            ->get();
-
-        $projects = $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values();
-        $jobs = $this->filterJobs($allJobs, $request);
-        $jobs = (match ($request->string('sort')->toString()) {
-            'name_asc' => $jobs->sortBy('job_topic', SORT_NATURAL | SORT_FLAG_CASE),
-            'status_asc' => $jobs->sortBy(fn (WorkOrder $job) => WorkBoardDesign::statusKey($job)),
-            default => $jobs->sortBy(fn (WorkOrder $job) => $job->job_due_at?->timestamp ?? PHP_INT_MAX),
-        })->values();
-
-        $projectGroups = $jobs->groupBy(fn (WorkOrder $job) => $job->work_order_list_id ?: 'none')
-            ->map(fn (Collection $group) => [
-                'project' => $group->first()->taskList,
-                'jobs' => $group,
-            ])->values();
-
-        return view('work-board.member', [
+        return view('work-board.components.member-preview', [
             'department' => $department,
-            'departmentTone' => WorkBoardDesign::departmentTone($department),
-            'departmentCode' => WorkBoardDesign::departmentCode($department),
             'member' => $user,
-            'projects' => $projects,
-            'projectGroups' => $projectGroups,
-            'totals' => [
-                'projects' => $allJobs->pluck('work_order_list_id')->filter()->unique()->count(),
-                'tasks' => $allJobs->count(),
-            ],
-            'statusCounts' => WorkBoardDesign::statusCounts($allJobs),
-            'statusMeta' => WorkBoardDesign::STATUSES,
+            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user, false),
+            'isAdmin' => false,
         ]);
     }
 
     public function adminDepartment(Request $request, Department $department)
     {
-        $allJobs = WorkOrder::query()
-            ->where('department_id', $department->id)
-            ->with('taskList:id,name')
-            ->get();
-        $filteredJobs = $this->filterJobs($allJobs, $request, false);
-        $jobsByUser = $filteredJobs->groupBy('user_id');
-        $search = mb_strtolower(trim($request->string('search')->toString()));
-        $hasJobFilter = $request->filled('status') || $request->integer('project_id') || $request->filled('due');
-
-        $members = User::query()
-            ->where('department_id', $department->id)
-            ->where('role', 'user')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get()
-            ->filter(function (User $member) use ($jobsByUser, $search, $hasJobFilter): bool {
-                $memberJobs = $jobsByUser->get($member->id, collect());
-
-                if ($hasJobFilter && $memberJobs->isEmpty()) {
-                    return false;
-                }
-
-                return $search === ''
-                    || str_contains(mb_strtolower($member->name.' '.$member->username.' '.($member->email ?? '')), $search)
-                    || $memberJobs->contains(fn (WorkOrder $job) => str_contains(
-                        mb_strtolower($job->job_topic.' '.$job->job_details.' '.($job->taskList?->name ?? '')),
-                        $search
-                    ));
-            })
-            ->map(function (User $member) use ($jobsByUser): User {
-                $memberJobs = $jobsByUser->get($member->id, collect());
-                $member->setAttribute('board_jobs', $memberJobs);
-                $member->setAttribute('board_project_count', $memberJobs->pluck('work_order_list_id')->filter()->unique()->count());
-                $member->setAttribute('board_status_counts', WorkBoardDesign::statusCounts($memberJobs));
-                $member->setAttribute('latest_due_at', $memberJobs->max('job_due_at'));
-
-                return $member;
-            });
-
-        $members = (match ($request->string('sort')->toString()) {
-            'tasks_desc' => $members->sortByDesc(fn (User $member) => $member->board_jobs->count()),
-            'due_asc' => $members->sortBy(fn (User $member) => $member->latest_due_at?->timestamp ?? PHP_INT_MAX),
-            default => $members->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE),
-        })->values();
+        $directory = $this->departmentWorkBoard->directory($department, $request, true);
 
         return view('work-board.admin.department', [
             'department' => $department,
             'departmentTone' => WorkBoardDesign::departmentTone($department),
             'departmentCode' => WorkBoardDesign::departmentCode($department),
-            'members' => $members,
-            'projects' => $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values(),
-            'totals' => [
-                'members' => User::where('department_id', $department->id)->where('role', 'user')->where('is_active', true)->count(),
-                'projects' => $allJobs->pluck('work_order_list_id')->filter()->unique()->count(),
-                'tasks' => $allJobs->count(),
-            ],
-            'statusCounts' => WorkBoardDesign::statusCounts($allJobs),
             'statusMeta' => WorkBoardDesign::STATUSES,
+            ...$directory,
+        ]);
+    }
+
+    public function adminMemberPreview(Department $department, User $user)
+    {
+        $this->ensurePreviewMember($department, $user);
+
+        return view('work-board.components.member-preview', [
+            'department' => $department,
+            'member' => $user,
+            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user, true),
+            'isAdmin' => true,
         ]);
     }
 
@@ -312,6 +177,16 @@ class WorkBoardController extends Controller
     private function approvedJobs()
     {
         return WorkOrder::query()->where('approval_status', 'approved');
+    }
+
+    private function ensurePreviewMember(Department $department, User $user): void
+    {
+        abort_unless(
+            (int) $user->department_id === (int) $department->id
+                && $user->role === 'user'
+                && $user->is_active,
+            404
+        );
     }
 
     private function filterJobs(Collection $jobs, Request $request, bool $includeSearch = true): Collection

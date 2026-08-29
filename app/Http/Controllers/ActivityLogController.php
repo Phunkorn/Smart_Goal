@@ -19,12 +19,20 @@ class ActivityLogController extends Controller
         $logs = ActivityLog::with('user')
             ->when($request->filled('action'), fn ($query) => $query->where('action', $request->string('action')))
             ->when($request->filled('user_id'), fn ($query) => $query->where('user_id', $request->integer('user_id')))
+            ->when($request->filled('subject_type'), fn ($query) => $query->where('subject_type', $request->string('subject_type')))
             ->when($request->filled('q'), function ($query) use ($request) {
                 $search = '%' . $request->string('q') . '%';
                 $query->where(function ($inner) use ($search) {
                     $inner->where('description', 'like', $search)
                         ->orWhere('subject_type', 'like', $search)
-                        ->orWhere('ip_address', 'like', $search);
+                        ->orWhere('action', 'like', $search)
+                        ->orWhere('subject_id', 'like', $search)
+                        ->orWhere('ip_address', 'like', $search)
+                        ->orWhereHas('user', function ($userQuery) use ($search) {
+                            $userQuery->where('name', 'like', $search)
+                                ->orWhere('email', 'like', $search)
+                                ->orWhere('username', 'like', $search);
+                        });
                 });
             })
             ->latest('created_at')
@@ -37,10 +45,17 @@ class ActivityLogController extends Controller
             ->orderBy('action')
             ->pluck('action');
 
+        $subjectTypes = ActivityLog::query()
+            ->whereNotNull('subject_type')
+            ->select('subject_type')
+            ->distinct()
+            ->orderBy('subject_type')
+            ->pluck('subject_type');
+
         $users = User::orderBy('name')->get(['id', 'name', 'email']);
         $resolvableProfileImages = $this->resolvableProfileImages($logs->items());
 
-        return view('admin.activity-logs.index', compact('logs', 'actions', 'users', 'resolvableProfileImages'));
+        return view('admin.activity-logs.index', compact('logs', 'actions', 'subjectTypes', 'users', 'resolvableProfileImages'));
     }
 
     /**

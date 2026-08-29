@@ -1,7 +1,7 @@
 /* หน้า "แผนกทั้งหมด" ของ Admin — card grid โทนเรียบ ใช้สีเท่าที่จำเป็น */
 
 .departments-page {
-    max-width: 1080px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
@@ -53,14 +53,14 @@
 .departments-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: 22px;
 }
 
 .department-card {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding: 18px 20px;
+    gap: 20px;
+    padding: 22px 24px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
@@ -191,7 +191,7 @@
 .departments-empty h2 { margin: 0 0 6px; color: var(--text); font-size: 1rem; font-weight: 700; }
 .departments-empty p { margin: 0; font-size: .82rem; }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
     .departments-grid { grid-template-columns: 1fr; }
 }
 

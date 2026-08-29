@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\Department;
 use App\Models\SystemNotification;
 use App\Models\User;
@@ -122,9 +123,9 @@ class AssignmentApprovalFlowTest extends TestCase
     {
         [$actor, $assignee, $admin, $job] = $this->crossDepartmentAssignment('Approve once');
 
-        $this->actingAs($admin)->get(route('board.index'))
+        $this->actingAs($admin)->get(route('admin.approvals.index'))
             ->assertOk()
-            ->assertSee('งานข้ามแผนกรออนุมัติ')
+            ->assertSee('งานข้ามแผนก')
             ->assertSee('Approve once')
             ->assertSee($actor->department->department_name)
             ->assertSee($assignee->department->department_name)
@@ -145,6 +146,7 @@ class AssignmentApprovalFlowTest extends TestCase
         $this->assertNotNull($job->approved_at);
         $this->assertNotificationCount($assignee, $job, 'task_assigned', 1);
         $this->assertNotificationCount($actor, $job, 'assignment_approved', 1);
+        $this->assertSame(1, ActivityLog::where('subject_id', $job->job_id)->where('action', 'approval_updated')->count());
 
         $this->actingAs($assignee)->get(route('mytasks.index', ['view' => 'table']))
             ->assertOk()
@@ -165,6 +167,7 @@ class AssignmentApprovalFlowTest extends TestCase
             ->assertConflict();
         $this->assertNotificationCount($assignee, $job, 'task_assigned', 1);
         $this->assertNotificationCount($actor, $job, 'assignment_approved', 1);
+        $this->assertSame(1, ActivityLog::where('subject_id', $job->job_id)->where('action', 'approval_updated')->count());
     }
 
     public function test_rejection_keeps_task_private_and_duplicate_decisions_are_safe(): void
@@ -179,6 +182,7 @@ class AssignmentApprovalFlowTest extends TestCase
 
         $this->assertSame('rejected', $job->fresh()->approval_status);
         $this->assertNotificationCount($actor, $job, 'assignment_rejected', 1);
+        $this->assertSame(1, ActivityLog::where('subject_id', $job->job_id)->where('action', 'approval_updated')->count());
         $this->assertNotificationCount($assignee, $job, 'task_assigned', 0);
         $this->actingAs($assignee)->get(route('mytasks.index'))->assertOk()->assertDontSee('Reject once');
         $this->actingAs($assignee)->get(route('tasks.show', $job))->assertForbidden();
@@ -189,6 +193,7 @@ class AssignmentApprovalFlowTest extends TestCase
             ->assertRedirect(route('board.index'))
             ->assertSessionHasErrors('status');
         $this->assertNotificationCount($actor, $job, 'assignment_rejected', 1);
+        $this->assertSame(1, ActivityLog::where('subject_id', $job->job_id)->where('action', 'approval_updated')->count());
     }
 
     public function test_admin_cross_department_assignment_is_immediate_and_notifies_recipient(): void

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\User;
 use App\Support\PasswordPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -322,6 +323,82 @@ class AuthenticationSecurityTest extends TestCase
                 'is_active' => true,
             ])
             ->assertForbidden();
+    }
+
+    public function test_admin_can_create_employee_with_one_unrestricted_temporary_password(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'must_change_password' => false]);
+        $department = Department::create(['department_name' => 'Temporary Password Team']);
+        $temporaryPassword = 'x';
+
+        $this->actingAs($admin)
+            ->post(route('employees.store'), [
+                'name' => 'Temporary Password Employee',
+                'username' => 'temporary-password-employee',
+                'email' => null,
+                'phone' => null,
+                'password' => $temporaryPassword,
+                'role' => 'user',
+                'is_active' => true,
+                'department_id' => $department->id,
+            ])
+            ->assertRedirect(route('employees.index'))
+            ->assertSessionHasNoErrors();
+
+        $employee = User::where('username', 'temporary-password-employee')->firstOrFail();
+
+        $this->assertNotSame($temporaryPassword, $employee->getRawOriginal('password'));
+        $this->assertTrue(Hash::check($temporaryPassword, $employee->password));
+        $this->assertTrue($employee->must_change_password);
+
+        $this->post(route('logout'))->assertRedirect(route('login'));
+
+        $this->post(route('login.submit'), [
+            'username' => $employee->username,
+            'password' => $temporaryPassword,
+        ])->assertRedirect(route('password.setup'));
+
+        $this->assertAuthenticatedAs($employee);
+    }
+
+    public function test_admin_edit_password_still_requires_confirmation_and_the_shared_policy(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'must_change_password' => false]);
+        $employee = User::factory()->create([
+            'role' => 'viewer',
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+        $originalPassword = $employee->password;
+        $payload = [
+            'name' => $employee->name,
+            'username' => $employee->username,
+            'email' => $employee->email,
+            'phone' => $employee->phone,
+            'role' => 'viewer',
+            'is_active' => true,
+            'department_id' => null,
+        ];
+
+        $this->actingAs($admin)
+            ->patch(route('employees.update', $employee), [
+                ...$payload,
+                'password' => 'weak',
+                'password_confirmation' => 'weak',
+            ])
+            ->assertSessionHasErrors(['password' => PasswordPolicy::description()]);
+
+        $this->actingAs($admin)
+            ->patch(route('employees.update', $employee), [
+                ...$payload,
+                'password' => 'SecurePassword!123',
+                'password_confirmation' => 'DifferentPassword!456',
+            ])
+            ->assertSessionHasErrors('password');
+
+        $employee->refresh();
+        $this->assertSame($originalPassword, $employee->password);
+        $this->assertFalse($employee->must_change_password);
     }
 
     public function test_admin_password_reset_uses_the_shared_policy(): void

@@ -56,7 +56,25 @@ class AdminWorkBoardTest extends TestCase
             ->assertOk()
             ->assertSee($department->department_name)
             ->assertSee($member->name)
-            ->assertSee(route('admin.work-board.member', [$department, $member]), false);
+            ->assertSee('data-work-board-directory', false)
+            ->assertSee('data-work-board-mode', false)
+            ->assertSee('data-member-card', false)
+            ->assertSee(route('admin.work-board.member.preview', [$department, $member]), false)
+            ->assertDontSee('wb-overview', false)
+            ->assertDontSee('admin-member-selector__grid', false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.work-board.member.preview', [$department, $member]))
+            ->assertOk()
+            ->assertSee('Member task')
+            ->assertDontSee('Other member task')
+            ->assertSee('data-preview-task-link', false)
+            ->assertSee(route('admin.work-board.member', [
+                $department,
+                $member,
+                'open_task' => $memberTask->job_id,
+            ]), false)
+            ->assertDontSee('data-preview-readonly', false);
 
         $response = $this->actingAs($admin)
             ->get(route('admin.work-board.member', [$department, $member]))
@@ -130,7 +148,9 @@ class AdminWorkBoardTest extends TestCase
         $otherDepartmentUser = $this->user('user', $second, 'Other');
 
         $this->actingAs($user)->get(route('admin.work-board.department', $first))->assertForbidden();
+        $this->actingAs($user)->get(route('admin.work-board.member.preview', [$first, $user]))->assertForbidden();
         $this->actingAs($user)->get(route('admin.work-board.member', [$first, $user]))->assertForbidden();
+        $this->actingAs($admin)->get(route('admin.work-board.member.preview', [$first, $otherDepartmentUser]))->assertNotFound();
         $this->actingAs($admin)->get(route('admin.work-board.member', [$first, $otherDepartmentUser]))->assertNotFound();
     }
 
@@ -178,6 +198,36 @@ class AdminWorkBoardTest extends TestCase
         $this->actingAs($member)
             ->postJson(route('admin.work-board.member.tasks.store', [$department, $member, $project]), ['job_topic' => 'Forbidden'])
             ->assertForbidden();
+    }
+
+    public function test_admin_preview_preserves_unapproved_visibility_and_never_links_to_wrong_member_context(): void
+    {
+        $department = Department::create(['department_name' => 'Preview']);
+        $admin = $this->user('admin', $department, 'Admin');
+        $member = $this->user('user', $department, 'Member');
+        $otherMember = $this->user('user', $department, 'Other');
+        $project = WorkOrderList::create(['user_id' => $admin->id, 'name' => 'Preview Project', 'priority' => 2]);
+        $pending = $this->task($project, $admin, $member, 'Pending admin-visible task');
+        $pending->update(['approval_status' => 'pending', 'approved_by' => null, 'approved_at' => null]);
+        $otherTask = $this->task($project, $admin, $otherMember, 'Wrong member task');
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.work-board.member.preview', [$department, $member]))
+            ->assertOk()
+            ->assertSee('Pending admin-visible task')
+            ->assertDontSee('Wrong member task')
+            ->assertSee(route('admin.work-board.member', [
+                $department,
+                $member,
+                'open_task' => $pending->job_id,
+            ]), false)
+            ->assertDontSee(route('admin.work-board.member', [
+                $department,
+                $otherMember,
+                'open_task' => $otherTask->job_id,
+            ]), false);
+
+        $this->assertSame(1, substr_count($response->getContent(), 'data-preview-task-link'));
     }
 
     public function test_admin_workspace_can_update_schedule_and_override_progress_only_without_subtasks(): void

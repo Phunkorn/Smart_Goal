@@ -7,6 +7,13 @@
 @endpush
 
 @section('content')
+@php
+    $entityTypeLabels = [
+        \App\Models\User::class => 'พนักงาน',
+        \App\Models\WorkOrder::class => 'งาน',
+        \App\Models\WorkOrderList::class => 'โปรเจกต์',
+    ];
+@endphp
 <div class="trash-page">
     <section class="trash-head">
         <div>
@@ -23,9 +30,9 @@
 
     <section class="trash-stats">
         <div class="stat-card"><span>รายการที่พบ</span><strong>{{ $stats['total'] }}</strong></div>
-        <div class="stat-card"><span>งานที่ถูกลบ</span><strong>{{ $stats['work_orders'] }}</strong></div>
+        <div class="stat-card"><span>งานและโปรเจกต์ที่ถูกลบ</span><strong>{{ $stats['work_items'] }}</strong></div>
         <div class="stat-card"><span>พนักงานที่ถูกลบ</span><strong>{{ $stats['users'] }}</strong></div>
-        <div class="stat-card"><span>ครบกำหนดลบถาวร</span><strong>{{ $stats['expired'] }}</strong></div>
+        <div class="stat-card stat-card--warning"><span>ใกล้ถูกลบถาวร</span><strong>{{ $stats['near_expiry'] }}</strong><small>ภายใน 7 วัน</small></div>
     </section>
 
     <form method="GET" action="{{ route('admin.trash.index') }}" class="filter-card">
@@ -39,7 +46,7 @@
                 <select name="entity_type">
                     <option value="">ทั้งหมด</option>
                     @foreach ($entityTypes as $entityType)
-                        <option value="{{ $entityType }}" @selected(request('entity_type') === $entityType)>{{ class_basename($entityType) }}</option>
+                        <option value="{{ $entityType }}" @selected(request('entity_type') === $entityType)>{{ $entityTypeLabels[$entityType] ?? class_basename($entityType) }}</option>
                     @endforeach
                 </select>
             </label>
@@ -85,27 +92,32 @@
                         @php($summary = $trash->summary)
                         <tr>
                             <td>
-                                <span class="entity-pill">{{ $summary['entity_label'] }}</span>
                                 <div class="trash-title">{{ $summary['name'] }}</div>
-                                <div class="trash-muted">ID #{{ $trash->entity_id }}</div>
+                                <div class="trash-item-meta">
+                                    <span class="entity-pill">{{ $summary['entity_label'] }}</span>
+                                    <span class="trash-muted">ID #{{ $trash->entity_id }}</span>
+                                </div>
                             </td>
                             <td>
-                                <strong>{{ $summary['department'] }}</strong>
+                                <span class="trash-context">{{ $summary['department'] }}</span>
                             </td>
                             <td>
                                 <div class="trash-title">{{ $trash->deletedBy?->name ?? 'ระบบ' }}</div>
                                 <div class="trash-muted">{{ $trash->deletedBy?->email ?: ($trash->deletedBy?->username ? '@'.$trash->deletedBy->username : '') }}</div>
                             </td>
                             <td>
-                                <strong>{{ optional($trash->deleted_at)->format('d/m/Y H:i') }}</strong>
+                                <time class="trash-date" datetime="{{ optional($trash->deleted_at)->toIso8601String() }}">{{ optional($trash->deleted_at)->format('d/m/Y H:i') }}</time>
                             </td>
                             <td>
                                 @if ($summary['days_left'] === null)
-                                    <span class="entity-pill">ไม่กำหนด</span>
+                                    <span class="retention-pill retention-pill--neutral">ไม่กำหนด</span>
                                 @elseif ($summary['days_left'] <= 0)
-                                    <span class="danger-pill">ครบกำหนดแล้ว</span>
+                                    <span class="retention-pill retention-pill--danger">ครบกำหนดแล้ว</span>
+                                @elseif ($summary['days_left'] <= 7)
+                                    <span class="retention-pill retention-pill--warning">{{ $summary['days_left'] }} วัน</span>
+                                    <div class="trash-muted">ถึง {{ optional($trash->purge_after)->format('d/m/Y') }}</div>
                                 @else
-                                    <span class="danger-pill">{{ $summary['days_left'] }} วัน</span>
+                                    <span class="retention-pill retention-pill--neutral">{{ $summary['days_left'] }} วัน</span>
                                     <div class="trash-muted">ถึง {{ optional($trash->purge_after)->format('d/m/Y') }}</div>
                                 @endif
                             </td>
@@ -120,8 +132,8 @@
                                             </button>
                                         </form>
                                     @endif
-                                    <details>
-                                        <summary class="trash-btn">ดู snapshot</summary>
+                                    <details class="snapshot-details">
+                                        <summary class="trash-btn"><i class="bi bi-file-earmark-code"></i> ดู Snapshot</summary>
                                         <pre class="json-box">{{ json_encode($trash->payload_json, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                                     </details>
                                 </div>
@@ -135,4 +147,3 @@
     </section>
 </div>
 @endsection
-

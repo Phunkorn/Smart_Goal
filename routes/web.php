@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AdminApprovalController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MediaController;
@@ -112,6 +113,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     });
 
     // การอนุมัติและจัดการงานโดยผู้ดูแลระบบ
+    Route::get('/admin/approvals', [AdminApprovalController::class, 'index'])
+        ->middleware('admin')
+        ->name('admin.approvals.index');
+
     Route::patch('/admin/tasks/{id}/approval', [TaskStatusController::class, 'updateApproval'])
         ->middleware('admin')
         ->name('admin.tasks.approval');
@@ -206,6 +211,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::prefix('admin/work-board')->name('admin.work-board.')->middleware('admin')->group(function () {
         Route::get('/departments/{department}', [WorkBoardController::class, 'adminDepartment'])->name('department');
+        Route::get('/departments/{department}/members/{user}/preview', [WorkBoardController::class, 'adminMemberPreview'])->name('member.preview');
         Route::get('/departments/{department}/members/{user}', [WorkBoardController::class, 'adminMember'])->name('member');
         Route::post('/departments/{department}/members/{user}/projects/{list}/tasks', [TaskController::class, 'storeForAdminMember'])
             ->name('member.tasks.store');

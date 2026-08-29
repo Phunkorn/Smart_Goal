@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'ระบบงาน') | Smart Goal By PremiumCare</title>
+    <title>@yield('title', 'ระบบงาน') | Smart Goal</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
@@ -22,6 +22,19 @@
 </head>
 
 <body>
+    {{-- คืนสถานะย่อ/ขยายก่อน Sidebar ถูก render เพื่อไม่ให้เห็นการกระตุกตอนโหลดหน้า --}}
+    <script>
+        (() => {
+            try {
+                if (window.innerWidth > 991 && localStorage.getItem('smartgoal.sidebar.collapsed') === '1') {
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            } catch (error) {
+                /* บางเบราว์เซอร์ปิด localStorage ไว้ ให้ถือว่าเป็นสถานะกางตามค่าเริ่มต้น */
+            }
+        })();
+    </script>
+
     @php
         $currentUser = auth()->user();
         $isAdmin = $currentUser?->role === 'admin';
@@ -39,10 +52,9 @@
 
     <aside class="sidebar" id="appSidebar">
         <div class="sidebar-brand">
-            <img src="{{ asset('images/premium-care.jpg') }}" alt="PremiumCare" class="brand-logo">
-            <div>
+            <span class="brand-mark" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
+            <div class="brand-text">
                 <div class="name">Smart Goal</div>
-                <div class="sub">BY PREMIUMCARE</div>
             </div>
             <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
                 <i class="bi bi-x-lg"></i>
@@ -54,10 +66,12 @@
                 <div class="nav-section-label">ผู้บริหาร</div>
 
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
-                    <i class="bi bi-kanban-fill"></i> บอร์ดรวม
+                    <i class="bi bi-kanban"></i>
+                    <span class="nav-item__label">บอร์ดรวม</span>
                 </a>
                 <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
-                    <i class="bi bi-calendar-event-fill"></i> การประชุม
+                    <i class="bi bi-calendar-event"></i>
+                    <span class="nav-item__label">การประชุม</span>
                 </a>
             @endif
 
@@ -65,18 +79,22 @@
                 <div class="nav-section-label">ดูข้อมูล</div>
 
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
-                    <i class="bi bi-grid-1x2-fill"></i> แดชบอร์ด
+                    <i class="bi bi-grid-1x2"></i>
+                    <span class="nav-item__label">แดชบอร์ด</span>
                 </a>
 
                 <a href="{{ route('employees.index') }}" class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
-                    <i class="bi bi-people-fill"></i> พนักงาน
+                    <i class="bi bi-people"></i>
+                    <span class="nav-item__label">พนักงาน</span>
                 </a>
 
                 <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-bar-chart-line-fill"></i> รายงาน
+                    <i class="bi bi-bar-chart-line"></i>
+                    <span class="nav-item__label">รายงาน</span>
                 </a>
                 <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
-                    <i class="bi bi-calendar-event-fill"></i> การประชุม
+                    <i class="bi bi-calendar-event"></i>
+                    <span class="nav-item__label">การประชุม</span>
                 </a>
             @endif
 
@@ -89,15 +107,18 @@
 
                 <a href="{{ route('mytasks.index') }}"
                     class="nav-item {{ request()->routeIs('mytasks.*') ? 'active' : '' }}">
-                    <i class="bi bi-briefcase"></i> งานของฉัน
+                    <i class="bi bi-briefcase"></i>
+                    <span class="nav-item__label">งานของฉัน</span>
                 </a>
                 <a href="{{ route('work-board.index') }}"
                     class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
-                    <i class="bi bi-kanban-fill"></i> บอร์ดงาน
+                    <i class="bi bi-kanban"></i>
+                    <span class="nav-item__label">บอร์ดงาน</span>
                 </a>
                 <a href="{{ route('reports.my') }}"
                     class="nav-item {{ request()->routeIs('reports.my') ? 'active' : '' }}">
-                    <i class="bi bi-clipboard-data-fill"></i> รายงานของฉัน
+                    <i class="bi bi-clipboard-data"></i>
+                    <span class="nav-item__label">รายงานของฉัน</span>
                 </a>
             @endif
 
@@ -109,7 +130,7 @@
 
             <a href="{{ route('notifications.index') }}"
                 class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
-                <i class="bi bi-bell-fill"></i>
+                <i class="bi bi-bell"></i>
                 <span class="nav-item__label">การแจ้งเตือน</span>
                 @if($notificationCount > 0)
                     <span class="nav-item__count" data-notification-count data-sidebar-notification-count>{{ $notificationDisplayCount }}</span>
@@ -117,28 +138,41 @@
             </a>
 
             @if ($isAdmin)
+                <a href="{{ route('admin.approvals.index') }}"
+                    class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}">
+                    <i class="bi bi-shield-check"></i>
+                    <span class="nav-item__label">คำขออนุมัติ</span>
+                    @if($approvalCounts['total'] > 0)
+                        <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
+                    @endif
+                </a>
                 <a href="{{ route('employees.index') }}"
                     class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
-                    <i class="bi bi-people-fill"></i> พนักงาน
+                    <i class="bi bi-people"></i>
+                    <span class="nav-item__label">พนักงาน</span>
                 </a>
                 <a href="{{ route('admin.departments.index') }}"
                     class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}">
-                    <i class="bi bi-diagram-3-fill"></i> จัดการแผนก
+                    <i class="bi bi-diagram-3"></i>
+                    <span class="nav-item__label">จัดการแผนก</span>
                 </a>
                 <a href="{{ route('reports.index') }}"
                     class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-bar-chart-line-fill"></i> รายงาน
+                    <i class="bi bi-bar-chart-line"></i>
+                    <span class="nav-item__label">รายงาน</span>
                 </a>
 
                 <div class="nav-section-label">ระบบ</div>
 
                 <a href="{{ route('admin.trash.index') }}"
                     class="nav-item {{ request()->routeIs('admin.trash.*') ? 'active' : '' }}">
-                    <i class="bi bi-trash3-fill"></i> ถังขยะ
+                    <i class="bi bi-trash3"></i>
+                    <span class="nav-item__label">ถังขยะ</span>
                 </a>
                 <a href="{{ route('admin.activity-logs.index') }}"
                     class="nav-item {{ request()->routeIs('admin.activity-logs.*') ? 'active' : '' }}">
-                    <i class="bi bi-clock-history"></i> บันทึกระบบ
+                    <i class="bi bi-clock-history"></i>
+                    <span class="nav-item__label">บันทึกระบบ</span>
                 </a>
             @endif
 
@@ -147,18 +181,13 @@
             @endif
 
             <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
-                <i class="bi bi-gear-fill"></i> ตั้งค่า
+                <i class="bi bi-gear"></i>
+                <span class="nav-item__label">ตั้งค่า</span>
             </a>
-
-            {{-- <div class="nav-section-label">ระบบ</div> --}}
-            {{-- <a href="{{ route('settings.index') }}"
-                class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
-                <i class="bi bi-gear-fill"></i> ตั้งค่า
-            </a> --}}
         </div>
 
         <div class="sidebar-foot">
-            <div class="avatar">
+            <div class="avatar" title="{{ $currentUser->name }}">
                 @if($currentUser->profile_image)
                     <img src="{{ route('media.profile', $currentUser) }}" alt="{{ $currentUser->name }}">
                 @else
@@ -166,12 +195,12 @@
                 @endif
             </div>
 
-            <div class="flex-grow-1">
+            <div class="flex-grow-1 sidebar-foot__identity">
                 <div class="who">{{ $currentUser->name }}</div>
                 <div class="role">{{ $roleLabel }}{{ optional($currentUser->department)->department_name ? ' · ' . optional($currentUser->department)->department_name : '' }}</div>
             </div>
 
-            <form method="POST" action="{{ route('logout') }}">
+            <form method="POST" action="{{ route('logout') }}" class="sidebar-foot__logout">
                 @csrf
                 <button type="submit" class="icon-btn icon-btn-compact" title="ออกจากระบบ">
                     <i class="bi bi-box-arrow-right"></i>
@@ -182,7 +211,8 @@
     <div class="sidebar-backdrop" data-sidebar-close></div>
 
     <header class="topbar">
-        <button type="button" class="mobile-menu-btn" aria-label="เปิดเมนู" aria-controls="appSidebar" aria-expanded="false" data-sidebar-open>
+        {{-- ปุ่มเดียวกันทำหน้าที่ย่อ/ขยาย Sidebar บนเดสก์ท็อป และเปิด/ปิด off-canvas บนจอเล็ก --}}
+        <button type="button" class="mobile-menu-btn" aria-label="ย่อหรือขยายเมนู" title="ย่อหรือขยายเมนู" aria-controls="appSidebar" aria-expanded="false" data-sidebar-open>
             <i class="bi bi-list"></i>
         </button>
         <div class="ms-auto d-flex align-items-center gap-2">
@@ -246,31 +276,56 @@
             const navLinks = document.querySelectorAll('.sidebar .nav-item');
             const isDesktop = () => window.innerWidth > 991;
 
-            if (isDesktop() && localStorage.getItem('smartgoal.sidebar.collapsed') === '1') {
-                body.classList.add('sidebar-collapsed');
-                openButton?.setAttribute('aria-expanded', 'false');
-            }
+            const remember = (collapsed) => {
+                try {
+                    localStorage.setItem('smartgoal.sidebar.collapsed', collapsed ? '1' : '0');
+                } catch (error) {
+                    /* ถ้าเขียน localStorage ไม่ได้ ให้จำสถานะเฉพาะหน้านี้ */
+                }
+            };
+
+            // โหมดย่อซ่อนข้อความเมนู จึงต้องให้ tooltip ของเบราว์เซอร์อธิบายไอคอนแทน
+            // (ชื่อเมนูยังอยู่ใน DOM แบบซ่อนสายตา screen reader จึงอ่านได้ตามเดิม)
+            const syncState = () => {
+                const collapsed = isDesktop() && body.classList.contains('sidebar-collapsed');
+
+                navLinks.forEach((link) => {
+                    const label = link.querySelector('.nav-item__label')?.textContent.trim();
+                    if (! label) return;
+
+                    if (collapsed) {
+                        link.setAttribute('title', label);
+                    } else {
+                        link.removeAttribute('title');
+                    }
+                });
+
+                openButton?.setAttribute(
+                    'aria-expanded',
+                    isDesktop()
+                        ? String(! collapsed)
+                        : String(body.classList.contains('sidebar-open')),
+                );
+            };
 
             const closeSidebar = () => {
                 if (isDesktop()) {
                     body.classList.add('sidebar-collapsed');
-                    localStorage.setItem('smartgoal.sidebar.collapsed', '1');
+                    remember(true);
                 } else {
                     body.classList.remove('sidebar-open');
                 }
-                openButton?.setAttribute('aria-expanded', 'false');
+                syncState();
             };
 
             openButton?.addEventListener('click', () => {
                 if (isDesktop()) {
-                    const isCollapsed = body.classList.toggle('sidebar-collapsed');
-                    localStorage.setItem('smartgoal.sidebar.collapsed', isCollapsed ? '1' : '0');
-                    openButton.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
-                    return;
+                    remember(body.classList.toggle('sidebar-collapsed'));
+                } else {
+                    body.classList.toggle('sidebar-open');
                 }
 
-                const isOpen = body.classList.toggle('sidebar-open');
-                openButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                syncState();
             });
 
             closeTargets.forEach((target) => target.addEventListener('click', closeSidebar));
@@ -284,10 +339,10 @@
 
             window.addEventListener('resize', () => {
                 body.classList.remove('sidebar-open');
-                if (! isDesktop()) {
-                    openButton?.setAttribute('aria-expanded', 'false');
-                }
+                syncState();
             });
+
+            syncState();
         })();
     </script>
     @stack('scripts')

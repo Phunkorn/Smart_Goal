@@ -88,7 +88,22 @@
         'critical' => 'เร่งด่วน',
     ];
 
-    $formatLogValue = function ($field, $value) use ($roleLabels, $statusLabels, $priorityLabels) {
+    $sensitiveFields = ['password', 'remember_token'];
+    $redactSensitiveValues = function ($value) use (&$redactSensitiveValues, $sensitiveFields) {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $nestedValue) {
+            $value[$key] = in_array((string) $key, $sensitiveFields, true)
+                ? '[REDACTED]'
+                : $redactSensitiveValues($nestedValue);
+        }
+
+        return $value;
+    };
+
+    $formatLogValue = function ($field, $value) use ($roleLabels, $statusLabels, $priorityLabels, $redactSensitiveValues) {
         if ($value === null || $value === '') {
             return '-';
         }
@@ -131,10 +146,40 @@
         }
 
         if (is_array($value)) {
-            return implode(', ', $value);
+            return json_encode(
+                $redactSensitiveValues($value),
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
         }
 
         return $value;
+    };
+
+    $resolveTargetName = function (array $changes, ?string $description): ?string {
+        $snapshots = [
+            $changes['after'] ?? [],
+            $changes['new'] ?? [],
+            $changes['before'] ?? [],
+            $changes['old'] ?? [],
+            $changes,
+        ];
+
+        foreach ($snapshots as $snapshot) {
+            if (! is_array($snapshot)) {
+                continue;
+            }
+
+            foreach (['name', 'job_topic', 'title'] as $field) {
+                $value = $snapshot[$field] ?? null;
+                if (is_scalar($value) && trim((string) $value) !== '') {
+                    return \Illuminate\Support\Str::limit(trim((string) $value), 110);
+                }
+            }
+        }
+
+        return filled($description)
+            ? \Illuminate\Support\Str::limit(trim($description), 110)
+            : null;
     };
 @endphp
 
@@ -181,6 +226,18 @@
                     @endforeach
                 </select>
             </label>
+            <label>
+                ประเภทข้อมูล
+                <select name="subject_type">
+                    <option value="">ทั้งหมด</option>
+                    @foreach ($subjectTypes as $subjectType)
+                        @php $subjectClass = class_basename($subjectType); @endphp
+                        <option value="{{ $subjectType }}" @selected(request('subject_type') === $subjectType)>
+                            {{ $subjectLabels[$subjectClass] ?? $subjectClass }}
+                        </option>
+                    @endforeach
+                </select>
+            </label>
             <button class="filter-btn" type="submit"><i class="bi bi-search"></i> ค้นหา</button>
         </div>
     </form>
@@ -194,13 +251,38 @@
                     <tr>
                         <th>เวลา</th>
                         <th>ผู้ทำรายการ</th>
-                        <th>ประเภทการทำรายการ</th>
+                        <th>การกระทำ</th>
+                        <th>ประเภท / เป้าหมาย</th>
                         <th>รายละเอียด</th>
-                        <!-- <th>IP</th> -->
+                        <th>ดูรายละเอียด</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($logs as $log)
+                        @php
+                            $changes = is_array($log->changes)
+                                ? $log->changes
+                                : json_decode($log->changes ?? '[]', true);
+                            $changes = is_array($changes) ? $changes : [];
+                            $before = $changes['before'] ?? $changes['old'] ?? [];
+                            $after = $changes['after'] ?? $changes['new'] ?? [];
+                            $before = is_array($before) ? $before : [];
+                            $after = is_array($after) ? $after : [];
+                            $actionKey = strtolower($log->action);
+                            $actionLabel = $actionLabels[$actionKey] ?? $log->action;
+                            $subjectClass = $log->subject_type ? class_basename($log->subject_type) : null;
+                            $subjectLabel = $subjectClass ? ($subjectLabels[$subjectClass] ?? $subjectClass) : 'ระบบ';
+                            $targetName = $resolveTargetName($changes, $log->description);
+                            $hiddenFields = [
+                                'password',
+                                'remember_token',
+                                'updated_at',
+                            ];
+                            $displayFields = collect(array_unique(array_merge(
+                                array_keys($before),
+                                array_keys($after)
+                            )))->reject(fn ($field) => in_array($field, $hiddenFields, true));
+                        @endphp
                         <tr>
                             <td>
                                 <strong>{{ optional($log->created_at)->format('d/m/Y H:i') }}</strong>
@@ -210,43 +292,21 @@
                                 <div class="log-muted">{{ $log->user?->email ?: ($log->user?->username ? '@'.$log->user->username : '') }}</div>
                             </td>
                             <td>
-                                @php
-                                    $actionKey = strtolower($log->action);
-                                @endphp
                                 <span class="log-action {{ $actionKey }}">
-                                    {{ $actionLabels[$actionKey] ?? $log->action }}
+                                    {{ $actionLabel }}
                                 </span>
                             </td>
                             <td>
-                                @php
-                                    $changes = is_array($log->changes)
-                                        ? $log->changes
-                                        : json_decode($log->changes ?? '[]', true);
-                                    $before = $changes['before'] ?? $changes['old'] ?? [];
-                                    $after = $changes['after'] ?? $changes['new'] ?? [];
-                                    $actionKey = strtolower($log->action);
-                                    $subjectClass = class_basename($log->subject_type);
-                                    $subjectLabel = $subjectLabels[$subjectClass] ?? $subjectClass;
-                                    $actionLabel = $actionLabels[$actionKey] ?? $log->action;
-                                    $hiddenFields = [
-                                        'password',
-                                        'remember_token',
-                                        'updated_at',
-                                    ];
-                                    $displayFields = collect(array_unique(array_merge(
-                                        array_keys($before),
-                                        array_keys($after)
-                                    )))->reject(fn ($field) => in_array($field, $hiddenFields));
-                                @endphp
-                                <div class="log-desc">
-                                    {{ $log->user?->name ?? 'ระบบ' }}
-                                    {{ $actionLabel }}{{ $subjectLabel }}
-                                </div>
-                                @if (!empty($after['name']) || !empty($before['name']))
-                                    <div class="log-muted">
-                                        ชื่อรายการ: {{ $after['name'] ?? $before['name'] }}
-                                    </div>
+                                <span class="log-subject">{{ $subjectLabel }}</span>
+                                @if ($targetName)
+                                    <div class="log-target">{{ $targetName }}</div>
                                 @endif
+                                <div class="log-muted">{{ $log->subject_id ? 'ID #'.$log->subject_id : 'ไม่มีรหัสรายการ' }}</div>
+                            </td>
+                            <td>
+                                <div class="log-summary">{{ $log->description ?: $actionLabel.' '.$subjectLabel }}</div>
+                            </td>
+                            <td class="log-detail-cell">
                                 @if ($displayFields->isNotEmpty())
                                     <button type="button" class="log-change-trigger" data-bs-toggle="modal" data-bs-target="#logModal{{ $log->id }}">
                                         <i class="bi bi-eye"></i>
@@ -258,8 +318,7 @@
                                             <div class="modal-content">
                                                 <div class="modal-header">
                                                     <h5 class="modal-title">
-                                                        {{ $log->user?->name ?? 'ระบบ' }}
-                                                        {{ $actionLabel }}{{ $subjectLabel }}
+                                                        {{ $actionLabel }} {{ $targetName ?: $subjectLabel }}
                                                     </h5>
                                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
                                                 </div>
@@ -335,9 +394,10 @@
                                             </div>
                                         </div>
                                     </div>
+                                @else
+                                    <span class="log-muted">ไม่มีรายละเอียดเพิ่มเติม</span>
                                 @endif
                             </td>
-                            <!-- <td class="log-muted">{{ $log->ip_address ?? '-' }}</td> -->
                         </tr>
                     @endforeach
                 </tbody>
@@ -347,4 +407,3 @@
     </section>
 </div>
 @endsection
-

@@ -5,13 +5,13 @@
             transition: margin-left .22s ease;
         }
 
-        body.sidebar-collapsed .sidebar {
-            transform: translateX(-105%);
-        }
-
-        body.sidebar-collapsed .topbar,
-        body.sidebar-collapsed .main {
-            margin-left: 0;
+        /* สถานะย่อไม่ได้ซ่อน Sidebar แต่เหลือเป็นแถบไอคอน จึงต้องเว้นระยะเท่าความกว้างแถบ
+           (จอเล็กใช้ off-canvas จึงกันไว้เฉพาะเดสก์ท็อป) */
+        @media (min-width: 992px) {
+            body.sidebar-collapsed .topbar,
+            body.sidebar-collapsed .main {
+                margin-left: var(--sidebar-collapsed-w);
+            }
         }
 
         .page-head {

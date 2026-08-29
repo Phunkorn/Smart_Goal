@@ -268,7 +268,7 @@ class NotificationService
             'cross_department_pending',
             'collaborator_approval_request',
         ], true)) {
-            return route('board.index', [
+            return route('admin.approvals.index', [
                 'approval_queue' => $notification->type === 'collaborator_approval_request'
                     ? 'collaborator'
                     : 'assignment',

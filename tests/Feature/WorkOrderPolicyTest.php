@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
+use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -279,5 +281,10 @@ class WorkOrderPolicyTest extends TestCase
             ->patchJson(route('admin.tasks.collaborators.approval', [$job->job_id, $invitee->id]), ['status' => 'accepted'])
             ->assertConflict();
         $this->assertSame('rejected', $job->fresh()->collaborators()->first()->pivot->status);
+        $this->assertSame(1, ActivityLog::where('subject_id', $job->job_id)->where('action', 'collaborator_rejected')->count());
+        $this->assertSame(1, SystemNotification::where('user_id', $owner->id)
+            ->where('work_order_id', $job->job_id)
+            ->where('type', 'collaborator_rejected')
+            ->count());
     }
 }

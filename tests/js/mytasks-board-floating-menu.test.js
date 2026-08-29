@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {
     boardFloatingMenuRootSelector,
     boardFloatingMenuSelector,
@@ -7,6 +8,9 @@ import {
     calculateBoardFloatingMenuPosition,
     resolveBoardFloatingMenu,
 } from '../../resources/js/pages/mytasks/board-floating-menu.js';
+
+const projectBoardCssUrl = new URL('../../resources/css/pages/mytasks/project-board.css', import.meta.url);
+const projectBoardScriptUrl = new URL('../../resources/js/mytasks-project-board.js', import.meta.url);
 
 test('each board summary resolves its actual floating menu type', () => {
     for (const selector of [
@@ -81,4 +85,22 @@ test('floating menu stays inside both horizontal viewport edges', () => {
 
     assert.equal(rightCollision.left, 602);
     assert.equal(leftCollision.left, 8);
+});
+
+test('mobile task menus use the shared floating position instead of a bottom sheet override', async () => {
+    const [css, script] = await Promise.all([
+        readFile(projectBoardCssUrl, 'utf8'),
+        readFile(projectBoardScriptUrl, 'utf8'),
+    ]);
+
+    assert.doesNotMatch(
+        css,
+        /\.board-reference-menu\s*>\s*div\s*\{[^}]*bottom:\s*12px/,
+    );
+    assert.doesNotMatch(
+        script,
+        /menu\.matches\('\.board-reference-menu'\)\s*&&\s*window\.matchMedia\('\(max-width:\s*760px\)'\)\.matches/,
+    );
+    assert.match(script, /calculateBoardFloatingMenuPosition\(/);
+    assert.match(script, /align:\s*menu\.matches\('\.board-reference-menu'\)\s*\?\s*'end'\s*:\s*'start'/);
 });

@@ -9,7 +9,7 @@
     $titleId = $modalId.'Title';
 @endphp
 
-<div class="modal fade employee-form-modal" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $titleId }}" aria-hidden="true">
+<div class="modal fade employee-form-modal {{ $isEdit ? 'employee-form-modal--edit' : 'employee-form-modal--create' }}" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $titleId }}" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content employee-form-modal__content">
             <div class="modal-header employee-form-modal__header">
@@ -110,28 +110,23 @@
                         <p class="employee-form-help">พนักงานต้องมีแผนก ส่วน Admin และผู้เข้าชมไม่ต้องเลือกแผนก บัญชีที่ปิดใช้งานจะถูกนำออกจากระบบทุกอุปกรณ์</p>
                     </section>
 
-                    @unless($isEdit)
-                        <section class="employee-form-section" aria-labelledby="{{ $modalId }}PasswordTitle">
+                    @if(! $isEdit)
+                        <section class="employee-form-section employee-form-section--temporary-password" aria-labelledby="{{ $modalId }}PasswordTitle">
                             <div class="employee-form-section__header">
                                 <h3 id="{{ $modalId }}PasswordTitle">รหัสผ่านชั่วคราว</h3>
                             </div>
                             <div class="row g-2">
-                                <div class="col-md-6">
+                                <div class="col-12">
                                     <label for="{{ $modalId }}Password" class="form-label">รหัสผ่านชั่วคราว</label>
                                     <input id="{{ $modalId }}Password" type="password" name="password"
                                         class="form-control {{ $useOldValues && $errors->has('password') ? 'is-invalid' : '' }}"
-                                        minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
+                                        autocomplete="new-password" aria-describedby="{{ $modalId }}PasswordHelp" required>
                                     @if($useOldValues) @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
                                 </div>
-                                <div class="col-md-6">
-                                    <label for="{{ $modalId }}PasswordConfirmation" class="form-label">ยืนยันรหัสผ่าน</label>
-                                    <input id="{{ $modalId }}PasswordConfirmation" type="password" name="password_confirmation"
-                                        class="form-control" minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
-                                </div>
                             </div>
-                            <p class="employee-form-help">{{ \App\Support\PasswordPolicy::description() }}</p>
+                            <p class="employee-form-help" id="{{ $modalId }}PasswordHelp">ใช้สำหรับเข้าสู่ระบบครั้งแรก พนักงานจะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ</p>
                         </section>
-                    @endunless
+                    @endif
 
                     <section class="employee-form-section" aria-labelledby="{{ $modalId }}ProfileTitle">
                         <div class="employee-form-section__header">

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\TrashLog;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderList;
 use App\Support\TrashRetention;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -39,11 +40,18 @@ class TrashController extends Controller
 
         $users = User::withTrashed()->orderBy('name')->get(['id', 'name', 'email']);
         $departments = $this->departmentOptions();
+        $now = now();
+        $nearExpiryCutoff = $now->copy()->addDays(7);
         $stats = [
             'total' => (clone $baseQuery)->count(),
-            'work_orders' => (clone $baseQuery)->where('entity_type', WorkOrder::class)->count(),
+            'work_items' => (clone $baseQuery)
+                ->whereIn('entity_type', [WorkOrder::class, WorkOrderList::class])
+                ->count(),
             'users' => (clone $baseQuery)->where('entity_type', User::class)->count(),
-            'expired' => (clone $baseQuery)->whereNotNull('purge_after')->where('purge_after', '<=', now())->count(),
+            'near_expiry' => (clone $baseQuery)
+                ->where('purge_after', '>', $now)
+                ->where('purge_after', '<=', $nearExpiryCutoff)
+                ->count(),
         ];
 
         return view('admin.trash.index', compact('trashLogs', 'entityTypes', 'users', 'departments', 'stats'));

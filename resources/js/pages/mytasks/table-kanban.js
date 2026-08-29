@@ -1,6 +1,70 @@
 import {synchronizeTaskSource} from './task-state.js';
 import {canDragTask, canTransitionTo, confirmTaskTransition} from './task-transitions.js';
 
+export const selectMobileKanbanStatus = (panel, status, {focus = false} = {}) => {
+    const value = String(status);
+    const tabs = [...panel.querySelectorAll('[data-kanban-status-tab]')];
+    const columns = [...panel.querySelectorAll('[data-kanban-column]')];
+    const selectedTab = tabs.find((tab) => tab.dataset.kanbanStatusTab === value);
+
+    if (!selectedTab || !columns.some((column) => column.dataset.kanbanColumn === value)) return false;
+
+    panel.dataset.mobileKanbanStatus = value;
+    tabs.forEach((tab) => {
+        const selected = tab === selectedTab;
+        tab.classList.toggle('is-selected', selected);
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+    });
+    columns.forEach((column) => {
+        column.classList.toggle('is-mobile-selected', column.dataset.kanbanColumn === value);
+    });
+
+    selectedTab.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+    if (focus) selectedTab.focus();
+    return true;
+};
+
+export const refreshMobileKanbanStatusTabs = (panel) => {
+    panel.querySelectorAll('[data-kanban-status-tab]').forEach((tab) => {
+        const column = panel.querySelector(`[data-kanban-column="${tab.dataset.kanbanStatusTab}"]`);
+        const count = column?.querySelectorAll('[data-kanban-card]').length || 0;
+        const countNode = tab.querySelector('[data-kanban-tab-count]');
+        if (countNode) countNode.textContent = String(count);
+    });
+};
+
+export const initializeMobileKanbanStatusTabs = (panel) => {
+    const tablist = panel.querySelector('[data-kanban-status-tabs]');
+    const tabs = [...panel.querySelectorAll('[data-kanban-status-tab]')];
+    if (!tablist || tabs.length === 0 || tablist.dataset.initialized === 'true') return;
+
+    tablist.dataset.initialized = 'true';
+    tablist.addEventListener('click', (event) => {
+        const tab = event.target.closest('[data-kanban-status-tab]');
+        if (tab) selectMobileKanbanStatus(panel, tab.dataset.kanbanStatusTab);
+    });
+    tablist.addEventListener('keydown', (event) => {
+        const current = event.target.closest('[data-kanban-status-tab]');
+        if (!current || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+        event.preventDefault();
+        const currentIndex = tabs.indexOf(current);
+        const nextIndex = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+                ? tabs.length - 1
+                : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        selectMobileKanbanStatus(panel, tabs[nextIndex].dataset.kanbanStatusTab, {focus: true});
+    });
+
+    const initial = panel.dataset.mobileKanbanStatus
+        || tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.dataset.kanbanStatusTab
+        || tabs[0].dataset.kanbanStatusTab;
+    selectMobileKanbanStatus(panel, initial);
+    refreshMobileKanbanStatusTabs(panel);
+};
+
 (() => {
     const root = document.querySelector('[data-workspace]'); const kanban = root?.querySelector('[data-kanban]'); if (!root || !kanban) return;
     const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
@@ -13,12 +77,13 @@ import {canDragTask, canTransitionTo, confirmTaskTransition} from './task-transi
         5: 'ไม่รีบ ไม่มีกำหนด',
     };
 
-    const refresh = () => kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => { let total = 0; panel.querySelectorAll('[data-kanban-column]').forEach((column) => { const count = column.querySelectorAll('[data-kanban-card]').length; column.querySelector('[data-kanban-count]').textContent = count; total += count; }); const totalNode = kanban.querySelector('[data-kanban-project-count]'); if (!panel.hidden && totalNode) totalNode.textContent = `${total} งาน`; });
+    const refresh = () => kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => { let total = 0; panel.querySelectorAll('[data-kanban-column]').forEach((column) => { const count = column.querySelectorAll('[data-kanban-card]').length; column.querySelector('[data-kanban-count]').textContent = count; total += count; }); refreshMobileKanbanStatusTabs(panel); const totalNode = kanban.querySelector('[data-kanban-project-count]'); if (!panel.hidden && totalNode) totalNode.textContent = `${total} งาน`; });
 
     kanban.querySelector('[data-kanban-project]')?.addEventListener('change', (event) => { kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => panel.hidden = panel.dataset.kanbanPanel !== event.target.value); const addButton = kanban.querySelector('[data-add-in-group]'); const manageable = event.target.selectedOptions[0]?.dataset.manageable === '1'; if (addButton) { addButton.dataset.listId = manageable ? event.target.value : ''; addButton.disabled = !manageable; } refresh(); });
 
     document.addEventListener('click', (event) => { const trigger = event.target.closest('[data-open-kanban-task]'); if (!trigger) return; event.preventDefault(); root.querySelector(`[data-row][data-id="${trigger.dataset.openKanbanTask}"] [data-open-task-modal]`)?.click(); });
 
+    kanban.querySelectorAll('[data-kanban-panel]').forEach(initializeMobileKanbanStatusTabs);
     refresh();
 
     document.addEventListener('mytasks:changed', (event) => {

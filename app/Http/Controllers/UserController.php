@@ -197,9 +197,11 @@ class UserController extends Controller
             'email' => $request->filled('email') ? trim((string) $request->input('email')) : null,
         ]);
 
-        $passwordRule = $user
-            ? ['nullable', 'string', 'confirmed', PasswordPolicy::rule()]
-            : ['required', 'string', 'confirmed', PasswordPolicy::rule()];
+        if ($user) {
+            $passwordRule = ['nullable', 'string', 'confirmed', PasswordPolicy::rule()];
+        } else {
+            $passwordRule = ['required', 'string'];
+        }
 
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],

@@ -37,24 +37,7 @@
             @endif
         </header>
 
-        <section class="employee-summary" aria-label="สรุปจำนวนบัญชีตามสิทธิ์">
-            <div class="employee-summary__item">
-                <span class="employee-summary__icon employee-summary__icon--all"><i class="bi bi-people" aria-hidden="true"></i></span>
-                <div><strong data-employee-summary-count="all">{{ $filteredEmployees->count() }}</strong><span>ทั้งหมด</span></div>
-            </div>
-            <div class="employee-summary__item">
-                <span class="employee-summary__icon employee-summary__icon--admin"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
-                <div><strong data-employee-summary-count="admin">{{ $filteredEmployees->where('role', 'admin')->count() }}</strong><span>Admin</span></div>
-            </div>
-            <div class="employee-summary__item">
-                <span class="employee-summary__icon employee-summary__icon--viewer"><i class="bi bi-eye" aria-hidden="true"></i></span>
-                <div><strong data-employee-summary-count="viewer">{{ $filteredEmployees->where('role', 'viewer')->count() }}</strong><span>ผู้เข้าชม</span></div>
-            </div>
-            <div class="employee-summary__item">
-                <span class="employee-summary__icon employee-summary__icon--user"><i class="bi bi-person-check" aria-hidden="true"></i></span>
-                <div><strong data-employee-summary-count="user">{{ $filteredEmployees->where('role', 'user')->count() }}</strong><span>พนักงาน</span></div>
-            </div>
-        </section>
+        
 
         <section class="employee-toolbar" aria-label="ค้นหาและกรองพนักงาน">
             <label class="employee-search" for="employeeSearchInput">

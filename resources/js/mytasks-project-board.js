@@ -106,12 +106,6 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         const panel = menu.querySelector(':scope > div');
         if (!summary || !panel) return false;
 
-        if (menu.matches('.board-reference-menu') && window.matchMedia('(max-width: 760px)').matches) {
-            menu.style.removeProperty('--floating-menu-left');
-            menu.style.removeProperty('--floating-menu-top');
-            return true;
-        }
-
         const position = calculateBoardFloatingMenuPosition(
             summary.getBoundingClientRect(),
             panel.getBoundingClientRect(),

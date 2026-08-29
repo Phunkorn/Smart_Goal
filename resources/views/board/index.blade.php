@@ -6,12 +6,6 @@
     @vite(auth()->user()->role === 'admin' ? 'resources/css/pages/board-admin.css' : 'resources/css/pages/board.css')
 @endpush
 
-@if(auth()->user()->role === 'admin')
-    @push('scripts')
-        @vite('resources/js/pages/board/assignment-approval.js')
-    @endpush
-@endif
-
 @section('content')
 @php
     $statusLabels = [

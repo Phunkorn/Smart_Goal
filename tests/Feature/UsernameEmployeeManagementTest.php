@@ -171,11 +171,13 @@ class UsernameEmployeeManagementTest extends TestCase
         $this->actingAs($employee)
             ->get(route('work-board.department', ['department' => $department, 'search' => 'noemail-user']))
             ->assertOk()
-            ->assertSee('@noemail-user');
+            ->assertSee('No Email Employee')
+            ->assertDontSee('@noemail-user');
         $this->actingAs($employee)
             ->get(route('work-board.member', [$department, $employee]))
             ->assertOk()
-            ->assertSee('@noemail-user');
+            ->assertSee('No Email Employee')
+            ->assertDontSee('@noemail-user');
     }
 
     private function employeePayload(array $overrides = []): array

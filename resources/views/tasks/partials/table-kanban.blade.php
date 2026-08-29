@@ -142,12 +142,27 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
             data-kanban-panel="{{ $list->id }}"
             {{ $defaultKanbanList && (int) $defaultKanbanList->id === (int) $list->id ? '' : 'hidden' }}
         >
+            <nav class="mytasks-kanban__status-tabs" data-kanban-status-tabs role="tablist" aria-label="เลือกสถานะงาน">
+                @foreach ($statuses as $status => [$label, $tone])
+                    <button
+                        type="button"
+                        class="status-{{ $tone }} {{ $status === 2 ? 'is-selected' : '' }}"
+                        data-kanban-status-tab="{{ $status }}"
+                        role="tab"
+                        aria-selected="{{ $status === 2 ? 'true' : 'false' }}"
+                    >
+                        <span>{{ $label }}</span>
+                        <b data-kanban-tab-count>0</b>
+                    </button>
+                @endforeach
+            </nav>
+
             <div class="mytasks-kanban__columns">
 
                 @foreach ($statuses as $status => [$label, $tone])
 
                     <section
-                        class="mytasks-kanban__column status-{{ $tone }}"
+                        class="mytasks-kanban__column status-{{ $tone }} {{ $status === 2 ? 'is-mobile-selected' : '' }}"
                         data-kanban-column="{{ $status }}"
                     >
                         <header>
@@ -187,6 +202,15 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                     data-status="{{ $task->job_status }}"
                                     data-priority="{{ $task->job_priority }}"
                                 >
+                                    <button
+                                        type="button"
+                                        class="mytasks-kanban__task-more"
+                                        data-open-kanban-task="{{ $task->job_id }}"
+                                        aria-label="เปิดรายการงาน {{ $task->job_topic }}"
+                                    >
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                    </button>
+
                                     <button
                                         type="button"
                                         class="mytasks-kanban__open"

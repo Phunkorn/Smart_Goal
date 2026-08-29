@@ -42,7 +42,12 @@
             @endforeach
         </section>
     @empty
-        <div class="notification-center__empty"><i class="bi bi-bell-slash"></i><strong>ไม่มีการแจ้งเตือน</strong><span>ยังไม่มีรายการที่ตรงกับตัวกรองนี้</span></div>
+        <div class="notification-center__empty">
+            <i class="bi bi-bell-slash" aria-hidden="true"></i>
+            <strong>ไม่มีการแจ้งเตือน</strong>
+            <span>ยังไม่มีรายการที่ตรงกับตัวกรองนี้</span>
+            <small>ลองเปลี่ยนตัวกรอง หรือเลือกหมวดหมู่อื่น</small>
+        </div>
     @endforelse
     {{ $items->links() }}
 </div>

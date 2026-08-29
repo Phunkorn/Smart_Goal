@@ -6,7 +6,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ตั้งรหัสผ่านใหม่ | Smart Goal By PremiumCare</title>
+    <title>ตั้งรหัสผ่านใหม่ | Smart Goal </title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -16,7 +16,7 @@
     <main class="auth-layout">
         <section class="brand-panel">
             <img src="{{ asset('images/premiuum-care-logo.png') }}" alt="PremiumCare" class="brand-logo">
-            <div class="brand-copy"><div class="brand-eyebrow">PREMIUMCARE WORKFORCE</div><h1>Smart Goal<br>By PremiumCare</h1></div>
+            <div class="brand-copy"><div class="brand-eyebrow"></div><h1>Smart Goal</h1></div>
             <p class="brand-description">พื้นที่จัดการงานสำหรับทีม : เช็กงานที่ได้รับมอบหมาย<br>อัปเดตสถานะ และส่งงานตรงเวลา</p>
         </section>
 

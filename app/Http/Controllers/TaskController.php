@@ -53,30 +53,6 @@ class TaskController extends Controller
             'collaborators.department',
         ]);
 
-        $pendingAssignments = (clone $query)
-            ->where('approval_status', 'pending')
-            ->latest('job_id')
-            ->get();
-        $pendingCollaboratorTasks = WorkOrder::with([
-            'taskList',
-            'creator.department',
-            'collaborators' => fn ($collaborators) => $collaborators
-                ->where('work_order_collaborators.status', 'pending')
-                ->with('department'),
-        ])
-            ->where('approval_status', 'approved')
-            ->whereHas('collaborators', fn ($collaborators) => $collaborators
-                ->where('work_order_collaborators.status', 'pending'))
-            ->latest('job_id')
-            ->get();
-        $pendingCollaboratorInviters = User::query()
-            ->with('department')
-            ->whereIn('id', $pendingCollaboratorTasks
-                ->flatMap(fn (WorkOrder $task) => $task->collaborators->pluck('pivot.added_by'))
-                ->filter()
-                ->unique())
-            ->get()
-            ->keyBy('id');
         if ($currentDeptId) {
             $query->where('department_id', $currentDeptId);
         }
@@ -158,10 +134,7 @@ class TaskController extends Controller
             'attentionJobs',
             'workloadByDepartment',
             'workloadByUser',
-            'canManageTasks',
-            'pendingAssignments',
-            'pendingCollaboratorTasks',
-            'pendingCollaboratorInviters'
+            'canManageTasks'
         ));
     }
 

@@ -25,5 +25,10 @@ document.querySelectorAll('[data-approval-form]').forEach((form) => {
 });
 
 const requestedQueue = new URLSearchParams(window.location.search).get('approval_queue');
-document.getElementById(requestedQueue === 'collaborator' ? 'collaborator-approval-queue' : requestedQueue === 'assignment' ? 'assignment-approval-queue' : '')
-    ?.scrollIntoView({behavior: 'smooth', block: 'start'});
+document.getElementById(
+    requestedQueue === 'collaborator'
+        ? 'collaborator-approval-queue'
+        : requestedQueue === 'assignment'
+            ? 'assignment-approval-queue'
+            : ''
+)?.scrollIntoView({behavior: 'smooth', block: 'start'});
