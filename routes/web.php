@@ -187,8 +187,17 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/reports', [ReportController::class, 'index'])
         ->name('reports.index');
 
-    Route::get('/reports/export.csv', [ReportController::class, 'exportCsv'])
+    Route::get('/reports/organization', [ReportController::class, 'organization'])
+        ->name('reports.organization');
+
+    Route::get('/reports/organization/export.csv', [ReportController::class, 'exportCsv'])
         ->name('reports.exportCsv');
+
+    Route::get('/reports/export.csv', [ReportController::class, 'exportCsv'])
+        ->name('reports.legacyExportCsv');
+
+    Route::get('/reports/employees', [ReportController::class, 'employees'])
+        ->name('reports.employees.index');
 
     Route::get('/reports/employees/{user}', [ReportController::class, 'employeeReport'])
         ->name('reports.employee');
@@ -341,5 +350,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
     Route::patch('/notifications/{notification}/unread', [NotificationController::class, 'unread'])->name('notifications.unread');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::delete('/notifications/read', [NotificationController::class, 'destroyRead'])->name('notifications.destroy-read');
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 });

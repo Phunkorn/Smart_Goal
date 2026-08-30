@@ -6,34 +6,39 @@
     @vite('resources/css/pages/reports.css')
 @endpush
 
-@push('scripts')
-    @vite('resources/js/pages/reports/index.js')
-@endpush
-
 @section('content')
-<div class="report-page">
-    <header class="report-page__header">
-        <div>
-            <div class="report-page__eyebrow">Organization report</div>
-            <h1>รายงานภาพรวมองค์กร</h1>
-            <p>ติดตามงาน ผลลัพธ์ และจุดที่ต้องเร่งดำเนินการในช่วง {{ $filters['start_date'] }} – {{ $filters['end_date'] }}</p>
-        </div>
-        <div class="report-page__actions">
-            @if(auth()->user()->role === 'viewer')
-                <span class="report-page__readonly"><i class="bi bi-eye" aria-hidden="true"></i> ดูข้อมูลเท่านั้น</span>
-            @endif
-            <a href="{{ route('reports.exportCsv') }}" class="btn btn-success">
-                <i class="bi bi-filetype-csv" aria-hidden="true"></i> Export CSV
-            </a>
-        </div>
+<div class="report-landing" aria-labelledby="report-landing-title">
+    <header class="report-landing__header">
+        <span class="report-landing__eyebrow">Smart Goal Analytics</span>
+        <h1 id="report-landing-title">รายงาน</h1>
+        <p>เลือกประเภทของรายงานที่คุณต้องการดู</p>
     </header>
 
-    @include('reports.components.filters')
-    @include('reports.components.kpis')
-    @include('reports.components.charts')
-    @include('reports.components.department-performance')
-    @include('reports.components.attention-list')
+    <section class="report-landing__grid" aria-label="ประเภทรายงาน">
+        @include('reports.components.landing-card', [
+            'tone' => 'organization',
+            'icon' => 'bi-bar-chart-line',
+            'title' => 'ดูภาพรวมองค์กร',
+            'description' => 'ติดตามแนวโน้มและภาพรวมการทำงานของทุกแผนกในช่วงเวลาที่เลือก',
+            'features' => ['แนวโน้มงานและสถิติองค์กร', 'ประสิทธิภาพแต่ละแผนก', 'สถานะและความสำคัญของงาน', 'งานที่ต้องติดตาม'],
+            'cta' => 'เข้าสู่รายงานภาพรวมองค์กร',
+            'route' => route('reports.organization'),
+        ])
 
-    <script type="application/json" id="report-chart-data">@json($chartData)</script>
+        @include('reports.components.landing-card', [
+            'tone' => 'employee',
+            'icon' => 'bi-person-lines-fill',
+            'title' => 'ดูรายงานรายบุคคล',
+            'description' => 'เลือกพนักงานเพื่อดูผลงานจากงานที่รับผิดชอบจริงและตรวจสอบรายละเอียดได้',
+            'features' => ['สถิติการทำงานของพนักงาน', 'อัตราส่งงานตรงเวลา', 'งานที่รับผิดชอบ', 'รายละเอียดงานสำหรับตรวจสอบ'],
+            'cta' => 'เลือกพนักงานเพื่อดูรายงาน',
+            'route' => route('reports.employees.index'),
+        ])
+    </section>
+
+    <aside class="report-landing__note" aria-label="คำแนะนำการใช้งาน">
+        <i class="bi bi-lightbulb" aria-hidden="true"></i>
+        <div><strong>คำแนะนำ</strong><p>ใช้รายงานภาพรวมเพื่อติดตามทั้งองค์กร หรือเลือกรายงานรายบุคคลเพื่อดูงานของพนักงานแต่ละคน</p></div>
+    </aside>
 </div>
 @endsection

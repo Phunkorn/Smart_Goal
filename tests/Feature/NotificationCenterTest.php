@@ -7,6 +7,7 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Models\WorkOrderListTaskRequest;
 use App\Services\NotificationMaintenanceService;
 use App\Services\NotificationService;
 use Carbon\CarbonImmutable;
@@ -26,7 +27,8 @@ class NotificationCenterTest extends TestCase
             $response->assertSee(route('notifications.index'), false)
                 ->assertSee('nav-item active', false)
                 ->assertSee('nav-item__count', false)
-                ->assertSee('data-notification-count', false);
+                ->assertSee('data-notification-count', false)
+                ->assertSee('data-delete-notification-form', false);
         }
 
         $zero = $this->user();
@@ -117,10 +119,153 @@ class NotificationCenterTest extends TestCase
 
         $this->actingAs($owner)->get(route('notifications.index'))->assertOk()->assertSee('old unread')->assertDontSee('old read')->assertDontSee('private');
         $this->actingAs($owner)->patchJson(route('notifications.read', $oldUnread))->assertOk()->assertJsonPath('unread_count', 0);
+        $this->assertDatabaseHas('system_notifications', ['id' => $oldUnread->id, 'is_read' => true]);
         $this->actingAs($owner)->patchJson(route('notifications.read', $otherNotice))->assertNotFound();
         $this->actingAs($owner)->patchJson(route('notifications.unread', $oldUnread))->assertOk()->assertJsonPath('unread_count', 1);
+        $this->assertDatabaseHas('system_notifications', ['id' => $oldUnread->id, 'read_at' => null, 'is_read' => false]);
         $this->actingAs($owner)->postJson(route('notifications.read-all'))->assertOk()->assertJsonPath('unread_count', 0);
         $this->assertDatabaseHas('system_notifications', ['id' => $oldRead->id]);
+    }
+
+    public function test_delete_one_succeeds_for_owner_and_rejects_idor_across_roles(): void
+    {
+        $userA = $this->user();
+        $userB = $this->user();
+        $admin = $this->user('admin');
+
+        $owned = $this->notice($userA, 'owned unread', now());
+        $this->actingAs($userA)->deleteJson(route('notifications.destroy', $owned))
+            ->assertOk()
+            ->assertJsonPath('deleted_count', 1)
+            ->assertJsonPath('unread_count', 0);
+        $this->assertDatabaseMissing('system_notifications', ['id' => $owned->id]);
+
+        $userBNotice = $this->notice($userB, 'user B private', now());
+        $adminNotice = $this->notice($admin, 'admin private', now());
+        $userANotice = $this->notice($userA, 'user A private', now());
+
+        $this->actingAs($userA)->deleteJson(route('notifications.destroy', $userBNotice))->assertNotFound();
+        $this->actingAs($userA)->deleteJson(route('notifications.destroy', $adminNotice))->assertNotFound();
+        $this->actingAs($admin)->deleteJson(route('notifications.destroy', $userANotice))->assertNotFound();
+
+        foreach ([$userBNotice, $adminNotice, $userANotice] as $notice) {
+            $this->assertDatabaseHas('system_notifications', ['id' => $notice->id]);
+        }
+    }
+
+    public function test_delete_read_removes_only_current_owners_read_notifications(): void
+    {
+        $owner = $this->user();
+        $other = $this->user();
+        $ownerReadOne = $this->notice($owner, 'read one', now(), now());
+        $ownerReadTwo = $this->notice($owner, 'read two', now(), now());
+        $ownerUnread = $this->notice($owner, 'keep unread', now());
+        $otherRead = $this->notice($other, 'keep other read', now(), now());
+
+        $this->actingAs($owner)->deleteJson(route('notifications.destroy-read'), ['user_id' => $other->id])
+            ->assertOk()
+            ->assertJsonPath('deleted_count', 2)
+            ->assertJsonPath('unread_count', 1)
+            ->assertJsonPath('read_count', 0);
+
+        $this->assertDatabaseMissing('system_notifications', ['id' => $ownerReadOne->id]);
+        $this->assertDatabaseMissing('system_notifications', ['id' => $ownerReadTwo->id]);
+        $this->assertDatabaseHas('system_notifications', ['id' => $ownerUnread->id]);
+        $this->assertDatabaseHas('system_notifications', ['id' => $otherRead->id]);
+    }
+
+    public function test_center_renders_progressive_delete_and_responsive_action_contract(): void
+    {
+        $user = $this->user();
+        $notice = $this->notice($user, 'Long notification title', now(), now());
+
+        $this->actingAs($user)->get(route('notifications.index'))->assertOk()
+            ->assertSee('data-delete-notification-form', false)
+            ->assertSee('data-delete-read-form', false)
+            ->assertSee('data-delete-count="1"', false)
+            ->assertSee('data-bs-boundary="viewport"', false)
+            ->assertSee(route('notifications.destroy', $notice), false);
+    }
+
+    public function test_missing_or_revoked_deep_link_falls_back_with_warning_instead_of_error(): void
+    {
+        $owner = $this->user();
+        $project = WorkOrderList::create(['user_id' => $owner->id, 'name' => 'Request project']);
+        $missingRequest = SystemNotification::create([
+            'user_id' => $owner->id,
+            'work_order_list_id' => $project->id,
+            'type' => 'project_task_request_submitted',
+            'title' => 'Missing request',
+            'data' => ['task_request_id' => 999999],
+        ]);
+
+        $this->actingAs($owner)->get(route('notifications.open', $missingRequest))
+            ->assertRedirect(route('notifications.index'))
+            ->assertSessionHas('warning', 'รายการนี้ไม่มีอยู่แล้วหรือคุณไม่มีสิทธิ์เข้าถึง');
+        $this->assertNotNull($missingRequest->fresh()->read_at);
+
+        $taskOwner = $this->user();
+        $outsider = $this->user();
+        $task = $this->task($taskOwner, $taskOwner, now()->addDay()->toDateTimeString());
+        $revoked = SystemNotification::create([
+            'user_id' => $outsider->id,
+            'work_order_id' => $task->job_id,
+            'type' => 'task_assigned',
+            'title' => 'No longer available',
+        ]);
+
+        $this->actingAs($outsider)->get(route('notifications.open', $revoked))
+            ->assertRedirect(route('notifications.index'))
+            ->assertSessionHas('warning');
+    }
+
+    public function test_existing_project_task_request_deep_link_remains_available(): void
+    {
+        $owner = $this->user();
+        $requester = $this->user();
+        $project = WorkOrderList::create(['user_id' => $owner->id, 'name' => 'Request project']);
+        $taskRequest = WorkOrderListTaskRequest::create([
+            'work_order_list_id' => $project->id,
+            'requester_id' => $requester->id,
+            'status' => 'pending',
+            'job_topic' => 'Requested task',
+            'job_priority' => 2,
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+        $notice = SystemNotification::create([
+            'user_id' => $owner->id,
+            'work_order_list_id' => $project->id,
+            'type' => 'project_task_request_submitted',
+            'title' => 'Task request',
+            'data' => ['task_request_id' => $taskRequest->id],
+        ]);
+
+        $this->actingAs($owner)->get(route('notifications.open', $notice))
+            ->assertRedirect(route('mytasks.index', ['view' => 'board', 'task_request' => $taskRequest->id]));
+    }
+
+    public function test_all_declared_notification_types_have_an_explicit_category_and_unknown_is_tested(): void
+    {
+        $allowed = ['task', 'review', 'comment', 'deadline', 'system'];
+
+        foreach (SystemNotification::TYPE_CATEGORIES as $type => $category) {
+            $this->assertContains($category, $allowed, "Unexpected category for {$type}");
+            $this->assertSame($category, SystemNotification::categoryForType($type));
+        }
+
+        $this->assertSame('system', SystemNotification::categoryForType('future_unknown_type'));
+    }
+
+    public function test_relative_time_is_consistently_thai(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-20 12:00:00', 'Asia/Bangkok');
+        $service = app(NotificationService::class);
+
+        $this->assertSame('เมื่อสักครู่', $service->relativeTime($now->subSeconds(30), $now));
+        $this->assertSame('5 นาทีที่แล้ว', $service->relativeTime($now->subMinutes(5), $now));
+        $this->assertSame('3 ชั่วโมงที่แล้ว', $service->relativeTime($now->subHours(3), $now));
+        $this->assertSame('3 วันที่แล้ว', $service->relativeTime($now->subDays(3), $now));
     }
 
     public function test_deadline_generation_uses_bangkok_day_is_idempotent_and_excludes_viewers(): void

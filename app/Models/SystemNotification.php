@@ -8,6 +8,36 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SystemNotification extends Model
 {
+    public const TYPE_CATEGORIES = [
+        'submitted_for_review' => 'review',
+        'review_approved' => 'review',
+        'review_returned' => 'review',
+        'task_reopened' => 'review',
+        'self_closed' => 'review',
+        'task_comment' => 'comment',
+        'deadline_due_today' => 'deadline',
+        'deadline_overdue' => 'deadline',
+        'task_assigned' => 'task',
+        'admin_created_task' => 'task',
+        'same_department_assignment' => 'task',
+        'cross_department_pending' => 'task',
+        'assignment_approved' => 'task',
+        'assignment_rejected' => 'task',
+        'admin_approval' => 'task',
+        'collaborator_added' => 'task',
+        'collaborator_removed' => 'task',
+        'collaborator_approval_request' => 'task',
+        'collaborator_approved' => 'task',
+        'collaborator_rejected' => 'task',
+        'project_task_request_submitted' => 'task',
+        'project_task_request_approved' => 'task',
+        'project_task_request_rejected' => 'task',
+        'delete_request' => 'task',
+        'delete_request_rejected' => 'task',
+        'task_deleted' => 'task',
+        'system' => 'system',
+    ];
+
     protected $fillable = [
         'user_id',
         'actor_user_id',
@@ -85,17 +115,6 @@ class SystemNotification extends Model
 
     public static function categoryForType(string $type): string
     {
-        return match ($type) {
-            'submitted_for_review', 'review_approved', 'review_returned', 'task_reopened', 'self_closed' => 'review',
-            'task_comment' => 'comment',
-            'deadline_due_today', 'deadline_overdue' => 'deadline',
-            'task_assigned', 'admin_created_task', 'same_department_assignment',
-            'cross_department_pending', 'assignment_approved', 'assignment_rejected', 'admin_approval',
-            'collaborator_added', 'collaborator_removed', 'collaborator_approval_request',
-            'collaborator_approved', 'collaborator_rejected',
-            'project_task_request_submitted', 'project_task_request_approved', 'project_task_request_rejected',
-            'delete_request', 'delete_request_rejected', 'task_deleted' => 'task',
-            default => 'system',
-        };
+        return self::TYPE_CATEGORIES[$type] ?? 'system';
     }
 }

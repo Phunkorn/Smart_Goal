@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\AdminReportService;
+use App\Support\ReportMetrics;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class AdminReportDashboardTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_admin_and_viewer_can_open_organization_report_but_user_cannot(): void
+    public function test_admin_and_viewer_can_open_report_landing_and_organization_but_user_cannot(): void
     {
         $admin = $this->user('admin');
         $viewer = $this->user('viewer');
@@ -36,19 +37,55 @@ class AdminReportDashboardTest extends TestCase
 
         $this->actingAs($admin)->get(route('reports.index'))
             ->assertOk()
+            ->assertSee('ดูภาพรวมองค์กร')
+            ->assertSee('ดูรายงานรายบุคคล')
+            ->assertSee(route('reports.organization'), false)
+            ->assertSee(route('reports.employees.index'), false)
+            ->assertDontSee('reportTrendChart', false);
+
+        $this->actingAs($admin)->get(route('reports.organization'))
+            ->assertOk()
             ->assertSee('รายงานภาพรวมองค์กร')
             ->assertSee('reportTrendChart', false)
             ->assertSee('reportStatusChart', false)
+            ->assertSee('reportWorkloadChart', false)
+            ->assertSee('report-dashboard-card--trend', false)
+            ->assertSee('report-dashboard-card--status', false)
+            ->assertSee('report-dashboard-card--priority', false)
+            ->assertSee('report-dashboard-card--workload', false)
+            ->assertSee('report-dashboard-card--attention', false)
+            ->assertSee('data-chart-kind="line"', false)
+            ->assertSee('data-chart-kind="bar"', false)
+            ->assertSee('data-chart-kind="doughnut"', false)
+            ->assertSee('data-chart-kind="horizontal-bar"', false)
+            ->assertSee('data-chart-kind="stacked-bar"', false)
+            ->assertDontSee('report-kpis', false)
             ->assertSee('สำคัญด่วน')
             ->assertSee('ไม่รีบ ไม่มีกำหนด')
             ->assertDontSee('ดูข้อมูลเท่านั้น');
 
-        $this->actingAs($viewer)->get(route('reports.index'))
+        $this->actingAs($viewer)->get(route('reports.organization'))
             ->assertOk()
             ->assertSee('ดูข้อมูลเท่านั้น');
 
+        $this->actingAs($viewer)->get(route('reports.index'))->assertOk();
         $this->actingAs($user)->get(route('reports.index'))->assertForbidden();
+        $this->actingAs($user)->get(route('reports.organization'))->assertForbidden();
+        $this->actingAs($user)->get(route('reports.exportCsv'))->assertForbidden();
         $this->actingAs($user)->get(route('reports.my'))->assertOk();
+    }
+
+    public function test_legacy_report_query_redirects_to_organization_with_query_preserved(): void
+    {
+        $response = $this->actingAs($this->user('admin'))->get(route('reports.index', [
+            'period' => 'this_month',
+            'priority' => 3,
+        ]));
+
+        $response->assertRedirect(route('reports.organization', [
+            'period' => 'this_month',
+            'priority' => 3,
+        ]));
     }
 
     public function test_department_and_every_task_priority_filter_are_isolated(): void
@@ -63,7 +100,7 @@ class AdminReportDashboardTest extends TestCase
         $this->task($secondDepartment, ['job_topic' => 'Other department', 'job_priority' => 4]);
 
         foreach (range(1, 5) as $priority) {
-            $response = $this->actingAs($admin)->get(route('reports.index', [
+            $response = $this->actingAs($admin)->get(route('reports.organization', [
                 'period' => 'custom',
                 'start_date' => '2026-08-01',
                 'end_date' => '2026-08-31',
@@ -84,7 +121,7 @@ class AdminReportDashboardTest extends TestCase
         $this->task($department, ['job_topic' => 'August overdue', 'job_due_at' => '2026-08-01 00:00:00']);
         $this->task($department, ['job_topic' => 'July task', 'created_at' => '2026-07-20 00:00:00', 'updated_at' => '2026-07-20 00:00:00']);
 
-        $response = $this->actingAs($admin)->get(route('reports.index', [
+        $response = $this->actingAs($admin)->get(route('reports.organization', [
             'period' => 'this_month',
             'status' => 'late',
         ]));
@@ -140,6 +177,71 @@ class AdminReportDashboardTest extends TestCase
         $this->assertSame(1, $response->viewData('completedJobs'));
         $this->assertSame(2, $august['created']);
         $this->assertSame(1, $august['completed']);
+    }
+
+    public function test_historical_task_completed_in_period_is_counted_and_unapproved_tasks_are_excluded(): void
+    {
+        $admin = $this->user('admin');
+        $department = Department::create(['department_name' => 'Delivery']);
+        $this->task($department, [
+            'job_topic' => 'Historical completion',
+            'job_status' => 4,
+            'job_completed_at' => '2026-08-15 10:00:00',
+            'created_at' => '2026-05-01 10:00:00',
+            'updated_at' => '2026-08-15 10:00:00',
+        ]);
+        $this->task($department, ['job_topic' => 'Pending task', 'approval_status' => 'pending']);
+        $this->task($department, ['job_topic' => 'Rejected task', 'approval_status' => 'rejected']);
+
+        $response = $this->actingAs($admin)->get($this->customReportUrl());
+        $august = $response->viewData('monthlySummary')->firstWhere('key', '2026-08');
+
+        $response->assertOk();
+        $this->assertSame(1, $response->viewData('totalJobs'));
+        $this->assertSame(0, $august['created']);
+        $this->assertSame(1, $august['completed']);
+    }
+
+    public function test_on_time_uses_bangkok_due_date_end_of_day_and_excludes_missing_due(): void
+    {
+        $department = Department::create(['department_name' => 'Operations']);
+        $onTime = $this->task($department, ['job_status' => 4, 'job_due_at' => '2026-08-20 00:00:00', 'job_completed_at' => '2026-08-20 16:59:59']);
+        $late = $this->task($department, ['job_status' => 4, 'job_due_at' => '2026-08-20 00:00:00', 'job_completed_at' => '2026-08-20 17:00:01']);
+        $withoutDue = new WorkOrder(['job_status' => 4]);
+        $withoutDue->job_completed_at = CarbonImmutable::parse('2026-08-20 12:00:00', AdminReportService::BUSINESS_TIMEZONE);
+
+        $this->assertTrue(ReportMetrics::isOnTime($onTime));
+        $this->assertFalse(ReportMetrics::isOnTime($late));
+        $this->assertFalse(ReportMetrics::isOnTime($withoutDue));
+
+        $response = $this->actingAs($this->user('admin'))->get($this->customReportUrl());
+        $row = $response->viewData('departmentSummary')->firstWhere('id', $department->id);
+        $this->assertSame(2, $row['on_time_eligible']);
+        $this->assertSame(1, $row['on_time']);
+        $this->assertSame(50, $row['on_time_rate']);
+    }
+
+    public function test_organization_export_matches_period_department_priority_and_approval_scope(): void
+    {
+        $admin = $this->user('admin');
+        $includedDepartment = Department::create(['department_name' => 'Included']);
+        $otherDepartment = Department::create(['department_name' => 'Other']);
+        $included = $this->task($includedDepartment, ['job_topic' => 'Included CSV task', 'job_priority' => 3]);
+        $this->task($includedDepartment, ['job_topic' => 'Wrong priority CSV task', 'job_priority' => 2]);
+        $this->task($includedDepartment, ['job_topic' => 'Pending CSV task', 'job_priority' => 3, 'approval_status' => 'pending']);
+        $this->task($otherDepartment, ['job_topic' => 'Other department CSV task', 'job_priority' => 3]);
+
+        $response = $this->actingAs($admin)->get(route('reports.exportCsv', [
+            'period' => 'custom', 'start_date' => '2026-08-01', 'end_date' => '2026-08-31',
+            'department' => $includedDepartment->id, 'priority' => 3,
+        ]));
+        $content = $response->streamedContent();
+
+        $response->assertOk();
+        $this->assertStringContainsString($included->job_topic, $content);
+        $this->assertStringNotContainsString('Wrong priority CSV task', $content);
+        $this->assertStringNotContainsString('Pending CSV task', $content);
+        $this->assertStringNotContainsString('Other department CSV task', $content);
     }
 
     public function test_department_performance_counts_only_active_employees_and_guards_zero_rate(): void
@@ -243,8 +345,7 @@ class AdminReportDashboardTest extends TestCase
     private function task(Department $department, array $attributes = []): WorkOrder
     {
         $assignee = $this->user('user', $department);
-
-        return WorkOrder::create(array_merge([
+        $values = array_merge([
             'user_id' => $assignee->id,
             'created_by' => $assignee->id,
             'leader_user_id' => $assignee->id,
@@ -258,12 +359,18 @@ class AdminReportDashboardTest extends TestCase
             'job_due_at' => '2026-08-30 00:00:00',
             'created_at' => '2026-08-10 00:00:00',
             'updated_at' => '2026-08-10 00:00:00',
-        ], $attributes));
+        ], $attributes);
+        $timestamps = array_intersect_key($values, array_flip(['created_at', 'updated_at']));
+        unset($values['created_at'], $values['updated_at']);
+        $job = WorkOrder::create($values);
+        $job->forceFill($timestamps)->saveQuietly();
+
+        return $job->refresh();
     }
 
     private function customReportUrl(): string
     {
-        return route('reports.index', [
+        return route('reports.organization', [
             'period' => 'custom',
             'start_date' => '2026-08-01',
             'end_date' => '2026-08-31',

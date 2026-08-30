@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Department;
 use App\Models\WorkOrder;
+use App\Support\ReportMetrics;
 use App\Support\WorkBoardDesign;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -12,7 +13,7 @@ use Illuminate\Support\Collection;
 
 final class AdminReportService
 {
-    public const BUSINESS_TIMEZONE = 'Asia/Bangkok';
+    public const BUSINESS_TIMEZONE = ReportMetrics::BUSINESS_TIMEZONE;
 
     private const DEFAULT_PERIOD = 'last_6_months';
 
@@ -38,12 +39,14 @@ final class AdminReportService
         $jobs = $this->filteredJobs($filters);
         $now = CarbonImmutable::now(self::BUSINESS_TIMEZONE);
 
-        $completedJobs = $jobs->filter(fn (WorkOrder $job) => $this->isCompletedInPeriod($job, $filters));
-        $overdueJobs = $jobs->filter(fn (WorkOrder $job) => $this->isOverdue($job, $now));
+        $createdJobs = $jobs->filter(fn (WorkOrder $job) => $this->dateIsInPeriod($job->created_at, $filters));
+        $completedJobs = $jobs->filter(fn (WorkOrder $job) => ReportMetrics::isCompleted($job)
+            && $this->dateIsInPeriod($job->job_completed_at, $filters));
+        $overdueJobs = $jobs->filter(fn (WorkOrder $job) => ReportMetrics::isOverdue($job, $now));
         $statusCounts = array_fill_keys(array_keys(WorkBoardDesign::STATUSES), 0);
 
         foreach ($jobs as $job) {
-            $statusCounts[$this->statusKey($job, $now)]++;
+            $statusCounts[ReportMetrics::statusKey($job, $now)]++;
         }
 
         $statusSummary = collect(WorkBoardDesign::STATUSES)->map(fn (array $meta, string $key) => [
@@ -54,27 +57,39 @@ final class AdminReportService
 
         $departmentSummary = $departments
             ->when($filters['department_id'], fn (Collection $items) => $items->where('id', $filters['department_id']))
-            ->map(function (Department $department) use ($jobs, $completedJobs, $overdueJobs): array {
+            ->map(function (Department $department) use ($jobs, $completedJobs, $overdueJobs, $now): array {
                 $departmentJobs = $jobs->where('department_id', $department->id);
+                $departmentCompleted = $completedJobs->where('department_id', $department->id);
                 $done = $completedJobs->where('department_id', $department->id)->count();
                 $total = $departmentJobs->count();
+                $onTimeEligible = $departmentCompleted->filter(fn (WorkOrder $job) => $job->job_due_at !== null);
+                $onTime = $onTimeEligible->filter(fn (WorkOrder $job) => ReportMetrics::isOnTime($job))->count();
+
+                $workload = collect(['doing', 'review', 'late'])->mapWithKeys(fn (string $status) => [
+                    $status => $departmentJobs->filter(fn (WorkOrder $job) => ReportMetrics::statusKey($job, $now) === $status)->count(),
+                ])->all();
 
                 return [
                     'id' => $department->id,
                     'name' => $department->department_name,
                     'employees' => (int) $department->active_users_count,
                     'total' => $total,
-                    'active' => $departmentJobs->filter(fn (WorkOrder $job) => $this->isIncomplete($job))->count(),
+                    'active' => $departmentJobs->filter(fn (WorkOrder $job) => ReportMetrics::isIncomplete($job))->count(),
                     'done' => $done,
                     'overdue' => $overdueJobs->where('department_id', $department->id)->count(),
                     'rate' => $total > 0 ? min(100, (int) round(($done / $total) * 100)) : 0,
+                    'on_time' => $onTime,
+                    'on_time_eligible' => $onTimeEligible->count(),
+                    'on_time_rate' => $onTimeEligible->isNotEmpty()
+                        ? (int) round(($onTime / $onTimeEligible->count()) * 100)
+                        : 0,
+                    'workload' => $workload,
                 ];
             })->values();
 
         $attentionJobs = $jobs
-            ->filter(fn (WorkOrder $job) => $job->approval_status === 'approved'
-                && $this->isIncomplete($job)
-                && ($this->isOverdue($job, $now) || $this->isDueSoon($job, $now)))
+            ->filter(fn (WorkOrder $job) => ReportMetrics::isIncomplete($job)
+                && (ReportMetrics::isOverdue($job, $now) || ReportMetrics::isDueSoon($job, $now)))
             ->sortBy(fn (WorkOrder $job) => $job->job_due_at?->timestamp ?? PHP_INT_MAX)
             ->take(10)
             ->map(fn (WorkOrder $job) => [
@@ -83,7 +98,7 @@ final class AdminReportService
                 'assignee' => $job->user?->name ?? 'ไม่ระบุผู้รับผิดชอบ',
                 'department' => $job->department?->department_name ?? 'ไม่ระบุแผนก',
                 'due_at' => $job->job_due_at?->copy()->timezone(self::BUSINESS_TIMEZONE),
-                'is_overdue' => $this->isOverdue($job, $now),
+                'is_overdue' => ReportMetrics::isOverdue($job, $now),
                 'priority' => [
                     'value' => (int) $job->job_priority,
                     ...WorkBoardDesign::taskPriority((int) $job->job_priority),
@@ -91,7 +106,12 @@ final class AdminReportService
                 'url' => route('tasks.show', $job->job_id),
             ])->values();
 
-        $monthlySummary = $this->monthlySummary($jobs, $filters);
+        $monthlySummary = $this->monthlySummary($createdJobs, $completedJobs, $filters);
+        $prioritySummary = collect(WorkBoardDesign::TASK_PRIORITIES)->map(fn (array $meta, int $value) => [
+            'value' => $value,
+            ...$meta,
+            'count' => $jobs->where('job_priority', $value)->count(),
+        ])->values();
         $totalJobs = $jobs->count();
         $completedCount = $completedJobs->count();
 
@@ -105,11 +125,12 @@ final class AdminReportService
             ],
             'totalJobs' => $totalJobs,
             'completedJobs' => $completedCount,
-            'activeJobs' => $jobs->filter(fn (WorkOrder $job) => $this->isIncomplete($job))->count(),
+            'activeJobs' => $jobs->filter(fn (WorkOrder $job) => ReportMetrics::isIncomplete($job))->count(),
             'overdueJobs' => $overdueJobs->count(),
             'completionRate' => $totalJobs > 0 ? min(100, (int) round(($completedCount / $totalJobs) * 100)) : 0,
             'statusSummary' => $statusSummary,
             'departmentSummary' => $departmentSummary,
+            'prioritySummary' => $prioritySummary,
             'attentionJobs' => $attentionJobs,
             'monthlySummary' => $monthlySummary,
             'chartData' => [
@@ -123,31 +144,46 @@ final class AdminReportService
                     'values' => $statusSummary->pluck('value')->all(),
                     'tones' => $statusSummary->pluck('tone')->all(),
                 ],
+                'departments' => [
+                    'labels' => $departmentSummary->pluck('name')->all(),
+                    'total' => $departmentSummary->pluck('total')->all(),
+                    'completed' => $departmentSummary->pluck('done')->all(),
+                    'overdue' => $departmentSummary->pluck('overdue')->all(),
+                ],
+                'completed' => [
+                    'labels' => $monthlySummary->pluck('label')->all(),
+                    'values' => $monthlySummary->pluck('completed')->all(),
+                ],
+                'onTime' => [
+                    'labels' => $departmentSummary->pluck('name')->all(),
+                    'values' => $departmentSummary->pluck('on_time_rate')->all(),
+                    'eligible' => $departmentSummary->pluck('on_time_eligible')->all(),
+                ],
+                'priority' => [
+                    'labels' => $prioritySummary->pluck('label')->all(),
+                    'values' => $prioritySummary->pluck('count')->all(),
+                    'tones' => $prioritySummary->pluck('tone')->all(),
+                ],
+                'workload' => [
+                    'labels' => $departmentSummary->pluck('name')->all(),
+                    'doing' => $departmentSummary->pluck('workload.doing')->all(),
+                    'review' => $departmentSummary->pluck('workload.review')->all(),
+                    'late' => $departmentSummary->pluck('workload.late')->all(),
+                ],
             ],
         ];
     }
 
     public function isOverdue(WorkOrder $job, ?CarbonInterface $now = null): bool
     {
-        if (! $this->isIncomplete($job)) {
-            return false;
-        }
+        return ReportMetrics::isOverdue($job, $now);
+    }
 
-        if ((int) $job->job_status === 6) {
-            return true;
-        }
+    public function exportJobs(Request $request): Collection
+    {
+        $departments = Department::query()->orderBy('department_name')->get();
 
-        if (! $job->job_due_at) {
-            return false;
-        }
-
-        $businessNow = ($now ? CarbonImmutable::instance($now) : CarbonImmutable::now(self::BUSINESS_TIMEZONE))
-            ->setTimezone(self::BUSINESS_TIMEZONE);
-        $dueAt = CarbonImmutable::instance($job->job_due_at)
-            ->setTimezone(self::BUSINESS_TIMEZONE)
-            ->endOfDay();
-
-        return $dueAt->lt($businessNow);
+        return $this->filteredJobs($this->normalizeFilters($request, $departments));
     }
 
     private function filteredJobs(array $filters): Collection
@@ -157,7 +193,15 @@ final class AdminReportService
                 'user:id,name,department_id',
                 'department:id,department_name',
             ])
-            ->whereBetween('created_at', [$filters['start_utc'], $filters['end_utc']])
+            ->where('approval_status', 'approved')
+            ->where(function ($builder) use ($filters): void {
+                $builder->whereBetween('created_at', [$filters['start_utc'], $filters['end_utc']])
+                    ->orWhere(function ($completed) use ($filters): void {
+                        $completed->where('job_status', 4)
+                            ->whereNotNull('job_completed_at')
+                            ->whereBetween('job_completed_at', [$filters['start_utc'], $filters['end_utc']]);
+                    });
+            })
             ->when($filters['department_id'], fn ($builder, int $departmentId) => $builder->where('department_id', $departmentId))
             ->when($filters['priority'], fn ($builder, int $priority) => $builder->where('job_priority', $priority))
             ->orderBy('job_id');
@@ -166,7 +210,7 @@ final class AdminReportService
 
         return $query->get()
             ->when($filters['status'], fn (Collection $items, string $status) => $items
-                ->filter(fn (WorkOrder $job) => $this->statusKey($job, $now) === $status)
+                ->filter(fn (WorkOrder $job) => ReportMetrics::statusKey($job, $now) === $status)
                 ->values());
     }
 
@@ -229,54 +273,7 @@ final class AdminReportService
         return [$start, $end];
     }
 
-    private function isIncomplete(WorkOrder $job): bool
-    {
-        return (int) $job->job_status !== 4;
-    }
-
-    private function isCompletedInPeriod(WorkOrder $job, array $filters): bool
-    {
-        if ((int) $job->job_status !== 4 || ! $job->job_completed_at) {
-            return false;
-        }
-
-        $completedAt = CarbonImmutable::instance($job->job_completed_at)->utc();
-
-        return $completedAt->betweenIncluded($filters['start_utc'], $filters['end_utc']);
-    }
-
-    private function isDueSoon(WorkOrder $job, CarbonInterface $now): bool
-    {
-        if (! $job->job_due_at || $this->isOverdue($job, $now)) {
-            return false;
-        }
-
-        $businessNow = CarbonImmutable::instance($now)->setTimezone(self::BUSINESS_TIMEZONE);
-        $dueAt = CarbonImmutable::instance($job->job_due_at)->setTimezone(self::BUSINESS_TIMEZONE)->endOfDay();
-
-        return $dueAt->betweenIncluded($businessNow, $businessNow->addDays(3)->endOfDay());
-    }
-
-    private function statusKey(WorkOrder $job, CarbonInterface $now): string
-    {
-        if ((int) $job->job_status === 4) {
-            return 'done';
-        }
-
-        if ($this->isOverdue($job, $now)) {
-            return 'late';
-        }
-
-        return match ((int) $job->job_status) {
-            2 => 'doing',
-            3 => 'review',
-            5 => 'paused',
-            6 => 'late',
-            default => 'todo',
-        };
-    }
-
-    private function monthlySummary(Collection $jobs, array $filters): Collection
+    private function monthlySummary(Collection $createdJobs, Collection $completedJobs, array $filters): Collection
     {
         $cursor = CarbonImmutable::parse($filters['start_date'], self::BUSINESS_TIMEZONE)->startOfMonth();
         $last = CarbonImmutable::parse($filters['end_date'], self::BUSINESS_TIMEZONE)->startOfMonth();
@@ -287,14 +284,20 @@ final class AdminReportService
             $months->push([
                 'key' => $month->format('Y-m'),
                 'label' => $month->locale('th')->isoFormat('MMM YY'),
-                'created' => $jobs->filter(fn (WorkOrder $job) => $job->created_at
+                'created' => $createdJobs->filter(fn (WorkOrder $job) => $job->created_at
                     && CarbonImmutable::instance($job->created_at)->setTimezone(self::BUSINESS_TIMEZONE)->isSameMonth($month))->count(),
-                'completed' => $jobs->filter(fn (WorkOrder $job) => $job->job_completed_at
+                'completed' => $completedJobs->filter(fn (WorkOrder $job) => $job->job_completed_at
                     && CarbonImmutable::instance($job->job_completed_at)->setTimezone(self::BUSINESS_TIMEZONE)->isSameMonth($month))->count(),
             ]);
             $cursor = $cursor->addMonth();
         }
 
         return $months;
+    }
+
+    private function dateIsInPeriod(?CarbonInterface $date, array $filters): bool
+    {
+        return $date !== null
+            && CarbonImmutable::instance($date)->utc()->betweenIncluded($filters['start_utc'], $filters['end_utc']);
     }
 }

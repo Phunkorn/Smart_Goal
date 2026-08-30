@@ -200,6 +200,37 @@ class TaskCollaboratorNotificationTest extends TestCase
         ]);
     }
 
+    public function test_cross_department_retry_does_not_duplicate_but_remove_and_reinvite_creates_a_new_request_notice(): void
+    {
+        $ownerDepartment = Department::create(['department_name' => 'IT']);
+        $otherDepartment = Department::create(['department_name' => 'Marketing']);
+        $owner = $this->user('user', $ownerDepartment);
+        $candidate = $this->user('user', $otherDepartment);
+        $admin = $this->user('admin');
+        $task = $this->taskFor($owner, $ownerDepartment);
+
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
+            ->assertOk();
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
+            ->assertOk();
+
+        $query = SystemNotification::where('user_id', $admin->id)
+            ->where('work_order_id', $task->job_id)
+            ->where('type', 'collaborator_approval_request');
+        $this->assertSame(1, $query->count());
+
+        $this->actingAs($owner)
+            ->deleteJson(route('tasks.collaborators.destroy', [$task, $candidate]))
+            ->assertOk();
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
+            ->assertOk();
+
+        $this->assertSame(2, $query->count());
+    }
+
     public function test_admin_approval_turns_cross_department_collaborator_into_worker_exactly_once(): void
     {
         $ownerDepartment = Department::create(['department_name' => 'IT']);

@@ -1,0 +1,25 @@
+.report-landing { --landing-blue:#1670f8; --landing-green:#16a963; width:min(1180px,100%); margin:0 auto; padding:10px 2px 32px; color:#12213d; }
+.report-landing__header { margin-bottom:26px; }
+.report-landing__eyebrow { display:inline-block; margin-bottom:5px; color:#246fdd; font-size:.72rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+.report-landing__header h1 { margin:0; font-size:clamp(1.65rem,3vw,2.25rem); font-weight:800; letter-spacing:-.03em; }
+.report-landing__header p { margin:6px 0 0; color:#66758e; }
+.report-landing__grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+.report-choice { --choice:#1670f8; --choice-soft:#eff6ff; display:flex; min-width:0; min-height:510px; flex-direction:column; overflow:hidden; border:1px solid #e2e8f2; border-radius:20px; background:#fff; box-shadow:0 10px 28px rgba(31,55,92,.07); transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease; }
+.report-choice:hover { transform:translateY(-2px); border-color:color-mix(in srgb,var(--choice) 25%,#e2e8f2); box-shadow:0 16px 36px rgba(31,55,92,.1); }
+.report-choice--employee { --choice:#16a963; --choice-soft:#ecf9f2; }
+.report-choice__visual { position:relative; display:flex; min-height:150px; align-items:center; justify-content:space-between; padding:28px 30px 12px; background:linear-gradient(145deg,var(--choice-soft),#fff 72%); }
+.report-choice__icon { display:grid; width:76px; height:76px; place-items:center; border:1px solid color-mix(in srgb,var(--choice) 20%,white); border-radius:18px; background:#fff; color:var(--choice); box-shadow:0 8px 22px color-mix(in srgb,var(--choice) 12%,transparent); font-size:2rem; }
+.report-choice__graphic { display:flex; height:88px; align-items:flex-end; gap:10px; padding:14px 18px 0; border-bottom:2px solid color-mix(in srgb,var(--choice) 18%,white); }
+.report-choice__graphic i { display:block; width:17px; height:34%; border-radius:5px 5px 0 0; background:color-mix(in srgb,var(--choice) 24%,white); }.report-choice__graphic i:nth-child(2){height:58%;}.report-choice__graphic i:nth-child(3){height:78%;}.report-choice__graphic i:nth-child(4){height:100%;background:var(--choice);}
+.report-choice__content { flex:1; padding:20px 30px 24px; }
+.report-choice__content h2 { margin:0; color:#10203c; font-size:1.55rem; font-weight:800; }
+.report-choice__content>p { max-width:540px; margin:9px 0 20px; color:#65738b; line-height:1.65; }
+.report-choice__content ul { display:grid; gap:11px; margin:0; padding:18px 0 0; border-top:1px solid #e8edf5; list-style:none; }
+.report-choice__content li { display:flex; align-items:center; gap:10px; color:#43516a; }.report-choice__content li i { color:var(--choice); }
+.report-choice__cta { display:flex; min-height:58px; align-items:center; justify-content:space-between; gap:12px; margin:0 24px 24px; padding:14px 18px; border-radius:12px; background:var(--choice); color:#fff; font-weight:750; text-decoration:none; box-shadow:0 8px 18px color-mix(in srgb,var(--choice) 20%,transparent); }
+.report-choice__cta:hover { color:#fff; filter:brightness(.97); }.report-choice__cta:focus-visible { outline:3px solid color-mix(in srgb,var(--choice) 30%,white); outline-offset:3px; }
+.report-landing__note { display:flex; align-items:flex-start; gap:14px; margin-top:24px; padding:18px 22px; border:1px solid #dce8f8; border-radius:14px; background:#f8fbff; color:#52627a; }
+.report-landing__note>i { display:grid; width:36px; height:36px; flex:0 0 auto; place-items:center; border-radius:50%; background:#e8f2ff; color:#1670f8; font-size:1.15rem; }.report-landing__note strong{color:#263752}.report-landing__note p{margin:3px 0 0;line-height:1.55}
+@media(max-width:760px){.report-landing{padding-top:4px}.report-landing__grid{grid-template-columns:minmax(0,1fr);gap:16px}.report-choice{min-height:0}.report-choice__visual{min-height:120px;padding:22px}.report-choice__icon{width:62px;height:62px;font-size:1.6rem}.report-choice__graphic{height:70px}.report-choice__content{padding:17px 22px 21px}.report-choice__cta{margin:0 16px 16px}.report-landing__note{padding:16px}}
+@media(max-width:380px){.report-choice__graphic{display:none}.report-choice__visual{justify-content:flex-start}.report-choice__content h2{font-size:1.35rem}}
+@media(prefers-reduced-motion:reduce){.report-choice{transition:none}.report-choice:hover{transform:none}}

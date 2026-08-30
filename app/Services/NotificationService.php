@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderListTaskRequest;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -255,6 +256,17 @@ class NotificationService
         };
     }
 
+    public function relativeTime(CarbonInterface $createdAt, ?CarbonInterface $now = null): string
+    {
+        $reference = $now ?? now();
+
+        if ($createdAt->diffInSeconds($reference) < 60) {
+            return 'เมื่อสักครู่';
+        }
+
+        return Str::replaceEnd('ก่อน', 'ที่แล้ว', $createdAt->copy()->locale('th')->diffForHumans($reference));
+    }
+
     public function markRead(SystemNotification $notification, bool $read = true): void
     {
         $notification->update(['read_at' => $read ? now() : null, 'is_read' => $read]);
@@ -308,5 +320,27 @@ class NotificationService
         }
 
         return route('mytasks.index', $query);
+    }
+
+    public function targetUnavailable(SystemNotification $notification, User $viewer): bool
+    {
+        if (str_starts_with($notification->type, 'project_task_request_')) {
+            $requestId = $notification->data['task_request_id'] ?? null;
+
+            return ! $requestId
+                || ! $notification->project
+                || ! Gate::forUser($viewer)->allows('view', $notification->project)
+                || ! WorkOrderListTaskRequest::query()
+                    ->whereKey($requestId)
+                    ->where('work_order_list_id', $notification->work_order_list_id)
+                    ->exists();
+        }
+
+        if (! $notification->work_order_id) {
+            return false;
+        }
+
+        return ! $notification->workOrder
+            || ! Gate::forUser($viewer)->allows('view', $notification->workOrder);
     }
 }

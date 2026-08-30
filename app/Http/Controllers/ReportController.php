@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Department;
 use App\Models\User;
-use App\Models\WorkOrder;
 use App\Services\AdminReportService;
+use App\Services\EmployeeReportService;
 use App\Services\PersonalReportService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -15,21 +16,63 @@ class ReportController extends Controller
 {
     public function __construct(private readonly PersonalReportService $personalReports) {}
 
-    public function index(Request $request, AdminReportService $reports)
+    public function index(Request $request)
     {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
+        $this->authorizeAdminReports();
 
-        return view('reports.index', $reports->build($request));
+        if ($request->query()) {
+            return redirect()->route('reports.organization', $request->query());
+        }
+
+        return view('reports.index');
     }
 
-    public function exportCsv(): StreamedResponse
+    public function organization(Request $request, AdminReportService $reports)
     {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
+        $this->authorizeAdminReports();
+
+        return view('reports.organization', $reports->build($request));
+    }
+
+    public function exportCsv(Request $request, AdminReportService $reports): StreamedResponse
+    {
+        $this->authorizeAdminReports();
 
         return $this->downloadJobsCsv(
-            WorkOrder::with(['user', 'department'])->orderBy('job_id'),
-            'smart-goals-report-'.now()->format('Ymd-His').'.csv'
+            $reports->exportJobs($request),
+            'smart-goals-report-'.now()->format('Ymd-His').'.csv',
         );
+    }
+
+    public function employees(Request $request)
+    {
+        $this->authorizeAdminReports();
+
+        $departments = Department::query()
+            ->withCount(['users as active_users_count' => fn ($query) => $query
+                ->where('role', 'user')
+                ->where('is_active', true)])
+            ->orderBy('department_name')
+            ->get();
+        $departmentId = $request->integer('department');
+        $departmentId = $departments->contains('id', $departmentId) ? $departmentId : null;
+        $search = mb_substr(trim($request->string('search')->toString()), 0, 100);
+
+        $employees = User::query()
+            ->with('department:id,department_name')
+            ->where('role', 'user')
+            ->where('is_active', true)
+            ->when($departmentId, fn ($query, int $id) => $query->where('department_id', $id))
+            ->when($search !== '', fn ($query) => $query->where('name', 'like', '%'.$search.'%'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'department_id', 'profile_image']);
+
+        return view('reports.employees.index', compact(
+            'departments',
+            'departmentId',
+            'search',
+            'employees',
+        ));
     }
 
     public function myReport(Request $request)
@@ -46,107 +89,45 @@ class ReportController extends Controller
         return $this->downloadEmployeeCsv(Auth::user(), (int) $request->query('year', now()->year));
     }
 
-    public function employeeReport(Request $request, User $user)
+    public function employeeReport(Request $request, User $user, EmployeeReportService $reports)
     {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
+        $this->authorizeAdminReports();
+        $this->ensureReportableEmployee($user);
 
-        return $this->personalReportView($user, $request, 'reports.employee');
+        return view('reports.employee', $reports->build($user, $request));
     }
 
-    public function exportEmployeeCsv(Request $request, User $user): StreamedResponse
+    public function exportEmployeeCsv(Request $request, User $user, EmployeeReportService $reports): StreamedResponse
     {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
+        $this->authorizeAdminReports();
+        $this->ensureReportableEmployee($user);
 
-        return $this->downloadEmployeeCsv($user, (int) $request->query('year', now()->year));
-    }
-
-    private function personalReportView(User $user, Request $request, string $view)
-    {
-        $year = (int) $request->query('year', now()->year);
-        $availableYears = $this->personalJobsQuery($user->id)
-            ->whereNotNull('created_at')
-            ->pluck('created_at')
-            ->filter()
-            ->map(fn ($date) => Carbon::parse($date)->year)
-            ->unique()
-            ->sortDesc()
-            ->values();
-
-        if ($availableYears->isEmpty()) {
-            $availableYears = collect([now()->year]);
-        }
-
-        if (! $availableYears->contains($year)) {
-            $year = $availableYears->first();
-        }
-
-        $jobs = $this->personalJobsQuery($user->id)
-            ->with(['user', 'department', 'creator', 'leader'])
-            ->whereYear('created_at', $year)
-            ->orderByDesc('created_at')
-            ->get();
-
-        $completedJobs = $jobs->where('job_status', 4);
-        $activeJobs = $jobs->whereIn('job_status', [1, 2, 3, 5]);
-        $overdueJobs = $jobs->filter(fn ($job) => $this->isOverdue($job));
-
-        $monthlySummary = collect(range(1, 12))->map(function ($month) use ($jobs, $year) {
-            $monthDate = Carbon::create($year, $month, 1);
-            $monthJobs = $jobs->filter(fn ($job) => $job->created_at && $job->created_at->isSameMonth($monthDate));
-
-            return [
-                'label' => $monthDate->locale('th')->isoFormat('MMM'),
-                'total' => $monthJobs->count(),
-                'done' => $monthJobs->where('job_status', 4)->count(),
-            ];
-        });
-
-        $statusSummary = collect([
-            ['label' => 'รอดำเนินการ', 'value' => $jobs->where('job_status', 1)->count(), 'tone' => 'amber'],
-            ['label' => 'กำลังทำ', 'value' => $jobs->where('job_status', 2)->count(), 'tone' => 'purple'],
-            ['label' => 'ตรวจสอบ', 'value' => $jobs->where('job_status', 3)->count(), 'tone' => 'blue'],
-            ['label' => 'พักงานชั่วคราว', 'value' => $jobs->where('job_status', 5)->count(), 'tone' => 'gray'],
-            ['label' => 'เสร็จสิ้น', 'value' => $completedJobs->count(), 'tone' => 'green'],
-            ['label' => 'ล่าช้า', 'value' => $overdueJobs->count(), 'tone' => 'red'],
-        ]);
-
-        return view($view, [
-            'employee' => $user->load('department'),
-            'year' => $year,
-            'availableYears' => $availableYears,
-            'jobs' => $jobs,
-            'monthlySummary' => $monthlySummary,
-            'statusSummary' => $statusSummary,
-            'totalJobs' => $jobs->count(),
-            'thisMonthJobs' => $jobs->filter(fn ($job) => $job->created_at && $job->created_at->isSameMonth(now()))->count(),
-            'completedJobs' => $completedJobs->count(),
-            'activeJobs' => $activeJobs->count(),
-            'overdueJobs' => $overdueJobs->count(),
-        ]);
-    }
-
-    private function personalJobsQuery(int $userId)
-    {
-        return $this->personalReports->queryFor($userId);
+        return $this->downloadJobsCsv(
+            $reports->exportJobs($user, $request),
+            'smart-goals-'.$user->id.'-'.$request->string('period', 'last_6_months')->toString().'.csv',
+        );
     }
 
     private function downloadEmployeeCsv(User $user, int $year): StreamedResponse
     {
         return $this->downloadJobsCsv(
-            $this->personalJobsQuery($user->id)->with(['user', 'department'])->whereYear('created_at', $year)->orderBy('job_id'),
-            'smart-goals-'.$user->id.'-'.$year.'.csv'
+            $this->personalReports->queryFor($user->id)
+                ->with(['user', 'department'])
+                ->whereYear('created_at', $year)
+                ->orderBy('job_id'),
+            'smart-goals-'.$user->id.'-'.$year.'.csv',
         );
     }
 
-    private function downloadJobsCsv($query, string $fileName): StreamedResponse
+    private function downloadJobsCsv($jobs, string $fileName): StreamedResponse
     {
-        return response()->streamDownload(function () use ($query) {
+        return response()->streamDownload(function () use ($jobs): void {
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($handle, ['เลขงาน', 'ชื่องาน', 'ผู้รับผิดชอบ', 'แผนก', 'สถานะอนุมัติ', 'สถานะงาน', 'ความคืบหน้า', 'วันที่เริ่ม', 'กำหนดส่ง', 'วันที่เสร็จ']);
 
-            $query->chunk(200, function ($jobs) use ($handle) {
-                foreach ($jobs as $job) {
+            $writeRows = function ($chunk) use ($handle): void {
+                foreach ($chunk as $job) {
                     fputcsv($handle, [
                         'IT-'.$job->job_id,
                         $job->job_topic,
@@ -160,7 +141,13 @@ class ReportController extends Controller
                         optional($job->job_completed_at)->format('Y-m-d H:i'),
                     ]);
                 }
-            });
+            };
+
+            if ($jobs instanceof Collection) {
+                $jobs->chunk(200)->each($writeRows);
+            } else {
+                $jobs->chunk(200, $writeRows);
+            }
 
             fclose($handle);
         }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
@@ -187,8 +174,13 @@ class ReportController extends Controller
         ][$status] ?? 'อนุมัติแล้ว';
     }
 
-    private function isOverdue(WorkOrder $job): bool
+    private function authorizeAdminReports(): void
     {
-        return $job->job_due_at && (int) $job->job_status !== 4 && $job->job_due_at->lt(now());
+        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
+    }
+
+    private function ensureReportableEmployee(User $user): void
+    {
+        abort_unless($user->role === 'user' && $user->is_active, 404);
     }
 }

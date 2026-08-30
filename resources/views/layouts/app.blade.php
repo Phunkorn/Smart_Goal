@@ -233,7 +233,7 @@
                     @if($systemNotifications->count() > 0)
                         <div class="px-2 pb-1 text-muted notification-section-title">การเปลี่ยนแปลงงาน</div>
                         @foreach($systemNotifications as $notice)
-                            <div class="p-2 mb-2 notification-item d-flex gap-2 align-items-start {{ $notice->read_at ? '' : 'is-new' }}">
+                            <div class="p-2 mb-2 notification-item d-flex gap-2 align-items-start {{ $notice->read_at ? '' : 'is-new' }}" data-dropdown-notification-id="{{ $notice->id }}">
                                 <a href="{{ route('notifications.open', $notice) }}" class="notification-body">
                                     <div class="notification-title">
                                         {{ $notice->title }}
