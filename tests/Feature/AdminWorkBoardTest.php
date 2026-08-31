@@ -10,6 +10,7 @@ use App\Models\WorkOrderList;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -38,18 +39,17 @@ class AdminWorkBoardTest extends TestCase
             'uploaded_by' => $admin->id,
         ]);
         $memberTask = $this->task($project, $admin, $member, 'Member task');
-        $memberTask->subtasks()->create([
-            'created_by' => $admin->id,
-            'title' => 'Prepare checklist',
-            'details' => 'Check every item',
-            'sort_order' => 1,
-        ]);
         $memberTask->collaborators()->attach($collaborator->id, [
             'added_by' => $admin->id,
             'status' => 'accepted',
             'responded_at' => now(),
         ]);
         $otherTask = $this->task($project, $admin, $otherMember, 'Other member task');
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
 
         $this->actingAs($admin)
             ->get(route('admin.work-board.department', $department))
@@ -83,7 +83,6 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee('Member task')
             ->assertSee('brief.docx')
             ->assertSee('Collaborator X')
-            ->assertSee('0/1 งานย่อย')
             ->assertSee('มอบหมายโดย Admin Owner')
             ->assertSee('data-kanban-card', false)
             ->assertSee('data-board-task', false)
@@ -116,7 +115,7 @@ class AdminWorkBoardTest extends TestCase
             ->assertDontSee('data-modal-progress', false)
             ->assertSee('data-reopen-task', false)
             ->assertSee('data-schedule-template', false)
-            ->assertSee('data-progress-template', false)
+            ->assertDontSee('data-progress-template', false)
             ->assertSee('data-quick-template', false)
             ->assertSee('data-row', false)
             ->assertSee('data-total-count="2"', false)
@@ -127,14 +126,15 @@ class AdminWorkBoardTest extends TestCase
             ->assertDontSee('data-create-form', false)
             ->assertDontSee('data-group>', false)
             // ปุ่มมอบหมายงานเปิดโมดัลในหน้าเดิม ไม่พา Admin กลับไปหน้าบอร์ดรวมอีกต่อไป
-            ->assertSee('<button type="button" class="btn btn-primary admin-assign-button" data-open-admin-assignment>', false)
+            ->assertSee('<button type="button" class="admin-assignment-launch admin-assign-button" data-open-admin-assignment>', false)
             ->assertDontSee(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]))
             ->assertSee('data-admin-assignment-modal', false)
             ->assertSee('name="assignment_origin" value="admin-member"', false)
             ->assertSee('name="origin_department_id" value="'.$department->id.'"', false)
             ->assertSee('name="origin_member_id" value="'.$member->id.'"', false)
             ->assertSee('data-default-assignee-id="'.$member->id.'"', false)
-            ->assertSee('name="tasks[0][user_id]" data-task-assignee value="'.$member->id.'"', false);
+            ->assertSee('name="user_id" data-task-assignee value="'.$member->id.'"', false)
+            ->assertSee('name="work_order_list_id" data-selected-project-id value="'.$project->id.'"', false);
         $this->assertSame(1, substr_count($response->getContent(), 'data-task-modal'));
         $this->assertSame(1, substr_count($response->getContent(), 'data-admin-assignment-modal'));
 
@@ -246,6 +246,7 @@ class AdminWorkBoardTest extends TestCase
             ]), false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'data-preview-task-link'));
+        $this->assertFalse(collect($queries)->contains(fn (string $sql) => str_contains($sql, 'work_order_subtasks')));
 
         // งานที่รออนุมัติต้องยังอยู่ครบใน Member Workspace เต็ม ไม่ได้หายไปจากระบบ
         $this->actingAs($admin)
@@ -254,13 +255,13 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee('Pending admin-visible task');
     }
 
-    public function test_admin_workspace_can_update_schedule_and_override_progress_only_without_subtasks(): void
+    public function test_admin_workspace_can_update_schedule_and_reject_an_invalid_range(): void
     {
         $department = Department::create(['department_name' => 'Delivery']);
         $admin = $this->user('admin', $department, 'Admin');
         $member = $this->user('user', $department, 'Member');
         $project = WorkOrderList::create(['user_id' => $admin->id, 'name' => 'Delivery Project', 'priority' => 2]);
-        $manualTask = $this->task($project, $admin, $member, 'Manual progress');
+        $manualTask = $this->task($project, $admin, $member, 'Scheduled task');
 
         $this->actingAs($admin)
             ->patchJson(route('tasks.schedule.update', $manualTask), [
@@ -268,24 +269,9 @@ class AdminWorkBoardTest extends TestCase
                 'job_due_at' => '2026-09-05',
             ])
             ->assertOk();
-        $this->actingAs($admin)
-            ->postJson(route('tasks.progress.store', $manualTask), [
-                'note' => 'Admin override',
-                'progress' => 65,
-            ])
-            ->assertOk();
         $manualTask->refresh();
         $this->assertSame('2026-09-01', $manualTask->job_start_at->format('Y-m-d'));
         $this->assertSame('2026-09-05', $manualTask->job_due_at->format('Y-m-d'));
-        $this->assertSame(65, $manualTask->job_progress);
-
-        $derivedTask = $this->task($project, $admin, $member, 'Derived progress');
-        $derivedTask->subtasks()->create(['created_by' => $admin->id, 'title' => 'Done', 'is_completed' => true, 'sort_order' => 1]);
-        $derivedTask->subtasks()->create(['created_by' => $admin->id, 'title' => 'Pending', 'is_completed' => false, 'sort_order' => 2]);
-        $this->actingAs($admin)
-            ->postJson(route('tasks.progress.store', $derivedTask), ['note' => 'Must derive', 'progress' => 80])
-            ->assertOk();
-        $this->assertSame(50, $derivedTask->fresh()->job_progress);
 
         $this->actingAs($admin)
             ->patchJson(route('tasks.schedule.update', $manualTask), [
@@ -293,32 +279,6 @@ class AdminWorkBoardTest extends TestCase
                 'job_due_at' => '2026-09-09',
             ])
             ->assertUnprocessable();
-    }
-
-    public function test_admin_can_add_edit_and_complete_subtasks_from_member_workspace(): void
-    {
-        $department = Department::create(['department_name' => 'QA']);
-        $admin = $this->user('admin', $department, 'Admin');
-        $member = $this->user('user', $department, 'Member');
-        $project = WorkOrderList::create(['user_id' => $admin->id, 'name' => 'QA Project', 'priority' => 2]);
-        $task = $this->task($project, $admin, $member, 'QA task');
-
-        $response = $this->actingAs($admin)
-            ->postJson(route('mytasks.subtasks.store', $task), ['title' => 'Check result', 'details' => 'Use staging'])
-            ->assertCreated();
-        $subtask = $task->subtasks()->findOrFail($response->json('subtask_id'));
-        $this->assertSame('Use staging', $subtask->details);
-
-        $this->actingAs($admin)
-            ->patchJson(route('mytasks.subtasks.update', $subtask), ['title' => 'Check final result', 'details' => 'Use production-like data'])
-            ->assertOk();
-        $this->actingAs($admin)
-            ->patchJson(route('mytasks.subtasks.toggle', $subtask), ['completed' => true])
-            ->assertOk();
-        $subtask->refresh();
-        $this->assertSame('Check final result', $subtask->title);
-        $this->assertSame('Use production-like data', $subtask->details);
-        $this->assertTrue($subtask->is_completed);
     }
 
     public function test_admin_can_upload_and_delete_project_attachments_from_member_workspace(): void
@@ -396,14 +356,14 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee((string) $member->id, false);
 
         $html = $response->getContent();
-        $filterStart = strpos($html, 'class="admin-board-filter"');
-        $filterEnd = strpos($html, '</form>', $filterStart);
-        $trigger = strpos($html, 'data-open-admin-assignment', $filterStart);
+        $headerStart = strpos($html, 'class="admin-board-header"');
+        $headerEnd = strpos($html, '</header>', $headerStart);
+        $trigger = strpos($html, 'data-open-admin-assignment');
 
-        $this->assertNotFalse($filterStart);
-        $this->assertNotFalse($filterEnd);
+        $this->assertNotFalse($headerStart);
+        $this->assertNotFalse($headerEnd);
         $this->assertNotFalse($trigger);
-        $this->assertTrue($trigger < $filterEnd);
+        $this->assertTrue($headerStart < $trigger && $trigger < $headerEnd, 'ปุ่มสร้างโปรเจกต์ต้องอยู่ใน header');
     }
 
     public function test_admin_overview_job_rows_show_assignee_context_and_open_the_correct_admin_workspace(): void
@@ -484,7 +444,6 @@ class AdminWorkBoardTest extends TestCase
         $rangeTask = $this->task($project, $admin, $member, 'Aug range task');
         $rangeTask->update([
             'job_status' => 2,
-            'job_progress' => 41,
             'job_start_at' => '2026-08-16',
             'job_due_at' => '2026-08-20',
         ]);
@@ -513,7 +472,6 @@ class AdminWorkBoardTest extends TestCase
         $adminResponse
             ->assertSee('16–20 ส.ค. 2569')
             ->assertSee('วันที่ 3/5 • เหลือ 2 วัน');
-        $this->assertSame(41, (int) $rangeTask->fresh()->job_progress);
 
         $completed = $this->task($project, $admin, $member, 'Completed early task');
         $completed->update([
@@ -589,10 +547,12 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee('admin-assign-button', false)
             ->assertSee('data-open-admin-assignment', false)
             ->assertSee('data-admin-assignment-modal', false)
-            ->assertSee('action="'.route('admin.tasks.store').'"', false)
-            // งานแรกใน Modal ต้องตั้งต้นที่สมาชิกคนนี้ และงานที่เพิ่มใหม่ใช้ค่าเดียวกัน
+            ->assertSee('action="'.route('mytasks.create').'"', false)
+            ->assertSee('action="'.route('tasks.store').'"', false)
+            // โปรเจกต์และงานใหม่ต้องตั้งต้นที่สมาชิกคนนี้
             ->assertSee('data-default-assignee-id="'.$member->id.'"', false)
-            ->assertSee('name="tasks[0][user_id]" data-task-assignee value="'.$member->id.'"', false)
+            ->assertSee('name="project_owner_id" value="'.$member->id.'"', false)
+            ->assertSee('name="user_id" data-task-assignee value="'.$member->id.'"', false)
             ->assertSee('name="assignment_origin" value="admin-member"', false)
             ->assertSee('name="origin_department_id" value="'.$department->id.'"', false)
             ->assertSee('name="origin_member_id" value="'.$member->id.'"', false)
@@ -634,7 +594,6 @@ class AdminWorkBoardTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $creator->role === 'admin' ? $creator->id : null,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -663,7 +622,6 @@ class AdminWorkBoardTest extends TestCase
                 'job_priority' => 2,
                 'job_status' => 2,
                 'approval_status' => 'approved',
-                'job_progress' => 0,
                 'job_start_at' => now(),
                 'job_due_at' => now()->addDay(),
             ]);
@@ -703,7 +661,6 @@ class AdminWorkBoardTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

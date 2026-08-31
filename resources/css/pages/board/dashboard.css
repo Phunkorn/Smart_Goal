@@ -1,4 +1,4 @@
-/* Department summaries, team lists, progress, and empty states. */
+/* Department summaries, team lists, and empty states. */
     .dept-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -19,20 +19,6 @@
         font-weight: 800;
         color: var(--board-text);
         margin-bottom: 10px;
-    }
-
-    .progress-track {
-        height: 8px;
-        border-radius: 999px;
-        background: var(--board-gray-soft);
-        overflow: hidden;
-        margin-bottom: 10px;
-    }
-
-    .progress-fill {
-        height: 100%;
-        border-radius: 999px;
-        background: var(--board-green);
     }
 
     .mini-stats {
@@ -100,4 +86,3 @@
         padding: 28px 16px;
         font-weight: 700;
     }
-

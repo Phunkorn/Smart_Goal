@@ -20,7 +20,6 @@ class TaskCommentService
         return DB::transaction(function () use ($task, $author, $message) {
             $comment = $task->updates()->create([
                 'user_id' => $author->id,
-                'progress' => (int) $task->job_progress,
                 'note' => $message,
                 'is_comment' => true,
             ]);

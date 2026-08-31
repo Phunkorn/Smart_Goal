@@ -83,7 +83,6 @@ class MyTasksTaskScopeTest extends TestCase
         $active = $this->task($assignee, $actor, $list, 'Active delegated');
         $completed = $this->task($assignee, $actor, $list, 'Completed delegated', [
             'job_status' => 4,
-            'job_progress' => 100,
             'job_completed_at' => now(),
         ]);
         $calendarOnlyList = $this->list($actor);
@@ -186,7 +185,6 @@ class MyTasksTaskScopeTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 25,
             'job_start_at' => now()->subDay(),
             'job_due_at' => now()->addDay(),
         ], $overrides));

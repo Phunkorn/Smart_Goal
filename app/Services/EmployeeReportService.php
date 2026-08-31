@@ -216,7 +216,6 @@ final class EmployeeReportService
             'start_at' => $job->job_start_at?->copy()->timezone(ReportMetrics::BUSINESS_TIMEZONE),
             'due_at' => $job->job_due_at?->copy()->timezone(ReportMetrics::BUSINESS_TIMEZONE),
             'completed_at' => $job->job_completed_at?->copy()->timezone(ReportMetrics::BUSINESS_TIMEZONE),
-            'progress' => (int) $job->job_progress,
             'is_overdue' => ReportMetrics::isOverdue($job, $now),
             'url' => route('tasks.show', $job->job_id),
         ];

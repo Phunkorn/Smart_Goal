@@ -108,7 +108,6 @@ class TaskCalendarTimezoneTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $user->id,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => Carbon::parse($startUtc, 'UTC'),
             'job_due_at' => Carbon::parse($dueUtc, 'UTC'),
         ]);

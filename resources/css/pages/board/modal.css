@@ -1,230 +1,148 @@
-/* Assignment modal (create project + assign tasks), assignee picker, and priority picker.
-   Shared by the Admin Board Overview and the Admin Member Workspace. */
-    #boardCreateTaskModal .modal-dialog {
-        width: min(820px, calc(100vw - 24px));
-        max-width: min(820px, calc(100vw - 24px));
-        margin: 12px auto;
-    }
+/* Shared Admin project/task assignment flow. */
+.admin-assignment-launch {
+    display: inline-grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 50px;
+    padding: 7px 12px 7px 8px;
+    border: 1px solid #bdd2f5;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #fff, #f3f7ff);
+    color: #1d4f9d;
+    text-align: left;
+    box-shadow: 0 5px 14px rgba(37, 99, 235, .08);
+    cursor: pointer;
+}
+.admin-assignment-launch > span:first-child { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: #2563eb; color: #fff; font-size: 17px; }
+.admin-assignment-launch > span:nth-child(2) { display: grid; min-width: 0; line-height: 1.2; }
+.admin-assignment-launch strong { color: #163f7a; font-size: 13px; font-weight: 750; }
+.admin-assignment-launch small { margin-top: 2px; color: #6780a8; font-size: 10px; }
+.admin-assignment-launch > i { font-size: 12px; }
+.admin-assignment-launch:hover { border-color: #8fb2ec; background: #f7faff; transform: translateY(-1px); }
+.admin-assignment-launch:focus-visible { outline: 3px solid rgba(37, 99, 235, .25); outline-offset: 2px; }
 
-    #boardCreateTaskModal .modal-content {
-        max-height: calc(100dvh - 24px);
-        border-radius: 16px;
-        overflow: hidden;
-    }
+#boardCreateTaskModal .modal-dialog { width: min(780px, calc(100vw - 24px)); max-width: min(780px, calc(100vw - 24px)); margin: 12px auto; }
+#boardCreateTaskModal .modal-content { max-height: calc(100dvh - 24px); overflow: hidden; border: 1px solid #d9e3ef; border-radius: 18px; box-shadow: 0 28px 80px rgba(15, 23, 42, .24); }
+#boardCreateTaskModal form { display: flex; flex-direction: column; min-height: 0; max-height: calc(100dvh - 132px); }
+#boardCreateTaskModal form[hidden] { display: none; }
+#boardCreateTaskModal .modal-header, #boardCreateTaskModal .modal-footer { flex: 0 0 auto; }
+#boardCreateTaskModal .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
-    #boardCreateTaskModal form {
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        max-height: calc(100dvh - 24px);
-    }
+.board-modal-head { align-items: flex-start; padding: 16px 18px; border-bottom: 1px solid #e2e8f0; background: #fff; }
+.admin-assignment-heading { display: flex; align-items: flex-start; gap: 11px; min-width: 0; }
+.admin-assignment-heading__icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 10px; background: #eaf2ff; color: #2563eb; font-size: 18px; }
+.admin-assignment-heading > div { display: grid; min-width: 0; }
+.admin-assignment-heading__eyebrow { color: #7b8da8; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.admin-assignment-heading h2 { margin: 1px 0 0; color: #14213a; font-size: 18px; font-weight: 780; }
+.admin-assignment-heading p { margin: 3px 0 0; color: #687991; font-size: 11px; }
 
-    #boardCreateTaskModal .modal-header,
-    #boardCreateTaskModal .modal-footer {
-        flex: 0 0 auto;
-        padding: 13px 18px;
-    }
+.admin-assignment-progress { display: grid; grid-template-columns: auto minmax(28px, 90px) auto; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 8px 18px; border-bottom: 1px solid #e5ebf3; background: #f8fafc; }
+.admin-assignment-progress > span { display: inline-flex; align-items: center; gap: 7px; color: #8390a3; font-size: 11px; font-weight: 700; }
+.admin-assignment-progress b { display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid #cbd5e1; border-radius: 50%; background: #fff; color: #64748b; font-size: 10px; }
+.admin-assignment-progress > span.is-active { color: #1d4ed8; }
+.admin-assignment-progress > span.is-active b { border-color: #2563eb; background: #2563eb; color: #fff; }
+.admin-assignment-progress > i { height: 1px; background: #d6deea; }
+.admin-assignment-error { margin: 12px 18px 0; padding: 9px 12px; font-size: 12px; }
+.admin-assignment-error[hidden] { display: none; }
 
-    #boardCreateTaskModal .modal-body {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow-y: auto;
-        padding: 16px 18px;
-    }
+.admin-assignment-panel { display: grid; gap: 14px; padding: 16px 18px 20px; background: #f8fafc; }
+.admin-assignment-intro { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid #dbe5f2; border-radius: 11px; background: #fff; }
+.admin-assignment-intro > i { color: #2563eb; font-size: 20px; }
+.admin-assignment-intro > div { display: grid; }
+.admin-assignment-intro strong { color: #1e293b; font-size: 13px; }
+.admin-assignment-intro span { color: #718096; font-size: 10px; }
 
-    .board-modal-head {
-        background: #f8fafc;
-        border-bottom: 1px solid var(--board-line);
-    }
+.admin-project-fields { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 14px; padding: 16px; border: 1px solid #dbe4ef; border-radius: 13px; background: #fff; }
+.admin-project-fields label { display: grid; gap: 6px; }
+.admin-project-fields label > span, .admin-project-choice > label, #boardCreateTaskModal .form-label, .admin-task-options label > span, .admin-optional-heading > span { color: #334155; font-size: 12px; font-weight: 700; }
+.admin-project-fields label > span b, .admin-project-choice > label span, #boardCreateTaskModal .form-label > span { color: #dc2626; }
+.admin-project-fields .project-create-files { grid-column: 1 / -1; }
+.admin-project-fields em, .admin-project-fields small, .admin-task-options label small { color: #8794a7; font-size: 9px; font-style: normal; font-weight: 500; }
+.project-input-shell { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 42px; padding: 0 11px; border: 1px solid #cfd9e6; border-radius: 9px; background: #fff; color: #8290a4; }
+.project-input-shell:focus-within { border-color: #7aa4e9; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1); }
+.project-input-shell input, .project-input-shell select { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #1e293b; font-size: 13px; }
+.project-file-drop { position: relative; display: flex; align-items: center; gap: 11px; min-height: 68px; padding: 12px 14px; border: 1px dashed #9eb9df; border-radius: 10px; background: #f8fbff; color: #2563eb; cursor: pointer; }
+.project-file-drop > i { font-size: 25px; }
+.project-file-drop > div { display: grid; }
+.project-file-drop strong { color: #315c9b; font-size: 12px; }
+.project-file-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-    .board-modal-foot {
-        background: #f8fafc;
-        border-top: 1px solid var(--board-line);
-    }
+.admin-project-choice { display: grid; gap: 6px; padding: 13px 15px; border: 1px solid #cfe0f5; border-radius: 12px; background: #f4f8ff; }
+.admin-project-choice > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
+.admin-project-choice button { min-height: 40px; padding: 0 12px; border: 1px solid #a9c4ec; border-radius: 9px; background: #fff; color: #245cae; font-size: 11px; font-weight: 700; }
+.admin-project-choice small { color: #718096; font-size: 10px; }
+.board-project-task { padding: 16px; border: 1px solid #dbe4ef; border-radius: 13px; background: #fff; }
+.admin-task-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px solid #edf1f6; }
+.admin-task-heading > div { display: grid; }
+.admin-task-heading strong { color: #1e293b; font-size: 14px; }
+.admin-task-heading span { color: #7b899d; font-size: 10px; }
+.admin-task-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.admin-task-status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+#boardCreateTaskModal .form-control, #boardCreateTaskModal .form-select { border-color: #cfd9e6; border-radius: 9px; font-size: 12px; }
+#boardCreateTaskModal .form-control:focus, #boardCreateTaskModal .form-select:focus { border-color: #7aa4e9; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1); }
+#boardCreateTaskModal .form-control-lg { min-height: 43px; font-size: 13px; }
+#boardCreateTaskModal textarea.form-control { min-height: 88px; resize: vertical; }
 
-    .board-project-fields,
-    .board-project-task {
-        padding: 16px;
-        border: 1px solid var(--board-line);
-        border-radius: 12px;
-        background: #fff;
-    }
+.assignee-picker { position: relative; }
+.assignee-picker-toggle { text-align: left; cursor: pointer; }
+.assignee-picker-menu { max-height: 290px; overflow-y: auto; border: 1px solid #d8e1ec; box-shadow: 0 14px 28px rgba(15, 23, 42, .14); }
+.assignee-picker-list { max-height: 220px; overflow-y: auto; }
+.assignee-option { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; padding: 7px; border: 0; border-radius: 8px; background: none; color: #334155; text-align: left; cursor: pointer; }
+.assignee-option:hover { background: #f1f5f9; }
+.assignee-option.active { background: #eaf2ff; color: #1d4ed8; }
+.assignee-option-dept { padding: 2px 7px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 9px; white-space: nowrap; }
+.avatar-mini { display: grid; place-items: center; width: 30px; height: 30px; overflow: hidden; border-radius: 9px; background: #2563eb; color: #fff; font-size: 10px; font-weight: 800; }
+.avatar-mini img { width: 100%; height: 100%; object-fit: cover; }
 
-    .board-project-fields {
-        background: #f8fafc;
-    }
+.admin-task-options { border: 1px solid #dbe4ef; border-radius: 10px; background: #fbfcfe; }
+.admin-task-options summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 0 12px; color: #3b4b63; list-style: none; cursor: pointer; }
+.admin-task-options summary::-webkit-details-marker { display: none; }
+.admin-task-options summary > span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; }
+.admin-task-options summary small { color: #8491a4; font-size: 9px; }
+.admin-task-options__body { display: grid; gap: 14px; padding: 14px; border-top: 1px solid #e5eaf1; }
+.admin-task-options__body > label { display: grid; gap: 6px; }
+.admin-optional-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.admin-optional-heading small { color: #8794a7; font-size: 9px; }
+.board-collaborator-list { max-height: 190px; overflow: auto; }
+.board-collaborator-choice { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border: 1px solid #e0e7ef; border-radius: 9px; cursor: pointer; }
+.board-collaborator-choice > span:last-child { display: grid; min-width: 0; }
+.board-collaborator-choice strong { color: #334155; font-size: 11px; }
+.board-collaborator-choice small { color: #8290a4; font-size: 9px; }
+.board-collaborator-hint { width: 100%; padding: 12px; color: #8390a3; font-size: 10px; text-align: center; }
 
-    .board-project-subtask .form-control {
-        min-height: 38px;
-    }
+.board-modal-foot { gap: 8px; padding: 12px 18px; border-top: 1px solid #e2e8f0; background: #fff; }
+.admin-assignment-footer-spacer { flex: 1 1 auto; }
+.admin-assignment-primary, .admin-assignment-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 14px; border-radius: 9px; font-size: 11px; font-weight: 750; cursor: pointer; }
+.admin-assignment-primary { border: 1px solid #2563eb; background: #2563eb; color: #fff; box-shadow: 0 5px 12px rgba(37, 99, 235, .2); }
+.admin-assignment-primary:hover { background: #1d4ed8; }
+.admin-assignment-secondary { border: 1px solid #cbd5e1; background: #fff; color: #536174; }
+.admin-assignment-secondary:hover { background: #f8fafc; color: #1e293b; }
+.admin-assignment-primary:focus-visible, .admin-assignment-secondary:focus-visible { outline: 3px solid rgba(37, 99, 235, .22); outline-offset: 2px; }
+.admin-assignment-primary.is-loading, .admin-assignment-secondary.is-loading { opacity: .7; cursor: wait; }
 
-    .board-collaborator-list {
-        max-height: 190px;
-        overflow: auto;
-    }
+@media (max-width: 720px) {
+    #boardCreateTaskModal .modal-dialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); margin: 8px auto; }
+    #boardCreateTaskModal .modal-content { max-height: calc(100dvh - 16px); border-radius: 14px; }
+    #boardCreateTaskModal form { max-height: calc(100dvh - 124px); }
+    .admin-assignment-heading p { display: none; }
+    .admin-assignment-progress { min-height: 42px; }
+    .admin-assignment-panel { padding: 12px; }
+    .admin-project-fields { grid-template-columns: 1fr; padding: 13px; }
+    .admin-project-fields .project-create-files { grid-column: auto; }
+    .admin-project-choice > div { grid-template-columns: 1fr; }
+    .admin-task-heading { align-items: flex-start; }
+    .admin-task-options summary small { display: none; }
+    #boardCreateTaskModal .modal-footer { display: grid; grid-template-columns: 1fr 1fr; padding: 10px 12px; }
+    #boardCreateTaskModal .modal-footer .admin-assignment-footer-spacer { display: none; }
+    #boardCreateTaskModal .modal-footer > button { width: 100%; }
+    #boardCreateTaskModal [data-task-submit="done"] { grid-column: 1 / -1; }
+}
 
-    .board-collaborator-choice {
-        cursor: pointer;
-    }
-
-    #boardCreateTaskModal textarea.form-control {
-        min-height: 88px;
-        resize: vertical;
-    }
-
-    #boardCreateTaskModal .form-control-lg {
-        min-height: 44px;
-        font-size: 15px;
-    }
-
-    .board-collaborator-hint {
-        width: 100%;
-    }
-
-    .avatar-mini {
-        width: 30px;
-        height: 30px;
-        border-radius: 10px;
-        display: grid;
-        place-items: center;
-        color: #fff;
-        background: var(--board-primary);
-        font-weight: 800;
-        font-size: 11px;
-        flex: 0 0 auto;
-        overflow: hidden;
-    }
-
-    .avatar-mini img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
-    .assignee-picker {
-        position: relative;
-    }
-
-    .assignee-picker-toggle {
-        text-align: left;
-        cursor: pointer;
-    }
-
-    .assignee-picker-menu {
-        max-height: 280px;
-        overflow-y: auto;
-        border: 1px solid var(--board-line, #e2e8f0);
-        box-shadow: 0 12px 24px rgba(15, 23, 42, .12);
-    }
-
-    .assignee-picker-list {
-        max-height: 220px;
-        overflow-y: auto;
-    }
-
-    .assignee-option {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 8px;
-        border: 0;
-        background: none;
-        text-align: left;
-        border-radius: 8px;
-        cursor: pointer;
-    }
-
-    .assignee-option:hover {
-        background: #f1f5f9;
-    }
-
-    .assignee-option.active {
-        background: #e0e7ff;
-    }
-
-    .assignee-option-dept {
-        display: inline-block;
-        font-size: 11px;
-        padding: 1px 8px;
-        border-radius: 999px;
-        background: #eef2ff;
-        color: #4338ca;
-        margin-left: auto;
-        white-space: nowrap;
-    }
-
-    .priority-picker {
-        position: relative;
-    }
-
-    .priority-picker-toggle {
-        text-align: left;
-        cursor: pointer;
-    }
-
-    .priority-picker-menu {
-        border: 1px solid var(--board-line, #e2e8f0);
-        box-shadow: 0 12px 24px rgba(15, 23, 42, .12);
-    }
-
-    .priority-option {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 9px 10px;
-        border: 0;
-        background: none;
-        text-align: left;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 600;
-    }
-
-    .priority-option:hover {
-        background: #f8fafc;
-    }
-
-    .priority-option.active {
-        background: var(--board-gray-soft);
-    }
-
-    .priority-dot {
-        width: 10px;
-        height: 10px;
-        min-width: 10px;
-        border-radius: 50%;
-        display: inline-block;
-    }
-
-    .tone-dot-red { background: var(--board-red); }
-    .tone-dot-amber { background: var(--board-amber); }
-    .tone-dot-gray { background: #94a3b8; }
-
-    @media (max-width: 720px) {
-        #boardCreateTaskModal .modal-dialog {
-            width: calc(100vw - 16px);
-            max-width: calc(100vw - 16px);
-            margin: 8px auto;
-        }
-
-        #boardCreateTaskModal .modal-content,
-        #boardCreateTaskModal form {
-            max-height: calc(100dvh - 16px);
-        }
-
-        #boardCreateTaskModal .modal-body {
-            padding: 16px;
-        }
-
-        #boardCreateTaskModal .modal-footer {
-            display: grid;
-            grid-template-columns: 1fr;
-        }
-
-        #boardCreateTaskModal .modal-footer .btn {
-            width: 100%;
-        }
-    }
+@media (max-width: 430px) {
+    .admin-assignment-heading__icon { display: none; }
+    .admin-assignment-progress { grid-template-columns: auto 24px auto; gap: 6px; padding-inline: 10px; }
+    .board-project-task { padding: 13px; }
+    #boardCreateTaskModal .modal-footer { grid-template-columns: 1fr; }
+    #boardCreateTaskModal [data-task-submit="done"] { grid-column: auto; }
+}

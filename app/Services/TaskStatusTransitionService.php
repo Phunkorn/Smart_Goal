@@ -41,9 +41,9 @@ class TaskStatusTransitionService
             throw new AuthorizationException;
         }
 
-        $task->loadMissing(['collaborators', 'subtasks']);
+        $task->loadMissing('collaborators');
         TodayWorkspace::normalizeLateForTransition($task);
-        $task->refresh()->loadMissing(['collaborators', 'subtasks']);
+        $task->refresh()->loadMissing('collaborators');
         $from = (int) $task->job_status;
 
         if ($from === $targetStatus) {
@@ -52,10 +52,6 @@ class TaskStatusTransitionService
 
         $action = $this->resolveAction($task, $actor, $from, $targetStatus, $options);
         $this->authorizeAction($task, $actor, $action);
-
-        if (in_array($action, ['review_approved', 'self_closed'], true) && $task->subtasks->contains(fn ($subtask) => ! $subtask->is_completed)) {
-            $this->reject('กรุณาติ๊กงานย่อยให้ครบทุกข้อก่อนปิดโปรเจกต์');
-        }
 
         $reason = trim((string) ($options['reason'] ?? ''));
         if ($action === 'review_returned' && $reason === '') {
@@ -75,7 +71,6 @@ class TaskStatusTransitionService
                 ];
             } elseif (in_array($action, ['review_approved', 'self_closed'], true)) {
                 $updates += [
-                    'job_progress' => 100,
                     'job_completed_at' => now(),
                     'final_approved_by' => $actor->id,
                     'final_approved_at' => now(),
@@ -93,7 +88,6 @@ class TaskStatusTransitionService
                 ];
             } elseif ($action === 'task_reopened') {
                 $updates += [
-                    'job_progress' => min((int) $task->job_progress, 99),
                     'job_completed_at' => null,
                     'submitted_for_review_by' => null,
                     'submitted_for_review_at' => null,

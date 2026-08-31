@@ -95,7 +95,8 @@ class AdminApprovalPageTest extends TestCase
         $this->actingAs($admin)->get(route('board.index'))
             ->assertOk()
             ->assertSee('บอร์ดทุกแผนก')
-            ->assertSee('สร้างโปรเจกต์และมอบหมายงาน')
+            ->assertSee('สร้างโปรเจกต์')
+            ->assertSee('แล้วเพิ่มรายการงาน')
             ->assertSee('สรุปภาพรวมองค์กร')
             ->assertDontSee('assignment-approval-queue')
             ->assertDontSee('collaborator-approval-queue')
@@ -207,7 +208,6 @@ class AdminApprovalPageTest extends TestCase
             'job_priority' => 2,
             'job_status' => 1,
             'approval_status' => $approvalStatus,
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

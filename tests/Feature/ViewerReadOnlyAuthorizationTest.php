@@ -69,7 +69,6 @@ class ViewerReadOnlyAuthorizationTest extends TestCase
         ])->assertForbidden();
         $this->actingAs($viewer)->postJson(route('mytasks.updatePriority', $task), ['job_priority' => 3])->assertForbidden();
         $this->actingAs($viewer)->postJson(route('mytasks.updateDueDate', $task), ['job_due_at' => now()->addDays(3)->toDateString()])->assertForbidden();
-        $this->actingAs($viewer)->postJson(route('tasks.progress.store', $task), ['note' => 'Changed'])->assertForbidden();
 
         $this->assertSame('Viewer permission task', $task->fresh()->job_topic);
         $this->assertSame(2, (int) $task->fresh()->job_priority);
@@ -88,7 +87,6 @@ class ViewerReadOnlyAuthorizationTest extends TestCase
             'submitted_for_review_at' => now(),
         ]);
         $completed = $this->task($assignee, $viewer, 4, [
-            'job_progress' => 100,
             'job_completed_at' => now(),
             'final_approved_at' => now(),
         ]);
@@ -188,7 +186,6 @@ class ViewerReadOnlyAuthorizationTest extends TestCase
             'job_priority' => 2,
             'job_status' => $status,
             'approval_status' => 'approved',
-            'job_progress' => $status === 4 ? 100 : 50,
             'job_start_at' => now()->subDay(),
             'job_due_at' => now()->addDay(),
         ], $extra));

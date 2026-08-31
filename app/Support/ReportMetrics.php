@@ -12,7 +12,7 @@ final class ReportMetrics
 
     public static function isCompleted(WorkOrder $job): bool
     {
-        return (int) $job->job_status === 4 && $job->job_completed_at !== null;
+        return (int) $job->job_status === 4;
     }
 
     public static function isIncomplete(WorkOrder $job): bool
@@ -39,7 +39,7 @@ final class ReportMetrics
 
     public static function isOnTime(WorkOrder $job): bool
     {
-        if (! self::isCompleted($job) || ! $job->job_due_at) {
+        if (! self::isCompleted($job) || ! $job->job_due_at || ! $job->job_completed_at) {
             return false;
         }
 

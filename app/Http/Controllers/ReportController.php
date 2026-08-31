@@ -124,7 +124,7 @@ class ReportController extends Controller
         return response()->streamDownload(function () use ($jobs): void {
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($handle, ['เลขงาน', 'ชื่องาน', 'ผู้รับผิดชอบ', 'แผนก', 'สถานะอนุมัติ', 'สถานะงาน', 'ความคืบหน้า', 'วันที่เริ่ม', 'กำหนดส่ง', 'วันที่เสร็จ']);
+            fputcsv($handle, ['เลขงาน', 'ชื่องาน', 'ผู้รับผิดชอบ', 'แผนก', 'สถานะอนุมัติ', 'สถานะงาน', 'วันที่เริ่ม', 'กำหนดส่ง', 'วันที่เสร็จ']);
 
             $writeRows = function ($chunk) use ($handle): void {
                 foreach ($chunk as $job) {
@@ -135,7 +135,6 @@ class ReportController extends Controller
                         optional($job->department)->department_name,
                         $this->approvalLabel($job->approval_status),
                         $this->statusLabel((int) $job->job_status),
-                        $job->job_progress.'%',
                         optional($job->job_start_at)->format('Y-m-d H:i'),
                         optional($job->job_due_at)->format('Y-m-d H:i'),
                         optional($job->job_completed_at)->format('Y-m-d H:i'),

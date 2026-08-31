@@ -101,7 +101,6 @@ class AssignmentApprovalFlowTest extends TestCase
             'job_due_at' => now()->addDay()->format('Y-m-d'),
         ])->assertForbidden();
         $this->actingAs($assignee)->patchJson(route('tasks.updateStatus', $job), ['job_status' => 2])->assertForbidden();
-        $this->actingAs($assignee)->postJson(route('tasks.progress.store', $job), ['note' => 'Bypass'])->assertForbidden();
         $this->actingAs($assignee)->postJson(route('tasks.attachments.store', $job), [])->assertForbidden();
         $this->actingAs($assignee)->postJson(route('tasks.collaborators.store', $job), [
             'collaborators' => [$candidate->id],
@@ -111,12 +110,10 @@ class AssignmentApprovalFlowTest extends TestCase
 
         $this->actingAs($assignee)->postJson(route('mytasks.updatePriority', $job), ['job_priority' => 3])->assertNotFound();
         $this->actingAs($assignee)->postJson(route('mytasks.updateDueDate', $job), ['job_due_at' => now()->addDays(2)->format('Y-m-d')])->assertNotFound();
-        $this->actingAs($assignee)->postJson(route('mytasks.subtasks.store', $job), ['title' => 'Bypass'])->assertNotFound();
         $this->actingAs($assignee)->deleteJson(route('mytasks.destroy', $job))->assertForbidden();
 
         $this->assertSame(0, app(PersonalReportService::class)->queryFor($assignee->id)->whereKey($job->job_id)->count());
         $this->assertSame('Private pending assignment', $job->fresh()->job_topic);
-        $this->assertSame(0, (int) $job->fresh()->job_progress);
     }
 
     public function test_admin_queue_and_approval_are_authorized_idempotent_and_notify_once(): void

@@ -205,7 +205,6 @@ class TaskAttachmentFileTypeTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $member->id,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

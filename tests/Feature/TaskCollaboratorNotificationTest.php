@@ -328,7 +328,6 @@ class TaskCollaboratorNotificationTest extends TestCase
             'job_priority' => 2,
             'job_status' => 1,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

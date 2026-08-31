@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderListAttachment;
-use App\Models\WorkOrderSubtask;
 use App\Services\CollaboratorInvitationService;
 use App\Services\MeetingQueryService;
 use App\Services\NotificationService;
@@ -95,7 +94,6 @@ class MyTaskController extends Controller
         $workOrders = WorkOrder::query()->visibleInProjectsFor($user)
             ->with([
                 'taskList',
-                'subtasks',
                 'user.department',
                 'creator',
                 'leader.department',
@@ -330,18 +328,17 @@ class MyTaskController extends Controller
             'approval_status' => 'approved',
             'approved_by' => $user->id,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
 
-        AuditTrail::log('created', $workOrder, 'สร้างงานย่อย: '.$workOrder->job_topic, [
+        AuditTrail::log('created', $workOrder, 'สร้างรายการงาน: '.$workOrder->job_topic, [
             'after' => $workOrder->attributesToArray(),
         ]);
 
         return response()->json([
             'ok' => true,
-            'message' => 'เพิ่มงานย่อยแล้ว',
+            'message' => 'เพิ่มรายการงานแล้ว',
             'job_id' => $workOrder->job_id,
         ], 201);
     }
@@ -365,6 +362,13 @@ class MyTaskController extends Controller
 
         $this->assertAllowedAttachments($request, 'attachments');
 
+        $projectOwner = $actor;
+        if (isset($validated['project_owner_id'])) {
+            abort_unless($actor->role === 'admin', 403);
+            $projectOwner = WorkOrderAssignee::findWithDepartment((int) $validated['project_owner_id']);
+            abort_unless($projectOwner, 422, 'เจ้าของโปรเจกต์ไม่ถูกต้อง');
+        }
+
         $projectItems = $this->normalizeProjectItems($validated);
 
         if ($projectItems->isEmpty()) {
@@ -373,13 +377,13 @@ class MyTaskController extends Controller
 
             $this->authorize('create', WorkOrderList::class);
 
-            $list = DB::transaction(function () use ($validated, $actor, $request, $projectName) {
+            $list = DB::transaction(function () use ($validated, $actor, $projectOwner, $request, $projectName) {
                 $list = WorkOrderList::create([
-                    'user_id' => $actor->id,
+                    'user_id' => $projectOwner->id,
                     'name' => $projectName,
                     'priority' => $validated['project_priority'] ?? 2,
                     'is_visible' => true,
-                    'sort_order' => (int) WorkOrderList::where('user_id', $actor->id)->max('sort_order') + 1,
+                    'sort_order' => (int) WorkOrderList::where('user_id', $projectOwner->id)->max('sort_order') + 1,
                 ]);
 
                 if ($request->hasFile('attachments')) {
@@ -451,19 +455,9 @@ class MyTaskController extends Controller
                     'approval_status' => $approval['approval_status'],
                     'approved_by' => $approval['approved_by'],
                     'approved_at' => $approval['approved_at'],
-                    'job_progress' => 0,
                     'job_start_at' => Carbon::parse($validated['job_start_at']),
                     'job_due_at' => Carbon::parse($validated['job_due_at']),
                 ]);
-
-                foreach ($item['subtasks'] as $subtaskIndex => $subtask) {
-                    $job->subtasks()->create([
-                        'created_by' => $actor->id,
-                        'title' => $subtask['title'],
-                        'details' => $subtask['details'] ?: null,
-                        'sort_order' => $subtaskIndex + 1,
-                    ]);
-                }
 
                 AuditTrail::log('project_leader_assigned', $job, 'กำหนดหัวหน้าโปรเจกต์สำหรับงาน: '.$job->job_topic, [
                     'leader_user_id' => $leaderId,
@@ -561,16 +555,12 @@ class MyTaskController extends Controller
     {
         return [
             'project_name' => ['nullable', 'string', 'max:80'],
+            'project_owner_id' => ['nullable', 'integer', 'exists:users,id,role,user'],
             'job_topic' => ['nullable', 'string', 'max:255'],
             'job_details' => ['nullable', 'string', 'max:2000'],
-            'initial_subtask_title' => ['nullable', 'string', 'max:255'],
-            'initial_subtask_details' => ['nullable', 'string', 'max:2000'],
             'project_items' => ['nullable', 'array', 'max:20'],
             'project_items.*.job_topic' => ['nullable', 'string', 'max:255'],
             'project_items.*.job_details' => ['nullable', 'string', 'max:2000'],
-            'project_items.*.subtasks' => ['nullable', 'array', 'max:50'],
-            'project_items.*.subtasks.*.title' => ['nullable', 'string', 'max:255'],
-            'project_items.*.subtasks.*.details' => ['nullable', 'string', 'max:2000'],
             'user_id' => WorkOrderAssignee::validationRules(false),
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id'],
@@ -587,19 +577,9 @@ class MyTaskController extends Controller
     {
         $projectItems = collect($validated['project_items'] ?? [])
             ->map(function ($item) {
-                $subtasks = collect($item['subtasks'] ?? [])
-                    ->map(fn ($subtask) => [
-                        'title' => trim((string) ($subtask['title'] ?? '')),
-                        'details' => trim((string) ($subtask['details'] ?? '')),
-                    ])
-                    ->filter(fn ($subtask) => $subtask['title'] !== '')
-                    ->values()
-                    ->all();
-
                 return [
                     'job_topic' => trim((string) ($item['job_topic'] ?? '')),
                     'job_details' => trim((string) ($item['job_details'] ?? '')),
-                    'subtasks' => $subtasks,
                 ];
             })
             ->filter(fn ($item) => $item['job_topic'] !== '')
@@ -609,19 +589,9 @@ class MyTaskController extends Controller
             return $projectItems;
         }
 
-        $legacySubtasks = [];
-
-        if (filled($validated['initial_subtask_title'] ?? null)) {
-            $legacySubtasks[] = [
-                'title' => trim((string) $validated['initial_subtask_title']),
-                'details' => trim((string) ($validated['initial_subtask_details'] ?? '')),
-            ];
-        }
-
         return collect([[
             'job_topic' => trim((string) $validated['job_topic']),
             'job_details' => trim((string) ($validated['job_details'] ?? '')),
-            'subtasks' => $legacySubtasks,
         ]]);
     }
 
@@ -831,79 +801,6 @@ class MyTaskController extends Controller
         return response()->json([
             'ok' => true,
             'message' => $validated['completed'] ? 'ทำเครื่องหมายว่าเสร็จแล้ว' : 'ย้ายกลับไปงานที่ต้องทำแล้ว',
-            'completed' => (bool) $validated['completed'],
-        ]);
-    }
-
-    public function storeSubtask(Request $request, int $job_id): JsonResponse
-    {
-        $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize('work', $workOrder);
-        abort_if($this->isCompletedLocked($workOrder), 403);
-
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'details' => 'nullable|string|max:2000',
-        ]);
-
-        $subtask = $workOrder->subtasks()->create([
-            'created_by' => Auth::id(),
-            'title' => $validated['title'],
-            'details' => filled($validated['details'] ?? null) ? trim($validated['details']) : null,
-            'sort_order' => (int) $workOrder->subtasks()->max('sort_order') + 1,
-        ]);
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'เพิ่มงานย่อยแล้ว',
-            'subtask_id' => $subtask->id,
-        ], 201);
-    }
-
-    public function updateSubtask(Request $request, WorkOrderSubtask $subtask): JsonResponse
-    {
-        $subtask->load('workOrder.collaborators');
-        $this->authorize('work', $subtask->workOrder);
-        abort_if($this->isCompletedLocked($subtask->workOrder), 403);
-
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'details' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        $before = $subtask->attributesToArray();
-        $subtask->update([
-            'title' => trim($validated['title']),
-            'details' => filled($validated['details'] ?? null) ? trim($validated['details']) : null,
-        ]);
-
-        AuditTrail::log('updated', $subtask->workOrder, 'แก้ไขงานย่อย: '.$subtask->title, [
-            'subtask_before' => $before,
-            'subtask_after' => $subtask->fresh()->attributesToArray(),
-        ]);
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'แก้ไขงานย่อยแล้ว',
-            'subtask_id' => $subtask->id,
-        ]);
-    }
-
-    public function toggleSubtask(Request $request, WorkOrderSubtask $subtask): JsonResponse
-    {
-        $subtask->load('workOrder.collaborators');
-        $this->authorize('work', $subtask->workOrder);
-        abort_if($this->isCompletedLocked($subtask->workOrder), 403);
-
-        $validated = $request->validate([
-            'completed' => 'required|boolean',
-        ]);
-
-        $subtask->update(['is_completed' => $validated['completed']]);
-
-        return response()->json([
-            'ok' => true,
-            'message' => $validated['completed'] ? 'ปิดงานย่อยแล้ว' : 'เปิดงานย่อยอีกครั้งแล้ว',
             'completed' => (bool) $validated['completed'],
         ]);
     }

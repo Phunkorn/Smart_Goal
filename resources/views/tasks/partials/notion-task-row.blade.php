@@ -9,7 +9,6 @@
     $acceptedCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status === 'accepted')->values();
     $pendingCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
     $attachmentCount = (int) ($task->images_count ?? $task->images->count());
-    $displayProgress = (int) $task->progress_from_subtasks;
     $thaiMonths = [1=>'ม.ค.',2=>'ก.พ.',3=>'มี.ค.',4=>'เม.ย.',5=>'พ.ค.',6=>'มิ.ย.',7=>'ก.ค.',8=>'ส.ค.',9=>'ก.ย.',10=>'ต.ค.',11=>'พ.ย.',12=>'ธ.ค.'];
     $dueLabel = $task->job_due_at
         ? $task->job_due_at->day.' '.$thaiMonths[$task->job_due_at->month].' '.str_pad((string)(($task->job_due_at->year + 543) % 100), 2, '0', STR_PAD_LEFT)
@@ -18,11 +17,9 @@
         ? $task->job_start_at->day.' '.$thaiMonths[$task->job_start_at->month]
         : '-';
     $taskAdminSenderName = $task->creator?->role === 'admin' ? $task->creator->name : null;
-    $subtaskCount = (int) ($task->subtasks_count ?? $task->subtasks->count());
     $canQuickAddToList = $showQuickAdd && $task->taskList && auth()->user()->can('manage', $task->taskList);
     $canWork = auth()->user()->can('work', $task);
     $canManageTeam = auth()->user()->can('manageTeam', $task);
-    $canEditProgressDirectly = $canWork && auth()->user()->role === 'admin' && $subtaskCount === 0 && (int) $task->job_status !== 4;
     $taskDeleteUrl = $workspaceContext === 'admin-member'
         ? route('admin.tasks.destroy', $task->job_id)
         : route('mytasks.destroy', $task->job_id);
@@ -32,7 +29,7 @@
     @if($task->taskList && auth()->user()->can('manage', $task->taskList))
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"
         data-list-delete-url="{{ route('mytasks.lists.destroy', $task->taskList) }}"
-    @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-progress="{{ $displayProgress }}" data-subtask-count="{{ $subtaskCount }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
+    @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
     <button type="button" class="row-title" data-open-task-modal><strong title="{{ $task->job_topic }}">{{ $task->job_topic }}</strong></button>
     @php($taskPriorityClass = [1=>'routine',2=>'important',3=>'urgent',4=>'quick',5=>'flexible'][(int) $task->job_priority] ?? 'important')
     @if($canWork)
@@ -65,7 +62,6 @@
         </span>
     </button>
     <button type="button" class="row-files {{ $attachmentCount ? 'has-files' : '' }}" data-open-attachments="{{ $task->job_id }}" title="ไฟล์แนบ {{ $attachmentCount }} ไฟล์"><i class="bi bi-paperclip"></i><b>{{ $attachmentCount }}</b></button>
-    <span class="row-progress"><i><b style="width:{{ $displayProgress }}%"></b></i>@if($canEditProgressDirectly)<input type="number" data-field="progress" min="0" max="99" value="{{ $displayProgress }}">@else<strong data-progress-value>{{ $displayProgress }}</strong>@endif%</span>
     <span class="row-actions">
         <details class="task-more-menu">
             <summary aria-label="เมนูจัดการงาน"><i class="bi bi-three-dots"></i></summary>

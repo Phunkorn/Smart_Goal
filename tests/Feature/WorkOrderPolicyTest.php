@@ -174,27 +174,6 @@ class WorkOrderPolicyTest extends TestCase
             ->assertOk();
     }
 
-    // ---------- update (work-on-job access) shared by both controllers ----------
-
-    public function test_accepted_collaborator_can_update_progress_but_pending_collaborator_cannot(): void
-    {
-        $owner = $this->user();
-        $accepted = $this->user();
-        $pending = $this->user();
-        $task = $this->taskFor($owner);
-
-        $task->collaborators()->attach($accepted->id, ['status' => 'accepted']);
-        $task->collaborators()->attach($pending->id, ['status' => 'pending']);
-
-        $this->actingAs($accepted)
-            ->post(route('tasks.progress.store', $task), ['note' => 'อัปเดตความคืบหน้า'])
-            ->assertRedirect();
-
-        $this->actingAs($pending)
-            ->post(route('tasks.progress.store', $task), ['note' => 'อัปเดตความคืบหน้า'])
-            ->assertForbidden();
-    }
-
     private function user(string $role = 'user'): User
     {
         return User::factory()->create([
@@ -214,7 +193,6 @@ class WorkOrderPolicyTest extends TestCase
             'job_priority' => 2,
             'job_status' => 1,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -261,7 +239,6 @@ class WorkOrderPolicyTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

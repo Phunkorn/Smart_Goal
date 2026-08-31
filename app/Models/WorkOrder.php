@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -38,7 +37,6 @@ class WorkOrder extends Model
         'delete_requested_by',
         'delete_requested_at',
         'delete_request_reason',
-        'job_progress',
         'job_start_at',
         'job_due_at',
         'job_completed_at',
@@ -71,7 +69,6 @@ class WorkOrder extends Model
     {
         static::saving(function (WorkOrder $workOrder): void {
             if ((int) $workOrder->job_status === 4) {
-                $workOrder->job_progress = 100;
                 $workOrder->job_completed_at ??= now();
             }
         });
@@ -142,13 +139,6 @@ class WorkOrder extends Model
         return $this->morphMany(ActivityLog::class, 'subject')->latest('created_at');
     }
 
-    public function subtasks(): HasMany
-    {
-        return $this->hasMany(WorkOrderSubtask::class, 'work_order_id', 'job_id')
-            ->orderBy('sort_order')
-            ->orderBy('id');
-    }
-
     public function deleteRequester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'delete_requested_by');
@@ -210,22 +200,4 @@ class WorkOrder extends Model
         });
     }
 
-    protected function progressFromSubtasks(): Attribute
-    {
-        return Attribute::get(function (): int {
-            if ((int) $this->job_status === 4) {
-                return 100;
-            }
-
-            $subtasks = $this->relationLoaded('subtasks')
-                ? $this->subtasks
-                : $this->subtasks()->get();
-
-            if ($subtasks->isEmpty()) {
-                return (int) $this->job_progress;
-            }
-
-            return (int) round(($subtasks->where('is_completed', true)->count() / $subtasks->count()) * 100);
-        });
-    }
 }

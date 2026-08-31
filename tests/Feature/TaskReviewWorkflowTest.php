@@ -37,7 +37,6 @@ class TaskReviewWorkflowTest extends TestCase
 
         $task->refresh();
         $this->assertSame(4, (int) $task->job_status);
-        $this->assertSame(100, (int) $task->job_progress);
         $this->assertSame($creator->id, $task->final_approved_by);
         $this->assertNotNull($task->final_approved_at);
         $this->assertNotNull($task->job_completed_at);
@@ -69,7 +68,7 @@ class TaskReviewWorkflowTest extends TestCase
         $creator = $this->user();
         $assignee = $this->user();
         $admin = $this->user('admin');
-        $task = $this->task($assignee, $creator, 4, ['job_progress' => 100, 'job_completed_at' => now(), 'final_approved_by' => $creator->id, 'final_approved_at' => now()]);
+        $task = $this->task($assignee, $creator, 4, ['job_completed_at' => now(), 'final_approved_by' => $creator->id, 'final_approved_at' => now()]);
 
         $this->actingAs($assignee)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
         $this->actingAs($admin)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
@@ -79,7 +78,6 @@ class TaskReviewWorkflowTest extends TestCase
 
         $task->refresh();
         $this->assertSame(2, (int) $task->job_status);
-        $this->assertSame(99, (int) $task->job_progress);
         $this->assertNull($task->job_completed_at);
         $this->assertNull($task->final_approved_by);
         $this->assertDatabaseHas('activity_logs', ['action' => 'task_reopened', 'user_id' => $admin->id]);
@@ -112,17 +110,13 @@ class TaskReviewWorkflowTest extends TestCase
         $this->assertSame(3, (int) $task->fresh()->job_status);
     }
 
-    public function test_approval_requires_all_subtasks_and_notifications_are_deduplicated(): void
+    public function test_approval_notifications_are_deduplicated(): void
     {
         $creator = $this->user();
         $assignee = $this->user();
         $collaborator = $this->user();
         $task = $this->task($assignee, $creator, 3, ['submitted_for_review_by' => $assignee->id, 'submitted_for_review_at' => now()]);
         $task->collaborators()->attach($collaborator->id, ['status' => 'accepted', 'added_by' => $creator->id]);
-        $subtask = $task->subtasks()->create(['created_by' => $creator->id, 'title' => 'Checklist', 'is_completed' => false, 'sort_order' => 1]);
-
-        $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 4])->assertUnprocessable();
-        $subtask->update(['is_completed' => true]);
         $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 4])->assertOk();
 
         $this->assertSame(1, SystemNotification::where('type', 'review_approved')->where('user_id', $assignee->id)->count());
@@ -141,7 +135,6 @@ class TaskReviewWorkflowTest extends TestCase
         ]);
         $completedTask = $this->task($creator, $creator, 4, [
             'job_topic' => 'Archived completed task',
-            'job_progress' => 100,
             'job_completed_at' => now(),
             'final_approved_by' => $creator->id,
             'final_approved_at' => now(),
@@ -169,7 +162,7 @@ class TaskReviewWorkflowTest extends TestCase
         return WorkOrder::create(array_merge([
             'user_id' => $assignee->id, 'created_by' => $creator->id, 'leader_user_id' => $creator->id,
             'job_topic' => 'Review workflow task', 'job_priority' => 2, 'job_status' => $status,
-            'approval_status' => 'approved', 'job_progress' => $status === 4 ? 100 : 50,
+            'approval_status' => 'approved',
             'job_start_at' => now()->subDay(), 'job_due_at' => now()->addDay(),
         ], $extra));
     }

@@ -84,7 +84,6 @@
             status: root.dataset.statusTemplate,
             priority: root.dataset.priorityTemplate,
             due: root.dataset.dueTemplate,
-            progress: root.dataset.progressTemplate,
         }[field];
         if (!template) return;
         try {
@@ -97,11 +96,6 @@
             } else if (field === 'due') {
                 await request(url(template, id), 'POST', {job_due_at: event.target.value});
                 row.dataset.due = event.target.value;
-            } else if (field === 'progress') {
-                await request(url(template, id), 'POST', {progress: +event.target.value, note: 'อัปเดตความคืบหน้าจากตารางงาน'});
-                const progressBar = event.target.closest('.row-progress')?.querySelector('b');
-                if (!progressBar) return;
-                event.target.closest('.row-progress').querySelector('b').style.width = `${event.target.value}%`;
             }
             toast('บันทึกการเปลี่ยนแปลงแล้ว');
             if (groupSelect?.value === field) regroup();

@@ -111,7 +111,6 @@ class Import2026PlanCommandTest extends TestCase
         $this->assertSame('approved', $done->approval_status);
         $this->assertSame($admin->id, $done->approved_by);
         $this->assertSame($komkrit->id, $done->leader_user_id);
-        $this->assertSame(100, $done->job_progress);
         $this->assertNull($done->job_completed_at);
         $this->assertSame('2026-06-25', $done->job_start_at->format('Y-m-d'));
         $this->assertSame('2026-07-09', $done->job_due_at->format('Y-m-d'));

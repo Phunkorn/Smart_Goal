@@ -8,12 +8,48 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MyTasksProjectManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_my_tasks_opens_without_legacy_subtask_queries_or_numeric_progress_routes(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $list = WorkOrderList::create(['user_id' => $owner->id, 'name' => 'Current project']);
+        WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'job_topic' => 'Current task',
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $this->actingAs($owner)
+            ->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertDontSee('data-progress-template', false)
+            ->assertDontSee('data-field="progress"', false);
+
+        $this->assertFalse(collect($queries)->contains(fn (string $sql) => str_contains($sql, 'work_order_subtasks')));
+        $this->assertFalse(Route::has('tasks.progress.store'));
+        $this->assertFalse(Route::has('mytasks.subtasks.store'));
+        $this->assertFalse(Route::has('mytasks.subtasks.update'));
+        $this->assertFalse(Route::has('mytasks.subtasks.toggle'));
+    }
 
     public function test_board_task_menu_only_targets_the_task_and_project_header_edit_remains_available(): void
     {
@@ -33,7 +69,6 @@ class MyTasksProjectManagementTest extends TestCase
             'job_priority' => 2,
             'job_status' => 1,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -154,7 +189,7 @@ class MyTasksProjectManagementTest extends TestCase
         ]);
     }
 
-    public function test_create_project_can_create_initial_subtask(): void
+    public function test_create_project_can_create_an_initial_job(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $actor = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
@@ -163,8 +198,6 @@ class MyTasksProjectManagementTest extends TestCase
             ->postJson(route('mytasks.create'), [
                 'project_name' => 'Dashboard redesign',
                 'job_topic' => 'Dashboard project',
-                'initial_subtask_title' => 'วางโครงหน้า Dashboard',
-                'initial_subtask_details' => 'กำหนด layout และข้อมูลที่ต้องแสดง',
                 'user_id' => $actor->id,
                 'job_start_at' => now()->format('Y-m-d'),
                 'job_due_at' => now()->addDay()->format('Y-m-d'),
@@ -175,16 +208,9 @@ class MyTasksProjectManagementTest extends TestCase
         $job = WorkOrder::where('job_topic', 'Dashboard project')->firstOrFail();
 
         $this->assertSame('Dashboard redesign', $job->taskList->name);
-        $this->assertDatabaseHas('work_order_subtasks', [
-            'work_order_id' => $job->job_id,
-            'created_by' => $actor->id,
-            'title' => 'วางโครงหน้า Dashboard',
-            'details' => 'กำหนด layout และข้อมูลที่ต้องแสดง',
-            'sort_order' => 1,
-        ]);
     }
 
-    public function test_create_project_can_create_multiple_job_topics_with_multiple_subtasks(): void
+    public function test_create_project_can_create_multiple_job_topics(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $actor = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
@@ -196,17 +222,10 @@ class MyTasksProjectManagementTest extends TestCase
                     [
                         'job_topic' => 'ออกแบบ Dashboard',
                         'job_details' => 'งานหลักชุดแรก',
-                        'subtasks' => [
-                            ['title' => 'ทำ wireframe', 'details' => 'หน้าแรก'],
-                            ['title' => 'ทำ UI', 'details' => 'หน้ารายละเอียด'],
-                        ],
                     ],
                     [
                         'job_topic' => 'ตั้งค่า Analytics',
                         'job_details' => 'งานหลักชุดสอง',
-                        'subtasks' => [
-                            ['title' => 'ติด event', 'details' => 'ปุ่มหลัก'],
-                        ],
                     ],
                 ],
                 'user_id' => $actor->id,
@@ -221,19 +240,6 @@ class MyTasksProjectManagementTest extends TestCase
 
         $this->assertSame($firstJob->work_order_list_id, $secondJob->work_order_list_id);
         $this->assertSame('โปรเจกต์ Dashboard Q3', $firstJob->taskList->name);
-        $this->assertDatabaseCount('work_order_subtasks', 3);
-        $this->assertDatabaseHas('work_order_subtasks', [
-            'work_order_id' => $firstJob->job_id,
-            'title' => 'ทำ UI',
-            'details' => 'หน้ารายละเอียด',
-            'sort_order' => 2,
-        ]);
-        $this->assertDatabaseHas('work_order_subtasks', [
-            'work_order_id' => $secondJob->job_id,
-            'title' => 'ติด event',
-            'details' => 'ปุ่มหลัก',
-            'sort_order' => 1,
-        ]);
     }
 
     public function test_project_owner_can_rename_project_and_collaborator_cannot(): void
@@ -256,7 +262,6 @@ class MyTasksProjectManagementTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -312,7 +317,6 @@ class MyTasksProjectManagementTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $admin->id,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -353,7 +357,6 @@ class MyTasksProjectManagementTest extends TestCase
             'delete_requested_by' => $requester->id,
             'delete_requested_at' => now(),
             'delete_request_reason' => 'Not needed',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -401,7 +404,6 @@ class MyTasksProjectManagementTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $owner->id,
             'approved_at' => now(),
-            'job_progress' => 100,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
             'job_completed_at' => now(),
@@ -423,10 +425,6 @@ class MyTasksProjectManagementTest extends TestCase
             ->patchJson(route('mytasks.lists.update', $list), ['priority' => 3])
             ->assertOk();
 
-        $this->actingAs($owner)
-            ->postJson(route('tasks.progress.store', $job->job_id), ['note' => 'try update'])
-            ->assertForbidden();
-
         $this->actingAs($admin)
             ->patchJson(route('mytasks.lists.update', $list), ['name' => 'Admin rename'])
             ->assertOk();
@@ -439,7 +437,7 @@ class MyTasksProjectManagementTest extends TestCase
         $this->assertSame(2, (int) $job->fresh()->job_priority);
     }
 
-    public function test_completed_status_always_persists_one_hundred_percent_progress(): void
+    public function test_completed_status_always_persists_completion_timestamp(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
@@ -451,16 +449,13 @@ class MyTasksProjectManagementTest extends TestCase
             'department_id' => $department->id,
             'job_topic' => 'Completed invariant',
             'job_status' => 2,
-            'job_progress' => 35,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
 
-        $job->update(['job_status' => 4, 'job_progress' => 0]);
+        $job->update(['job_status' => 4]);
 
-        $this->assertSame(100, (int) $job->fresh()->job_progress);
         $this->assertNotNull($job->fresh()->job_completed_at);
-        $this->assertSame(100, $job->fresh()->progress_from_subtasks);
     }
 
     public function test_project_can_be_created_without_an_initial_job(): void
@@ -500,7 +495,6 @@ class MyTasksProjectManagementTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -537,7 +531,6 @@ class MyTasksProjectManagementTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

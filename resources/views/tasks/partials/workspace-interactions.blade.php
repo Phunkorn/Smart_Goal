@@ -178,9 +178,7 @@
     <form class="notion-modal-card project-create-card" data-create-form enctype="multipart/form-data">
         <header><div><span class="task-edit-kicker">NEW PROJECT</span><strong>เพิ่มโปรเจกต์ใหม่</strong><small>สร้างพื้นที่โปรเจกต์ก่อน แล้วเพิ่มรายการงานภายหลัง</small></div><button type="button" class="task-modal-close" data-close-create aria-label="ปิด"><i class="bi bi-x-lg"></i></button></header>
         <div class="modal-body project-create-body">
-            <label class="project-create-name"><span>ชื่อโปรเจกต์</span><div class="project-input-shell"><i class="bi bi-folder"></i><input name="project_name" maxlength="80" required placeholder="เช่น ปรับปรุงเว็บไซต์บริษัท"></div></label>
-            <label><span>ความสำคัญของโปรเจกต์</span><div class="project-input-shell"><i class="bi bi-flag"></i><select name="project_priority"><option value="1">ต่ำ</option><option value="2" selected>กลาง</option><option value="3">สูง</option></select></div></label>
-            <label class="project-create-files"><span>ไฟล์แนบของโปรเจกต์ <em>สูงสุด 5 ไฟล์</em></span><div class="project-file-drop"><i class="bi bi-cloud-arrow-up"></i><div><strong>เลือกไฟล์ที่เกี่ยวข้อง</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB ต่อไฟล์</small></div><input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></div></label>
+            @include('tasks.components.project-form-fields')
         </div>
         <footer><button type="button" class="task-secondary" data-close-create>ยกเลิก</button><button class="notion-primary" type="submit"><i class="bi bi-plus-lg"></i> สร้างโปรเจกต์</button></footer>
     </form>

@@ -137,7 +137,6 @@ class ProjectCollaboratorPermissionTest extends TestCase
         $this->assertStringContainsString('class="cell-date"', $directRow);
         $this->assertStringNotContainsString('data-table-status-menu', $siblingRow);
         $this->assertStringNotContainsString('class="cell-date"', $siblingRow);
-        $this->assertStringNotContainsString('data-field="progress"', $siblingRow);
 
         $this->actingAs($collaborator)
             ->postJson(route('tasks.comments.store', $directTask), ['message' => 'Direct comment'])
@@ -151,9 +150,6 @@ class ProjectCollaboratorPermissionTest extends TestCase
 
         $this->actingAs($collaborator)
             ->patchJson(route('tasks.updateStatus', $siblingTask), ['job_status' => 2])
-            ->assertForbidden();
-        $this->actingAs($collaborator)
-            ->postJson(route('tasks.progress.store', $siblingTask), ['note' => 'Forbidden progress', 'progress' => 50])
             ->assertForbidden();
         $this->actingAs($collaborator)
             ->patchJson(route('tasks.schedule.update', $siblingTask), [
@@ -175,7 +171,6 @@ class ProjectCollaboratorPermissionTest extends TestCase
             $this->actingAs($collaborator)->postJson(route('mytasks.updateStatus', $siblingTask), ['job_status' => 2]),
             $this->actingAs($collaborator)->postJson(route('mytasks.updatePriority', $siblingTask), ['job_priority' => 3]),
             $this->actingAs($collaborator)->postJson(route('mytasks.updateDueDate', $siblingTask), ['job_due_at' => now()->addDays(2)->toDateString()]),
-            $this->actingAs($collaborator)->postJson(route('mytasks.subtasks.store', $siblingTask), ['title' => 'Forbidden subtask']),
             $this->actingAs($collaborator)->deleteJson(route('mytasks.destroy', $siblingTask)),
         ] as $response) {
             $this->assertContains($response->status(), [403, 404]);
@@ -184,8 +179,6 @@ class ProjectCollaboratorPermissionTest extends TestCase
         $this->assertSame('Read-only sibling', $siblingTask->fresh()->job_topic);
         $this->assertSame(1, (int) $siblingTask->fresh()->job_status);
         $this->assertSame(2, (int) $siblingTask->fresh()->job_priority);
-        $this->assertSame(0, (int) $siblingTask->fresh()->job_progress);
-        $this->assertSame(0, $siblingTask->subtasks()->count());
         $this->assertSame(0, $siblingTask->images()->count());
     }
 
@@ -265,32 +258,13 @@ class ProjectCollaboratorPermissionTest extends TestCase
 
         $this->actingAs($collaborator)->patchJson(route('tasks.updateStatus', $task), [
             'job_status' => 2,
-            'job_progress' => 77,
         ])->assertOk();
-        $this->assertSame(0, (int) $task->fresh()->job_progress);
         $this->actingAs($collaborator)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Worker edit'])->assertOk();
-        $this->actingAs($collaborator)->postJson(route('tasks.progress.store', $task), [
-            'note' => 'Worker update',
-            'progress' => 77,
-        ])->assertOk()->assertJsonPath('progress', 0);
-        $this->assertSame(0, (int) $task->fresh()->job_progress);
         $this->actingAs($collaborator)->postJson(route('mytasks.updatePriority', $task), ['job_priority' => 3])->assertOk();
         $this->actingAs($collaborator)->postJson(route('mytasks.updateDueDate', $task), ['job_due_at' => now()->addDays(2)->toDateString()])->assertOk();
         $this->actingAs($collaborator)->patchJson(route('tasks.schedule.update', $task), [
             'job_start_at' => now()->addDay()->toDateString(),
             'job_due_at' => now()->addDays(3)->toDateString(),
-        ])->assertOk();
-        $subtaskId = $this->actingAs($collaborator)
-            ->postJson(route('mytasks.subtasks.store', $task), ['title' => 'Worker subtask'])
-            ->assertCreated()
-            ->json('subtask_id');
-        $subtask = $task->subtasks()->findOrFail($subtaskId);
-        $this->actingAs($collaborator)->patchJson(route('mytasks.subtasks.update', $subtask), [
-            'title' => 'Worker subtask updated',
-            'details' => 'Worker details',
-        ])->assertOk();
-        $this->actingAs($collaborator)->patchJson(route('mytasks.subtasks.toggle', $subtask), [
-            'completed' => true,
         ])->assertOk();
         $this->actingAs($collaborator)->postJson(route('tasks.comments.store', $task), ['message' => 'Worker comment'])->assertCreated();
 
@@ -317,9 +291,6 @@ class ProjectCollaboratorPermissionTest extends TestCase
         $this->assertSame(3, (int) $task->fresh()->job_status);
         $this->assertSame(3, (int) $task->fresh()->job_priority);
         $this->assertSame('Worker edit', $task->fresh()->job_topic);
-        $this->assertSame(1, $task->subtasks()->count());
-        $this->assertSame('Worker subtask updated', $task->subtasks()->sole()->title);
-        $this->assertTrue((bool) $task->subtasks()->sole()->is_completed);
         $this->assertSame(0, $task->images()->count());
     }
 
@@ -331,8 +302,8 @@ class ProjectCollaboratorPermissionTest extends TestCase
         $task->collaborators()->attach($owner->id, ['status' => 'accepted']);
 
         $this->actingAs($owner)
-            ->post(route('tasks.progress.store', $task), ['note' => 'Owner update'])
-            ->assertRedirect();
+            ->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Owner update'])
+            ->assertOk();
     }
 
     public function test_assignee_creator_and_leader_each_keep_editor_permission(): void
@@ -396,7 +367,6 @@ class ProjectCollaboratorPermissionTest extends TestCase
             'job_priority' => 2,
             'job_status' => 1,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

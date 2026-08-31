@@ -10,7 +10,6 @@ class WorkOrderUpdate extends Model
     protected $fillable = [
         'work_order_id',
         'user_id',
-        'progress',
         'note',
         'is_comment',
     ];

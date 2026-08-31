@@ -55,13 +55,6 @@ import {canTransitionTo, confirmTaskTransition} from './task-transitions.js';
         summary.querySelector('[data-table-status-label]').textContent = meta.label;
         menu.querySelectorAll('[data-table-status-value] .bi-check2').forEach((check) => check.remove());
         menu.querySelector(`[data-table-status-value="${value}"]`)?.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
-        if (value === 4) {
-            const progress = row.querySelector('.row-progress');
-            const bar = progress?.querySelector('b');
-            const input = progress?.querySelector('input');
-            if (bar) bar.style.width = '100%';
-            if (input) { input.value = '100'; input.max = '100'; }
-        }
     };
 
     const updatePriorityVisual = (row, menu, value) => {

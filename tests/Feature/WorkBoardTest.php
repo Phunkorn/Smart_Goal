@@ -42,7 +42,6 @@ class WorkBoardTest extends TestCase
             'job_priority' => 3,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 40,
             'job_start_at' => now(),
             'job_due_at' => now()->addWeek(),
         ]);
@@ -153,14 +152,12 @@ class WorkBoardTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 40,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
         WorkOrderUpdate::create([
             'work_order_id' => $approved->job_id,
             'user_id' => $member->id,
-            'progress' => 40,
             'note' => 'Sensitive update note',
         ]);
         JobImage::create([
@@ -184,7 +181,6 @@ class WorkBoardTest extends TestCase
             'job_priority' => 3,
             'job_status' => 1,
             'approval_status' => 'pending',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -196,7 +192,6 @@ class WorkBoardTest extends TestCase
             'job_priority' => 2,
             'job_status' => 1,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
@@ -236,7 +231,6 @@ class WorkBoardTest extends TestCase
                 'job_priority' => $priority,
                 'job_status' => 2,
                 'approval_status' => 'approved',
-                'job_progress' => 0,
                 'job_start_at' => now(),
                 'job_due_at' => now()->addWeek(),
             ]);
@@ -283,7 +277,6 @@ class WorkBoardTest extends TestCase
                 'job_priority' => 2,
                 'job_status' => $status,
                 'approval_status' => 'approved',
-                'job_progress' => $status === 4 ? 100 : 20,
                 'job_start_at' => now(),
                 'job_due_at' => now()->addDay(),
             ]);

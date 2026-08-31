@@ -54,9 +54,11 @@
                 <div class="wb-profile-kpi admin-member-profile__metric"><i class="bi bi-folder2-open"></i><strong>{{ $totals['projects'] }}</strong><span>โปรเจกต์</span></div>
                 <div class="wb-profile-kpi admin-member-profile__metric"><i class="bi bi-list-check"></i><strong>{{ $totals['tasks'] }}</strong><span>งานทั้งหมด</span></div>
             </div>
-            {{-- เปิดโมดัลมอบหมายงานในหน้าเดิม ไม่พา Admin ออกไปที่บอร์ดรวม --}}
-            <button type="button" class="btn btn-primary admin-assign-button" data-open-admin-assignment>
-                <i class="bi bi-person-plus-fill"></i>มอบหมายงาน
+            {{-- เปิด flow เดียวกับผู้ใช้ แต่ preselect สมาชิกและเริ่มจากขั้นเพิ่มรายการงาน --}}
+            <button type="button" class="admin-assignment-launch admin-assign-button" data-open-admin-assignment>
+                <span aria-hidden="true"><i class="bi bi-person-plus-fill"></i></span>
+                <span><strong>มอบหมายงาน</strong><small>เลือกโปรเจกต์แล้วเพิ่มรายการ</small></span>
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
             </button>
         </div>
     </section>
@@ -70,7 +72,6 @@
         data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
         data-schedule-template="{{ route('tasks.schedule.update', ['id' => '__ID__']) }}"
         data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}"
-        data-progress-template="{{ route('tasks.progress.store', ['id' => '__ID__']) }}"
         data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
         data-current-user-name="{{ auth()->user()->name }}"
         data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.profile', auth()->user()) : '' }}">
@@ -132,6 +133,8 @@
 @include('board.components.admin-assignment-modal', [
     'assignmentOrigin' => ['department_id' => $department->id, 'member_id' => $member->id],
     'defaultAssigneeId' => $member->id,
+    'projectOptions' => $manageableTaskLists,
+    'startWithTask' => true,
 ])
 @endsection
 

@@ -87,7 +87,7 @@ class CalendarQuickViewTest extends TestCase
     public function test_quick_view_renders_the_latest_update_and_attachment_count_without_crashing(): void
     {
         [$member, , $task] = $this->scenario();
-        WorkOrderUpdate::create(['work_order_id' => $task->job_id, 'user_id' => $member->id, 'progress' => 40, 'note' => 'อัปเดตความคืบหน้า']);
+        WorkOrderUpdate::create(['work_order_id' => $task->job_id, 'user_id' => $member->id, 'note' => 'อัปเดตงาน']);
 
         $this->actingAs($member)
             ->get(route('mytasks.quickview.task', ['id' => $task->job_id]))
@@ -247,7 +247,6 @@ class CalendarQuickViewTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $member->id,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);

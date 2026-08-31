@@ -66,9 +66,6 @@ class AdminProjectCreationTest extends TestCase
                     'job_due_at' => now()->addDay()->format('Y-m-d H:i:s'),
                     'collaborators' => [$collaborator->id],
                     'attachments' => [UploadedFile::fake()->image('task.jpg')],
-                    'subtasks' => [
-                        ['title' => 'Create credentials', 'details' => 'Use least privilege'],
-                    ],
                 ],
                 [
                     'job_topic' => 'Deploy release',
@@ -104,7 +101,6 @@ class AdminProjectCreationTest extends TestCase
         $this->assertSame('approved', $secondTask->approval_status);
         $this->assertSame($admin->id, $secondTask->approved_by);
         $this->assertSame($assigneeTwo->id, $secondTask->leader_user_id);
-        $this->assertCount(1, $firstTask->subtasks);
         $this->assertCount(1, $firstTask->attachments);
         $this->assertSame('accepted', $firstTask->collaborators()->firstOrFail()->pivot->status);
         $this->assertSame('accepted', $secondTask->collaborators()->firstOrFail()->pivot->status);
@@ -407,7 +403,7 @@ class AdminProjectCreationTest extends TestCase
         $this->assertDatabaseHas('work_orders', ['job_topic' => 'Overview task', 'user_id' => $member->id]);
     }
 
-    public function test_validation_failure_from_member_workspace_reopens_the_modal_with_old_input(): void
+    public function test_legacy_validation_failure_does_not_restore_the_removed_bulk_form(): void
     {
         $department = Department::create(['department_name' => 'Validation']);
         $admin = User::factory()->create(['role' => 'admin', 'department_id' => $department->id, 'must_change_password' => false, 'is_active' => true]);
@@ -436,12 +432,117 @@ class AdminProjectCreationTest extends TestCase
         $this->actingAs($admin)
             ->get($workspaceUrl)
             ->assertOk()
-            ->assertSee('data-open-on-load="1"', false)
             ->assertSee('data-admin-assignment-errors', false)
-            ->assertSee('value="Kept task one"', false)
-            ->assertSee('value="Kept task two"', false)
-            ->assertSee('name="tasks[1][job_topic]"', false)
-            ->assertSee('name="tasks[0][job_priority]" data-task-priority value="3"', false);
+            ->assertSee('data-admin-project-form', false)
+            ->assertSee('data-admin-task-form', false)
+            ->assertDontSee('name="tasks[1][job_topic]"', false)
+            ->assertDontSee('value="Kept task one"', false)
+            ->assertDontSee('value="Kept task two"', false);
+    }
+
+    public function test_new_admin_flow_creates_an_empty_project_for_the_selected_member(): void
+    {
+        $department = Department::create(['department_name' => 'Product']);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'department_id' => $department->id,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+        $member = $this->employee($department);
+
+        $response = $this->actingAs($admin)->postJson(route('mytasks.create'), [
+            'project_name' => 'Member launch',
+            'project_priority' => 3,
+            'project_owner_id' => $member->id,
+        ])->assertCreated()->assertJsonPath('job_id', null);
+
+        $project = WorkOrderList::findOrFail($response->json('list_id'));
+        $this->assertSame($member->id, $project->user_id);
+        $this->assertSame(3, $project->priority);
+        $this->assertSame(0, $project->workOrders()->count());
+
+        $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$department, $member]))
+            ->assertOk()
+            ->assertViewHas('totals', ['projects' => 1, 'tasks' => 0])
+            ->assertSee('data-initial-step="task"', false)
+            ->assertSee('<option value="'.$project->id.'" selected>Member launch</option>', false);
+    }
+
+    public function test_non_admin_cannot_choose_another_project_owner(): void
+    {
+        $department = Department::create(['department_name' => 'Security']);
+        $member = $this->employee($department);
+        $other = $this->employee($department);
+
+        $this->actingAs($member)->postJson(route('mytasks.create'), [
+            'project_name' => 'Forged ownership',
+            'project_owner_id' => $other->id,
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('work_order_lists', ['name' => 'Forged ownership']);
+    }
+
+    public function test_new_admin_flow_adds_one_task_to_the_selected_project_with_initial_status(): void
+    {
+        $department = Department::create(['department_name' => 'Operations']);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'department_id' => $department->id,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+        $member = $this->employee($department);
+        $project = WorkOrderList::create([
+            'user_id' => $member->id,
+            'name' => 'Existing member project',
+            'priority' => 2,
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $response = $this->actingAs($admin)->postJson(route('tasks.store'), [
+            'work_order_list_id' => $project->id,
+            'job_topic' => 'Verify rollout',
+            'job_details' => 'Check the production checklist',
+            'user_id' => $member->id,
+            'job_priority' => 4,
+            'job_start_at' => now()->format('Y-m-d H:i:s'),
+            'job_due_at' => now()->addDay()->format('Y-m-d H:i:s'),
+        ])->assertCreated()->assertJsonPath('list_id', $project->id);
+
+        $task = WorkOrder::findOrFail($response->json('job_id'));
+        $this->assertSame($project->id, $task->work_order_list_id);
+        $this->assertSame($member->id, $task->user_id);
+        $this->assertSame($member->id, $task->leader_user_id);
+        $this->assertSame(1, $task->job_status);
+        $this->assertSame('approved', $task->approval_status);
+        $this->assertSame(1, WorkOrderList::count());
+    }
+
+    public function test_non_admin_cannot_inject_a_project_id_into_the_admin_task_flow(): void
+    {
+        $department = Department::create(['department_name' => 'Platform']);
+        $owner = $this->employee($department);
+        $attacker = $this->employee($department);
+        $project = WorkOrderList::create([
+            'user_id' => $owner->id,
+            'name' => 'Protected project',
+            'priority' => 2,
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($attacker)->postJson(route('tasks.store'), [
+            'work_order_list_id' => $project->id,
+            'job_topic' => 'Injected task',
+            'user_id' => $attacker->id,
+            'job_start_at' => now()->format('Y-m-d H:i:s'),
+            'job_due_at' => now()->addDay()->format('Y-m-d H:i:s'),
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('work_orders', ['job_topic' => 'Injected task']);
     }
 
     private function employee(Department $department): User

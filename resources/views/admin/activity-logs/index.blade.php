@@ -68,7 +68,7 @@
         'Task' => 'งาน',
         'Job' => 'โปรเจกต์',
         'Subtask' => 'งานย่อย',
-        'WorkOrder' => 'งานย่อย',
+        'WorkOrder' => 'รายการงาน',
         'WorkOrderList' => 'โปรเจกต์',
     ];
 

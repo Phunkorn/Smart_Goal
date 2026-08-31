@@ -15,7 +15,6 @@ use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCollaboratorController;
 use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\TaskController;
-use App\Http\Controllers\TaskProgressController;
 use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
@@ -277,15 +276,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::delete('/my-tasks/{job_id}', [MyTaskController::class, 'destroy'])
         ->name('mytasks.destroy');
 
-    Route::post('/my-tasks/{job_id}/subtasks', [MyTaskController::class, 'storeSubtask'])
-        ->name('mytasks.subtasks.store');
-
-    Route::patch('/my-tasks/subtasks/{subtask}', [MyTaskController::class, 'toggleSubtask'])
-        ->name('mytasks.subtasks.toggle');
-
-    Route::patch('/my-tasks/subtasks/{subtask}/details', [MyTaskController::class, 'updateSubtask'])
-        ->name('mytasks.subtasks.update');
-
     Route::match(['post', 'patch'], '/my-tasks/{job_id}/due-date', [MyTaskController::class, 'updateDueDate'])
         ->name('mytasks.updateDueDate');
 
@@ -331,9 +321,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::delete('/tasks/{id}/collaborators/{user}', [TaskCollaboratorController::class, 'removeCollaborator'])
         ->name('tasks.collaborators.destroy');
-
-    Route::post('/tasks/{id}/progress', [TaskProgressController::class, 'updateProgress'])
-        ->name('tasks.progress.store');
 
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
     Route::post('/tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->name('tasks.comments.read');

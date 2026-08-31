@@ -323,7 +323,6 @@ class AdminMemberWorkspaceViewTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $creator->id,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => now()->subDay(),
             'job_due_at' => now()->addDay(),
         ]);

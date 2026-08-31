@@ -39,7 +39,7 @@ class TodayWorkspaceTest extends TestCase
     public function test_multi_day_time_progress_is_inclusive_for_every_active_date(): void
     {
         $user = User::factory()->create(['role' => 'user']);
-        $job = $this->job($user, 2, '2026-08-16', '2026-08-20', ['job_progress' => 37]);
+        $job = $this->job($user, 2, '2026-08-16', '2026-08-20');
 
         foreach ([
             16 => [1, 4, 'วันที่ 1/5 • เหลือ 4 วัน'],
@@ -58,7 +58,6 @@ class TodayWorkspaceTest extends TestCase
             $this->assertSame($label, $progress['progress_label']);
         }
 
-        $this->assertSame(37, (int) $job->fresh()->job_progress);
     }
 
     public function test_single_day_time_progress_uses_natural_due_label(): void
@@ -301,7 +300,6 @@ class TodayWorkspaceTest extends TestCase
             'job_priority' => 2,
             'job_status' => $status,
             'approval_status' => 'approved',
-            'job_progress' => 0,
             'job_start_at' => $start,
             'job_due_at' => $due,
         ], $extra));

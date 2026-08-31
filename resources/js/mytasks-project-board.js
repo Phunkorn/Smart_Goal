@@ -399,13 +399,6 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                 menu.querySelectorAll('[data-board-status-value] .bi-check2').forEach((check) => check.remove());
                 statusOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
                 closeBoardMenu(menu);
-                if (value === 4) {
-                    const progress = task.querySelector('.board-progress');
-                    const bar = progress?.querySelector('b');
-                    const text = progress?.querySelector('strong');
-                    if (bar) bar.style.width = '100%';
-                    if (text) text.textContent = '100%';
-                }
                 synchronizeTaskSource(workspace, task.dataset.taskId, {status: value});
                 refreshStatusControls(task);
                 notify('เปลี่ยนสถานะงานแล้ว');
@@ -563,11 +556,6 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                 const wrapper = control.closest('[data-board-status-choice]');
                 wrapper.classList.remove('status-todo', 'status-progress', 'status-review', 'status-done', 'status-paused', 'status-late');
                 wrapper.classList.add({1:'status-todo',2:'status-progress',3:'status-review',4:'status-done',5:'status-paused'}[control.value] || 'status-todo');
-                if (control.value === '4') {
-                    const progress = task.querySelector('.board-progress');
-                    progress.querySelector('b').style.width = '100%';
-                    progress.querySelector('strong').textContent = '100%';
-                }
                 synchronizeTaskSource(workspace, id, {status: Number(control.value)});
             } else if (field === 'priority') {
                 await request(endpoint(workspace.dataset.priorityTemplate, id), 'POST', {job_priority: Number(control.value)});

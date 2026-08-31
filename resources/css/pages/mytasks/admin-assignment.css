@@ -16,7 +16,6 @@
 
 .my-tasks-page .task-supporting-summary { display: grid; gap: 3px; margin-top: 4px; color: #667085; }
 .my-tasks-page .task-supporting-summary small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.my-tasks-page .task-subtask-summary { display: inline-flex; align-items: center; gap: 4px; color: #475467; font-weight: 600; }
 .my-tasks-page .task-direct-link { display: inline-flex; align-items: center; justify-content: center; color: #2f6fed; }
 .my-tasks-page .mytasks-kanban__project-context { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px 0; }
 .my-tasks-page .mytasks-kanban__columns > .mytasks-kanban__project-context { grid-column: 1 / -1; }

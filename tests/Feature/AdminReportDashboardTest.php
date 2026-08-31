@@ -354,7 +354,6 @@ class AdminReportDashboardTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 50,
             'job_start_at' => '2026-08-01 00:00:00',
             'job_due_at' => '2026-08-30 00:00:00',
             'created_at' => '2026-08-10 00:00:00',

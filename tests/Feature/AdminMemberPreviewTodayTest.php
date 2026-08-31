@@ -241,7 +241,6 @@ class AdminMemberPreviewTodayTest extends TestCase
             'approval_status' => 'approved',
             'approved_by' => $this->admin->id,
             'approved_at' => now(),
-            'job_progress' => 0,
             'job_start_at' => $start,
             'job_due_at' => $due,
         ], $extra));

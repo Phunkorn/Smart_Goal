@@ -3,7 +3,7 @@
     $workspaceContext = $workspaceContext ?? 'user';
 @endphp
 <div class="notion-table workspace-task-source" data-table data-workspace-task-source hidden aria-hidden="true">
-    <div class="notion-columns"><span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>ผู้รับผิดชอบ</span><span>ระยะเวลา</span><span>ผู้ร่วมงาน</span><span>ไฟล์</span><span>ความคืบหน้า</span><span>Action</span></div>
+    <div class="notion-columns"><span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>ผู้รับผิดชอบ</span><span>ระยะเวลา</span><span>ผู้ร่วมงาน</span><span>ไฟล์</span><span>Action</span></div>
     <div data-groups>
         @foreach($taskLists as $list)
             @php($listTasks = $allTasks->where('work_order_list_id', $list->id))

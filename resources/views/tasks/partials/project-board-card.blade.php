@@ -15,7 +15,7 @@
 
 <div class="board-reference-list" data-board-list-body>
     <div class="board-reference-columns" aria-hidden="true">
-        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>ความคืบหน้า</span><span></span>
+        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span></span>
     </div>
 
     @foreach($projectGroups as $group)
@@ -100,7 +100,6 @@
                         $taskIsLate = (int) $task->job_status !== 4 && $task->job_due_at?->isPast();
                         $taskIsSoon = ! $taskIsLate && (int) $task->job_status !== 4 && $task->job_due_at && now()->diffInDays($task->job_due_at, false) <= 3;
                         $taskStatus = [1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']][(int)$task->job_status] ?? ['ยังไม่เริ่ม','todo'];
-                        $taskProgress = (int) $task->progress_from_subtasks;
                         $priority = [1=>['routine','routine'],2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int)$task->job_priority] ?? ['สำคัญไม่ด่วน','important'];
                         $acceptedCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status === 'accepted')->values();
                         $pendingCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
@@ -151,7 +150,6 @@
                         <button type="button" class="board-owner" data-open-owner="{{ $task->job_id }}" title="ดูผู้รับผิดชอบ: {{ $assigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $assigneeName }}"><i>@if($task->user?->profile_image)<img src="{{ route('media.profile', $task->user) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i></button>
                         <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="{{ $canManageTeam ? 'จัดการ' : 'ดู' }}ผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $canManageTeam ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}"><i class="bi {{ $canManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>
                         <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-board-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
-                        <span class="board-progress"><i><b style="width:{{ $taskProgress }}%"></b></i><strong>{{ $taskProgress }}%</strong></span>
                         @if(auth()->user()->can('work', $task) || $canDeleteTask)
                             <details class="task-more-menu board-reference-menu">
                                 <summary aria-label="เมนูจัดการรายการงาน"><i class="bi bi-three-dots-vertical"></i></summary>

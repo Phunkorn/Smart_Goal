@@ -365,7 +365,7 @@ class NotificationCenterTest extends TestCase
         return WorkOrder::create([
             'user_id' => $assignee->id, 'created_by' => $creator->id, 'leader_user_id' => $creator->id,
             'job_topic' => 'Deadline task', 'job_priority' => 2, 'job_status' => 2,
-            'approval_status' => 'approved', 'job_progress' => 20,
+            'approval_status' => 'approved',
             'job_start_at' => '2026-08-19 00:00:00', 'job_due_at' => $due,
         ]);
     }

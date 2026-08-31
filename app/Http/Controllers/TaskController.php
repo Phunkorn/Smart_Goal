@@ -145,12 +145,23 @@ class TaskController extends Controller
         }
 
         $this->authorize('create', WorkOrder::class);
+        $actor = Auth::user();
+
+        if ($request->filled('work_order_list_id')) {
+            abort_unless($actor->role === 'admin', 403);
+        }
 
         $validated = $request->validate($this->storeValidationRules());
 
         $this->assertAllowedAttachments($request, 'attachments');
 
-        $actor = Auth::user();
+        $targetProjectList = null;
+
+        if (isset($validated['work_order_list_id'])) {
+            $targetProjectList = WorkOrderList::findOrFail((int) $validated['work_order_list_id']);
+            $this->authorize('manage', $targetProjectList);
+        }
+
         $assignee = isset($validated['user_id'])
             ? WorkOrderAssignee::findWithDepartment((int) $validated['user_id'])
             : $actor->loadMissing('department');
@@ -161,12 +172,13 @@ class TaskController extends Controller
         // เพื่อไม่ให้ logic เพี้ยนกันไปคนละทางระหว่างสองช่องทางสร้างงาน
         $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
 
-        $job = DB::transaction(function () use ($validated, $actor, $assignee, $request, $approval, $invitations) {
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $request, $approval, $invitations, $targetProjectList) {
             $initialStatus = (int) ($validated['job_status'] ?? 1);
-            $projectList = null;
+            $projectList = $targetProjectList;
 
-            // งานที่ Admin มอบหมายคือ 1 โปรเจกต์ของผู้รับ ไม่ใช่งานย่อยในรายการเดิม
-            if ($actor->role === 'admin') {
+            // ช่องทางเดิมยังสร้างโปรเจกต์ให้อัตโนมัติ ส่วนฟอร์ม Admin ใหม่ส่งรายการ
+            // ที่เลือกมาเพื่อเพิ่มงานทีละรายการในโปรเจกต์เดิม
+            if ($actor->role === 'admin' && ! $projectList) {
                 $projectList = WorkOrderList::create([
                     'user_id' => $assignee->id,
                     'name' => $validated['job_topic'],
@@ -189,7 +201,6 @@ class TaskController extends Controller
                 'approval_status' => $approval['approval_status'],
                 'approved_by' => $approval['approved_by'],
                 'approved_at' => $approval['approved_at'],
-                'job_progress' => $initialStatus === 4 ? 100 : 0,
                 'job_start_at' => Carbon::parse($validated['job_start_at']),
                 'job_due_at' => Carbon::parse($validated['job_due_at']),
                 'job_completed_at' => $initialStatus === 4 ? now() : null,
@@ -229,6 +240,15 @@ class TaskController extends Controller
             : ($approval['same_department']
                 ? 'เพิ่มงานสำเร็จ'
                 : 'ส่งคำขอเปิดงานแล้ว รอผู้ดูแลระบบอนุมัติ');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'job_id' => $job->job_id,
+                'list_id' => $job->work_order_list_id,
+            ], 201);
+        }
 
         return redirect()->route(Auth::user()->role === 'admin' ? 'board.index' : 'mytasks.index')
             ->with('success', $message);
@@ -278,7 +298,6 @@ class TaskController extends Controller
                 'approval_status' => $approval['approval_status'],
                 'approved_by' => $approval['approved_by'],
                 'approved_at' => $approval['approved_at'],
-                'job_progress' => 0,
                 'job_start_at' => now(),
                 'job_due_at' => now()->addDay(),
             ]);
@@ -384,19 +403,9 @@ class TaskController extends Controller
                         'approval_status' => $approval['approval_status'],
                         'approved_by' => $approval['approved_by'],
                         'approved_at' => $approval['approved_at'],
-                        'job_progress' => 0,
                         'job_start_at' => Carbon::parse($taskData['job_start_at']),
                         'job_due_at' => Carbon::parse($taskData['job_due_at']),
                     ]);
-
-                    foreach (collect($taskData['subtasks'] ?? [])->filter(fn ($subtask) => filled($subtask['title'] ?? null))->values() as $subtaskIndex => $subtask) {
-                        $job->subtasks()->create([
-                            'created_by' => $actor->id,
-                            'title' => trim($subtask['title']),
-                            'details' => filled($subtask['details'] ?? null) ? trim($subtask['details']) : null,
-                            'sort_order' => $subtaskIndex + 1,
-                        ]);
-                    }
 
                     $collaboratorIds = collect($taskData['collaborators'] ?? [])
                         ->map(fn ($id) => (int) $id)
@@ -811,9 +820,6 @@ class TaskController extends Controller
             'tasks.*.collaborators.*' => ['integer', 'exists:users,id,role,user'],
             'tasks.*.attachments' => ['nullable', 'array', 'max:5'],
             'tasks.*.attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
-            'tasks.*.subtasks' => ['nullable', 'array', 'max:50'],
-            'tasks.*.subtasks.*.title' => ['nullable', 'string', 'max:255'],
-            'tasks.*.subtasks.*.details' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
@@ -822,6 +828,7 @@ class TaskController extends Controller
         return [
             'job_topic' => ['required', 'string', 'max:255'],
             'job_details' => ['nullable', 'string'],
+            'work_order_list_id' => ['nullable', 'integer', 'exists:work_order_lists,id'],
             'user_id' => WorkOrderAssignee::validationRules(false),
             'department_id' => ['nullable', 'exists:departments,id'],
             'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],

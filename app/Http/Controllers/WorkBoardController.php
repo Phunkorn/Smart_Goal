@@ -133,7 +133,6 @@ class WorkBoardController extends Controller
         $allJobs = $memberJobsQuery
             ->with([
                 'taskList.attachments',
-                'subtasks',
                 'user.department',
                 'creator',
                 'leader.department',
@@ -154,7 +153,10 @@ class WorkBoardController extends Controller
         $taskLists = WorkOrderList::query()
             ->with('attachments')
             ->withCount('workOrders')
-            ->whereIn('id', $allJobs->pluck('work_order_list_id')->filter()->unique())
+            ->where(function ($query) use ($user, $allJobs) {
+                $query->where('user_id', $user->id)
+                    ->orWhereIn('id', $allJobs->pluck('work_order_list_id')->filter()->unique());
+            })
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -188,13 +190,13 @@ class WorkBoardController extends Controller
             'todayTasks' => $todayTasks,
             'unreadCommentCounts' => $unreadCommentCounts,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
-            'projects' => $allJobs->pluck('taskList')->filter()->unique('id')->sortBy('name')->values(),
+            'projects' => $taskLists->sortBy('name')->values(),
             'availableCollaborators' => TaskCollaboratorOptions::forActor($request->user()),
             // ใช้ตัวกรองเดียวกับหน้าบอร์ดรวม เพื่อให้โมดัลมอบหมายงานที่ใช้ร่วมกันเห็นรายชื่อชุดเดียวกัน
             'employees' => WorkOrderAssignee::query()->with('department')->orderBy('name')->get(),
             'departments' => Department::orderBy('department_name')->get(),
             'totals' => [
-                'projects' => $allJobs->pluck('work_order_list_id')->filter()->unique()->count(),
+                'projects' => $taskLists->count(),
                 'tasks' => $allJobs->count(),
             ],
             'statusCounts' => WorkBoardDesign::statusCounts($allJobs),

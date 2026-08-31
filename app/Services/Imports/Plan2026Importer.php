@@ -179,7 +179,6 @@ class Plan2026Importer
                             'approval_status' => $approval['approval_status'],
                             'approved_by' => $approval['approved_by'],
                             'approved_at' => $approval['approved_at'],
-                            'job_progress' => (int) $taskData['job_status'] === 4 ? 100 : 0,
                             'job_start_at' => $taskData['job_start_at'],
                             'job_due_at' => $taskData['job_due_at'],
                             'job_completed_at' => null,

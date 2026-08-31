@@ -12,7 +12,6 @@
         190px
         112px
         68px
-        minmax(180px, 1.25fr)
         52px;
 }
 
@@ -230,14 +229,6 @@
 
 .my-tasks-page .notion-database[data-view="table"] .row-files b {
     font-size: 10px;
-}
-
-.my-tasks-page .notion-database[data-view="table"] .row-progress {
-    gap: 10px;
-}
-
-.my-tasks-page .notion-database[data-view="table"] .row-progress > i {
-    height: 6px;
 }
 
 .my-tasks-page .notion-database[data-view="table"] .row-actions {

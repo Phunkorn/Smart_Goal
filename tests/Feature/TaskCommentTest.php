@@ -30,7 +30,6 @@ class TaskCommentTest extends TestCase
         }
 
         $task->refresh();
-        $this->assertSame(31, $task->job_progress);
         $this->assertSame(2, $task->job_status);
         $this->assertCount(3, $task->updates);
         $this->assertTrue($task->updates->every(fn ($update) => $update->is_comment));
@@ -80,7 +79,7 @@ class TaskCommentTest extends TestCase
         $otherReader = $this->user();
         $task = $this->task($reader, $reader);
         $task->collaborators()->attach([$author->id => ['status' => 'accepted', 'added_by' => $reader->id], $otherReader->id => ['status' => 'accepted', 'added_by' => $reader->id]]);
-        WorkOrderUpdate::create(['work_order_id' => $task->job_id, 'user_id' => $author->id, 'progress' => 10, 'note' => 'legacy']);
+        WorkOrderUpdate::create(['work_order_id' => $task->job_id, 'user_id' => $author->id, 'note' => 'legacy']);
 
         $this->actingAs($author)->postJson(route('tasks.comments.store', $task), ['message' => 'first'])->assertCreated();
         $this->assertDatabaseCount('work_order_comment_reads', 0);
@@ -146,7 +145,6 @@ class TaskCommentTest extends TestCase
             'job_priority' => 2,
             'job_status' => 2,
             'approval_status' => 'approved',
-            'job_progress' => 31,
             'job_start_at' => now()->subDay(),
             'job_due_at' => now()->addDay(),
         ]);

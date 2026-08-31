@@ -123,7 +123,6 @@ class ProjectTaskRequestController extends Controller
                 'approval_status' => $approval['approval_status'],
                 'approved_by' => $approval['approved_by'],
                 'approved_at' => $approval['approved_at'],
-                'job_progress' => 0,
                 'job_start_at' => $locked->job_start_at,
                 'job_due_at' => $locked->job_due_at,
             ]);

@@ -31,7 +31,6 @@
     data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
     data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
     data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}"
-    data-progress-template="{{ route('tasks.progress.store', ['id' => '__ID__']) }}"
     data-quick-url="{{ route('mytasks.store') }}"
     data-create-url="{{ route('mytasks.create') }}"
     data-current-user-name="{{ auth()->user()->name }}"

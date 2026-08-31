@@ -210,7 +210,6 @@ final class PersonalReportService
             'topic' => $job->job_topic,
             'project' => $job->taskList?->name ?? $job->department?->department_name ?? 'งานทั่วไป',
             'due_at' => $job->job_due_at?->copy()->timezone(self::BUSINESS_TIMEZONE),
-            'progress' => (int) $job->job_progress,
             'status' => $status,
             'priority' => [
                 'value' => (int) $job->job_priority,
