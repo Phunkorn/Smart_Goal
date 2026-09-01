@@ -16,10 +16,12 @@
 /* My Tasks page composition. */
 @import './mytasks/project-board.css';
 @import './mytasks/task-request.css';
+@import './mytasks/user-task-create.css';
 @import '../components/task-workspace/dialogs.css';
 @import '../components/task-workspace/kanban.css';
 @import './mytasks/admin-assignment.css';
 @import '../components/task-workspace/calendar/base.css';
 @import '../components/task-workspace/calendar/navigation.css';
+@import '../components/task-workspace/calendar/agenda.css';
 @import '../components/task-workspace/calendar/detail.css';
 @import '../components/task-workspace/calendar/quick-view.css';

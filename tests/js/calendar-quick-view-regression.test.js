@@ -283,6 +283,7 @@ test('10) เปลี่ยนเดือนหลายครั้งไม�
 
     // ยังต้องเหลือ popover เดียว และเปิดได้ปกติหลังเปลี่ยนเดือนไปมาหลายรอบ
     assert.equal(ui.document.querySelectorAll('[data-quick-view-popover]').length, 1);
+    ui.click('[data-calendar-today]');
     ui.click(ui.chip('meeting-1'));
     await flush();
     assert.equal(ui.popover.hidden, false, 'ต้องยังเปิด Popover ได้ตามปกติหลังเปลี่ยนเดือนไปมาหลายครั้ง');

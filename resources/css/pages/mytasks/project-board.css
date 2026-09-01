@@ -269,6 +269,25 @@
     white-space: nowrap;
 }
 
+.my-tasks-page .board-start-editable {
+    position: relative;
+    min-height: 30px;
+    cursor: pointer;
+}
+
+.my-tasks-page .board-start-editable:hover,
+.my-tasks-page .board-start-editable:focus-within {
+    color: #2563eb;
+}
+
+.my-tasks-page .board-start-editable input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
 .my-tasks-page .board-due {
     justify-self: center;
 }

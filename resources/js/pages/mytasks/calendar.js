@@ -3,6 +3,7 @@ import {modalStack} from '../../components/modal-stack.js';
 import {createCalendarQuickView} from './calendar-quick-view.js';
 import {
     buddhistYear,
+    buildCalendarAgenda,
     buildMonthCalendar,
     calendarMonthForDate,
     calendarMonthKey,
@@ -42,6 +43,13 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const attachmentData = json('[data-attachment-data]');
 
     const loadingIndicator = calendar.querySelector('[data-calendar-loading]');
+    const todayList = calendar.querySelector('[data-calendar-today-list]');
+    const todayEmpty = calendar.querySelector('[data-calendar-today-empty]');
+    const todayCount = calendar.querySelector('[data-calendar-today-count]');
+    const monthList = calendar.querySelector('[data-calendar-month-list]');
+    const monthEmpty = calendar.querySelector('[data-calendar-month-empty]');
+    const monthCount = calendar.querySelector('[data-calendar-month-count]');
+    const monthAgendaTitle = calendar.querySelector('[data-calendar-month-agenda-title]');
     const meetingsEndpoint = calendar.dataset.meetingsEndpoint || '';
     const meetingsById = new Map();
     const loadedMonths = new Set();
@@ -198,9 +206,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         modalStack(document).open(detail);
     };
 
-    const makePopoverTask = (event) => {
+    const configureCalendarEventNode = (node, event) => {
         const isMeeting = event.type === 'meeting';
-        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar__popover-task${isMeeting ? ' is-meeting' : ''}`);
         if (isMeeting) node.href = event.url;
         else node.type = 'button';
         node.dataset.calendarTask = event.id;
@@ -213,6 +220,13 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             node.setAttribute('aria-expanded', 'false');
             node.setAttribute('aria-controls', 'calendar-quick-view-popover');
         }
+        return node;
+    };
+
+    const makePopoverTask = (event) => {
+        const isMeeting = event.type === 'meeting';
+        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar__popover-task${isMeeting ? ' is-meeting' : ''}`);
+        configureCalendarEventNode(node, event);
 
         const copy = element('span');
         copy.append(
@@ -259,42 +273,72 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         });
     };
 
-    const milestoneLabel = ({task, kind}) => {
-        if (task.type === 'meeting') {
-            if (kind === 'end') return `สิ้นสุด: ${task.title}`;
-            return `${task.startTime} ${task.title}`;
-        }
-        if (kind === 'start') {
-            return `เริ่ม: ${task.title} · ${shortDateFormatter.format(new Date(task.startStamp))}–${shortDateFormatter.format(new Date(task.dueStamp))}`;
-        }
-        if (kind === 'end') return `สิ้นสุด: ${task.title}`;
-        return task.title;
-    };
-
-    const makeMilestone = (milestone) => {
-        const event = milestone.task;
+    const makeCalendarSegment = (segment) => {
+        const event = segment.event;
         const isMeeting = event.type === 'meeting';
         const tone = isMeeting ? 'mytasks-calendar__task--meeting' : (statusMeta[event.status] || unsupportedStatusMeta).className;
-        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar__task mytasks-calendar__task--${milestone.kind} ${tone}`);
-        if (isMeeting) node.href = event.url;
-        else node.type = 'button';
-        node.dataset.calendarTask = event.id;
-        node.dataset.calendarEventType = event.type;
-        if (event.quickViewUrl) node.dataset.calendarQuickView = event.quickViewUrl;
-        if (event.detailUrl) node.dataset.calendarDetailUrl = event.detailUrl;
-        node.setAttribute('aria-label', eventAriaLabel(event));
+        const continuation = [
+            segment.continuesBefore ? 'is-continuation-before' : 'is-event-start',
+            segment.continuesAfter ? 'is-continuation-after' : 'is-event-end',
+        ].join(' ');
+        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar__task mytasks-calendar__task--segment ${continuation} ${tone}`);
+        configureCalendarEventNode(node, event);
         node.title = eventAriaLabel(event);
-        if (event.quickViewUrl) {
-            node.setAttribute('aria-haspopup', 'dialog');
-            node.setAttribute('aria-expanded', 'false');
-            node.setAttribute('aria-controls', 'calendar-quick-view-popover');
-        }
+        node.style.gridColumn = `${segment.startColumn} / ${segment.endColumn + 1}`;
+        node.style.gridRow = String(segment.lane);
 
         // ไอคอนนำหน้าทำให้แยกประเภทได้โดยไม่ต้องพึ่งสีอย่างเดียว
         const marker = element('i', isMeeting ? 'bi bi-calendar-event-fill' : `priority-${event.priority}`);
         marker.setAttribute('aria-hidden', 'true');
-        node.append(marker, element('span', '', milestoneLabel(milestone)));
+        const label = isMeeting && event.startTime ? `${event.startTime} ${event.title}` : event.title;
+        node.append(marker, element('span', '', label));
         return node;
+    };
+
+    const makeAgendaItem = (event) => {
+        const isMeeting = event.type === 'meeting';
+        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar-agenda__item${isMeeting ? ' is-meeting' : ''}`);
+        configureCalendarEventNode(node, event);
+
+        const date = new Date(event.startStamp);
+        const dateBlock = element('span', 'mytasks-calendar-agenda__date');
+        dateBlock.append(
+            element('strong', '', String(date.getUTCDate())),
+            element('small', '', shortDateFormatter.format(date).replace(/^\d+\s*/, '')),
+        );
+
+        const copy = element('span', 'mytasks-calendar-agenda__copy');
+        copy.append(
+            element('strong', '', event.title),
+            element('small', '', isMeeting
+                ? `${event.startTime}–${event.endTime} น. · ${event.location}`
+                : event.project),
+        );
+
+        const meta = element('span', 'mytasks-calendar-agenda__meta');
+        if (isMeeting) {
+            meta.append(element('span', 'status-review', 'ประชุม'));
+        } else {
+            const status = statusMeta[event.status] || unsupportedStatusMeta;
+            meta.append(element('span', status.className, status.label));
+        }
+        meta.append(element('small', '', taskRangeLabel(event)));
+        const arrow = element('i', 'bi bi-chevron-right');
+        arrow.setAttribute('aria-hidden', 'true');
+        node.append(dateBlock, copy, meta, arrow);
+        return node;
+    };
+
+    const renderAgenda = (events) => {
+        if (!todayList || !todayEmpty || !todayCount || !monthList || !monthEmpty || !monthCount || !monthAgendaTitle) return;
+        const agenda = buildCalendarAgenda(events, selectedYear, selectedMonth, todayKey);
+        todayList.replaceChildren(...agenda.todayTasks.map(makeAgendaItem));
+        monthList.replaceChildren(...agenda.monthEvents.map(makeAgendaItem));
+        todayEmpty.hidden = agenda.todayTasks.length > 0;
+        monthEmpty.hidden = agenda.monthEvents.length > 0;
+        todayCount.textContent = `${agenda.todayTasks.length} งาน`;
+        monthCount.textContent = `${agenda.monthEvents.length} รายการ`;
+        monthAgendaTitle.textContent = `รายการของ${monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)))}`;
     };
 
     const makeDayCell = (day) => {
@@ -307,10 +351,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         if (day.key === todayKey) cell.setAttribute('aria-current', 'date');
 
         cell.append(element('span', 'mytasks-calendar__day-number', String(day.day)));
-
-        const events = element('div', 'mytasks-calendar__events');
-        events.append(...day.visibleMilestones.map(makeMilestone));
-        cell.append(events);
 
         if (day.hiddenCount > 0) {
             const more = element('button', 'mytasks-calendar__more', `+ ${day.hiddenCount} รายการ`);
@@ -331,16 +371,22 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         // Quick View ที่เพิ่งเปิดจะถูกปิดทิ้งเองทันทีที่ fetch นั้นตอบกลับ ทำให้ดูเหมือนคลิก
         // Event ไม่ได้ผลเลย จุดที่ต้องปิดจริงคือตอน "เปลี่ยนเดือน" (goToMonth) และตอนข้อมูล
         // ถูก invalidate จริง (mytasks:viewchange / mytasks:changed) เท่านั้น
-        monthData = buildMonthCalendar(readEvents(), selectedYear, selectedMonth);
+        const events = readEvents();
+        monthData = buildMonthCalendar(events, selectedYear, selectedMonth);
         synchronizeSelectors();
         title.textContent = monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
         const weekNodes = monthData.weeks.map((week) => {
             const weekNode = element('div', 'mytasks-calendar__week');
             weekNode.setAttribute('role', 'row');
             weekNode.append(...week.days.map(makeDayCell));
+            const eventLayer = element('div', 'mytasks-calendar__event-layer');
+            eventLayer.setAttribute('aria-label', 'รายการงานและการประชุมประจำสัปดาห์');
+            eventLayer.append(...week.segments.map(makeCalendarSegment));
+            weekNode.append(eventLayer);
             return weekNode;
         });
         grid.replaceChildren(...weekNodes);
+        renderAgenda(events);
     };
 
     /**

@@ -55,7 +55,30 @@
 ?>
 <script type="application/json" data-attachment-data>@json($attachmentData)</script>
 <?php
-    $timelineData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => ['updates' => $task->updates->map(fn ($update) => ['id' => $update->id, 'author' => $update->user?->name ?? 'ไม่ระบุ', 'avatar_url' => $update->user?->profile_image ? route('media.profile', $update->user) : null, 'note' => $update->note, 'at' => optional($update->created_at)->translatedFormat('j M Y H:i')])->values(), 'activity' => $task->activityLogs->map(fn ($log) => ['author' => $log->user?->name ?? 'ระบบ', 'avatar_url' => $log->user?->profile_image ? route('media.profile', $log->user) : null, 'note' => $log->description, 'at' => optional($log->created_at)->translatedFormat('j M Y H:i')])->values()]]);
+    $commentPresenter = app(\App\Support\TaskCommentPresenter::class);
+    $commentReceipts = $commentPresenter->receiptsForTasks($allTasks);
+    $timelineData = $allTasks->mapWithKeys(function ($task) use ($commentPresenter, $commentReceipts) {
+        $canViewComments = auth()->user()->can('viewComments', $task);
+        $receipts = $commentReceipts->get((string) $task->job_id, []);
+
+        return [(string) $task->job_id => [
+            'updates' => $task->updates
+                ->filter(fn ($update) => ! $update->is_comment || $canViewComments)
+                ->map(fn ($update) => $commentPresenter->comment(
+                    $update,
+                    auth()->user(),
+                    $receipts[(string) $update->id] ?? []
+                ))
+                ->values(),
+            'activity' => $task->activityLogs->map(fn ($log) => [
+                'author' => $log->user?->name ?? 'ระบบ',
+                'avatar_url' => $log->user?->profile_image ? route('media.profile', $log->user) : null,
+                'note' => $log->description,
+                'at' => $commentPresenter->timestamp($log->created_at),
+                'is_mine' => (int) $log->user_id === (int) auth()->id(),
+            ])->values(),
+        ]];
+    });
 ?>
 <script type="application/json" data-timeline-data>@json($timelineData)</script>
 <?php
@@ -65,13 +88,14 @@
         // การซ่อนปุ่มเป็นเรื่อง UI เท่านั้น สิทธิ์จริงยังถูกตรวจซ้ำที่ Policy ฝั่ง server ทุกครั้ง
         'can_work' => auth()->user()->can('work', $task),
         'can_comment' => auth()->user()->can('comment', $task),
+        'can_view_comments' => auth()->user()->can('viewComments', $task),
         'can_manage_team' => auth()->user()->can('manageTeam', $task),
         'project' => $task->taskList?->name ?? 'งานทั่วไป',
         'status' => (int) $task->job_status,
         'submitted_by' => $task->reviewSubmitter?->name,
         'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
         'comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
-        'read_comments_url' => route('tasks.comments.read', $task),
+        'read_comments_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.read', $task) : null,
         'unread_comments' => (int) ($unreadCommentCounts[$task->job_id] ?? 0),
     ]]);
 ?>
@@ -184,18 +208,6 @@
     </section>
 </div>
 
-@if($showCreateActions)
-<div class="notion-modal" data-create-modal hidden>
-    <form class="notion-modal-card project-create-card" data-create-form enctype="multipart/form-data">
-        <header><div><span class="task-edit-kicker">NEW PROJECT</span><strong>เพิ่มโปรเจกต์ใหม่</strong><small>สร้างพื้นที่โปรเจกต์ก่อน แล้วเพิ่มรายการงานภายหลัง</small></div><button type="button" class="task-modal-close" data-close-create aria-label="ปิด"><i class="bi bi-x-lg"></i></button></header>
-        <div class="modal-body project-create-body">
-            @include('tasks.components.project-form-fields')
-        </div>
-        <footer><button type="button" class="task-secondary" data-close-create>ยกเลิก</button><button class="notion-primary" type="submit"><i class="bi bi-plus-lg"></i> สร้างโปรเจกต์</button></footer>
-    </form>
-</div>
-@endif
-
 @php
     /**
      * Task Workspace — หน้าจัดการรายการงานที่ Admin และ User ใช้ร่วมกันทั้งหมด
@@ -267,7 +279,7 @@
                 <span class="task-workspace__cell-icon tone-date"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
                 <span class="task-workspace__cell-body">
                     <span class="task-workspace__cell-label">วันที่เริ่ม</span>
-                    <input type="date" name="job_start_at" class="task-workspace__date">
+                    <input type="date" name="job_start_at" class="task-workspace__date" required>
                 </span>
             </label>
 

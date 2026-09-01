@@ -8,8 +8,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Sidebar ของพนักงานถูกจัดหมวดใหม่และย้ายเมนู "การประชุม" ออก
- * ส่วน Admin และ Viewer ต้องไม่เปลี่ยนแปลงเลย
+ * Sidebar ใช้โครงสร้างข้อมูลตามบทบาท โดยคง route สิทธิ์ และลำดับงานสำคัญเดิม
+ * ส่วนแบรนด์ใช้ markup ชุดเดียวกันในทุกบทบาท
  */
 class SidebarNavigationTest extends TestCase
 {
@@ -39,34 +39,98 @@ class SidebarNavigationTest extends TestCase
         $this->assertLessThan($reportPosition, $workBoardPosition, '"บอร์ดงาน" ต้องอยู่ก่อน "รายงานของฉัน"');
     }
 
-    public function test_admin_sidebar_hides_the_meetings_menu_and_keeps_its_own_sections(): void
+    public function test_admin_sidebar_is_split_into_clear_operational_sections(): void
     {
-        // "การประชุม" ของ Admin ย้ายไปเป็น view ที่ 4 ของ Admin Member Workspace แล้ว
-        // sidebar จึงต้องไม่มีเมนูนี้อีก แต่ section อื่นต้องไม่ถูกกระทบ
         $admin = $this->userWithRole('admin');
 
-        $this->actingAs($admin)
+        $content = $this->actingAs($admin)
             ->get(route('board.index'))
             ->assertOk()
             ->assertDontSee('href="'.route('meetings.index').'"', false)
             ->assertDontSee('<span class="nav-item__label">การประชุม</span>', false)
-            ->assertSee('<div class="nav-section-label">ผู้บริหาร</div>', false)
-            ->assertSee('href="'.route('board.index').'"', false)
-            ->assertSee('<div class="nav-section-label">การจัดการ</div>', false)
-            ->assertDontSee('<div class="nav-section-label">การสื่อสาร</div>', false);
+            ->assertSee('<div class="nav-section-label">ภาพรวม</div>', false)
+            ->assertSee('<div class="nav-section-label">งานและคำขอ</div>', false)
+            ->assertSee('<div class="nav-section-label">องค์กร</div>', false)
+            ->assertSee('<div class="nav-section-label">ระบบ</div>', false)
+            ->assertDontSee('<div class="nav-section-label">การสื่อสาร</div>', false)
+            ->getContent();
+
+        $positions = [
+            strpos($content, 'href="'.route('board.index').'"'),
+            strpos($content, 'href="'.route('reports.index').'"'),
+            strpos($content, 'href="'.route('notifications.index').'"'),
+            strpos($content, 'href="'.route('admin.approvals.index').'"'),
+            strpos($content, 'href="'.route('employees.index').'"'),
+            strpos($content, 'href="'.route('admin.departments.index').'"'),
+            strpos($content, 'href="'.route('admin.audit.index').'"'),
+            strpos($content, 'href="'.route('settings.index').'"'),
+        ];
+
+        $this->assertNotContains(false, $positions);
+        $this->assertSame($positions, collect($positions)->sort()->values()->all());
     }
 
-    public function test_viewer_sidebar_keeps_the_meetings_menu_unchanged(): void
+    public function test_viewer_sidebar_uses_the_shared_information_architecture(): void
     {
         $viewer = $this->userWithRole('viewer');
 
-        $this->actingAs($viewer)
+        $content = $this->actingAs($viewer)
             ->get(route('board.index'))
             ->assertOk()
             ->assertSee('href="'.route('meetings.index').'"', false)
-            ->assertSee('<div class="nav-section-label">ดูข้อมูล</div>', false)
-            ->assertSee('<div class="nav-section-label">พื้นที่ของฉัน</div>', false)
-            ->assertDontSee('<div class="nav-section-label">การสื่อสาร</div>', false);
+            ->assertSee('<div class="nav-section-label">ภาพรวม</div>', false)
+            ->assertSee('<div class="nav-section-label">การสื่อสาร</div>', false)
+            ->assertSee('<div class="nav-section-label">องค์กร</div>', false)
+            ->assertSee('<div class="nav-section-label">ระบบ</div>', false)
+            ->assertDontSee('<div class="nav-section-label">พื้นที่ของฉัน</div>', false)
+            ->getContent();
+
+        $positions = [
+            strpos($content, 'href="'.route('board.index').'"'),
+            strpos($content, 'href="'.route('reports.index').'"'),
+            strpos($content, 'href="'.route('notifications.index').'"'),
+            strpos($content, 'href="'.route('meetings.index').'"'),
+            strpos($content, 'href="'.route('employees.index').'"'),
+            strpos($content, 'href="'.route('settings.index').'"'),
+        ];
+
+        $this->assertNotContains(false, $positions);
+        $this->assertSame($positions, collect($positions)->sort()->values()->all());
+    }
+
+    public function test_sidebar_brand_uses_organization_icon_and_separate_subtitle_for_every_role(): void
+    {
+        foreach ([
+            'user' => 'mytasks.index',
+            'admin' => 'board.index',
+            'viewer' => 'board.index',
+        ] as $role => $routeName) {
+            $this->actingAs($this->userWithRole($role))
+                ->get(route($routeName))
+                ->assertOk()
+                ->assertSee('<i class="bi bi-buildings"></i>', false)
+                ->assertSee('<div class="brand-name">Smart Goals</div>', false)
+                ->assertSee('<div class="brand-subtitle">ระบบจัดการองค์กร</div>', false)
+                ->assertDontSee('bi-bullseye', false);
+        }
+    }
+
+    public function test_role_chip_shows_its_role_label_and_keeps_an_accessible_name(): void
+    {
+        foreach ([
+            'user' => ['mytasks.index', 'user', 'พนักงาน'],
+            'admin' => ['board.index', 'admin', 'ผู้ดูแลระบบ'],
+            'viewer' => ['board.index', 'user', 'ผู้เข้าชม'],
+        ] as $role => [$routeName, $chipClass, $label]) {
+            $this->actingAs($this->userWithRole($role))
+                ->get(route($routeName))
+                ->assertOk()
+                ->assertSee(
+                    '<span class="role-chip '.$chipClass.'" aria-label="'.$label.'" title="'.$label.'">',
+                    false
+                )
+                ->assertSee('<span class="role-chip__label">'.$label.'</span>', false);
+        }
     }
 
     private function userWithRole(string $role): User

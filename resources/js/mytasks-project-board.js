@@ -457,9 +457,9 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             return;
         }
 
-        const dueControl = event.target.closest('.board-due-editable');
-        if (dueControl && !event.target.matches('input')) {
-            const input = dueControl.querySelector('input[type="date"]');
+        const dateControl = event.target.closest('.board-start-editable, .board-due-editable');
+        if (dateControl && !event.target.matches('input')) {
+            const input = dateControl.querySelector('input[type="date"]');
             input?.showPicker?.();
             input?.focus();
         }
@@ -565,7 +565,6 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                     count.textContent = remaining;
                     count.dataset.boardTotalCount = remaining;
                 }
-                if (!remaining) projectHeader?.remove();
                 notify('ลบงานแล้ว');
             }).catch((error) => {
                 deleteTask.disabled = false;
@@ -609,20 +608,50 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                 wrapper.classList.remove('priority-low', 'priority-medium', 'priority-high');
                 wrapper.classList.add({1:'priority-low',2:'priority-medium',3:'priority-high'}[control.value] || 'priority-medium');
                 synchronizeTaskSource(workspace, id, {priority: Number(control.value)});
-            } else if (field === 'due') {
-                const data = await request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: control.value});
+            } else if (field === 'start') {
+                if (!control.value || (task.dataset.due && control.value > task.dataset.due)) {
+                    throw new Error('วันที่เริ่มต้องไม่เกินกำหนดส่ง');
+                }
+                const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
+                    job_start_at: control.value,
+                    job_due_at: task.dataset.due,
+                });
                 if (data.transitions) management[String(id)].transitions = data.transitions;
+                task.dataset.start = data.job_start_at ?? control.value;
+                task.dataset.due = data.job_due_at ?? task.dataset.due;
+                task.dataset.status = String(data.job_status ?? task.dataset.status);
+                const date = new Date(`${task.dataset.start}T00:00:00`);
+                const label = control.closest('.board-start')?.querySelector('[data-board-start-label]');
+                if (label && !Number.isNaN(date.getTime())) label.textContent = new Intl.DateTimeFormat('th-TH', {day:'numeric', month:'short', year:'numeric'}).format(date);
+                const dueInput = task.querySelector('[data-board-field="due"]');
+                if (dueInput) dueInput.min = task.dataset.start;
+                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, status: Number(task.dataset.status)});
+            } else if (field === 'due') {
+                if (!control.value || (task.dataset.start && control.value < task.dataset.start)) {
+                    throw new Error('กำหนดส่งต้องไม่น้อยกว่าวันที่เริ่ม');
+                }
+                const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
+                    job_start_at: task.dataset.start,
+                    job_due_at: control.value,
+                });
+                if (data.transitions) management[String(id)].transitions = data.transitions;
+                task.dataset.start = data.job_start_at ?? task.dataset.start;
                 task.dataset.due = data.job_due_at ?? control.value;
+                task.dataset.status = String(data.job_status ?? task.dataset.status);
                 const date = new Date(`${control.value}T00:00:00`);
                 const label = control.closest('.board-due')?.querySelector('[data-board-due-label]');
                 if (label && !Number.isNaN(date.getTime())) label.textContent = new Intl.DateTimeFormat('th-TH', {day:'numeric', month:'short', year:'numeric'}).format(date);
-                synchronizeTaskSource(workspace, id, {due: task.dataset.due, status: Number(data.job_status ?? task.dataset.status)});
+                const startInput = task.querySelector('[data-board-field="start"]');
+                if (startInput) startInput.max = task.dataset.due;
+                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, status: Number(task.dataset.status)});
             }
             notify('บันทึกการเปลี่ยนแปลงแล้ว');
             filterBoard();
         } catch (error) {
             notify(error.message, false);
-            window.location.reload();
+            if (field === 'start') control.value = task.dataset.start || '';
+            else if (field === 'due') control.value = task.dataset.due || '';
+            else window.location.reload();
         } finally {
             control.disabled = false;
         }

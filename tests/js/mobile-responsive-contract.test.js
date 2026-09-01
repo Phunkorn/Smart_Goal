@@ -13,6 +13,18 @@ test('login owns its tablet composition through 820px', async () => {
     assert.match(source, /overflow-y:auto/);
 });
 
+test('mobile role chip keeps a compact visible label with an accessible name', async () => {
+    const source = await css('resources/css/components/layout/responsive.css');
+    const blade = await css('resources/views/layouts/app.blade.php');
+    const mobile = source.slice(source.indexOf('@media (max-width: 991px)'));
+
+    assert.match(mobile, /\.role-chip\s*\{[^}]*width:\s*auto[^}]*min-width:\s*0[^}]*max-width:\s*none[^}]*flex:\s*0 0 auto[^}]*justify-content:\s*center[^}]*gap:\s*\.35rem[^}]*padding:\s*0 \.65rem/s);
+    assert.match(mobile, /\.role-chip i\s*\{[^}]*margin:\s*0/s);
+    assert.match(mobile, /\.role-chip__label\s*\{[^}]*display:\s*inline[^}]*font-size:\s*\.72rem/s);
+    assert.match(blade, /class="role-chip \{\{ \$isAdmin[^"]+" aria-label="\{\{ \$roleLabel \}\}" title="\{\{ \$roleLabel \}\}"/);
+    assert.match(blade, /<span class="role-chip__label">\{\{ \$roleLabel \}\}<\/span>/);
+});
+
 test('mobile kanban stacks status columns without the desktop minimum width', async () => {
     const source = await css('resources/css/components/task-workspace/kanban.css');
 
@@ -48,13 +60,14 @@ test('shared board titles and assignee header use explicit compact contracts', a
     assert.match(adminMember, /family=IBM\+Plex\+Sans\+Thai:wght@400;500;600;700/);
 });
 
-test('mobile calendar fits seven days and uses compact focusable event controls', async () => {
+test('mobile calendar fits seven days and keeps compact continuous event bars', async () => {
     const source = await css('resources/css/components/task-workspace/calendar/base.css');
     const mobile = source.slice(source.lastIndexOf('@media (max-width: 760px)'));
 
-    assert.match(mobile, /\.mytasks-calendar__canvas\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0/s);
-    assert.match(mobile, /\.mytasks-calendar__task\s*\{[^}]*width:\s*18px[^}]*height:\s*18px/s);
-    assert.match(mobile, /\.mytasks-calendar__task > span\s*\{[^}]*clip-path:\s*inset\(50%\)/s);
+    assert.match(source, /\.mytasks-calendar__canvas\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0/s);
+    assert.match(mobile, /\.mytasks-calendar__event-layer\s*\{[^}]*grid-template-rows:\s*repeat\(3, 16px\)/s);
+    assert.match(mobile, /\.mytasks-calendar__task--segment\s*\{[^}]*width:\s*auto[^}]*height:\s*16px/s);
+    assert.match(mobile, /\.mytasks-calendar__task--segment > span\s*\{[^}]*clip-path:\s*none[^}]*text-overflow:\s*ellipsis/s);
 });
 
 test('mobile calendar navigation has deterministic control and selector rows', async () => {
@@ -65,6 +78,18 @@ test('mobile calendar navigation has deterministic control and selector rows', a
     assert.match(mobile, /label:nth-of-type\(1\)[^{]*\{[^}]*grid-column:\s*1 \/ 3/s);
     assert.match(mobile, /label:nth-of-type\(2\)[^{]*\{[^}]*grid-column:\s*3 \/ 5/s);
     assert.match(mobile, /\[data-calendar-month\][^}]*\[data-calendar-year\]\s*\{[^}]*min-width:\s*0/s);
+});
+
+test('calendar agenda stays scoped and collapses metadata below the task on mobile', async () => {
+    const source = await css('resources/css/components/task-workspace/calendar/agenda.css');
+    const entry = await css('resources/css/pages/mytasks.css');
+    const mobile = source.slice(source.lastIndexOf('@media (max-width: 760px)'));
+
+    assert.match(entry, /calendar\/agenda\.css/);
+    assert.match(source, /^\.my-tasks-page \.mytasks-calendar-agenda/m);
+    assert.match(mobile, /grid-template-columns:\s*42px minmax\(0, 1fr\) 14px/);
+    assert.match(mobile, /\.mytasks-calendar-agenda__meta\s*\{[^}]*grid-column:\s*2 \/ 3[^}]*grid-row:\s*2/s);
+    assert.match(source, /\.mytasks-calendar-agenda__item:focus-visible\s*\{/);
 });
 
 test('admin member profile owns a desktop/tablet/mobile composition instead of scrolling sideways', async () => {

@@ -109,7 +109,6 @@
                     const count = section?.querySelectorAll('[data-row]').length || 0;
                     const countNode = section?.querySelector('header small');
                     if (countNode) countNode.textContent = `${count} งาน`;
-                    if (!count) section?.remove();
                     notify('ลบรายการแล้ว');
                 }
             } catch (error) { deleteTask.disabled = false; notify(error.message, false); }

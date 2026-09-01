@@ -49,8 +49,8 @@
             background: var(--surface-2);
         }
 
-        /* เครื่องหมายประจำแอป: ใช้ Bootstrap Icons ชุดเดิมวางบนไทล์สีน้ำเงินของแบรนด์
-           จึงไม่ต้องเพิ่มไฟล์ภาพหรือชุดไอคอนใหม่ */
+        /* เครื่องหมายประจำแอป: อาคารหลายหลังสื่อถึงการจัดการระดับองค์กร
+           และใช้ Bootstrap Icons ชุดเดิมโดยไม่เพิ่มไฟล์ภาพหรือ dependency */
         .brand-mark {
             width: 34px;
             height: 34px;
@@ -71,12 +71,21 @@
             margin-right: auto;
         }
 
-        .sidebar-brand .name {
+        .sidebar-brand .brand-name {
             font-weight: 700;
-            font-size: .98rem;
+            font-size: .96rem;
             letter-spacing: .2px;
             color: var(--text);
-            line-height: 1.2;
+            line-height: 1.15;
+            white-space: nowrap;
+        }
+
+        .sidebar-brand .brand-subtitle {
+            margin-top: .15rem;
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 400;
+            line-height: 1.15;
             white-space: nowrap;
         }
 

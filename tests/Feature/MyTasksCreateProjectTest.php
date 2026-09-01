@@ -21,33 +21,33 @@ class MyTasksCreateProjectTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_my_tasks_renders_exactly_one_create_project_trigger(): void
+    public function test_my_tasks_renders_exactly_one_create_task_trigger(): void
     {
         $user = $this->member();
 
         $content = $this->actingAs($user)
             ->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('data-open-create', false)
-            ->assertSee('เพิ่มโปรเจกต์')
+            ->assertSee('data-open-user-task-create', false)
+            ->assertSee('สร้างงาน')
             ->getContent();
 
         $this->assertSame(
             1,
-            substr_count($content, 'data-open-create'),
+            substr_count($content, 'data-open-user-task-create'),
             'หน้างานของฉันต้องมีปุ่มเปิด modal สร้างโปรเจกต์เพียงปุ่มเดียว'
         );
     }
 
-    public function test_create_project_modal_and_backend_contract_are_still_rendered(): void
+    public function test_create_task_modal_and_backend_contract_are_rendered(): void
     {
         $user = $this->member();
 
         $this->actingAs($user)
             ->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('data-create-modal', false)
-            ->assertSee('data-create-form', false)
+            ->assertSee('data-user-task-create-modal', false)
+            ->assertSee('data-user-task-create-form', false)
             ->assertSee('data-create-url="'.route('mytasks.create').'"', false);
     }
 
@@ -60,7 +60,7 @@ class MyTasksCreateProjectTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.work-board.member', [$department, $member]))
             ->assertOk()
-            ->assertDontSee('data-open-create', false)
+            ->assertDontSee('data-open-user-task-create', false)
             ->assertDontSee('data-create-modal', false);
     }
 
@@ -98,6 +98,56 @@ class MyTasksCreateProjectTest extends TestCase
 
         $this->assertSame($user->id, $project->user_id);
         $this->assertSame($project->id, $job->work_order_list_id);
+    }
+
+    public function test_create_task_modal_can_use_an_existing_owned_project(): void
+    {
+        $user = $this->member();
+        $project = WorkOrderList::create([
+            'user_id' => $user->id,
+            'name' => 'Existing project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('mytasks.create'), [
+                'work_order_list_id' => $project->id,
+                'job_topic' => 'Task from one-step modal',
+                'job_start_at' => now()->format('Y-m-d H:i:s'),
+                'job_due_at' => now()->addDay()->format('Y-m-d H:i:s'),
+                'job_priority' => 3,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('list_id', $project->id);
+
+        $task = WorkOrder::where('job_topic', 'Task from one-step modal')->firstOrFail();
+        $this->assertSame($project->id, $task->work_order_list_id);
+        $this->assertSame($user->id, $task->user_id);
+        $this->assertSame(3, (int) $task->job_priority);
+    }
+
+    public function test_user_cannot_create_task_inside_another_users_project(): void
+    {
+        $owner = $this->member();
+        $intruder = $this->member();
+        $project = WorkOrderList::create([
+            'user_id' => $owner->id,
+            'name' => 'Private project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($intruder)
+            ->postJson(route('mytasks.create'), [
+                'work_order_list_id' => $project->id,
+                'job_topic' => 'Forbidden task',
+                'job_start_at' => now()->format('Y-m-d H:i:s'),
+                'job_due_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('work_orders', ['job_topic' => 'Forbidden task']);
     }
 
     private function member(string $role = 'user', ?Department $department = null): User

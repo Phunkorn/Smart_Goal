@@ -9,6 +9,7 @@ use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProjectTaskRequestController;
+use App\Http\Controllers\RealtimeSyncController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaskAttachmentController;
@@ -333,6 +334,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
     Route::post('/tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->name('tasks.comments.read');
+
+    Route::get('/realtime/sync', RealtimeSyncController::class)
+        ->middleware('throttle:120,1')
+        ->name('realtime.sync');
 
     Route::post('/tasks/{id}/delete-request', [TaskController::class, 'requestDelete'])
         ->name('tasks.deleteRequest.store');

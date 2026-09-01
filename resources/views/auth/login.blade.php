@@ -16,8 +16,9 @@
             <div class="brand-copy">
                 <div class="brand-eyebrow">PREMIUMCARE WORKFORCE</div>
                 <h1>Smart Goal</h1>
+                <p class="brand-tagline">ระบบจัดการองค์กรและติดตามงาน</p>
             </div>
-            <p class="brand-description">พื้นที่จัดการงานสำหรับทีม : เช็กงนที่ได้รับมอบหมาย<br>อัปเดตสถานะ และส่งงานตรงเวลา</p>
+            <p class="brand-description">พื้นที่จัดการงานสำหรับทีม : เช็กงานที่ได้รับมอบหมาย<br>อัปเดตสถานะ และส่งงานตรงเวลา</p>
         </section>
 
         <section class="auth-card">

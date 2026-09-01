@@ -119,6 +119,12 @@
 
         const add = event.target.closest('[data-add-in-group]');
         if (add && (root.dataset.quickUrl || root.dataset.quickTemplate)) {
+            if (root.dataset.context === 'user' && document.querySelector('[data-user-task-create-modal]')) {
+                document.dispatchEvent(new CustomEvent('mytasks:create-task', {
+                    detail: {listId: add.dataset.listId || ''},
+                }));
+                return;
+            }
             const result = await Swal.fire({title: 'เพิ่มรายการใหม่', input: 'text', inputPlaceholder: 'ระบุชื่องาน', inputAttributes: {maxlength: 255}, showCancelButton: true, confirmButtonText: 'เพิ่มรายการ', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่องาน'});
             const title = result.value?.trim();
             if (!result.isConfirmed || !title) return;

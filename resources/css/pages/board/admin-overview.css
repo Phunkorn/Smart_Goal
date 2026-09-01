@@ -192,11 +192,8 @@
 .admin-department-row {
     display: grid;
     grid-template-columns:
-        minmax(280px, 1.8fr)
-        .8fr
-        .8fr
-        .8fr
-        1fr
+        minmax(280px, 1fr)
+        minmax(120px, .6fr)
         170px;
     align-items: center;
     gap: 22px;

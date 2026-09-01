@@ -70,6 +70,39 @@ test('a returned comment is rendered from the front of the Updates collection', 
     assert.deepEqual(prependComment(timeline, 42, {id: 2, note: 'new'}).map((item) => item.id), [2, 1]);
 });
 
+test('an incoming realtime comment updates the open timeline without a reload', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    const fetches = captureFetch();
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 501,
+        category: 'comment',
+        task_id: 7,
+        comment: {id: 901, author: 'เพื่อนร่วมงาน', note: 'ข้อความที่เข้ามาใหม่', at: 'ตอนนี้'},
+    }}));
+
+    assert.match(ui.taskModal.querySelector('[data-timeline-items]').textContent, /ข้อความที่เข้ามาใหม่/);
+    assert.equal(ui.boardComment().querySelector('strong').textContent, '3');
+    assert.equal(ui.boardComment().classList.contains('has-unread'), false);
+    assert.equal(fetches.calls.some((call) => String(call.url).endsWith('/comments/read')), true);
+});
+
+test('an incoming comment stays unread when its task workspace is not open', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 502,
+        category: 'comment',
+        task_id: 7,
+        comment: {id: 902, author: 'เพื่อนร่วมงาน', note: 'ข้อความที่ยังไม่ได้เปิดอ่าน', at: 'ตอนนี้'},
+    }}));
+
+    assert.equal(ui.boardComment().querySelector('strong').textContent, '3');
+    assert.equal(ui.boardComment().classList.contains('has-unread'), true);
+    assert.equal(ui.taskModal.hidden, true);
+});
+
 test('successful read state clears the task unread badge count', () => {
     assert.equal(unreadCountAfterRead(5), 0);
 });
@@ -92,7 +125,7 @@ function captureFetch({defer = false} = {}) {
         calls.push({url, options});
         const payload = {
             ok: true,
-            json: async () => ({unread_count: 0, comment: {id: 99, author: 'ผู้ทดสอบ', note: 'ข้อความ', at: '1 ม.ค. 2569 09:00'}}),
+            json: async () => ({unread_count: 0, comment: {id: 99, author: 'ผู้ทดสอบ', note: 'ข้อความ', at: '1 ม.ค. 2569 09:00', is_comment: true, is_mine: true, readers: []}}),
         };
         if (!defer) return Promise.resolve(payload);
         return new Promise((resolve) => { release = () => resolve(payload); });
@@ -181,6 +214,64 @@ test('Enter ในกล่องคอมเมนต์ส่งข้อค�
     assert.equal(fetches.commentPosts().length, 1);
     assert.equal(JSON.parse(fetches.commentPosts()[0].options.body).message, 'ความคืบหน้าวันนี้');
     assert.equal(ui.compose().value, '');
+});
+
+test('ข้อความของตัวเองอยู่ขวาและ realtime receipt แสดง avatar คนที่อ่านแล้ว', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    captureFetch();
+
+    ui.compose().value = 'ข้อความของฉัน';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    const mine = ui.taskModal.querySelector('[data-comment-id="99"]');
+    assert.equal(mine.classList.contains('is-mine'), true);
+    assert.equal(ui.taskModal.querySelector('[data-timeline-items]').lastElementChild, mine);
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:comment-receipts', {detail: {
+        task_id: 7,
+        receipts: {'99': [{id: 2, name: 'Admin', avatar_url: null, read_at: '1 ก.ย. 2026 13:27'}]},
+    }}));
+
+    const reader = ui.taskModal.querySelector('[data-comment-id="99"] .task-timeline-reader');
+    assert.match(reader.title, /Admin/);
+    assert.match(reader.title, /13:27/);
+});
+
+test('realtime read receipt ไม่ดึง scroll กลับลงล่างขณะอ่านข้อความเก่า', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    const items = ui.taskModal.querySelector('[data-timeline-items]');
+    items.scrollTop = 24;
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:comment-receipts', {detail: {
+        task_id: 7,
+        receipts: {'1': [{id: 2, name: 'Admin', avatar_url: null}]},
+    }}));
+
+    assert.equal(items.scrollTop, 24);
+});
+
+test('ข้อความ realtime ใหม่ไม่ดึง scroll ถ้าผู้ใช้กำลังอ่านข้อความเก่า', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    captureFetch();
+    const items = ui.taskModal.querySelector('[data-timeline-items]');
+    Object.defineProperties(items, {
+        scrollHeight: {configurable: true, value: 1000},
+        clientHeight: {configurable: true, value: 300},
+    });
+    items.scrollTop = 100;
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 503,
+        category: 'comment',
+        task_id: 7,
+        comment: {id: 903, author: 'เพื่อนร่วมงาน', note: 'ข้อความใหม่', at: 'ตอนนี้', is_comment: true},
+    }}));
+
+    assert.equal(items.scrollTop, 100);
 });
 
 test('Shift+Enter ขึ้นบรรทัดใหม่และต้องไม่ส่ง', async (t) => {

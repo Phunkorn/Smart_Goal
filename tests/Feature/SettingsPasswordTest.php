@@ -28,7 +28,9 @@ class SettingsPasswordTest extends TestCase
             ->get(route('settings.index'))
             ->assertOk()
             ->assertSee(route('settings.password.update'), false)
-            ->assertSee('current_password', false);
+            ->assertSee('current_password', false)
+            ->assertSee('data-bs-target="#settingsPasswordModal"', false)
+            ->assertSee('data-password-modal', false);
 
         $oldSessionId = session()->getId();
 
@@ -101,6 +103,38 @@ class SettingsPasswordTest extends TestCase
             ])->assertSessionHasErrors('password');
 
         $this->assertSame($originalHash, $user->fresh()->password);
+    }
+
+    public function test_password_modal_is_available_to_admin_and_user_roles(): void
+    {
+        foreach (['admin', 'user'] as $role) {
+            $user = $this->user();
+            $user->update(['role' => $role]);
+
+            $this->actingAs($user)
+                ->get(route('settings.index'))
+                ->assertOk()
+                ->assertSee('data-bs-target="#settingsPasswordModal"', false)
+                ->assertSee(route('settings.password.update'), false);
+        }
+    }
+
+    public function test_password_validation_errors_mark_the_modal_to_open_again(): void
+    {
+        $user = $this->user();
+
+        $this->actingAs($user)
+            ->from(route('settings.index'))
+            ->patch(route('settings.password.update'), [
+                'current_password' => 'wrong-password',
+                'password' => 'NewSecurePassword!123',
+                'password_confirmation' => 'NewSecurePassword!123',
+            ])->assertRedirect(route('settings.index'))
+            ->assertSessionHasErrors('current_password');
+
+        $this->get(route('settings.index'))
+            ->assertOk()
+            ->assertSee('data-open-on-load="true"', false);
     }
 
     public function test_password_change_revokes_other_database_sessions_and_keeps_current_login(): void

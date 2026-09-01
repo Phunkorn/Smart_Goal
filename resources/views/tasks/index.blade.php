@@ -30,6 +30,7 @@
     data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
     data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
     data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
+    data-schedule-template="{{ route('tasks.schedule.update', ['id' => '__ID__']) }}"
     data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}"
     data-quick-url="{{ route('mytasks.store') }}"
     data-create-url="{{ route('mytasks.create') }}"
@@ -77,8 +78,8 @@
 
         {{-- ปุ่มเดียวที่เปิด modal สร้างโปรเจกต์ ต้องอยู่นอก <nav role="tablist"> เพื่อไม่ให้ปน role="tab" --}}
         @if($showCreateActions)
-            <button type="button" class="mytasks-kanban__button mytasks-kanban__button--project mytasks-view-controls__create" data-open-create>
-                <i class="bi bi-plus-lg" aria-hidden="true"></i> เพิ่มโปรเจกต์
+            <button type="button" class="mytasks-kanban__button mytasks-kanban__button--project mytasks-view-controls__create" data-open-user-task-create>
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> สร้างงาน
             </button>
         @endif
     </div>
@@ -145,5 +146,6 @@
     'workspaceRootUrl' => route('mytasks.index'),
 ])
 @include('tasks.components.project-task-request-modal')
+@include('tasks.components.user-task-create-modal', ['projectOptions' => $manageableTaskLists])
 <div class="notion-toast" data-toast></div>
 @endsection

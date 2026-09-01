@@ -33,8 +33,8 @@ class NotificationCenterTest extends TestCase
 
         $zero = $this->user();
         $this->actingAs($zero)->get(route('notifications.index'))->assertOk()
-            ->assertDontSee('data-sidebar-notification-count', false)
-            ->assertDontSee('data-bell-notification-count', false);
+            ->assertSee('data-sidebar-notification-count', false)
+            ->assertSee('data-bell-notification-count', false);
 
         $known = $this->user();
         foreach (range(1, 5) as $index) $this->notice($known, 'known '.$index, now());

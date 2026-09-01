@@ -82,10 +82,6 @@
             <div class="admin-department-table-head">
                 <span>แผนก</span>
                 <span>สมาชิก</span>
-                <span>โปรเจกต์</span>
-                <span>งานทั้งหมด</span>
-                <span>ความคืบหน้า</span>
-                <span>จัดการ</span>
             </div>
 
 
@@ -93,10 +89,6 @@
                 <article class="admin-department-row">
 
                     <div class="admin-department-identity">
-
-                        <span class="admin-department-code">
-                            {{ $row['code'] }}
-                        </span>
 
                         <div>
                             <h3>{{ $row['name'] }}</h3>
@@ -120,50 +112,6 @@
                     </div>
 
 
-                    <div class="admin-department-stat">
-                        <i class="bi bi-folder"></i>
-
-                        <strong>
-                            {{ $row['project_count'] }}
-                        </strong>
-
-                        <span>โปรเจกต์</span>
-                    </div>
-
-
-                    <div class="admin-department-stat">
-                        <i class="bi bi-clipboard-check"></i>
-
-                        <strong>
-                            {{ $row['total_jobs'] }}
-                        </strong>
-
-                        <span>งาน</span>
-                    </div>
-
-
-                    <div class="admin-department-progress">
-
-                        <div class="admin-progress-ring">
-
-                            <svg viewBox="0 0 36 36" aria-hidden="true">
-                                <circle class="admin-progress-ring-bg" cx="18" cy="18" r="15.5" />
-
-                                <circle class="admin-progress-ring-value" cx="18" cy="18" r="15.5"
-                                    pathLength="100" stroke-dasharray="{{ $row['completion_rate'] }} 100" />
-                            </svg>
-
-                            <strong>
-                                {{ $row['completion_rate'] }}%
-                            </strong>
-
-                        </div>
-
-                        <span>เสร็จสิ้น</span>
-
-                    </div>
-
-
                     <div class="admin-department-action">
 
                         <a href="{{ route('admin.work-board.department', $row['id']) }}">
@@ -183,7 +131,6 @@
             @endforelse
 
         </div>
-
     </section>
 
 </div>

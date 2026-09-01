@@ -742,9 +742,15 @@
 /* ---------- รายการไทม์ไลน์ ---------- */
 
 .task-workspace .task-timeline-entry {
-    display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
+    display: flex;
+    align-items: flex-start;
     gap: 10px;
+    width: min(88%, 620px);
+}
+
+.task-workspace .task-timeline-entry.is-mine {
+    flex-direction: row-reverse;
+    margin-left: auto;
 }
 
 .task-workspace .task-timeline-entry__avatar {
@@ -766,8 +772,15 @@
     object-fit: cover;
 }
 
-.task-workspace .task-timeline-entry > div {
+.task-workspace .task-timeline-entry__content {
     min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.task-workspace .task-timeline-entry.is-mine .task-timeline-entry__content {
+    align-items: flex-end;
 }
 
 .task-workspace .task-timeline-entry strong,
@@ -783,15 +796,75 @@
 }
 
 .task-workspace .task-timeline-entry p {
-    margin: 3px 0;
+    margin: 0;
     color: #40516a;
-    font-size: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
+}
+
+.task-workspace .task-timeline-entry__bubble {
+    margin: 3px 0 4px;
+    padding: 9px 12px;
+    border-radius: 5px 16px 16px;
+    background: #f0f3f8;
+}
+
+.task-workspace .task-timeline-entry.is-mine .task-timeline-entry__bubble {
+    border-radius: 16px 5px 16px 16px;
+    background: #2563eb;
+}
+
+.task-workspace .task-timeline-entry.is-mine .task-timeline-entry__bubble p {
+    color: #fff;
 }
 
 .task-workspace .task-timeline-entry small {
     color: #718096;
     font-size: 10px;
+}
+
+.task-workspace .task-timeline-entry__readers {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 5px;
+    padding-right: 2px;
+}
+
+.task-workspace .task-timeline-reader {
+    width: 19px;
+    height: 19px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    margin-left: -5px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #dbe7f8;
+    color: #36506f;
+    font-size: 8px;
+    font-weight: 800;
+}
+
+.task-workspace .task-timeline-reader:first-child {
+    margin-left: 0;
+}
+
+.task-workspace .task-timeline-reader img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.task-workspace .task-timeline-reader--more {
+    background: #e7edf5;
+}
+
+@media (max-width: 576px) {
+    .task-workspace .task-timeline-entry {
+        width: 94%;
+    }
 }
 
 

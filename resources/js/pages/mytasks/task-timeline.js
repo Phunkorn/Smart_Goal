@@ -17,20 +17,41 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
     }[character]));
-    const entry = (item) => `<article class="task-timeline-entry"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div><strong>${escapeHtml(item.author)}</strong><p>${escapeHtml(item.note)}</p><small>${escapeHtml(item.at)}</small></div></article>`;
+    const readerAvatar = (reader) => `<span class="task-timeline-reader" title="${escapeHtml(`${reader.name} อ่านแล้ว${reader.read_at ? ` · ${reader.read_at}` : ''}`)}">${reader.avatar_url ? `<img src="${escapeHtml(reader.avatar_url)}" alt="">` : escapeHtml(Array.from(reader.name || '?')[0] || '?')}</span>`;
+    const readReceipts = (item) => {
+        const readers = Array.isArray(item.readers) ? item.readers : [];
+        if (!readers.length) return '';
+        const visible = readers.slice(0, 4);
+        const names = readers.map((reader) => reader.name).join(', ');
+        const remainder = readers.length - visible.length;
+        return `<div class="task-timeline-entry__readers" aria-label="อ่านแล้วโดย ${escapeHtml(names)}">${visible.map(readerAvatar).join('')}${remainder > 0 ? `<span class="task-timeline-reader task-timeline-reader--more">+${remainder}</span>` : ''}</div>`;
+    };
+    const entry = (item) => `<article class="task-timeline-entry${item.is_comment === true && item.is_mine ? ' is-mine' : ''}" data-comment-id="${escapeHtml(item.id)}"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div class="task-timeline-entry__content"><strong>${escapeHtml(item.author)}</strong><div class="task-timeline-entry__bubble"><p>${escapeHtml(item.note)}</p></div><small>${escapeHtml(item.at)}</small>${readReceipts(item)}</div></article>`;
     const compose = panel.querySelector('.task-timeline__compose');
 
     const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม' : 'ยังไม่มีรายการอัปเดต';
 
-    const render = () => {
+    const isNearBottom = (items) => items.scrollHeight - items.scrollTop - items.clientHeight <= 48;
+
+    const render = ({scroll = 'preserve'} = {}) => {
         const entries = timeline[String(taskId)]?.[tab] || [];
+        const visibleEntries = tab === 'updates' ? [...entries].reverse() : entries;
+        const items = panel.querySelector('[data-timeline-items]');
+        const previousScrollTop = items.scrollTop;
         panel.hidden = false;
         panel.querySelectorAll('[data-timeline-tab]').forEach((button) => {
             const active = button.dataset.timelineTab === tab;
             button.classList.toggle('active', active);
             button.setAttribute('aria-selected', String(active));
         });
-        panel.querySelector('[data-timeline-items]').innerHTML = entries.map(entry).join('') || `<p class="task-timeline-empty">${emptyLabel()}</p>`;
+        items.innerHTML = visibleEntries.map(entry).join('') || `<p class="task-timeline-empty">${emptyLabel()}</p>`;
+        if (tab === 'updates') {
+            if (scroll === 'bottom') {
+                items.scrollTop = items.scrollHeight;
+            } else {
+                items.scrollTop = previousScrollTop;
+            }
+        }
         if (compose) compose.hidden = tab !== 'updates' || !canComposeComment(management[String(taskId)]);
     };
 
@@ -64,21 +85,38 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     const markRead = async () => {
         const url = management[String(taskId)]?.read_comments_url;
         if (!url) return;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
-        });
-        if (response.ok) {
-            clearBadges();
-            const payload = await response.json();
-            updateNotificationCount(payload.unread_count);
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+            });
+            if (response.ok) {
+                clearBadges();
+                const payload = await response.json();
+                updateNotificationCount(payload.unread_count);
+                mergeReceipts(taskId, payload.receipts);
+            }
+        } catch (_) {
+            // Keep the comment visible; a later tab selection or incoming event retries the read receipt.
         }
     };
 
     const selectUpdates = (source) => {
         tab = 'updates';
-        render();
+        document.body.dataset.realtimeTaskId = String(taskId);
+        render({scroll: 'bottom'});
+        document.dispatchEvent(new CustomEvent('smartgoal:realtime-refresh'));
         if (shouldMarkCommentsRead(source, tab)) markRead();
+    };
+
+    const mergeReceipts = (receiptTaskId, receipts) => {
+        const updates = timeline[String(receiptTaskId)]?.updates;
+        if (!updates || !receipts) return;
+        updates.forEach((item) => {
+            if (item.is_comment === false) return;
+            item.readers = receipts[String(item.id)] || [];
+        });
+        if (String(taskId) === String(receiptTaskId) && tab === 'updates' && !modal.hidden) render();
     };
 
     const triggerTaskId = (trigger) => trigger?.dataset.taskId
@@ -97,7 +135,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const button = event.target.closest('[data-timeline-tab]');
         if (!button || !taskId) return;
         tab = button.dataset.timelineTab;
-        render();
+        render({scroll: tab === 'updates' ? 'bottom' : 'preserve'});
         if (shouldMarkCommentsRead('tab', tab)) markRead();
     });
 
@@ -125,7 +163,9 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             const payload = await response.json();
             prependComment(timeline, taskId, payload.comment);
             input.value = '';
-            selectUpdates('tab');
+            tab = 'updates';
+            render({scroll: 'bottom'});
+            markRead();
         } catch (_) {
             window.Swal?.fire({icon: 'error', title: 'ส่งความคิดเห็นไม่สำเร็จ', text: 'กรุณาลองใหม่อีกครั้ง'});
         } finally {
@@ -141,6 +181,72 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         // Shift+Enter ไม่เข้าเงื่อนไขนี้ จึงตกไปเป็นการขึ้นบรรทัดใหม่ตามปกติของเบราว์เซอร์
         event.preventDefault();
         sendUpdate();
+    });
+
+    document.addEventListener('smartgoal:realtime-notification', (event) => {
+        const incoming = event.detail;
+        if (incoming?.category !== 'comment' || ! incoming.task_id || ! incoming.comment) return;
+
+        const incomingTaskId = String(incoming.task_id);
+        const updates = timeline[incomingTaskId]?.updates || [];
+        if (updates.some((item) => String(item.id) === String(incoming.comment.id))) return;
+        prependComment(timeline, incomingTaskId, incoming.comment);
+        const activelyViewing = taskId === incomingTaskId && tab === 'updates' && !modal.hidden;
+        const items = panel.querySelector('[data-timeline-items]');
+        const followIncoming = activelyViewing && isNearBottom(items);
+
+        if (management[incomingTaskId]) {
+            management[incomingTaskId].unread_comments = activelyViewing
+                ? 0
+                : Number(management[incomingTaskId].unread_comments || 0) + 1;
+        }
+
+        document.querySelectorAll(`[data-unread-comments="${CSS.escape(incomingTaskId)}"]`).forEach((badge) => {
+            if (activelyViewing && !badge.hasAttribute('data-unread-persistent')) {
+                badge.remove();
+                return;
+            }
+
+            if (activelyViewing) {
+                const total = badge.querySelector('strong');
+                const nextTotal = Number(total?.textContent === '-' ? 0 : total?.textContent || 0) + 1;
+                if (total) total.textContent = String(nextTotal);
+                badge.classList.add('has-comments');
+                badge.classList.remove('has-unread');
+                const label = `ดูคอมเมนต์ ${nextTotal} รายการ`;
+                badge.dataset.commentLabel = label;
+                badge.title = label;
+                badge.setAttribute('aria-label', label);
+                return;
+            }
+
+            badge.classList.add('has-unread');
+            if (! badge.hasAttribute('data-unread-persistent')) {
+                const count = badge.querySelector('b');
+                if (count) count.textContent = String(Number(count.textContent || 0) + 1);
+                return;
+            }
+
+            const total = badge.querySelector('strong');
+            const nextTotal = Number(total?.textContent === '-' ? 0 : total?.textContent || 0) + 1;
+            if (total) total.textContent = String(nextTotal);
+            badge.classList.add('has-comments');
+            const label = `ดูคอมเมนต์ ${nextTotal} รายการ`;
+            badge.dataset.commentLabel = label;
+            badge.title = label;
+            badge.setAttribute('aria-label', `${label} และมีคอมเมนต์ใหม่ที่ยังไม่ได้อ่าน`);
+        });
+
+        if (activelyViewing) {
+            render({scroll: followIncoming ? 'bottom' : 'preserve'});
+            markRead();
+        }
+    });
+
+    document.addEventListener('smartgoal:comment-receipts', (event) => {
+        const payload = event.detail;
+        if (!payload?.task_id) return;
+        mergeReceipts(payload.task_id, payload.receipts);
     });
 
     const deepLink = commentDeepLink(window.location.search);

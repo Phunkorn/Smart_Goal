@@ -6,6 +6,8 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderListTaskRequest;
+use App\Models\WorkOrderUpdate;
+use App\Support\TaskCommentPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -14,6 +16,8 @@ use Illuminate\Support\Str;
 
 class NotificationService
 {
+    public function __construct(private readonly TaskCommentPresenter $commentPresenter) {}
+
     private function create(User|int $recipient, string $type, string $title, ?string $message = null, ?WorkOrder $task = null, ?User $actor = null, array $data = [], ?string $dedupeKey = null, array $metadata = []): SystemNotification
     {
         $attributes = [
@@ -229,6 +233,59 @@ class NotificationService
     {
         return SystemNotification::with(['actor', 'workOrder.user.department', 'project'])
             ->forUser($user)->dropdownEligible()->latest()->limit(15)->get();
+    }
+
+    public function latestId(User $user): int
+    {
+        return (int) SystemNotification::forUser($user)->max('id');
+    }
+
+    public function syncFeed(User $user, int $after, int $limit = 50): array
+    {
+        $items = SystemNotification::with(['actor', 'workOrder.user.department', 'project'])
+            ->forUser($user)
+            ->where('id', '>', $after)
+            ->orderBy('id')
+            ->limit($limit + 1)
+            ->get();
+
+        $hasMore = $items->count() > $limit;
+        $items = $items->take($limit)->values();
+        $commentIds = $items->where('type', 'task_comment')
+            ->pluck('data')->map(fn ($data) => (int) data_get($data, 'comment_id'))
+            ->filter()->unique();
+        $comments = WorkOrderUpdate::with('user')->whereIn('id', $commentIds)
+            ->where('is_comment', true)->get()->keyBy('id');
+
+        $events = $items->map(function (SystemNotification $notification) use ($comments, $user): array {
+            $comment = $comments->get((int) data_get($notification->data, 'comment_id'));
+            $canSeeTask = $notification->workOrder
+                && Gate::forUser($user)->allows('view', $notification->workOrder);
+
+            return [
+                'id' => $notification->id,
+                'type' => $notification->type,
+                'category' => $notification->category,
+                'title' => $notification->title,
+                'message' => $notification->message,
+                'url' => route('notifications.open', $notification),
+                'task_id' => $canSeeTask ? $notification->work_order_id : null,
+                'created_at' => $notification->created_at?->toIso8601String(),
+                'relative_time' => $this->relativeTime($notification->created_at),
+                'comment' => $canSeeTask && $comment && (int) $comment->work_order_id === (int) $notification->work_order_id
+                    ? [
+                        ...$this->commentPresenter->comment($comment, $user),
+                    ]
+                    : null,
+            ];
+        })->all();
+
+        return [
+            'cursor' => $items->last()?->id ?? $after,
+            'has_more' => $hasMore,
+            'unread_count' => $this->unreadCount($user),
+            'events' => $events,
+        ];
     }
 
     public function paginate(User $user, array $filters): LengthAwarePaginator

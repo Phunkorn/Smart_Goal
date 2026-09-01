@@ -10,3 +10,4 @@ import './table-controls.js';
 import './admin-assignment-markers.js';
 import './calendar.js';
 import './task-request.js';
+import './user-task-create.js';

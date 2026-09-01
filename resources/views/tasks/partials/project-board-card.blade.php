@@ -114,13 +114,15 @@
                             ? auth()->user()->can('delete', $task)
                             : auth()->user()->can('deleteOwn', $task);
                         $canManageTeam = auth()->user()->can('manageTeam', $task);
+                        $canEditSchedule = auth()->user()->can('work', $task)
+                            && ((int) $task->job_status !== 4 || auth()->user()->role === 'admin');
                         $unreadCommentCount = (int) ($unreadCommentCounts[$task->job_id] ?? 0);
                         // updates ถูก eager-load ไว้แล้วสำหรับ timeline จึงนับในหน่วยความจำ ไม่มีคิวรีเพิ่ม
                         $commentCount = $task->updates->where('is_comment', true)->count();
                         $commentLabel = $commentCount ? 'ดูคอมเมนต์ '.$commentCount.' รายการ' : 'ยังไม่มีคอมเมนต์';
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
-                    <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
+                    <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
                         <div class="board-reference-task">
                             <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="{{ $task->job_id }}"><span class="board-reference-task__title">{{ $task->job_topic }}</span></button>
                         </div>
@@ -141,12 +143,16 @@
                             <span class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}">{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span>
                             <span class="board-priority priority-{{ $priority[1] }}">{{ $priority[0] }}</span>
                         @endcan
-                        <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
-                        @can('work', $task)
-                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="date" data-board-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" aria-label="เลือกกำหนดส่ง"></label>
+                        @if($canEditSchedule)
+                            <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $startLabel }}</span><input type="date" data-board-field="start" value="{{ optional($task->job_start_at)->format('Y-m-d') }}" max="{{ optional($task->job_due_at)->format('Y-m-d') }}" aria-label="เลือกวันที่เริ่ม"></label>
+                        @else
+                            <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
+                        @endif
+                        @if($canEditSchedule)
+                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="date" data-board-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" min="{{ optional($task->job_start_at)->format('Y-m-d') }}" aria-label="เลือกกำหนดส่ง"></label>
                         @else
                             <span class="board-due {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $dueLabel }}</span>
-                        @endcan
+                        @endif
                         <button type="button" class="board-owner" data-open-owner="{{ $task->job_id }}" title="ดูผู้รับผิดชอบ: {{ $assigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $assigneeName }}"><i>@if($task->user?->profile_image)<img src="{{ route('media.profile', $task->user) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i></button>
                         <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="{{ $canManageTeam ? 'จัดการ' : 'ดู' }}ผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $canManageTeam ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}"><i class="bi {{ $canManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>
                         <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-board-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>

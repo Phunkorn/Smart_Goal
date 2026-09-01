@@ -75,6 +75,15 @@ async function bootCalendar(t, {detailTemplate}) {
                 <select data-calendar-month>${months}</select>
                 <select data-calendar-year></select>
                 <div data-calendar-grid></div>
+                <div data-calendar-agenda>
+                    <strong data-calendar-today-count></strong>
+                    <div data-calendar-today-list></div>
+                    <p data-calendar-today-empty></p>
+                    <h3 data-calendar-month-agenda-title></h3>
+                    <strong data-calendar-month-count></strong>
+                    <div data-calendar-month-list></div>
+                    <p data-calendar-month-empty></p>
+                </div>
                 <div data-calendar-popover hidden>
                     <strong data-calendar-popover-title></strong>
                     <div data-calendar-popover-list></div>
@@ -104,6 +113,7 @@ async function bootCalendar(t, {detailTemplate}) {
         detailLink: env.document.querySelector('[data-quick-view-detail]'),
         title: env.document.querySelector('[data-quick-view-title]'),
         chip: (id) => env.document.querySelector(`[data-calendar-grid] [data-calendar-task="${id}"]`),
+        agendaItem: (list, id) => env.document.querySelector(`[data-calendar-${list}-list] [data-calendar-task="${id}"]`),
         clickChip(id) {
             const node = this.chip(id);
             assert.ok(node, `ไม่พบ chip ${id} บนปฏิทิน`);
@@ -115,6 +125,39 @@ async function bootCalendar(t, {detailTemplate}) {
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test('agenda renders today tasks separately and the selected month includes meetings without duplicates', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const todayList = ui.document.querySelector('[data-calendar-today-list]');
+    const monthList = ui.document.querySelector('[data-calendar-month-list]');
+
+    assert.equal(todayList.querySelectorAll('[data-calendar-task]').length, 1);
+    assert.ok(ui.agendaItem('today', 'task-1'));
+    assert.equal(ui.agendaItem('today', 'meeting-1'), null);
+    assert.equal(monthList.querySelectorAll('[data-calendar-task]').length, 2);
+    assert.ok(ui.agendaItem('month', 'task-1'));
+    assert.ok(ui.agendaItem('month', 'meeting-1'));
+    assert.equal(ui.document.querySelector('[data-calendar-today-count]').textContent, '1 งาน');
+    assert.equal(ui.document.querySelector('[data-calendar-month-count]').textContent, '2 รายการ');
+});
+
+test('agenda follows the selected month and reuses the existing task quick view handler', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const agendaTask = ui.agendaItem('month', 'task-1');
+    agendaTask.dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+
+    assert.deepEqual(ui.requests, ['/my-tasks/calendar/quick-view/task/1']);
+    await flush();
+    assert.equal(ui.popover.hidden, false);
+
+    const monthSelect = ui.document.querySelector('[data-calendar-month]');
+    monthSelect.value = String((new Date().getMonth() + 1) % 12);
+    monthSelect.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+
+    assert.equal(ui.document.querySelector('[data-calendar-month-list]').children.length, 0);
+    assert.equal(ui.document.querySelector('[data-calendar-month-empty]').hidden, false);
+    assert.match(ui.document.querySelector('[data-calendar-month-agenda-title]').textContent, /^รายการของ/);
+});
 
 test('คลิกงานบนปฏิทินเปิด Popover โดยไม่ navigate และคืน focus ให้ chip ที่กด', async (t) => {
     const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});

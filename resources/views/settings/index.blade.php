@@ -6,8 +6,12 @@
     @vite('resources/css/pages/settings.css')
 @endpush
 
+@push('scripts')
+    @vite('resources/js/pages/settings/index.js')
+@endpush
+
 @section('content')
-<div class="settings-page">
+<div class="settings-page" data-settings-page>
     <header class="settings-page__header">
         <div>
             <span class="eyebrow">บัญชีของฉัน</span>
@@ -90,59 +94,24 @@
 
         <section class="settings-card settings-security" aria-labelledby="password-settings-title">
             <div class="settings-card__header settings-security__header">
-                <div class="settings-security__icon" aria-hidden="true">
-                    <i class="bi bi-shield-lock"></i>
-                </div>
-                <div>
-                    <span class="settings-card__eyebrow">ความปลอดภัย</span>
-                    <h2 id="password-settings-title">เปลี่ยนรหัสผ่าน</h2>
-                    <p>ยืนยันรหัสผ่านปัจจุบันก่อนตั้งรหัสผ่านใหม่</p>
-                </div>
-            </div>
-
-            <div class="settings-security__notice">
-                <i class="bi bi-info-circle" aria-hidden="true"></i>
-                <span>เมื่อเปลี่ยนสำเร็จ ระบบจะนำบัญชีออกจากอุปกรณ์อื่นและให้ session ปัจจุบันใช้งานต่ออย่างปลอดภัย</span>
-            </div>
-
-            <form action="{{ route('settings.password.update') }}" method="POST" class="settings-form settings-password-form">
-                @csrf
-                @method('PATCH')
-
-                <div>
-                    <label for="currentPassword" class="form-label">รหัสผ่านปัจจุบัน <span aria-hidden="true">*</span></label>
-                    <input id="currentPassword" type="password" name="current_password"
-                        class="form-control @error('current_password') is-invalid @enderror"
-                        autocomplete="current-password" required>
-                    @error('current_password')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-
-                <div class="settings-password-grid">
+                <div class="settings-security__summary">
+                    <div class="settings-security__icon" aria-hidden="true"><i class="bi bi-shield-lock"></i></div>
                     <div>
-                        <label for="newPassword" class="form-label">รหัสผ่านใหม่ <span aria-hidden="true">*</span></label>
-                        <input id="newPassword" type="password" name="password"
-                            class="form-control @error('password') is-invalid @enderror"
-                            minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
-                        @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label for="newPasswordConfirmation" class="form-label">ยืนยันรหัสผ่านใหม่ <span aria-hidden="true">*</span></label>
-                        <input id="newPasswordConfirmation" type="password" name="password_confirmation"
-                            class="form-control" minlength="{{ \App\Support\PasswordPolicy::MIN_LENGTH }}" autocomplete="new-password" required>
+                        <span class="settings-card__eyebrow">ความปลอดภัย</span>
+                        <h2 id="password-settings-title">รหัสผ่าน</h2>
+                        <p>ตั้งรหัสผ่านใหม่และรักษาความปลอดภัยของบัญชีคุณ</p>
                     </div>
                 </div>
-
-                <p class="settings-form__help">{{ \App\Support\PasswordPolicy::description() }}</p>
-
-                <div class="settings-card__actions">
-                    <button type="submit" class="btn btn-primary settings-primary-button">
-                        <i class="bi bi-key" aria-hidden="true"></i>
-                        เปลี่ยนรหัสผ่าน
-                    </button>
-                </div>
-            </form>
+                <button type="button" class="btn btn-outline-primary settings-security__trigger"
+                    data-bs-toggle="modal" data-bs-target="#settingsPasswordModal">
+                    <i class="bi bi-key" aria-hidden="true"></i>
+                    ตั้งรหัสผ่านใหม่
+                </button>
+            </div>
         </section>
     </div>
+
+    @include('settings.components.password-modal')
 </div>
 
 @if(session('success'))
@@ -154,7 +123,7 @@
             confirmButtonText: 'ตกลง'
         });
     </script>
-@elseif($errors->any())
+@elseif($errors->any() && ! $errors->hasAny(['current_password', 'password']))
     <script>
         window.Swal?.fire({
             icon: 'error',

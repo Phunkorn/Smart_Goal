@@ -24,9 +24,13 @@ class TaskCommentService
                 'is_comment' => true,
             ]);
 
-            $recipientIds = collect([$task->user_id, $task->created_by])
-                ->merge($task->collaborators->filter(fn ($user) => $user->pivot?->status === 'accepted')->pluck('id'))
-                ->filter()->map(fn ($id) => (int) $id)->unique()->reject(fn ($id) => $id === (int) $author->id);
+            WorkOrderCommentRead::updateOrCreate(
+                ['work_order_id' => $task->job_id, 'user_id' => $author->id],
+                ['last_read_update_id' => $comment->id]
+            );
+
+            $recipientIds = $this->audienceIds($task)
+                ->reject(fn ($id) => $id === (int) $author->id);
 
             $this->notifications->notify($recipientIds, 'task_comment', 'ความคิดเห็นใหม่ในงาน',
                 Str::limit($author->name.' แสดงความคิดเห็นในงาน “'.$task->job_topic.'”', 1000, ''),
@@ -34,6 +38,36 @@ class TaskCommentService
 
             return $comment->load('user');
         });
+    }
+
+    private function audienceIds(WorkOrder $task): Collection
+    {
+        $tasks = WorkOrder::query()
+            ->with('collaborators')
+            ->where('approval_status', 'approved')
+            ->when(
+                $task->work_order_list_id,
+                fn ($query) => $query->where('work_order_list_id', $task->work_order_list_id),
+                fn ($query) => $query->whereKey($task->job_id)
+            )
+            ->get();
+
+        $participantIds = $tasks->flatMap(fn (WorkOrder $projectTask) => collect([
+            $projectTask->user_id,
+            $projectTask->created_by,
+            $projectTask->leader_user_id,
+        ])->merge(
+            $projectTask->collaborators
+                ->filter(fn (User $user) => $user->pivot?->status === 'accepted')
+                ->pluck('id')
+        ));
+
+        return $participantIds
+            ->merge(User::query()->where('role', 'admin')->where('is_active', true)->pluck('id'))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
     }
 
     public function markRead(WorkOrder $task, User $user): int

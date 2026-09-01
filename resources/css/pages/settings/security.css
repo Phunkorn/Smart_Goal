@@ -1,12 +1,25 @@
-.settings-security__header { display: flex; align-items: center; gap: 14px; }
+.settings-security__header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.settings-security__summary { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .settings-security__icon { display: grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border-radius: 13px; background: var(--accent-dim); color: var(--accent-strong); font-size: 1.2rem; }
-.settings-security__notice { display: flex; align-items: flex-start; gap: 9px; margin: 20px 24px 0; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-muted); font-size: .78rem; line-height: 1.55; }
+.settings-security__trigger { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 8px; border-radius: var(--radius-sm); font-weight: 700; }
+.settings-security__notice { display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-muted); font-size: .78rem; line-height: 1.55; }
 .settings-security__notice i { flex: 0 0 auto; color: var(--accent-strong); }
-.settings-password-form { display: grid; gap: 16px; }
+.settings-password-modal .modal-content { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.settings-password-modal__header { align-items: center; gap: 14px; border-bottom-color: var(--border); }
+.settings-password-modal__heading { min-width: 0; flex: 1; }
+.settings-password-modal__header h2 { margin: 0; color: var(--text); font-size: 1.1rem; font-weight: 800; }
+.settings-password-modal__header p { margin: 3px 0 0; color: var(--text-muted); font-size: .8rem; }
+.settings-password-modal .modal-body { display: grid; gap: 16px; padding: 20px 24px; }
+.settings-password-modal .modal-footer { border-top-color: var(--border); padding: 14px 24px; }
 .settings-password-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.settings-password-form .settings-card__actions { margin-top: 4px; }
 
 @media (max-width: 700px) {
-    .settings-security__notice { margin: 18px 18px 0; }
+    .settings-security__header { align-items: stretch; flex-direction: column; }
+    .settings-security__trigger { width: 100%; justify-content: center; }
     .settings-password-grid { grid-template-columns: 1fr; }
+    .settings-password-modal .modal-dialog { margin: 12px; }
+    .settings-password-modal__header { align-items: flex-start; padding: 18px; }
+    .settings-password-modal .modal-body { padding: 18px; }
+    .settings-password-modal .modal-footer { padding: 14px 18px; }
+    .settings-password-modal .modal-footer .btn { flex: 1; }
 }

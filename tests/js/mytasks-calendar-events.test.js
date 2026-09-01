@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    buildCalendarAgenda,
     buildMonthCalendar,
     calendarMonthKey,
     monthsNeedingFetch,
@@ -20,10 +21,11 @@ test('events default to the task type and meetings keep theirs', () => {
 test('tasks and meetings sharing a numeric id never collide on the calendar', () => {
     const calendar = buildMonthCalendar([task(1, '2026-08-10', '2026-08-10'), meeting(1, '2026-08-10', '2026-08-10')], 2026, 7);
     const day = calendar.days.find((candidate) => candidate.key === '2026-08-10');
+    const segments = calendar.weeks[2].segments;
 
     assert.equal(calendar.tasks.length, 2);
-    assert.deepEqual(day.milestones.map((milestone) => milestone.task.id).sort(), ['meeting-1', 'task-1']);
-    assert.deepEqual(day.milestones.map((milestone) => milestone.task.type).sort(), ['meeting', 'task']);
+    assert.deepEqual(day.tasks.map((event) => event.id).sort(), ['meeting-1', 'task-1']);
+    assert.deepEqual(segments.map((segment) => segment.event.type).sort(), ['meeting', 'task']);
 });
 
 test('the same event arriving twice is rendered once', () => {
@@ -32,17 +34,47 @@ test('the same event arriving twice is rendered once', () => {
     const day = calendar.days.find((candidate) => candidate.key === '2026-08-12');
 
     assert.equal(calendar.tasks.length, 1);
-    assert.equal(day.milestones.length, 1);
+    assert.equal(day.tasks.length, 1);
+    assert.equal(calendar.weeks[2].segments.length, 1);
 });
 
-test('a meeting spanning midnight produces start and end milestones', () => {
+test('a meeting spanning midnight produces one continuous segment', () => {
     const calendar = buildMonthCalendar([meeting(4, '2026-08-14', '2026-08-15')], 2026, 7);
     const first = calendar.days.find((candidate) => candidate.key === '2026-08-14');
-    const second = calendar.days.find((candidate) => candidate.key === '2026-08-15');
+    const segment = calendar.weeks[2].segments[0];
 
-    assert.equal(first.milestones[0].kind, 'start');
-    assert.equal(second.milestones[0].kind, 'end');
+    assert.deepEqual([segment.startColumn, segment.endColumn], [5, 6]);
+    assert.equal(segment.continuesBefore, false);
+    assert.equal(segment.continuesAfter, false);
+    assert.equal(segment.event.type, 'meeting');
     assert.equal(first.tasks[0].type, 'meeting');
+});
+
+test('calendar agenda keeps today task-only and includes every event overlapping the selected month once', () => {
+    const crossingTask = task(1, '2026-07-30', '2026-08-02');
+    const todayTask = task(2, '2026-08-15', '2026-08-20');
+    const todayMeeting = meeting(3, '2026-08-18', '2026-08-18');
+    const outsideTask = task(4, '2026-09-01', '2026-09-02');
+    const agenda = buildCalendarAgenda([
+        crossingTask,
+        todayTask,
+        todayMeeting,
+        {...todayMeeting},
+        outsideTask,
+    ], 2026, 7, '2026-08-18');
+
+    assert.deepEqual(agenda.todayTasks.map((event) => event.id), ['task-2']);
+    assert.deepEqual(agenda.monthEvents.map((event) => event.id), ['task-1', 'task-2', 'meeting-3']);
+});
+
+test('calendar agenda handles an invalid today key without widening the month range', () => {
+    const agenda = buildCalendarAgenda([
+        task(1, '2026-08-31', '2026-09-02'),
+        task(2, '2026-09-01', '2026-09-03'),
+    ], 2026, 7, 'invalid');
+
+    assert.deepEqual(agenda.todayTasks, []);
+    assert.deepEqual(agenda.monthEvents.map((event) => event.id), ['task-1']);
 });
 
 test('only months that were never loaded are requested', () => {

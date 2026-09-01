@@ -63,6 +63,27 @@ class MyTasksCalendarMeetingsTest extends TestCase
             ->assertDontSee('ประชุมของผู้ดูแล');
     }
 
+    public function test_user_and_admin_member_calendars_share_the_same_agenda_component(): void
+    {
+        $admin = $this->user('admin');
+        $member = $this->user();
+
+        $workspaces = [
+            [$member, route('mytasks.index', ['view' => 'calendar'])],
+            [$admin, route('admin.work-board.member', [$this->department, $member, 'view' => 'calendar'])],
+        ];
+
+        foreach ($workspaces as [$actor, $url]) {
+            $this->actingAs($actor)
+                ->get($url)
+                ->assertOk()
+                ->assertSee('data-calendar-agenda', false)
+                ->assertSee('data-calendar-today-list', false)
+                ->assertSee('data-calendar-month-list', false)
+                ->assertSee('data-calendar-month-agenda-title', false);
+        }
+    }
+
     public function test_endpoint_returns_bangkok_times_and_prefixed_identifiers(): void
     {
         $member = $this->user();

@@ -115,12 +115,21 @@
             }
 
             .role-chip {
-                max-width: 44px;
+                width: auto;
+                min-width: 0;
+                max-width: none;
+                flex: 0 0 auto;
+                justify-content: center;
+                gap: .35rem;
                 padding: 0 .65rem;
-                overflow: hidden;
             }
 
             .role-chip i {
-                margin-right: .2rem;
+                margin: 0;
+            }
+
+            .role-chip__label {
+                display: inline;
+                font-size: .72rem;
             }
         }

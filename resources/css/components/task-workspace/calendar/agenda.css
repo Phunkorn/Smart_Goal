@@ -1,0 +1,255 @@
+.my-tasks-page .mytasks-calendar-agenda {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border-top: 1px solid #dfe7f1;
+    background: #f4f7fb;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__section {
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 5px 16px rgba(15, 23, 42, .04);
+}
+
+.my-tasks-page .mytasks-calendar-agenda__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 62px;
+    padding: 11px 15px;
+    border-bottom: 1px solid #e5ebf3;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__header > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__header span {
+    color: #94a3b8;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .13em;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__header h3 {
+    margin: 0;
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 780;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__header > b {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef4fb;
+    color: #52647b;
+    font-size: 10px;
+    font-weight: 750;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__list {
+    display: grid;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__item {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) minmax(150px, auto) 18px;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 66px;
+    margin: 0;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 1px solid #edf1f6;
+    background: #fff;
+    color: #0f172a;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__item:last-child {
+    border-bottom: 0;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__item:hover {
+    background: #f8fbff;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__item:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 3px solid rgba(37, 99, 235, .22);
+    outline-offset: -3px;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__date {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    width: 42px;
+    height: 46px;
+    border-left: 3px solid #2563eb;
+    border-radius: 7px;
+    background: #edf5ff;
+    color: #2259a8;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__date strong {
+    font-size: 17px;
+    line-height: 1;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__date small {
+    margin-top: 3px;
+    font-size: 8px;
+    font-weight: 750;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__copy strong,
+.my-tasks-page .mytasks-calendar-agenda__copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__copy strong {
+    color: #172033;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__copy small {
+    color: #64748b;
+    font-size: 10px;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__meta {
+    display: grid;
+    justify-items: end;
+    gap: 5px;
+    min-width: 0;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__meta span {
+    max-width: 150px;
+    overflow: hidden;
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: #eef2f7;
+    color: #52647b;
+    font-size: 9px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__meta small {
+    color: #7b8ba0;
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__meta .status-progress { background: #eaf3ff; color: #2259a8; }
+.my-tasks-page .mytasks-calendar-agenda__meta .status-review { background: #f2edff; color: #6841b7; }
+.my-tasks-page .mytasks-calendar-agenda__meta .status-done { background: #eaf8f2; color: #267655; }
+.my-tasks-page .mytasks-calendar-agenda__meta .status-paused { background: #fff6e6; color: #a85f05; }
+.my-tasks-page .mytasks-calendar-agenda__meta .status-late { background: #fff0f0; color: #bd2f36; }
+
+.my-tasks-page .mytasks-calendar-agenda__item > .bi-chevron-right {
+    color: #a1adbd;
+    font-size: 11px;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__item.is-meeting .mytasks-calendar-agenda__date {
+    border-left-style: dashed;
+    border-left-color: #6841b7;
+    background: #f4f0ff;
+    color: #6841b7;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__empty {
+    display: grid;
+    place-items: center;
+    gap: 6px;
+    min-height: 94px;
+    margin: 0;
+    padding: 18px;
+    color: #8492a6;
+    text-align: center;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__empty[hidden] {
+    display: none;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__empty i {
+    color: #a9b9cc;
+    font-size: 20px;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__empty span {
+    font-size: 11px;
+    font-weight: 650;
+}
+
+@media (max-width: 760px) {
+    .my-tasks-page .mytasks-calendar-agenda {
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .my-tasks-page .mytasks-calendar-agenda__header {
+        min-height: 58px;
+        padding: 10px 12px;
+    }
+
+    .my-tasks-page .mytasks-calendar-agenda__item {
+        grid-template-columns: 42px minmax(0, 1fr) 14px;
+        gap: 9px;
+        min-height: 70px;
+        padding: 8px 10px;
+    }
+
+    .my-tasks-page .mytasks-calendar-agenda__date {
+        width: 38px;
+        height: 44px;
+    }
+
+    .my-tasks-page .mytasks-calendar-agenda__meta {
+        grid-column: 2 / 3;
+        grid-row: 2;
+        grid-template-columns: auto minmax(0, 1fr);
+        justify-items: start;
+        margin-top: -3px;
+    }
+
+    .my-tasks-page .mytasks-calendar-agenda__meta small {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .my-tasks-page .mytasks-calendar-agenda__item > .bi-chevron-right {
+        grid-column: 3;
+        grid-row: 1 / 3;
+    }
+}

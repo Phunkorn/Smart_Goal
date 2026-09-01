@@ -64,6 +64,9 @@ class TaskWorkspaceDesignTest extends TestCase
 
         $response->assertSee('ข้อมูลและความคืบหน้าของงาน')
             ->assertSee('href="'.route('mytasks.index').'"', false)
+            ->assertSee('data-schedule-template="'.route('tasks.schedule.update', ['id' => '__ID__']).'"', false)
+            ->assertSee('class="board-start board-start-editable"', false)
+            ->assertSee('data-board-field="start"', false)
             ->assertSee('การเปลี่ยนแปลงจะถูกบันทึกเมื่อกดปุ่มบันทึก')
             ->assertSee('บันทึกการแก้ไข')
             ->assertSee('ยกเลิก')
@@ -161,10 +164,26 @@ class TaskWorkspaceDesignTest extends TestCase
         [$member, , $task] = $this->scenario();
 
         $this->actingAs($member)
-            ->postJson(route('mytasks.updateDueDate', $task->job_id), ['job_due_at' => '2026-12-31'])
-            ->assertOk();
+            ->patchJson(route('tasks.schedule.update', $task->job_id), [
+                'job_start_at' => '2030-01-10',
+                'job_due_at' => '2030-01-11',
+            ])
+            ->assertOk()
+            ->assertJsonPath('job_start_at', '2030-01-10')
+            ->assertJsonPath('job_due_at', '2030-01-11');
 
-        $this->assertSame('2026-12-31', $task->fresh()->job_due_at->format('Y-m-d'));
+        $this->assertSame('2030-01-10', $task->fresh()->job_start_at->format('Y-m-d'));
+        $this->assertSame('2030-01-11', $task->fresh()->job_due_at->format('Y-m-d'));
+
+        $this->actingAs($member)
+            ->patchJson(route('tasks.schedule.update', $task->job_id), [
+                'job_start_at' => '2030-01-12',
+                'job_due_at' => '2030-01-11',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('job_due_at');
+
+        $this->assertSame('2030-01-10', $task->fresh()->job_start_at->format('Y-m-d'));
     }
 
     public function test_collaborators_can_be_added_and_removed_from_the_workspace(): void

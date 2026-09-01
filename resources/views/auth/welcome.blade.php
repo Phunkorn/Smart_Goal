@@ -18,7 +18,7 @@
 <main class="welcome-layout">
     <section class="brand-panel">
         <img src="{{ asset('images/premiuum-care-logo.png') }}" alt="PremiumCare" class="brand-logo">
-        <div class="brand-copy"><div class="brand-eyebrow">PREMIUMCARE WORKFORCE</div><h1>Smart Goal<br>By PremiumCare</h1></div>
+        <div class="brand-copy"><div class="brand-eyebrow">PREMIUMCARE WORKFORCE</div><h1>Smart Goal<br>By PremiumCare</h1><p class="brand-tagline">ระบบจัดการองค์กรและติดตามงาน</p></div>
         <p class="brand-description">พื้นที่จัดการงานสำหรับทีม : เช็กงานที่ได้รับมอบหมาย<br>อัปเดตสถานะ และส่งงานตรงเวลา</p>
     </section>
     <section class="welcome-card">

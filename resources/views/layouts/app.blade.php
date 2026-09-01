@@ -21,7 +21,9 @@
     @stack('styles')
 </head>
 
-<body>
+<body
+    data-realtime-sync-url="{{ route('realtime.sync') }}"
+    data-realtime-cursor="{{ app(\App\Services\NotificationService::class)->latestId(auth()->user()) }}">
     {{-- คืนสถานะย่อ/ขยายก่อน Sidebar ถูก render เพื่อไม่ให้เห็นการกระตุกตอนโหลดหน้า --}}
     <script>
         (() => {
@@ -51,56 +53,43 @@
     @endphp
 
     <aside class="sidebar" id="appSidebar">
-            <div class="sidebar-brand">
-                <span class="brand-mark" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
-                <div class="brand-text">
-                    <div class="name">Smart Goal</br>ระบบจัดการองค์กร</div>
-                </div>
-                <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
-                    <i class="bi bi-x-lg"></i>
-                </button>
+        <div class="sidebar-brand">
+            <span class="brand-mark" aria-hidden="true"><i class="bi bi-buildings"></i></span>
+            <div class="brand-text">
+                <div class="brand-name">Smart Goals</div>
+                <div class="brand-subtitle">ระบบจัดการองค์กร</div>
             </div>
+            <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
 
         <div class="sidebar-nav">
             @if ($isAdmin)
-                <div class="nav-section-label">ผู้บริหาร</div>
+                <div class="nav-section-label">ภาพรวม</div>
 
-                {{-- เมนู "การประชุม" ย้ายไปเป็น view ที่ 4 ของ Admin Member Workspace แล้ว
-                     เพื่อให้ผู้ดูแลดูประชุมในบริบทของสมาชิกที่กำลังเปิดอยู่ (route เดิมยังใช้งานได้) --}}
+                {{-- เมนู "การประชุม" อยู่ใน Admin Member Workspace เพื่อให้ดูในบริบทของสมาชิก --}}
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดรวม</span>
                 </a>
-            @endif
-
-            @if ($isViewer)
-                <div class="nav-section-label">ดูข้อมูล</div>
+                <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
+                    <i class="bi bi-bar-chart-line"></i>
+                    <span class="nav-item__label">รายงาน</span>
+                </a>
+            @elseif ($isViewer)
+                <div class="nav-section-label">ภาพรวม</div>
 
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
                     <i class="bi bi-grid-1x2"></i>
                     <span class="nav-item__label">แดชบอร์ด</span>
                 </a>
-
-                <a href="{{ route('employees.index') }}" class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
-                    <i class="bi bi-people"></i>
-                    <span class="nav-item__label">พนักงาน</span>
-                </a>
-
                 <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-bar-chart-line"></i>
                     <span class="nav-item__label">รายงาน</span>
                 </a>
-                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
-                    <i class="bi bi-calendar-event"></i>
-                    <span class="nav-item__label">การประชุม</span>
-                </a>
-            @endif
-
-            @if ($isAdmin || $isViewer)
-                <div class="nav-section-label">{{ $isAdmin ? 'การจัดการ' : 'พื้นที่ของฉัน' }}</div>
             @else
-                {{-- พนักงาน: "งานของฉัน" เป็นศูนย์กลางงานและการประชุม จึงมาเป็นลำดับแรก --}}
-                {{-- เมนู "การประชุม" ย้ายไปเป็น view ที่ 4 ในหน้างานของฉัน (route เดิมยังใช้งานได้) --}}
+                {{-- พนักงาน: "งานของฉัน" เป็นศูนย์กลางงานและการประชุม --}}
                 <div class="nav-section-label">งานของฉัน</div>
 
                 <a href="{{ route('mytasks.index') }}"
@@ -122,17 +111,13 @@
 
             @stack('sidebar_nav_extra')
 
-            @if (! $isAdmin && ! $isViewer)
-                <div class="nav-section-label">การสื่อสาร</div>
-            @endif
+            <div class="nav-section-label">{{ $isAdmin ? 'งานและคำขอ' : 'การสื่อสาร' }}</div>
 
             <a href="{{ route('notifications.index') }}"
                 class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
                 <i class="bi bi-bell"></i>
                 <span class="nav-item__label">การแจ้งเตือน</span>
-                @if($notificationCount > 0)
-                    <span class="nav-item__count" data-notification-count data-sidebar-notification-count>{{ $notificationDisplayCount }}</span>
-                @endif
+                <span class="nav-item__count" data-notification-count data-sidebar-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
             </a>
 
             @if ($isAdmin)
@@ -144,34 +129,39 @@
                         <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
                     @endif
                 </a>
+            @elseif ($isViewer)
+                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
+                    <i class="bi bi-calendar-event"></i>
+                    <span class="nav-item__label">การประชุม</span>
+                </a>
+            @endif
+
+            @if ($isAdmin || $isViewer)
+                <div class="nav-section-label">องค์กร</div>
+
                 <a href="{{ route('employees.index') }}"
                     class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
                     <i class="bi bi-people"></i>
                     <span class="nav-item__label">พนักงาน</span>
                 </a>
-                <a href="{{ route('admin.departments.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}">
-                    <i class="bi bi-diagram-3"></i>
-                    <span class="nav-item__label">จัดการแผนก</span>
-                </a>
-                <a href="{{ route('reports.index') }}"
-                    class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-bar-chart-line"></i>
-                    <span class="nav-item__label">รายงาน</span>
-                </a>
+                @if ($isAdmin)
+                    <a href="{{ route('admin.departments.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}">
+                        <i class="bi bi-diagram-3"></i>
+                        <span class="nav-item__label">จัดการแผนก</span>
+                    </a>
+                @endif
+            @endif
 
-                <div class="nav-section-label">ระบบ</div>
+            <div class="nav-section-label">ระบบ</div>
 
+            @if ($isAdmin)
                 {{-- บันทึกระบบกับถังขยะรวมเป็นเมนูเดียว เพราะทั้งคู่ตอบคำถามเดียวกันว่าใครทำอะไรกับข้อมูล --}}
                 <a href="{{ route('admin.audit.index') }}"
                     class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
                     <i class="bi bi-shield-lock"></i>
                     <span class="nav-item__label">Audit Log</span>
                 </a>
-            @endif
-
-            @if (! $isAdmin && ! $isViewer)
-                <div class="nav-section-label">ระบบ</div>
             @endif
 
             <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
@@ -210,22 +200,21 @@
             <i class="bi bi-list"></i>
         </button>
         <div class="ms-auto d-flex align-items-center gap-2">
-            <span class="role-chip {{ $isAdmin ? 'admin' : 'user' }}">
+            <span class="role-chip {{ $isAdmin ? 'admin' : 'user' }}" aria-label="{{ $roleLabel }}" title="{{ $roleLabel }}">
                 <i class="bi {{ $isAdmin ? 'bi-shield-check' : 'bi-person-check' }}"></i>
-                {{ $roleLabel }}
+                <span class="role-chip__label">{{ $roleLabel }}</span>
             </span>
             <div class="dropdown">
                 <button class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false" title="แจ้งเตือน">
                     <i class="bi bi-bell-fill"></i>
-                    @if($notificationCount > 0)
-                        <span class="notification-count" data-notification-count data-bell-notification-count>{{ $notificationDisplayCount }}</span>
-                    @endif
+                    <span class="notification-count" data-notification-count data-bell-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end p-2 notification-menu">
                     <div class="d-flex align-items-center justify-content-between px-2 py-2">
                         <strong>การแจ้งเตือน</strong>
                         <span class="badge-soft {{ $notificationCount > 0 ? 'amber' : 'gray' }}" data-notification-summary>{{ $notificationCount }} รายการ</span>
                     </div>
+                    <div data-notification-dropdown-list>
                     @if($systemNotifications->count() > 0)
                         <div class="px-2 pb-1 text-muted notification-section-title">การเปลี่ยนแปลงงาน</div>
                         @foreach($systemNotifications as $notice)
@@ -244,16 +233,16 @@
                             </div>
                         @endforeach
                     @endif
+                    </div>
 
                     @if($systemNotifications->isEmpty())
-                        <div class="text-center text-muted py-4 notification-dropdown-empty">ไม่มีการแจ้งเตือน</div>
+                        <div class="text-center text-muted py-4 notification-dropdown-empty" data-notification-dropdown-empty>ไม่มีการแจ้งเตือน</div>
                     @elseif($systemNotifications->count() === 15)
                         <div class="notification-more">แสดงการแจ้งเตือนล่าสุด 15 รายการ</div>
                     @endif
                     <a href="{{ route('notifications.index') }}" class="notification-more d-block text-center">ดูการแจ้งเตือนทั้งหมด</a>
                 </div>
             </div>
-            <a href="{{ route('settings.index') }}" class="icon-btn" title="ช่วยเหลือและตั้งค่า"><i class="bi bi-question-circle"></i></a>
         </div>
     </header>
 
@@ -339,6 +328,7 @@
             syncState();
         })();
     </script>
+    @vite('resources/js/components/realtime-sync.js')
     @stack('scripts')
 </body>
 

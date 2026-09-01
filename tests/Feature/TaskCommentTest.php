@@ -50,7 +50,7 @@ class TaskCommentTest extends TestCase
         $this->assertDatabaseCount('work_order_updates', 0);
     }
 
-    public function test_notifications_are_deduplicated_exclude_author_and_only_include_participants(): void
+    public function test_notifications_are_deduplicated_exclude_author_and_include_all_admins(): void
     {
         $author = $this->user();
         $creatorAdmin = $this->user('admin');
@@ -64,9 +64,9 @@ class TaskCommentTest extends TestCase
             ->assertCreated();
         $commentId = $response->json('comment.id');
 
-        $this->assertEqualsCanonicalizing([$creatorAdmin->id, $collaborator->id], SystemNotification::pluck('user_id')->all());
+        $this->assertEqualsCanonicalizing([$creatorAdmin->id, $collaborator->id, $unrelatedAdmin->id], SystemNotification::pluck('user_id')->all());
         $this->assertDatabaseMissing('system_notifications', ['user_id' => $author->id]);
-        $this->assertDatabaseMissing('system_notifications', ['user_id' => $unrelatedAdmin->id]);
+        $this->assertDatabaseHas('system_notifications', ['user_id' => $unrelatedAdmin->id]);
         $notice = SystemNotification::first();
         $this->assertSame('task_comment', $notice->type);
         $this->assertSame($commentId, data_get($notice->data, 'comment_id'));
@@ -82,7 +82,12 @@ class TaskCommentTest extends TestCase
         WorkOrderUpdate::create(['work_order_id' => $task->job_id, 'user_id' => $author->id, 'note' => 'legacy']);
 
         $this->actingAs($author)->postJson(route('tasks.comments.store', $task), ['message' => 'first'])->assertCreated();
-        $this->assertDatabaseCount('work_order_comment_reads', 0);
+        $this->assertDatabaseCount('work_order_comment_reads', 1);
+        $this->assertDatabaseHas('work_order_comment_reads', [
+            'work_order_id' => $task->job_id,
+            'user_id' => $author->id,
+            'last_read_update_id' => WorkOrderUpdate::where('is_comment', true)->max('id'),
+        ]);
 
         $this->actingAs($reader)->postJson(route('tasks.comments.read', $task))->assertOk();
         $receipt = WorkOrderCommentRead::where(['work_order_id' => $task->job_id, 'user_id' => $reader->id])->firstOrFail();

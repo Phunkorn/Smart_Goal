@@ -59,6 +59,38 @@
         </div>
     </div>
 
+    <div class="mytasks-calendar-agenda" data-calendar-agenda>
+        <section class="mytasks-calendar-agenda__section" aria-labelledby="mytasks-calendar-today-title">
+            <header class="mytasks-calendar-agenda__header">
+                <div>
+                    <span>TODAY</span>
+                    <h3 id="mytasks-calendar-today-title">งานในวันนี้</h3>
+                </div>
+                <b data-calendar-today-count>0 งาน</b>
+            </header>
+            <div class="mytasks-calendar-agenda__list" data-calendar-today-list></div>
+            <p class="mytasks-calendar-agenda__empty" data-calendar-today-empty>
+                <i class="bi bi-calendar2-check" aria-hidden="true"></i>
+                <span>วันนี้ไม่มีงานที่ต้องดำเนินการ</span>
+            </p>
+        </section>
+
+        <section class="mytasks-calendar-agenda__section" aria-labelledby="mytasks-calendar-month-agenda-title">
+            <header class="mytasks-calendar-agenda__header">
+                <div>
+                    <span>MONTH AGENDA</span>
+                    <h3 id="mytasks-calendar-month-agenda-title" data-calendar-month-agenda-title aria-live="polite">รายการของเดือนนี้</h3>
+                </div>
+                <b data-calendar-month-count>0 รายการ</b>
+            </header>
+            <div class="mytasks-calendar-agenda__list" data-calendar-month-list></div>
+            <p class="mytasks-calendar-agenda__empty" data-calendar-month-empty>
+                <i class="bi bi-calendar2" aria-hidden="true"></i>
+                <span>เดือนนี้ยังไม่มีรายการ</span>
+            </p>
+        </section>
+    </div>
+
     <div class="mytasks-calendar__popover" data-calendar-popover role="dialog" aria-modal="false" aria-labelledby="mytasks-calendar-popover-title" hidden>
         <header>
             <strong id="mytasks-calendar-popover-title" data-calendar-popover-title></strong>

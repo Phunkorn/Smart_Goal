@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\WorkOrder;
 use App\Services\TaskCommentService;
 use App\Services\NotificationService;
+use App\Support\TaskCommentPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TaskCommentController extends Controller
 {
-    public function store(Request $request, WorkOrder $task, TaskCommentService $comments): JsonResponse
+    public function store(Request $request, WorkOrder $task, TaskCommentService $comments, TaskCommentPresenter $presenter): JsonResponse
     {
         $task->loadMissing(['collaborators', 'user', 'creator']);
         $this->authorize('comment', $task);
@@ -18,22 +19,22 @@ class TaskCommentController extends Controller
         $validated = $request->validate(['message' => ['required', 'string', 'max:2000']]);
         $comment = $comments->post($task, $request->user(), $validated['message']);
 
-        return response()->json(['ok' => true, 'comment' => [
-            'id' => $comment->id, 'author' => $comment->user?->name ?? 'ไม่ระบุ',
-            'avatar_url' => $comment->user?->profile_image ? route('media.profile', $comment->user) : null,
-            'note' => $comment->note, 'at' => $comment->created_at->locale('th')->translatedFormat('j M Y H:i'),
-        ]], 201);
+        return response()->json([
+            'ok' => true,
+            'comment' => $presenter->comment($comment, $request->user()),
+        ], 201);
     }
 
-    public function markRead(Request $request, WorkOrder $task, TaskCommentService $comments, NotificationService $notifications): JsonResponse
+    public function markRead(Request $request, WorkOrder $task, TaskCommentService $comments, NotificationService $notifications, TaskCommentPresenter $presenter): JsonResponse
     {
-        $task->loadMissing('collaborators');
-        $this->authorize('view', $task);
+        $task->loadMissing(['collaborators', 'updates.user']);
+        $this->authorize('viewComments', $task);
         $latestId = $comments->markRead($task, $request->user());
         return response()->json([
             'ok' => true,
             'latest_comment_id' => $latestId,
             'unread_count' => $notifications->unreadCount($request->user()),
+            'receipts' => $presenter->receipts($task),
         ]);
     }
 }

@@ -81,17 +81,9 @@
 
     .admin-board-overview .admin-department-row {
         grid-template-columns:
-            minmax(220px, 1.5fr)
-            repeat(3, minmax(90px, .5fr))
-            100px;
-    }
-
-    .admin-board-overview .admin-department-action {
-        grid-column: 1 / -1;
-    }
-
-    .admin-board-overview .admin-department-action a {
-        width: 100%;
+            minmax(220px, 1fr)
+            minmax(100px, .5fr)
+            170px;
     }
 
     .admin-board-overview .admin-board-bottom-grid {

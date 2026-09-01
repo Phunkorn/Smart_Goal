@@ -429,7 +429,14 @@ class MyTaskController extends Controller
             $firstItem = $projectItems->first();
             $projectName = trim((string) ($validated['project_name'] ?? '')) ?: $firstItem['job_topic'];
 
-            $list = WorkOrderList::create([
+            $requestedListId = (int) ($validated['work_order_list_id'] ?? 0);
+            $list = $requestedListId
+                ? WorkOrderList::query()->whereKey($requestedListId)->where('user_id', $actor->id)->first()
+                : null;
+
+            abort_if($requestedListId && ! $list, 403, 'คุณไม่มีสิทธิ์เพิ่มงานในโปรเจกต์นี้');
+
+            $list ??= WorkOrderList::create([
                 'user_id' => $leaderId,
                 'name' => $projectName,
                 'priority' => $validated['project_priority'] ?? $validated['job_priority'] ?? 2,
@@ -449,7 +456,7 @@ class MyTaskController extends Controller
                     'work_order_list_id' => $list->id,
                     'job_topic' => $item['job_topic'],
                     'job_details' => $item['job_details'] ?: null,
-                    'job_priority' => 2,
+                    'job_priority' => $validated['job_priority'] ?? 2,
                     'job_status' => 2,
                     'approval_status' => $approval['approval_status'],
                     'approved_by' => $approval['approved_by'],
@@ -512,7 +519,9 @@ class MyTaskController extends Controller
         );
 
         if ($sameDepartment) {
-            $message = 'เพิ่มโปรเจกต์สำเร็จ';
+            $message = isset($validated['work_order_list_id'])
+                ? 'สร้างงานในโปรเจกต์สำเร็จ'
+                : 'สร้างโปรเจกต์และงานสำเร็จ';
         } else {
             $message = 'ส่งคำขอเปิดงานข้ามแผนกแล้ว รอผู้ดูแลระบบตรวจสอบก่อนเริ่มงาน';
         }
@@ -554,6 +563,7 @@ class MyTaskController extends Controller
     {
         return [
             'project_name' => ['nullable', 'string', 'max:80'],
+            'work_order_list_id' => ['nullable', 'integer', 'exists:work_order_lists,id'],
             'project_owner_id' => ['nullable', 'integer', 'exists:users,id,role,user'],
             'job_topic' => ['nullable', 'string', 'max:255'],
             'job_details' => ['nullable', 'string', 'max:2000'],

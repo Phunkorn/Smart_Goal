@@ -131,6 +131,18 @@ class WorkOrderPolicy
             && $this->isTaskParticipant($workOrder, $user);
     }
 
+    public function viewComments(User $user, WorkOrder $workOrder): bool
+    {
+        if ($workOrder->approval_status !== 'approved' || $user->role === 'viewer') {
+            return false;
+        }
+
+        return $user->role === 'admin'
+            || $this->isTaskParticipant($workOrder, $user)
+            || ($workOrder->work_order_list_id
+                && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
+    }
+
     public function respondToInvitation(User $user, WorkOrder $workOrder): bool
     {
         return false;
