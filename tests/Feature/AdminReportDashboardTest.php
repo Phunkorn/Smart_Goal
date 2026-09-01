@@ -51,15 +51,22 @@ class AdminReportDashboardTest extends TestCase
             ->assertSee('reportWorkloadChart', false)
             ->assertSee('report-dashboard-card--trend', false)
             ->assertSee('report-dashboard-card--status', false)
+            ->assertSee('report-dashboard-card--completed', false)
             ->assertSee('report-dashboard-card--priority', false)
             ->assertSee('report-dashboard-card--workload', false)
+            ->assertSee('report-dashboard-card--departments', false)
             ->assertSee('report-dashboard-card--attention', false)
             ->assertSee('data-chart-kind="line"', false)
             ->assertSee('data-chart-kind="bar"', false)
             ->assertSee('data-chart-kind="doughnut"', false)
-            ->assertSee('data-chart-kind="horizontal-bar"', false)
             ->assertSee('data-chart-kind="stacked-bar"', false)
-            ->assertDontSee('report-kpis', false)
+            // การเปรียบเทียบรายแผนกอยู่ในตาราง ไม่ใช่กราฟแท่งแนวนอนอีกต่อไป
+            ->assertDontSee('data-chart-kind="horizontal-bar"', false)
+            ->assertDontSee('reportOnTimeChart', false)
+            ->assertDontSee('reportDepartmentChart', false)
+            // แถบตัวเลขต้องมาก่อนกราฟ เพื่อให้อ่านข้อเท็จจริงได้โดยไม่ต้องตีความกราฟ
+            ->assertSee('report-kpi-band', false)
+            ->assertSee('เทียบผลงานรายแผนก')
             ->assertSee('สำคัญด่วน')
             ->assertSee('ไม่รีบ ไม่มีกำหนด')
             ->assertDontSee('ดูข้อมูลเท่านั้น');
@@ -146,6 +153,8 @@ class AdminReportDashboardTest extends TestCase
         $departmentRow = $response->viewData('departmentSummary')->firstWhere('id', $department->id);
 
         $response->assertOk();
+        $this->assertSame(['doing', 'review', 'done', 'paused', 'late'], array_keys($response->viewData('filterOptions')['statuses']));
+        $this->assertSame(['doing', 'review', 'done', 'paused', 'late'], $response->viewData('statusSummary')->pluck('key')->all());
         $this->assertSame(2, $response->viewData('overdueJobs'));
         $this->assertSame(2, $lateStatus['value']);
         $this->assertSame(2, $departmentRow['overdue']);

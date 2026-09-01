@@ -29,18 +29,44 @@
         </div>
     </header>
 
-    <section class="employee-report__summary" aria-label="สรุปข้อมูล"><span><strong>{{ number_format($totalJobs) }}</strong> งานในรายงาน</span><span><strong>{{ number_format($completedJobs) }}</strong> งานเสร็จในช่วง</span><span><strong>{{ $onTimeRate }}%</strong> ตรงเวลา</span><span class="{{ $overdueJobs ? 'is-danger' : '' }}"><strong>{{ number_format($overdueJobs) }}</strong> งานล่าช้า</span></section>
+    @php
+        $kpiCards = [
+            ['label' => 'งานทั้งหมด', 'value' => number_format($totalJobs), 'note' => 'ในช่วงที่เลือก', 'icon' => 'bi-collection'],
+            ['label' => 'ปิดงานได้', 'value' => number_format($completedJobs), 'note' => 'เสร็จจริงในช่วงนี้', 'icon' => 'bi-check2-circle', 'tone' => 'good', 'alert' => $completedJobs > 0],
+            ['label' => 'ส่งตรงเวลา', 'value' => $onTimeRate, 'unit' => '%', 'note' => $onTimeEligible > 0 ? 'จาก '.number_format($onTimeEligible).' งานที่มีกำหนดส่ง' : 'ยังไม่มีงานที่มีกำหนดส่ง', 'icon' => 'bi-stopwatch'],
+            ['label' => 'ล่าช้า', 'value' => number_format($overdueJobs), 'note' => $overdueJobs > 0 ? 'เลยกำหนดส่งแล้ว' : 'ไม่มีงานเลยกำหนด', 'icon' => 'bi-exclamation-triangle', 'tone' => 'danger', 'alert' => $overdueJobs > 0],
+        ];
+    @endphp
+    @include('reports.components.kpi-band', ['cards' => $kpiCards, 'ariaLabel' => 'สรุปตัวเลขของ '.$employee->name])
 
     @php
         $charts = [
-            ['id' => 'employeeTrendChart', 'kind' => 'line', 'class' => 'employee-chart-card--trend', 'title' => 'แนวโน้มผลงาน', 'description' => 'งานที่สร้างและงานที่เสร็จ', 'label' => 'กราฟแนวโน้มผลงาน'],
-            ['id' => 'employeeStatusChart', 'kind' => 'doughnut', 'class' => 'employee-chart-card--status', 'title' => 'สถานะงานปัจจุบัน', 'description' => 'สถานะของงานในรายงาน', 'label' => 'กราฟสถานะงานปัจจุบัน'],
-            ['id' => 'employeeCompletedChart', 'kind' => 'bar', 'class' => 'employee-chart-card--completed', 'title' => 'งานเสร็จรายเดือน', 'description' => 'นับจากวันที่เสร็จจริง', 'label' => 'กราฟงานเสร็จรายเดือน'],
-            ['id' => 'employeeOnTimeChart', 'kind' => 'doughnut', 'class' => 'employee-chart-card--ontime', 'title' => 'อัตราส่งงานตรงเวลา', 'description' => $onTimeEligible.' งานที่มีกำหนดส่ง', 'label' => 'กราฟอัตราส่งงานตรงเวลา'],
-            ['id' => 'employeePriorityChart', 'kind' => 'doughnut', 'class' => 'employee-chart-card--priority', 'title' => 'ความสำคัญของงาน', 'description' => 'สัดส่วนตามระดับความสำคัญ', 'label' => 'กราฟความสำคัญของงาน'],
+            ['id' => 'employeeTrendChart', 'kind' => 'line', 'class' => 'employee-chart-card--trend', 'title' => 'งานเข้าเทียบกับงานที่ปิดได้', 'description' => 'ถ้างานเข้าสูงกว่างานที่เสร็จต่อเนื่อง แปลว่างานค้างกำลังสะสม', 'label' => 'กราฟเส้นเปรียบเทียบงานที่สร้างกับงานที่เสร็จ'],
+            ['id' => 'employeeStatusChart', 'kind' => 'doughnut', 'class' => 'employee-chart-card--status', 'title' => 'ตอนนี้งานค้างอยู่ที่ขั้นไหน', 'description' => 'สัดส่วนสถานะปัจจุบันของงานในรายงาน', 'label' => 'กราฟวงกลมสัดส่วนสถานะงาน'],
+            ['id' => 'employeeCompletedChart', 'kind' => 'bar', 'class' => 'employee-chart-card--completed', 'title' => 'ปิดงานได้เดือนละเท่าไร', 'description' => 'นับจากวันที่งานเสร็จจริง ไม่ใช่วันครบกำหนด', 'label' => 'กราฟแท่งจำนวนงานที่เสร็จในแต่ละเดือน'],
+            ['id' => 'employeePriorityChart', 'kind' => 'doughnut', 'class' => 'employee-chart-card--priority', 'title' => 'งานที่รับผิดชอบเป็นงานระดับไหน', 'description' => 'สัดส่วนตามระดับความสำคัญของงาน', 'label' => 'กราฟวงกลมสัดส่วนความสำคัญของงาน'],
         ];
     @endphp
     <section class="employee-report__dashboard" aria-label="กราฟรายงานรายบุคคล">
+        {{-- ค่าหลักคือตัวเลขเดียว จึงแสดงเป็นตัวเลขใหญ่กับแถบสัดส่วน อ่านเร็วกว่าโดนัท --}}
+        <article class="employee-report__panel employee-report__ontime">
+            <div class="employee-report__panel-head"><div><h2>ส่งงานตรงเวลาแค่ไหน</h2><p>นับเฉพาะงานที่เสร็จแล้วและมีกำหนดส่ง</p></div></div>
+            @if($onTimeEligible === 0)
+                <div class="report-empty"><i class="bi bi-calendar-x" aria-hidden="true"></i><strong>ยังไม่มีงานที่มีกำหนดส่ง</strong><span>ตัวเลขนี้จะแสดงเมื่อมีงานที่ระบุวันครบกำหนด</span></div>
+            @else
+                @php($onTimeCount = (int) round($onTimeEligible * $onTimeRate / 100))
+                @php($lateCount = max(0, $onTimeEligible - $onTimeCount))
+                <div class="employee-report__ontime-figure">
+                    <strong>{{ $onTimeRate }}<small>%</small></strong>
+                    <span class="report-meter" style="--report-meter-tone:#1d4ed8" role="img" aria-label="ส่งตรงเวลา {{ $onTimeRate }} เปอร์เซ็นต์"><span style="width:{{ $onTimeRate }}%"></span></span>
+                    <ul>
+                        <li><i class="bi bi-check2-circle" aria-hidden="true"></i>ตรงเวลา <strong>{{ number_format($onTimeCount) }}</strong> งาน</li>
+                        <li class="{{ $lateCount > 0 ? 'is-late' : '' }}"><i class="bi bi-clock-history" aria-hidden="true"></i>เกินกำหนด <strong>{{ number_format($lateCount) }}</strong> งาน</li>
+                    </ul>
+                </div>
+            @endif
+        </article>
+
         @foreach($charts as $chart)
             <article class="employee-report__panel employee-chart-card report-card-order-{{ $loop->index }} {{ $chart['class'] }}" data-report-chart data-chart-kind="{{ $chart['kind'] }}" data-chart-state="loading">
                 <div class="employee-report__panel-head"><div><h2>{{ $chart['title'] }}</h2><p>{{ $chart['description'] }}</p></div><span>{{ $filters['period_label'] }}</span></div>

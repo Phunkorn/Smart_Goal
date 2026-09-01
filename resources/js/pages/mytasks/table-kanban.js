@@ -169,8 +169,12 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'status update failed');
                 if (data.transitions) management[String(card.dataset.id)].transitions = data.transitions;
+                const actualStatus = Number(data.job_status ?? status);
+                card.dataset.status = String(actualStatus);
+                kanban.querySelector(`[data-kanban-column='${actualStatus}'] .mytasks-kanban__cards`)?.append(card);
+                refresh();
                 card.draggable = canDragCard(card);
-                synchronizeTaskSource(root, card.dataset.id, {status});
+                synchronizeTaskSource(root, card.dataset.id, {status: actualStatus});
             } catch (error) {
                 card.dataset.status = previousStatus;
                 card.draggable = canDragCard(card);

@@ -113,6 +113,17 @@ class WorkOrderPolicy
         return $user->role === 'admin' && (int) $workOrder->job_status === 4;
     }
 
+    /**
+     * Administrative status correction for approved, active work only.
+     * Completed work must continue through the explicit reopen action.
+     */
+    public function overrideStatus(User $user, WorkOrder $workOrder): bool
+    {
+        return $user->role === 'admin'
+            && $workOrder->approval_status === 'approved'
+            && (int) $workOrder->job_status !== 4;
+    }
+
     public function comment(User $user, WorkOrder $workOrder): bool
     {
         return $workOrder->approval_status === 'approved'

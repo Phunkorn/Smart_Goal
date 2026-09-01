@@ -7,9 +7,8 @@ export default defineConfig({
         laravel({
             input: [
                 'resources/css/components/layout.css',
-                'resources/css/pages/admin-activity-logs.css',
+                'resources/css/pages/admin-audit.css',
                 'resources/css/pages/admin-departments.css',
-                'resources/css/pages/admin-trash.css',
                 'resources/css/pages/auth-login.css',
                 'resources/css/pages/auth-setup-password.css',
                 'resources/css/pages/auth-welcome.css',
@@ -33,6 +32,7 @@ export default defineConfig({
                 'resources/js/pages/board/admin-assignment.js',
                 'resources/js/pages/employees/index.js',
                 'resources/js/pages/admin/approvals.js',
+                'resources/js/pages/admin/audit.js',
                 'resources/js/pages/mytasks/index.js',
                 'resources/js/pages/work-board/department.js',
                 'resources/js/pages/meetings/index.js',

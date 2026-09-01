@@ -118,16 +118,21 @@ class TaskCommentTest extends TestCase
         $task->collaborators()->attach($author->id, ['status' => 'accepted', 'added_by' => $admin->id]);
         $this->actingAs($author)->postJson(route('tasks.comments.store', $task), ['message' => 'shared unread'])->assertCreated();
 
+        // ช่องคอมเมนต์บนบอร์ดมีอยู่ทุกแถวเสมอ สถานะยังไม่ได้อ่านจึงอยู่ที่คลาส has-unread ของช่องนั้น
+        $unread = 'class="board-comments has-comments has-unread" data-open-task-modal data-task-id="'.$task->job_id.'"';
+        $read = 'class="board-comments has-comments" data-open-task-modal data-task-id="'.$task->job_id.'"';
+
         $this->actingAs($member)->get(route('mytasks.index'))
-            ->assertOk()->assertSee('data-unread-comments="'.$task->job_id.'"', false);
+            ->assertOk()->assertSee($unread, false);
         $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))
-            ->assertOk()->assertSee('data-unread-comments="'.$task->job_id.'"', false);
+            ->assertOk()->assertSee($unread, false);
 
         $this->actingAs($member)->postJson(route('tasks.comments.read', $task))->assertOk();
+        // อ่านแล้วต้องหายเฉพาะสถานะ unread ส่วนช่องและจำนวนรวมยังต้องอยู่ครบ
         $this->actingAs($member)->get(route('mytasks.index'))
-            ->assertOk()->assertDontSee('data-unread-comments="'.$task->job_id.'"', false);
+            ->assertOk()->assertDontSee($unread, false)->assertSee($read, false);
         $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))
-            ->assertOk()->assertSee('data-unread-comments="'.$task->job_id.'"', false);
+            ->assertOk()->assertSee($unread, false);
     }
 
     private function user(string $role = 'user'): User

@@ -97,7 +97,7 @@ class Import2026PlanCommandTest extends TestCase
         $this->assertCount(0, $training->attachments);
 
         $done = WorkOrder::where('job_topic', 'Duplicate task')->where('job_status', 4)->firstOrFail();
-        $wait = WorkOrder::where('job_topic', 'Duplicate task')->where('job_status', 1)->firstOrFail();
+        $wait = WorkOrder::where('job_topic', 'Duplicate task')->where('job_status', 2)->firstOrFail();
         $inProcess = WorkOrder::where('job_topic', 'Graphic queue')->firstOrFail();
 
         $this->assertSame($training->id, $done->work_order_list_id);

@@ -13,7 +13,6 @@ if (page) {
     const configs = buildEmployeeChartConfigs(parseChartData(document.getElementById('employee-report-chart-data')));
     initializeChartCards({root: document, ChartCtor: Chart, configs, definitions: [
         {id: 'employeeTrendChart', key: 'trend'}, {id: 'employeeStatusChart', key: 'status'},
-        {id: 'employeeCompletedChart', key: 'completed'}, {id: 'employeeOnTimeChart', key: 'onTime'},
-        {id: 'employeePriorityChart', key: 'priority'},
+        {id: 'employeeCompletedChart', key: 'completed'}, {id: 'employeePriorityChart', key: 'priority'},
     ]});
 }

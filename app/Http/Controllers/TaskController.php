@@ -11,9 +11,11 @@ use App\Models\WorkOrderList;
 use App\Models\WorkOrderListAttachment;
 use App\Services\CollaboratorInvitationService;
 use App\Services\NotificationService;
+use App\Services\TaskStatusTransitionService;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProtectedMedia;
+use App\Support\TodayWorkspace;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
 use Carbon\Carbon;
@@ -87,7 +89,7 @@ class TaskController extends Controller
             $jobs = $jobs
                 ->where('is_overdue', true)
                 ->values();
-        } elseif (in_array($currentStatus, ['1', '2', '3', '4', '5'], true)) {
+        } elseif (in_array($currentStatus, ['2', '3', '4', '5'], true)) {
             $jobs = $jobs
                 ->where('job_status', (int) $currentStatus)
                 ->values();
@@ -173,7 +175,7 @@ class TaskController extends Controller
         $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
 
         $job = DB::transaction(function () use ($validated, $actor, $assignee, $request, $approval, $invitations, $targetProjectList) {
-            $initialStatus = (int) ($validated['job_status'] ?? 1);
+            $initialStatus = 2;
             $projectList = $targetProjectList;
 
             // ช่องทางเดิมยังสร้างโปรเจกต์ให้อัตโนมัติ ส่วนฟอร์ม Admin ใหม่ส่งรายการ
@@ -294,7 +296,7 @@ class TaskController extends Controller
                 'job_topic' => trim($validated['job_topic']),
                 'job_details' => null,
                 'job_priority' => 2,
-                'job_status' => 1,
+                'job_status' => 2,
                 'approval_status' => $approval['approval_status'],
                 'approved_by' => $approval['approved_by'],
                 'approved_at' => $approval['approved_at'],
@@ -399,7 +401,7 @@ class TaskController extends Controller
                         'job_topic' => trim($taskData['job_topic']),
                         'job_details' => filled($taskData['job_details'] ?? null) ? trim($taskData['job_details']) : null,
                         'job_priority' => $taskData['job_priority'] ?? 2,
-                        'job_status' => 1,
+                        'job_status' => 2,
                         'approval_status' => $approval['approval_status'],
                         'approved_by' => $approval['approved_by'],
                         'approved_at' => $approval['approved_at'],
@@ -549,7 +551,7 @@ class TaskController extends Controller
         return $this->jsonOrBack($request, true, 'บันทึกรายละเอียดงานสำเร็จ');
     }
 
-    public function updateSchedule(Request $request, $id)
+    public function updateSchedule(Request $request, $id, TaskStatusTransitionService $transitions)
     {
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
@@ -567,13 +569,29 @@ class TaskController extends Controller
             'job_start_at' => Carbon::parse($validated['job_start_at']),
             'job_due_at' => Carbon::parse($validated['job_due_at']),
         ]);
+        if (! TodayWorkspace::reconcileLateAfterScheduleChange($job)) {
+            TodayWorkspace::normalizeLateForTransition($job);
+        }
+        $job->refresh();
 
         AuditTrail::log('schedule_changed', $job, 'เปลี่ยนช่วงเวลางาน: '.$job->job_topic, [
             'before' => $before,
             'after' => $job->fresh()->attributesToArray(),
         ]);
 
-        return $this->jsonOrBack($request, true, 'บันทึกช่วงเวลางานแล้ว');
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'บันทึกช่วงเวลางานแล้ว',
+                'job_id' => $job->job_id,
+                'job_start_at' => TodayWorkspace::calendarDate($job->job_start_at),
+                'job_due_at' => TodayWorkspace::calendarDate($job->job_due_at),
+                'job_status' => (int) $job->job_status,
+                'transitions' => $transitions->capabilities($job, $user),
+            ]);
+        }
+
+        return back()->with('success', 'บันทึกช่วงเวลางานแล้ว');
     }
 
     public function requestDelete(Request $request, $id)
@@ -724,7 +742,7 @@ class TaskController extends Controller
     {
         return [
             'pending' => $jobs->where('approval_status', 'pending')->count(),
-            'doing' => $jobs->where('approval_status', 'approved')->whereIn('job_status', [1, 2, 3])->count(),
+            'doing' => $jobs->where('approval_status', 'approved')->whereIn('job_status', [2, 3])->count(),
             'paused' => $jobs->where('approval_status', 'approved')->where('job_status', 5)->count(),
             'done' => $jobs->where('job_status', 4)->count(),
             'late' => $jobs->where('is_overdue', true)->count(),

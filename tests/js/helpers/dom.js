@@ -73,19 +73,22 @@ export function pressKey(target, key, options = {}) {
  * markup ของ people-selector ที่ตรงกับ resources/views/components/people-selector.blade.php
  * ถ้า Blade เปลี่ยน hook ต้องแก้ที่นี่ด้วย test จึงจะยังสะท้อนของจริง
  */
-export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]', people = [], departments = [], selected = [], disabled = [], readOnly = false} = {}) {
+export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]', people = [], departments = [], selected = [], disabled = [], readOnly = false, variant = null} = {}) {
     const selectedSet = new Set(selected.map(String));
     const disabledSet = new Set(disabled.map(String));
+    const isTeamManager = variant === 'team-manager';
 
     const options = people.map((person) => {
         const isSelected = selectedSet.has(String(person.id));
         const isDisabled = readOnly || disabledSet.has(String(person.id));
-        const search = `${person.name} ${person.department || ''}`.toLowerCase();
+        const search = `${person.name} ${person.email || ''} ${person.department || ''}`.toLowerCase();
 
         return `<label class="people-selector__option${isSelected ? ' is-selected' : ''}" data-people-option
             data-person-id="${person.id}" data-department-id="${person.departmentId ?? ''}" data-search="${search}">
             <input type="checkbox" id="${instanceId}-person-${person.id}" name="${inputName}" value="${person.id}"
-                data-people-checkbox data-person-name="${person.name}"${isSelected ? ' checked' : ''}${isDisabled ? ' disabled' : ''}>
+                data-people-checkbox data-person-name="${person.name}" data-person-email="${person.email || ''}"
+                data-person-department="${person.department || ''}" data-person-avatar-url="${person.avatarUrl || ''}"
+                ${isSelected ? ' checked' : ''}${isDisabled ? ' disabled' : ''}>
             <span><strong>${person.name}</strong><small>${person.department || ''}</small></span>
         </label>`;
     }).join('');
@@ -93,11 +96,26 @@ export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]
     const filters = departments.map((department) =>
         `<button type="button" data-people-department data-department-id="${department.id}" aria-pressed="false">${department.name}</button>`
     ).join('');
+    const departmentOptions = departments.map((department) =>
+        `<option value="${department.id}">${department.name}</option>`
+    ).join('');
+    const searchToolsEnd = isTeamManager
+        ? `<select data-people-department-select><option value="">แผนกทั้งหมด</option>${departmentOptions}</select>`
+        : '';
+    const selectionSummary = isTeamManager
+        ? `<div class="people-selector__selection-summary"><div data-people-summary-count>เลือกแล้ว ${selected.length} คน</div><button type="button" data-people-clear>ล้างการเลือก</button></div>`
+        : '';
+    const stageOpen = isTeamManager ? `<section data-people-stage${selected.length ? '' : ' hidden'}>` : '';
+    const stageClose = isTeamManager ? '</section>' : '';
 
-    return `<div class="people-selector-field" data-people-selector data-instance="${instanceId}"${readOnly ? ' data-readonly="true"' : ''}>
+    return `<div class="people-selector-field${isTeamManager ? ' people-selector-field--team-manager' : ''}"
+        data-people-selector data-instance="${instanceId}"${variant ? ` data-people-variant="${variant}"` : ''}${readOnly ? ' data-readonly="true"' : ''}>
         <div class="people-selector">
             <div class="people-selector__browser">
-                <label><input type="search" data-people-search></label>
+                <div class="people-selector__search-tools">
+                    <label><input type="search" data-people-search></label>
+                    ${searchToolsEnd}
+                </div>
                 <div class="people-selector__departments">
                     <button type="button" data-people-department data-department-id="" aria-pressed="true" class="is-active">ทั้งหมด</button>
                     ${filters}
@@ -106,10 +124,13 @@ export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]
                     ${options}
                     <p data-people-empty hidden>ไม่พบรายชื่อ</p>
                 </div>
+                ${selectionSummary}
             </div>
             <div class="people-selector__selected">
+                ${stageOpen}
                 <strong data-people-count>เลือกแล้ว ${selected.length} คน</strong>
                 <div data-people-chips><p data-people-chips-empty${selected.length ? ' hidden' : ''}>ยังไม่ได้เลือก</p></div>
+                ${stageClose}
             </div>
         </div>
     </div>`;

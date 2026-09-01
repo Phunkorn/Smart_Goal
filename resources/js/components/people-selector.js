@@ -62,6 +62,14 @@ export function selectedIdsOf(root) {
         .map((checkbox) => Number(checkbox.value));
 }
 
+/** ล้างเฉพาะรายการที่กำลังเลือกในฝั่ง client โดยไม่แตะสมาชิกที่บันทึกแล้ว */
+export function clearPeopleSelection(root) {
+    root?.querySelectorAll?.('[data-people-checkbox]').forEach((checkbox) => {
+        checkbox.checked = false;
+    });
+    refreshPeopleSelector(root);
+}
+
 /**
  * กำหนดว่าใครต้องหายไปจากรายการทั้งหมด ใช้ตอนเปิดงานแต่ละงาน
  * เลือกวิธีเอาออกจากรายการ ไม่ใช่แสดงเป็น disabled เพราะสมาชิกปัจจุบันมีที่แสดงของตัวเองอยู่แล้ว
@@ -95,14 +103,19 @@ export function initializePeopleSelector(root) {
     root.dataset.peopleInitialized = 'true';
 
     const search = root.querySelector('[data-people-search]');
+    const departmentSelect = root.querySelector('[data-people-department-select]');
     const departmentButtons = [...root.querySelectorAll('[data-people-department]')];
     const optionRows = [...root.querySelectorAll('[data-people-option]')];
     const checkboxes = [...root.querySelectorAll('[data-people-checkbox]')];
     const optionsEmpty = root.querySelector('[data-people-empty]');
     const chips = root.querySelector('[data-people-chips]');
     const count = root.querySelector('[data-people-count]');
+    const summaryCount = root.querySelector('[data-people-summary-count]');
+    const clearButton = root.querySelector('[data-people-clear]');
+    const stage = root.querySelector('[data-people-stage]');
     const chipsEmptyLabel = root.querySelector('[data-people-chips-empty]')?.textContent || 'ยังไม่ได้เลือก';
-    const readOnly = root.dataset.readonly === 'true';
+    const isTeamManager = root.dataset.peopleVariant === 'team-manager';
+    const isReadOnly = () => root.dataset.readonly === 'true';
     let activeDepartment = '';
 
     const optionData = () => optionRows.map((row) => ({
@@ -119,6 +132,9 @@ export function initializePeopleSelector(root) {
         const selected = checkboxes.filter((checkbox) => checkbox.checked && !isExcluded(checkbox));
         const template = count.dataset.countTemplate || 'เลือกแล้ว :count คน';
         count.textContent = template.replace(':count', String(selected.length));
+        if (summaryCount) summaryCount.textContent = `เลือกแล้ว ${selected.length} คน`;
+        if (clearButton) clearButton.disabled = isReadOnly() || selected.length === 0;
+        if (stage) stage.hidden = selected.length === 0;
         optionRows.forEach((row) => {
             const checkbox = row.querySelector('[data-people-checkbox]');
             row.classList.toggle('is-selected', checkbox?.checked === true && !row.hasAttribute('data-people-excluded'));
@@ -139,8 +155,7 @@ export function initializePeopleSelector(root) {
         }
 
         selected.forEach((checkbox) => {
-            const chip = chips.ownerDocument.createElement('span');
-            const label = chips.ownerDocument.createElement('span');
+            const chip = chips.ownerDocument.createElement(isTeamManager ? 'article' : 'span');
             const remove = chips.ownerDocument.createElement('button');
             const icon = chips.ownerDocument.createElement('i');
             const name = checkbox.dataset.personName || '';
@@ -148,16 +163,45 @@ export function initializePeopleSelector(root) {
             chip.className = 'people-selector__chip';
             chip.dataset.peopleChip = '';
             chip.dataset.personId = checkbox.value;
-            label.textContent = name;
             remove.type = 'button';
             remove.dataset.peopleRemove = '';
             remove.dataset.personId = checkbox.value;
-            remove.disabled = readOnly || checkbox.disabled;
-            remove.setAttribute('aria-label', `นำ ${name} ออก`);
+            remove.disabled = isReadOnly() || checkbox.disabled;
+            remove.setAttribute('aria-label', `ยกเลิกการเลือก ${name}`);
             icon.className = 'bi bi-x';
             icon.setAttribute('aria-hidden', 'true');
             remove.append(icon);
-            chip.append(label, remove);
+
+            if (isTeamManager) {
+                const avatar = chips.ownerDocument.createElement('span');
+                const copy = chips.ownerDocument.createElement('span');
+                const label = chips.ownerDocument.createElement('strong');
+                const detail = chips.ownerDocument.createElement('small');
+                const department = chips.ownerDocument.createElement('span');
+                const avatarUrl = checkbox.dataset.personAvatarUrl || '';
+                const departmentName = checkbox.dataset.personDepartment || 'ไม่ระบุแผนก';
+
+                avatar.className = 'people-selector__chip-avatar';
+                copy.className = 'people-selector__chip-copy';
+                department.className = 'people-selector__chip-department';
+                label.textContent = name;
+                detail.textContent = checkbox.dataset.personEmail || departmentName;
+                department.textContent = departmentName;
+                if (avatarUrl) {
+                    const image = chips.ownerDocument.createElement('img');
+                    image.src = avatarUrl;
+                    image.alt = '';
+                    avatar.append(image);
+                } else {
+                    avatar.textContent = Array.from(name || '?')[0] || '?';
+                }
+                copy.append(label, detail);
+                chip.append(avatar, copy, department, remove);
+            } else {
+                const label = chips.ownerDocument.createElement('span');
+                label.textContent = name;
+                chip.append(label, remove);
+            }
             chips.append(chip);
         });
     };
@@ -175,19 +219,26 @@ export function initializePeopleSelector(root) {
 
     search?.addEventListener('input', applyFilters);
 
-    departmentButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-            activeDepartment = button.dataset.departmentId || '';
-            departmentButtons.forEach((candidate) => {
-                const isActive = candidate === button;
-                candidate.classList.toggle('is-active', isActive);
-                candidate.setAttribute('aria-pressed', String(isActive));
-            });
-            applyFilters();
+    const setActiveDepartment = (departmentId) => {
+        activeDepartment = String(departmentId || '');
+        departmentButtons.forEach((candidate) => {
+            const isActive = String(candidate.dataset.departmentId || '') === activeDepartment;
+            candidate.classList.toggle('is-active', isActive);
+            candidate.setAttribute('aria-pressed', String(isActive));
         });
+        if (departmentSelect && departmentSelect.value !== activeDepartment) {
+            departmentSelect.value = activeDepartment;
+        }
+        applyFilters();
+    };
+
+    departmentButtons.forEach((button) => {
+        button.addEventListener('click', () => setActiveDepartment(button.dataset.departmentId));
     });
+    departmentSelect?.addEventListener('change', () => setActiveDepartment(departmentSelect.value));
 
     checkboxes.forEach((checkbox) => checkbox.addEventListener('change', renderChips));
+    clearButton?.addEventListener('click', () => clearPeopleSelection(root));
 
     chips?.addEventListener('click', (event) => {
         const remove = event.target.closest('[data-people-remove]');

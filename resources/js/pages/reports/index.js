@@ -11,10 +11,10 @@ if (page) {
     synchronizeCustomDates();
 
     const configs = buildReportChartConfigs(parseChartData(document.getElementById('report-chart-data')));
+    // การเปรียบเทียบรายแผนกย้ายไปเป็นตาราง จึงเหลือกราฟที่ตอบคำถามต่างกันจริงสี่อัน
     initializeChartCards({root: document, ChartCtor: Chart, configs, definitions: [
         {id: 'reportTrendChart', key: 'trend'}, {id: 'reportStatusChart', key: 'status'},
-        {id: 'reportDepartmentChart', key: 'departments'}, {id: 'reportCompletedChart', key: 'completed'},
-        {id: 'reportOnTimeChart', key: 'onTime'}, {id: 'reportPriorityChart', key: 'priority'},
+        {id: 'reportCompletedChart', key: 'completed'}, {id: 'reportPriorityChart', key: 'priority'},
         {id: 'reportWorkloadChart', key: 'workload'},
     ]});
 }

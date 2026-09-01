@@ -21,6 +21,8 @@ final class DepartmentWorkBoardQuery
     /** ล่าช้าก่อน แล้วครบกำหนดวันนี้ ตามด้วยงานที่กำลังทำอยู่ และปิดท้ายด้วยงานที่เพิ่งเริ่มวันนี้ */
     private const TODAY_BUCKET_ORDER = ['late' => 0, 'due_today' => 1, 'active' => 2, 'starts_today' => 3];
 
+    public function __construct(private readonly MemberWorkloadQuery $memberWorkloads) {}
+
     /**
      * Build the lightweight member directory without loading every task model.
      *
@@ -53,23 +55,27 @@ final class DepartmentWorkBoardQuery
         $updateSummary = collect();
 
         if ($memberIds->isNotEmpty()) {
-            $tasks = $this->departmentTasks($department, $isAdmin)
-                ->whereIn('user_id', $memberIds);
-            $this->applyTaskFilters($tasks, $status, $projectId);
+            $tasks = DB::query()
+                ->fromSub($this->memberWorkloads->memberships($memberIds), 'member_workloads')
+                ->join('work_orders', 'work_orders.job_id', '=', 'member_workloads.work_order_id')
+                ->whereNull('work_orders.deleted_at')
+                ->when(! $isAdmin, fn ($query) => $query->where('work_orders.approval_status', 'approved'));
+            $this->applyTaskFilters($tasks, $status, $projectId, 'work_orders.');
 
             $taskSummary = $tasks
-                ->select('user_id')
+                ->select('member_workloads.member_id')
                 ->selectRaw('COUNT(*) as task_count')
-                ->selectRaw('MAX(updated_at) as latest_task_updated_at')
-                ->groupBy('user_id')
+                ->selectRaw('MAX(work_orders.updated_at) as latest_task_updated_at')
+                ->groupBy('member_workloads.member_id')
                 ->get()
-                ->keyBy('user_id');
+                ->keyBy('member_id');
 
             $updates = DB::table('work_order_updates')
                 ->join('work_orders', 'work_orders.job_id', '=', 'work_order_updates.work_order_id')
+                ->joinSub($this->memberWorkloads->memberships($memberIds), 'member_workloads', fn ($join) => $join
+                    ->on('member_workloads.work_order_id', '=', 'work_orders.job_id'))
                 ->whereNull('work_orders.deleted_at')
-                ->where('work_orders.department_id', $department->id)
-                ->whereIn('work_orders.user_id', $memberIds);
+                ->whereIn('member_workloads.member_id', $memberIds);
 
             if (! $isAdmin) {
                 $updates->where('work_orders.approval_status', 'approved');
@@ -78,11 +84,11 @@ final class DepartmentWorkBoardQuery
             $this->applyTaskFilters($updates, $status, $projectId, 'work_orders.');
 
             $updateSummary = $updates
-                ->select('work_orders.user_id')
+                ->select('member_workloads.member_id')
                 ->selectRaw('MAX(work_order_updates.created_at) as latest_update_at')
-                ->groupBy('work_orders.user_id')
+                ->groupBy('member_workloads.member_id')
                 ->get()
-                ->keyBy('user_id');
+                ->keyBy('member_id');
         }
 
         $members = $members
@@ -103,7 +109,17 @@ final class DepartmentWorkBoardQuery
                 ->filter(fn (User $member) => $member->board_task_count > 0))
             ->values();
 
-        $projectTaskIds = $this->departmentTasks($department, $isAdmin)
+        $allMemberIds = User::query()
+            ->where('department_id', $department->id)
+            ->where('role', 'user')
+            ->where('is_active', true)
+            ->pluck('id');
+        $directTaskIds = DB::query()
+            ->fromSub($this->memberWorkloads->memberships($allMemberIds), 'member_workloads')
+            ->select('member_workloads.work_order_id');
+        $projectTaskIds = WorkOrder::query()
+            ->whereIn('job_id', $directTaskIds)
+            ->when(! $isAdmin, fn (Builder $query) => $query->where('approval_status', 'approved'))
             ->whereNotNull('work_order_list_id')
             ->select('work_order_list_id')
             ->distinct();
@@ -132,14 +148,11 @@ final class DepartmentWorkBoardQuery
      */
     public function previewTasks(Department $department, User $member): Collection
     {
-        $memberTasks = WorkOrder::query()
-            ->where('department_id', $department->id)
-            ->where('user_id', $member->id);
+        $memberTasks = $this->memberWorkloads->forMember($member);
 
-        // ต้องปรับสถานะอัตโนมัติให้เป็นปัจจุบันก่อน เหมือนที่ adminMember() และ MyTaskController::index() ทำ
-        // มิฉะนั้นงานที่เลยกำหนดจะยังเป็น status 1-3 แล้วตกช่วง active range ของ TodayWorkspace
+        // ต้องปรับสถานะล่าช้าให้เป็นปัจจุบันก่อน เหมือนที่ adminMember() และ MyTaskController::index() ทำ
+        // มิฉะนั้นงานที่เลยกำหนดจะยังเป็น status 2 แล้วตกช่วง active range ของ TodayWorkspace
         // ทำให้งานล่าช้าหายไปจาก Preview ทั้งที่เป็นงานที่ต้องติดตามที่สุด
-        TodayWorkspace::synchronizeActiveToday($memberTasks);
         TodayWorkspace::synchronizeLate($memberTasks);
 
         $tasks = $memberTasks
@@ -194,13 +207,6 @@ final class DepartmentWorkBoardQuery
         return 'active';
     }
 
-    private function departmentTasks(Department $department, bool $isAdmin): Builder
-    {
-        return WorkOrder::query()
-            ->where('department_id', $department->id)
-            ->when(! $isAdmin, fn (Builder $query) => $query->where('approval_status', 'approved'));
-    }
-
     private function applyTaskFilters($query, string $status, int $projectId, string $prefix = ''): void
     {
         if ($projectId > 0) {
@@ -228,7 +234,6 @@ final class DepartmentWorkBoardQuery
             'done' => $query->where($statusColumn, 4),
             'doing' => $this->applyActiveStatus($query, $statusColumn, $dueColumn, $today, 2),
             'review' => $this->applyActiveStatus($query, $statusColumn, $dueColumn, $today, 3),
-            'todo' => $this->applyActiveStatus($query, $statusColumn, $dueColumn, $today, 1),
         };
     }
 

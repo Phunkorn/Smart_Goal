@@ -51,15 +51,15 @@
     @endphp
 
     <aside class="sidebar" id="appSidebar">
-        <div class="sidebar-brand">
-            <span class="brand-mark" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
-            <div class="brand-text">
-                <div class="name">Smart Goal</div>
+            <div class="sidebar-brand">
+                <span class="brand-mark" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
+                <div class="brand-text">
+                    <div class="name">Smart Goal</br>ระบบจัดการองค์กร</div>
+                </div>
+                <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
-            <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
 
         <div class="sidebar-nav">
             @if ($isAdmin)
@@ -162,15 +162,11 @@
 
                 <div class="nav-section-label">ระบบ</div>
 
-                <a href="{{ route('admin.trash.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.trash.*') ? 'active' : '' }}">
-                    <i class="bi bi-trash3"></i>
-                    <span class="nav-item__label">ถังขยะ</span>
-                </a>
-                <a href="{{ route('admin.activity-logs.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.activity-logs.*') ? 'active' : '' }}">
-                    <i class="bi bi-clock-history"></i>
-                    <span class="nav-item__label">บันทึกระบบ</span>
+                {{-- บันทึกระบบกับถังขยะรวมเป็นเมนูเดียว เพราะทั้งคู่ตอบคำถามเดียวกันว่าใครทำอะไรกับข้อมูล --}}
+                <a href="{{ route('admin.audit.index') }}"
+                    class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
+                    <i class="bi bi-shield-lock"></i>
+                    <span class="nav-item__label">Audit Log</span>
                 </a>
             @endif
 

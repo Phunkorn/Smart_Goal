@@ -206,7 +206,7 @@ class AdminApprovalPageTest extends TestCase
             'department_id' => $department->id,
             'job_topic' => $topic,
             'job_priority' => 2,
-            'job_status' => 1,
+            'job_status' => 2,
             'approval_status' => $approvalStatus,
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),

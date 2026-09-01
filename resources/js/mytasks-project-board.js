@@ -1,4 +1,4 @@
-import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
+import {projectPriorityClasses, statusClasses, taskPriorityClasses, unsupportedStatusMeta} from './pages/mytasks/priority-meta.js';
 import {
     boardFloatingMenuSelector,
     boardFloatingMenuSummarySelector,
@@ -43,11 +43,11 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
     let dueSort = initialFilterState.dueSort;
     let ascending = dueSort !== 'desc';
     const statusMeta = {
-        1: {className: 'status-todo', label: 'ยังไม่เริ่ม'},
         2: {className: 'status-progress', label: 'กำลังทำ'},
         3: {className: 'status-review', label: 'รอตรวจสอบ'},
         4: {className: 'status-done', label: 'เสร็จแล้ว'},
         5: {className: 'status-paused', label: 'พักงาน'},
+        6: {className: 'status-late', label: 'ล่าช้า'},
     };
     const projectPriorityMeta = {
         1: {className: 'priority-low', tone: 'project-tone-low', label: 'ต่ำ', projectLabel: 'สำคัญ/ต่ำ'},
@@ -79,6 +79,46 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'บันทึกไม่สำเร็จ');
         return data;
+    };
+
+    const applyTaskChange = (change) => {
+        const task = board.querySelector(`[data-board-task][data-task-id='${CSS.escape(String(change.id))}']`);
+        if (!task) return;
+
+        if (Object.hasOwn(change, 'topic')) {
+            task.dataset.topic = String(change.topic || '');
+            const title = task.querySelector('.board-reference-task__title');
+            if (title) title.textContent = task.dataset.topic;
+        }
+        if (Object.hasOwn(change, 'due')) task.dataset.due = String(change.due || '');
+
+        if (Object.hasOwn(change, 'priority') && taskPriorityMeta[Number(change.priority)]) {
+            const priority = Number(change.priority);
+            const meta = taskPriorityMeta[priority];
+            task.dataset.priority = String(priority);
+            task.classList.remove('task-priority-routine', 'task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
+            task.classList.add(`task-${meta.className}`);
+            const summary = task.querySelector('[data-board-priority-menu] > summary');
+            summary?.classList.remove(...taskPriorityClasses);
+            summary?.classList.add(meta.className);
+            const label = summary?.querySelector('[data-board-priority-label]');
+            if (label) label.textContent = meta.label;
+        }
+
+        if (Object.hasOwn(change, 'status') && statusMeta[Number(change.status)]) {
+            const status = Number(change.status);
+            const meta = statusMeta[status];
+            task.dataset.status = String(status);
+            task.dataset.late = status === 6 ? '1' : '0';
+            const summary = task.querySelector('[data-board-status-menu] > summary');
+            summary?.classList.remove(...statusClasses);
+            summary?.classList.add(meta.className);
+            const label = summary?.querySelector('[data-board-status-label]');
+            if (label) label.textContent = meta.label;
+        }
+
+        refreshStatusControls(task);
+        filterBoard(false);
     };
 
     const tasksForProject = (header) => header
@@ -290,6 +330,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
 
     if (dueSort) sortBoard();
     filterBoard(false);
+    document.addEventListener('mytasks:changed', (event) => applyTaskChange(event.detail || {}));
 
     document.addEventListener('click', async (event) => {
         const nativeSummary = event.target.closest('summary');
@@ -389,17 +430,19 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             if (!payload) { statusOption.disabled = false; return; }
             request(endpoint(workspace.dataset.statusTemplate, task.dataset.taskId), 'PATCH', payload).then((data) => {
                 if (data.transitions) management[String(task.dataset.taskId)].transitions = data.transitions;
-                task.dataset.status = String(value);
-                task.dataset.late = '0';
+                const actualStatus = Number(data.job_status ?? value);
+                const actualMeta = statusMeta[actualStatus] || meta;
+                task.dataset.status = String(actualStatus);
+                task.dataset.late = actualStatus === 6 ? '1' : '0';
                 const summary = menu.querySelector('summary');
                 summary.classList.remove(...statusClasses);
-                summary.classList.add(meta.className);
+                summary.classList.add(actualMeta.className);
                 const label = summary.querySelector('[data-board-status-label]');
-                if (label) label.textContent = meta.label;
+                if (label) label.textContent = actualMeta.label;
                 menu.querySelectorAll('[data-board-status-value] .bi-check2').forEach((check) => check.remove());
                 statusOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
                 closeBoardMenu(menu);
-                synchronizeTaskSource(workspace, task.dataset.taskId, {status: value});
+                synchronizeTaskSource(workspace, task.dataset.taskId, {status: actualStatus});
                 refreshStatusControls(task);
                 notify('เปลี่ยนสถานะงานแล้ว');
                 filterBoard();
@@ -488,7 +531,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             renameTask.disabled = true;
             request(renameTask.dataset.url, 'PATCH', {job_topic: name}).then(() => {
                 task.dataset.topic = name;
-                const title = task.querySelector('.board-reference-task__open strong');
+                const title = task.querySelector('.board-reference-task__title');
                 if (title) title.textContent = name;
                 renameTask.dataset.name = name;
                 synchronizeTaskSource(workspace, task.dataset.taskId, {topic: name});
@@ -550,13 +593,15 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
 
         try {
             if (field === 'status') {
-                await request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', {job_status: Number(control.value)});
-                task.dataset.status = control.value;
-                task.dataset.late = '0';
+                const data = await request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', {job_status: Number(control.value)});
+                if (data.transitions) management[String(id)].transitions = data.transitions;
+                const actualStatus = Number(data.job_status ?? control.value);
+                task.dataset.status = String(actualStatus);
+                task.dataset.late = actualStatus === 6 ? '1' : '0';
                 const wrapper = control.closest('[data-board-status-choice]');
-                wrapper.classList.remove('status-todo', 'status-progress', 'status-review', 'status-done', 'status-paused', 'status-late');
-                wrapper.classList.add({1:'status-todo',2:'status-progress',3:'status-review',4:'status-done',5:'status-paused'}[control.value] || 'status-todo');
-                synchronizeTaskSource(workspace, id, {status: Number(control.value)});
+                wrapper.classList.remove(...statusClasses);
+                wrapper.classList.add(statusMeta[actualStatus]?.className || unsupportedStatusMeta.className);
+                synchronizeTaskSource(workspace, id, {status: actualStatus});
             } else if (field === 'priority') {
                 await request(endpoint(workspace.dataset.priorityTemplate, id), 'POST', {job_priority: Number(control.value)});
                 task.dataset.priority = control.value;
@@ -565,12 +610,13 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                 wrapper.classList.add({1:'priority-low',2:'priority-medium',3:'priority-high'}[control.value] || 'priority-medium');
                 synchronizeTaskSource(workspace, id, {priority: Number(control.value)});
             } else if (field === 'due') {
-                await request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: control.value});
-                task.dataset.due = control.value;
+                const data = await request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: control.value});
+                if (data.transitions) management[String(id)].transitions = data.transitions;
+                task.dataset.due = data.job_due_at ?? control.value;
                 const date = new Date(`${control.value}T00:00:00`);
                 const label = control.closest('.board-due')?.querySelector('[data-board-due-label]');
                 if (label && !Number.isNaN(date.getTime())) label.textContent = new Intl.DateTimeFormat('th-TH', {day:'numeric', month:'short', year:'numeric'}).format(date);
-                synchronizeTaskSource(workspace, id, {due: control.value});
+                synchronizeTaskSource(workspace, id, {due: task.dataset.due, status: Number(data.job_status ?? task.dataset.status)});
             }
             notify('บันทึกการเปลี่ยนแปลงแล้ว');
             filterBoard();

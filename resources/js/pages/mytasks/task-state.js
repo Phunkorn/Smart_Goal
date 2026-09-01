@@ -29,7 +29,7 @@ export const synchronizeTaskSource = (workspace, id, changes, eventTarget = docu
     const detail = {
         id: String(row.dataset.id),
         topic: row.dataset.topic || '',
-        status: Number(row.dataset.status) || 1,
+        status: Number(row.dataset.status) || 0,
         priority: Number(row.dataset.priority) || 2,
         start: row.dataset.start || '',
         due: row.dataset.due || '',

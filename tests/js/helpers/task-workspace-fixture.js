@@ -56,6 +56,19 @@ export function taskWorkspaceMarkup({
             <button type="button" class="row-title" data-open-task-modal><strong>งานทดสอบ</strong></button>
         </div>
     </div>
+    <div class="board-reference-list" data-board-list-body>
+        <div class="board-reference-columns" aria-hidden="true">
+            <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>คอมเมนต์</span><span></span>
+        </div>
+        <article class="board-reference-row" data-board-task data-task-id="${taskId}" data-topic="งานทดสอบ">
+            <div class="board-reference-task">
+                <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="${taskId}"><span class="board-reference-task__title">งานทดสอบ</span></button>
+            </div>
+            <button type="button" class="board-attachments" data-board-open-attachments="${taskId}"><i></i><strong>-</strong></button>
+            <button type="button" class="board-comments has-comments has-unread" data-open-task-modal data-task-id="${taskId}" data-task-tab="updates" data-unread-comments="${taskId}" data-unread-persistent data-comment-label="ดูคอมเมนต์ 2 รายการ" aria-label="ดูคอมเมนต์ 2 รายการ และมีคอมเมนต์ใหม่ที่ยังไม่ได้อ่าน"><i></i><strong>2</strong></button>
+            <span aria-hidden="true"></span>
+        </article>
+    </div>
     <div class="notion-toast" data-toast></div>
 </div>
 
@@ -67,30 +80,36 @@ export function taskWorkspaceMarkup({
 
 <div class="team-modal notion-modal" data-team-modal hidden>
     <section class="team-modal-card" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
-        <header>
-            <strong id="team-modal-title">ทีมของงานนี้</strong><small data-team-topic></small>
+        <header class="team-modal__header">
+            <div class="team-modal__heading"><div class="team-modal__heading-copy">
+                <strong id="team-modal-title">ทีมของงานนี้</strong><small data-team-topic></small>
+            </div></div>
             <button type="button" class="task-modal-close" data-close-team aria-label="ปิด">x</button>
         </header>
         <form class="team-manager" data-team-form>
             <div class="team-manager__body">
-                <section class="team-owner-card"><div data-team-owner></div></section>
                 ${peopleSelectorMarkup({
                     instanceId: 'task-collaborators',
                     inputName: 'collaborators[]',
                     people,
                     departments,
+                    variant: 'team-manager',
                 }).replace('data-people-count', 'data-people-count data-count-template="เลือกเพิ่ม :count คน"')
                   .replace('<div class="people-selector__selected">', `<div class="people-selector__selected">
                     <section class="team-current" data-team-current>
-                        <strong data-team-count>ทีมปัจจุบัน 0 คน</strong>
-                        <div class="team-member-list" data-team-members></div>
+                        <strong data-team-count>ทีมปัจจุบัน (0 คน)</strong>
+                        <div class="team-member-list">
+                            <article class="team-member team-member--assignee" data-team-owner></article>
+                            <div data-team-members></div>
+                        </div>
                         <p data-team-empty hidden>ยังไม่มีผู้ร่วมงานในงานนี้</p>
                     </section>`)}
                 <p class="team-manager__notice" data-team-notice hidden></p>
             </div>
             <footer class="team-manager__footer">
+                <p class="team-manager__hint">สมาชิกที่เลือกจะถูกเพิ่มเมื่อกดยืนยัน</p>
                 <button type="button" class="task-secondary" data-close-team>ปิด</button>
-                <button type="submit" class="notion-primary" data-team-submit disabled><span data-team-submit-label>เลือกผู้ร่วมงานก่อน</span></button>
+                <button type="submit" class="notion-primary" data-team-submit aria-busy="false" disabled><span data-team-submit-label>เพิ่มผู้ร่วมงาน (0 คน)</span></button>
             </footer>
         </form>
     </section>
@@ -174,6 +193,11 @@ export async function mountTaskWorkspace(options = {}, {url = 'http://localhost/
         taskModal: env.document.querySelector('[data-task-modal]'),
         teamModal: env.document.querySelector('[data-team-modal]'),
         openTask: () => env.document.querySelector('[data-open-task-modal]'),
+        boardRow: () => env.document.querySelector('[data-board-task]'),
+        boardTitle: () => env.document.querySelector('.board-reference-task__open'),
+        boardComment: () => env.document.querySelector('.board-comments'),
+        compose: () => env.document.querySelector('[data-task-update-note]'),
+        sendUpdate: () => env.document.querySelector('[data-submit-task-update]'),
         manageTeam: () => env.document.querySelector('.task-workspace__cell-action[data-manage-team]'),
     };
 }

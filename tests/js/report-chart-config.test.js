@@ -29,7 +29,7 @@ test('report chart configs use line and doughnut charts with safe empty data', (
 });
 
 test('unknown status tones fall back to the shared gray color', () => {
-    const configs = buildReportChartConfigs({status: {tones: ['unknown'], values: [1]}});
+    const configs = buildReportChartConfigs({status: {labels: ['ไม่รองรับ'], tones: ['unknown'], values: [1]}});
 
     assert.deepEqual(configs.status.data.datasets[0].backgroundColor, [reportChartColors.gray]);
 });

@@ -1,5 +1,6 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './priority-meta.js';
 import {canTransitionTo, confirmTaskTransition} from './task-transitions.js';
+import {synchronizeTaskSource} from './task-state.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -137,11 +138,12 @@ import {canTransitionTo, confirmTaskTransition} from './task-transitions.js';
                 if (!payload) return;
                 const data = await request(endpoint(workspace.dataset.statusTemplate, row.dataset.id), 'PATCH', payload);
                 if (data.transitions) management[String(row.dataset.id)].transitions = data.transitions;
-                updateStatusVisual(row, menu, value);
+                const actualStatus = Number(data.job_status ?? value);
+                updateStatusVisual(row, menu, actualStatus);
                 refreshStatusControls(row);
                 row.querySelector('input[data-field="status"]')?.setAttribute('value', String(value));
                 menu.removeAttribute('open');
-                document.dispatchEvent(new CustomEvent('mytasks:changed', {detail: {id: row.dataset.id, topic: row.dataset.topic, status: value, priority: Number(row.dataset.priority)}}));
+                synchronizeTaskSource(workspace, row.dataset.id, {status: actualStatus});
                 notify('เปลี่ยนสถานะงานแล้ว');
             } catch (error) {
                 notify(error.message, false);

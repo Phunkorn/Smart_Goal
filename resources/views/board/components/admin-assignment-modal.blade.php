@@ -37,7 +37,7 @@
                     <input type="hidden" name="project_owner_id" value="{{ $initialAssigneeId }}">
                 @endif
                 <div class="modal-body admin-assignment-panel">
-                    <section class="admin-assignment-intro"><i class="bi bi-folder2-open" aria-hidden="true"></i><div><strong>ข้อมูลโปรเจกต์</strong><span>โปรเจกต์ว่างได้ และเพิ่มรายการงานภายหลังได้เสมอ</span></div></section>
+                    <section class="admin-assignment-intro"><i class="bi bi-folder2-open" aria-hidden="true"></i><div><strong>ขั้นที่ 1 · สร้างโปรเจกต์</strong><span>ตั้งชื่อพื้นที่หลักก่อน จากนั้นจึงเพิ่มรายการงานเข้าไปภายในโปรเจกต์</span></div></section>
                     <div class="project-create-body admin-project-fields">@include('tasks.components.project-form-fields')</div>
                 </div>
                 <footer class="modal-footer board-modal-foot">
@@ -54,16 +54,20 @@
                 @endif
 
                 <div class="modal-body admin-assignment-panel">
-                    <section class="admin-project-choice">
-                        <label for="adminAssignmentProject">โปรเจกต์ <span aria-hidden="true">*</span></label>
+                    <section class="admin-project-choice" aria-labelledby="adminAssignmentProjectLabel">
+                        <div class="admin-project-choice__heading">
+                            <span class="admin-project-choice__icon" aria-hidden="true"><i class="bi bi-folder-check"></i></span>
+                            <div><strong id="adminAssignmentProjectLabel">โปรเจกต์ปลายทาง</strong><small>รายการงานนี้จะถูกจัดเก็บภายใต้โปรเจกต์ที่เลือก</small></div>
+                            <span class="admin-assignment-step-badge">ขั้นที่ 1</span>
+                        </div>
+                        <label class="admin-project-choice__label" for="adminAssignmentProject">เลือกโปรเจกต์ <span aria-hidden="true">*</span></label>
                         <div><select id="adminAssignmentProject" class="form-select" data-project-select required><option value="">เลือกโปรเจกต์</option>@foreach($projectOptions as $project)<option value="{{ $project->id }}" @selected($startsWithTask && $loop->first)>{{ $project->name }}</option>@endforeach</select><button type="button" data-create-another-project><i class="bi bi-plus-lg" aria-hidden="true"></i> สร้างโปรเจกต์ใหม่</button></div>
-                        <small>รายการงานนี้จะอยู่ภายใต้โปรเจกต์ที่เลือก</small>
                     </section>
 
                     <section class="board-project-task" data-admin-task>
-                        <div class="admin-task-heading"><div><strong>รายละเอียดรายการงาน</strong><span>งานใหม่จะเริ่มที่สถานะ “ยังไม่เริ่ม”</span></div><span class="admin-task-status"><i aria-hidden="true"></i> ยังไม่เริ่ม</span></div>
+                        <div class="admin-task-heading"><div><span class="admin-assignment-step-badge">ขั้นที่ 2</span><strong>ข้อมูลรายการงาน</strong><span>เพิ่มครั้งละ 1 รายการ และมอบหมายผู้รับผิดชอบให้ชัดเจน</span></div><span class="admin-task-status"><i aria-hidden="true"></i> เริ่มที่ “กำลังทำ”</span></div>
                         <div class="row g-3">
-                            <div class="col-md-7"><label class="form-label" for="adminTaskTopic">ชื่องาน <span aria-hidden="true">*</span></label><input type="text" id="adminTaskTopic" name="job_topic" class="form-control form-control-lg" maxlength="255" placeholder="เช่น ตรวจสอบเอกสารโครงการ" required></div>
+                            <div class="col-md-7"><label class="form-label" for="adminTaskTopic">ชื่อรายการงาน <span aria-hidden="true">*</span></label><input type="text" id="adminTaskTopic" name="job_topic" class="form-control form-control-lg" maxlength="255" placeholder="เช่น ตรวจสอบเอกสารโครงการ" required><small class="admin-field-hint">ชื่อนี้จะแสดงเป็นรายการภายในโปรเจกต์ที่เลือก</small></div>
                             <div class="col-md-5">
                                 <label class="form-label">ผู้รับผิดชอบ <span aria-hidden="true">*</span></label>
                                 <div class="assignee-picker dropdown"><button type="button" class="assignee-picker-toggle form-control form-control-lg d-flex align-items-center justify-content-between dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"><span class="assignee-picker-label text-muted">เลือกผู้รับผิดชอบ...</span></button><div class="dropdown-menu assignee-picker-menu p-2 w-100"><input type="search" class="form-control form-control-sm mb-2" data-task-assignee-search placeholder="ค้นหาชื่อหรือแผนก" aria-label="ค้นหาผู้รับผิดชอบ" autocomplete="off"><div class="assignee-picker-list">@foreach($employees as $employee)<button type="button" class="assignee-option" data-id="{{ $employee->id }}" data-name="{{ $employee->name }}" data-dept="{{ optional($employee->department)->department_name ?? 'ไม่ระบุแผนก' }}" data-search="{{ Str::lower($employee->name.' '.optional($employee->department)->department_name) }}"><span class="avatar-mini">{{ mb_substr($employee->name, 0, 2) }}</span><strong>{{ $employee->name }}</strong><span class="assignee-option-dept">{{ optional($employee->department)->department_name ?? 'ไม่ระบุแผนก' }}</span></button>@endforeach</div><div class="text-muted small text-center py-2 d-none" data-task-assignee-empty>ไม่พบพนักงานที่ตรงกับคำค้นหา</div></div></div>
@@ -73,8 +77,7 @@
                             <div class="col-md-6"><label class="form-label" for="adminTaskDue">กำหนดส่ง <span aria-hidden="true">*</span></label><input type="datetime-local" id="adminTaskDue" name="job_due_at" class="form-control" value="{{ $initialDue }}" required></div>
                             <div class="col-12"><label class="form-label" for="adminTaskPriority">ความสำคัญ</label><select id="adminTaskPriority" name="job_priority" class="form-select">@foreach(\App\Support\WorkBoardDesign::TASK_PRIORITIES as $value => $meta)<option value="{{ $value }}" @selected($value === 2)>{{ $meta['label'] }}</option>@endforeach</select></div>
                             <div class="col-12">
-                                <details class="admin-task-options"><summary><span><i class="bi bi-sliders" aria-hidden="true"></i> ตัวเลือกเพิ่มเติม</span><small>รายละเอียด ผู้ร่วมงาน และไฟล์แนบ</small></summary><div class="admin-task-options__body">
-                                    <label><span>รายละเอียดงาน</span><textarea name="job_details" class="form-control" maxlength="2000" placeholder="ข้อมูลที่ผู้รับผิดชอบควรรู้"></textarea></label>
+                                <details class="admin-task-options"><summary><span><i class="bi bi-people" aria-hidden="true"></i> ผู้ร่วมงานและไฟล์แนบ</span><small>ไม่บังคับ · เพิ่มภายหลังได้</small></summary><div class="admin-task-options__body">
                                     <div><div class="admin-optional-heading"><span>ผู้ร่วมงาน</span><small>ไม่บังคับ</small></div><select class="form-select mb-2" data-task-collaborator-department aria-label="เลือกแผนกของผู้ร่วมงาน"><option value="">เลือกแผนกก่อน</option>@foreach($departments as $collaboratorDepartment)<option value="{{ $collaboratorDepartment->id }}">{{ $collaboratorDepartment->department_name }}</option>@endforeach</select><input type="search" class="form-control mb-2 d-none" data-task-collaborator-search disabled placeholder="ค้นหาชื่อพนักงาน" aria-label="ค้นหาผู้ร่วมงาน" autocomplete="off"><div class="row g-2 board-collaborator-list">@foreach($employees as $employee)<div class="col-md-6 board-collab-item d-none" data-department-id="{{ $employee->department_id }}" data-search="{{ Str::lower($employee->name.' '.optional($employee->department)->department_name) }}"><label class="board-collaborator-choice"><input type="checkbox" name="collaborators[]" value="{{ $employee->id }}"><span class="avatar-mini">{{ mb_substr($employee->name, 0, 2) }}</span><span><strong>{{ $employee->name }}</strong><small>{{ optional($employee->department)->department_name ?? '-' }}</small></span></label></div>@endforeach<div class="board-collaborator-hint" data-task-collaborator-hint>เลือกแผนกก่อนเพื่อดูรายชื่อผู้ร่วมงาน</div></div></div>
                                     <label><span>ไฟล์แนบของงาน <small>ไม่บังคับ · สูงสุด 5 ไฟล์</small></span><input type="file" name="attachments[]" class="form-control" data-task-attachments accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx" multiple><b class="text-danger small d-none" data-task-attachments-error></b></label>
                                 </div></details>
@@ -83,7 +86,7 @@
                     </section>
                 </div>
                 <footer class="modal-footer board-modal-foot">
-                    <button type="button" class="admin-assignment-secondary" data-back-to-project><i class="bi bi-arrow-left" aria-hidden="true"></i> โปรเจกต์</button><span class="admin-assignment-footer-spacer"></span><button type="button" class="admin-assignment-secondary" data-bs-dismiss="modal">ไว้เพิ่มภายหลัง</button><button type="submit" class="admin-assignment-secondary admin-assignment-save-next" value="next" data-task-submit="next">บันทึกและเพิ่มงานถัดไป</button><button type="submit" class="admin-assignment-primary" value="done" data-task-submit="done"><i class="bi bi-check2-square" aria-hidden="true"></i> มอบหมายงาน</button>
+                    <button type="button" class="admin-assignment-secondary" data-back-to-project><i class="bi bi-arrow-left" aria-hidden="true"></i> ย้อนกลับไปโปรเจกต์</button><span class="admin-assignment-footer-spacer"></span><button type="button" class="admin-assignment-secondary" data-bs-dismiss="modal">ปิดและเพิ่มภายหลัง</button><button type="submit" class="admin-assignment-secondary admin-assignment-save-next" value="next" data-task-submit="next">บันทึกและเพิ่มรายการถัดไป</button><button type="submit" class="admin-assignment-primary" value="done" data-task-submit="done"><i class="bi bi-check2-square" aria-hidden="true"></i> เพิ่มและมอบหมายรายการงาน</button>
                 </footer>
             </form>
         </div>

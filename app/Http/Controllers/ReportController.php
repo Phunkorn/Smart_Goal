@@ -155,13 +155,12 @@ class ReportController extends Controller
     private function statusLabel(int $status): string
     {
         return [
-            1 => 'รอดำเนินการ',
             2 => 'กำลังทำ',
             3 => 'ตรวจสอบ',
             4 => 'เสร็จสิ้น',
             5 => 'พักงานชั่วคราว',
             6 => 'ล่าช้า',
-        ][$status] ?? 'รอดำเนินการ';
+        ][$status] ?? 'สถานะไม่รองรับ';
     }
 
     private function approvalLabel(?string $status): string

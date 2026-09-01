@@ -1,12 +1,47 @@
 @php
+    // เหลือเฉพาะกราฟที่ตอบคำถามต่างกันจริง
+    // กราฟเปรียบเทียบรายแผนกสามอันเดิมถูกแทนด้วยตารางแผนก ซึ่งอ่านเทียบข้ามแผนกได้ในบรรทัดเดียว
     $charts = [
-        ['id' => 'reportTrendChart', 'kind' => 'line', 'class' => 'report-dashboard-card--trend', 'title' => 'แนวโน้มงานองค์กร', 'description' => 'งานที่สร้างเทียบกับงานที่เสร็จจริง', 'label' => 'กราฟแนวโน้มงานที่สร้างและเสร็จ'],
-        ['id' => 'reportStatusChart', 'kind' => 'doughnut', 'class' => 'report-dashboard-card--status', 'title' => 'สถานะงานทั้งหมด', 'description' => 'สถานะปัจจุบันของชุดงานในรายงาน', 'label' => 'กราฟสัดส่วนสถานะงาน'],
-        ['id' => 'reportDepartmentChart', 'kind' => 'bar', 'class' => 'report-dashboard-card--department', 'title' => 'ผลงานแต่ละแผนก', 'description' => 'เปรียบเทียบงานทั้งหมด งานเสร็จ และงานล่าช้า', 'label' => 'กราฟเปรียบเทียบผลงานแต่ละแผนก'],
-        ['id' => 'reportCompletedChart', 'kind' => 'bar', 'class' => 'report-dashboard-card--completed', 'title' => 'งานเสร็จรายเดือน', 'description' => 'นับจากวันที่งานเสร็จจริง', 'label' => 'กราฟงานเสร็จรายเดือน'],
-        ['id' => 'reportOnTimeChart', 'kind' => 'horizontal-bar', 'class' => 'report-dashboard-card--ontime', 'title' => 'อัตราส่งงานตรงเวลา', 'description' => 'เฉพาะงานเสร็จที่มีกำหนดส่ง', 'label' => 'กราฟอัตราส่งงานตรงเวลาแต่ละแผนก'],
-        ['id' => 'reportPriorityChart', 'kind' => 'doughnut', 'class' => 'report-dashboard-card--priority', 'title' => 'ความสำคัญของงาน', 'description' => 'สัดส่วนตามระดับความสำคัญจริงของระบบ', 'label' => 'กราฟสัดส่วนความสำคัญของงาน'],
-        ['id' => 'reportWorkloadChart', 'kind' => 'stacked-bar', 'class' => 'report-dashboard-card--workload', 'title' => 'ภาระงานแต่ละแผนก', 'description' => 'งานกำลังทำ รอตรวจสอบ และล่าช้า', 'label' => 'กราฟภาระงานแต่ละแผนก'],
+        [
+            'id' => 'reportTrendChart',
+            'kind' => 'line',
+            'class' => 'report-dashboard-card--trend',
+            'title' => 'งานเข้าเทียบกับงานที่ปิดได้',
+            'description' => 'ถ้าเส้นงานเข้าสูงกว่างานที่เสร็จต่อเนื่อง แปลว่างานค้างกำลังสะสม',
+            'label' => 'กราฟเส้นเปรียบเทียบงานที่สร้างกับงานที่เสร็จในแต่ละเดือน',
+        ],
+        [
+            'id' => 'reportStatusChart',
+            'kind' => 'doughnut',
+            'class' => 'report-dashboard-card--status',
+            'title' => 'ตอนนี้งานค้างอยู่ที่ขั้นไหน',
+            'description' => 'สัดส่วนสถานะปัจจุบันของงานทั้งหมดในรายงาน',
+            'label' => 'กราฟวงกลมสัดส่วนสถานะงาน',
+        ],
+        [
+            'id' => 'reportCompletedChart',
+            'kind' => 'bar',
+            'class' => 'report-dashboard-card--completed',
+            'title' => 'ปิดงานได้เดือนละเท่าไร',
+            'description' => 'นับจากวันที่งานเสร็จจริง ไม่ใช่วันครบกำหนด',
+            'label' => 'กราฟแท่งจำนวนงานที่เสร็จในแต่ละเดือน',
+        ],
+        [
+            'id' => 'reportPriorityChart',
+            'kind' => 'doughnut',
+            'class' => 'report-dashboard-card--priority',
+            'title' => 'งานส่วนใหญ่เป็นงานระดับไหน',
+            'description' => 'สัดส่วนตามระดับความสำคัญจริงที่ใช้ในระบบ',
+            'label' => 'กราฟวงกลมสัดส่วนความสำคัญของงาน',
+        ],
+        [
+            'id' => 'reportWorkloadChart',
+            'kind' => 'stacked-bar',
+            'class' => 'report-dashboard-card--workload',
+            'title' => 'แผนกไหนมีงานค้างมากที่สุด',
+            'description' => 'นับเฉพาะงานที่ยังไม่เสร็จ แยกเป็นกำลังทำ รอตรวจสอบ และล่าช้า',
+            'label' => 'กราฟแท่งซ้อนแสดงงานค้างของแต่ละแผนก',
+        ],
     ];
 @endphp
 

@@ -119,14 +119,22 @@ class MyTasksTaskScopeTest extends TestCase
             ->get(route('mytasks.index', ['task_scope' => 'assigned_by_me']))
             ->assertOk();
 
-        $badge = 'data-unread-comments="'.$task->job_id.'"';
-        $this->assertSame(2, substr_count($response->getContent(), $badge));
+        // บอร์ดและ Kanban ต้องบอกสถานะยังไม่ได้อ่านของผู้ชมคนเดียวกันตรงกัน
+        $boardUnread = 'class="board-comments has-comments has-unread" data-open-task-modal data-task-id="'.$task->job_id.'"';
+        $kanbanUnread = 'class="mytasks-kanban__comments" data-unread-comments="'.$task->job_id.'"';
+        $this->assertStringContainsString($boardUnread, $response->getContent());
+        $this->assertStringContainsString($kanbanUnread, $response->getContent());
 
         $this->actingAs($actor)->postJson(route('tasks.comments.read', $task))->assertOk();
-        $this->actingAs($actor)
+        $content = $this->actingAs($actor)
             ->get(route('mytasks.index', ['task_scope' => 'assigned_by_me']))
             ->assertOk()
-            ->assertDontSee($badge, false);
+            ->getContent();
+
+        $this->assertStringNotContainsString($boardUnread, $content);
+        $this->assertStringNotContainsString($kanbanUnread, $content);
+        // ช่องคอมเมนต์ของบอร์ดเป็นคอลัมน์หนึ่งของกริด จึงต้องคงอยู่พร้อมจำนวนรวมเดิม
+        $this->assertStringContainsString('class="board-comments has-comments" data-open-task-modal data-task-id="'.$task->job_id.'"', $content);
     }
 
     public function test_viewer_is_still_redirected_and_admin_member_markup_has_no_scope_control(): void

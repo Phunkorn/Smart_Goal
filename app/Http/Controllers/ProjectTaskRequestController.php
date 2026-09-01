@@ -119,7 +119,7 @@ class ProjectTaskRequestController extends Controller
                 'job_topic' => $locked->job_topic,
                 'job_details' => $locked->job_details,
                 'job_priority' => $locked->job_priority,
-                'job_status' => 1,
+                'job_status' => 2,
                 'approval_status' => $approval['approval_status'],
                 'approved_by' => $approval['approved_by'],
                 'approved_at' => $approval['approved_at'],

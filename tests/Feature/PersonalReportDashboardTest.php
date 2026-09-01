@@ -83,17 +83,28 @@ class PersonalReportDashboardTest extends TestCase
     public function test_status_priority_search_and_invalid_filters_normalize_safely(): void
     {
         $person = $this->user();
+        $statuses = [2, 3, 4, 5, 6];
+
         foreach (range(1, 5) as $priority) {
-            $this->task(['user_id' => $person->id, 'job_topic' => "Matching priority {$priority}", 'job_priority' => $priority, 'job_status' => $priority]);
+            $this->task([
+                'user_id' => $person->id,
+                'job_topic' => "Matching priority {$priority}",
+                'job_priority' => $priority,
+                'job_status' => $statuses[$priority - 1],
+            ]);
         }
 
         foreach (range(1, 5) as $priority) {
             $response = $this->actingAs($person)->get(route('reports.my', [
-                'period' => 'this_month', 'priority' => $priority, 'status' => $priority, 'search' => 'Matching',
+                'period' => 'this_month',
+                'priority' => $priority,
+                'status' => $statuses[$priority - 1],
+                'search' => 'Matching',
             ]));
             $response->assertOk();
             $this->assertSame(1, $response->viewData('totalJobs'));
             $this->assertSame($priority, $response->viewData('filters')['priority']);
+            $this->assertSame($statuses[$priority - 1], $response->viewData('filters')['status']);
         }
 
         $invalid = $this->actingAs($person)->get(route('reports.my', [
@@ -103,6 +114,13 @@ class PersonalReportDashboardTest extends TestCase
         $this->assertSame('last_3_months', $invalid->viewData('filters')['period']);
         $this->assertNull($invalid->viewData('filters')['priority']);
         $this->assertNull($invalid->viewData('filters')['status']);
+
+        $retired = $this->actingAs($person)->get(route('reports.my', [
+            'period' => 'this_month',
+            'status' => 1,
+        ]));
+        $retired->assertOk();
+        $this->assertNull($retired->viewData('filters')['status']);
     }
 
     public function test_empty_report_renders_all_priority_levels_and_no_nan(): void
@@ -151,6 +169,7 @@ class PersonalReportDashboardTest extends TestCase
         $this->assertSame(1, $response->viewData('totalJobs'));
         $this->assertSame('late', $response->viewData('taskRows')->firstWhere('id', $late->job_id)['status']['key']);
         $this->assertArrayHasKey(6, $response->viewData('filterOptions')['statuses']);
+        $this->assertArrayNotHasKey(1, $response->viewData('filterOptions')['statuses']);
     }
 
     public function test_late_task_is_exported_with_its_real_status_label(): void

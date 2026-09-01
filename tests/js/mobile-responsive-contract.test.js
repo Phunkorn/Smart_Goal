@@ -31,6 +31,23 @@ test('mobile board controls and project header remain scoped to the board page',
     assert.match(mobile, /\.board-project-rule\s*\{\s*display:\s*none/);
 });
 
+test('shared board titles and assignee header use explicit compact contracts', async () => {
+    const source = await css('resources/css/pages/mytasks/project-board.css');
+    const blade = await css('resources/views/tasks/partials/project-board-card.blade.php');
+    const script = await css('resources/js/mytasks-project-board.js');
+    const adminMember = await css('resources/views/work-board/admin/member.blade.php');
+
+    assert.match(blade, /<strong class=\x22board-project-group__title\x22>/);
+    assert.match(blade, /<span class=\x22board-reference-task__title\x22>/);
+    assert.doesNotMatch(blade, /board-reference-task__open[^>]*>\s*<strong/);
+    assert.match(source, /\.board-project-group__title\s*\{[^}]*font-weight:\s*600/s);
+    assert.match(source, /\.board-reference-task__title\s*\{[^}]*font-weight:\s*500/s);
+    assert.match(source, /span:nth-child\(6\)\s*\{[^}]*white-space:\s*nowrap/s);
+    assert.match(script, /querySelector\('\.board-reference-task__title'\)/);
+    assert.doesNotMatch(script, /board-reference-task__open strong/);
+    assert.match(adminMember, /family=IBM\+Plex\+Sans\+Thai:wght@400;500;600;700/);
+});
+
 test('mobile calendar fits seven days and uses compact focusable event controls', async () => {
     const source = await css('resources/css/components/task-workspace/calendar/base.css');
     const mobile = source.slice(source.lastIndexOf('@media (max-width: 760px)'));
@@ -62,6 +79,9 @@ test('admin member profile owns a desktop/tablet/mobile composition instead of s
     assert.doesNotMatch(source, /\.admin-member-profile[^}]*overflow-x:\s*auto/s);
     assert.match(desktop, /\.admin-member-profile__identity\s*\{[^}]*min-width:\s*0/s);
     assert.match(desktop, /\.admin-member-profile__metrics\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
+    assert.match(desktop, /\.admin-member-profile__metric\s*\{[^}]*grid-template-columns:\s*18px auto/s);
+    assert.match(desktop, /\.admin-member-profile__metric strong\s*\{[^}]*font-size:\s*19px[^}]*font-weight:\s*600/s);
+    assert.match(desktop, /\.admin-assign-button > span:first-child\s*\{[^}]*width:\s*30px[^}]*height:\s*30px/s);
 
     // Tablet: การ์ดเหลือคอลัมน์เดียว KPI กับปุ่มลงมาอยู่แถวถัดไป
     assert.match(tablet, /\.admin-member-profile\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);

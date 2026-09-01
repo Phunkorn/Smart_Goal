@@ -191,7 +191,7 @@ class WorkOrderPolicyTest extends TestCase
             'leader_user_id' => $owner->id,
             'job_topic' => 'Policy test task',
             'job_priority' => 2,
-            'job_status' => 1,
+            'job_status' => 2,
             'approval_status' => 'approved',
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),

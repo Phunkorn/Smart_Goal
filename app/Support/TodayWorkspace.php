@@ -12,29 +12,18 @@ final class TodayWorkspace
     public const BUSINESS_TIMEZONE = 'Asia/Bangkok';
 
     /**
-     * วงจรสถานะอัตโนมัติ (auto-start / auto-late) ต้องแตะเฉพาะงานที่ได้รับอนุมัติแล้ว
+     * วงจรสถานะล่าช้าอัตโนมัติต้องแตะเฉพาะงานที่ได้รับอนุมัติแล้ว
      * งานที่ยัง 'pending' (มอบหมายข้ามแผนก รอ Admin ตัดสินใจ) หรือถูก 'rejected'
-     * ห้ามถูกดันเป็น "กำลังทำ" หรือ "ล่าช้า" ก่อนที่ Admin จะอนุมัติ
+     * ห้ามถูกดันเป็น "ล่าช้า" ก่อนที่ Admin จะอนุมัติ
      */
     private const AUTOMATED_APPROVAL_STATUS = 'approved';
-
-    public static function synchronizeActiveToday(Builder $query): void
-    {
-        $tomorrowStartUtc = self::businessToday()->addDay()->utc();
-
-        (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
-            ->where('job_status', 1)
-            ->whereNotNull('job_start_at')
-            ->where('job_start_at', '<', $tomorrowStartUtc)
-            ->update(['job_status' => 2]);
-    }
 
     public static function synchronizeLate(Builder $query): void
     {
         $todayStartUtc = self::businessToday()->utc();
 
         (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
-            ->whereNotIn('job_status', [3, 4, 5, 6])
+            ->where('job_status', 2)
             ->whereNotNull('job_due_at')->where('job_due_at', '<', $todayStartUtc)
             ->update(['job_status' => 6, 'late_at' => now()]);
     }
@@ -42,7 +31,7 @@ final class TodayWorkspace
     public static function normalizeLateForTransition(WorkOrder $task): bool
     {
         if ($task->approval_status !== self::AUTOMATED_APPROVAL_STATUS
-            || in_array((int) $task->job_status, [3, 4, 5, 6], true)
+            || (int) $task->job_status !== 2
             || ! $task->job_due_at
             || ! self::businessDate($task->job_due_at)->endOfDay()->lt(self::businessNow())) {
             return (int) $task->job_status === 6;
@@ -56,6 +45,32 @@ final class TodayWorkspace
         return true;
     }
 
+    public static function isLateBySchedule(WorkOrder $task): bool
+    {
+        return $task->job_due_at
+            && self::businessDate($task->job_due_at)->endOfDay()->lt(self::businessNow());
+    }
+
+    /**
+     * Status 6 is derived from the schedule. If an authorized schedule edit
+     * makes the task no longer overdue, restore the appropriate active state.
+     */
+    public static function reconcileLateAfterScheduleChange(WorkOrder $task): bool
+    {
+        if ($task->approval_status !== self::AUTOMATED_APPROVAL_STATUS
+            || (int) $task->job_status !== 6
+            || self::isLateBySchedule($task)) {
+            return false;
+        }
+
+        $task->update([
+            'job_status' => 2,
+            'late_at' => null,
+        ]);
+
+        return true;
+    }
+
     public static function tasks(Collection $tasks): Collection
     {
         $today = self::businessToday();
@@ -63,7 +78,7 @@ final class TodayWorkspace
         return $tasks->filter(fn (WorkOrder $task): bool => match ((int) $task->job_status) {
             4 => $task->job_completed_at ? self::businessDate($task->job_completed_at)->isSameDay($today) : false,
             5, 6 => true,
-            1, 2, 3 => self::isWithinActiveRange($task, $today),
+            2, 3 => self::isWithinActiveRange($task, $today),
             default => false,
         })->values();
     }
@@ -143,7 +158,7 @@ final class TodayWorkspace
     /**
      * ป้ายช่วงวันที่แบบไทย (พ.ศ.) ไม่ผูกกับ "วันนี้" เหมือน timeProgress()
      *
-     * timeProgress() คืน null เมื่องานยังไม่เริ่มหรือพ้นกำหนดไปแล้ว เพราะมันคำนวณความคืบหน้า
+     * timeProgress() คืน null เมื่อวันเริ่มงานยังมาไม่ถึงหรือพ้นกำหนดไปแล้ว เพราะมันคำนวณความคืบหน้า
      * ของช่วงที่ "กำลังดำเนินอยู่" เท่านั้น แต่บางหน้า (เช่น Calendar Quick View) ต้องแสดงช่วงวันที่
      * เสมอไม่ว่าสถานะงานจะเป็นอะไร จึงแยกป้ายช่วงวันที่ล้วน ๆ ออกมาเป็นเมธอดสาธารณะของตัวเอง
      */

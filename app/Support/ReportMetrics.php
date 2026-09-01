@@ -78,7 +78,7 @@ final class ReportMetrics
             3 => 'review',
             5 => 'paused',
             6 => 'late',
-            default => 'todo',
+            default => 'unsupported',
         };
     }
 

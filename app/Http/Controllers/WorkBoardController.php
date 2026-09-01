@@ -9,6 +9,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Services\DepartmentWorkBoardQuery;
 use App\Services\MeetingQueryService;
+use App\Services\MemberWorkloadQuery;
 use App\Services\TaskCommentService;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TaskCollaboratorOptions;
@@ -32,7 +33,10 @@ class WorkBoardController extends Controller
 
     private const DEFAULT_MEMBER_WORKSPACE_VIEW = 'table';
 
-    public function __construct(private readonly DepartmentWorkBoardQuery $departmentWorkBoard) {}
+    public function __construct(
+        private readonly DepartmentWorkBoardQuery $departmentWorkBoard,
+        private readonly MemberWorkloadQuery $memberWorkloads,
+    ) {}
 
     public function index()
     {
@@ -123,11 +127,8 @@ class WorkBoardController extends Controller
 
         $workspaceView = $this->resolveMemberWorkspaceView($request);
 
-        $memberJobsQuery = WorkOrder::query()
-            ->where('department_id', $department->id)
-            ->where('user_id', $user->id);
+        $memberJobsQuery = $this->memberWorkloads->forMember($user);
 
-        TodayWorkspace::synchronizeActiveToday($memberJobsQuery);
         TodayWorkspace::synchronizeLate($memberJobsQuery);
 
         $allJobs = $memberJobsQuery

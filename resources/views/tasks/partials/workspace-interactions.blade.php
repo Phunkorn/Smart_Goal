@@ -8,13 +8,21 @@
         'can_manage' => auth()->user()->can('manageTeam', $task),
         'add_url' => auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.store', $task->job_id) : null,
         'remove_url' => auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.destroy', [$task->job_id, '__USER__']) : null,
-        'assignee' => ['id' => $task->user?->id, 'name' => $task->user?->name ?? 'ไม่ระบุ', 'department' => $task->user?->department?->department_name],
+        'assignee' => [
+            'id' => $task->user?->id,
+            'name' => $task->user?->name ?? 'ไม่ระบุ',
+            'email' => $task->user?->email,
+            'department' => $task->user?->department?->department_name,
+            'avatar_url' => $task->user?->profile_image ? route('media.profile', $task->user) : null,
+        ],
         // ผู้รับผิดชอบ ผู้สร้าง และหัวหน้างาน ลบออกจากทีมไม่ได้ (TaskCollaboratorController:87)
         'protected_ids' => array_values(array_filter([$task->user_id, $task->created_by, $task->leader_user_id])),
         'collaborators' => $task->collaborators->map(fn ($person) => [
             'id' => $person->id,
             'name' => $person->name,
+            'email' => $person->email,
             'department' => $person->department?->department_name,
+            'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
             'status' => $person->pivot?->status ?? 'pending',
             // บัญชีที่ถูกปิดยังแสดงไว้เพื่อรักษาประวัติ แต่ต้องบอกสถานะให้ชัดและเพิ่มซ้ำไม่ได้
             'is_active' => (bool) $person->is_active,
@@ -71,8 +79,15 @@
 
 <div class="team-modal notion-modal" data-team-modal hidden>
     <section class="team-modal-card" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
-        <header>
-            <div><span class="task-edit-kicker">PROJECT TEAM</span><strong id="team-modal-title">ทีมของงานนี้</strong><small data-team-topic></small></div>
+        <header class="team-modal__header">
+            <div class="team-modal__heading">
+                <span class="team-modal__heading-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+                <span class="team-modal__heading-copy">
+                    <span class="task-edit-kicker">PROJECT TEAM</span>
+                    <strong id="team-modal-title">ทีมของงานนี้</strong>
+                    <small data-team-topic></small>
+                </span>
+            </div>
             <button type="button" class="task-modal-close" data-close-team aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
         </header>
 
@@ -82,11 +97,6 @@
         --}}
         <form class="team-manager" data-team-form>
             <div class="team-manager__body">
-                <section class="team-owner-card">
-                    <span class="team-section-label">ผู้รับผิดชอบหลัก</span>
-                    <div data-team-owner></div>
-                </section>
-
                 @php
                     // ปุ่มกรองใช้เฉพาะแผนกที่มีคนอยู่จริง จะได้ไม่มีปุ่มที่กดแล้วว่างเปล่า
                     $collaboratorDepartments = $availableCollaborators
@@ -104,10 +114,11 @@
                     'departments' => $collaboratorDepartments,
                     'selectedIds' => [],
                     'sidePanel' => 'tasks.partials.team-current-list',
+                    'variant' => 'team-manager',
                     'labels' => [
                         'title' => 'เพิ่มผู้ร่วมงาน',
-                        'hint' => 'เลือกได้หลายคน',
-                        'search' => 'ค้นหาชื่อหรือแผนก',
+                        'hint' => 'ค้นหาและเลือกคนที่ต้องการเพิ่มเข้าร่วมงาน',
+                        'search' => 'ค้นหาชื่อ อีเมล หรือแผนก',
                         'emptyOptions' => 'ไม่มีพนักงานที่เพิ่มเข้าทีมนี้ได้',
                         'emptySelected' => 'ยังไม่ได้เลือกใคร',
                         'countTemplate' => 'เลือกเพิ่ม :count คน',
@@ -121,10 +132,10 @@
             </div>
 
             <footer class="team-manager__footer">
-                <p class="team-manager__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> คนที่เตรียมเพิ่มจะยังไม่เข้าทีมจนกว่าจะกดยืนยัน</p>
+                <p class="team-manager__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> สมาชิกที่เลือกจะถูกเพิ่มเมื่อกดยืนยัน</p>
                 <div class="team-manager__actions">
                     <button type="button" class="task-secondary" data-close-team>ปิด</button>
-                    <button type="submit" class="notion-primary" data-team-submit disabled><i class="bi bi-person-plus" aria-hidden="true"></i> <span data-team-submit-label>เลือกผู้ร่วมงานก่อน</span></button>
+                    <button type="submit" class="notion-primary" data-team-submit aria-busy="false" disabled><i class="bi bi-person-plus" aria-hidden="true"></i> <span data-team-submit-label>เพิ่มผู้ร่วมงาน (0 คน)</span></button>
                 </div>
             </footer>
         </form>
@@ -197,7 +208,7 @@
      */
     $workspaceRootLabel = $workspaceRootLabel ?? 'งานของฉัน';
     $workspaceRootUrl = $workspaceRootUrl ?? route('mytasks.index');
-    $statusOptions = [1 => ['ยังไม่เริ่ม', 'todo'], 2 => ['กำลังทำ', 'progress'], 3 => ['รอตรวจสอบ', 'review'], 4 => ['เสร็จแล้ว', 'done'], 5 => ['พักงาน', 'paused'], 6 => ['ล่าช้า', 'late']];
+    $statusOptions = [2 => ['กำลังทำ', 'progress'], 3 => ['รอตรวจสอบ', 'review'], 4 => ['เสร็จแล้ว', 'done'], 5 => ['พักงาน', 'paused'], 6 => ['ล่าช้า', 'late']];
     $priorityOptions = [3 => ['สำคัญด่วน', 'urgent'], 4 => ['ด่วนไม่ค่อยสำคัญ', 'quick'], 2 => ['สำคัญไม่ด่วน', 'important'], 5 => ['ไม่รีบ ไม่มีกำหนด', 'flexible'], 1 => ['routine', 'routine']];
 @endphp
 

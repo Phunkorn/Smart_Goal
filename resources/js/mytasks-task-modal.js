@@ -1,8 +1,9 @@
-import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './pages/mytasks/priority-meta.js';
+import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta, unsupportedStatusMeta} from './pages/mytasks/priority-meta.js';
 import {confirmTaskTransition, isModalStatusOptionDisabled} from './pages/mytasks/task-transitions.js';
 import {hasWorkspaceChanges, workspaceChanges, workspaceMenuPosition} from './pages/mytasks/task-workspace-model.js';
-import {initializePeopleSelectors, selectedIdsOf, setExcludedIds} from './components/people-selector.js';
+import {clearPeopleSelection, initializePeopleSelectors, selectedIdsOf, setExcludedIds} from './components/people-selector.js';
 import {modalStack} from './components/modal-stack.js';
+import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
 
 const layers = modalStack(document);
 initializePeopleSelectors(document);
@@ -162,7 +163,7 @@ initializePeopleSelectors(document);
         form.elements.job_start_at.value = row.dataset.start || '';
         form.elements.assignee.value = row.dataset.assignee || '';
         if (assigneeOutput) assigneeOutput.textContent = row.dataset.assignee || 'ไม่ระบุ';
-        if (staticStatus) staticStatus.textContent = statusMeta[Number(form.elements.job_status.value)]?.label || '';
+        if (staticStatus) staticStatus.textContent = statusMeta[Number(form.elements.job_status.value)]?.label || unsupportedStatusMeta.label;
         if (staticPriority) staticPriority.textContent = taskPriorityMeta[Number(form.elements.job_priority.value)]?.label || '';
 
         applyPermissions(meta);
@@ -235,8 +236,12 @@ initializePeopleSelectors(document);
             if (!payload) return;
             workflowAction.disabled = true;
             try {
-                await request(endpoint(workspace.dataset.statusTemplate, activeRow.dataset.id), 'PATCH', payload);
-                window.location.reload();
+                const data = await request(endpoint(workspace.dataset.statusTemplate, activeRow.dataset.id), 'PATCH', payload);
+                if (data.transitions && management[String(activeRow.dataset.id)]) {
+                    management[String(activeRow.dataset.id)].transitions = data.transitions;
+                }
+                synchronizeTaskSource(workspace, activeRow.dataset.id, {status: Number(data.job_status ?? target)});
+                close();
             } catch (error) {
                 notify(error.message, true);
                 workflowAction.disabled = false;
@@ -300,20 +305,40 @@ initializePeopleSelectors(document);
                 mutationSucceeded = true;
             }
 
+            let canonicalStatus = Number(values.job_status);
+            let canonicalDue = values.job_due_at;
+            let canonicalTransitions = null;
             const jobs = [];
-            if (statusPayload) jobs.push(request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', statusPayload));
             if ('job_priority' in changed) jobs.push(request(endpoint(workspace.dataset.priorityTemplate, id), 'POST', {job_priority: values.job_priority}));
             if (datesChanged) {
+                let scheduleResult = null;
                 if (workspace.dataset.scheduleTemplate) {
-                    jobs.push(request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {job_start_at: values.job_start_at, job_due_at: values.job_due_at}));
+                    scheduleResult = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {job_start_at: values.job_start_at, job_due_at: values.job_due_at});
                 } else if (workspace.dataset.dueTemplate) {
-                    jobs.push(request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: values.job_due_at}));
+                    scheduleResult = await request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: values.job_due_at});
                 }
+                if (scheduleResult) {
+                    canonicalStatus = Number(scheduleResult.job_status ?? canonicalStatus);
+                    canonicalDue = scheduleResult.job_due_at ?? canonicalDue;
+                    canonicalTransitions = scheduleResult.transitions || canonicalTransitions;
+                }
+                mutationSucceeded = true;
+            }
+            if (statusPayload) {
+                const statusResult = await request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', statusPayload);
+                canonicalStatus = Number(statusResult.job_status ?? canonicalStatus);
+                canonicalTransitions = statusResult.transitions || canonicalTransitions;
+                mutationSucceeded = true;
             }
             if (jobs.length) {
                 await Promise.all(jobs);
                 mutationSucceeded = true;
             }
+            if (canonicalTransitions && management[String(id)]) {
+                management[String(id)].transitions = canonicalTransitions;
+            }
+            values.job_status = String(canonicalStatus);
+            values.job_due_at = canonicalDue;
 
             activeRow.dataset.topic = values.job_topic;
             activeRow.dataset.status = values.job_status;
@@ -322,7 +347,13 @@ initializePeopleSelectors(document);
             activeRow.dataset.start = values.job_start_at;
             const rowTitle = activeRow.querySelector('.row-title strong');
             if (rowTitle) rowTitle.textContent = values.job_topic;
-            document.dispatchEvent(new CustomEvent('mytasks:changed', {detail: {id, topic: values.job_topic, status: Number(values.job_status), priority: Number(values.job_priority)}}));
+            synchronizeTaskSource(workspace, id, {
+                topic: values.job_topic,
+                status: Number(values.job_status),
+                priority: Number(values.job_priority),
+                start: values.job_start_at,
+                due: values.job_due_at,
+            });
             if (currentStatus) currentStatus.value = values.job_status;
             if (currentPriority) currentPriority.value = values.job_priority;
             if (currentDue) currentDue.value = values.job_due_at;
@@ -397,6 +428,7 @@ initializePeopleSelectors(document);
 
     /** งานที่กำลังจัดการทีมอยู่ ตั้งค่าตอน open() และล้างตอน close() */
     let activeTeam = null;
+    let submitting = false;
 
     const initials = (name) => Array.from(name || '?').slice(0, 1).join('');
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -411,27 +443,53 @@ initializePeopleSelectors(document);
         return data;
     };
 
+    const avatarMarkup = (person, tone = '') => {
+        const toneClass = tone ? ` ${tone}` : '';
+        if (person?.avatar_url) {
+            return `<span class="team-avatar${toneClass}"><img src="${escapeHtml(person.avatar_url)}" alt=""></span>`;
+        }
+        return `<span class="team-avatar${toneClass}" aria-hidden="true">${escapeHtml(initials(person?.name))}</span>`;
+    };
+
+    /** แสดง assignee เพียงครั้งเดียว แม้ข้อมูลเดิมจะมี collaborator pivot ของคนเดียวกัน */
+    const currentCollaborators = (team) => {
+        const assigneeId = String(team.assignee?.id ?? '');
+        const seen = new Set();
+        return team.collaborators.filter((person) => {
+            const id = String(person.id);
+            if (!id || id === assigneeId || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+    };
+
     /** สถานะของสมาชิกปัจจุบัน — บัญชีที่ถูกปิดต้องบอกให้ชัดว่าเพิ่มซ้ำไม่ได้แล้ว */
     const memberState = (person) => {
         if (person.is_active === false) return {className: 'inactive', label: 'ปิดบัญชี'};
-        return person.status === 'accepted'
-            ? {className: 'accepted', label: 'เข้าร่วมแล้ว'}
-            : {className: 'pending', label: 'รอตอบรับ'};
+        if (person.status === 'accepted') return {className: 'accepted', label: 'เข้าร่วมแล้ว'};
+        if (person.status === 'pending') return {className: 'pending', label: 'รออนุมัติ'};
+        if (person.status === 'rejected') return {className: 'rejected', label: 'ไม่อนุมัติ'};
+        return {className: 'unknown', label: 'ไม่ทราบสถานะ'};
     };
 
     /** คอลัมน์ขวาส่วนบน: ทีมปัจจุบัน แสดงที่เดียวเท่านั้น */
     const renderCurrentTeam = () => {
         const team = activeTeam;
         const canEdit = team.can_manage && !team.locked;
+        const collaborators = currentCollaborators(team);
+        const protectedIds = new Set((team.protected_ids || []).map(String));
+        const total = (team.assignee?.id ? 1 : 0) + collaborators.length;
 
-        count.textContent = `ทีมปัจจุบัน ${team.collaborators.length} คน`;
-        empty.hidden = team.collaborators.length > 0;
-        members.innerHTML = team.collaborators.map((person) => {
+        count.textContent = `ทีมปัจจุบัน (${total} คน)`;
+        empty.hidden = collaborators.length > 0;
+        members.innerHTML = collaborators.map((person) => {
             const state = memberState(person);
-            const removable = canEdit && !team.protected_ids.includes(person.id);
+            const removable = canEdit && !protectedIds.has(String(person.id));
+            const department = person.department || 'ไม่ระบุแผนก';
 
-            return `<article class="team-member"><span class="team-avatar">${escapeHtml(initials(person.name))}</span>`
-                + `<span class="team-person"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.department || 'ไม่ระบุแผนก')}</small></span>`
+            return `<article class="team-member">${avatarMarkup(person)}`
+                + `<span class="team-person"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email || department)}</small></span>`
+                + `<span class="team-department">${escapeHtml(department)}</span>`
                 + `<span class="team-state ${state.className}"><i></i>${state.label}</span>`
                 + (removable ? `<button type="button" data-remove-team-member="${person.id}" title="นำ ${escapeHtml(person.name)} ออกจากทีม" aria-label="นำ ${escapeHtml(person.name)} ออกจากทีม"><i class="bi bi-x-lg"></i></button>` : '')
                 + '</article>';
@@ -443,22 +501,34 @@ initializePeopleSelectors(document);
         const staged = selector ? selectedIdsOf(selector) : [];
         const canEdit = activeTeam?.can_manage && !activeTeam?.locked;
 
-        if (submit) submit.disabled = !canEdit || staged.length === 0;
-        if (submitLabel) submitLabel.textContent = staged.length ? `เพิ่มผู้ร่วมงาน ${staged.length} คน` : 'เลือกผู้ร่วมงานก่อน';
+        if (submit) submit.disabled = submitting || !canEdit || staged.length === 0;
+        if (submitLabel) {
+            submitLabel.textContent = submitting
+                ? 'กำลังเพิ่มผู้ร่วมงาน...'
+                : `เพิ่มผู้ร่วมงาน (${staged.length} คน)`;
+        }
     };
 
     const render = () => {
         const team = activeTeam;
+        const assigneeDepartment = team.assignee.department || 'ไม่ระบุแผนก';
         topic.textContent = team.topic;
-        owner.innerHTML = `<span class="team-avatar primary">${escapeHtml(initials(team.assignee.name))}</span><span><strong>${escapeHtml(team.assignee.name)}</strong><small>${escapeHtml(team.assignee.department || 'ไม่ระบุแผนก')}</small></span><b><i class="bi bi-check-circle-fill"></i> ผู้รับผิดชอบหลัก</b>`;
+        owner.innerHTML = avatarMarkup(team.assignee, 'primary')
+            + `<span class="team-person"><strong>${escapeHtml(team.assignee.name)}</strong><small>${escapeHtml(team.assignee.email || assigneeDepartment)}</small></span>`
+            + `<span class="team-department">${escapeHtml(assigneeDepartment)}</span>`
+            + '<b class="team-role-badge"><i class="bi bi-check-circle-fill"></i> ผู้รับผิดชอบหลัก</b>';
 
         renderCurrentTeam();
 
         const canEdit = team.can_manage && !team.locked;
         if (selector) {
             selector.dataset.readonly = canEdit ? 'false' : 'true';
-            // ผู้รับผิดชอบหลักและสมาชิกปัจจุบันต้องหายไปจากรายการซ้าย ไม่ใช่โผล่แบบสีจาง
-            setExcludedIds(selector, [team.assignee.id, ...team.collaborators.map((person) => person.id)].filter(Boolean));
+            // ผู้รับผิดชอบหลัก สมาชิกปัจจุบัน creator และ leader ต้องไม่เป็น candidate ตาม server contract
+            setExcludedIds(selector, [
+                team.assignee.id,
+                ...(team.protected_ids || []),
+                ...team.collaborators.map((person) => person.id),
+            ].filter(Boolean));
         }
 
         form.hidden = false;
@@ -470,6 +540,7 @@ initializePeopleSelectors(document);
     selector?.addEventListener('peopleselector:change', syncSubmit);
 
     const open = (id, opener = null) => {
+        if (selector) clearPeopleSelection(selector);
         activeTeam = teams[String(id)];
         if (!activeTeam) return;
         render();
@@ -478,8 +549,11 @@ initializePeopleSelectors(document);
         layers.open(modal, opener);
     };
     const close = () => {
+        if (selector) clearPeopleSelection(selector);
         layers.close(modal);
         activeTeam = null;
+        submitting = false;
+        if (submit) submit.setAttribute('aria-busy', 'false');
     };
 
     document.addEventListener('click', async (event) => {
@@ -528,16 +602,20 @@ initializePeopleSelectors(document);
         event.preventDefault();
         // เตรียมเพิ่มคือ selection ฝั่ง client เท่านั้น จะกลายเป็นสมาชิกจริงเมื่อ server ตอบกลับ
         const selected = selector ? selectedIdsOf(selector) : [];
-        if (!selected.length || !activeTeam) return;
-        const button = submit || form.querySelector('[type="submit"]');
-        button.disabled = true;
+        const canEdit = activeTeam?.can_manage && !activeTeam?.locked;
+        if (!selected.length || !activeTeam || !canEdit || submitting) return;
+        submitting = true;
+        if (submit) submit.setAttribute('aria-busy', 'true');
+        syncSubmit();
         try {
             await request(activeTeam.add_url, 'POST', {collaborators: selected});
             window.location.reload();
         } catch (error) {
             notice.hidden = false;
             notice.textContent = error.message;
-            button.disabled = false;
+            submitting = false;
+            if (submit) submit.setAttribute('aria-busy', 'false');
+            syncSubmit();
         }
     });
 

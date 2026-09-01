@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AdminApprovalController;
+use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MediaController;
@@ -20,6 +20,7 @@ use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
 use App\Models\WorkOrderListTaskRequest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -136,14 +137,22 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('admin.tasks.deleteRequest.reject');
 
-    // ประวัติการใช้งานและถังขยะของผู้ดูแลระบบ
-    Route::get('/admin/activity-logs', [ActivityLogController::class, 'index'])
+    // Audit Log — บันทึกตรวจสอบของผู้ดูแลระบบ รวมกิจกรรมผู้ใช้กับถังขยะไว้หน้าเดียว
+    Route::get('/admin/audit', [AuditController::class, 'index'])
         ->middleware('admin')
-        ->name('admin.activity-logs.index');
+        ->name('admin.audit.index');
 
-    Route::get('/admin/trash', [TrashController::class, 'index'])
-        ->middleware('admin')
-        ->name('admin.trash.index');
+    // เส้นทางเดิมยังใช้ได้ เพื่อไม่ให้ bookmark และลิงก์ในบันทึกเก่าพัง
+    // ต้องพา query string เดิมไปด้วย มิฉะนั้นลิงก์ที่มีตัวกรองจะกลายเป็นหน้าเปล่า
+    Route::get('/admin/activity-logs', fn (Request $request) => redirect()->route(
+        'admin.audit.index',
+        ['tab' => 'activity'] + $request->query()
+    ))->middleware('admin')->name('admin.activity-logs.index');
+
+    Route::get('/admin/trash', fn (Request $request) => redirect()->route(
+        'admin.audit.index',
+        ['tab' => 'trash'] + $request->query()
+    ))->middleware('admin')->name('admin.trash.index');
 
     Route::get('/admin/trash/export', [TrashController::class, 'export'])
         ->middleware('admin')

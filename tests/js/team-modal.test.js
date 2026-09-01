@@ -93,7 +93,7 @@ test('สมาชิกปัจจุบันไม่ปรากฏซ้�
     const visible = rows.filter((row) => !row.hidden).map((row) => row.dataset.personId);
 
     assert.deepEqual(visible, ['2'], 'คนที่อยู่ในทีมแล้วต้องหายจากรายการ ไม่ใช่แสดงแบบจาง');
-    assert.equal(ui.document.querySelector('[data-team-count]').textContent, 'ทีมปัจจุบัน 1 คน');
+    assert.equal(ui.document.querySelector('[data-team-count]').textContent, 'ทีมปัจจุบัน (2 คน)');
     assert.equal(ui.document.querySelector('[data-people-count]').textContent, 'เลือกเพิ่ม 0 คน');
     assert.equal(ui.document.querySelectorAll('[data-team-members] .team-member').length, 1, 'สมาชิกต้องแสดงครั้งเดียว');
 });
@@ -112,6 +112,8 @@ test('บัญชีที่ถูกปิดแสดงสถานะป�
     const html = ui.document.querySelector('[data-team-members]').innerHTML;
     assert.match(html, /team-state inactive/);
     assert.match(html, /ปิดบัญชี/);
+    assert.equal(ui.document.querySelector('[data-team-count]').textContent, 'ทีมปัจจุบัน (2 คน)', 'assignee ที่ซ้ำใน collaborators ต้องนับครั้งเดียวใน UI');
+    assert.equal(ui.document.querySelectorAll('[data-team-members] .team-member').length, 1);
     // 99 อยู่ใน protected_ids จึงต้องไม่มีปุ่มลบ
     assert.equal(ui.document.querySelector('[data-remove-team-member="99"]'), null);
     assert.ok(ui.document.querySelector('[data-remove-team-member="1"]'));
@@ -124,14 +126,14 @@ test('ปุ่มยืนยันกดไม่ได้เมื่อย�
     const submit = ui.document.querySelector('[data-team-submit]');
     const label = ui.document.querySelector('[data-team-submit-label]');
     assert.equal(submit.disabled, true);
-    assert.equal(label.textContent, 'เลือกผู้ร่วมงานก่อน');
+    assert.equal(label.textContent, 'เพิ่มผู้ร่วมงาน (0 คน)');
 
     const checkbox = ui.document.querySelector('[data-people-checkbox][value="2"]');
     checkbox.checked = true;
     checkbox.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
 
     assert.equal(submit.disabled, false);
-    assert.equal(label.textContent, 'เพิ่มผู้ร่วมงาน 1 คน');
+    assert.equal(label.textContent, 'เพิ่มผู้ร่วมงาน (1 คน)');
 });
 
 test('ยกเลิกคนที่เตรียมเพิ่มไม่ยิงคำขอไปที่ server', async (t) => {
@@ -152,6 +154,53 @@ test('ยกเลิกคนที่เตรียมเพิ่มไม�
     assert.deepEqual(calls, [], 'การยกเลิก selection ต้องไม่เรียก DELETE');
     assert.equal(ui.document.querySelector('[data-people-count]').textContent, 'เลือกเพิ่ม 0 คน');
     assert.equal(ui.document.querySelector('[data-team-submit]').disabled, true);
+});
+
+test('ปิดแล้วเปิด Team Modal ใหม่ต้องล้าง staging ที่ยังไม่ได้ยืนยัน', async (t) => {
+    const ui = await openWorkspace(t);
+    click(ui.manageTeam());
+
+    const checkbox = ui.document.querySelector('[data-people-checkbox][value="2"]');
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+    assert.equal(ui.document.querySelector('[data-people-stage]').hidden, false);
+
+    click(ui.document.querySelector('[data-close-team]'));
+    click(ui.manageTeam());
+
+    assert.deepEqual(
+        [...ui.document.querySelectorAll('[data-people-checkbox]:checked')].map((node) => node.value),
+        [],
+    );
+    assert.equal(ui.document.querySelector('[data-people-stage]').hidden, true);
+    assert.equal(ui.document.querySelector('[data-team-submit-label]').textContent, 'เพิ่มผู้ร่วมงาน (0 คน)');
+});
+
+test('protected IDs ถูกกันจากตัวเลือกเพิ่มแม้ยังไม่อยู่ใน collaborators', async (t) => {
+    const ui = await openWorkspace(t, {team: {protected_ids: [99, 2]}});
+    click(ui.manageTeam());
+
+    const visible = [...ui.document.querySelectorAll('[data-people-option]')]
+        .filter((row) => !row.hidden)
+        .map((row) => row.dataset.personId);
+    assert.deepEqual(visible, ['1']);
+});
+
+test('สถานะ pending และ rejected แสดงตามข้อมูล server โดยไม่เปลี่ยน workflow', async (t) => {
+    const ui = await openWorkspace(t, {
+        team: {
+            collaborators: [
+                {id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'pending', is_active: true},
+                {id: 2, name: 'สมหญิง ตั้งใจ', department: 'การตลาด', status: 'rejected', is_active: true},
+            ],
+        },
+    });
+    click(ui.manageTeam());
+
+    assert.equal(ui.document.querySelectorAll('.team-state.pending').length, 1);
+    assert.equal(ui.document.querySelectorAll('.team-state.rejected').length, 1);
+    assert.match(ui.document.querySelector('.team-state.pending').textContent, /รออนุมัติ/);
+    assert.match(ui.document.querySelector('.team-state.rejected').textContent, /ไม่อนุมัติ/);
 });
 
 test('ลบสมาชิกปัจจุบันใช้ remove route เดิมและถามยืนยันก่อน', async (t) => {

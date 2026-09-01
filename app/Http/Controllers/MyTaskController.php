@@ -88,7 +88,6 @@ class MyTaskController extends Controller
         // และ workspace-task-source.blade.php) ส่วนของเดิมทำให้งานของเพื่อนร่วมงาน
         // ถูกดูดเข้าโปรเจกต์ของคนที่บังเอิญเปิดหน้า "งานของฉัน" ก่อน
 
-        TodayWorkspace::synchronizeActiveToday($this->baseWorkOrderQuery());
         TodayWorkspace::synchronizeLate($this->baseWorkOrderQuery());
 
         $workOrders = WorkOrder::query()->visibleInProjectsFor($user)
@@ -451,7 +450,7 @@ class MyTaskController extends Controller
                     'job_topic' => $item['job_topic'],
                     'job_details' => $item['job_details'] ?: null,
                     'job_priority' => 2,
-                    'job_status' => 1,
+                    'job_status' => 2,
                     'approval_status' => $approval['approval_status'],
                     'approved_by' => $approval['approved_by'],
                     'approved_at' => $approval['approved_at'],
@@ -786,7 +785,10 @@ class MyTaskController extends Controller
     public function toggleComplete(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'work', $workOrder);
+        $ability = (int) $workOrder->job_status === 4
+            ? 'reopen'
+            : ($request->user()->role === 'admin' ? 'overrideStatus' : 'work');
+        $this->authorize($ability, $workOrder);
 
         $validated = $request->validate([
             'completed' => 'required|boolean',
@@ -802,19 +804,25 @@ class MyTaskController extends Controller
             'ok' => true,
             'message' => $validated['completed'] ? 'ทำเครื่องหมายว่าเสร็จแล้ว' : 'ย้ายกลับไปงานที่ต้องทำแล้ว',
             'completed' => (bool) $validated['completed'],
+            'job_id' => $workOrder->job_id,
+            'job_status' => (int) $workOrder->job_status,
+            'transitions' => $transitions->capabilities($workOrder, $request->user()),
         ]);
     }
 
     public function updateStatus(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
         $validated = $request->validate([
-            'job_status' => 'required|integer|in:1,2,3,4,5,6',
+            'job_status' => 'required|integer|in:2,3,4,5,6',
             'action' => ['nullable', 'string', 'in:reopen'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
-        $this->authorize((int) $workOrder->job_status === 4 ? 'reopen' : 'work', $workOrder);
+        $ability = (int) $workOrder->job_status === 4
+            ? 'reopen'
+            : ($request->user()->role === 'admin' ? 'overrideStatus' : 'work');
+        $this->authorize($ability, $workOrder);
         $workOrder = $transitions->transition($workOrder, $request->user(), (int) $validated['job_status'], [
             'action' => $validated['action'] ?? null,
             'reason' => $validated['reason'] ?? null,
@@ -854,7 +862,7 @@ class MyTaskController extends Controller
         ]);
     }
 
-    public function updateDueDate(Request $request, int $job_id): JsonResponse
+    public function updateDueDate(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
         $validated = $request->validate([
             'job_due_at' => 'required|date',
@@ -866,6 +874,10 @@ class MyTaskController extends Controller
 
         $before = $workOrder->attributesToArray();
         $workOrder->update(['job_due_at' => $validated['job_due_at']]);
+        if (! TodayWorkspace::reconcileLateAfterScheduleChange($workOrder)) {
+            TodayWorkspace::normalizeLateForTransition($workOrder);
+        }
+        $workOrder->refresh();
 
         AuditTrail::log('due_date_changed', $workOrder, 'เปลี่ยนกำหนดส่งงาน: '.$workOrder->job_topic, [
             'before' => $before,
@@ -875,7 +887,9 @@ class MyTaskController extends Controller
         return response()->json([
             'ok' => true,
             'job_id' => $workOrder->job_id,
-            'job_due_at' => $workOrder->job_due_at->format('Y-m-d'),
+            'job_due_at' => TodayWorkspace::calendarDate($workOrder->job_due_at),
+            'job_status' => (int) $workOrder->job_status,
+            'transitions' => $transitions->capabilities($workOrder, $request->user()),
         ]);
     }
 

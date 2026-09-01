@@ -1,5 +1,22 @@
+/**
+ * 'comment-icon' คือการกดคอลัมน์คอมเมนต์บนบอร์ด ซึ่งเป็นเจตนาอ่านคอมเมนต์โดยตรง
+ * จึงถือว่าอ่านแล้วเหมือนการกดแท็บ ต่างจาก 'modal' ที่เป็นการเปิดงานเฉย ๆ
+ */
 export function shouldMarkCommentsRead(source, tab) {
-    return tab === 'updates' && (source === 'tab' || source === 'deep-link');
+    return tab === 'updates' && (source === 'tab' || source === 'deep-link' || source === 'comment-icon');
+}
+
+/**
+ * Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่
+ *
+ * ระหว่างที่ IME กำลังประกอบคำ (ภาษาไทยและ CJK) ปุ่ม Enter คือการยืนยันคำ ไม่ใช่การส่ง
+ * เบราว์เซอร์รุ่นเก่าบางตัวไม่ตั้ง isComposing แต่ยังส่ง keyCode 229 มา จึงต้องกันทั้งสองทาง
+ */
+export function shouldSubmitOnEnter({key, shiftKey, isComposing, keyCode} = {}) {
+    if (key !== 'Enter') return false;
+    if (shiftKey) return false;
+
+    return !isComposing && keyCode !== 229;
 }
 
 export function commentDeepLink(search) {

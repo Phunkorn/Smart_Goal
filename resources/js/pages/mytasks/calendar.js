@@ -1,4 +1,4 @@
-import {statusMeta, taskPriorityMeta} from './priority-meta.js';
+import {statusMeta, taskPriorityMeta, unsupportedStatusMeta} from './priority-meta.js';
 import {modalStack} from '../../components/modal-stack.js';
 import {createCalendarQuickView} from './calendar-quick-view.js';
 import {
@@ -130,7 +130,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 detailUrl: taskDetailTemplate.replace('__ID__', row.dataset.id),
                 title: row.dataset.topic || 'ไม่มีชื่องาน',
                 project: row.dataset.project || 'งานทั่วไป',
-                status: Number(row.dataset.status) || 1,
+                status: Number(row.dataset.status) || 0,
                 priority: Number(row.dataset.priority) || 2,
                 start: row.dataset.start || '',
                 due: row.dataset.due || '',
@@ -151,7 +151,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             return `การประชุม: ${event.title}, ${event.startTime}–${event.endTime} น., ${event.location}, ผู้จัด ${event.organizer}, ${taskRangeLabel(event)}`;
         }
 
-        const status = statusMeta[event.status]?.label || statusMeta[1].label;
+        const status = statusMeta[event.status]?.label || unsupportedStatusMeta.label;
         const priority = taskPriorityMeta[event.priority]?.label || taskPriorityMeta[2].label;
         return `งาน: ${event.title}, ${event.project}, ${status}, ${priority}, ${taskRangeLabel(event)}`;
     };
@@ -188,7 +188,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         detail.dataset.taskId = key;
         detail.querySelector('[data-calendar-detail-title]').textContent = row.dataset.topic || 'ไม่มีชื่องาน';
         detail.querySelector('[data-calendar-detail-project]').textContent = row.dataset.project || 'งานทั่วไป';
-        detail.querySelector('[data-calendar-detail-status]').textContent = (statusMeta[Number(row.dataset.status)] || statusMeta[1]).label;
+        detail.querySelector('[data-calendar-detail-status]').textContent = (statusMeta[Number(row.dataset.status)] || unsupportedStatusMeta).label;
         detail.querySelector('[data-calendar-detail-priority]').textContent = (taskPriorityMeta[Number(row.dataset.priority)] || taskPriorityMeta[2]).label;
         detail.querySelector('[data-calendar-detail-start]').textContent = displayDate(row.dataset.start);
         detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due);
@@ -224,7 +224,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             meta.append(element('span', 'status-review', 'ประชุม'));
         } else {
             meta.append(
-                element('span', statusMeta[event.status]?.className || statusMeta[1].className, statusMeta[event.status]?.label || statusMeta[1].label),
+                element('span', statusMeta[event.status]?.className || unsupportedStatusMeta.className, statusMeta[event.status]?.label || unsupportedStatusMeta.label),
                 element('span', taskPriorityMeta[event.priority]?.className || taskPriorityMeta[2].className, taskPriorityMeta[event.priority]?.label || taskPriorityMeta[2].label),
             );
         }
@@ -274,7 +274,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const makeMilestone = (milestone) => {
         const event = milestone.task;
         const isMeeting = event.type === 'meeting';
-        const tone = isMeeting ? 'mytasks-calendar__task--meeting' : (statusMeta[event.status] || statusMeta[1]).className;
+        const tone = isMeeting ? 'mytasks-calendar__task--meeting' : (statusMeta[event.status] || unsupportedStatusMeta).className;
         const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar__task mytasks-calendar__task--${milestone.kind} ${tone}`);
         if (isMeeting) node.href = event.url;
         else node.type = 'button';

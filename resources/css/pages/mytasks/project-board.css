@@ -4,7 +4,7 @@
 .my-tasks-page .notion-database[data-view="board"] .project-board{display:block;padding:0;background:#fff}
 .my-tasks-page .notion-database[data-view="board"]>footer{display:none}
 .my-tasks-page .board-reference-list{width:100%;min-width:0;overflow:visible;border:0;border-radius:0;background:#fff;box-shadow:none}
-.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{display:grid;grid-template-columns:minmax(210px,2fr) 118px 82px minmax(112px,1fr) 94px 70px 96px 112px 34px;align-items:center}
+.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{display:grid;grid-template-columns:minmax(210px,2fr) 118px 82px minmax(112px,1fr) 94px 70px 96px 112px 112px 34px;align-items:center}
 .my-tasks-page .board-reference-columns{height:40px;border-bottom:1px solid #dce4ee;border-radius:0;background:#fafbfd;color:#66758c;font-size:11px;font-weight:700}.my-tasks-page .board-reference-columns>span,.my-tasks-page .board-reference-row>*{min-width:0;padding:0 8px}
 .my-tasks-page .board-project-group__header[hidden],.my-tasks-page .board-reference-row[hidden]{display:none}.my-tasks-page .board-project-group__header{--project-accent:#64748b;--project-soft:#f8fafc;display:flex;align-items:center;min-height:42px;margin:0;padding:0 10px;border:0;border-bottom:1px solid color-mix(in srgb,var(--project-accent) 18%,#e7ecf2);border-left:4px solid var(--project-accent);border-radius:0;background:linear-gradient(90deg,var(--project-soft),#fff 38%);box-shadow:none}.my-tasks-page .board-project-group__header.project-tone-low{--project-accent:#64748b;--project-soft:#f4f6f8}.my-tasks-page .board-project-group__header.project-tone-medium{--project-accent:#c17709;--project-soft:#fff8e9}.my-tasks-page .board-project-group__header.project-tone-high{--project-accent:#dc3d39;--project-soft:#fff1f0}.my-tasks-page .board-project-group__header.project-tone-neutral{--project-accent:#3972d1;--project-soft:#f1f6ff}.my-tasks-page .board-project-collapse{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;background:transparent;color:var(--project-accent);font-size:8px;cursor:pointer}.my-tasks-page .board-project-folder{display:grid;place-items:center;width:27px;height:27px;flex:0 0 27px;margin-right:7px;border-radius:7px;background:color-mix(in srgb,var(--project-accent) 13%,#fff);color:var(--project-accent);font-size:15px}.my-tasks-page .board-project-group__header>strong{overflow:hidden;max-width:360px;color:#263650;font-size:13px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-project-group__header>span{margin-left:7px;color:#6f7f94;font-size:10px;white-space:nowrap}.my-tasks-page .board-project-group__header>span b{font-weight:650}.my-tasks-page .board-project-rule{width:min(34vw,440px);height:1px;flex:0 1 440px;margin:0 9px;background:color-mix(in srgb,var(--project-accent) 18%,#e3e9f1)}
 .my-tasks-page .board-project-actions{display:flex;align-items:center;gap:3px;margin-left:auto}.my-tasks-page .board-project-add{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:0 9px;border:1px solid #d7e1ee;border-radius:7px;background:#fff;color:#316bce;font-size:9px;font-weight:700;cursor:pointer}.my-tasks-page .board-project-add:hover{border-color:#a9c3ed;background:#f4f8ff}.my-tasks-page .board-project-icon{display:grid;place-items:center;width:27px;height:27px;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;color:#63738a;cursor:pointer}.my-tasks-page .board-project-icon:hover{border-color:#cbd8e8;background:#f4f7fb;color:#2765c7}.my-tasks-page .board-project-icon.is-danger:hover{border-color:#f2c3c3;background:#fff1f1;color:#dc3d39}
@@ -12,16 +12,16 @@
 .my-tasks-page .board-project-priority{display:inline-flex;align-items:center;gap:5px;margin-left:9px;padding:4px 8px;border:1px solid;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}.my-tasks-page .board-project-priority.priority-low{border-color:#d1d8e1;background:#f4f6f8;color:#64748b}.my-tasks-page .board-project-priority.priority-medium{border-color:#e8c98f;background:#fff5df;color:#a86108}.my-tasks-page .board-project-priority.priority-high{border-color:#efb4b1;background:#ffe9e7;color:#cf312d}.my-tasks-page .board-project-files{position:relative;margin-left:5px}.my-tasks-page .board-project-files summary{display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border-radius:6px;color:#63738a;font-size:9px;font-weight:650;list-style:none;cursor:pointer}.my-tasks-page .board-project-files summary::-webkit-details-marker{display:none}.my-tasks-page .board-project-files summary:hover{background:#f2f6fb;color:#286acb}.my-tasks-page .board-project-files>div{position:absolute;top:calc(100% + 6px);left:0;z-index:80;display:grid;width:250px;padding:6px;border:1px solid #dbe3ed;border-radius:9px;background:#fff;box-shadow:0 12px 28px rgba(15,23,42,.14)}.my-tasks-page .board-project-files a{display:flex;align-items:center;gap:7px;min-width:0;padding:8px;border-radius:6px;color:#42516a;font-size:10px}.my-tasks-page .board-project-files a:hover{background:#f2f6fb;color:#286acb}.my-tasks-page .board-project-files a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .my-tasks-page .board-reference-row{min-height:58px;margin:0;border:0;border-bottom:1px solid #e9edf3;border-radius:0;background:#fff;box-shadow:none;transition:background .12s}.my-tasks-page .board-reference-row:last-child{border-bottom:0;border-radius:0 0 12px 12px}.my-tasks-page .board-reference-row:hover{background:#fbfcfe}
 .my-tasks-page .board-completed-group{border-bottom:1px solid #e2e8f0;background:#f8fafc}.my-tasks-page .board-completed-group.is-project-collapsed{display:none}.my-tasks-page .board-completed-group>summary{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 14px;color:#64748b;cursor:pointer;list-style:none}.my-tasks-page .board-completed-group>summary::-webkit-details-marker{display:none}.my-tasks-page .board-completed-group>summary i{font-size:9px;transition:transform .15s}.my-tasks-page .board-completed-group[open]>summary i{transform:rotate(90deg)}.my-tasks-page .board-completed-group>summary strong{font-size:12px}.my-tasks-page .board-completed-group>summary span{font-size:10px}.my-tasks-page .board-completed-group__rows{background:#fff}
-.my-tasks-page .board-reference-task{display:grid;align-content:center;width:100%;height:100%;padding-block:3px;border:0;background:transparent;color:inherit;text-align:left;cursor:default}.my-tasks-page .board-reference-task strong{overflow:hidden;color:#101d33;font-size:13px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-reference-task>span{overflow:hidden;margin-top:2px;color:#76869d;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-reference-task small{display:inline-flex;align-items:center;gap:3px;margin-top:2px;color:#8290a4;font-size:10px}
-:is(.my-tasks-page,.sg-task-theme) .board-status-pill{display:inline-flex;align-items:center;gap:6px;justify-self:start;padding:6px 9px;border-radius:99px;font-size:11px;font-weight:650;white-space:nowrap}:is(.my-tasks-page,.sg-task-theme) .board-status-pill>i{width:7px;height:7px;border-radius:50%;background:currentColor}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-todo{background:#f0f2f5;color:#68768a}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-progress{background:#e8f1fe;color:#286acb}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-review{background:#f0eafd;color:#8152d4}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-done{background:#e7f7ef;color:#07845f}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-paused{background:#fff1dc;color:#b46908}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-late{background:#fdebea;color:#dc3d39}
-:is(.my-tasks-page,.sg-task-theme) .board-status-menu{position:relative;justify-self:start}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary{cursor:pointer;list-style:none}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary::-webkit-details-marker{display:none}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary>i:last-child{width:auto;height:auto;margin-left:2px;background:transparent;font-size:8px}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div{position:fixed;left:var(--status-menu-left,auto);top:var(--status-menu-top,auto);z-index:95;display:grid;gap:5px;width:164px;padding:8px;border:1px solid #d9e2ed;border-radius:11px;background:#fff;box-shadow:0 14px 32px rgba(15,23,42,.16)}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 10px;border:1px solid currentColor;border-radius:999px;background:#fff;font-size:11px;font-weight:650;text-align:left}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button>i{width:7px;height:7px;border-radius:50%;background:currentColor}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button>span{margin-left:auto}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-todo{border-color:#d7dde5;background:#f5f6f8;color:#68768a}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-progress{border-color:#bdd4f7;background:#edf4fe;color:#286acb}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-review{border-color:#d7c5f5;background:#f4effd;color:#8152d4}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-done{border-color:#bde4d3;background:#edf9f3;color:#07845f}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-paused{border-color:#f0d29f;background:#fff7e9;color:#a86108}
+.my-tasks-page .board-reference-task{display:grid;align-content:center;width:100%;height:100%;padding-block:3px;border:0;background:transparent;color:inherit;text-align:left;cursor:default}.my-tasks-page .board-reference-task>span{overflow:hidden;margin-top:2px;color:#76869d;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-reference-task small{display:inline-flex;align-items:center;gap:3px;margin-top:2px;color:#8290a4;font-size:10px}
+:is(.my-tasks-page,.sg-task-theme) .board-status-pill{display:inline-flex;align-items:center;gap:6px;justify-self:start;padding:6px 9px;border-radius:99px;font-size:11px;font-weight:650;white-space:nowrap}:is(.my-tasks-page,.sg-task-theme) .board-status-pill>i{width:7px;height:7px;border-radius:50%;background:currentColor}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-unsupported{background:#f0f2f5;color:#68768a}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-progress{background:#e8f1fe;color:#286acb}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-review{background:#f0eafd;color:#8152d4}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-done{background:#e7f7ef;color:#07845f}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-paused{background:#fff1dc;color:#b46908}:is(.my-tasks-page,.sg-task-theme) .board-status-pill.status-late{background:#fdebea;color:#dc3d39}
+:is(.my-tasks-page,.sg-task-theme) .board-status-menu{position:relative;justify-self:start}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary{cursor:pointer;list-style:none}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary::-webkit-details-marker{display:none}:is(.my-tasks-page,.sg-task-theme) .board-status-menu summary>i:last-child{width:auto;height:auto;margin-left:2px;background:transparent;font-size:8px}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div{position:fixed;left:var(--status-menu-left,auto);top:var(--status-menu-top,auto);z-index:95;display:grid;gap:5px;width:164px;padding:8px;border:1px solid #d9e2ed;border-radius:11px;background:#fff;box-shadow:0 14px 32px rgba(15,23,42,.16)}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 10px;border:1px solid currentColor;border-radius:999px;background:#fff;font-size:11px;font-weight:650;text-align:left}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button>i{width:7px;height:7px;border-radius:50%;background:currentColor}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div button>span{margin-left:auto}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-progress{border-color:#bdd4f7;background:#edf4fe;color:#286acb}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-review{border-color:#d7c5f5;background:#f4effd;color:#8152d4}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-done{border-color:#bde4d3;background:#edf9f3;color:#07845f}:is(.my-tasks-page,.sg-task-theme) .board-status-menu>div .status-paused{border-color:#f0d29f;background:#fff7e9;color:#a86108}
 :is(.my-tasks-page,.sg-task-theme) .board-priority{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;white-space:nowrap}:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-low{color:#64748b}:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-medium{color:#b56708}:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-high{color:#d33b34}
 .my-tasks-page .board-inline-select{cursor:pointer}.my-tasks-page .board-inline-select select{max-width:94px;padding:0 14px 0 0;border:0;outline:0;background:transparent;color:inherit;font:inherit;cursor:pointer}:is(.my-tasks-page,.sg-task-theme) .board-priority.board-inline-select select{max-width:60px}.my-tasks-page .board-inline-select select option{color:#263650;background:#fff}
 .my-tasks-page .board-owner{display:flex;align-items:center;gap:8px}.my-tasks-page .board-owner>i{display:grid;place-items:center;width:29px;height:29px;flex:0 0 29px;border-radius:50%;background:#2f6fe4;color:#fff;font-size:10px;font-style:normal;font-weight:700}.my-tasks-page .board-owner strong{overflow:hidden;color:#263650;font-size:12px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-department{display:flex;align-items:center;gap:6px;color:#536277}.my-tasks-page .board-department>i{font-size:13px}.my-tasks-page .board-department strong{overflow:hidden;font-size:11px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-attachments{display:inline-flex;align-items:center;justify-self:start;gap:5px;padding:5px 7px;border:0;border-radius:7px;background:transparent;color:#8a97a9;font-size:13px;cursor:pointer}.my-tasks-page .board-attachments:hover{background:#edf4ff;color:#2f6fe4}.my-tasks-page .board-attachments.has-files{color:#2f6fe4}.my-tasks-page .board-attachments strong{font-size:11px;font-weight:750}
 .my-tasks-page .board-collaborators{display:flex;align-items:center}.my-tasks-page .board-collaborators>button{display:flex;align-items:center;padding:0 0 0 7px;border:0;background:transparent;cursor:pointer}.my-tasks-page .board-collaborators button>i,.my-tasks-page .board-collaborators button>b,.my-tasks-page .board-team-add{display:grid;place-items:center;width:27px;height:27px;margin-left:-7px;border:2px solid #fff;border-radius:50%;background:#7653df;color:#fff;font-size:8px;font-style:normal;font-weight:700}.my-tasks-page .board-collaborators button>i:nth-child(2){background:#e54a43}.my-tasks-page .board-collaborators button>i.is-pending{border-style:dashed;background:#c7790a}.my-tasks-page .board-collaborators button>b{background:#edf1f5;color:#657489}.my-tasks-page .board-team-add{margin-left:2px;border:1px dashed #9eb5d6;background:#f4f8ff;color:#3972d1}.my-tasks-page .board-team-add>i{font-size:11px}
 .my-tasks-page .board-due{display:inline-flex;align-items:center;gap:5px;color:#536277;font-size:11px;font-weight:550;white-space:nowrap}.my-tasks-page .board-due.is-soon{color:#bd6a00;font-weight:700}.my-tasks-page .board-due.is-late{color:#dc3d39;font-weight:700}.my-tasks-page .board-due-editable{position:relative;min-height:30px;cursor:pointer}.my-tasks-page .board-due-editable input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .my-tasks-page .board-reference-menu{justify-self:center}.my-tasks-page .board-reference-menu summary{width:29px;height:29px;padding:0;border:1px solid transparent}.my-tasks-page .board-reference-menu[open] summary{border-color:#111827;background:#fff;color:#111827;box-shadow:0 0 0 1px #111827}.my-tasks-page .board-reference-menu>div{right:0}.my-tasks-page .board-reference-menu .board-task-menu{width:286px;padding:7px;border-radius:11px}.my-tasks-page .board-task-menu>button,.my-tasks-page .board-task-menu>a{min-height:52px;align-items:flex-start;padding:8px 10px}.my-tasks-page .board-task-menu>button>i,.my-tasks-page .board-task-menu>a>i{margin-top:2px;flex:0 0 16px}.my-tasks-page .board-task-menu>button>span,.my-tasks-page .board-task-menu>a>span{display:grid;gap:2px;min-width:0}.my-tasks-page .board-task-menu strong{font-size:12px;font-weight:650}.my-tasks-page .board-task-menu small{color:#8490a2;font-size:9px;font-weight:400;line-height:1.35}.my-tasks-page .board-task-menu .danger small{color:#d77878}.my-tasks-page .project-board-empty{display:grid;place-items:center;gap:5px;padding:48px;color:#7f8da1}.my-tasks-page .project-board-empty[hidden]{display:none}
-@media(max-width:1100px){.my-tasks-page .board-reference-list{min-width:1060px}.my-tasks-page .notion-table-scroll{overflow-x:auto}.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{grid-template-columns:minmax(200px,2fr) 112px 78px 110px 90px 66px 92px 104px 30px}.my-tasks-page .board-reference-columns>span,.my-tasks-page .board-reference-row>*{padding-right:7px;padding-left:7px}}
+@media(max-width:1100px){.my-tasks-page .board-reference-list{min-width:1164px}.my-tasks-page .notion-table-scroll{overflow-x:auto}.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{grid-template-columns:minmax(200px,2fr) 112px 78px 110px 90px 66px 92px 104px 104px 30px}.my-tasks-page .board-reference-columns>span,.my-tasks-page .board-reference-row>*{padding-right:7px;padding-left:7px}}
 @media(max-width:760px){.my-tasks-page .board-reference-columns{display:none}.my-tasks-page .board-reference-row{position:relative;grid-template-columns:1fr 1fr;gap:12px 8px;padding:14px 36px 14px 12px}.my-tasks-page .board-reference-row>*{padding:0}.my-tasks-page .board-reference-task{grid-column:1/-1}.my-tasks-page .board-reference-menu{position:absolute;top:12px;right:7px}.my-tasks-page .board-project-add span{display:none}}
 
 .board-attachment-modal{z-index:1200;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.42);backdrop-filter:blur(3px)}.board-attachment-modal:not([hidden]){display:flex}.board-attachment-modal__card{width:min(640px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;border:1px solid #d9e0eb;border-radius:14px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22)}.board-attachment-modal__card>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid #e5e9f0}.board-attachment-modal__card>header>div{display:grid;gap:2px}.board-attachment-modal__card>header span{font-size:10px;font-weight:700;letter-spacing:.12em;color:#94a3b8}.board-attachment-modal__card>header strong{font-size:21px;color:#0f172a}.board-attachment-modal__card>header small{color:#64748b}.board-attachment-modal__body{display:grid;gap:14px;padding:22px 24px}.board-attachment-modal__list{display:grid;gap:8px}.board-attachment-modal__list>a{display:grid;grid-template-columns:34px minmax(0,1fr) 20px;align-items:center;min-height:52px;padding:8px 12px;border:1px solid #e1e7ef;border-radius:10px;background:#fff;color:#334155;text-decoration:none}.board-attachment-modal__list>a:hover{border-color:#b8cef0;background:#f7faff;color:#2563eb}.board-attachment-modal__list>a>i:first-child{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#edf4ff;color:#2563eb;font-size:16px}.board-attachment-modal__list>a>span{overflow:hidden;padding:0 9px;font-size:13px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.board-attachment-modal__empty{display:grid;place-items:center;gap:5px;padding:32px 16px;border:1px dashed #d7e0eb;border-radius:10px;color:#8290a4;text-align:center}.board-attachment-modal__empty[hidden],.board-attachment-modal__upload[hidden]{display:none}.board-attachment-modal__empty>i{font-size:24px}.board-attachment-modal__empty>strong{color:#475569}.board-attachment-modal__empty>span,.board-attachment-modal__upload label small{font-size:11px}.board-attachment-modal__upload label{display:flex;align-items:center;gap:12px;padding:14px;border:1px dashed #adc5e8;border-radius:10px;background:#f7faff;color:#2563eb;cursor:pointer}.board-attachment-modal__upload label>i{font-size:24px}.board-attachment-modal__upload label>span{display:grid}.board-attachment-modal__upload label small{color:#718096;font-weight:400}.board-attachment-modal__upload input{position:absolute;width:1px;height:1px;opacity:0}.board-attachment-modal__card>footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #e5e9f0}@media(max-width:640px){.board-attachment-modal{padding:10px;align-items:flex-end}.board-attachment-modal__card{width:100%;max-height:92vh;border-radius:14px 14px 0 0}.board-attachment-modal__body{padding:18px}.board-attachment-modal__card>header,.board-attachment-modal__card>footer{padding-left:18px;padding-right:18px}}
@@ -29,6 +29,17 @@
 /* Regression fix: task titles became buttons for modal interaction in the shared
  * project board. Reset the browser's default button chrome while preserving the
  * existing board typography and click target. */
+.my-tasks-page .board-project-group__header > .board-project-group__title {
+    overflow: hidden;
+    max-width: 360px;
+    color: #263650;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .my-tasks-page .board-reference-task__open {
     display: block;
     width: 100%;
@@ -44,19 +55,19 @@
     cursor: pointer;
 }
 
-.my-tasks-page .board-reference-task__open strong {
+.my-tasks-page .board-reference-task__title {
     display: block;
     overflow: hidden;
     max-width: 100%;
     color: #101d33;
     font-size: 13px;
-    font-weight: 750;
+    font-weight: 500;
     line-height: 1.4;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.my-tasks-page .board-reference-task__open:hover strong {
+.my-tasks-page .board-reference-task__open:hover .board-reference-task__title {
     color: var(--sg-blue, #2563eb);
 }
 
@@ -65,19 +76,59 @@
     box-shadow: 0 0 0 2px rgba(37, 99, 235, .18);
 }
 
-.my-tasks-page .board-reference-comments {
+/* คอลัมน์คอมเมนต์ ใช้ภาษาเดียวกับคอลัมน์ไฟล์แนบ เพื่อให้สองคอลัมน์ท้ายอ่านเป็นชุดเดียวกัน
+ * จำนวนที่แสดงคือคอมเมนต์ทั้งหมด ส่วน unread เป็นสถานะเชิงสายตาบนปุ่มเท่านั้น */
+.my-tasks-page .board-comments {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-self: start;
-    gap: 4px;
-    min-height: 20px;
-    margin-top: 3px;
-    padding: 1px 6px;
-    border-radius: 999px;
+    gap: 5px;
+    padding: 5px 7px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #8a97a9;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.my-tasks-page .board-comments:hover {
+    background: #edf4ff;
+    color: #2f6fe4;
+}
+
+.my-tasks-page .board-comments.has-comments {
+    color: #2f6fe4;
+}
+
+.my-tasks-page .board-comments strong {
+    font-size: 11px;
+    font-weight: 750;
+}
+
+.my-tasks-page .board-comments:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, .22);
+}
+
+/* unread ถูกล้างด้วยการถอดคลาสนี้เท่านั้น ตัวช่องและจำนวนรวมต้องอยู่ครบเสมอ
+ * มิฉะนั้นคอลัมน์ถัดไปของกริดจะเลื่อนตำแหน่ง */
+.my-tasks-page .board-comments.has-unread {
     background: #eaf1ff;
-    color: #2563eb;
-    font-size: 10px;
+    color: #1d4ed8;
     font-weight: 700;
+}
+
+.my-tasks-page .board-comments.has-unread::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #dc2626;
 }
 
 /* User board cleanup: task rows stay neutral. Priority color belongs to the
@@ -185,6 +236,7 @@
         64px
         86px
         66px
+        66px
         34px;
     column-gap: 0;
 }
@@ -196,9 +248,14 @@
 .my-tasks-page .board-reference-columns > span:nth-child(6),
 .my-tasks-page .board-reference-columns > span:nth-child(7),
 .my-tasks-page .board-reference-columns > span:nth-child(8),
-.my-tasks-page .board-reference-columns > span:nth-child(9) {
+.my-tasks-page .board-reference-columns > span:nth-child(9),
+.my-tasks-page .board-reference-columns > span:nth-child(10) {
     justify-self: center;
     text-align: center;
+}
+
+.my-tasks-page .board-reference-columns > span:nth-child(6) {
+    white-space: nowrap;
 }
 
 .my-tasks-page .board-start {
@@ -227,12 +284,12 @@
 
 @media (max-width: 1100px) {
     .my-tasks-page .board-reference-list {
-        min-width: 1260px;
+        min-width: 1326px;
     }
 
     .my-tasks-page .board-reference-columns,
     .my-tasks-page .board-reference-row {
-        grid-template-columns: 320px 112px 160px 112px 112px 64px 86px 66px 34px;
+        grid-template-columns: 320px 112px 160px 112px 112px 64px 86px 66px 66px 34px;
     }
 }
 
@@ -440,11 +497,12 @@ body:not(.sidebar-collapsed) .my-tasks-page .board-reference-row {
         60px
         76px
         62px
+        62px
         32px;
 }
 
 body:not(.sidebar-collapsed) .my-tasks-page .board-reference-list {
-    min-width: 1056px;
+    min-width: 1118px;
 }
 
 body:not(.sidebar-collapsed) .my-tasks-page .board-project-rule {
@@ -565,11 +623,12 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
     grid-template-columns:
         minmax(300px, 1fr)
         112px
-        158px
+        140px
         112px
         112px
-        72px
+        90px
         92px
+        72px
         72px
         38px;
 }
@@ -580,17 +639,18 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         grid-template-columns:
             minmax(260px, 1fr)
             104px
-            136px
+            116px
             104px
             104px
-            66px
+            86px
             82px
+            68px
             68px
             34px;
     }
 
     body:not(.sidebar-collapsed) .my-tasks-page .board-reference-list {
-        min-width: 980px;
+        min-width: 1048px;
     }
 }
 
@@ -626,18 +686,19 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
  * จึงขาดในช่วง 761-823px และช่วง 992-1005px ตอน Sidebar กาง
  *
  * แก้โดยให้คอลัมน์ชื่องานและคอลัมน์กลางยุบได้ (ขอบล่าง 0) แต่คงคอลัมน์ปุ่มไว้เท่าเดิม
- * ค่าความกว้างสูงสุดของทุกคอลัมน์ยังเป็นค่าเดิม จอกว้างจึงเห็นเหมือนเดิมทุกประการ
+ * ผลรวม fixed tracks คงเดิม โดยย้ายพื้นที่บางส่วนจากความสำคัญให้ผู้รับผิดชอบอ่านได้หนึ่งบรรทัด
  */
 .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
 .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
     grid-template-columns:
         minmax(0, 1fr)
         minmax(0, 112px)
-        minmax(0, 158px)
+        minmax(0, 140px)
         minmax(0, 112px)
         minmax(0, 112px)
-        minmax(0, 72px)
+        minmax(0, 90px)
         minmax(0, 92px)
+        minmax(0, 72px)
         minmax(0, 72px)
         38px;
 }
@@ -656,11 +717,12 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         grid-template-columns:
             minmax(0, 1fr)
             minmax(0, 104px)
-            minmax(0, 136px)
+            minmax(0, 116px)
             minmax(0, 104px)
             minmax(0, 104px)
-            minmax(0, 66px)
+            minmax(0, 86px)
             minmax(0, 82px)
+            minmax(0, 68px)
             minmax(0, 68px)
             34px;
     }
@@ -731,7 +793,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         margin-right: 0;
     }
 
-    .my-tasks-page .board-project-group__header > strong {
+    .my-tasks-page .board-project-group__header > .board-project-group__title {
         grid-column: 3;
         grid-row: 1;
         min-width: 0;
@@ -797,7 +859,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
     .my-tasks-page .board-reference-row,
     .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
         display: grid;
-        grid-template-columns: max-content minmax(0, 1fr) auto;
+        grid-template-columns: max-content minmax(0, 1fr) auto auto;
         grid-template-rows: auto auto auto auto;
         gap: 10px 9px;
         min-height: 0;
@@ -836,10 +898,11 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         text-align: left;
     }
 
-    .my-tasks-page .board-reference-task strong {
+    .my-tasks-page .board-reference-task__title {
         display: -webkit-box;
         overflow: hidden;
         font-size: 14px;
+        font-weight: 500;
         line-height: 1.4;
         overflow-wrap: anywhere;
         white-space: normal;
@@ -857,7 +920,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
 
     .my-tasks-page .board-reference-row > .board-priority-menu,
     .my-tasks-page .board-reference-row > .board-priority {
-        grid-column: 2 / 4;
+        grid-column: 2 / 5;
         grid-row: 2;
         min-width: 0;
         max-width: 100%;
@@ -892,7 +955,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
     }
 
     .my-tasks-page .board-reference-row > .board-due {
-        grid-column: 2 / 4;
+        grid-column: 2 / 5;
         grid-row: 3;
         min-width: 0;
         justify-self: start;
@@ -919,6 +982,16 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         grid-column: 3;
         grid-row: 4;
         justify-self: end;
+    }
+
+    .my-tasks-page .board-reference-row > .board-comments {
+        grid-column: 4;
+        grid-row: 4;
+        justify-self: end;
+    }
+
+    .my-tasks-page .board-reference-row > .board-comments:not(.has-comments) strong {
+        display: none;
     }
 
     .my-tasks-page .board-reference-row > .board-attachments:not(.has-files) strong {

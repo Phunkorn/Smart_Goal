@@ -147,6 +147,24 @@ class TodayWorkspaceTest extends TestCase
         $this->assertNotNull($myTasksJob->fresh()->late_at);
     }
 
+    public function test_status_one_is_rejected_by_both_active_status_endpoints(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $task = $this->job($user, 2, now(), now()->addDay());
+
+        $this->actingAs($user)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 1])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('job_status');
+
+        $this->actingAs($user)
+            ->postJson(route('mytasks.updateStatus', $task), ['job_status' => 1])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('job_status');
+
+        $this->assertSame(2, (int) $task->fresh()->job_status);
+    }
+
     public function test_pause_timestamp_tracks_the_latest_pause_and_clears_when_resumed(): void
     {
         $user = User::factory()->create(['role' => 'user']);
@@ -166,16 +184,16 @@ class TodayWorkspaceTest extends TestCase
         $this->assertTrue($job->fresh()->paused_at->equalTo($secondPause));
     }
 
-    public function test_opening_today_workspace_activates_started_status_one_tasks_in_range(): void
+    public function test_opening_today_workspace_preserves_status_two_for_current_and_future_tasks(): void
     {
         $user = User::factory()->create(['role' => 'user']);
-        $today = $this->job($user, 1, now()->subDay(), now()->addDay());
-        $future = $this->job($user, 1, now()->addDay(), now()->addDays(2));
+        $today = $this->job($user, 2, now()->subDay(), now()->addDay());
+        $future = $this->job($user, 2, now()->addDay(), now()->addDays(2));
 
         $response = $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
 
         $this->assertSame(2, (int) $today->fresh()->job_status);
-        $this->assertSame(1, (int) $future->fresh()->job_status);
+        $this->assertSame(2, (int) $future->fresh()->job_status);
         $response->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$today->job_id]);
         $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->contains($future->job_id));
     }
@@ -184,7 +202,7 @@ class TodayWorkspaceTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'user']);
         $today = $this->job($user, 2, now(), now()->addDay());
-        $future = $this->job($user, 1, now()->addMonth(), now()->addMonth()->addDays(3));
+        $future = $this->job($user, 2, now()->addMonth(), now()->addMonth()->addDays(3));
 
         $response = $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
 
@@ -201,6 +219,9 @@ class TodayWorkspaceTest extends TestCase
             ->assertDontSee('data-calendar-detail-timeline', false)
             ->assertSee('data-project-board', false)
             ->assertSee('data-table-kanban', false)
+            ->assertDontSee('data-kanban-column='.chr(34).'1'.chr(34), false)
+            ->assertDontSee('data-modal-status-value='.chr(34).'1'.chr(34), false)
+            ->assertDontSee('ยังไม่เริ่ม')
             ->assertSee('data-workspace-task-source', false)
             // overlay ใช้ theme scope (sg-task-theme) ไม่ใช่ page-layout class
             // เพื่อไม่ให้ width/margin ของหน้ารั่วลงมาบีบ backdrop
@@ -218,37 +239,37 @@ class TodayWorkspaceTest extends TestCase
         $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->contains($future->job_id));
     }
 
-    public function test_pending_task_is_never_auto_started_or_auto_marked_late(): void
+    public function test_pending_task_is_never_auto_marked_late(): void
     {
         $user = User::factory()->create(['role' => 'user']);
-        $started = $this->job($user, 1, now()->subDay(), now()->addDay(), ['approval_status' => 'pending']);
-        $overdue = $this->job($user, 1, now()->subWeek(), now()->subDay(), ['approval_status' => 'pending']);
+        $started = $this->job($user, 2, now()->subDay(), now()->addDay(), ['approval_status' => 'pending']);
+        $overdue = $this->job($user, 2, now()->subWeek(), now()->subDay(), ['approval_status' => 'pending']);
 
         $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
 
-        $this->assertSame(1, (int) $started->fresh()->job_status);
-        $this->assertSame(1, (int) $overdue->fresh()->job_status);
+        $this->assertSame(2, (int) $started->fresh()->job_status);
+        $this->assertSame(2, (int) $overdue->fresh()->job_status);
         $this->assertNull($overdue->fresh()->late_at);
     }
 
-    public function test_rejected_task_is_never_auto_started_or_auto_marked_late(): void
+    public function test_rejected_task_is_never_auto_marked_late(): void
     {
         $user = User::factory()->create(['role' => 'user']);
-        $started = $this->job($user, 1, now()->subDay(), now()->addDay(), ['approval_status' => 'rejected']);
-        $overdue = $this->job($user, 1, now()->subWeek(), now()->subDay(), ['approval_status' => 'rejected']);
+        $started = $this->job($user, 2, now()->subDay(), now()->addDay(), ['approval_status' => 'rejected']);
+        $overdue = $this->job($user, 2, now()->subWeek(), now()->subDay(), ['approval_status' => 'rejected']);
 
         $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
 
-        $this->assertSame(1, (int) $started->fresh()->job_status);
-        $this->assertSame(1, (int) $overdue->fresh()->job_status);
+        $this->assertSame(2, (int) $started->fresh()->job_status);
+        $this->assertSame(2, (int) $overdue->fresh()->job_status);
         $this->assertNull($overdue->fresh()->late_at);
     }
 
-    public function test_approved_task_still_auto_starts_and_auto_marks_late(): void
+    public function test_approved_doing_task_is_auto_marked_late_when_overdue(): void
     {
         $user = User::factory()->create(['role' => 'user']);
-        $started = $this->job($user, 1, now()->subDay(), now()->addDay());
-        $overdue = $this->job($user, 1, now()->subWeek(), now()->subDay());
+        $started = $this->job($user, 2, now()->subDay(), now()->addDay());
+        $overdue = $this->job($user, 2, now()->subWeek(), now()->subDay());
 
         $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
 
@@ -257,14 +278,79 @@ class TodayWorkspaceTest extends TestCase
         $this->assertNotNull($overdue->fresh()->late_at);
     }
 
+    public function test_late_status_reconciles_after_authorized_due_or_schedule_change(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $user = User::factory()->create(['role' => 'user']);
+
+        $resumed = $this->job($user, 6, now()->subWeek(), now()->subDay(), ['late_at' => now()]);
+        $this->actingAs($admin)
+            ->postJson(route('mytasks.updateDueDate', $resumed), ['job_due_at' => now()->addDay()->toDateString()])
+            ->assertOk()
+            ->assertJsonPath('job_status', 2);
+        $this->assertSame(2, (int) $resumed->fresh()->job_status);
+        $this->assertNull($resumed->fresh()->late_at);
+
+        $rescheduled = $this->job($user, 6, now()->subWeek(), now()->subDay(), ['late_at' => now()]);
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.schedule.update', $rescheduled), [
+                'job_start_at' => now()->addDays(2)->toDateString(),
+                'job_due_at' => now()->addDays(4)->toDateString(),
+            ])
+            ->assertOk()
+            ->assertJsonPath('job_status', 2);
+        $this->assertSame(2, (int) $rescheduled->fresh()->job_status);
+        $this->assertNull($rescheduled->fresh()->late_at);
+
+        $stillLate = $this->job($user, 6, now()->subWeek(), now()->subDays(2), ['late_at' => now()]);
+        $this->actingAs($admin)
+            ->postJson(route('mytasks.updateDueDate', $stillLate), ['job_due_at' => now()->subDay()->toDateString()])
+            ->assertOk()
+            ->assertJsonPath('job_status', 6);
+        $this->assertNotNull($stillLate->fresh()->late_at);
+
+        $newlyLate = $this->job($user, 2, now()->subWeek(), now()->addDay());
+        $this->actingAs($admin)
+            ->postJson(route('mytasks.updateDueDate', $newlyLate), ['job_due_at' => now()->subDay()->toDateString()])
+            ->assertOk()
+            ->assertJsonPath('job_status', 6);
+        $this->assertNotNull($newlyLate->fresh()->late_at);
+    }
+
+    public function test_admin_cannot_override_late_to_active_while_schedule_is_still_overdue(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $user = User::factory()->create(['role' => 'user']);
+        $late = $this->job($user, 6, now()->subWeek(), now()->subDay(), ['late_at' => now()]);
+
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $late), ['job_status' => 1])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('job_status');
+        $this->assertSame(6, (int) $late->fresh()->job_status);
+
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $late), ['job_status' => 2])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('job_status');
+        $this->assertSame(6, (int) $late->fresh()->job_status);
+
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $late), ['job_status' => 5])
+            ->assertOk()
+            ->assertJsonPath('job_status', 5);
+        $this->assertNull($late->fresh()->late_at);
+        $this->assertNotNull($late->fresh()->paused_at);
+    }
+
     public function test_pending_overdue_task_only_enters_the_lifecycle_after_admin_approval(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $user = User::factory()->create(['role' => 'user']);
-        $job = $this->job($user, 1, now()->subWeek(), now()->subDay(), ['approval_status' => 'pending']);
+        $job = $this->job($user, 2, now()->subWeek(), now()->subDay(), ['approval_status' => 'pending']);
 
         $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
-        $this->assertSame(1, (int) $job->fresh()->job_status);
+        $this->assertSame(2, (int) $job->fresh()->job_status);
 
         $this->actingAs($admin)
             ->patch(route('admin.tasks.approval', $job->job_id), ['approval_status' => 'approved'])
@@ -281,7 +367,7 @@ class TodayWorkspaceTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'user']);
         $done = $this->job($user, 4, '2026-08-16', '2026-08-20', ['job_completed_at' => '2026-08-18 10:00:00']);
-        $future = $this->job($user, 1, '2026-09-01', '2026-09-01');
+        $future = $this->job($user, 2, '2026-09-01', '2026-09-01');
 
         // ไม่ต้อง travelTo เพราะ dateRangeLabel ต้องไม่ขึ้นกับ "วันนี้" เหมือน timeProgress()
         $this->assertSame('16–20 ส.ค. 2569', TodayWorkspace::dateRangeLabel($done->job_start_at, $done->job_due_at));

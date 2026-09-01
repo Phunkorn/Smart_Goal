@@ -590,7 +590,7 @@ class AdminWorkBoardTest extends TestCase
             'job_topic' => $topic,
             'job_details' => 'Task details',
             'job_priority' => 2,
-            'job_status' => 1,
+            'job_status' => 2,
             'approval_status' => 'approved',
             'approved_by' => $creator->role === 'admin' ? $creator->id : null,
             'approved_at' => now(),

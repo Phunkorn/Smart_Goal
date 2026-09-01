@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -156,6 +157,31 @@ class TrashRetention
                 $model->forceDelete();
             }
         }
+    }
+
+    /**
+     * แผนกที่เลือกกรองได้ในถังขยะ
+     *
+     * payload เก็บชื่อแผนกไว้คนละตำแหน่งตามชนิดข้อมูล จึงต้องกวาดทุกตำแหน่งที่เป็นไปได้
+     * แล้วผสมกับรายชื่อตั้งต้น เพื่อให้ตัวเลือกไม่หายไปตอนถังขยะยังว่าง
+     *
+     * @return Collection<int, string>
+     */
+    public static function departmentOptions(): Collection
+    {
+        return collect(['IT', 'Marketing', 'Account', 'Callcenter'])
+            ->merge(TrashLog::query()->pluck('payload_json')->flatMap(function ($payload) {
+                $payload = is_string($payload) ? json_decode($payload, true) : $payload;
+
+                return [
+                    $payload['work_order']['department_name'] ?? null,
+                    $payload['user']['department_name'] ?? null,
+                    $payload['assignee']['department']['department_name'] ?? null,
+                ];
+            }))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     private static function mainPayload(TrashLog $trash): array

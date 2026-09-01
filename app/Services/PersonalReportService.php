@@ -89,7 +89,6 @@ final class PersonalReportService
             'filterOptions' => [
                 'periods' => self::PERIODS,
                 'statuses' => [
-                    1 => 'ยังไม่เริ่ม',
                     2 => 'กำลังทำ',
                     3 => 'รอตรวจสอบ',
                     4 => 'เสร็จสิ้น',
@@ -180,7 +179,7 @@ final class PersonalReportService
             'start_utc' => $start->startOfDay()->utc(),
             'end_utc' => $end->endOfDay()->utc(),
             'year' => $this->selectedYear($request, $now),
-            'status' => in_array($status, range(1, 6), true) ? $status : null,
+            'status' => in_array($status, [2, 3, 4, 5, 6], true) ? $status : null,
             'priority' => array_key_exists($priority, WorkBoardDesign::TASK_PRIORITIES) ? $priority : null,
             'search' => mb_substr(trim($request->string('search')->toString()), 0, 100),
         ];
@@ -222,7 +221,7 @@ final class PersonalReportService
     private function status(WorkOrder $job, CarbonInterface $now): array
     {
         if ($this->isOverdue($job, $now)) {
-            return ['key' => 'late', ...WorkBoardDesign::STATUSES['late']];
+            return ['key' => 'late', ...WorkBoardDesign::statusMeta('late')];
         }
 
         $key = match ((int) $job->job_status) {
@@ -231,10 +230,10 @@ final class PersonalReportService
             4 => 'done',
             5 => 'paused',
             6 => 'late',
-            default => 'todo',
+            default => 'unsupported',
         };
 
-        return ['key' => $key, ...WorkBoardDesign::STATUSES[$key]];
+        return ['key' => $key, ...WorkBoardDesign::statusMeta($key)];
     }
 
     private function isIncomplete(WorkOrder $job): bool

@@ -25,6 +25,8 @@
     $sidePanel = $sidePanel ?? null;
     $readOnly = (bool) ($readOnly ?? false);
     $notice = $notice ?? null;
+    $variant = $variant ?? null;
+    $isTeamManager = $variant === 'team-manager';
     $labels = array_merge([
         'title' => 'เลือกบุคคล',
         'hint' => 'คลิกเลือกได้หลายคน',
@@ -42,19 +44,50 @@
     $selectedPeople = $people->whereIn('id', $selectedIds->all());
 @endphp
 
-<div class="people-selector-field" data-people-selector data-instance="{{ $instanceId }}" @if($readOnly) data-readonly="true" @endif>
-    <div class="people-selector-field__head">
-        <span class="people-selector-field__label" id="{{ $instanceId }}-label">{{ $labels['title'] }}</span>
-        <span>{{ $labels['hint'] }}</span>
-    </div>
+<div @class(['people-selector-field', 'people-selector-field--team-manager' => $isTeamManager])
+    data-people-selector
+    data-instance="{{ $instanceId }}"
+    @if($variant) data-people-variant="{{ $variant }}" @endif
+    @if($readOnly) data-readonly="true" @endif>
+    @unless($isTeamManager)
+        <div class="people-selector-field__head">
+            <span class="people-selector-field__label" id="{{ $instanceId }}-label">{{ $labels['title'] }}</span>
+            <span>{{ $labels['hint'] }}</span>
+        </div>
+    @endunless
 
     <div class="people-selector">
         <div class="people-selector__browser">
-            <label class="people-selector__search">
-                <i class="bi bi-search" aria-hidden="true"></i>
-                <span class="visually-hidden">{{ $labels['search'] }}</span>
-                <input type="search" placeholder="{{ $labels['search'] }}" aria-label="{{ $labels['search'] }}" data-people-search @disabled($readOnly)>
-            </label>
+            @if($isTeamManager)
+                <div class="people-selector-field__head">
+                    <span>
+                        <strong class="people-selector-field__label" id="{{ $instanceId }}-label">{{ $labels['title'] }}</strong>
+                        <small>{{ $labels['hint'] }}</small>
+                    </span>
+                </div>
+            @endif
+
+            <div class="people-selector__search-tools">
+                <label class="people-selector__search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <span class="visually-hidden">{{ $labels['search'] }}</span>
+                    <input type="search" placeholder="{{ $labels['search'] }}" aria-label="{{ $labels['search'] }}" data-people-search @disabled($readOnly)>
+                </label>
+
+                @if($isTeamManager)
+                    <label class="people-selector__department-select">
+                        <i class="bi bi-funnel" aria-hidden="true"></i>
+                        <span class="visually-hidden">กรองตามแผนก</span>
+                        <select data-people-department-select aria-label="กรองตามแผนก" @disabled($readOnly)>
+                            <option value="">แผนกทั้งหมด</option>
+                            @foreach($departments as $department)
+                                <option value="{{ $department->id }}">{{ $department->department_name }}</option>
+                            @endforeach
+                        </select>
+                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                    </label>
+                @endif
+            </div>
 
             <div class="people-selector__departments" role="group" aria-label="กรองตามแผนก">
                 <button class="people-selector__department is-active" type="button" data-people-department data-department-id="" aria-pressed="true" @disabled($readOnly)>{{ $labels['all'] }}</button>
@@ -69,25 +102,53 @@
                         $isSelected = $selectedIds->contains($person->id);
                         $isExcluded = $excludeIds->contains($person->id);
                         $departmentName = $person->department?->department_name ?? 'ไม่ระบุแผนก';
+                        $email = $person->email ?? null;
+                        $avatarUrl = $person->profile_image ? route('media.profile', $person) : null;
+                        $initial = Str::substr($person->name ?: '?', 0, 1);
                     @endphp
                     <label @class(['people-selector__option', 'is-selected' => $isSelected])
                         data-people-option
                         @if($isExcluded) data-people-excluded hidden @endif
                         data-person-id="{{ $person->id }}"
                         data-department-id="{{ $person->department_id ?? '' }}"
-                        data-search="{{ Str::lower($person->name.' '.$departmentName.' '.($person->role ?? '')) }}">
+                        data-search="{{ Str::lower($person->name.' '.($email ?? '').' '.$departmentName.' '.($person->role ?? '')) }}">
                         <input class="form-check-input" type="checkbox"
                             id="{{ $instanceId }}-person-{{ $person->id }}"
                             name="{{ $inputName }}"
                             value="{{ $person->id }}"
                             data-people-checkbox
                             data-person-name="{{ $person->name }}"
+                            data-person-email="{{ $email }}"
+                            data-person-department="{{ $departmentName }}"
+                            data-person-avatar-url="{{ $avatarUrl }}"
                             @checked($isSelected) @disabled($readOnly || $isExcluded)>
-                        <span><strong>{{ $person->name }}</strong><small>{{ $departmentName }}</small></span>
+                        @if($isTeamManager)
+                            <span class="people-selector__avatar" aria-hidden="true">
+                                @if($avatarUrl)
+                                    <img src="{{ $avatarUrl }}" alt="">
+                                @else
+                                    <span>{{ $initial }}</span>
+                                @endif
+                            </span>
+                        @endif
+                        <span class="people-selector__person">
+                            <strong>{{ $person->name }}</strong>
+                            <small>{{ $email ?: $departmentName }}</small>
+                        </span>
+                        @if($isTeamManager)
+                            <span class="people-selector__department-badge">{{ $departmentName }}</span>
+                        @endif
                     </label>
                 @endforeach
                 <p class="people-selector__empty" data-people-empty @if($people->isNotEmpty()) hidden @endif>{{ $labels['emptyOptions'] }}</p>
             </div>
+
+            @if($isTeamManager)
+                <div class="people-selector__selection-summary">
+                    <span><i class="bi bi-info-circle" aria-hidden="true"></i> <strong data-people-summary-count>เลือกแล้ว {{ $selectedIds->count() }} คน</strong></span>
+                    <button type="button" data-people-clear @disabled($readOnly || $selectedIds->isEmpty())>ล้างการเลือก</button>
+                </div>
+            @endif
         </div>
 
         <div class="people-selector__selected">
@@ -96,6 +157,9 @@
                 @include($sidePanel)
             @endif
 
+            @if($isTeamManager)
+                <section class="people-selector__selected-stage" data-people-stage @if($selectedIds->isEmpty()) hidden @endif>
+            @endif
             <div class="people-selector__selected-head">
                 <strong data-people-count data-count-template="{{ $labels['countTemplate'] }}" aria-live="polite">{{ str_replace(':count', $selectedIds->count(), $labels['countTemplate']) }}</strong>
                 <span>{{ $labels['removeHint'] }}</span>
@@ -109,6 +173,9 @@
                 @endforeach
                 <p class="people-selector__empty" data-people-chips-empty @if($selectedIds->isNotEmpty()) hidden @endif>{{ $labels['emptySelected'] }}</p>
             </div>
+            @if($isTeamManager)
+                </section>
+            @endif
         </div>
     </div>
 

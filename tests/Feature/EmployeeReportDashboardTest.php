@@ -187,12 +187,14 @@ class EmployeeReportDashboardTest extends TestCase
             ->assertSee('employee-chart-card--trend', false)
             ->assertSee('employee-chart-card--status', false)
             ->assertSee('employee-chart-card--completed', false)
-            ->assertSee('employee-chart-card--ontime', false)
             ->assertSee('employee-chart-card--priority', false)
             ->assertSee('employee-report__attention', false)
             ->assertSee('data-chart-kind="line"', false)
             ->assertSee('data-chart-kind="bar"', false)
             ->assertSee('data-chart-kind="doughnut"', false)
+            ->assertDontSee('employeeOnTimeChart', false)
+            ->assertSee('employee-report__ontime', false)
+            ->assertSee('report-kpi-band', false)
             ->getContent();
 
         $dashboardEnd = strpos($html, '</section>', strpos($html, 'employee-report__dashboard'));

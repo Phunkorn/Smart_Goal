@@ -7,6 +7,31 @@
 .report-empty i { color:#9babc3; font-size:1.7rem; }
 .report-empty strong { color:#344054; }
 
+/* แถบตัวเลขสรุป ใช้ร่วมกันทั้งสามหน้ารายงาน
+ * ตัวเลขต้องอ่านได้ก่อนกราฟเสมอ จึงวางไว้บนสุดและใช้ขนาดใหญ่กว่าทุกอย่างในการ์ด */
+.report-kpi-band { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:13px; margin-bottom:18px; }
+.report-kpi { display:grid; align-content:start; gap:3px; min-width:0; padding:15px 17px; border:1px solid #e4eaf3; border-radius:14px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.report-kpi__label { display:flex; align-items:center; gap:6px; color:#64748b; font-size:.8rem; font-weight:650; }
+.report-kpi__label i { color:#94a3b8; font-size:.9rem; }
+.report-kpi__value { color:#0f172a; font-size:1.85rem; font-weight:750; line-height:1.15; letter-spacing:-.01em; }
+.report-kpi__note { display:flex; align-items:center; gap:5px; color:#7c8aa3; font-size:.72rem; font-weight:400; line-height:1.45; }
+
+/* โทนเตือนใช้ควบคู่กับไอคอนและข้อความเสมอ ห้ามสื่อความหมายด้วยสีอย่างเดียว */
+.report-kpi--warning { border-color:#fcd9a4; background:#fffbf4; }
+.report-kpi--warning .report-kpi__value,
+.report-kpi--warning .report-kpi__note { color:#b45309; }
+.report-kpi--warning .report-kpi__note { font-weight:600; }
+.report-kpi--danger { border-color:#f8c3c8; background:#fff6f7; }
+.report-kpi--danger .report-kpi__value,
+.report-kpi--danger .report-kpi__note { color:#be123c; }
+.report-kpi--danger .report-kpi__note { font-weight:600; }
+.report-kpi--good { border-color:#b6e3ce; background:#f5fdf9; }
+.report-kpi--good .report-kpi__value { color:#047857; }
+
+/* แถบสัดส่วนที่ใช้ทั้งในตารางแผนกและการ์ดตัวเลขเดี่ยว */
+.report-meter { display:block; width:100%; height:6px; overflow:hidden; border-radius:999px; background:#eef2f8; }
+.report-meter > span { display:block; height:100%; border-radius:999px; background:var(--report-meter-tone,#1d4ed8); }
+
 .report-chart-shell { position:relative; min-width:0; height:var(--report-chart-height,300px); overflow:hidden; }
 .report-chart-wrap { width:100%; height:100%; min-width:0; opacity:0; transform:translateY(5px); transition:opacity .32s ease,transform .32s ease; transition-delay:var(--report-card-delay,0ms); }
 .report-chart-wrap canvas { width:100% !important; max-width:100%; }
@@ -63,5 +88,6 @@
 .report-tone-red { --report-tone:#dc2626; }
 .report-tag { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; background:color-mix(in srgb,var(--report-tone) 10%,white); color:var(--report-tone); font-size:.75rem; font-weight:700; white-space:nowrap; }
 @keyframes report-shimmer { to { transform:translateX(100%); } }
-@media (max-width:760px) { .report-chart-shell { height:var(--report-chart-height-mobile,255px); } }
+@media (max-width:760px) { .report-chart-shell { height:var(--report-chart-height-mobile,255px); } .report-kpi-band { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; } .report-kpi { padding:13px 14px; } .report-kpi__value { font-size:1.6rem; } }
+@media (max-width:430px) { .report-kpi-band { grid-template-columns:minmax(0,1fr); } }
 @media (prefers-reduced-motion:reduce) { .report-chart-skeleton::after { animation:none; } .report-chart-skeleton,.report-chart-wrap { transition:none; transform:none; } }

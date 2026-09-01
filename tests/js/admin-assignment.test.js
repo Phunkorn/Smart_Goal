@@ -24,7 +24,6 @@ function taskMarkup({assigneeId = ''} = {}) {
 
     return `<section class="board-project-task" data-admin-task>
         <input name="job_topic" value="First task">
-        <textarea name="job_details">Details</textarea>
         <select name="job_priority"><option value="2" selected>ทั่วไป</option></select>
         <input name="job_start_at" value="2026-08-31T09:00">
         <input name="job_due_at" value="2026-09-01T09:00">
@@ -158,6 +157,7 @@ test('save and add next keeps the project and assignee while clearing task conte
     assert.equal(calls[0].url, 'http://localhost/tasks');
     assert.equal(calls[0].options.body.get('work_order_list_id'), '44');
     assert.equal(calls[0].options.body.get('user_id'), '7');
+    assert.equal(calls[0].options.body.has('job_details'), false, 'Admin UI ต้องไม่ส่งฟิลด์รายละเอียดงานแบบ legacy');
     assert.equal(calls[0].options.body.get('job_status'), null, 'สถานะเริ่มต้นต้องมาจาก backend เท่านั้น');
     assert.equal(controller.taskForm.querySelector('[name="job_topic"]').value, '');
     assert.equal(controller.taskForm.querySelector('[data-selected-project-id]').value, '44');
@@ -254,12 +254,18 @@ test('Blade pages share one modal and the user/admin project fields share one co
     const userWorkspace = await read('resources/views/tasks/partials/workspace-interactions.blade.php');
     const boardIndex = await read('resources/views/board/index.blade.php');
     const memberWorkspace = await read('resources/views/work-board/admin/member.blade.php');
+    const modalCss = await read('resources/css/pages/board/modal.css');
 
     assert.match(partial, /data-admin-project-form/);
     assert.match(partial, /data-admin-task-form/);
     assert.match(partial, /route\('mytasks\.create'\)/);
     assert.match(partial, /route\('tasks\.store'\)/);
     assert.match(partial, /tasks\.components\.project-form-fields/);
+    assert.match(partial, /โปรเจกต์ปลายทาง/);
+    assert.match(partial, /ชื่อรายการงาน/);
+    assert.doesNotMatch(partial, /name="job_details"/);
+    assert.match(modalCss, /\.admin-project-choice__heading\s*\{/);
+    assert.match(modalCss, /@media \(max-width: 430px\)[\s\S]*\.admin-task-heading\s*\{\s*flex-direction: column;/);
     assert.match(userWorkspace, /tasks\.components\.project-form-fields/);
     assert.match(projectFields, /WorkBoardDesign::PROJECT_PRIORITIES/);
     assert.match(boardIndex, /@include\('board\.components\.admin-assignment-modal'/);

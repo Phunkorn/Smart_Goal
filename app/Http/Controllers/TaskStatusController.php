@@ -23,10 +23,13 @@ class TaskStatusController extends Controller
         $job = WorkOrder::with('collaborators')->findOrFail($id);
         $user = Auth::user();
 
-        $this->authorize((int) $job->job_status === 4 ? 'reopen' : 'work', $job);
+        $ability = (int) $job->job_status === 4
+            ? 'reopen'
+            : ($user->role === 'admin' ? 'overrideStatus' : 'work');
+        $this->authorize($ability, $job);
 
         $validated = $request->validate([
-            'job_status' => ['required', 'integer', 'in:1,2,3,4,5,6'],
+            'job_status' => ['required', 'integer', 'in:2,3,4,5,6'],
             'completion_attachments' => ['nullable', 'array', 'max:5'],
             'completion_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
             'action' => ['nullable', 'string', 'in:reopen'],
@@ -88,9 +91,6 @@ class TaskStatusController extends Controller
                 'approval_status' => $validated['approval_status'],
                 'approved_by' => Auth::id(),
                 'approved_at' => now(),
-                'job_status' => $validated['approval_status'] === 'approved' && (int) $job->job_status === 1
-                    ? 2
-                    : $job->job_status,
             ])->save();
 
             $job->refresh();

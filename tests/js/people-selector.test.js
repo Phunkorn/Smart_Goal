@@ -92,6 +92,27 @@ test('กรองตามแผนกและรวมกับคำค้�
     assert.deepEqual(ui.visibleIds(), ['1'], 'คำค้นยังมีผลอยู่หลังกดทั้งหมด');
 });
 
+test('Team variant ซิงก์ dropdown กับ chips และล้าง staging ได้โดยไม่กระทบสมาชิกจริง', (t) => {
+    const ui = mountSelector({variant: 'team-manager'});
+    t.after(ui.cleanup);
+
+    const select = ui.root.querySelector('[data-people-department-select]');
+    select.value = '20';
+    select.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+
+    assert.deepEqual(ui.visibleIds(), ['2']);
+    assert.equal(ui.root.querySelector('[data-people-department][data-department-id="20"]').getAttribute('aria-pressed'), 'true');
+
+    clickCheckbox(ui.checkbox(2));
+    assert.equal(ui.root.querySelector('[data-people-stage]').hidden, false);
+    assert.equal(ui.root.querySelector('[data-people-summary-count]').textContent, 'เลือกแล้ว 1 คน');
+
+    click(ui.root.querySelector('[data-people-clear]'));
+    assert.deepEqual(selectedIdsOf(ui.root), []);
+    assert.equal(ui.root.querySelector('[data-people-stage]').hidden, true);
+    assert.equal(ui.root.querySelector('[data-people-clear]').disabled, true);
+});
+
 test('เลือกหลายคนแล้วขึ้นเป็น chip พร้อมจำนวน', (t) => {
     const ui = mountSelector();
     t.after(ui.cleanup);

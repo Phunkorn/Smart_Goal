@@ -240,7 +240,7 @@ class ProtectedMediaAuthorizationTest extends TestCase
 
         $this->activityLog($admin, $employee, ['after' => ['profile_image' => $path]]);
 
-        $response = $this->actingAs($admin)->get(route('admin.activity-logs.index'))->assertOk();
+        $response = $this->actingAs($admin)->get(route('admin.audit.index', ['tab' => 'activity']))->assertOk();
 
         $response->assertSee(route('media.show', ['path' => $path]), false);
         $response->assertDontSee('ไม่พบรูปเดิม');
@@ -264,7 +264,7 @@ class ProtectedMediaAuthorizationTest extends TestCase
             'after' => ['profile_image' => $currentPath],
         ], 'updated');
 
-        $response = $this->actingAs($admin)->get(route('admin.activity-logs.index'))->assertOk();
+        $response = $this->actingAs($admin)->get(route('admin.audit.index', ['tab' => 'activity']))->assertOk();
         $content = $response->getContent();
 
         // ไม่มี <img> ที่ชี้ไปยังรูปเดิมที่หายไป จึงไม่เกิด broken image
@@ -292,7 +292,7 @@ class ProtectedMediaAuthorizationTest extends TestCase
 
         $this->activityLog($admin, $employee, ['after' => ['profile_image' => $path]]);
 
-        $response = $this->actingAs($admin)->get(route('admin.activity-logs.index'))->assertOk();
+        $response = $this->actingAs($admin)->get(route('admin.audit.index', ['tab' => 'activity']))->assertOk();
 
         $this->assertStringNotContainsString(route('media.show', ['path' => $path]), $response->getContent());
         $response->assertSee('ไม่พบรูปเดิม');

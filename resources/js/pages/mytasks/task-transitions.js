@@ -1,6 +1,9 @@
 export function transitionKind(currentStatus, targetStatus, capabilities = {}) {
     if (currentStatus === targetStatus) return 'none';
     if (currentStatus === 4 && targetStatus === 2 && capabilities.can_reopen) return 'reopen';
+    if (currentStatus !== 4 && capabilities.can_admin_override) {
+        return targetStatus === 4 ? 'admin-override-complete' : 'admin-override';
+    }
     if (currentStatus === 3 && targetStatus === 2 && capabilities.can_review) return 'return';
     if (currentStatus === 3 && targetStatus === 4 && capabilities.can_review) return 'approve';
     if (targetStatus === 3 && capabilities.can_submit_review) return 'submit';
@@ -47,6 +50,8 @@ export async function confirmTaskTransition(currentStatus, targetStatus, capabil
         approve: {title: 'ยืนยันปิดงาน?', text: 'คุณได้ตรวจสอบงานแล้วและยืนยันว่างานนี้เสร็จสมบูรณ์ใช่หรือไม่? หลังปิดงาน ผู้ใช้งานทั่วไปจะไม่สามารถแก้ไขงานนี้ได้', confirmButtonText: 'ยืนยันปิดงาน'},
         'self-close': {title: 'ยืนยันปิดงานนี้หรือไม่?', text: 'หลังปิดงาน งานนี้จะเป็นสถานะสุดท้ายและไม่สามารถแก้ไขได้', confirmButtonText: 'ยืนยันปิดงาน'},
         reopen: {title: 'ต้องการเปิดงานนี้อีกครั้งหรือไม่?', text: 'งานจะกลับเข้าสู่สถานะกำลังทำ', confirmButtonText: 'เปิดงานอีกครั้ง'},
+        'admin-override': {title: 'ยืนยันการปรับสถานะโดยผู้ดูแล?', text: 'สถานะจะถูกปรับโดยตรงและบันทึกในประวัติงาน', confirmButtonText: 'ยืนยันการปรับสถานะ'},
+        'admin-override-complete': {title: 'ยืนยันการปิดงานโดยผู้ดูแล?', text: 'งานจะถูกปิดโดยตรงและต้องใช้คำสั่งเปิดงานอีกครั้งหากต้องการแก้ไข', confirmButtonText: 'ยืนยันปิดงาน'},
     };
 
     if (kind === 'return') {

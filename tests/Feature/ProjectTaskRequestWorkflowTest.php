@@ -521,7 +521,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'work_order_list_id' => $project->id,
             'job_topic' => 'Anchor task',
             'job_priority' => 2,
-            'job_status' => 1,
+            'job_status' => 2,
             'approval_status' => 'approved',
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),

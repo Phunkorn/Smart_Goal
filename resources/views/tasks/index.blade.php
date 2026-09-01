@@ -3,7 +3,7 @@
 
 <?php
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
-    $statusLabels = [1 => 'ยังไม่เริ่ม', 2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน', 6 => 'ล่าช้า'];
+    $statusLabels = [2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน', 6 => 'ล่าช้า'];
     $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
     $doneCount = $allTasks->where('job_status', 4)->count();
     $lateCount = $allTasks->filter(fn ($task) => (int) $task->job_status !== 4 && $task->job_due_at?->isPast())->count();
@@ -85,12 +85,12 @@
 
     {{-- server เป็นผู้ตัดสินมุมมองตั้งแต่ HTML แรก จึงไม่มีการกระพริบจากตารางไปปฏิทิน --}}
     <section class="notion-database" data-view="{{ $workspaceView }}">
-        <div class="notion-toolbar" data-board-toolbar {{ $workspaceView !== 'board' ? 'hidden' : '' }}>
+        {{-- <div class="notion-toolbar" data-board-toolbar {{ $workspaceView !== 'board' ? 'hidden' : '' }}>
             <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องาน โปรเจกต์ หรือผู้รับผิดชอบ..."></label>
             <label class="notion-group">จัดกลุ่มตาม <select data-group><option value="project">โปรเจกต์</option><option value="status">สถานะ</option><option value="assignee">ผู้รับผิดชอบ</option><option value="priority">ความสำคัญ</option></select></label>
-            <label class="notion-filter"><i class="bi bi-funnel"></i><select data-filter><option value="">ทุกสถานะ</option><option value="1">ยังไม่เริ่ม</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="5">พักงาน</option><option value="late">ล่าช้า</option><option value="4">เสร็จแล้ว</option></select></label>
+            <label class="notion-filter"><i class="bi bi-funnel"></i><select data-filter><option value="">ทุกสถานะ</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="5">พักงาน</option><option value="late">ล่าช้า</option><option value="4">เสร็จแล้ว</option></select></label>
             <button type="button" data-sort><i class="bi bi-sort-down"></i> กำหนดส่ง</button>
-        </div>
+        </div> --}}
 
         <div class="notion-table-scroll">
             <div class="project-board" data-project-board>

@@ -28,6 +28,6 @@ final class TaskCollaboratorOptions
             ->where('is_active', true)
             ->when($actor, fn ($query) => $query->where('id', '!=', $actor->id))
             ->orderBy('name')
-            ->get(['id', 'name', 'role', 'department_id', 'profile_image']);
+            ->get(['id', 'name', 'email', 'role', 'department_id', 'profile_image']);
     }
 }

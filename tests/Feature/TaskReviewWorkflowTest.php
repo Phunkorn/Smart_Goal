@@ -17,7 +17,7 @@ class TaskReviewWorkflowTest extends TestCase
     {
         $creator = $this->user();
         $assignee = $this->user();
-        $outsider = $this->user('admin');
+        $outsider = $this->user();
         $task = $this->task($assignee, $creator, 2);
 
         $this->actingAs($assignee)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 4])
@@ -123,6 +123,75 @@ class TaskReviewWorkflowTest extends TestCase
         $this->assertSame(1, SystemNotification::where('type', 'review_approved')->where('user_id', $collaborator->id)->count());
         $this->assertSame(0, SystemNotification::where('type', 'review_approved')->where('user_id', $creator->id)->count());
         $this->assertSame(1, ActivityLog::where('action', 'review_approved')->count());
+    }
+
+    public function test_admin_can_override_approved_active_statuses_but_never_assign_late_manually(): void
+    {
+        $admin = $this->user('admin');
+        $creator = $this->user();
+        $assignee = $this->user();
+        $task = $this->task($assignee, $creator, 2);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 5])
+            ->assertOk()
+            ->assertJsonPath('job_status', 5)
+            ->assertJsonPath('transitions.can_admin_override', true);
+        $this->assertNotContains(1, $response->json('transitions.allowed_statuses'));
+        $this->assertContains(2, $response->json('transitions.allowed_statuses'));
+        $this->assertContains(5, $response->json('transitions.allowed_statuses'));
+        $this->assertNotContains(6, $response->json('transitions.allowed_statuses'));
+        $this->assertNotNull($task->fresh()->paused_at);
+
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 3])
+            ->assertOk()
+            ->assertJsonPath('job_status', 3);
+        $task->refresh();
+        $this->assertNull($task->paused_at);
+        $this->assertNull($task->submitted_for_review_by);
+
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 4])
+            ->assertOk()
+            ->assertJsonPath('job_status', 4);
+        $this->assertSame($admin->id, $task->fresh()->final_approved_by);
+        $this->assertNotNull($task->fresh()->job_completed_at);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'admin_status_overridden', 'user_id' => $admin->id]);
+        $this->assertDatabaseMissing('system_notifications', ['work_order_id' => $task->job_id]);
+
+        $manualLate = $this->task($assignee, $creator, 2);
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $manualLate), ['job_status' => 6])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('job_status');
+        $this->assertSame(2, (int) $manualLate->fresh()->job_status);
+
+        $pending = $this->task($assignee, $creator, 2, ['approval_status' => 'pending']);
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $pending), ['job_status' => 2])
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_manage_an_accepted_collaborator_task_from_member_context(): void
+    {
+        $admin = $this->user('admin');
+        $creator = $this->user();
+        $assignee = $this->user();
+        $member = $this->user();
+        $task = $this->task($assignee, $creator, 2);
+        $task->collaborators()->attach($member->id, [
+            'status' => 'accepted',
+            'added_by' => $creator->id,
+            'responded_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 5])
+            ->assertOk()
+            ->assertJsonPath('job_status', 5);
+
+        $this->assertSame(5, (int) $task->fresh()->job_status);
     }
 
     public function test_workspace_exposes_review_capabilities_and_collapsed_completed_group(): void

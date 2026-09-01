@@ -46,7 +46,7 @@ export const normalizeCalendarTask = (task) => {
     return {
         ...task,
         id: String(task.id),
-        status: Number(task.status) || 1,
+        status: Number(task.status) || 0,
         priority: Number(task.priority) || 2,
         startStamp,
         dueStamp,

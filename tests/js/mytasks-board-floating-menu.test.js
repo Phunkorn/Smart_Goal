@@ -104,3 +104,11 @@ test('mobile task menus use the shared floating position instead of a bottom she
     assert.match(script, /calculateBoardFloatingMenuPosition\(/);
     assert.match(script, /align:\s*menu\.matches\('\.board-reference-menu'\)\s*\?\s*'end'\s*:\s*'start'/);
 });
+
+test('project board consumes shared task changes and canonical backend status', async () => {
+    const script = await readFile(projectBoardScriptUrl, 'utf8');
+
+    assert.match(script, /addEventListener\('mytasks:changed'/);
+    assert.match(script, /data\.job_status\s*\?\?/);
+    assert.match(script, /synchronizeTaskSource\(workspace/);
+});

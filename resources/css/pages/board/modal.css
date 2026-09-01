@@ -68,21 +68,28 @@
 .project-file-drop strong { color: #315c9b; font-size: 12px; }
 .project-file-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-.admin-project-choice { display: grid; gap: 6px; padding: 13px 15px; border: 1px solid #cfe0f5; border-radius: 12px; background: #f4f8ff; }
-.admin-project-choice > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
+.admin-project-choice { display: grid; gap: 9px; padding: 13px 15px; border: 1px solid #cfe0f5; border-radius: 12px; background: #f4f8ff; }
+.admin-project-choice__heading { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid #dbe8f8; }
+.admin-project-choice__heading > div { display: grid; gap: 1px; min-width: 0; }
+.admin-project-choice__heading strong { color: #1e3a5f; font-size: 13px; }
+.admin-project-choice__heading small { color: #718096; font-size: 10px; }
+.admin-project-choice__icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #dfeaff; color: #2563eb; font-size: 16px; }
+.admin-project-choice__label { color: #334155; font-size: 11px; font-weight: 700; }
+.admin-project-choice > div:not(.admin-project-choice__heading) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
 .admin-project-choice button { min-height: 40px; padding: 0 12px; border: 1px solid #a9c4ec; border-radius: 9px; background: #fff; color: #245cae; font-size: 11px; font-weight: 700; }
 .admin-project-choice small { color: #718096; font-size: 10px; }
 .board-project-task { padding: 16px; border: 1px solid #dbe4ef; border-radius: 13px; background: #fff; }
 .admin-task-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px solid #edf1f6; }
-.admin-task-heading > div { display: grid; }
+.admin-task-heading > div { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 8px; min-width: 0; }
 .admin-task-heading strong { color: #1e293b; font-size: 14px; }
-.admin-task-heading span { color: #7b899d; font-size: 10px; }
+.admin-task-heading > div > span:last-child { grid-column: 2; color: #7b899d; font-size: 10px; }
+.admin-assignment-step-badge { display: inline-flex; align-items: center; justify-content: center; width: max-content; padding: 3px 7px; border-radius: 999px; background: #e7efff; color: #2563eb; font-size: 9px; font-weight: 800; line-height: 1.2; white-space: nowrap; }
 .admin-task-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .admin-task-status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 #boardCreateTaskModal .form-control, #boardCreateTaskModal .form-select { border-color: #cfd9e6; border-radius: 9px; font-size: 12px; }
 #boardCreateTaskModal .form-control:focus, #boardCreateTaskModal .form-select:focus { border-color: #7aa4e9; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1); }
 #boardCreateTaskModal .form-control-lg { min-height: 43px; font-size: 13px; }
-#boardCreateTaskModal textarea.form-control { min-height: 88px; resize: vertical; }
+.admin-field-hint { display: block; margin-top: 5px; color: #7b899d; font-size: 9px; line-height: 1.35; }
 
 .assignee-picker { position: relative; }
 .assignee-picker-toggle { text-align: left; cursor: pointer; }
@@ -130,7 +137,7 @@
     .admin-assignment-panel { padding: 12px; }
     .admin-project-fields { grid-template-columns: 1fr; padding: 13px; }
     .admin-project-fields .project-create-files { grid-column: auto; }
-    .admin-project-choice > div { grid-template-columns: 1fr; }
+    .admin-project-choice > div:not(.admin-project-choice__heading) { grid-template-columns: 1fr; }
     .admin-task-heading { align-items: flex-start; }
     .admin-task-options summary small { display: none; }
     #boardCreateTaskModal .modal-footer { display: grid; grid-template-columns: 1fr 1fr; padding: 10px 12px; }
@@ -142,7 +149,11 @@
 @media (max-width: 430px) {
     .admin-assignment-heading__icon { display: none; }
     .admin-assignment-progress { grid-template-columns: auto 24px auto; gap: 6px; padding-inline: 10px; }
+    .admin-project-choice__heading { grid-template-columns: minmax(0, 1fr) auto; }
+    .admin-project-choice__icon { display: none; }
     .board-project-task { padding: 13px; }
+    .admin-task-heading { flex-direction: column; }
+    .admin-task-status { align-self: flex-start; }
     #boardCreateTaskModal .modal-footer { grid-template-columns: 1fr; }
     #boardCreateTaskModal [data-task-submit="done"] { grid-column: auto; }
 }

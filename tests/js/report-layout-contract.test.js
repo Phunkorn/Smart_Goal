@@ -25,21 +25,23 @@ const assertGenericRulePrecedesModifier = (block, genericSelector, modifierSelec
     assert.ok(generic >= 0 && modifier > generic, `${modifierSelector} must win the cascade after ${genericSelector}`);
 };
 
-test('organization desktop grid owns the required 8/4, 4/4/4, and 3/5/4 spans', () => {
+test('organization desktop grid seats the department table beside the attention list', () => {
     assert.match(organizationCss, /report-dashboard-card--trend[^}]*grid-column:span 8/);
     assert.match(organizationCss, /report-dashboard-card--status[^}]*grid-column:span 4/);
     assert.match(organizationCss, /report-dashboard-card \{[^}]*grid-column:span 4/);
+    assert.match(organizationCss, /report-dashboard-card--completed[^}]*grid-column:span 5/);
     assert.match(organizationCss, /report-dashboard-card--priority[^}]*grid-column:span 3/);
-    assert.match(organizationCss, /report-dashboard-card--workload[^}]*grid-column:span 5/);
-    assert.match(organizationCss, /report-dashboard-card--attention[^}]*grid-column:span 4/);
+    assert.match(organizationCss, /report-dashboard-card--workload[^}]*grid-column:span 4/);
+    assert.match(organizationCss, /report-dashboard-card--departments[^}]*grid-column:span 7/);
+    assert.match(organizationCss, /report-dashboard-card--attention[^}]*grid-column:span 5/);
 });
 
-test('employee desktop grid removes the orphan attention column', () => {
+test('employee desktop grid keeps the on-time figure beside the charts', () => {
     assert.match(employeeCss, /employee-chart-card--trend[^}]*grid-column:span 6/);
     assert.match(employeeCss, /employee-chart-card--status[^}]*grid-column:span 3/);
     assert.match(employeeCss, /employee-chart-card--completed[^}]*grid-column:span 3/);
-    assert.match(employeeCss, /employee-chart-card--ontime[^}]*grid-column:span 3/);
     assert.match(employeeCss, /employee-chart-card--priority[^}]*grid-column:span 3/);
+    assert.match(employeeCss, /employee-report__ontime[^}]*grid-column:span 3/);
     assert.match(employeeCss, /employee-report__attention[^}]*grid-column:span 6/);
 });
 
@@ -48,7 +50,7 @@ test('tablet grid cascade preserves full-width primary cards through 991px', () 
     const employeeTablet = mediaBlock(employeeCss, 'max-width:991px');
 
     assertGenericRulePrecedesModifier(organizationTablet, '.report-dashboard-card', '.report-dashboard-card--trend,.report-dashboard-card--status');
-    assertGenericRulePrecedesModifier(employeeTablet, '.employee-chart-card,.employee-report__attention', '.employee-chart-card--trend,.employee-chart-card--status');
+    assertGenericRulePrecedesModifier(employeeTablet, '.employee-chart-card,.employee-report__attention,.employee-report__ontime', '.employee-chart-card--trend,.employee-chart-card--status');
     assert.match(organizationTablet, /report-dashboard-card--trend[^}]*grid-column:1\/-1/);
     assert.match(employeeTablet, /employee-chart-card--trend[^}]*grid-column:1\/-1/);
     assert.match(mediaBlock(organizationCss, 'max-width:760px'), /report-dashboard-card[^}]*grid-column:1/);
@@ -69,7 +71,7 @@ test('report pages constrain ultrawide content and use chart-specific height var
     assert.match(organizationCss, /width:min\(1560px,100%\)/);
     assert.match(employeeCss, /width:min\(1560px,100%\)/);
     assert.match(organizationCss, /report-dashboard-card--trend[^}]*--report-chart-height:360px/);
-    assert.match(employeeCss, /employee-chart-card--ontime[^}]*--report-chart-height:290px/);
+    assert.match(employeeCss, /employee-chart-card--priority[^}]*--report-chart-height:290px/);
     assert.match(sharedCss, /data-chart-kind="doughnut"/);
     assert.match(sharedCss, /prefers-reduced-motion:reduce/);
 });

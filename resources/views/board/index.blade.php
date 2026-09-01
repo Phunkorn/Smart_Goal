@@ -12,11 +12,11 @@
 @section('content')
 @php
     $statusLabels = [
-        1 => ['label' => 'รอดำเนินการ', 'tone' => 'gray', 'icon' => 'bi-clock'],
         2 => ['label' => 'กำลังทำ', 'tone' => 'blue', 'icon' => 'bi-lightning-charge-fill'],
         3 => ['label' => 'ตรวจสอบ', 'tone' => 'amber', 'icon' => 'bi-eye'],
         4 => ['label' => 'เสร็จสิ้น', 'tone' => 'green', 'icon' => 'bi-check-circle-fill'],
         5 => ['label' => 'พักงานชั่วคราว', 'tone' => 'gray', 'icon' => 'bi-pause-circle'],
+        6 => ['label' => 'ล่าช้า', 'tone' => 'red', 'icon' => 'bi-exclamation-circle'],
     ];
 
     $priorityLabels = [

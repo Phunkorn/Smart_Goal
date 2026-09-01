@@ -12,8 +12,8 @@ $defaultKanbanListIsManageable = $defaultKanbanList
     && $manageableTaskLists->contains('id', $defaultKanbanList->id);
 
 $statuses = [
-    5 => ['พักงาน', 'paused'],
     2 => ['กำลังทำ', 'progress'],
+    5 => ['พักงาน', 'paused'],
     3 => ['รอตรวจสอบ', 'review'],
     6 => ['ล่าช้า', 'late'],
     4 => ['เสร็จแล้ว', 'done'],
@@ -172,7 +172,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
                         <div class="mytasks-kanban__cards">
 
-                            @foreach ($allTasks->filter(fn ($task) => $status === 2 ? in_array((int) $task->job_status, [1, 2], true) : (int) $task->job_status === $status) as $task)
+                            @foreach ($allTasks->filter(fn ($task) => (int) $task->job_status === $status) as $task)
 
                                 @php
                                     $people = collect([$task->user])
@@ -240,7 +240,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                                 ล่าช้า {{ \App\Support\TodayWorkspace::overdueDays($task) }} วัน
                                             @elseif ((int) $task->job_status === 5)
                                                 พักมา {{ $task->paused_at?->startOfDay()->diffInDays(now()->startOfDay()) ?? 0 }} วัน
-                                            @elseif (in_array((int) $task->job_status, [1, 2, 3], true) && ($timeProgress = \App\Support\TodayWorkspace::timeProgress($task)))
+                                            @elseif (in_array((int) $task->job_status, [2, 3], true) && ($timeProgress = \App\Support\TodayWorkspace::timeProgress($task)))
                                                 <span class="mytasks-kanban__date-progress">
                                                     <span>{{ $timeProgress['range_label'] }}</span>
                                                     <small>{{ $timeProgress['progress_label'] }}</small>

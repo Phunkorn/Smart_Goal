@@ -214,8 +214,8 @@
         if (event.target.matches('[data-field="status"]')) {
             const wrapper = event.target.closest('[data-status-choice]');
             if (wrapper) {
-                wrapper.classList.remove('status-todo', 'status-progress', 'status-review', 'status-done', 'status-paused', 'status-late');
-                wrapper.classList.add({1: 'status-todo', 2: 'status-progress', 3: 'status-review', 4: 'status-done', 5: 'status-paused'}[event.target.value] || 'status-todo');
+                wrapper.classList.remove('status-unsupported', 'status-progress', 'status-review', 'status-done', 'status-paused', 'status-late');
+                wrapper.classList.add({2: 'status-progress', 3: 'status-review', 4: 'status-done', 5: 'status-paused', 6: 'status-late'}[event.target.value] || 'status-unsupported');
             }
             return;
         }

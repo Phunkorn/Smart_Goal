@@ -26,8 +26,21 @@
 
     @include('reports.components.filters')
 
+    @php
+        // ตัวเลขทั้งหมดมาจาก AdminReportService ที่คำนวณไว้อยู่แล้ว ไม่มีคิวรีเพิ่ม
+        $kpiCards = [
+            ['label' => 'งานทั้งหมด', 'value' => number_format($totalJobs), 'note' => 'ในช่วงที่เลือก', 'icon' => 'bi-collection'],
+            ['label' => 'ปิดงานได้', 'value' => number_format($completedJobs), 'note' => 'คิดเป็น '.$completionRate.'% ของงานทั้งหมด', 'icon' => 'bi-check2-circle', 'tone' => 'good', 'alert' => $completedJobs > 0],
+            ['label' => 'ยังทำอยู่', 'value' => number_format($activeJobs), 'note' => 'งานที่ยังไม่ปิด', 'icon' => 'bi-hourglass-split'],
+            ['label' => 'ล่าช้า', 'value' => number_format($overdueJobs), 'note' => $overdueJobs > 0 ? 'เลยกำหนดส่งแล้ว ต้องตามด่วน' : 'ไม่มีงานเลยกำหนด', 'icon' => 'bi-exclamation-triangle', 'tone' => 'danger', 'alert' => $overdueJobs > 0],
+            ['label' => 'ต้องติดตาม', 'value' => number_format($attentionJobs->count()), 'note' => 'ล่าช้าหรือครบกำหนดใน 3 วัน', 'icon' => 'bi-bell', 'tone' => 'warning', 'alert' => $attentionJobs->isNotEmpty()],
+        ];
+    @endphp
+    @include('reports.components.kpi-band', ['cards' => $kpiCards, 'ariaLabel' => 'สรุปตัวเลขภาพรวมองค์กร'])
+
     <section class="report-dashboard" aria-label="แดชบอร์ดภาพรวมองค์กร">
         @include('reports.components.charts')
+        @include('reports.components.department-table')
         @include('reports.components.attention-list')
     </section>
 

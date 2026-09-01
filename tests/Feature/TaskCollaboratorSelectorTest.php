@@ -26,6 +26,9 @@ class TaskCollaboratorSelectorTest extends TestCase
         'data-people-checkbox',
         'data-people-chips',
         'data-people-count',
+        'data-people-variant="team-manager"',
+        'data-people-department-select',
+        'data-people-clear',
         'name="collaborators[]"',
         'data-team-submit',
     ];
@@ -73,9 +76,10 @@ class TaskCollaboratorSelectorTest extends TestCase
 
         // ทีมปัจจุบันกับรายการที่เตรียมเพิ่มต้องมีตัวนับคนละตัวและอ่านออกว่าคนละชุด
         $this->assertStringContainsString('data-team-current', $content);
-        $this->assertStringContainsString('ทีมปัจจุบัน 0 คน', $content);
+        $this->assertStringContainsString('ทีมปัจจุบัน (0 คน)', $content);
         $this->assertStringContainsString('data-count-template="เลือกเพิ่ม :count คน"', $content);
-        $this->assertStringNotContainsString('เลือกแล้ว 0 คน', $content, 'ห้ามใช้ข้อความรวมที่ขัดกับจำนวนทีมปัจจุบัน');
+        $this->assertStringContainsString('data-people-summary-count', $content);
+        $this->assertStringContainsString('เลือกแล้ว 0 คน', $content, 'ตัวนับฝั่งซ้ายต้องสื่อเฉพาะรายการที่เตรียมเพิ่ม');
 
         // UI เก่าต้องถูกลบจริง ไม่ใช่ซ่อนไว้
         foreach (['team-members-panel', 'team-section-heading', 'class="team-invite"', 'name="collaborators[]" multiple'] as $dead) {
@@ -84,7 +88,7 @@ class TaskCollaboratorSelectorTest extends TestCase
 
         // ปุ่มหลักอยู่ใน flow ปกติของ footer และเริ่มต้นกดไม่ได้
         $this->assertMatchesRegularExpression('/<button type="submit"[^>]*data-team-submit[^>]*disabled/', $content);
-        $this->assertStringContainsString('เลือกผู้ร่วมงานก่อน', $content);
+        $this->assertStringContainsString('เพิ่มผู้ร่วมงาน (0 คน)', $content);
     }
 
     public function test_overlay_uses_theme_scope_not_page_layout_class(): void

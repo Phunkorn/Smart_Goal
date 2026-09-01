@@ -48,10 +48,10 @@ class AdminMemberPreviewTodayTest extends TestCase
         $overdue = $this->task('งานล่าช้า', 6, now()->subWeek(), now()->subDays(2), ['late_at' => now()->subDay()]);
         $dueToday = $this->task('งานครบกำหนดวันนี้', 2, now()->subDays(3), now());
         $activeToday = $this->task('งานกำลังทำอยู่', 2, now()->subDay(), now()->addDays(3));
-        $startsToday = $this->task('งานเริ่มวันนี้', 1, now(), now()->addDays(5));
+        $startsToday = $this->task('งานเริ่มวันนี้', 2, now(), now()->addDays(5));
         $paused = $this->task('งานพักไว้', 5, now()->subWeek(), now()->addWeek(), ['paused_at' => now()->subDay()]);
 
-        $future = $this->task('งานอนาคต', 1, now()->addDay(), now()->addDays(4));
+        $future = $this->task('งานอนาคต', 2, now()->addDay(), now()->addDays(4));
         $finished = $this->task('งานที่จบไปแล้ว', 4, now()->subWeeks(2), now()->subWeek(), ['job_completed_at' => now()->subWeek()]);
         $doneToday = $this->task('งานที่เพิ่งเสร็จวันนี้', 4, now()->subDays(3), now(), ['job_completed_at' => now()]);
 
@@ -81,12 +81,10 @@ class AdminMemberPreviewTodayTest extends TestCase
         $this->assertNotNull($doneToday->fresh());
     }
 
-    public function test_overdue_task_still_flagged_todo_in_the_database_is_synchronised_and_listed(): void
+    public function test_overdue_doing_task_is_synchronised_and_listed(): void
     {
-        // Preview ไม่เคยเรียก synchronizeLate() มาก่อน งานที่เลยกำหนดจึงยังเป็น status 1
-        // แล้วตกเงื่อนไข isWithinActiveRange() ของ TodayWorkspace หายไปจากรายการทั้งที่ล่าช้าจริง
-        $stale = $this->task('งานเลยกำหนดแต่ยังไม่ถูกตีเป็นล่าช้า', 1, now()->subWeek(), now()->subDays(2));
-        $shouldStart = $this->task('งานถึงกำหนดเริ่มแล้ว', 1, now()->subDay(), now()->addDays(2));
+        $stale = $this->task('งานเลยกำหนดแต่ยังไม่ถูกตีเป็นล่าช้า', 2, now()->subWeek(), now()->subDays(2));
+        $active = $this->task('งานถึงกำหนดเริ่มแล้ว', 2, now()->subDay(), now()->addDays(2));
 
         $this->actingAs($this->admin)
             ->get(route('admin.work-board.member.preview', [$this->department, $this->member]))
@@ -95,13 +93,13 @@ class AdminMemberPreviewTodayTest extends TestCase
             ->assertSee('งานถึงกำหนดเริ่มแล้ว');
 
         $this->assertSame(6, (int) $stale->fresh()->job_status);
-        $this->assertSame(2, (int) $shouldStart->fresh()->job_status);
+        $this->assertSame(2, (int) $active->fresh()->job_status);
     }
 
     public function test_tasks_are_ordered_overdue_then_due_today_then_active_then_starting_today(): void
     {
         // สร้างสลับลำดับเพื่อพิสูจน์ว่าเรียงจริง ไม่ใช่บังเอิญได้ลำดับการสร้าง
-        $this->task('D เริ่มวันนี้', 1, now(), now()->addDays(6));
+        $this->task('D เริ่มวันนี้', 2, now(), now()->addDays(6));
         $this->task('C กำลังทำอยู่', 2, now()->subDays(2), now()->addDays(2));
         $this->task('B ครบกำหนดวันนี้', 2, now()->subDays(3), now());
         $this->task('A2 ล่าช้าน้อยกว่า', 6, now()->subWeek(), now()->subDay(), ['late_at' => now()]);
@@ -124,10 +122,10 @@ class AdminMemberPreviewTodayTest extends TestCase
         $otherMember = $this->user('user', 'Other');
         $this->task('งานที่อนุมัติแล้ว', 2, now()->subDay(), now()->addDay());
 
-        $pending = $this->task('งานรออนุมัติ', 1, now()->subDay(), now()->addDay());
+        $pending = $this->task('งานรออนุมัติ', 2, now()->subDay(), now()->addDay());
         $pending->update(['approval_status' => 'pending', 'approved_by' => null, 'approved_at' => null]);
 
-        $rejected = $this->task('งานที่ถูกปฏิเสธ', 1, now()->subDay(), now()->addDay());
+        $rejected = $this->task('งานที่ถูกปฏิเสธ', 2, now()->subDay(), now()->addDay());
         $rejected->update(['approval_status' => 'rejected', 'approved_by' => null, 'approved_at' => null]);
 
         $foreign = $this->task('งานของสมาชิกคนอื่น', 2, now()->subDay(), now()->addDay());
@@ -163,7 +161,7 @@ class AdminMemberPreviewTodayTest extends TestCase
     public function test_member_whose_work_is_all_finished_gets_the_clear_empty_state_and_keeps_the_cta(): void
     {
         $this->task('งานเก่าที่เสร็จแล้ว', 4, now()->subWeeks(2), now()->subWeek(), ['job_completed_at' => now()->subWeek()]);
-        $this->task('งานอนาคต', 1, now()->addDays(2), now()->addDays(5));
+        $this->task('งานอนาคต', 2, now()->addDays(2), now()->addDays(5));
 
         $this->actingAs($this->admin)
             ->get(route('admin.work-board.member.preview', [$this->department, $this->member]))

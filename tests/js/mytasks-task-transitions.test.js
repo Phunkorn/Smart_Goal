@@ -9,6 +9,8 @@ test('transition kind is shared across table board and modal callers', () => {
     assert.equal(transitionKind(3, 2, {can_review: true}), 'return');
     assert.equal(transitionKind(2, 4, {can_self_close: true}), 'self-close');
     assert.equal(transitionKind(4, 2, {can_reopen: true}), 'reopen');
+    assert.equal(transitionKind(2, 5, {can_admin_override: true}), 'admin-override');
+    assert.equal(transitionKind(3, 4, {can_admin_override: true}), 'admin-override-complete');
     assert.equal(transitionKind(2, 5, {}), 'standard');
 });
 
@@ -62,4 +64,19 @@ test('reopen is explicit and cancellation prevents a request', async () => {
 
     global.window = {Swal: {fire: async () => ({isConfirmed: false})}};
     assert.equal(await confirmTaskTransition(2, 3, {can_submit_review: true}), null);
+});
+
+test('admin override requires confirmation and keeps the requested canonical status payload', async () => {
+    let configuration;
+    global.window = {Swal: {fire: async (value) => {
+        configuration = value;
+        return {isConfirmed: true};
+    }}};
+
+    assert.deepEqual(
+        await confirmTaskTransition(2, 5, {can_admin_override: true}),
+        {job_status: 5},
+    );
+    assert.equal(typeof configuration.title, 'string');
+    assert.ok(configuration.title.length > 0);
 });

@@ -4,9 +4,12 @@
 --}}
 <section class="team-current" data-team-current>
     <div class="team-current__head">
-        <strong data-team-count>ทีมปัจจุบัน 0 คน</strong>
+        <strong data-team-count>ทีมปัจจุบัน (0 คน)</strong>
         <span>สมาชิกที่อยู่ในงานนี้แล้ว</span>
     </div>
-    <div class="team-member-list" data-team-members></div>
+    <div class="team-member-list">
+        <article class="team-member team-member--assignee" data-team-owner></article>
+        <div class="team-member-list__collaborators" data-team-members></div>
+    </div>
     <p class="team-current__empty" data-team-empty hidden>ยังไม่มีผู้ร่วมงานในงานนี้</p>
 </section>

@@ -255,7 +255,6 @@ export function initializeAdminAssignment(root = document, options = {}) {
 
     const resetTaskFields = () => {
         taskForm.querySelector('[name="job_topic"]').value = '';
-        taskForm.querySelector('[name="job_details"]').value = '';
         taskForm.querySelector('[name="job_priority"]').value = '2';
         taskForm.querySelectorAll('[name="collaborators[]"]').forEach((field) => { field.checked = false; });
         const attachments = taskForm.querySelector('[data-task-attachments]');

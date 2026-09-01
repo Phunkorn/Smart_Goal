@@ -13,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class TaskStatusTransitionService
 {
+    private const ACTIVE_STATUSES = [2, 3, 4, 5, 6];
+
+    private const ADMIN_MANUAL_STATUSES = [2, 3, 4, 5];
+
     public function __construct(private readonly NotificationService $notifications) {}
 
     public function capabilities(WorkOrder $task, User $actor): array
@@ -23,6 +27,7 @@ class TaskStatusTransitionService
 
         return [
             'can_edit' => Gate::forUser($actor)->allows('work', $task),
+            'can_admin_override' => Gate::forUser($actor)->allows('overrideStatus', $task),
             'can_submit_review' => in_array($status, [2, 6], true) && ! $selfTask
                 && Gate::forUser($actor)->allows('submitForReview', $task),
             'can_review' => $status === 3 && Gate::forUser($actor)->allows('review', $task),
@@ -39,6 +44,10 @@ class TaskStatusTransitionService
     {
         if ($actor->role === 'viewer') {
             throw new AuthorizationException;
+        }
+
+        if (! in_array($targetStatus, self::ACTIVE_STATUSES, true)) {
+            $this->reject('สถานะงานนี้ไม่รองรับแล้ว');
         }
 
         $task->loadMissing('collaborators');
@@ -63,7 +72,9 @@ class TaskStatusTransitionService
         return DB::transaction(function () use ($task, $actor, $targetStatus, $action, $reason, $before, $from) {
             $updates = ['job_status' => $targetStatus];
 
-            if ($action === 'submitted_for_review') {
+            if ($action === 'admin_status_overridden') {
+                $updates += $this->adminOverrideUpdates($targetStatus, $actor);
+            } elseif ($action === 'submitted_for_review') {
                 $updates += [
                     'submitted_for_review_by' => $actor->id,
                     'submitted_for_review_at' => now(),
@@ -127,6 +138,17 @@ class TaskStatusTransitionService
             $this->reject('งานนี้ปิดแล้ว ต้องใช้คำสั่งเปิดงานอีกครั้งเท่านั้น');
         }
 
+        if (Gate::forUser($actor)->allows('overrideStatus', $task)) {
+            if ($to === 6) {
+                $this->reject('สถานะล่าช้าถูกกำหนดจากกำหนดส่งโดยอัตโนมัติ');
+            }
+            if ($from === 6 && $to === 2 && TodayWorkspace::isLateBySchedule($task)) {
+                $this->reject('งานยังเกินกำหนดส่ง จึงไม่สามารถเปลี่ยนเป็นกำลังทำได้');
+            }
+
+            return 'admin_status_overridden';
+        }
+
         if ($to === 4) {
             if ($this->isSelfTask($task, $actor)) {
                 return 'self_closed';
@@ -150,7 +172,7 @@ class TaskStatusTransitionService
         if ($from === 6) {
             $this->reject('งานล่าช้าต้องส่งตรวจสอบก่อนเปลี่ยนสถานะ');
         }
-        if (($from === 1 && $to === 2) || ($from === 2 && $to === 5) || ($from === 5 && $to === 2)) {
+        if (($from === 2 && $to === 5) || ($from === 5 && $to === 2)) {
             return 'status_changed';
         }
 
@@ -160,6 +182,7 @@ class TaskStatusTransitionService
     private function authorizeAction(WorkOrder $task, User $actor, string $action): void
     {
         $ability = match ($action) {
+            'admin_status_overridden' => 'overrideStatus',
             'submitted_for_review' => 'submitForReview',
             'review_approved', 'review_returned' => 'review',
             'task_reopened' => 'reopen',
@@ -174,6 +197,7 @@ class TaskStatusTransitionService
     private function notify(WorkOrder $task, User $actor, string $action, string $reason): void
     {
         $recipientIds = match ($action) {
+            'admin_status_overridden' => collect(),
             'submitted_for_review' => collect([$this->approverId($task)]),
             'review_returned' => collect([$task->user_id]),
             'review_approved', 'self_closed', 'task_reopened' => collect([$task->user_id])
@@ -200,6 +224,7 @@ class TaskStatusTransitionService
     private function activityDescription(WorkOrder $task, string $action): string
     {
         return match ($action) {
+            'admin_status_overridden' => 'Admin ปรับสถานะงาน: '.$task->job_topic,
             'submitted_for_review' => 'ส่งงานเพื่อตรวจสอบ: '.$task->job_topic,
             'review_approved', 'self_closed' => 'อนุมัติและปิดงาน: '.$task->job_topic,
             'review_returned' => 'ส่งงานกลับแก้ไข: '.$task->job_topic,
@@ -217,7 +242,7 @@ class TaskStatusTransitionService
     private function allowedStatuses(WorkOrder $task, User $actor): array
     {
         $status = (int) $task->job_status;
-        $allowed = [$status];
+        $allowed = in_array($status, self::ACTIVE_STATUSES, true) ? [$status] : [];
 
         if ($status === 4) {
             if (Gate::forUser($actor)->allows('reopen', $task)) {
@@ -227,9 +252,12 @@ class TaskStatusTransitionService
             return array_values(array_unique($allowed));
         }
 
+        if (Gate::forUser($actor)->allows('overrideStatus', $task)) {
+            return array_values(array_unique(array_merge($allowed, self::ADMIN_MANUAL_STATUSES)));
+        }
+
         if (Gate::forUser($actor)->allows('work', $task)) {
             $allowed = array_merge($allowed, match ($status) {
-                1 => [2],
                 2 => [5],
                 5 => [2],
                 default => [],
@@ -249,6 +277,30 @@ class TaskStatusTransitionService
         }
 
         return array_values(array_unique($allowed));
+    }
+
+    private function adminOverrideUpdates(int $targetStatus, User $actor): array
+    {
+        $updates = [
+            'submitted_for_review_by' => null,
+            'submitted_for_review_at' => null,
+            'final_approved_by' => null,
+            'final_approved_at' => null,
+            'job_completed_at' => null,
+            'review_return_reason' => null,
+            'paused_at' => null,
+            'late_at' => null,
+        ];
+
+        if ($targetStatus === 4) {
+            $updates['job_completed_at'] = now();
+            $updates['final_approved_by'] = $actor->id;
+            $updates['final_approved_at'] = now();
+        } elseif ($targetStatus === 5) {
+            $updates['paused_at'] = now();
+        }
+
+        return $updates;
     }
 
     private function isSelfTask(WorkOrder $task, User $actor): bool

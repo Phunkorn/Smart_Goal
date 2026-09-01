@@ -377,7 +377,7 @@ class Plan2026WorkbookReader
     {
         $normalized = mb_strtoupper($this->normalizeLookup($value));
         $map = [
-            'WAIT' => 1,
+            'WAIT' => 2,
             'IN PROCESS' => 2,
             'DONE' => 4,
             'STRUCK!!' => 5,

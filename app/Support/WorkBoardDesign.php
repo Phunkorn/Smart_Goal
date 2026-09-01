@@ -10,7 +10,6 @@ use Illuminate\Support\Str;
 final class WorkBoardDesign
 {
     public const STATUSES = [
-        'todo' => ['label' => 'ยังไม่เริ่ม', 'tone' => 'gray', 'icon' => 'bi-circle'],
         'doing' => ['label' => 'กำลังทำ', 'tone' => 'blue', 'icon' => 'bi-play-circle'],
         'review' => ['label' => 'รอตรวจสอบ', 'tone' => 'purple', 'icon' => 'bi-eye'],
         'done' => ['label' => 'เสร็จสิ้น', 'tone' => 'green', 'icon' => 'bi-check-circle'],
@@ -48,7 +47,7 @@ final class WorkBoardDesign
             2 => 'doing',
             3 => 'review',
             4 => 'done',
-            default => 'todo',
+            default => 'unsupported',
         };
     }
 
@@ -56,7 +55,16 @@ final class WorkBoardDesign
     {
         $key = self::statusKey($job);
 
-        return ['key' => $key, ...self::STATUSES[$key]];
+        return ['key' => $key, ...self::statusMeta($key)];
+    }
+
+    public static function statusMeta(string $key): array
+    {
+        return self::STATUSES[$key] ?? [
+            'label' => 'สถานะไม่รองรับ',
+            'tone' => 'gray',
+            'icon' => 'bi-question-circle',
+        ];
     }
 
     public static function taskPriority(int $priority): array
@@ -69,7 +77,11 @@ final class WorkBoardDesign
         $counts = array_fill_keys(array_keys(self::STATUSES), 0);
 
         foreach ($jobs as $job) {
-            $counts[self::statusKey($job)]++;
+            $key = self::statusKey($job);
+
+            if (array_key_exists($key, $counts)) {
+                $counts[$key]++;
+            }
         }
 
         return $counts;

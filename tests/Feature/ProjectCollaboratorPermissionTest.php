@@ -177,7 +177,7 @@ class ProjectCollaboratorPermissionTest extends TestCase
         }
 
         $this->assertSame('Read-only sibling', $siblingTask->fresh()->job_topic);
-        $this->assertSame(1, (int) $siblingTask->fresh()->job_status);
+        $this->assertSame(2, (int) $siblingTask->fresh()->job_status);
         $this->assertSame(2, (int) $siblingTask->fresh()->job_priority);
         $this->assertSame(0, $siblingTask->images()->count());
     }
@@ -365,7 +365,7 @@ class ProjectCollaboratorPermissionTest extends TestCase
             'work_order_list_id' => $project->id,
             'job_topic' => $topic,
             'job_priority' => 2,
-            'job_status' => 1,
+            'job_status' => 2,
             'approval_status' => 'approved',
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),

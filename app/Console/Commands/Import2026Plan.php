@@ -118,7 +118,7 @@ class Import2026Plan extends Command
             $this->table(['Owner', 'Email', 'Tasks'], $ownerRows);
         }
 
-        $statusLabels = [1 => 'WAIT', 2 => 'IN PROCESS', 4 => 'DONE', 5 => 'STRUCK!!'];
+        $statusLabels = [2 => 'IN PROCESS', 4 => 'DONE', 5 => 'STRUCK!!'];
         $statusRows = collect($stats['statuses'])
             ->sortKeys()
             ->map(fn (int $count, int|string $status) => [$statusLabels[(int) $status] ?? $status, $count])

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\AuditTrail;
 use App\Support\PasswordPolicy;
 use App\Support\UserSessionSecurity;
 use Illuminate\Http\Request;
@@ -15,6 +16,9 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    /** จำนวนครั้งที่ยอมให้พยายามเข้าสู่ระบบก่อนถูกล็อกชั่วคราว */
+    private const MAX_LOGIN_ATTEMPTS = 5;
+
     public function showLogin()
     {
         if (Auth::check()) {
@@ -47,6 +51,14 @@ class AuthController extends Controller
         if (! Auth::attempt([...$credentials, 'is_active' => true], $request->boolean('remember'))) {
             RateLimiter::hit($throttleKey, 60);
 
+            AuditTrail::authEvent('login_failed', null, $credentials['username']);
+
+            // บันทึกการล็อกครั้งเดียวตอนข้ามเกณฑ์ ไม่ใช่ทุกครั้งที่ถูกบล็อกหลังจากนั้น
+            // มิฉะนั้นการยิงซ้ำ ๆ จะทำให้บันทึกตรวจสอบเต็มไปด้วยรายการเดียวกัน
+            if (RateLimiter::attempts($throttleKey) === self::MAX_LOGIN_ATTEMPTS) {
+                AuditTrail::authEvent('login_locked', null, $credentials['username']);
+            }
+
             return back()
                 ->withErrors([
                     'username' => 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
@@ -58,6 +70,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        AuditTrail::authEvent('login', $user, $credentials['username']);
 
         if ($user->must_change_password) {
             return redirect()->route('password.setup');
@@ -90,6 +103,11 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        // ต้องบันทึกก่อน Auth::logout() มิฉะนั้นจะไม่เหลือผู้ใช้ให้ผูกกับรายการนี้
+        if ($user = $request->user()) {
+            AuditTrail::authEvent('logout', $user, $user->username ?? '');
+        }
+
         Auth::logout();
 
         $request->session()->invalidate();
@@ -144,7 +162,7 @@ class AuthController extends Controller
 
     private function ensureLoginIsNotRateLimited(Request $request): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey($request), 5)) {
+        if (! RateLimiter::tooManyAttempts($this->throttleKey($request), self::MAX_LOGIN_ATTEMPTS)) {
             return;
         }
 

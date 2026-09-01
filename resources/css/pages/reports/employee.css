@@ -12,10 +12,16 @@
 .employee-report__period select,.employee-report__period input { height:40px; padding:0 10px; border:1px solid #dce4ee; border-radius:8px; background:#fff; color:#34435b; font-size:.8rem; }
 .employee-report__period > div { display:flex; gap:6px; }
 .employee-report__actions .btn { min-height:40px; font-size:.78rem; white-space:nowrap; }
-.employee-report__summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; margin-bottom:16px; overflow:hidden; border:1px solid #e2e8f0; border-radius:12px; background:#e2e8f0; }
-.employee-report__summary span { display:flex; align-items:baseline; justify-content:center; gap:8px; min-width:0; padding:13px 11px; background:#fff; color:#718098; font-size:.78rem; text-align:center; }
-.employee-report__summary strong { color:#1d2e49; font-size:1.12rem; }
-.employee-report__summary .is-danger strong { color:#d83a3a; }
+/* การ์ดอัตราตรงเวลา แสดงค่าเดียวเป็นตัวเลขใหญ่แทนโดนัท */
+.employee-report__ontime { grid-column:span 3; padding:17px; }
+.employee-report__ontime-figure { display:grid; gap:11px; padding-top:6px; }
+.employee-report__ontime-figure > strong { color:#16233d; font-size:2.9rem; font-weight:750; line-height:1; letter-spacing:-.02em; }
+.employee-report__ontime-figure > strong small { margin-left:2px; color:#7c8aa3; font-size:1.05rem; font-weight:650; }
+.employee-report__ontime-figure ul { display:grid; gap:7px; margin:0; padding:0; list-style:none; }
+.employee-report__ontime-figure li { display:flex; align-items:center; gap:7px; color:#5c6b83; font-size:.82rem; }
+.employee-report__ontime-figure li strong { color:#16233d; font-weight:700; }
+.employee-report__ontime-figure li i { color:#059669; }
+.employee-report__ontime-figure li.is-late i,.employee-report__ontime-figure li.is-late strong { color:#be123c; }
 
 .employee-report__dashboard { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; min-width:0; }
 .employee-report__panel { min-width:0; overflow:hidden; border:1px solid #e2e8f1; border-radius:14px; background:#fff; box-shadow:0 5px 16px rgba(29,51,84,.05); }
@@ -23,7 +29,6 @@
 .employee-chart-card--trend { --report-chart-height:355px; grid-column:span 6; }
 .employee-chart-card--status { --report-chart-height:295px; grid-column:span 3; }
 .employee-chart-card--completed { --report-chart-height:300px; grid-column:span 3; }
-.employee-chart-card--ontime { --report-chart-height:290px; grid-column:span 3; }
 .employee-chart-card--priority { --report-chart-height:290px; grid-column:span 3; }
 .employee-report__attention { grid-column:span 6; padding:17px; }
 .employee-report__panel-head { display:flex; min-width:0; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:11px; }
@@ -54,14 +59,14 @@
     .employee-chart-card { grid-column:span 6; }
     .employee-chart-card--trend { grid-column:span 8; }
     .employee-chart-card--status { grid-column:span 4; }
+    .employee-report__ontime { grid-column:span 4; }
     .employee-report__attention { grid-column:span 6; }
 }
 @media (max-width:991px) {
     .employee-report__header { flex-direction:column; }
     .employee-report__actions { width:100%; justify-content:start; }
-    .employee-chart-card,.employee-report__attention { grid-column:span 6; }
+    .employee-chart-card,.employee-report__attention,.employee-report__ontime { grid-column:span 6; }
     .employee-chart-card--trend,.employee-chart-card--status { grid-column:1/-1; }
-    .employee-report__summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media (max-width:760px) {
     .employee-report__header { padding:14px; }
@@ -72,12 +77,11 @@
     .employee-report__period input { width:100%; min-width:0; }
     .employee-report__actions > .btn { width:100%; }
     .employee-report__dashboard { grid-template-columns:minmax(0,1fr); }
-    .employee-chart-card,.employee-chart-card--trend,.employee-chart-card--status,.employee-report__attention { grid-column:1; padding:14px; }
+    .employee-chart-card,.employee-chart-card--trend,.employee-chart-card--status,.employee-report__attention,.employee-report__ontime { grid-column:1; padding:14px; }
     .employee-report__panel-head { align-items:flex-start; flex-direction:column; }
     .employee-report__tasks { padding:14px; }
 }
 @media (max-width:430px) {
-    .employee-report__summary { grid-template-columns:minmax(0,1fr); }
     .employee-report__period > div { display:grid; grid-template-columns:1fr; }
     .employee-report__period input { width:100%; }
     .employee-report__attention-item { grid-template-columns:auto minmax(0,1fr); }

@@ -516,7 +516,7 @@ class AdminProjectCreationTest extends TestCase
         $this->assertSame($project->id, $task->work_order_list_id);
         $this->assertSame($member->id, $task->user_id);
         $this->assertSame($member->id, $task->leader_user_id);
-        $this->assertSame(1, $task->job_status);
+        $this->assertSame(2, $task->job_status);
         $this->assertSame('approved', $task->approval_status);
         $this->assertSame(1, WorkOrderList::count());
     }

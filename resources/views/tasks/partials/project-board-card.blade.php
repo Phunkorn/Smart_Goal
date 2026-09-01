@@ -15,7 +15,7 @@
 
 <div class="board-reference-list" data-board-list-body>
     <div class="board-reference-columns" aria-hidden="true">
-        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span></span>
+        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>คอมเมนต์</span><span></span>
     </div>
 
     @foreach($projectGroups as $group)
@@ -34,7 +34,7 @@
             <header class="board-project-group__header project-tone-{{ $project ? $projectPriority[1] : 'neutral' }}" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}">
                 <button type="button" class="board-project-collapse" data-board-collapse aria-label="ย่อหรือขยายโปรเจกต์"><i class="bi bi-caret-down-fill"></i></button>
                 <i class="board-project-folder bi bi-folder-fill" aria-hidden="true"></i>
-                <strong>{{ $projectName }}</strong>
+                <strong class="board-project-group__title">{{ $projectName }}</strong>
                 <span><b data-board-visible-count data-board-total-count="{{ $projectTasks->count() }}">{{ $projectTasks->count() }}</b> งาน</span>
                 @include('tasks.partials.admin-assignment-marker', ['adminSenderName' => $uniformAdminName])
                 @if($project)
@@ -99,7 +99,7 @@
                     @php
                         $taskIsLate = (int) $task->job_status !== 4 && $task->job_due_at?->isPast();
                         $taskIsSoon = ! $taskIsLate && (int) $task->job_status !== 4 && $task->job_due_at && now()->diffInDays($task->job_due_at, false) <= 3;
-                        $taskStatus = [1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']][(int)$task->job_status] ?? ['ยังไม่เริ่ม','todo'];
+                        $taskStatus = [2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused'],6=>['ล่าช้า','late']][(int)$task->job_status] ?? ['สถานะไม่รองรับ','unsupported'];
                         $priority = [1=>['routine','routine'],2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int)$task->job_priority] ?? ['สำคัญไม่ด่วน','important'];
                         $acceptedCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status === 'accepted')->values();
                         $pendingCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
@@ -115,20 +115,20 @@
                             : auth()->user()->can('deleteOwn', $task);
                         $canManageTeam = auth()->user()->can('manageTeam', $task);
                         $unreadCommentCount = (int) ($unreadCommentCounts[$task->job_id] ?? 0);
+                        // updates ถูก eager-load ไว้แล้วสำหรับ timeline จึงนับในหน่วยความจำ ไม่มีคิวรีเพิ่ม
+                        $commentCount = $task->updates->where('is_comment', true)->count();
+                        $commentLabel = $commentCount ? 'ดูคอมเมนต์ '.$commentCount.' รายการ' : 'ยังไม่มีคอมเมนต์';
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
                     <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
                         <div class="board-reference-task">
-                            <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="{{ $task->job_id }}"><strong>{{ $task->job_topic }}</strong></button>
-                            @if($unreadCommentCount > 0)
-                                <span class="board-reference-comments" data-unread-comments="{{ $task->job_id }}"><i class="bi bi-chat-left-text"></i><b>{{ $unreadCommentCount }}</b></span>
-                            @endif
+                            <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="{{ $task->job_id }}"><span class="board-reference-task__title">{{ $task->job_topic }}</span></button>
                         </div>
                         @can('work', $task)
                             <details class="board-status-menu" data-board-status-menu>
                                 <summary class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}"><span data-board-status-label>{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span><i class="bi bi-chevron-down"></i></summary>
                                 <div>
-                                    @foreach([1=>['ยังไม่เริ่ม','todo'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']] as $value=>$meta)
+                                    @foreach([2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']] as $value=>$meta)
                                         <button type="button" class="status-{{ $meta[1] }}" data-board-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>
                                     @endforeach
                                 </div>
@@ -150,6 +150,7 @@
                         <button type="button" class="board-owner" data-open-owner="{{ $task->job_id }}" title="ดูผู้รับผิดชอบ: {{ $assigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $assigneeName }}"><i>@if($task->user?->profile_image)<img src="{{ route('media.profile', $task->user) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i></button>
                         <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="{{ $canManageTeam ? 'จัดการ' : 'ดู' }}ผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">{{ Str::substr($person->name, 0, 1) }}</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $canManageTeam ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}"><i class="bi {{ $canManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>
                         <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-board-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
+                        <button type="button" class="board-comments{{ $commentCount ? ' has-comments' : '' }}{{ $unreadCommentCount > 0 ? ' has-unread' : '' }}" data-open-task-modal data-task-id="{{ $task->job_id }}" data-task-tab="updates" data-unread-comments="{{ $task->job_id }}" data-unread-persistent data-comment-label="{{ $commentLabel }}" title="{{ $commentLabel }}" aria-label="{{ $unreadCommentCount > 0 ? $commentLabel.' และมีคอมเมนต์ใหม่ที่ยังไม่ได้อ่าน' : $commentLabel }}"><i class="bi bi-chat-left-text" aria-hidden="true"></i><strong>{{ $commentCount ?: '-' }}</strong></button>
                         @if(auth()->user()->can('work', $task) || $canDeleteTask)
                             <details class="task-more-menu board-reference-menu">
                                 <summary aria-label="เมนูจัดการรายการงาน"><i class="bi bi-three-dots-vertical"></i></summary>

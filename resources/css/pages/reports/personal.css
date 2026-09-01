@@ -83,6 +83,15 @@
 .personal-report__chart { position: relative; min-height: 230px; }
 .personal-report__chart--doughnut { min-height: 210px; }
 .personal-report__priority-layout { display: grid; grid-template-columns: minmax(0, 1fr) 190px; align-items: center; gap: 20px; }
+
+/* การ์ดกราฟฝั่งผู้ใช้ใช้ระบบสเกเลตันชุดเดียวกับฝั่ง admin ผ่าน report-chart-shell */
+.personal-report__chart-card { --report-chart-height: 250px; --report-chart-height-mobile: 220px; }
+.personal-report__priority-layout .report-chart-shell { --report-chart-height: 215px; }
+
+/* รายการงานที่ต้องจัดการก่อน ใช้โครงเดียวกับรายการงานที่กำลังจะถึง เพิ่มเพียงไอคอนบอกความเร่งด่วน */
+.personal-report__attention .personal-report__schedule-item { grid-template-columns: auto minmax(0, 1fr) auto; }
+.personal-report__attention-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--amber-dim); color: #9a5c00; font-size: .8rem; }
+.personal-report__schedule-item.is-overdue .personal-report__attention-icon { background: var(--red-dim); color: #b4233b; }
 .personal-report__legend, .personal-report__chart-summary { list-style: none; padding: 0; margin: 0; }
 .personal-report__legend { display: grid; gap: 11px; }
 .personal-report__legend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 9px; align-items: center; font-size: .78rem; }

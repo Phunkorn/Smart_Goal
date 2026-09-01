@@ -55,11 +55,11 @@
     const regroup = () => {
         if (!table || !groupSelect) return;
         const field = groupSelect.value;
-        const labels = {status: {1:'ยังไม่เริ่ม',2:'กำลังทำ',3:'รอตรวจสอบ',4:'เสร็จแล้ว',5:'พักงาน'}, priority: {1:'routine',2:'สำคัญไม่ด่วน',3:'สำคัญด่วน',4:'ด่วนไม่ค่อยสำคัญ',5:'ไม่รีบ ไม่มีกำหนด'}};
+        const labels = {status: {2:'กำลังทำ',3:'รอตรวจสอบ',4:'เสร็จแล้ว',5:'พักงาน',6:'ล่าช้า'}, priority: {1:'routine',2:'สำคัญไม่ด่วน',3:'สำคัญด่วน',4:'ด่วนไม่ค่อยสำคัญ',5:'ไม่รีบ ไม่มีกำหนด'}};
         const groups = {};
         root.querySelectorAll('[data-row]').forEach((row) => {
             let key = row.dataset[field] || 'ไม่ระบุ';
-            if (labels[field]) key = labels[field][key] || key;
+            if (labels[field]) key = labels[field][key] || (field === 'status' ? 'สถานะไม่รองรับ' : key);
             (groups[key] ??= []).push(row);
         });
         table.innerHTML = '';

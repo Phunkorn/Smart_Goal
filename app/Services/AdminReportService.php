@@ -46,7 +46,11 @@ final class AdminReportService
         $statusCounts = array_fill_keys(array_keys(WorkBoardDesign::STATUSES), 0);
 
         foreach ($jobs as $job) {
-            $statusCounts[ReportMetrics::statusKey($job, $now)]++;
+            $statusKey = ReportMetrics::statusKey($job, $now);
+
+            if (array_key_exists($statusKey, $statusCounts)) {
+                $statusCounts[$statusKey]++;
+            }
         }
 
         $statusSummary = collect(WorkBoardDesign::STATUSES)->map(fn (array $meta, string $key) => [

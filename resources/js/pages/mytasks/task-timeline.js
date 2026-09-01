@@ -1,4 +1,4 @@
-import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
+import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
 
 (() => {
@@ -35,7 +35,16 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     };
 
     const clearBadges = () => {
-        document.querySelectorAll(`[data-unread-comments="${CSS.escape(String(taskId))}"]`).forEach((badge) => badge.remove());
+        document.querySelectorAll(`[data-unread-comments="${CSS.escape(String(taskId))}"]`).forEach((badge) => {
+            // คอลัมน์คอมเมนต์บนบอร์ดเป็นช่องหนึ่งของกริด ถ้าลบทิ้งคอลัมน์ที่เหลือจะเลื่อนไปทั้งแถว
+            // จึงล้างเฉพาะสถานะ unread และคงจำนวนคอมเมนต์รวมไว้เท่าเดิม
+            if (badge.hasAttribute('data-unread-persistent')) {
+                badge.classList.remove('has-unread');
+                if (badge.dataset.commentLabel) badge.setAttribute('aria-label', badge.dataset.commentLabel);
+                return;
+            }
+            badge.remove();
+        });
         if (management[String(taskId)]) management[String(taskId)].unread_comments = unreadCountAfterRead();
     };
 
@@ -66,10 +75,10 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         }
     };
 
-    const selectUpdates = (shouldMarkRead = true) => {
+    const selectUpdates = (source) => {
         tab = 'updates';
         render();
-        if (shouldMarkCommentsRead(shouldMarkRead ? 'tab' : 'modal', tab)) markRead();
+        if (shouldMarkCommentsRead(source, tab)) markRead();
     };
 
     const triggerTaskId = (trigger) => trigger?.dataset.taskId
@@ -81,7 +90,8 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const openedTaskId = triggerTaskId(trigger);
         if (openedTaskId) {
             taskId = String(openedTaskId);
-            selectUpdates(false);
+            // ปุ่มคอลัมน์คอมเมนต์ประกาศแท็บที่ต้องการไว้ที่ตัวมันเอง เปิดจากชื่องานยังเป็นการเปิดงานเฉย ๆ
+            selectUpdates(trigger.dataset.taskTab === 'updates' ? 'comment-icon' : 'modal');
         }
 
         const button = event.target.closest('[data-timeline-tab]');
@@ -91,9 +101,15 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         if (shouldMarkCommentsRead('tab', tab)) markRead();
     });
 
-    panel.querySelector('[data-submit-task-update]')?.addEventListener('click', async () => {
+    /**
+     * ปุ่มส่งและปุ่ม Enter ใช้เส้นทางเดียวกันทั้งหมด รวมถึงการกันกดซ้ำ
+     * ต้องอ่าน button ใหม่ทุกครั้ง เพราะ button.disabled คือ state ที่ใช้กันการส่งซ้อน
+     */
+    const sendUpdate = async () => {
         const input = panel.querySelector('[data-task-update-note]');
         const button = panel.querySelector('[data-submit-task-update]');
+        if (!input || !button) return;
+
         const message = input.value.trim();
         const url = management[String(taskId)]?.comment_url;
         // pending มาจากปุ่มที่ถูก disable ระหว่างรอ ทำให้กดรัว ๆ ไม่เกิดข้อความซ้ำ
@@ -109,12 +125,22 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             const payload = await response.json();
             prependComment(timeline, taskId, payload.comment);
             input.value = '';
-            selectUpdates(true);
+            selectUpdates('tab');
         } catch (_) {
             window.Swal?.fire({icon: 'error', title: 'ส่งความคิดเห็นไม่สำเร็จ', text: 'กรุณาลองใหม่อีกครั้ง'});
         } finally {
             button.disabled = false;
         }
+    };
+
+    panel.querySelector('[data-submit-task-update]')?.addEventListener('click', sendUpdate);
+
+    // ผูกที่ textarea ตัวเดียว ไม่ดัก Enter ระดับ document เพื่อไม่ให้กระทบช่องกรอกอื่นในโมดัล
+    panel.querySelector('[data-task-update-note]')?.addEventListener('keydown', (event) => {
+        if (!shouldSubmitOnEnter(event)) return;
+        // Shift+Enter ไม่เข้าเงื่อนไขนี้ จึงตกไปเป็นการขึ้นบรรทัดใหม่ตามปกติของเบราว์เซอร์
+        event.preventDefault();
+        sendUpdate();
     });
 
     const deepLink = commentDeepLink(window.location.search);
@@ -127,7 +153,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             // ไปเปลี่ยน state หรือเปิด Task อื่นโดยไม่ตั้งใจ
             if (!modal.hidden) {
                 taskId = deepLinkedTaskId;
-                if (shouldMarkCommentsRead('deep-link', deepLink.tab)) selectUpdates(true);
+                if (shouldMarkCommentsRead('deep-link', deepLink.tab)) selectUpdates('deep-link');
                 window.history.replaceState(window.history.state, '', withoutTaskDeepLink(window.location.href));
             }
         }

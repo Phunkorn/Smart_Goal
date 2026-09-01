@@ -34,7 +34,11 @@ final class EmployeeReportService
 
         $statusCounts = array_fill_keys(array_keys(WorkBoardDesign::STATUSES), 0);
         foreach ($jobs as $job) {
-            $statusCounts[ReportMetrics::statusKey($job, $now)]++;
+            $statusKey = ReportMetrics::statusKey($job, $now);
+
+            if (array_key_exists($statusKey, $statusCounts)) {
+                $statusCounts[$statusKey]++;
+            }
         }
 
         $statusSummary = collect(WorkBoardDesign::STATUSES)->map(fn (array $meta, string $key) => [
@@ -211,7 +215,7 @@ final class EmployeeReportService
             'id' => $job->job_id,
             'topic' => $job->job_topic,
             'project' => $job->taskList?->name ?? $job->department?->department_name ?? 'งานทั่วไป',
-            'status' => ['key' => $statusKey, ...WorkBoardDesign::STATUSES[$statusKey]],
+            'status' => ['key' => $statusKey, ...WorkBoardDesign::statusMeta($statusKey)],
             'priority' => ['value' => (int) $job->job_priority, ...WorkBoardDesign::taskPriority((int) $job->job_priority)],
             'start_at' => $job->job_start_at?->copy()->timezone(ReportMetrics::BUSINESS_TIMEZONE),
             'due_at' => $job->job_due_at?->copy()->timezone(ReportMetrics::BUSINESS_TIMEZONE),

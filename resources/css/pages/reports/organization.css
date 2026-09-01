@@ -24,9 +24,29 @@
 .report-dashboard-card--department { --report-chart-height:305px; }
 .report-dashboard-card--completed { --report-chart-height:305px; }
 .report-dashboard-card--ontime { --report-chart-height:300px; }
+.report-dashboard-card--completed { --report-chart-height:300px; grid-column:span 5; }
 .report-dashboard-card--priority { --report-chart-height:295px; grid-column:span 3; }
-.report-dashboard-card--workload { --report-chart-height:325px; grid-column:span 5; }
-.report-dashboard-card--attention { grid-column:span 4; }
+.report-dashboard-card--workload { --report-chart-height:325px; grid-column:span 4; }
+.report-dashboard-card--departments { grid-column:span 7; }
+.report-dashboard-card--attention { grid-column:span 5; }
+
+/* ตารางเปรียบเทียบแผนก แทนกราฟแท่งรายแผนกสามอันเดิม */
+.report-department-scroll { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; }
+.report-department-table { width:100%; min-width:620px; border-collapse:collapse; }
+.report-department-table th,.report-department-table td { padding:11px 12px; border-bottom:1px solid #edf1f6; text-align:left; vertical-align:middle; }
+.report-department-table thead th { color:#64748b; font-size:.74rem; font-weight:650; white-space:nowrap; }
+.report-department-table tbody tr:last-child th,.report-department-table tbody tr:last-child td { border-bottom:0; }
+.report-department-table tbody tr:hover th,.report-department-table tbody tr:hover td { background:#fbfcfe; }
+.report-department-table tbody th { min-width:150px; }
+.report-department-table tbody th strong { display:block; color:#16233d; font-size:.88rem; font-weight:700; }
+.report-department-table tbody td > strong { display:block; color:#16233d; font-size:.95rem; font-weight:700; }
+.report-department-table small { display:block; margin-top:2px; color:#7c8aa3; font-size:.71rem; font-weight:400; }
+.report-department-metric { display:grid; gap:5px; min-width:104px; }
+.report-department-metric strong { color:#16233d; font-size:.92rem; font-weight:700; }
+.report-department-metric small { display:inline; color:#7c8aa3; font-size:.71rem; }
+.report-department-none { color:#94a3b8; font-size:.74rem; }
+.report-department-late { display:inline-flex; align-items:center; gap:5px; color:#64748b; font-size:.8rem; font-weight:600; white-space:nowrap; }
+.report-department-late.is-late { color:#be123c; }
 .report-panel__heading { display:flex; min-width:0; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:11px; }
 .report-panel__heading > div { min-width:0; }
 .report-panel__heading h2 { margin:0; color:#16233d; font-size:1rem; font-weight:800; }
@@ -49,20 +69,24 @@
     .report-dashboard-card { grid-column:span 6; }
     .report-dashboard-card--trend { grid-column:span 8; }
     .report-dashboard-card--status { grid-column:span 4; }
+    .report-dashboard-card--completed { grid-column:span 6; }
+    .report-dashboard-card--priority { grid-column:span 6; }
+    .report-dashboard-card--workload { grid-column:span 6; }
+    .report-dashboard-card--departments { grid-column:1/-1; }
     .report-dashboard-card--attention { grid-column:span 6; }
     .report-filter__form { grid-template-columns:repeat(3,minmax(150px,1fr)); justify-content:stretch; }
     .report-filter__actions { grid-column:1/-1; justify-content:flex-end; }
 }
 @media (max-width:991px) {
     .report-dashboard-card { grid-column:span 6; }
-    .report-dashboard-card--trend,.report-dashboard-card--status { grid-column:1/-1; }
+    .report-dashboard-card--trend,.report-dashboard-card--status,.report-dashboard-card--departments { grid-column:1/-1; }
     .report-filter__form { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .report-filter__actions { grid-column:1/-1; }
 }
 @media (max-width:760px) {
     .report-page__header { flex-direction:column; }
     .report-dashboard { grid-template-columns:minmax(0,1fr); }
-    .report-dashboard-card,.report-dashboard-card--trend,.report-dashboard-card--status,.report-dashboard-card--attention { grid-column:1; padding:14px; }
+    .report-dashboard-card,.report-dashboard-card--trend,.report-dashboard-card--status,.report-dashboard-card--departments,.report-dashboard-card--attention { grid-column:1; padding:14px; }
     .report-filter__form { grid-template-columns:minmax(0,1fr); }
     .report-filter__custom-dates,.report-filter__actions { grid-column:1; justify-content:stretch; }
     .report-filter__custom-dates { grid-template-columns:minmax(0,1fr); }
