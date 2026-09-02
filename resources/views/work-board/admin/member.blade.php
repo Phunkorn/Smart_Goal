@@ -3,7 +3,6 @@
 @section('title', 'Workspace งานของ '.$member->name)
 
 @push('styles')
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
     @vite([
         'resources/css/pages/work-board-admin.css',
         'resources/css/pages/mytasks.css',
@@ -14,18 +13,25 @@
 
 @section('content')
 @php
+    $isReadOnlyWorkspace = $isReadOnlyWorkspace ?? false;
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
     $statusLabels = [2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน', 6 => 'ล่าช้า'];
     $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
-    $workspaceContext = 'admin-member';
+    $workspaceContext = $isReadOnlyWorkspace ? 'department-head-member' : 'admin-member';
     $showCreateActions = false;
-    $showQuickAdd = true;
+    $showQuickAdd = ! $isReadOnlyWorkspace;
     $taskLinkMode = false;
     // Controller เป็นผู้ตัดสินมุมมอง ค่า default ที่นี่ไว้กันหน้าพังหากถูก render จากที่อื่น
     $workspaceView = $workspaceView ?? 'table';
 
     // แถบมุมมองใช้ pattern เดียวกับ "งานของฉัน" — "ประชุม" ถูก render จาก server เท่านั้น
     // ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
+    $memberWorkspaceRoute = $isReadOnlyWorkspace ? 'work-board.member' : 'admin.work-board.member';
+    $departmentWorkspaceRoute = $isReadOnlyWorkspace ? 'work-board.department' : 'admin.work-board.department';
+    $memberWorkspaceParameters = $isReadOnlyWorkspace
+        ? [$department, $member, 'workspace' => 1]
+        : [$department, $member];
+    $memberWorkspaceBaseQuery = $isReadOnlyWorkspace ? ['workspace' => 1] : [];
     $workspaceViews = [
         ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
         ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
@@ -34,14 +40,14 @@
             'view' => 'meeting',
             'icon' => 'bi-calendar-event-fill',
             'label' => 'ประชุม',
-            'href' => route('admin.work-board.member', [$department, $member, 'view' => 'meeting']),
+            'href' => route($memberWorkspaceRoute, [...$memberWorkspaceParameters, 'view' => 'meeting']),
         ],
     ];
 @endphp
 <div class="work-board-page admin-work-board wb-dept-{{ $departmentTone }}">
     <nav class="wb-breadcrumb" aria-label="breadcrumb">
-        <a href="{{ route('board.index') }}">บอร์ดผู้ดูแลระบบ</a><i class="bi bi-chevron-right"></i>
-        <a href="{{ route('admin.work-board.department', $department) }}">{{ $department->department_name }}</a><i class="bi bi-chevron-right"></i>
+        <a href="{{ $isReadOnlyWorkspace ? route('work-board.index') : route('board.index') }}">{{ $isReadOnlyWorkspace ? 'ภาพรวมแผนก' : 'บอร์ดผู้ดูแลระบบ' }}</a><i class="bi bi-chevron-right"></i>
+        <a href="{{ route($departmentWorkspaceRoute, $department) }}">{{ $department->department_name }}</a><i class="bi bi-chevron-right"></i>
         <strong>{{ $member->name }}</strong>
     </nav>
 
@@ -56,11 +62,13 @@
                 <div class="wb-profile-kpi admin-member-profile__metric"><i class="bi bi-list-check"></i><strong>{{ $totals['tasks'] }}</strong><span>งานทั้งหมด</span></div>
             </div>
             {{-- เปิด flow เดียวกับผู้ใช้ แต่ preselect สมาชิกและเริ่มจากขั้นเพิ่มรายการงาน --}}
+            @unless($isReadOnlyWorkspace)
             <button type="button" class="admin-assignment-launch admin-assign-button" data-open-admin-assignment>
                 <span aria-hidden="true"><i class="bi bi-person-plus-fill"></i></span>
                 <span><strong>มอบหมายงาน</strong><small>เลือกโปรเจกต์แล้วเพิ่มรายการ</small></span>
                 <i class="bi bi-arrow-right" aria-hidden="true"></i>
             </button>
+            @endunless
         </div>
     </section>
 
@@ -109,8 +117,8 @@
                 --}}
                 <div class="mytasks-meeting-view" data-view-panel="meeting" role="tabpanel" aria-label="การประชุมของ {{ $member->name }}">
                     @include('meetings.components.meeting-list', array_merge($meetingData, [
-                        'meetingFormAction' => route('admin.work-board.member', [$department, $member]),
-                        'meetingBaseQuery' => ['view' => 'meeting'],
+                        'meetingFormAction' => route($memberWorkspaceRoute, [$department, $member]),
+                        'meetingBaseQuery' => [...$memberWorkspaceBaseQuery, 'view' => 'meeting'],
                         'meetingEmbedded' => true,
                         'meetingCanCreate' => false,
                     ]))
@@ -123,7 +131,8 @@
         compact('allTasks', 'availableCollaborators', 'showCreateActions', 'workspaceContext'),
         [
             'workspaceRootLabel' => $member->name,
-            'workspaceRootUrl' => route('admin.work-board.member', [$department, $member]),
+            'workspaceRootUrl' => route($memberWorkspaceRoute, $memberWorkspaceParameters),
+            'forceReadOnly' => $isReadOnlyWorkspace,
         ]
     ))
 
@@ -131,14 +140,18 @@
 
 {{-- โมดัลชุดเดียวกับ Admin Board Overview เพียงแต่ผูก origin ไว้กับสมาชิกคนนี้
      วางนอก .work-board-page เพื่อไม่ให้ stacking context ของหน้าไปทับ overlay ของ Bootstrap --}}
+@unless($isReadOnlyWorkspace)
 @include('board.components.admin-assignment-modal', [
     'assignmentOrigin' => ['department_id' => $department->id, 'member_id' => $member->id],
     'defaultAssigneeId' => $member->id,
     'projectOptions' => $manageableTaskLists,
     'startWithTask' => true,
 ])
+@endunless
 @endsection
 
 @push('scripts')
-@include('board.components.admin-assignment-flash')
+@unless($isReadOnlyWorkspace)
+    @include('board.components.admin-assignment-flash')
+@endunless
 @endpush

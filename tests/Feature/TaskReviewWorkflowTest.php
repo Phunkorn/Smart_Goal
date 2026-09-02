@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\TaskStatusTransitionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -219,6 +220,88 @@ class TaskReviewWorkflowTest extends TestCase
             ->assertSee('Archived completed task')
             ->assertSee('data-task-id="'.$completedTask->job_id.'"', false);
 
+    }
+
+    /**
+     * Regression: หัวหน้า/ผู้มอบหมายเคยถูก WorkOrderPolicy::submitForReview() กันออกด้วย
+     * isAssignmentApprover() ผลคือถ้าผู้รับผิดชอบไม่กดส่งตรวจเอง งานจะตันสนิท —
+     * ที่สถานะล่าช้าหนักที่สุดเพราะถอยกลับไปกำลังทำหรือพักงานก็ไม่ได้ ผู้มอบหมายจึงเหลือ
+     * สถานะเดียวคือสถานะเดิม และการ์ดบนบอร์ดลากไม่ได้เลย
+     */
+    public function test_assigner_can_pull_a_stuck_task_into_review_and_close_it(): void
+    {
+        $creator = $this->user();
+        $assignee = $this->user();
+        $task = $this->task($assignee, $creator, 6, ['job_due_at' => now()->subDays(2), 'late_at' => now()]);
+
+        $capabilities = app(TaskStatusTransitionService::class)->capabilities($task, $creator);
+        $this->assertContains(3, $capabilities['allowed_statuses'], 'ผู้มอบหมายต้องดึงงานล่าช้าเข้าขั้นตรวจได้');
+
+        $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 3])->assertOk();
+        $this->assertSame(3, (int) $task->fresh()->job_status);
+
+        // ขั้นตรวจสอบยังอยู่ครบ ปิดงานยังต้องเดินผ่านสถานะ 3 เหมือนเดิม
+        $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 4])->assertOk();
+        $this->assertSame(4, (int) $task->fresh()->job_status);
+        $this->assertSame($creator->id, $task->fresh()->final_approved_by);
+    }
+
+    public function test_no_active_status_leaves_any_task_participant_without_a_move(): void
+    {
+        $creator = $this->user();
+        $assignee = $this->user();
+        $collaborator = $this->user();
+        $service = app(TaskStatusTransitionService::class);
+
+        foreach ([2, 3, 5, 6] as $status) {
+            $task = $this->task($assignee, $creator, $status);
+            $task->collaborators()->attach($collaborator->id, ['status' => 'accepted']);
+            $task->load('collaborators');
+
+            foreach (['creator' => $creator, 'assignee' => $assignee, 'collaborator' => $collaborator] as $label => $actor) {
+                $allowed = $service->capabilities($task, $actor)['allowed_statuses'];
+                // สถานะ 3 เป็นข้อยกเว้นที่ตั้งใจ: คนทำงานต้องรอผลตรวจจากผู้มอบหมาย
+                if ($status === 3 && $label !== 'creator') {
+                    $this->assertSame([3], $allowed, $label.' ที่สถานะ 3 ต้องรอผลตรวจเท่านั้น');
+
+                    continue;
+                }
+
+                $this->assertNotSame([$status], $allowed, $label.' ตันที่สถานะ '.$status);
+            }
+        }
+    }
+
+    public function test_paused_work_goes_straight_to_review_without_bouncing_through_doing(): void
+    {
+        $creator = $this->user();
+        $assignee = $this->user();
+        $task = $this->task($assignee, $creator, 5, ['paused_at' => now()->subDay()]);
+
+        $this->actingAs($assignee)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 3])->assertOk();
+
+        $task->refresh();
+        $this->assertSame(3, (int) $task->job_status);
+        $this->assertNull($task->paused_at, 'ส่งตรวจแล้วต้องไม่ค้างสถานะพักงานไว้');
+        $this->assertSame($assignee->id, $task->submitted_for_review_by);
+        $this->assertDatabaseHas('system_notifications', ['user_id' => $creator->id, 'type' => 'submitted_for_review']);
+    }
+
+    /**
+     * งานที่ผู้ใช้สร้างเองและรับผิดชอบเองไม่มีขั้นตรวจสอบ UI จึงต้องไม่เสนอสถานะ 3
+     * ให้ลากแล้วเด้ง error — allowed_statuses กับสิ่งที่ server ยอมรับต้องตรงกันเสมอ
+     */
+    public function test_self_owned_task_never_advertises_a_review_step_it_would_reject(): void
+    {
+        $owner = $this->user();
+        $task = $this->task($owner, $owner, 2);
+
+        $allowed = app(TaskStatusTransitionService::class)->capabilities($task, $owner)['allowed_statuses'];
+        $this->assertNotContains(3, $allowed);
+        $this->assertContains(4, $allowed);
+
+        $this->actingAs($owner)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 3])
+            ->assertUnprocessable()->assertJsonValidationErrors('job_status');
     }
 
     private function user(string $role = 'user'): User

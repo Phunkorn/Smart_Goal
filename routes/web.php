@@ -106,6 +106,14 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('employees.resetPassword');
 
+    Route::prefix('admin/accounts')->name('admin.accounts.')->middleware('admin')->group(function () {
+        Route::get('/', [UserController::class, 'systemAccountsIndex'])->name('index');
+        Route::post('/', [UserController::class, 'storeSystemAccount'])->name('store');
+        Route::patch('/{user}', [UserController::class, 'updateSystemAccount'])->name('update');
+        Route::delete('/{user}', [UserController::class, 'destroySystemAccount'])->name('destroy');
+        Route::patch('/{user}/reset-password', [UserController::class, 'resetSystemAccountPassword'])->name('resetPassword');
+    });
+
     Route::prefix('admin/departments')->name('admin.departments.')->middleware('admin')->group(function () {
         Route::get('/', [DepartmentController::class, 'index'])->name('index');
         Route::post('/', [DepartmentController::class, 'store'])->name('store');
@@ -115,15 +123,15 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     // การอนุมัติและจัดการงานโดยผู้ดูแลระบบ
     Route::get('/admin/approvals', [AdminApprovalController::class, 'index'])
-        ->middleware('admin')
+        ->middleware('role:admin,user')
         ->name('admin.approvals.index');
 
     Route::patch('/admin/tasks/{id}/approval', [TaskStatusController::class, 'updateApproval'])
-        ->middleware('admin')
+        ->middleware('role:admin,user')
         ->name('admin.tasks.approval');
 
     Route::patch('/admin/tasks/{id}/collaborators/{user}/approval', [TaskCollaboratorController::class, 'decideCollaborator'])
-        ->middleware('admin')
+        ->middleware('role:admin,user')
         ->name('admin.tasks.collaborators.approval');
 
     Route::delete('/admin/tasks/{id}', [TaskController::class, 'destroy'])

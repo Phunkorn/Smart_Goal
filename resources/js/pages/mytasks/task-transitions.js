@@ -1,3 +1,64 @@
+/**
+ * ป้ายบอก "ขั้นถัดไป" ของการ์ดบนบอร์ด
+ *
+ * ทั้งหมดคำนวณจาก allowed_statuses ที่ TaskStatusTransitionService ส่งมา
+ * จึงเป็นความจริงชุดเดียวกับที่ server บังคับ ไม่มีการ hardcode สิทธิ์ซ้ำในฝั่งนี้
+ */
+export const STATUS_STEP_LABELS = {
+    2: 'กลับมาทำ',
+    3: 'ส่งตรวจสอบ',
+    4: 'ปิดงาน',
+    5: 'พักงาน',
+};
+
+/**
+ * ลำดับ "ขั้นที่ควรแนะนำ" ของแต่ละสถานะ ตัวแรกที่ทำได้จริงคือคำแนะนำ
+ * ไม่ใช่ลำดับตัวเลข เพราะจากพักงานควรชวนให้กลับมาทำก่อนส่งตรวจ
+ */
+const RECOMMENDED_NEXT = {
+    2: [3, 4, 5],
+    3: [4, 2],
+    5: [2, 3, 4],
+    6: [3, 4, 2],
+    4: [2],
+};
+
+export function nextStepHint(currentStatus, capabilities = {}) {
+    const current = Number(currentStatus);
+    const allowed = Array.isArray(capabilities.allowed_statuses)
+        ? capabilities.allowed_statuses.map(Number)
+        : [];
+
+    const target = (RECOMMENDED_NEXT[current] || []).find(
+        (candidate) => candidate !== current && allowed.includes(candidate),
+    );
+    if (target === undefined) return null;
+
+    // งานที่ปิดแล้วเปิดใหม่ได้เฉพาะผ่านคำสั่งในรายการงาน ไม่ใช่การลากการ์ด
+    // จึงต้องบอกทั้งขั้นถัดไปและช่องทางที่ใช้จริง
+    if (current === 4) return {status: target, label: 'เปิดงานอีกครั้ง', viaMenu: true};
+
+    return {status: target, label: STATUS_STEP_LABELS[target] || 'เปลี่ยนสถานะ', viaMenu: false};
+}
+
+/**
+ * เหตุผลที่การ์ดนี้ขยับไม่ได้ — คืน null เมื่อขยับได้
+ * ต้องบอกให้ตรงเหตุ ไม่ใช่ปล่อยให้ผู้ใช้ลากแล้วเด้ง error เอาเอง
+ */
+export function lockReason(currentStatus, capabilities = {}) {
+    if (nextStepHint(currentStatus, capabilities)) return null;
+
+    if (capabilities.is_final === true) {
+        return capabilities.can_reopen === true
+            ? 'งานปิดแล้ว เปิดใหม่ได้จากเมนูในรายการงาน'
+            : 'งานปิดแล้ว ผู้ดูแลระบบเท่านั้นที่แก้ไขได้';
+    }
+    if (capabilities.can_edit !== true) return 'คุณไม่มีสิทธิ์เปลี่ยนสถานะงานนี้';
+    if (Number(currentStatus) === 3) return 'รอผู้มอบหมายตรวจสอบ';
+
+    return 'ยังไม่มีขั้นตอนถัดไป';
+}
+
 export function transitionKind(currentStatus, targetStatus, capabilities = {}) {
     if (currentStatus === targetStatus) return 'none';
     if (currentStatus === 4 && targetStatus === 2 && capabilities.can_reopen) return 'reopen';

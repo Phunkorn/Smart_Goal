@@ -85,6 +85,8 @@ class TaskAuthorizationTest extends TestCase
         $owner = $this->user();
         $task = $this->taskFor($owner);
 
+        // payload ส่งรายการไฟล์ล่าสุดกลับมาด้วย เพื่อให้ modal อัปเดตในที่เดิม
+        // แทนการ reload ทั้งหน้าซึ่งเคยทำให้ modal ปิดทิ้งทันทีที่แนบสำเร็จ
         $this->actingAs($owner)
             ->postJson(route('tasks.attachments.store', $task), [
                 'completion_attachments' => [UploadedFile::fake()->image('evidence.png')],
@@ -93,6 +95,11 @@ class TaskAuthorizationTest extends TestCase
             ->assertExactJson([
                 'ok' => true,
                 'message' => 'เพิ่มไฟล์อ้างอิงงานสำเร็จ',
+                'files' => [[
+                    'name' => 'evidence.png',
+                    'url' => route('media.task-attachments.show', $task->images()->firstOrFail()),
+                    'delete_url' => route('tasks.attachments.destroy', [$task->job_id, $task->images()->firstOrFail()]),
+                ]],
             ]);
 
         $attachment = $task->images()->firstOrFail();
@@ -104,6 +111,7 @@ class TaskAuthorizationTest extends TestCase
             ->assertExactJson([
                 'ok' => true,
                 'message' => 'ลบไฟล์แนบแล้ว',
+                'files' => [],
             ]);
 
         $this->assertDatabaseMissing('job_images', ['id' => $attachment->id]);

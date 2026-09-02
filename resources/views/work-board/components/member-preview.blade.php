@@ -20,7 +20,7 @@
     @if($isAdmin)
         {{-- Admin เข้าพื้นที่งานได้เสมอ แม้สมาชิกยังไม่มีงาน route ยังคงตรวจสิทธิ์ฝั่ง Server ตามเดิม --}}
         <a class="wb-member-preview__workspace-link"
-            href="{{ route('admin.work-board.member', [$department, $member]) }}"
+            href="{{ route($workspaceRouteName ?? 'admin.work-board.member', $workspaceRouteParameters ?? [$department, $member]) }}"
             data-preview-workspace-link>
             <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
             <span>เปิดพื้นที่งานของสมาชิก</span>
@@ -48,7 +48,10 @@
             @php($priority = WorkBoardDesign::taskPriority((int) $task->job_priority))
             @if($isAdmin)
                 <a class="wb-preview-task wb-preview-task--link"
-                    href="{{ route('admin.work-board.member', [$department, $member, 'open_task' => $task->job_id]) }}"
+                    href="{{ route($workspaceRouteName ?? 'admin.work-board.member', [
+                        ...($workspaceRouteParameters ?? [$department, $member]),
+                        'open_task' => $task->job_id,
+                    ]) }}"
                     data-preview-task
                     data-preview-task-link
                     aria-label="เปิดงาน {{ $task->job_topic }} ในพื้นที่งานของ {{ $member->name }}">

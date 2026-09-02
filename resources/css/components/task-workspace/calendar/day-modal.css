@@ -1,0 +1,136 @@
+/*
+ * Modal ของ "วันที่" ที่ถูกคลิกบนปฏิทิน
+ *
+ * ใบนี้แทนที่ popover ของปุ่ม "+N รายการ" เดิมทั้งชุด (สไตล์ของ popover ถูกลบออกจาก
+ * base.css แล้ว ไม่ได้ซ่อนไว้) การเปิด/ปิด/Escape/ล็อกหน้าจอทั้งหมดเดินผ่าน modalStack
+ * เหมือนกล่องอื่นในหน้า Task Workspace
+ *
+ * งานกับการประชุมแยกเป็นคนละ section เพราะคอลัมน์ไม่เหมือนกัน
+ * ตัวตารางใช้ .calendar-table จาก calendar/agenda.css ที่เดียว ห้ามคัดลอกมาไว้ที่นี่
+ */
+.my-tasks-page .mytasks-calendar-day {
+    z-index: 1400;
+}
+
+.my-tasks-page .mytasks-calendar-day__card {
+    display: flex;
+    flex-direction: column;
+    width: min(1080px, calc(100vw - 28px));
+    max-height: calc(100vh - 28px);
+    overflow: hidden;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+}
+
+.my-tasks-page .mytasks-calendar-day__card > header,
+.my-tasks-page .mytasks-calendar-day__card > footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    gap: 16px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.my-tasks-page .mytasks-calendar-day__card > header > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.my-tasks-page .mytasks-calendar-day__card > header span {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .12em;
+}
+
+.my-tasks-page .mytasks-calendar-day__card h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.my-tasks-page .mytasks-calendar-day__card header button {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border: 0;
+    border-radius: 9px;
+    background: #f1f5f9;
+    color: #475569;
+    cursor: pointer;
+}
+
+.my-tasks-page .mytasks-calendar-day__card header button:hover {
+    background: #e2e8f0;
+}
+
+.my-tasks-page .mytasks-calendar-day__body {
+    display: grid;
+    gap: 18px;
+    flex: 1 1 auto;
+    padding: 16px 0;
+    overflow-y: auto;
+}
+
+.my-tasks-page .mytasks-calendar-day__group[hidden] {
+    display: none;
+}
+
+.my-tasks-page .mytasks-calendar-day__group h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    padding: 0 20px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.my-tasks-page .mytasks-calendar-day__group h3 > i {
+    color: #6d3fd4;
+    font-size: 13px;
+}
+
+.my-tasks-page .mytasks-calendar-day__group h3 > b {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.my-tasks-page .mytasks-calendar-day__card > footer {
+    justify-content: space-between;
+    border-top: 1px solid #eef2f7;
+    border-bottom: 0;
+}
+
+.my-tasks-page .mytasks-calendar-day__card > footer small {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+@media (max-width: 600px) {
+    .my-tasks-page .mytasks-calendar-day__card > header,
+    .my-tasks-page .mytasks-calendar-day__card > footer {
+        padding: 14px;
+    }
+
+    .my-tasks-page .mytasks-calendar-day__group h3 {
+        padding: 0 14px;
+    }
+
+    .my-tasks-page .mytasks-calendar-day__card h2 {
+        font-size: 15px;
+    }
+}

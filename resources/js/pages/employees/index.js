@@ -47,7 +47,7 @@ const syncRoleFields = (form) => {
     const department = form.querySelector('[data-user-department]');
     if (! role || ! department) return;
 
-    const needsDepartment = role.value === 'user';
+    const needsDepartment = ['user', 'department_head'].includes(role.value);
     department.disabled = ! needsDepartment;
     department.required = needsDepartment;
     if (! needsDepartment) department.value = '';
@@ -88,6 +88,7 @@ const initializePasswordGenerators = () => {
 };
 
 const initializeDeleteConfirmation = (page) => {
+    const isSystemAccounts = page.dataset.accountContext === 'system';
     page.querySelectorAll('.employee-delete-form').forEach((form) => {
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -95,10 +96,10 @@ const initializeDeleteConfirmation = (page) => {
 
             const result = await window.Swal.fire({
                 icon: 'warning',
-                title: 'ลบพนักงานคนนี้หรือไม่?',
+                title: isSystemAccounts ? 'ลบบัญชีระบบนี้หรือไม่?' : 'ลบพนักงานคนนี้หรือไม่?',
                 text: `บัญชี “${form.dataset.employeeName}” จะถูกนำออกจากระบบ`,
                 showCancelButton: true,
-                confirmButtonText: 'ลบพนักงาน',
+                confirmButtonText: isSystemAccounts ? 'ลบบัญชีระบบ' : 'ลบพนักงาน',
                 cancelButtonText: 'ยกเลิก',
                 confirmButtonColor: '#dc2626',
                 reverseButtons: true,

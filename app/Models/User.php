@@ -23,6 +23,7 @@ class User extends Authenticatable
         'password',
         'department_id',
         'role',
+        'is_department_head',
         'must_change_password',
         'is_active',
         'profile_image',
@@ -40,7 +41,23 @@ class User extends Authenticatable
             'password' => 'hashed',
             'must_change_password' => 'boolean',
             'is_active' => 'boolean',
+            'is_department_head' => 'boolean',
         ];
+    }
+
+    public function isDepartmentHead(): bool
+    {
+        return $this->role === 'user'
+            && $this->is_active
+            && $this->is_department_head
+            && $this->department_id !== null;
+    }
+
+    public function overseesDepartment(int|string|null $departmentId): bool
+    {
+        return $this->isDepartmentHead()
+            && $departmentId !== null
+            && (int) $this->department_id === (int) $departmentId;
     }
 
     public static function normalizeUsername(mixed $username): string

@@ -23,5 +23,6 @@
 @import '../components/task-workspace/calendar/base.css';
 @import '../components/task-workspace/calendar/navigation.css';
 @import '../components/task-workspace/calendar/agenda.css';
+@import '../components/task-workspace/calendar/day-modal.css';
 @import '../components/task-workspace/calendar/detail.css';
 @import '../components/task-workspace/calendar/quick-view.css';

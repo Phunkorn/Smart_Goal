@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\WorkOrder;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -20,10 +21,10 @@ class AdminApprovalQuery
      *     approvalCounts: array{assignments: int, collaborators: int, total: int}
      * }
      */
-    public function data(): array
+    public function data(User $viewer): array
     {
-        $pendingAssignments = $this->pendingAssignments();
-        $pendingCollaboratorTasks = $this->pendingCollaboratorTasks();
+        $pendingAssignments = $this->pendingAssignments($viewer);
+        $pendingCollaboratorTasks = $this->pendingCollaboratorTasks($viewer);
         $collaboratorCount = $pendingCollaboratorTasks
             ->sum(fn (WorkOrder $task): int => $task->collaborators->count());
 
@@ -38,35 +39,46 @@ class AdminApprovalQuery
     }
 
     /** @return Collection<int, WorkOrder> */
-    public function pendingAssignments(): Collection
+    public function pendingAssignments(User $viewer): Collection
     {
-        return WorkOrder::with([
+        $query = WorkOrder::with([
             'user.department',
             'department',
             'creator.department',
             'leader',
             'taskList',
         ])
-            ->where('approval_status', 'pending')
+            ->where('approval_status', 'pending');
+
+        $this->scopeAssignments($query, $viewer);
+
+        return $query
             ->latest('job_id')
             ->get();
     }
 
     /** @return Collection<int, WorkOrder> */
-    public function pendingCollaboratorTasks(): Collection
+    public function pendingCollaboratorTasks(User $viewer): Collection
     {
-        return WorkOrder::with([
+        $query = WorkOrder::with([
             'taskList',
             'creator.department',
-            'collaborators' => fn ($collaborators) => $collaborators
-                ->where('work_order_collaborators.status', 'pending')
-                ->with('department'),
+            'collaborators' => function ($collaborators) use ($viewer): void {
+                $collaborators->where('work_order_collaborators.status', 'pending')
+                    ->when($viewer->role !== 'admin', fn ($query) => $query
+                        ->where('users.department_id', $viewer->department_id))
+                    ->with('department');
+            },
         ])
             ->where('approval_status', 'approved')
             ->whereHas('collaborators', fn ($collaborators) => $collaborators
-                ->where('work_order_collaborators.status', 'pending'))
+                ->where('work_order_collaborators.status', 'pending')
+                ->when($viewer->role !== 'admin', fn ($query) => $query
+                    ->where('users.department_id', $viewer->department_id)))
             ->latest('job_id')
             ->get();
+
+        return $query;
     }
 
     /**
@@ -86,22 +98,29 @@ class AdminApprovalQuery
     }
 
     /** @return array{assignments: int, collaborators: int, total: int} */
-    public function counts(): array
+    public function counts(?User $viewer = null): array
     {
         if ($this->resolvedCounts !== null) {
             return $this->resolvedCounts;
         }
 
-        $assignmentCount = WorkOrder::query()
-            ->where('approval_status', 'pending')
-            ->count();
+        $assignmentQuery = WorkOrder::query()->where('approval_status', 'pending');
+        $this->scopeAssignments($assignmentQuery, $viewer);
+        $assignmentCount = $assignmentQuery->count();
 
-        $collaboratorCount = DB::table('work_order_collaborators')
+        $collaboratorQuery = DB::table('work_order_collaborators')
             ->join('work_orders', 'work_orders.job_id', '=', 'work_order_collaborators.work_order_id')
             ->whereNull('work_orders.deleted_at')
             ->where('work_orders.approval_status', 'approved')
-            ->where('work_order_collaborators.status', 'pending')
-            ->count();
+            ->where('work_order_collaborators.status', 'pending');
+
+        if ($viewer && $viewer->role !== 'admin') {
+            $collaboratorQuery
+                ->join('users as collaborator_users', 'collaborator_users.id', '=', 'work_order_collaborators.user_id')
+                ->where('collaborator_users.department_id', $viewer->department_id);
+        }
+
+        $collaboratorCount = $collaboratorQuery->count();
 
         return $this->resolvedCounts = $this->formatCounts($assignmentCount, $collaboratorCount);
     }
@@ -114,5 +133,12 @@ class AdminApprovalQuery
             'collaborators' => $collaborators,
             'total' => $assignments + $collaborators,
         ];
+    }
+
+    private function scopeAssignments(Builder $query, ?User $viewer): void
+    {
+        if ($viewer && $viewer->role !== 'admin') {
+            $query->where('department_id', $viewer->department_id);
+        }
     }
 }

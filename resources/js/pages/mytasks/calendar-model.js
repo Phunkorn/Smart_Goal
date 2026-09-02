@@ -58,12 +58,29 @@ export const normalizeCalendarTask = (task) => {
 /**
  * ปฏิทินวางได้ทั้งงานและการประชุม รูปทรงข้อมูลจึงเหมือนกัน ต่างที่ `type`
  * รายการที่ไม่ระบุ type ถือเป็นงานเสมอ เพื่อให้ผู้เรียกเดิมทำงานได้เหมือนก่อน
+ *
+ * งานถูกยึดไว้ที่ "วันสิ้นสุด" วันเดียวตาม requirement ของปฏิทิน ไม่ลากเป็นแถบ
+ * ตั้งแต่วันเริ่มอีกต่อไป การยุบ startStamp ให้เท่ากับ dueStamp ตรงนี้ทำให้เครื่องมือ
+ * lane/segment เดิมได้ช่วง 1 วันโดยอัตโนมัติ จึงไม่ต้องแก้ buildMonthCalendar เลย
+ * ส่วนวันเริ่มจริงถูกเก็บไว้ที่ scheduleStart* เพื่อให้การ์ดและ modal ยังแสดงได้
+ *
+ * ประชุมคงช่วงจริงไว้ เพราะประชุมที่คร่อมเที่ยงคืนต้องต่อเป็นแท่งเดียว
  */
 export const normalizeCalendarEvent = (event) => {
     const normalized = normalizeCalendarTask(event);
     if (!normalized) return null;
 
-    return {...normalized, type: event?.type === 'meeting' ? 'meeting' : 'task'};
+    const type = event?.type === 'meeting' ? 'meeting' : 'task';
+    if (type === 'meeting') return {...normalized, type};
+
+    return {
+        ...normalized,
+        type,
+        scheduleStart: normalized.start,
+        scheduleStartStamp: normalized.startStamp,
+        start: normalized.due,
+        startStamp: normalized.dueStamp,
+    };
 };
 
 export const calendarMonthKey = (year, month) => `${year}-${String(Number(month) + 1).padStart(2, '0')}`;
@@ -111,7 +128,7 @@ export const rangeForMonths = (months) => {
     };
 };
 
-const taskOrder = (left, right) => (
+const eventOrder = (left, right) => (
     left.startStamp - right.startStamp
     || left.dueStamp - right.dueStamp
     || String(left.title || '').localeCompare(String(right.title || ''), 'th')
@@ -124,22 +141,50 @@ export const buildCalendarAgenda = (events, year, month, todayKey) => {
         if (!unique.has(event.id)) unique.set(event.id, event);
     });
 
-    const normalizedEvents = [...unique.values()].sort(taskOrder);
+    const normalizedEvents = [...unique.values()].sort(eventOrder);
     const monthStart = Date.UTC(Number(year), Number(month), 1);
     const monthEnd = Date.UTC(Number(year), Number(month) + 1, 0);
     const todayStamp = parseCalendarDate(todayKey);
+    const todayTasks = todayStamp === null ? [] : normalizedEvents.filter((event) => (
+        event.type === 'task' && event.dueStamp === todayStamp
+    ));
+    const todayMeetings = todayStamp === null ? [] : normalizedEvents.filter((event) => (
+        event.type === 'meeting'
+        && event.startStamp <= todayStamp
+        && event.dueStamp >= todayStamp
+    ));
+    const monthTasks = normalizedEvents.filter((event) => (
+        event.type === 'task'
+        && event.dueStamp >= monthStart
+        && event.dueStamp <= monthEnd
+    ));
+    // การ์ดรายเดือนแสดงประชุมครั้งเดียวตามวันเริ่ม แม้ประชุมจะคร่อมหลายวัน
+    const monthMeetings = normalizedEvents.filter((event) => (
+        event.type === 'meeting'
+        && event.startStamp >= monthStart
+        && event.startStamp <= monthEnd
+    ));
 
     return {
-        todayTasks: todayStamp === null ? [] : normalizedEvents.filter((event) => (
-            event.type === 'task'
-            && event.startStamp <= todayStamp
-            && event.dueStamp >= todayStamp
-        )),
-        monthEvents: normalizedEvents.filter((event) => (
-            event.startStamp <= monthEnd
-            && event.dueStamp >= monthStart
-        )),
+        // งานยึดวันสิ้นสุดแล้ว เงื่อนไขนี้จึงหมายถึง "ครบกำหนดวันนี้" โดยตรง
+        todayTasks,
+        todayMeetings,
+        todayEvents: [...todayTasks, ...todayMeetings].sort(eventOrder),
+        monthTasks,
+        monthMeetings,
+        monthEvents: [...monthTasks, ...monthMeetings].sort(eventOrder),
     };
+};
+
+/**
+ * จำนวนวันที่เหลือถึงกำหนดส่ง — บวกคือยังไม่ถึง ศูนย์คือวันนี้ ลบคือเลยมาแล้ว
+ * คิดจาก "วัน" ล้วน ๆ ไม่ใช่เวลา เพราะปฏิทินทำงานที่ระดับวันตามเวลาไทยเสมอ
+ */
+export const daysUntilDue = (dueStamp, todayKey) => {
+    const todayStamp = parseCalendarDate(todayKey);
+    if (todayStamp === null || !Number.isFinite(dueStamp)) return null;
+
+    return Math.round((dueStamp - todayStamp) / CALENDAR_DAY_MS);
 };
 
 export const buildMonthGrid = (year, month) => {
@@ -161,112 +206,77 @@ export const buildMonthGrid = (year, month) => {
     });
 };
 
-const assignVisibleLanes = (days, maxVisible) => {
-    let previousLanes = new Map();
+/**
+ * ลำดับโทนสีบนช่องวันที่ เรียงจาก "ต้องรีบที่สุด" ไปหา "รอได้"
+ * ต้องตรงกับลำดับใน legend ของ toolbar เพื่อให้กวาดตาหาสีเจอทันที
+ * ค่าเหล่านี้คือ job_priority ของ WorkOrder ไม่ใช่ความสำคัญของโปรเจกต์
+ */
+export const CALENDAR_PRIORITY_ORDER = [3, 4, 2, 5, 1];
 
-    return days.map((day) => {
-        const visibleTasks = day.tasks.slice(0, maxVisible);
-        const lanes = Array(maxVisible).fill(null);
-        const assigned = new Set();
+/**
+ * สรุปรายการของหนึ่งวันเป็น "จำนวนงานต่อความสำคัญ" แทนการวางชื่องานทีละชิ้น
+ * ช่องวันที่จึงอ่านออกในพริบตาแม้วันนั้นจะมีงานหลายสิบชิ้น
+ * ประชุมถูกนับแยกออกมาเป็นกลุ่มของตัวเองเสมอ และต่อท้ายกลุ่มงานทั้งหมด
+ */
+export const summarizeDayEvents = (events, maxVisible = 3) => {
+    const counts = new Map();
+    let meetings = 0;
 
-        // Keep a continuing item on the same row whenever that row is still free.
-        visibleTasks.forEach((task) => {
-            const previousLane = previousLanes.get(task.id);
-            if (previousLane === undefined || lanes[previousLane]) return;
-            lanes[previousLane] = task;
-            assigned.add(task.id);
-        });
+    events.forEach((event) => {
+        if (event.type === 'meeting') {
+            meetings += 1;
+            return;
+        }
 
-        visibleTasks.forEach((task) => {
-            if (assigned.has(task.id)) return;
-            const lane = lanes.findIndex((candidate) => candidate === null);
-            if (lane < 0) return;
-            lanes[lane] = task;
-            assigned.add(task.id);
-        });
-
-        previousLanes = new Map(
-            lanes.flatMap((task, lane) => task ? [[task.id, lane]] : []),
-        );
-
-        return {
-            ...day,
-            visibleTasks,
-            hiddenCount: Math.max(0, day.tasks.length - visibleTasks.length),
-            lanes,
-        };
+        const priority = CALENDAR_PRIORITY_ORDER.includes(event.priority) ? event.priority : 2;
+        counts.set(priority, (counts.get(priority) || 0) + 1);
     });
+
+    const groups = CALENDAR_PRIORITY_ORDER
+        .filter((priority) => counts.has(priority))
+        .map((priority) => ({key: `priority-${priority}`, type: 'task', priority, count: counts.get(priority)}));
+
+    if (meetings > 0) groups.push({key: 'meeting', type: 'meeting', priority: null, count: meetings});
+
+    const limit = Math.max(1, Math.floor(Number(maxVisible) || 3));
+
+    return {
+        groups,
+        visibleGroups: groups.slice(0, limit),
+        hiddenGroups: Math.max(0, groups.length - limit),
+        // โทนของ "ทั้งช่องวันที่" คือความสำคัญสูงสุดที่มีในวันนั้น
+        // groups เรียงตาม CALENDAR_PRIORITY_ORDER อยู่แล้ว ตัวแรกจึงเป็นตัวที่ด่วนที่สุดเสมอ
+        // และประชุมอยู่ท้ายสุด วันที่มีแต่ประชุมจึงได้โทนประชุมโดยอัตโนมัติ
+        tone: groups.length ? groups[0].key : null,
+    };
 };
 
-const buildWeekSegments = (days, maxVisible) => {
-    const segments = [];
-
-    for (let lane = 0; lane < maxVisible; lane += 1) {
-        let active = null;
-
-        const finish = () => {
-            if (!active) return;
-            const startDay = days[active.startColumn - 1];
-            const endDay = days[active.endColumn - 1];
-            segments.push({
-                event: active.event,
-                lane: lane + 1,
-                startColumn: active.startColumn,
-                endColumn: active.endColumn,
-                continuesBefore: active.event.startStamp < startDay.stamp,
-                continuesAfter: active.event.dueStamp > endDay.stamp,
-            });
-            active = null;
-        };
-
-        days.forEach((day, dayIndex) => {
-            const event = day.lanes[lane];
-            if (event && active?.event.id === event.id) {
-                active.endColumn = dayIndex + 1;
-                return;
-            }
-
-            finish();
-            if (event) {
-                active = {
-                    event,
-                    startColumn: dayIndex + 1,
-                    endColumn: dayIndex + 1,
-                };
-            }
-        });
-        finish();
-    }
-
-    return segments.sort((left, right) => left.lane - right.lane || left.startColumn - right.startColumn);
-};
-
-export const buildMonthCalendar = (tasks, year, month, maxVisible = 3) => {
+export const buildMonthCalendar = (events, year, month, maxVisible = 3) => {
     const days = buildMonthGrid(year, month);
-    const laneLimit = Math.max(1, Math.floor(Number(maxVisible) || 3));
-    // id ของงานและประชุมใช้คนละ prefix การกันซ้ำจึงตัดรายการที่มาถึงสองรอบออกได้ตรง ๆ
     const unique = new Map();
-    tasks.map(normalizeCalendarEvent).filter(Boolean).forEach((event) => {
+    // id ของงานและประชุมใช้คนละ prefix การกันซ้ำจึงตัดรายการที่มาถึงสองรอบออกได้ตรง ๆ
+    events.map(normalizeCalendarEvent).filter(Boolean).forEach((event) => {
         if (!unique.has(event.id)) unique.set(event.id, event);
     });
-    const normalizedTasks = [...unique.values()].sort(taskOrder);
+    const normalizedEvents = [...unique.values()].sort(eventOrder);
 
-    const activeDays = days.map((day) => {
-        const activeTasks = normalizedTasks.filter((task) => task.startStamp <= day.stamp && task.dueStamp >= day.stamp);
+    const renderedDays = days.map((day) => {
+        // งานยุบเหลือวันสิ้นสุดวันเดียวแล้ว เงื่อนไขนี้จึงเหลือผลกับ "ช่วงจริง" ของประชุมเท่านั้น
+        const dayEvents = normalizedEvents.filter((event) => event.startStamp <= day.stamp && event.dueStamp >= day.stamp);
+
         return {
             ...day,
-            tasks: activeTasks,
-        };
-    });
-    const renderedDays = assignVisibleLanes(activeDays, laneLimit);
-
-    const weeks = Array.from({length: 6}, (_, weekIndex) => {
-        const weekDays = renderedDays.slice(weekIndex * 7, (weekIndex + 1) * 7);
-        return {
-            days: weekDays,
-            segments: buildWeekSegments(weekDays, laneLimit),
+            events: dayEvents,
+            tasks: dayEvents.filter((event) => event.type === 'task'),
+            meetings: dayEvents.filter((event) => event.type === 'meeting'),
+            ...summarizeDayEvents(dayEvents, maxVisible),
         };
     });
 
-    return {days: renderedDays, tasks: normalizedTasks, weeks, maxVisible: laneLimit};
+    return {
+        days: renderedDays,
+        events: normalizedEvents,
+        weeks: Array.from({length: 6}, (_, index) => ({days: renderedDays.slice(index * 7, (index + 1) * 7)})),
+        maxVisible: Math.max(1, Math.floor(Number(maxVisible) || 3)),
+    };
 };

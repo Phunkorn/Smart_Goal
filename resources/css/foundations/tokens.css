@@ -41,13 +41,13 @@
             margin: 0;
             background: var(--bg);
             color: var(--text);
-            font-family: 'Sarabun', sans-serif;
+            font-family: 'Prompt', sans-serif;
             font-size: .92rem;
             -webkit-font-smoothing: antialiased;
         }
 
         .mono {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Prompt', sans-serif;
         }
 
         a {

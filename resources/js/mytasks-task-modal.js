@@ -634,8 +634,27 @@ initializePeopleSelectors(document);
     const drop = box.querySelector('[data-task-inline-drop]');
     const fileInput = box.querySelector('[data-task-inline-file-input]');
     const status = box.querySelector('[data-attachment-status]');
+    const dropZone = box.querySelector('[data-task-drop-zone]');
+    const typesHint = box.querySelector('[data-attachment-types]');
     let taskId = null;
     let uploading = false;
+    // dragenter/dragleave ยิงทุกครั้งที่ผ่าน element ลูก ต้องนับชั้นไม่งั้นกรอบกะพริบ
+    let dragDepth = 0;
+
+    /**
+     * allow-list ชุดเดียวกับ App\Support\Concerns\ValidatesAttachments
+     * ฝั่งนี้ทำหน้าที่บอกผู้ใช้ให้เร็วเท่านั้น การบังคับจริงยังอยู่ที่ server เสมอ
+     */
+    const FILE_ICONS = {
+        jpg: 'bi-file-earmark-image', jpeg: 'bi-file-earmark-image', png: 'bi-file-earmark-image',
+        doc: 'bi-file-earmark-word', docx: 'bi-file-earmark-word',
+        xls: 'bi-file-earmark-excel', xlsx: 'bi-file-earmark-excel',
+        ppt: 'bi-file-earmark-ppt', pptx: 'bi-file-earmark-ppt',
+    };
+
+    const extensionOf = (name) => String(name ?? '').split('.').pop().toLowerCase();
+    const iconFor = (name) => FILE_ICONS[extensionOf(name)] || 'bi-file-earmark';
+    const toneFor = (name) => FILE_ICONS[extensionOf(name)]?.replace('bi-file-earmark-', '') || 'other';
 
     const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
 
@@ -649,10 +668,14 @@ initializePeopleSelectors(document);
     const render = () => {
         const task = data[String(taskId)];
         const files = task?.files || [];
+        // ไอคอนบอกชนิดไฟล์ตั้งแต่แรกเห็น ไม่ต้องอ่านนามสกุลท้ายชื่อที่มักถูกตัดด้วย ellipsis
         list.innerHTML = files.length
-            ? files.map((file) => `<article><a href="${escape(file.url)}" target="_blank" rel="noopener"><i class="bi bi-file-earmark" aria-hidden="true"></i><span>${escape(file.name)}</span></a>${file.delete_url ? `<button type="button" data-delete-inline-file="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ''}</article>`).join('')
+            ? files.map((file) => `<article><a href="${escape(file.url)}" target="_blank" rel="noopener"><i class="bi ${iconFor(file.name)} file-tone-${toneFor(file.name)}" aria-hidden="true"></i><span>${escape(file.name)}</span></a>${file.delete_url ? `<button type="button" data-delete-inline-file="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ''}</article>`).join('')
             : '<p>ยังไม่มีไฟล์แนบ</p>';
         if (drop) drop.hidden = !task?.can_upload;
+        // งานที่แนบไฟล์ไม่ได้ต้องไม่ชวนให้ลาก
+        if (typesHint) typesHint.hidden = !task?.can_upload;
+        if (dropZone) dropZone.classList.toggle('is-droppable', Boolean(task?.can_upload));
     };
 
     document.addEventListener('click', (event) => {
@@ -666,27 +689,60 @@ initializePeopleSelectors(document);
 
         const remove = event.target.closest('[data-delete-inline-file]');
         if (!remove || !taskId || remove.disabled) return;
-        if (!window.confirm('ต้องการลบไฟล์นี้ใช่หรือไม่?')) return;
+
+        deleteAttachment(remove);
+    });
+
+    const deleteAttachment = async (remove) => {
+        // ใช้ Swal ก่อนตามแบบเดียวกับส่วนอื่นของไฟล์นี้ แล้วค่อยตกไป confirm ของเบราว์เซอร์
+        const confirmed = window.Swal
+            ? (await window.Swal.fire({
+                icon: 'warning',
+                title: 'ต้องการลบไฟล์นี้หรือไม่?',
+                showCancelButton: true,
+                confirmButtonText: 'ลบไฟล์',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626',
+                reverseButtons: true,
+            })).isConfirmed
+            : window.confirm('ต้องการลบไฟล์นี้ใช่หรือไม่?');
+        if (!confirmed) return;
 
         remove.disabled = true;
         setStatus('กำลังลบไฟล์...');
-        fetch(remove.dataset.deleteInlineFile, {method: 'DELETE', headers: {Accept: 'application/json', 'X-CSRF-TOKEN': csrf}})
-            .then((response) => {
-                if (!response.ok) throw new Error();
-                data[String(taskId)].files = data[String(taskId)].files.filter((file) => file.delete_url !== remove.dataset.deleteInlineFile);
-                render();
-                setStatus('ลบไฟล์แล้ว');
-            })
-            .catch(() => {
-                remove.disabled = false;
-                setStatus('ลบไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', true);
-            });
-    });
+        try {
+            const response = await fetch(remove.dataset.deleteInlineFile, {method: 'DELETE', headers: {Accept: 'application/json', 'X-CSRF-TOKEN': csrf}});
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.message || '');
+
+            const task = data[String(taskId)];
+            task.files = Array.isArray(result.files)
+                ? result.files
+                : task.files.filter((file) => file.delete_url !== remove.dataset.deleteInlineFile);
+            render();
+            setStatus('ลบไฟล์แล้ว');
+        } catch (error) {
+            remove.disabled = false;
+            setStatus(error.message || 'ลบไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', true);
+        }
+    };
 
     const upload = async (files) => {
         const task = data[String(taskId)];
         // กันการอัปโหลดซ้ำจากการกดหรือวางไฟล์หลายครั้งติดกัน
         if (!task || !files.length || uploading) return;
+
+        if (!task.can_upload) {
+            setStatus('คุณไม่มีสิทธิ์แนบไฟล์ในงานนี้', true);
+            return;
+        }
+
+        // การลากไฟล์ข้ามผ่าน accept="" ของ input ได้ จึงต้องบอกชนิดที่รับไม่ได้ตรงนี้เอง
+        const rejected = [...files].filter((file) => !FILE_ICONS[extensionOf(file.name)]);
+        if (rejected.length) {
+            setStatus(`แนบไฟล์ ${rejected.map((file) => `.${extensionOf(file.name)}`).join(', ')} ไม่ได้ — รองรับเฉพาะ JPG, PNG, Word, Excel, PowerPoint`, true);
+            return;
+        }
 
         if (task.files.length + files.length > 5 || [...files].some((file) => file.size > 10 * 1024 * 1024)) {
             setStatus('แนบได้รวมไม่เกิน 5 ไฟล์ และไฟล์ละไม่เกิน 10 MB', true);
@@ -700,11 +756,15 @@ initializePeopleSelectors(document);
             const body = new FormData();
             [...files].forEach((file) => body.append('completion_attachments[]', file));
             const response = await fetch(task.upload_url, {method: 'POST', headers: {Accept: 'application/json', 'X-CSRF-TOKEN': csrf}, body});
-            if (!response.ok) throw new Error();
-            setStatus('อัปโหลดไฟล์สำเร็จ');
-            window.location.reload();
-        } catch (_) {
-            setStatus('แนบไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', true);
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.message || '');
+
+            // อัปเดตในที่เดิม การ reload ทั้งหน้าจะปิด modal ทิ้ง ผู้ใช้เลยไม่เห็นว่าไฟล์ขึ้นแล้ว
+            task.files = Array.isArray(result.files) ? result.files : task.files;
+            render();
+            setStatus(`แนบไฟล์แล้ว ${files.length} ไฟล์`);
+        } catch (error) {
+            setStatus(error.message || 'แนบไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', true);
         } finally {
             uploading = false;
             if (drop) drop.removeAttribute('aria-busy');
@@ -719,5 +779,45 @@ initializePeopleSelectors(document);
         event.preventDefault();
         event.currentTarget.classList.remove('is-dragover');
         upload(event.dataTransfer.files);
+    });
+
+    const carriesFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files');
+    const endDrag = () => {
+        dragDepth = 0;
+        dropZone?.classList.remove('is-dragover');
+    };
+
+    // ทั้งการ์ดรับไฟล์ ไม่ใช่แค่ปุ่มเล็ก ๆ ที่หัวการ์ด — ผู้ใช้เล็งกรอบว่างกลางการ์ดเป็นธรรมชาติกว่า
+    dropZone?.addEventListener('dragenter', (event) => {
+        if (!carriesFiles(event) || !data[String(taskId)]?.can_upload) return;
+        event.preventDefault();
+        dragDepth += 1;
+        dropZone.classList.add('is-dragover');
+    });
+    dropZone?.addEventListener('dragover', (event) => {
+        if (!carriesFiles(event) || !data[String(taskId)]?.can_upload) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+    });
+    dropZone?.addEventListener('dragleave', () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) dropZone.classList.remove('is-dragover');
+    });
+    dropZone?.addEventListener('drop', (event) => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        endDrag();
+        upload(event.dataTransfer.files);
+    });
+
+    // วางพลาดนอกกรอบไม่ควรทำให้เบราว์เซอร์เปิดไฟล์ทับหน้างานที่ยังไม่ได้บันทึก
+    modal.addEventListener('dragover', (event) => {
+        if (carriesFiles(event)) event.preventDefault();
+    });
+    modal.addEventListener('drop', (event) => {
+        if (!carriesFiles(event) || dropZone?.contains(event.target)) return;
+        event.preventDefault();
+        endDrag();
+        setStatus('วางไฟล์ในกรอบ "ไฟล์แนบ" เพื่ออัปโหลด', true);
     });
 })();

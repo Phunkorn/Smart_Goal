@@ -31,7 +31,7 @@ class ReportController extends Controller
     {
         $this->authorizeAdminReports();
 
-        return view('reports.organization', $reports->build($request));
+        return view('reports.organization', $reports->build($request, $this->forcedDepartmentId()));
     }
 
     public function exportCsv(Request $request, AdminReportService $reports): StreamedResponse
@@ -39,7 +39,7 @@ class ReportController extends Controller
         $this->authorizeAdminReports();
 
         return $this->downloadJobsCsv(
-            $reports->exportJobs($request),
+            $reports->exportJobs($request, $this->forcedDepartmentId()),
             'smart-goals-report-'.now()->format('Ymd-His').'.csv',
         );
     }
@@ -49,12 +49,13 @@ class ReportController extends Controller
         $this->authorizeAdminReports();
 
         $departments = Department::query()
+            ->when($this->forcedDepartmentId(), fn ($query, int $id) => $query->whereKey($id))
             ->withCount(['users as active_users_count' => fn ($query) => $query
                 ->where('role', 'user')
                 ->where('is_active', true)])
             ->orderBy('department_name')
             ->get();
-        $departmentId = $request->integer('department');
+        $departmentId = $this->forcedDepartmentId() ?: $request->integer('department');
         $departmentId = $departments->contains('id', $departmentId) ? $departmentId : null;
         $search = mb_substr(trim($request->string('search')->toString()), 0, 100);
 
@@ -174,11 +175,20 @@ class ReportController extends Controller
 
     private function authorizeAdminReports(): void
     {
-        abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
+        $user = Auth::user();
+        abort_unless(in_array($user?->role, ['admin', 'viewer'], true) || $user?->isDepartmentHead(), 403);
     }
 
     private function ensureReportableEmployee(User $user): void
     {
         abort_unless($user->role === 'user' && $user->is_active, 404);
+        abort_if(Auth::user()?->isDepartmentHead() && ! Auth::user()->overseesDepartment($user->department_id), 403);
+    }
+
+    private function forcedDepartmentId(): ?int
+    {
+        $user = Auth::user();
+
+        return $user?->isDepartmentHead() ? (int) $user->department_id : null;
     }
 }

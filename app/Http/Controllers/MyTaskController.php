@@ -180,7 +180,20 @@ class MyTaskController extends Controller
         $validated = $request->validate([
             'start' => ['required', 'date_format:Y-m-d'],
             'end' => ['required', 'date_format:Y-m-d', 'after_or_equal:start'],
+            'subject_user_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
+        $subject = isset($validated['subject_user_id'])
+            ? User::query()->findOrFail((int) $validated['subject_user_id'])
+            : null;
+
+        if ($subject) {
+            abort_unless(
+                $user->role === 'admin'
+                    || ($user->isDepartmentHead() && $user->overseesDepartment($subject->department_id))
+                    || $user->is($subject),
+                403
+            );
+        }
 
         $from = CarbonImmutable::createFromFormat('Y-m-d', $validated['start'], MeetingQueryService::BUSINESS_TIMEZONE)->startOfDay();
         $to = CarbonImmutable::createFromFormat('Y-m-d', $validated['end'], MeetingQueryService::BUSINESS_TIMEZONE)->endOfDay();
@@ -188,7 +201,7 @@ class MyTaskController extends Controller
         abort_if($from->diffInDays($to) > self::CALENDAR_RANGE_MAX_DAYS, 422, 'ช่วงเวลาที่ขอกว้างเกินไป');
 
         return response()->json([
-            'meetings' => app(MeetingQueryService::class)->calendarMeetings($user, $from, $to),
+            'meetings' => app(MeetingQueryService::class)->calendarMeetings($user, $from, $to, $subject),
         ]);
     }
 

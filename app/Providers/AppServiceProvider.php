@@ -28,12 +28,13 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         View::composer('layouts.app', function (IlluminateView $view): void {
-            if (request()->user()?->role !== 'admin') {
+            $user = request()->user();
+            if (! $user || ($user->role !== 'admin' && ! $user->isDepartmentHead())) {
                 return;
             }
 
             if (! array_key_exists('approvalCounts', $view->getData())) {
-                $view->with('approvalCounts', app(AdminApprovalQuery::class)->counts());
+                $view->with('approvalCounts', app(AdminApprovalQuery::class)->counts($user));
             }
         });
 

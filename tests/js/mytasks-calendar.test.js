@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
     buildMonthCalendar,
     buildMonthGrid,
+    daysUntilDue,
     normalizeCalendarTask,
 } from '../../resources/js/pages/mytasks/calendar-model.js';
 import {synchronizeTaskSource} from '../../resources/js/pages/mytasks/task-state.js';
@@ -27,96 +28,116 @@ test('a missing range boundary falls back to a one-day task', () => {
     assert.equal(normalizeCalendarTask({id: 3, start: '', due: ''}), null);
 });
 
-test('multi-day tasks render continuous weekly segments across week boundaries', () => {
+/*
+ * ปฏิทินยึด "วันสิ้นสุดงาน" เท่านั้นตาม requirement ใหม่ ไม่ลากแถบจากวันเริ่มอีกต่อไป
+ * และช่องวันที่สรุปเป็น "จำนวนงานต่อความสำคัญ" แทนการวางชื่องานทีละชิ้น
+ */
+test('a task is anchored on its due date only, never on the days from its start', () => {
     const calendar = buildMonthCalendar([
-        {id: 1, title: 'Cross-week task', start: '2026-08-07', due: '2026-08-11'},
+        {id: 1, title: 'Cross-week task', priority: 3, start: '2026-08-07', due: '2026-08-11'},
     ], 2026, 7);
-    const firstSegment = calendar.weeks[1].segments[0];
-    const secondSegment = calendar.weeks[2].segments[0];
+    const daysWithTask = calendar.days.filter((day) => day.events.length > 0).map((day) => day.key);
 
+    assert.deepEqual(daysWithTask, ['2026-08-11']);
     assert.deepEqual(
-        [firstSegment.startColumn, firstSegment.endColumn, firstSegment.continuesBefore, firstSegment.continuesAfter],
-        [5, 7, false, true],
+        calendar.days.find((day) => day.key === '2026-08-11').groups,
+        [{key: 'priority-3', type: 'task', priority: 3, count: 1}],
     );
-    assert.deepEqual(
-        [secondSegment.startColumn, secondSegment.endColumn, secondSegment.continuesBefore, secondSegment.continuesAfter],
-        [1, 2, true, false],
-    );
-    assert.equal(firstSegment.lane, secondSegment.lane);
-    assert.equal(secondSegment.event.title, 'Cross-week task');
 });
 
-test('a task keeps continuous segments when its range crosses into the next month', () => {
+test('a task that ends in the next month appears on that due date alone', () => {
     const calendar = buildMonthCalendar([
-        {id: 1, title: 'Month boundary', start: '2026-08-30', due: '2026-09-02'},
+        {id: 1, title: 'Month boundary', priority: 2, start: '2026-08-30', due: '2026-09-02'},
     ], 2026, 7);
 
-    assert.deepEqual(
-        [calendar.weeks[4].segments[0].startColumn, calendar.weeks[4].segments[0].endColumn],
-        [7, 7],
-    );
-    assert.deepEqual(
-        [calendar.weeks[5].segments[0].startColumn, calendar.weeks[5].segments[0].endColumn],
-        [1, 3],
-    );
-    assert.equal(calendar.weeks[4].segments[0].continuesAfter, true);
-    assert.equal(calendar.weeks[5].segments[0].continuesBefore, true);
+    assert.equal(calendar.days.find((day) => day.key === '2026-08-30').events.length, 0);
+    assert.equal(calendar.days.find((day) => day.key === '2026-09-02').events.length, 1);
     assert.equal(calendar.weeks[5].days[2].key, '2026-09-02');
-    assert.equal(calendar.weeks[5].days[2].tasks.length, 1);
 });
 
-test('only three overlapping range bars render and each day reports its hidden task count', () => {
-    const tasks = Array.from({length: 4}, (_, index) => ({
-        id: index + 1,
-        title: `Task ${index + 1}`,
-        start: '2026-08-10',
-        due: '2026-08-12',
-    }));
-    const calendar = buildMonthCalendar(tasks, 2026, 7);
-    const week = calendar.weeks[2];
-    const augustTenth = week.days.find((day) => day.key === '2026-08-10');
-
-    assert.equal(augustTenth.visibleTasks.length, 3);
-    assert.equal(augustTenth.tasks.length, 4);
-    assert.equal(augustTenth.hiddenCount, 1);
-    assert.equal(week.segments.length, 3);
-    assert.ok(week.segments.every((segment) => segment.startColumn === 1 && segment.endColumn === 3));
-});
-
-test('a hidden range returns to a stable lane when the crowded dates end', () => {
-    const tasks = [
-        {id: 1, title: 'Blocker 1', start: '2026-08-03', due: '2026-08-05'},
-        {id: 2, title: 'Blocker 2', start: '2026-08-03', due: '2026-08-05'},
-        {id: 3, title: 'Blocker 3', start: '2026-08-03', due: '2026-08-05'},
-        {id: 4, title: 'Continues after crowd', start: '2026-08-05', due: '2026-08-07'},
+/*
+ * ลำดับของกลุ่มต้องตรงกับ legend เสมอ (ด่วนที่สุดขึ้นก่อน ประชุมปิดท้าย)
+ * ไม่ใช่ลำดับที่ข้อมูลบังเอิญไหลเข้ามา
+ */
+test('day summaries follow the legend order and never depend on input order', () => {
+    const events = [
+        {id: 1, title: 'routine', priority: 1, start: '', due: '2026-08-12'},
+        {id: 2, title: 'flexible', priority: 5, start: '', due: '2026-08-12'},
+        {id: 3, title: 'urgent A', priority: 3, start: '', due: '2026-08-12'},
+        {id: 4, title: 'urgent B', priority: 3, start: '', due: '2026-08-12'},
+        {id: 5, title: 'quick', priority: 4, start: '', due: '2026-08-12'},
+        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
     ];
-    const week = buildMonthCalendar(tasks, 2026, 7).weeks[1];
-    const wednesday = week.days.find((day) => day.key === '2026-08-05');
-    const thursday = week.days.find((day) => day.key === '2026-08-06');
-    const visibleRange = week.segments.find((segment) => segment.event.id === '4');
+    const shape = (list) => buildMonthCalendar(list, 2026, 7)
+        .days.find((day) => day.key === '2026-08-12')
+        .groups.map((group) => `${group.key}:${group.count}`);
 
-    assert.equal(wednesday.hiddenCount, 1);
-    assert.equal(thursday.hiddenCount, 0);
-    assert.equal(wednesday.visibleTasks.some((task) => task.id === '4'), false);
-    assert.deepEqual([visibleRange.startColumn, visibleRange.endColumn], [4, 5]);
-    assert.equal(visibleRange.continuesBefore, true);
-    assert.equal(visibleRange.continuesAfter, false);
+    assert.deepEqual(shape(events), ['priority-3:2', 'priority-4:1', 'priority-5:1', 'priority-1:1', 'meeting:1']);
+    assert.deepEqual(shape([...events].reverse()), shape(events));
 });
 
-test('lane assignment is deterministic for the same overlapping ranges', () => {
-    const tasks = [
-        {id: 2, title: 'Second', start: '2026-08-10', due: '2026-08-14'},
-        {id: 1, title: 'First', start: '2026-08-10', due: '2026-08-12'},
-        {id: 3, title: 'Third', start: '2026-08-11', due: '2026-08-13'},
-    ];
-    const shape = (calendar) => calendar.weeks[2].segments.map((segment) => ({
-        id: segment.event.id,
-        lane: segment.lane,
-        startColumn: segment.startColumn,
-        endColumn: segment.endColumn,
-    }));
+/*
+ * โทนของทั้งช่องวันที่ = ความสำคัญสูงสุดที่มีในวันนั้น
+ * วันที่มีทั้งงานด่วนและ routine ต้องอ่านว่า "ด่วน" ไม่ใช่เฉลี่ยหรือเอาตัวที่มากที่สุด
+ */
+test('the day tone follows the most urgent item on that day', () => {
+    const toneOf = (events) => buildMonthCalendar(events, 2026, 7)
+        .days.find((day) => day.key === '2026-08-12').tone;
 
-    assert.deepEqual(shape(buildMonthCalendar(tasks, 2026, 7)), shape(buildMonthCalendar([...tasks].reverse(), 2026, 7)));
+    assert.equal(toneOf([
+        {id: 1, title: 'routine A', priority: 1, start: '', due: '2026-08-12'},
+        {id: 2, title: 'routine B', priority: 1, start: '', due: '2026-08-12'},
+        {id: 3, title: 'urgent', priority: 3, start: '', due: '2026-08-12'},
+    ]), 'priority-3');
+
+    assert.equal(toneOf([
+        {id: 1, title: 'important', priority: 2, start: '', due: '2026-08-12'},
+        {id: 2, title: 'flexible', priority: 5, start: '', due: '2026-08-12'},
+    ]), 'priority-2');
+
+    // ประชุมอยู่ท้ายลำดับเสมอ วันที่มีแต่ประชุมจึงได้โทนประชุม แต่ถ้ามีงานปนงานต้องชนะ
+    assert.equal(toneOf([
+        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
+    ]), 'meeting');
+    assert.equal(toneOf([
+        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
+        {id: 1, title: 'routine', priority: 1, start: '', due: '2026-08-12'},
+    ]), 'priority-1');
+
+    assert.equal(buildMonthCalendar([], 2026, 7).days[0].tone, null);
+});
+
+test('a crowded day shows the first three groups and reports the rest as hidden', () => {
+    const calendar = buildMonthCalendar([
+        {id: 1, title: 'a', priority: 3, start: '', due: '2026-08-12'},
+        {id: 2, title: 'b', priority: 4, start: '', due: '2026-08-12'},
+        {id: 3, title: 'c', priority: 2, start: '', due: '2026-08-12'},
+        {id: 4, title: 'd', priority: 5, start: '', due: '2026-08-12'},
+        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
+    ], 2026, 7);
+    const day = calendar.days.find((candidate) => candidate.key === '2026-08-12');
+
+    assert.equal(day.groups.length, 5);
+    assert.deepEqual(day.visibleGroups.map((group) => group.key), ['priority-3', 'priority-4', 'priority-2']);
+    assert.equal(day.hiddenGroups, 2);
+    // จำนวนที่ซ่อนคือ "กลุ่ม" ที่ล้น ไม่ใช่จำนวนงาน รายการเต็มยังอ่านได้ใน modal รายวัน
+    assert.equal(day.events.length, 5);
+});
+
+test('an unknown priority falls back to the default group instead of disappearing', () => {
+    const day = buildMonthCalendar([
+        {id: 1, title: 'ไม่มีกำหนดความสำคัญ', priority: 99, start: '', due: '2026-08-12'},
+    ], 2026, 7).days.find((candidate) => candidate.key === '2026-08-12');
+
+    assert.deepEqual(day.groups.map((group) => group.key), ['priority-2']);
+    assert.equal(day.events.length, 1);
+});
+
+test('days remaining is counted in whole days around the given today', () => {
+    assert.equal(daysUntilDue(Date.UTC(2026, 7, 20), '2026-08-18'), 2);
+    assert.equal(daysUntilDue(Date.UTC(2026, 7, 18), '2026-08-18'), 0);
+    assert.equal(daysUntilDue(Date.UTC(2026, 7, 15), '2026-08-18'), -3);
+    assert.equal(daysUntilDue(Date.UTC(2026, 7, 15), 'invalid'), null);
 });
 
 test('successful mutations synchronize the shared task row and emit one common event', () => {

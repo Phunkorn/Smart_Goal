@@ -11,9 +11,10 @@ $defaultKanbanList = $workspaceLists->first();
 $defaultKanbanListIsManageable = $defaultKanbanList
     && $manageableTaskLists->contains('id', $defaultKanbanList->id);
 
+// ลำดับเดียวกันทุกหน้าจอ: พักงาน → กำลังทำ → รอตรวจสอบ → ล่าช้า → เสร็จแล้ว
 $statuses = [
-    2 => ['กำลังทำ', 'progress'],
     5 => ['พักงาน', 'paused'],
+    2 => ['กำลังทำ', 'progress'],
     3 => ['รอตรวจสอบ', 'review'],
     6 => ['ล่าช้า', 'late'],
     4 => ['เสร็จแล้ว', 'done'],

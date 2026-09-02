@@ -18,12 +18,17 @@ final class TodayWorkspace
      */
     private const AUTOMATED_APPROVAL_STATUS = 'approved';
 
+    /** สถานะที่ระบบดันเป็น "ล่าช้า" เองได้เมื่อเลยกำหนดส่ง — กำลังทำ และ พักงาน */
+    private const LATE_ELIGIBLE_STATUSES = [2, 5];
+
     public static function synchronizeLate(Builder $query): void
     {
         $todayStartUtc = self::businessToday()->utc();
 
+        // งานที่ "พักงาน" ค้างไว้จนเลยกำหนดส่ง ต้องกลายเป็นล่าช้าเหมือนงานที่กำลังทำ
+        // ไม่เช่นนั้นการพักงานจะกลายเป็นช่องทางหลบสถานะล่าช้าไปได้ไม่จำกัด
         (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
-            ->where('job_status', 2)
+            ->whereIn('job_status', self::LATE_ELIGIBLE_STATUSES)
             ->whereNotNull('job_due_at')->where('job_due_at', '<', $todayStartUtc)
             ->update(['job_status' => 6, 'late_at' => now()]);
     }
@@ -31,7 +36,7 @@ final class TodayWorkspace
     public static function normalizeLateForTransition(WorkOrder $task): bool
     {
         if ($task->approval_status !== self::AUTOMATED_APPROVAL_STATUS
-            || (int) $task->job_status !== 2
+            || ! in_array((int) $task->job_status, self::LATE_ELIGIBLE_STATUSES, true)
             || ! $task->job_due_at
             || ! self::businessDate($task->job_due_at)->endOfDay()->lt(self::businessNow())) {
             return (int) $task->job_status === 6;
@@ -63,8 +68,10 @@ final class TodayWorkspace
             return false;
         }
 
+        // งานที่ถูกพักไว้แล้วค่อยกลายเป็นล่าช้า ต้องกลับไป "พักงาน" ตามเดิม ไม่ใช่ถูกปลุกมาทำงานเอง
+        // paused_at ยังคงอยู่ตลอดช่วงที่งานถูกพัก จึงใช้เป็นหลักฐานว่าเดิมงานอยู่สถานะใด
         $task->update([
-            'job_status' => 2,
+            'job_status' => $task->paused_at ? 5 : 2,
             'late_at' => null,
         ]);
 

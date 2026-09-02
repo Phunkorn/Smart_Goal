@@ -15,6 +15,10 @@ class MeetingPolicy
     public function view(User $user, Meeting $meeting): bool
     {
         return in_array($user->role, ['admin', 'viewer'], true)
+            || ($user->isDepartmentHead() && (
+                $meeting->creator()->where('department_id', $user->department_id)->exists()
+                || $meeting->attendees()->where('department_id', $user->department_id)->exists()
+            ))
             || (int) $meeting->created_by === (int) $user->id
             || $meeting->attendees()->whereKey($user->id)->exists();
     }

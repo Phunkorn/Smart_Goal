@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
-@section('title', 'พนักงาน')
+@php
+    $accountContext = $accountContext ?? 'employee';
+    $isSystemAccounts = $accountContext === 'system';
+@endphp
+
+@section('title', $isSystemAccounts ? 'บัญชีระบบ' : 'พนักงาน')
 
 @push('styles')
     @vite('resources/css/pages/employees.css')
@@ -11,33 +16,35 @@
         $roleMeta = [
             'admin' => ['label' => 'Admin', 'icon' => 'bi-shield-check', 'class' => 'admin'],
             'user' => ['label' => 'พนักงาน', 'icon' => 'bi-person-check', 'class' => 'user'],
+            'department_head' => ['label' => 'หัวหน้าแผนก', 'icon' => 'bi-person-badge', 'class' => 'user'],
             'viewer' => ['label' => 'ผู้เข้าชม', 'icon' => 'bi-eye', 'class' => 'viewer'],
         ];
         $currentDeptId = request()->filled('department_id') ? (int) request('department_id') : null;
-        $filteredEmployees = $currentDeptId ? $employees->where('department_id', $currentDeptId)->values() : $employees;
+        $filteredEmployees = ! $isSystemAccounts && $currentDeptId
+            ? $employees->where('department_id', $currentDeptId)->values()
+            : $employees;
     @endphp
 
     <div class="employee-page" data-employee-page
+        data-account-context="{{ $accountContext }}"
         data-success-message="{{ session('success') }}"
         data-error-message="{{ $errors->first() }}"
         data-open-modal="{{ old('_employee_form_modal') }}">
         <header class="employee-page__header">
             <div>
-                <span class="eyebrow">จัดการบุคลากร</span>
-                <h1>พนักงาน</h1>
-                <p>ดูข้อมูลบัญชี สิทธิ์ แผนก และงานที่แต่ละคนรับผิดชอบ</p>
+                <span class="eyebrow">{{ $isSystemAccounts ? 'การกำกับสิทธิ์ระบบ' : 'จัดการบุคลากร' }}</span>
+                <h1>{{ $isSystemAccounts ? 'บัญชีระบบ' : 'พนักงาน' }}</h1>
+                <p>{{ $isSystemAccounts ? 'จัดการบัญชีผู้ดูแลระบบและผู้เข้าชม โดยแยกออกจากบัญชีพนักงาน' : 'ดูข้อมูลบัญชี สิทธิ์ แผนก และงานที่แต่ละคนรับผิดชอบ' }}</p>
             </div>
 
             @if ($canManageEmployees)
                 <button type="button" class="employee-button employee-button--primary" data-bs-toggle="modal"
                     data-bs-target="#createUserModal">
                     <i class="bi bi-person-plus" aria-hidden="true"></i>
-                    เพิ่มพนักงาน
+                    {{ $isSystemAccounts ? 'เพิ่มบัญชีระบบ' : 'เพิ่มพนักงาน' }}
                 </button>
             @endif
         </header>
-
-        1
 
         <section class="employee-toolbar" aria-label="ค้นหาและกรองพนักงาน">
             <label class="employee-search" for="employeeSearchInput">
@@ -49,6 +56,7 @@
                 </span>
             </label>
 
+            @unless($isSystemAccounts)
             <nav class="employee-department-filter" aria-label="กรองตามแผนก">
                 <span class="employee-department-filter__label">แผนก</span>
                 <div class="employee-department-filter__options">
@@ -66,6 +74,7 @@
                     @endforeach
                 </div>
             </nav>
+            @endunless
         </section>
 
         <div class="employee-results-meta" aria-live="polite">
@@ -75,7 +84,9 @@
         <div class="employee-grid" data-employee-grid>
             @forelse($filteredEmployees as $employee)
                 @php
-                    $role = $roleMeta[$employee->role] ?? $roleMeta['user'];
+                    $role = $employee->isDepartmentHead()
+                        ? $roleMeta['department_head']
+                        : ($roleMeta[$employee->role] ?? $roleMeta['user']);
                     $searchText = Str::lower(implode(' ', array_filter([
                         $employee->name,
                         $employee->username,
@@ -98,7 +109,7 @@
                             </div>
                             <div class="employee-profile__identity">
                                 <h2 title="{{ $employee->name }}">{{ $employee->name }}</h2>
-                                <p>{{ optional($employee->department)->department_name ?? 'ไม่ได้ระบุแผนก' }}</p>
+                                <p>{{ $isSystemAccounts ? $role['label'] : (optional($employee->department)->department_name ?? 'ไม่ได้ระบุแผนก') }}</p>
                             </div>
                         </div>
                         <span class="employee-status {{ $employee->is_active ? 'is-active' : 'is-inactive' }}">
@@ -132,7 +143,7 @@
                                 <i class="bi bi-key" aria-hidden="true"></i>รีเซ็ตรหัสผ่าน
                             </button>
                             @if ($employee->id !== auth()->id())
-                                <form method="POST" action="{{ route('employees.destroy', $employee->id) }}"
+                                <form method="POST" action="{{ route($isSystemAccounts ? 'admin.accounts.destroy' : 'employees.destroy', $employee->id) }}"
                                     class="employee-delete-form" data-employee-name="{{ $employee->name }}">
                                     @csrf
                                     @method('DELETE')
@@ -147,16 +158,16 @@
             @empty
                 <div class="employee-empty-state">
                     <i class="bi bi-people" aria-hidden="true"></i>
-                    <h2>ยังไม่มีพนักงานในเงื่อนไขนี้</h2>
-                    <p>ลองเลือกแผนกอื่น หรือเพิ่มบัญชีพนักงานใหม่</p>
+                    <h2>{{ $isSystemAccounts ? 'ยังไม่มีบัญชีระบบ' : 'ยังไม่มีพนักงานในเงื่อนไขนี้' }}</h2>
+                    <p>{{ $isSystemAccounts ? 'เพิ่มบัญชี Admin หรือผู้เข้าชมเพื่อเริ่มต้นใช้งาน' : 'ลองเลือกแผนกอื่น หรือเพิ่มบัญชีพนักงานใหม่' }}</p>
                 </div>
             @endforelse
         </div>
 
         <div class="employee-empty-state" data-employee-search-empty hidden>
             <i class="bi bi-search" aria-hidden="true"></i>
-            <h2>ไม่พบพนักงานที่ค้นหา</h2>
-            <p>ลองตรวจคำค้น หรือค้นหาด้วยชื่อ Username อีเมล เบอร์โทร หรือแผนก</p>
+            <h2>{{ $isSystemAccounts ? 'ไม่พบบัญชีระบบที่ค้นหา' : 'ไม่พบพนักงานที่ค้นหา' }}</h2>
+            <p>ลองตรวจคำค้น หรือค้นหาด้วยชื่อ Username อีเมล หรือเบอร์โทร</p>
         </div>
     </div>
 
@@ -165,6 +176,7 @@
             'modalId' => 'createUserModal',
             'mode' => 'create',
             'employee' => null,
+            'accountContext' => $accountContext,
         ])
 
         @foreach ($employees as $employee)
@@ -172,8 +184,12 @@
                 'modalId' => 'editUserModal' . $employee->id,
                 'mode' => 'edit',
                 'employee' => $employee,
+                'accountContext' => $accountContext,
             ])
-            @include('employees.partials.reset-password-modal', ['employee' => $employee])
+            @include('employees.partials.reset-password-modal', [
+                'employee' => $employee,
+                'accountContext' => $accountContext,
+            ])
         @endforeach
     @endif
 @endsection

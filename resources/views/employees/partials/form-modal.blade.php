@@ -1,9 +1,14 @@
 @php
     $isEdit = $mode === 'edit';
-    $formAction = $isEdit ? route('employees.update', $employee->id) : route('employees.store');
+    $accountContext = $accountContext ?? 'employee';
+    $isSystemAccount = $accountContext === 'system';
+    $formAction = $isEdit
+        ? route($isSystemAccount ? 'admin.accounts.update' : 'employees.update', $employee->id)
+        : route($isSystemAccount ? 'admin.accounts.store' : 'employees.store');
     $useOldValues = old('_employee_form_modal') === $modalId;
     $value = fn (string $field, mixed $default = '') => $useOldValues ? old($field, $default) : $default;
-    $selectedRole = $value('role', $employee->role ?? 'user');
+    $selectedRole = $value('role', $employee->role ?? ($isSystemAccount ? 'admin' : 'user'));
+    if (! $useOldValues && ($employee?->is_department_head ?? false)) $selectedRole = 'department_head';
     $selectedDepartment = $value('department_id', $employee->department_id ?? '');
     $selectedStatus = (string) $value('is_active', $employee->is_active ?? true);
     $titleId = $modalId.'Title';
@@ -18,8 +23,8 @@
                         <i class="bi {{ $isEdit ? 'bi-pencil-square' : 'bi-person-plus' }}"></i>
                     </span>
                     <div>
-                        <h2 class="modal-title" id="{{ $titleId }}">{{ $isEdit ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงาน' }}</h2>
-                        <p>{{ $isEdit ? 'ปรับข้อมูลบัญชี สิทธิ์ และสถานะการใช้งาน' : 'สร้างบัญชีและกำหนดสิทธิ์เริ่มต้นให้พนักงาน' }}</p>
+                        <h2 class="modal-title" id="{{ $titleId }}">{{ $isEdit ? ($isSystemAccount ? 'แก้ไขบัญชีระบบ' : 'แก้ไขพนักงาน') : ($isSystemAccount ? 'เพิ่มบัญชีระบบ' : 'เพิ่มพนักงาน') }}</h2>
+                        <p>{{ $isEdit ? 'ปรับข้อมูลบัญชี สิทธิ์ และสถานะการใช้งาน' : ($isSystemAccount ? 'สร้างบัญชี Admin หรือผู้เข้าชม' : 'สร้างบัญชีและกำหนดสิทธิ์เริ่มต้นให้พนักงาน') }}</p>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
@@ -37,7 +42,7 @@
                         </div>
                         <div class="row g-2">
                             <div class="col-md-6">
-                                <label for="{{ $modalId }}Name" class="form-label">ชื่อพนักงาน</label>
+                                <label for="{{ $modalId }}Name" class="form-label">{{ $isSystemAccount ? 'ชื่อผู้ใช้งาน' : 'ชื่อพนักงาน' }}</label>
                                 <input id="{{ $modalId }}Name" type="text" name="name"
                                     class="form-control {{ $useOldValues && $errors->has('name') ? 'is-invalid' : '' }}"
                                     value="{{ $value('name', $employee->name ?? '') }}" autocomplete="name" required>
@@ -82,14 +87,19 @@
                             <h3 id="{{ $modalId }}AccessTitle">สิทธิ์และองค์กร</h3>
                         </div>
                         <div class="row g-2">
-                            <div class="col-md-4">
+                            <div class="{{ $isSystemAccount ? 'col-md-6' : 'col-md-4' }}">
                                 <label for="{{ $modalId }}Role" class="form-label">สิทธิ์การใช้งาน</label>
                                 <select id="{{ $modalId }}Role" name="role" class="form-select" required data-user-role>
-                                    <option value="user" @selected($selectedRole === 'user')>พนักงาน</option>
-                                    <option value="admin" @selected($selectedRole === 'admin')>Admin</option>
-                                    <option value="viewer" @selected($selectedRole === 'viewer')>ผู้เข้าชม</option>
+                                    @if($isSystemAccount)
+                                        <option value="admin" @selected($selectedRole === 'admin')>Admin</option>
+                                        <option value="viewer" @selected($selectedRole === 'viewer')>ผู้เข้าชม</option>
+                                    @else
+                                        <option value="user" @selected($selectedRole === 'user')>พนักงาน</option>
+                                        <option value="department_head" @selected($selectedRole === 'department_head')>หัวหน้าแผนก</option>
+                                    @endif
                                 </select>
                             </div>
+                            @unless($isSystemAccount)
                             <div class="col-md-4">
                                 <label for="{{ $modalId }}Department" class="form-label">แผนก</label>
                                 <select id="{{ $modalId }}Department" name="department_id" class="form-select" data-user-department>
@@ -99,7 +109,8 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-4">
+                            @endunless
+                            <div class="{{ $isSystemAccount ? 'col-md-6' : 'col-md-4' }}">
                                 <label for="{{ $modalId }}Status" class="form-label">สถานะบัญชี</label>
                                 <select id="{{ $modalId }}Status" name="is_active" class="form-select" required>
                                     <option value="1" @selected($selectedStatus === '1')>เปิดใช้งาน</option>
@@ -107,7 +118,7 @@
                                 </select>
                             </div>
                         </div>
-                        <p class="employee-form-help">พนักงานต้องมีแผนก ส่วน Admin และผู้เข้าชมไม่ต้องเลือกแผนก บัญชีที่ปิดใช้งานจะถูกนำออกจากระบบทุกอุปกรณ์</p>
+                        <p class="employee-form-help">{{ $isSystemAccount ? 'Admin จัดการระบบได้เต็มรูปแบบ ส่วนผู้เข้าชมดูข้อมูลภาพรวมได้โดยแก้ไขไม่ได้' : 'พนักงานและหัวหน้าแผนกต้องมีแผนก บัญชีที่ปิดใช้งานจะถูกนำออกจากระบบทุกอุปกรณ์' }}</p>
                     </section>
 
                     @if(! $isEdit)
@@ -124,7 +135,7 @@
                                     @if($useOldValues) @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
                                 </div>
                             </div>
-                            <p class="employee-form-help" id="{{ $modalId }}PasswordHelp">ใช้สำหรับเข้าสู่ระบบครั้งแรก พนักงานจะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ</p>
+                            <p class="employee-form-help" id="{{ $modalId }}PasswordHelp">ใช้สำหรับเข้าสู่ระบบครั้งแรก ผู้ใช้จะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ</p>
                         </section>
                     @endif
 
@@ -145,7 +156,7 @@
                 <div class="modal-footer employee-form-modal__footer">
                     <button type="button" class="employee-button employee-button--secondary" data-bs-dismiss="modal">ยกเลิก</button>
                     <button type="submit" class="employee-button employee-button--primary">
-                        <i class="bi bi-save" aria-hidden="true"></i>{{ $isEdit ? 'บันทึกการแก้ไข' : 'บันทึกพนักงาน' }}
+                        <i class="bi bi-save" aria-hidden="true"></i>{{ $isEdit ? 'บันทึกการแก้ไข' : ($isSystemAccount ? 'บันทึกบัญชีระบบ' : 'บันทึกพนักงาน') }}
                     </button>
                 </div>
             </form>

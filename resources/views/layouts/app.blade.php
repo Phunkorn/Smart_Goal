@@ -9,9 +9,8 @@
     <title>@yield('title', 'ระบบงาน') | Smart Goal</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
-        rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -41,7 +40,8 @@
         $currentUser = auth()->user();
         $isAdmin = $currentUser?->role === 'admin';
         $isViewer = $currentUser?->role === 'viewer';
-        $roleLabel = match ($currentUser?->role) {
+        $isDepartmentHead = $currentUser?->isDepartmentHead() ?? false;
+        $roleLabel = $isDepartmentHead ? 'หัวหน้าแผนก' : match ($currentUser?->role) {
             'admin' => 'ผู้ดูแลระบบ',
             'viewer' => 'ผู้เข้าชม',
             default => 'พนักงาน',
@@ -97,21 +97,21 @@
                     <i class="bi bi-briefcase"></i>
                     <span class="nav-item__label">งานของฉัน</span>
                 </a>
-                <a href="{{ route('work-board.index') }}"
+                <a href="{{ $isDepartmentHead ? route('work-board.department', $currentUser->department_id) : route('work-board.index') }}"
                     class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดงาน</span>
                 </a>
-                <a href="{{ route('reports.my') }}"
-                    class="nav-item {{ request()->routeIs('reports.my') ? 'active' : '' }}">
+                <a href="{{ $isDepartmentHead ? route('reports.organization') : route('reports.my') }}"
+                    class="nav-item {{ request()->routeIs($isDepartmentHead ? 'reports.organization' : 'reports.my') ? 'active' : '' }}">
                     <i class="bi bi-clipboard-data"></i>
-                    <span class="nav-item__label">รายงานของฉัน</span>
+                    <span class="nav-item__label">{{ $isDepartmentHead ? 'รายงานแผนก' : 'รายงานของฉัน' }}</span>
                 </a>
             @endif
 
             @stack('sidebar_nav_extra')
 
-            <div class="nav-section-label">{{ $isAdmin ? 'งานและคำขอ' : 'การสื่อสาร' }}</div>
+            <div class="nav-section-label">{{ $isAdmin || $isDepartmentHead ? 'งานและคำขอ' : 'การสื่อสาร' }}</div>
 
             <a href="{{ route('notifications.index') }}"
                 class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
@@ -120,7 +120,7 @@
                 <span class="nav-item__count" data-notification-count data-sidebar-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
             </a>
 
-            @if ($isAdmin)
+            @if ($isAdmin || $isDepartmentHead)
                 <a href="{{ route('admin.approvals.index') }}"
                     class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}">
                     <i class="bi bi-shield-check"></i>
@@ -129,7 +129,8 @@
                         <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
                     @endif
                 </a>
-            @elseif ($isViewer)
+            @endif
+            @if ($isViewer)
                 <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
                     <i class="bi bi-calendar-event"></i>
                     <span class="nav-item__label">การประชุม</span>
@@ -149,6 +150,11 @@
                         class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}">
                         <i class="bi bi-diagram-3"></i>
                         <span class="nav-item__label">จัดการแผนก</span>
+                    </a>
+                    <a href="{{ route('admin.accounts.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.accounts.*') ? 'active' : '' }}">
+                        <i class="bi bi-person-gear"></i>
+                        <span class="nav-item__label">บัญชีระบบ</span>
                     </a>
                 @endif
             @endif
@@ -201,7 +207,7 @@
         </button>
         <div class="ms-auto d-flex align-items-center gap-2">
             <span class="role-chip {{ $isAdmin ? 'admin' : 'user' }}" aria-label="{{ $roleLabel }}" title="{{ $roleLabel }}">
-                <i class="bi {{ $isAdmin ? 'bi-shield-check' : 'bi-person-check' }}"></i>
+                <i class="bi {{ $isAdmin ? 'bi-shield-check' : ($isDepartmentHead ? 'bi-person-badge' : 'bi-person-check') }}"></i>
                 <span class="role-chip__label">{{ $roleLabel }}</span>
             </span>
             <div class="dropdown">

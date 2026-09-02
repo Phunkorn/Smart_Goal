@@ -27,7 +27,7 @@
 
 ### Typography
 
-- ใช้ Sarabun จาก layout เดิม
+- ใช้ Prompt จาก layout หลัก
 - Page title: 26–34px, weight 800
 - Section title: 16–18px, weight 800
 - Body: 14–15px

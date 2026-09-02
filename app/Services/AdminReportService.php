@@ -26,16 +26,17 @@ final class AdminReportService
         'custom' => 'กำหนดเอง',
     ];
 
-    public function build(Request $request): array
+    public function build(Request $request, ?int $forcedDepartmentId = null): array
     {
         $departments = Department::query()
+            ->when($forcedDepartmentId, fn ($query, int $id) => $query->whereKey($id))
             ->withCount(['users as active_users_count' => fn ($query) => $query
                 ->where('role', 'user')
                 ->where('is_active', true)])
             ->orderBy('department_name')
             ->get();
 
-        $filters = $this->normalizeFilters($request, $departments);
+        $filters = $this->normalizeFilters($request, $departments, $forcedDepartmentId);
         $jobs = $this->filteredJobs($filters);
         $now = CarbonImmutable::now(self::BUSINESS_TIMEZONE);
 
@@ -183,11 +184,13 @@ final class AdminReportService
         return ReportMetrics::isOverdue($job, $now);
     }
 
-    public function exportJobs(Request $request): Collection
+    public function exportJobs(Request $request, ?int $forcedDepartmentId = null): Collection
     {
-        $departments = Department::query()->orderBy('department_name')->get();
+        $departments = Department::query()
+            ->when($forcedDepartmentId, fn ($query, int $id) => $query->whereKey($id))
+            ->orderBy('department_name')->get();
 
-        return $this->filteredJobs($this->normalizeFilters($request, $departments));
+        return $this->filteredJobs($this->normalizeFilters($request, $departments, $forcedDepartmentId));
     }
 
     private function filteredJobs(array $filters): Collection
@@ -218,7 +221,7 @@ final class AdminReportService
                 ->values());
     }
 
-    private function normalizeFilters(Request $request, Collection $departments): array
+    private function normalizeFilters(Request $request, Collection $departments, ?int $forcedDepartmentId = null): array
     {
         $now = CarbonImmutable::now(self::BUSINESS_TIMEZONE);
         $period = $request->string('period')->toString();
@@ -233,7 +236,7 @@ final class AdminReportService
             default => [$now->subMonthsNoOverflow(5)->startOfMonth(), $now->endOfMonth()],
         };
 
-        $departmentId = $request->integer('department');
+        $departmentId = $forcedDepartmentId ?: $request->integer('department');
         $departmentId = $departments->contains('id', $departmentId) ? $departmentId : null;
         $status = $request->string('status')->toString();
         $status = array_key_exists($status, WorkBoardDesign::STATUSES) ? $status : null;

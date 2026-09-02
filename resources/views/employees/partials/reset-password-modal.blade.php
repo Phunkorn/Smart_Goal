@@ -1,6 +1,8 @@
 @php
     $modalId = 'resetPasswordModal'.$employee->id;
     $titleId = $modalId.'Title';
+    $accountContext = $accountContext ?? 'employee';
+    $isSystemAccount = $accountContext === 'system';
 @endphp
 
 <div class="modal fade employee-reset-modal" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $titleId }}" aria-hidden="true">
@@ -15,14 +17,14 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
             </div>
 
-            <form action="{{ route('employees.resetPassword', $employee->id) }}" method="POST">
+            <form action="{{ route($isSystemAccount ? 'admin.accounts.resetPassword' : 'employees.resetPassword', $employee->id) }}" method="POST">
                 @csrf
                 @method('PATCH')
                 <input type="hidden" name="_employee_form_modal" value="{{ $modalId }}">
                 <div class="modal-body employee-reset-modal__body">
                     <div class="employee-reset-modal__notice">
                         <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
-                        <span>บัญชีจะถูกนำออกจากทุกอุปกรณ์ และพนักงานต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบครั้งถัดไป</span>
+                        <span>บัญชีจะถูกนำออกจากทุกอุปกรณ์ และผู้ใช้ต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบครั้งถัดไป</span>
                     </div>
                     <label for="resetPasswordInput{{ $employee->id }}" class="form-label">รหัสผ่านชั่วคราว</label>
                     <div class="employee-reset-modal__input-group">

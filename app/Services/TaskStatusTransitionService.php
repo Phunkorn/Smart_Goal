@@ -17,6 +17,9 @@ class TaskStatusTransitionService
 
     private const ADMIN_MANUAL_STATUSES = [2, 3, 4, 5];
 
+    /** สถานะที่ส่งเข้าขั้นตรวจสอบได้โดยตรง — กำลังทำ, พักงาน และล่าช้า */
+    private const REVIEWABLE_FROM = [2, 5, 6];
+
     public function __construct(private readonly NotificationService $notifications) {}
 
     public function capabilities(WorkOrder $task, User $actor): array
@@ -28,7 +31,7 @@ class TaskStatusTransitionService
         return [
             'can_edit' => Gate::forUser($actor)->allows('work', $task),
             'can_admin_override' => Gate::forUser($actor)->allows('overrideStatus', $task),
-            'can_submit_review' => in_array($status, [2, 6], true) && ! $selfTask
+            'can_submit_review' => in_array($status, self::REVIEWABLE_FROM, true) && ! $selfTask
                 && Gate::forUser($actor)->allows('submitForReview', $task),
             'can_review' => $status === 3 && Gate::forUser($actor)->allows('review', $task),
             'can_self_close' => $actor->role !== 'viewer' && $status !== 4 && $selfTask,
@@ -79,6 +82,8 @@ class TaskStatusTransitionService
                     'submitted_for_review_by' => $actor->id,
                     'submitted_for_review_at' => now(),
                     'review_return_reason' => null,
+                    // ส่งตรวจจากสถานะพักงานได้โดยตรง งานจึงไม่ได้ถูกพักอีกต่อไป
+                    'paused_at' => null,
                 ];
             } elseif (in_array($action, ['review_approved', 'self_closed'], true)) {
                 $updates += [
@@ -160,10 +165,10 @@ class TaskStatusTransitionService
         }
 
         if ($to === 3) {
-            if (in_array($from, [2, 6], true) && ! $this->isSelfTask($task, $actor)) {
+            if (in_array($from, self::REVIEWABLE_FROM, true) && ! $this->isSelfTask($task, $actor)) {
                 return 'submitted_for_review';
             }
-            $this->reject('สามารถส่งตรวจได้จากสถานะกำลังทำหรือล่าช้าเท่านั้น');
+            $this->reject('สามารถส่งตรวจได้จากสถานะกำลังทำ พักงาน หรือล่าช้าเท่านั้น');
         }
 
         if ($from === 3 && $to === 2) {
@@ -264,7 +269,11 @@ class TaskStatusTransitionService
             });
         }
 
-        if (in_array($status, [2, 6], true) && Gate::forUser($actor)->allows('submitForReview', $task)) {
+        // งานที่ผู้ใช้สร้างเองและรับผิดชอบเองไม่มีขั้นตรวจสอบ resolveAction() ปฏิเสธเสมอ
+        // จึงต้องไม่โฆษณาสถานะ 3 ออกไปให้ UI ลากแล้วเด้ง error
+        if (in_array($status, self::REVIEWABLE_FROM, true)
+            && ! $this->isSelfTask($task, $actor)
+            && Gate::forUser($actor)->allows('submitForReview', $task)) {
             $allowed[] = 3;
         }
 

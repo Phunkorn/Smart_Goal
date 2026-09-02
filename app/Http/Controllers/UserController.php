@@ -14,30 +14,60 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    private const CONTEXT_EMPLOYEE = 'employee';
+
+    private const CONTEXT_SYSTEM = 'system';
+
     public function index()
     {
         abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
 
         $employees = User::with('department')
+            ->where('role', 'user')
             ->orderBy('name')
             ->get()
-            ->sortBy(fn (User $user) => ['admin' => 0, 'viewer' => 1, 'user' => 2][$user->role] ?? 3)
             ->values();
 
         $departments = Department::orderBy('department_name')->get();
         $canManageEmployees = Auth::user()?->role === 'admin';
 
-        return view('employees.index', compact('employees', 'departments', 'canManageEmployees'));
+        return view('employees.index', compact('employees', 'departments', 'canManageEmployees') + [
+            'accountContext' => self::CONTEXT_EMPLOYEE,
+        ]);
     }
 
-    public function store(Request $request)
+    public function systemAccountsIndex()
     {
         abort_unless(Auth::user()?->role === 'admin', 403);
 
-        $validated = $this->validateUser($request);
+        $employees = User::with('department')
+            ->whereIn('role', ['admin', 'viewer'])
+            ->orderByRaw("case when role = 'admin' then 0 else 1 end")
+            ->orderBy('name')
+            ->get();
+
+        return view('employees.index', [
+            'employees' => $employees,
+            'departments' => collect(),
+            'canManageEmployees' => true,
+            'accountContext' => self::CONTEXT_SYSTEM,
+        ]);
+    }
+
+    public function storeSystemAccount(Request $request)
+    {
+        return $this->store($request, self::CONTEXT_SYSTEM);
+    }
+
+    public function store(Request $request, string $accountContext = self::CONTEXT_EMPLOYEE)
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $validated = $this->validateUser($request, null, $accountContext);
         $profilePath = $this->storeProfileImage($request);
 
         $employee = User::create([
@@ -48,23 +78,37 @@ class UserController extends Controller
             'department_id' => $validated['role'] === 'user' ? $validated['department_id'] : null,
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'is_department_head' => $validated['role'] === 'user' && $validated['is_department_head'],
             'must_change_password' => true,
             'is_active' => $validated['is_active'],
             'profile_image' => $profilePath,
         ]);
 
-        AuditTrail::log('created', $employee, 'Admin created employee: '.$employee->name, [
+        AuditTrail::log('created', $employee, 'Admin created '.$this->accountAuditLabel($accountContext).': '.$employee->name, [
             'after' => $this->auditUserPayload($employee),
         ]);
+
+        if ($accountContext === self::CONTEXT_SYSTEM) {
+            return redirect()->route('admin.accounts.index')->with('success', 'เพิ่มบัญชีระบบสำเร็จ');
+        }
 
         return redirect()->route('employees.index')->with('success', 'เพิ่มพนักงานสำเร็จ');
     }
 
-    public function update(Request $request, User $user)
+    public function updateSystemAccount(Request $request, User $user)
+    {
+        return $this->update($request, $user, self::CONTEXT_SYSTEM);
+    }
+
+    public function update(Request $request, User $user, string $accountContext = self::CONTEXT_EMPLOYEE)
     {
         abort_unless(Auth::user()?->role === 'admin', 403);
+        $this->assertAccountContext($user, $accountContext);
 
-        $validated = $this->validateUser($request, $user);
+        $validated = $this->validateUser($request, $user, $accountContext);
+        if ($accountContext === self::CONTEXT_SYSTEM) {
+            $this->assertSafeSystemAccountTransition($user, $validated);
+        }
         $before = $this->auditUserPayload($user);
         $usernameChanged = $user->username !== $validated['username'];
         $emailChanged = $user->email !== $validated['email'];
@@ -76,6 +120,7 @@ class UserController extends Controller
             'phone' => $validated['phone'] ?? null,
             'role' => $validated['role'],
             'department_id' => $validated['role'] === 'user' ? $validated['department_id'] : null,
+            'is_department_head' => $validated['role'] === 'user' && $validated['is_department_head'],
             'is_active' => $validated['is_active'],
         ];
 
@@ -109,10 +154,15 @@ class UserController extends Controller
             UserSessionSecurity::invalidateAll($user);
         }
 
-        AuditTrail::log('updated', $user, 'Admin updated employee: '.$user->name, [
+        AuditTrail::log('updated', $user, 'Admin updated '.$this->accountAuditLabel($accountContext).': '.$user->name, [
             'before' => $before,
             'after' => $this->auditUserPayload($user),
         ]);
+
+        if ($accountContext === self::CONTEXT_SYSTEM
+            && ! ($usernameChanged && (int) $user->id === (int) Auth::id())) {
+            return redirect()->route('admin.accounts.index')->with('success', 'แก้ไขบัญชีระบบสำเร็จ');
+        }
 
         if ($usernameChanged && (int) $user->id === (int) Auth::id()) {
             Auth::logout();
@@ -125,12 +175,22 @@ class UserController extends Controller
         return redirect()->route('employees.index')->with('success', 'แก้ไขข้อมูลพนักงานสำเร็จ');
     }
 
-    public function destroy(User $user)
+    public function destroySystemAccount(User $user)
+    {
+        return $this->destroy($user, self::CONTEXT_SYSTEM);
+    }
+
+    public function destroy(User $user, string $accountContext = self::CONTEXT_EMPLOYEE)
     {
         abort_unless(Auth::user()?->role === 'admin', 403);
+        $this->assertAccountContext($user, $accountContext);
 
         if ($user->id === Auth::id()) {
             return back()->withErrors(['user' => 'ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้']);
+        }
+
+        if ($accountContext === self::CONTEXT_SYSTEM && $this->isLastActiveAdmin($user)) {
+            return back()->withErrors(['user' => 'ระบบต้องมีบัญชีผู้ดูแลที่เปิดใช้งานอย่างน้อย 1 บัญชี']);
         }
 
         $hasJobs = WorkOrder::where('user_id', $user->id)
@@ -140,7 +200,11 @@ class UserController extends Controller
             ->exists();
 
         if ($hasJobs) {
-            return back()->withErrors(['user' => 'พนักงานคนนี้ยังมีข้อมูลงานผูกอยู่ กรุณาปิดงานหรือย้ายผู้รับผิดชอบก่อนลบ']);
+            $message = $accountContext === self::CONTEXT_SYSTEM
+                ? 'บัญชีนี้ยังมีข้อมูลงานผูกอยู่ กรุณาปิดงานหรือย้ายผู้รับผิดชอบก่อนลบ'
+                : 'พนักงานคนนี้ยังมีข้อมูลงานผูกอยู่ กรุณาปิดงานหรือย้ายผู้รับผิดชอบก่อนลบ';
+
+            return back()->withErrors(['user' => $message]);
         }
 
         UserSessionSecurity::assertSupportedDriver();
@@ -151,19 +215,29 @@ class UserController extends Controller
         }
 
         AuditTrail::trash($user, Auth::user(), ['user' => $payload]);
-        AuditTrail::log('deleted', $user, 'Admin deleted employee: '.$user->name, [
+        AuditTrail::log('deleted', $user, 'Admin deleted '.$this->accountAuditLabel($accountContext).': '.$user->name, [
             'before' => $payload,
         ]);
 
         $user->delete();
         UserSessionSecurity::invalidateAll($user);
 
+        if ($accountContext === self::CONTEXT_SYSTEM) {
+            return redirect()->route('admin.accounts.index')->with('success', 'ลบบัญชีระบบสำเร็จ');
+        }
+
         return redirect()->route('employees.index')->with('success', 'ลบพนักงานสำเร็จ');
     }
 
-    public function resetPassword(Request $request, User $user)
+    public function resetSystemAccountPassword(Request $request, User $user)
+    {
+        return $this->resetPassword($request, $user, self::CONTEXT_SYSTEM);
+    }
+
+    public function resetPassword(Request $request, User $user, string $accountContext = self::CONTEXT_EMPLOYEE)
     {
         abort_unless(Auth::user()?->role === 'admin', 403);
+        $this->assertAccountContext($user, $accountContext);
 
         $validated = $request->validate([
             'password' => ['required', 'string', PasswordPolicy::rule()],
@@ -182,19 +256,28 @@ class UserController extends Controller
         ])->save();
         UserSessionSecurity::invalidateAll($user);
 
-        AuditTrail::log('password_reset', $user, 'Admin reset password for employee: '.$user->name, [
+        AuditTrail::log('password_reset', $user, 'Admin reset password for '.$this->accountAuditLabel($accountContext).': '.$user->name, [
             'before' => $before,
             'after' => $this->auditUserPayload($user),
         ]);
 
+        if ($accountContext === self::CONTEXT_SYSTEM) {
+            return redirect()->route('admin.accounts.index')->with('success', 'ตั้งรหัสผ่านชั่วคราวให้บัญชีระบบสำเร็จ');
+        }
+
         return redirect()->route('employees.index')->with('success', 'ตั้งรหัสผ่านชั่วคราวให้พนักงานสำเร็จ พนักงานต้องตั้งรหัสผ่านใหม่ในการเข้าสู่ระบบครั้งถัดไป');
     }
 
-    private function validateUser(Request $request, ?User $user = null): array
+    private function validateUser(Request $request, ?User $user = null, string $accountContext = self::CONTEXT_EMPLOYEE): array
     {
+        $isDepartmentHead = $accountContext === self::CONTEXT_EMPLOYEE
+            && $request->input('role') === 'department_head';
         $request->merge([
             'username' => User::normalizeUsername($request->input('username')),
             'email' => $request->filled('email') ? trim((string) $request->input('email')) : null,
+            'role' => $isDepartmentHead ? 'user' : $request->input('role'),
+            'department_id' => $accountContext === self::CONTEXT_SYSTEM ? null : $request->input('department_id'),
+            'is_department_head' => $isDepartmentHead,
         ]);
 
         if ($user) {
@@ -216,14 +299,59 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
             'password' => $passwordRule,
-            'role' => ['required', Rule::in(['admin', 'user', 'viewer'])],
+            'role' => ['required', Rule::in($accountContext === self::CONTEXT_SYSTEM ? ['admin', 'viewer'] : ['user'])],
+            'is_department_head' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
-            'department_id' => ['nullable', 'required_if:role,user', 'exists:departments,id'],
+            'department_id' => $accountContext === self::CONTEXT_EMPLOYEE
+                ? ['nullable', 'required_if:role,user', 'exists:departments,id']
+                : ['nullable'],
             'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ], [
             'password.confirmed' => 'รหัสผ่านทั้งสองช่องไม่ตรงกัน',
             ...PasswordPolicy::messages(),
         ]);
+    }
+
+    private function assertAccountContext(User $user, string $accountContext): void
+    {
+        $matches = $accountContext === self::CONTEXT_SYSTEM
+            ? in_array($user->role, ['admin', 'viewer'], true)
+            : $user->role === 'user';
+
+        abort_unless($matches, 404);
+    }
+
+    private function assertSafeSystemAccountTransition(User $user, array $validated): void
+    {
+        if ((int) $user->id === (int) Auth::id()
+            && ($validated['role'] !== 'admin' || ! $validated['is_active'])) {
+            throw ValidationException::withMessages([
+                'user' => 'ไม่สามารถลดสิทธิ์หรือปิดใช้งานบัญชีผู้ดูแลที่กำลังใช้งานอยู่ได้',
+            ]);
+        }
+
+        if ($this->isLastActiveAdmin($user)
+            && ($validated['role'] !== 'admin' || ! $validated['is_active'])) {
+            throw ValidationException::withMessages([
+                'user' => 'ระบบต้องมีบัญชีผู้ดูแลที่เปิดใช้งานอย่างน้อย 1 บัญชี',
+            ]);
+        }
+    }
+
+    private function isLastActiveAdmin(User $user): bool
+    {
+        return $user->role === 'admin'
+            && $user->is_active
+            && ! User::query()
+                ->where('role', 'admin')
+                ->where('is_active', true)
+                ->whereKeyNot($user->id)
+                ->exists();
+    }
+
+    private function accountAuditLabel(string $accountContext): string
+    {
+        return $accountContext === self::CONTEXT_SYSTEM ? 'system account' : 'employee';
     }
 
     private function storeProfileImage(Request $request): ?string

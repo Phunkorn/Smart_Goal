@@ -659,3 +659,133 @@
     }
 }
 @media (max-width:760px) { .my-tasks-page .mytasks-kanban__toolbar { align-items:stretch; flex-wrap:wrap; } .my-tasks-page .mytasks-kanban__project-picker { width:100%; } .my-tasks-page .mytasks-kanban__project-picker select { flex:1; min-width:0; } .my-tasks-page .mytasks-kanban__actions { width:100%; margin-left:0; } .my-tasks-page .mytasks-kanban__button { flex:1; } }
+
+/*
+ * คำแนะนำขั้นถัดไปบนการ์ด และสัญญาณตอนลาก
+ *
+ * ป้ายนี้อ่านค่าจาก allowed_statuses ที่ TaskStatusTransitionService ส่งมา
+ * ผู้ใช้จึงรู้ตั้งแต่ก่อนลากว่าการ์ดใบนี้ไปต่อที่ไหนได้ หรือทำไมถึงขยับไม่ได้
+ * แทนที่จะลากไปแล้วเจอ error ทีหลัง
+ */
+.my-tasks-page .mytasks-kanban__next {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 7px 10px;
+    border: 1px solid #c9dcfa;
+    border-radius: 7px;
+    background: #eef4ff;
+    color: #2259a8;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.35;
+    text-align: left;
+}
+
+/* เมื่อเป็นปุ่มจริงต้องดูกดได้ เพราะบนมือถือนี่คือทางเดียวที่เปลี่ยนสถานะได้ */
+.my-tasks-page button.mytasks-kanban__next {
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.my-tasks-page button.mytasks-kanban__next:hover,
+.my-tasks-page button.mytasks-kanban__next:focus-visible {
+    border-color: #2563eb;
+    background: #dfeaff;
+}
+
+.my-tasks-page .mytasks-kanban__next::after {
+    content: "\f138"; /* bi-chevron-right */
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-family: "bootstrap-icons";
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.my-tasks-page .mytasks-kanban__next::before {
+    content: "\f26a"; /* bi-play-fill */
+    flex: 0 0 auto;
+    font-family: "bootstrap-icons";
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.my-tasks-page .mytasks-kanban__next.is-locked {
+    border-color: #e2e8f0;
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.my-tasks-page .mytasks-kanban__next.is-locked::before {
+    content: "\f47a"; /* bi-lock */
+}
+
+.my-tasks-page .mytasks-kanban__next.is-locked::after {
+    content: none;
+}
+
+/* การ์ดที่ขยับไม่ได้ต้องดูออกว่าขยับไม่ได้ ไม่ใช่ดูเหมือนลากได้แล้วลากไม่ติด */
+.my-tasks-page .mytasks-kanban__card.is-locked {
+    border-style: dashed;
+    background: #fcfdfe;
+}
+
+.my-tasks-page .mytasks-kanban__card.is-locked:hover {
+    transform: none;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, .05);
+}
+
+.my-tasks-page .mytasks-kanban__card.is-dragging {
+    opacity: .5;
+    transform: rotate(-1deg);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .16);
+}
+
+/*
+ * ก่อนเริ่มลาก (hover/focus การ์ด): ชี้เฉพาะคอลัมน์ปลายทางที่แนะนำ
+ * ผู้ใช้ที่ไม่รู้ด้วยซ้ำว่าการ์ดลากได้ จะเห็นคำใบ้ตั้งแต่ยังไม่ทันลงมือ
+ */
+.my-tasks-page .mytasks-kanban__column.is-drop-suggested {
+    outline: 2px dashed #93b4f5;
+    outline-offset: -4px;
+    background: #f7faff;
+}
+
+.my-tasks-page .mytasks-kanban__column.is-drop-suggested > header::after {
+    content: "วางที่นี่ได้";
+    margin-left: 6px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #dbe8ff;
+    color: #2259a8;
+    font-size: 10px;
+    font-weight: 650;
+}
+
+/* ระหว่างลาก: คอลัมน์ที่วางได้เด่นขึ้น คอลัมน์ที่วางไม่ได้ถอยไปอยู่หลัง */
+.my-tasks-page .mytasks-kanban__column.is-drop-allowed {
+    outline: 2px dashed #93b4f5;
+    outline-offset: -4px;
+}
+
+.my-tasks-page .mytasks-kanban__column.is-drop-target {
+    outline: 2px solid #2563eb;
+    outline-offset: -4px;
+    background: #f5f9ff;
+}
+
+.my-tasks-page .mytasks-kanban__column.is-drop-blocked {
+    opacity: .45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .my-tasks-page .mytasks-kanban__card,
+    .my-tasks-page .mytasks-kanban__card.is-dragging {
+        transform: none;
+        transition: none;
+    }
+}

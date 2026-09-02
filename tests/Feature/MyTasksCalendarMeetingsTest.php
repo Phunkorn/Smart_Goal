@@ -49,27 +49,42 @@ class MyTasksCalendarMeetingsTest extends TestCase
             ->assertDontSee('ประชุมที่ฉันไม่เห็น');
     }
 
-    public function test_admin_member_workspace_calendar_never_embeds_meetings(): void
+    public function test_admin_and_department_head_member_calendars_embed_only_the_subject_meetings(): void
     {
         $admin = $this->user('admin');
         $member = $this->user();
+        $head = $this->user();
+        $head->forceFill(['is_department_head' => true])->save();
         $this->meeting($admin, 'ประชุมของผู้ดูแล', '2026-08-24 10:00', '2026-08-24 11:00');
+        $this->meeting($head, 'ประชุมส่วนตัวของหัวหน้า', '2026-08-24 11:00', '2026-08-24 12:00');
+        $this->meeting($member, 'ประชุมของสมาชิก', '2026-08-24 13:00', '2026-08-24 14:00');
 
         $this->actingAs($admin)
             ->get(route('admin.work-board.member', [$this->department, $member]))
             ->assertOk()
-            ->assertDontSee('data-calendar-meetings', false)
-            ->assertDontSee('data-meetings-endpoint', false)
+            ->assertSee('data-calendar-meetings', false)
+            ->assertSee('data-meetings-subject-user-id="'.$member->id.'"', false)
+            ->assertSee('ประชุมของสมาชิก')
             ->assertDontSee('ประชุมของผู้ดูแล');
+
+        $this->actingAs($head)
+            ->get(route('work-board.member', [$this->department, $member, 'workspace' => 1, 'view' => 'calendar']))
+            ->assertOk()
+            ->assertSee('data-meetings-subject-user-id="'.$member->id.'"', false)
+            ->assertSee('ประชุมของสมาชิก')
+            ->assertDontSee('ประชุมส่วนตัวของหัวหน้า');
     }
 
     public function test_user_and_admin_member_calendars_share_the_same_agenda_component(): void
     {
         $admin = $this->user('admin');
         $member = $this->user();
+        $head = $this->user();
+        $head->forceFill(['is_department_head' => true])->save();
 
         $workspaces = [
             [$member, route('mytasks.index', ['view' => 'calendar'])],
+            [$head, route('work-board.member', [$this->department, $member, 'workspace' => 1, 'view' => 'calendar'])],
             [$admin, route('admin.work-board.member', [$this->department, $member, 'view' => 'calendar'])],
         ];
 
@@ -80,7 +95,67 @@ class MyTasksCalendarMeetingsTest extends TestCase
                 ->assertSee('data-calendar-agenda', false)
                 ->assertSee('data-calendar-today-list', false)
                 ->assertSee('data-calendar-month-list', false)
-                ->assertSee('data-calendar-month-agenda-title', false);
+                ->assertSee('data-calendar-month-agenda-title', false)
+                ->assertSee('งานและการประชุมวันนี้')
+                ->assertSee('ผู้ร่วมงาน / ผู้เข้าร่วม')
+                ->assertSee('กำหนดส่งและนัดหมายในเดือนนี้')
+                // กล่องรายวันแทนที่ popover ของปุ่ม "+N" เดิม ต้องมีทั้งสองบริบทและของเดิมต้องหายไปจริง
+                ->assertSee('data-calendar-day-modal', false)
+                ->assertSee('data-calendar-day-task-list', false)
+                ->assertSee('data-calendar-day-meeting-list', false)
+                // งานกับประชุมอยู่คนละ section เสมอ ไม่ปนกันในตารางเดียว
+                ->assertSee('data-calendar-day-tasks', false)
+                ->assertSee('data-calendar-day-meetings', false)
+                ->assertDontSee('data-calendar-popover', false);
+        }
+    }
+
+    /** ประชุมใช้แถวร่วมในสองการ์ดสรุปและ Modal รายวัน โดยไม่สร้างการ์ดประชุมใบที่สาม */
+    public function test_meeting_agenda_card_is_never_rendered_below_the_calendar(): void
+    {
+        $admin = $this->user('admin');
+        $member = $this->user();
+        $head = $this->user();
+        $head->forceFill(['is_department_head' => true])->save();
+
+        $workspaces = [
+            [$member, route('mytasks.index', ['view' => 'calendar'])],
+            [$head, route('mytasks.index', ['view' => 'calendar'])],
+            [$admin, route('admin.work-board.member', [$this->department, $member, 'view' => 'calendar'])],
+        ];
+
+        foreach ($workspaces as [$actor, $url]) {
+            $this->actingAs($actor)->get($url)
+                ->assertOk()
+                ->assertDontSee('data-calendar-meeting-list', false)
+                ->assertDontSee('data-calendar-meeting-count', false)
+                ->assertDontSee('mytasks-calendar-agenda__section--meeting', false)
+                ->assertSee('data-calendar-day-meeting-list', false);
+        }
+    }
+
+    /**
+     * คำอธิบายสีบนปฏิทินยึดความสำคัญของงาน 5 ระดับ จึงต้องแสดงทุกบริบท
+     * ส่วนคำอธิบาย "ประชุม" ต้องแสดงทุกบริบทที่ Calendar รับข้อมูลประชุม
+     */
+    public function test_priority_legend_is_shared_but_the_meeting_legend_follows_the_context(): void
+    {
+        $admin = $this->user('admin');
+        $member = $this->user();
+
+        $workspaces = [
+            [$member, route('mytasks.index', ['view' => 'calendar'])],
+            [$admin, route('admin.work-board.member', [$this->department, $member, 'view' => 'calendar'])],
+        ];
+
+        foreach ($workspaces as [$actor, $url]) {
+            $response = $this->actingAs($actor)->get($url)->assertOk();
+
+            foreach (['priority-urgent', 'priority-quick', 'priority-important', 'priority-flexible', 'priority-routine'] as $tone) {
+                $response->assertSee('mytasks-calendar__legend-item '.$tone, false);
+            }
+
+            $response->assertSee('mytasks-calendar__legend-item--meeting', false);
         }
     }
 
@@ -135,6 +210,32 @@ class MyTasksCalendarMeetingsTest extends TestCase
             ->assertOk()->assertJsonCount(2, 'meetings');
     }
 
+    public function test_endpoint_subject_scope_is_limited_to_admin_or_the_subject_department_head(): void
+    {
+        $member = $this->user();
+        $otherDepartment = Department::create(['department_name' => 'Finance']);
+        $outsider = User::factory()->create([
+            'role' => 'user',
+            'department_id' => $otherDepartment->id,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+        $admin = $this->user('admin');
+        $head = $this->user();
+        $head->forceFill(['is_department_head' => true])->save();
+        $this->meeting($member, 'ประชุมของสมาชิก', '2026-11-02 09:00', '2026-11-02 10:00');
+        $this->meeting($outsider, 'ประชุมคนนอก', '2026-11-02 11:00', '2026-11-02 12:00');
+        $query = ['start' => '2026-11-01', 'end' => '2026-11-30', 'subject_user_id' => $member->id];
+
+        $this->actingAs($admin)->getJson(route('mytasks.calendar.meetings', $query))
+            ->assertOk()->assertJsonCount(1, 'meetings')->assertJsonPath('meetings.0.title', 'ประชุมของสมาชิก');
+        $this->actingAs($head)->getJson(route('mytasks.calendar.meetings', $query))
+            ->assertOk()->assertJsonCount(1, 'meetings')->assertJsonPath('meetings.0.title', 'ประชุมของสมาชิก');
+
+        $query['subject_user_id'] = $outsider->id;
+        $this->actingAs($head)->getJson(route('mytasks.calendar.meetings', $query))->assertForbidden();
+    }
+
     public function test_endpoint_requires_authentication_validation_and_a_bounded_range(): void
     {
         $member = $this->user();
@@ -179,6 +280,36 @@ class MyTasksCalendarMeetingsTest extends TestCase
             'must_change_password' => false,
             'is_active' => true,
         ]);
+    }
+
+    /**
+     * การ์ดการประชุมแสดงผู้จัดและผู้เข้าร่วมเป็น avatar จึงต้องได้รูปมาจาก payload จริง
+     * รูปทุกใบต้องเป็น URL ของ MediaController ห้ามประกอบ path จาก storage เอง
+     * และคนที่ยังไม่ได้ตั้งรูปต้องคืน null เพื่อให้ฝั่งหน้าเว็บตกไปใช้อักษรแรกของชื่อ
+     */
+    public function test_calendar_meeting_payload_carries_organizer_and_attendee_avatars(): void
+    {
+        $organizer = $this->user();
+        $organizer->forceFill(['profile_image' => 'profile-images/organizer.jpg'])->save();
+
+        $withPhoto = $this->user();
+        $withPhoto->forceFill(['profile_image' => 'profile-images/attendee.jpg'])->save();
+        $withoutPhoto = $this->user();
+
+        $meeting = $this->meeting($organizer, 'ประชุมที่มีผู้เข้าร่วม', '2026-11-02 09:30', '2026-11-02 11:00');
+        $meeting->attendees()->sync([$withPhoto->id, $withoutPhoto->id]);
+
+        $response = $this->actingAs($organizer)
+            ->getJson(route('mytasks.calendar.meetings', ['start' => '2026-11-01', 'end' => '2026-11-30']))
+            ->assertOk()
+            ->assertJsonPath('meetings.0.organizer', $organizer->name)
+            ->assertJsonPath('meetings.0.organizerAvatar', route('media.profile', $organizer))
+            ->assertJsonCount(2, 'meetings.0.attendees');
+
+        $attendees = collect($response->json('meetings.0.attendees'))->keyBy('name');
+
+        $this->assertSame(route('media.profile', $withPhoto), $attendees[$withPhoto->name]['avatar_url']);
+        $this->assertNull($attendees[$withoutPhoto->name]['avatar_url']);
     }
 
     private function meeting(User $creator, string $title, string $startLocal, string $endLocal): Meeting

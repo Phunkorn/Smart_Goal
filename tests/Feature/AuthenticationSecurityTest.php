@@ -381,7 +381,7 @@ class AuthenticationSecurityTest extends TestCase
         ];
 
         $this->actingAs($admin)
-            ->patch(route('employees.update', $employee), [
+            ->patch(route('admin.accounts.update', $employee), [
                 ...$payload,
                 'password' => 'weak',
                 'password_confirmation' => 'weak',
@@ -389,7 +389,7 @@ class AuthenticationSecurityTest extends TestCase
             ->assertSessionHasErrors(['password' => PasswordPolicy::description()]);
 
         $this->actingAs($admin)
-            ->patch(route('employees.update', $employee), [
+            ->patch(route('admin.accounts.update', $employee), [
                 ...$payload,
                 'password' => 'SecurePassword!123',
                 'password_confirmation' => 'DifferentPassword!456',

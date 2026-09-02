@@ -21,7 +21,6 @@ class EmployeeUiTest extends TestCase
             ->get(route('employees.index'))
             ->assertOk()
             ->assertSee('employee-page__header', false)
-            ->assertSee('employee-summary', false)
             ->assertSee('employee-toolbar', false)
             ->assertSee('employee-card__actions', false)
             ->assertDontSee('employee-current-work', false)
@@ -60,13 +59,14 @@ class EmployeeUiTest extends TestCase
     public function test_create_employee_modal_has_one_simple_temporary_password_field(): void
     {
         $admin = $this->user('admin');
+        $employee = $this->user('user', Department::create(['department_name' => 'Operations']));
         $html = $this->actingAs($admin)
             ->get(route('employees.index'))
             ->assertOk()
             ->getContent();
 
         $createStart = strpos($html, '<div class="modal fade employee-form-modal employee-form-modal--create"');
-        $createEnd = strpos($html, 'id="editUserModal'.$admin->id.'"', $createStart);
+        $createEnd = strpos($html, 'id="editUserModal'.$employee->id.'"', $createStart);
 
         $this->assertIsInt($createStart);
         $this->assertIsInt($createEnd);
@@ -76,7 +76,7 @@ class EmployeeUiTest extends TestCase
         $this->assertStringContainsString('employee-form-modal--create', $createModal);
         $this->assertSame(1, substr_count($createModal, 'name="password"'));
         $this->assertStringNotContainsString('name="password_confirmation"', $createModal);
-        $this->assertStringContainsString('ใช้สำหรับเข้าสู่ระบบครั้งแรก พนักงานจะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ', $createModal);
+        $this->assertStringContainsString('ใช้สำหรับเข้าสู่ระบบครั้งแรก ผู้ใช้จะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ', $createModal);
         $this->assertStringNotContainsString(\App\Support\PasswordPolicy::description(), $createModal);
 
         preg_match('/<input id="createUserModalPassword"[^>]*>/', $createModal, $passwordInput);

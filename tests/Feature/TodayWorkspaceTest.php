@@ -376,6 +376,48 @@ class TodayWorkspaceTest extends TestCase
         $this->assertNull(TodayWorkspace::dateRangeLabel($future->job_start_at, null));
     }
 
+    /**
+     * Regression: synchronizeLate() เคยกรองเฉพาะ job_status = 2 งานที่ถูก "พักงาน"
+     * ค้างไว้จนเลยกำหนดส่งจึงไม่เคยกลายเป็นล่าช้า การพักงานจึงเป็นช่องหลบสถานะล่าช้า
+     */
+    public function test_paused_task_becomes_late_once_it_passes_its_due_date(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $pausedInTime = $this->job($user, 5, now()->subDay(), now()->addDay(), ['paused_at' => now()->subDay()]);
+        $pausedOverdue = $this->job($user, 5, now()->subWeek(), now()->subDay(), ['paused_at' => now()->subWeek()]);
+
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+
+        $this->assertSame(5, (int) $pausedInTime->fresh()->job_status);
+        $this->assertSame(6, (int) $pausedOverdue->fresh()->job_status);
+        $this->assertNotNull($pausedOverdue->fresh()->late_at);
+    }
+
+    /**
+     * งานที่ล่าช้าเพราะถูกพักไว้ ต้องกลับไป "พักงาน" เมื่อกำหนดส่งถูกเลื่อนออก
+     * ไม่ใช่ถูกปลุกมาเป็นกำลังทำเอง — paused_at คือหลักฐานว่าเดิมงานอยู่สถานะใด
+     */
+    public function test_late_task_that_was_paused_returns_to_paused_after_the_due_date_moves(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $user = User::factory()->create(['role' => 'user']);
+
+        $wasPaused = $this->job($user, 6, now()->subWeek(), now()->subDay(), [
+            'late_at' => now(), 'paused_at' => now()->subWeek(),
+        ]);
+        $wasDoing = $this->job($user, 6, now()->subWeek(), now()->subDay(), ['late_at' => now()]);
+
+        foreach ([$wasPaused, $wasDoing] as $task) {
+            $this->actingAs($admin)
+                ->postJson(route('mytasks.updateDueDate', $task), ['job_due_at' => now()->addDay()->toDateString()])
+                ->assertOk();
+        }
+
+        $this->assertSame(5, (int) $wasPaused->fresh()->job_status);
+        $this->assertSame(2, (int) $wasDoing->fresh()->job_status);
+        $this->assertNull($wasPaused->fresh()->late_at);
+    }
+
     private function job(User $user, int $status, $start, $due, array $extra = []): WorkOrder
     {
         return WorkOrder::create(array_merge([

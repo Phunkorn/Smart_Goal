@@ -7,6 +7,7 @@ import {
     buildMonthCalendar,
     calendarMonthForDate,
     calendarMonthKey,
+    daysUntilDue,
     monthsNeedingFetch,
     moveCalendarMonth,
     parseCalendarDate,
@@ -16,7 +17,7 @@ import {
 
 const monthFormatter = new Intl.DateTimeFormat('th-TH', {month: 'long', year: 'numeric', timeZone: 'UTC'});
 const dateFormatter = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'});
-const shortDateFormatter = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'short', timeZone: 'UTC'});
+const shortDateFormatter = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC'});
 
 const element = (tag, className = '', text = '') => {
     const node = document.createElement(tag);
@@ -25,24 +26,39 @@ const element = (tag, className = '', text = '') => {
     return node;
 };
 
+const cell = (className, ...children) => {
+    const node = element('span', `calendar-table__cell${className ? ` ${className}` : ''}`);
+    node.setAttribute('role', 'cell');
+    node.append(...children);
+    return node;
+};
+
 document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const calendar = workspace.querySelector('[data-calendar]');
     const source = workspace.querySelector('[data-workspace-task-source]');
     const grid = calendar?.querySelector('[data-calendar-grid]');
     const title = calendar?.querySelector('[data-calendar-title]');
-    const popover = calendar?.querySelector('[data-calendar-popover]');
-    const popoverTitle = calendar?.querySelector('[data-calendar-popover-title]');
-    const popoverList = calendar?.querySelector('[data-calendar-popover-list]');
+    const dayModal = workspace.querySelector('[data-calendar-day-modal]');
+    const dayTitle = dayModal?.querySelector('[data-calendar-day-title]');
+    const dayCount = dayModal?.querySelector('[data-calendar-day-count]');
+    const dayTaskGroup = dayModal?.querySelector('[data-calendar-day-tasks]');
+    const dayTaskList = dayModal?.querySelector('[data-calendar-day-task-list]');
+    const dayTaskCount = dayModal?.querySelector('[data-calendar-day-task-count]');
+    const dayMeetingGroup = dayModal?.querySelector('[data-calendar-day-meetings]');
+    const dayMeetingList = dayModal?.querySelector('[data-calendar-day-meeting-list]');
+    const dayMeetingCount = dayModal?.querySelector('[data-calendar-day-meeting-count]');
     const detail = workspace.querySelector('[data-calendar-detail]');
     const monthSelect = calendar?.querySelector('[data-calendar-month]');
     const yearSelect = calendar?.querySelector('[data-calendar-year]');
-    if (!calendar || !source || !grid || !title || !popover || !popoverTitle || !popoverList || !detail || !monthSelect || !yearSelect) return;
+    if (!calendar || !source || !grid || !title || !dayModal || !dayTitle || !dayTaskList || !dayMeetingList || !detail || !monthSelect || !yearSelect) return;
 
     const json = (selector) => { const node = document.querySelector(selector); return node ? JSON.parse(node.textContent || '{}') : {}; };
     const teamData = json('[data-team-data]');
     const attachmentData = json('[data-attachment-data]');
 
     const loadingIndicator = calendar.querySelector('[data-calendar-loading]');
+    const filteredIndicator = calendar.querySelector('[data-calendar-filtered]');
+    const searchInput = calendar.querySelector('[data-calendar-search]');
     const todayList = calendar.querySelector('[data-calendar-today-list]');
     const todayEmpty = calendar.querySelector('[data-calendar-today-empty]');
     const todayCount = calendar.querySelector('[data-calendar-today-count]');
@@ -62,7 +78,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     let selectedYear = initialSelection.year;
     let selectedMonth = initialSelection.month;
     let monthData = null;
-    let activeOverflow = null;
+    let activeDayKey = null;
 
     const ensureYearOption = (year) => {
         if (!yearSelect.querySelector(`option[value="${year}"]`)) {
@@ -138,6 +154,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 detailUrl: taskDetailTemplate.replace('__ID__', row.dataset.id),
                 title: row.dataset.topic || 'ไม่มีชื่องาน',
                 project: row.dataset.project || 'งานทั่วไป',
+                assignee: row.dataset.assignee || '',
                 status: Number(row.dataset.status) || 0,
                 priority: Number(row.dataset.priority) || 2,
                 start: row.dataset.start || '',
@@ -148,28 +165,53 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         return [...unique.values()];
     };
 
-    const taskRangeLabel = (task) => {
-        const start = dateFormatter.format(new Date(task.startStamp));
-        if (task.startStamp === task.dueStamp) return start;
-        return `${start} – ${dateFormatter.format(new Date(task.dueStamp))}`;
+    /**
+     * ตัวกรองของปฏิทินย่อ "สิ่งที่แสดง" เท่านั้น ไม่ได้ขยายสิทธิ์ใด ๆ
+     * ข้อมูลที่กรองมาจากรายการที่ผู้ใช้มีสิทธิ์เห็นอยู่แล้วทั้งหมด
+     */
+    const matchesSearch = (event, term) => {
+        if (!term) return true;
+        const haystack = event.type === 'meeting'
+            ? [event.title, event.location, event.organizer, ...(event.attendees || []).map((person) => person.name)]
+            : [event.title, event.project, event.assignee, ...(teamOf(event.taskId).collaborators || []).map((person) => person.name)];
+
+        return haystack.filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+    };
+
+    const visibleEvents = () => {
+        const term = String(searchInput?.value || '').trim().toLowerCase();
+        const all = readEvents();
+        const shown = all.filter((event) => matchesSearch(event, term));
+
+        if (filteredIndicator) {
+            filteredIndicator.hidden = !term;
+            filteredIndicator.textContent = term ? `กรองด้วย "${searchInput.value.trim()}" · ${shown.length} จาก ${all.length} รายการ` : '';
+        }
+        return shown;
+    };
+
+    const eventDateLabel = (event) => {
+        const due = dateFormatter.format(new Date(event.dueStamp));
+        if (event.startStamp === event.dueStamp) return due;
+        return `${dateFormatter.format(new Date(event.startStamp))} – ${due}`;
+    };
+
+    /** ข้อความบอกระยะถึงกำหนดส่ง อ่านแล้วรู้ทันทีว่าต้องรีบแค่ไหน */
+    const dueDistanceLabel = (event) => {
+        const remaining = daysUntilDue(event.dueStamp, todayKey);
+        if (remaining === null) return '';
+        if (remaining === 0) return 'ครบกำหนดวันนี้';
+        return remaining > 0 ? `เหลือ ${remaining} วัน` : `เลยกำหนด ${Math.abs(remaining)} วัน`;
     };
 
     const eventAriaLabel = (event) => {
         if (event.type === 'meeting') {
-            return `การประชุม: ${event.title}, ${event.startTime}–${event.endTime} น., ${event.location}, ผู้จัด ${event.organizer}, ${taskRangeLabel(event)}`;
+            return `การประชุม: ${event.title}, ${event.startTime}–${event.endTime} น., ${event.location}, ผู้จัด ${event.organizer}, ${eventDateLabel(event)}`;
         }
 
         const status = statusMeta[event.status]?.label || unsupportedStatusMeta.label;
         const priority = taskPriorityMeta[event.priority]?.label || taskPriorityMeta[2].label;
-        return `งาน: ${event.title}, ${event.project}, ${status}, ${priority}, ${taskRangeLabel(event)}`;
-    };
-
-    const closePopover = (restoreFocus = false) => {
-        if (popover.hidden) return;
-        popover.hidden = true;
-        activeOverflow?.setAttribute('aria-expanded', 'false');
-        if (restoreFocus) activeOverflow?.focus();
-        activeOverflow = null;
+        return `งาน: ${event.title}, ${event.project}, ${status}, ${priority}, กำหนดส่ง ${eventDateLabel(event)}`;
     };
 
     const rowForTask = (id) => [...source.querySelectorAll('[data-row]')].find((candidate) => String(candidate.dataset.id) === String(id));
@@ -223,170 +265,290 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         return node;
     };
 
-    const makePopoverTask = (event) => {
-        const isMeeting = event.type === 'meeting';
-        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar__popover-task${isMeeting ? ' is-meeting' : ''}`);
-        configureCalendarEventNode(node, event);
+    /* ---------- avatar ---------- */
 
-        const copy = element('span');
-        copy.append(
-            element('strong', '', event.title),
-            element('small', '', isMeeting ? `${event.startTime}–${event.endTime} น. · ${event.location}` : event.project),
-        );
-        const meta = element('span', 'mytasks-calendar__popover-meta');
-        if (isMeeting) {
-            meta.append(element('span', 'status-review', 'ประชุม'));
+    /**
+     * แหล่งข้อมูลของงานคือ [data-team-data] ที่ workspace-interactions ฝังไว้แล้ว
+     * ส่วนประชุมมากับ payload ของ MeetingQueryService ทั้งคู่เป็นข้อมูลจริงของระบบ
+     * ไม่มีการประกอบ path รูปเอง ทุก URL ผ่าน MediaController แล้ว
+     */
+    const makeAvatar = (person, className = '') => {
+        const name = person?.name || 'ไม่ระบุ';
+        const node = element('i', `calendar-avatar${className ? ` ${className}` : ''}`);
+        node.title = person?.status === 'pending' ? `${name} — รอตอบรับ` : name;
+
+        if (person?.avatar_url) {
+            const image = element('img');
+            image.src = person.avatar_url;
+            image.alt = '';
+            image.loading = 'lazy';
+            node.append(image);
         } else {
-            meta.append(
-                element('span', statusMeta[event.status]?.className || unsupportedStatusMeta.className, statusMeta[event.status]?.label || unsupportedStatusMeta.label),
-                element('span', taskPriorityMeta[event.priority]?.className || taskPriorityMeta[2].className, taskPriorityMeta[event.priority]?.label || taskPriorityMeta[2].label),
-            );
+            node.textContent = name.substring(0, 1);
         }
-        node.append(copy, meta);
         return node;
     };
 
-    const positionPopover = (trigger) => {
-        const gutter = 12;
-        const triggerRect = trigger.getBoundingClientRect();
-        const width = Math.min(360, window.innerWidth - (gutter * 2));
-        popover.style.width = `${width}px`;
-        const popoverRect = popover.getBoundingClientRect();
-        const left = Math.max(gutter, Math.min(triggerRect.left, window.innerWidth - width - gutter));
-        let top = triggerRect.bottom + 8;
-        if (top + popoverRect.height > window.innerHeight - gutter) top = triggerRect.top - popoverRect.height - 8;
-        top = Math.max(gutter, Math.min(top, window.innerHeight - popoverRect.height - gutter));
-        popover.style.left = `${left}px`;
-        popover.style.top = `${top}px`;
-    };
-
-    const openPopover = (trigger, day) => {
-        closePopover();
-        activeOverflow = trigger;
-        trigger.setAttribute('aria-expanded', 'true');
-        popoverTitle.textContent = `รายการวันที่ ${dateFormatter.format(new Date(day.stamp))}`;
-        popoverList.replaceChildren(...day.tasks.map(makePopoverTask));
-        popover.hidden = false;
-        requestAnimationFrame(() => {
-            positionPopover(trigger);
-            popover.querySelector('[data-calendar-task]')?.focus({preventScroll: true});
+    const makeAvatarStack = (people, emptyLabel) => {
+        const node = element('span', 'calendar-people__stack');
+        people.slice(0, 3).forEach((person) => {
+            node.append(makeAvatar(person, person?.status === 'pending' ? 'is-pending' : ''));
         });
+        if (people.length > 3) node.append(element('b', 'calendar-people__more', `+${people.length - 3}`));
+        if (!people.length) node.append(element('small', 'calendar-people__none', emptyLabel));
+        return node;
     };
 
-    const makeCalendarSegment = (segment) => {
-        const event = segment.event;
-        const isMeeting = event.type === 'meeting';
-        const tone = isMeeting ? 'mytasks-calendar__task--meeting' : (statusMeta[event.status] || unsupportedStatusMeta).className;
-        const continuation = [
-            segment.continuesBefore ? 'is-continuation-before' : 'is-event-start',
-            segment.continuesAfter ? 'is-continuation-after' : 'is-event-end',
-        ].join(' ');
-        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar__task mytasks-calendar__task--segment ${continuation} ${tone}`);
-        configureCalendarEventNode(node, event);
-        node.title = eventAriaLabel(event);
-        node.style.gridColumn = `${segment.startColumn} / ${segment.endColumn + 1}`;
-        node.style.gridRow = String(segment.lane);
+    const teamOf = (taskId) => teamData[String(taskId)] || {};
 
-        // ไอคอนนำหน้าทำให้แยกประเภทได้โดยไม่ต้องพึ่งสีอย่างเดียว
-        const marker = element('i', isMeeting ? 'bi bi-calendar-event-fill' : `priority-${event.priority}`);
+    /* ---------- ตัวสร้างช่องของตาราง ---------- */
+
+    const toneOf = (event) => (taskPriorityMeta[event.priority] || taskPriorityMeta[2]).className;
+
+    const titleCell = (event) => {
+        const marker = element('i', event.type === 'meeting'
+            ? 'calendar-table__marker bi bi-calendar-event'
+            : `calendar-table__marker calendar-dot ${toneOf(event)}`);
         marker.setAttribute('aria-hidden', 'true');
-        const label = isMeeting && event.startTime ? `${event.startTime} ${event.title}` : event.title;
-        node.append(marker, element('span', '', label));
+        return cell('is-title', marker, element('span', '', event.title));
+    };
+
+    const tag = (className, label) => element('span', `calendar-tag ${className}`, label);
+
+    const taskCellFactory = {
+        title: titleCell,
+        project: (event) => cell('is-muted', element('span', '', event.project)),
+        owner: (event) => cell('is-people', makeAvatar(teamOf(event.taskId).assignee, 'is-owner')),
+        collaborators: (event) => cell('is-people', makeAvatarStack(teamOf(event.taskId).collaborators || [], 'ไม่มี')),
+        priority: (event) => {
+            const meta = taskPriorityMeta[event.priority] || taskPriorityMeta[2];
+            return cell('', tag(meta.className, meta.label));
+        },
+        status: (event) => {
+            const meta = statusMeta[event.status] || unsupportedStatusMeta;
+            return cell('', tag(meta.className, meta.label));
+        },
+        start: (event) => cell(
+            'is-due',
+            element('strong', '', shortDateFormatter.format(new Date(event.scheduleStartStamp))),
+        ),
+        due: (event) => cell(
+            'is-due',
+            element('strong', '', shortDateFormatter.format(new Date(event.dueStamp))),
+            element('small', '', dueDistanceLabel(event)),
+        ),
+        time: (event) => cell(
+            'is-due',
+            element('strong', '', shortDateFormatter.format(new Date(event.dueStamp))),
+            element('small', '', dueDistanceLabel(event)),
+        ),
+    };
+
+    const meetingCellFactory = {
+        title: titleCell,
+        project: (event) => cell('is-muted', element('span', '', event.location || 'ไม่ระบุสถานที่')),
+        time: (event) => cell('is-muted', element('span', '', `${event.startTime} - ${event.endTime}`)),
+        organizer: (event) => cell('is-people', makeAvatar({name: event.organizer, avatar_url: event.organizerAvatar}, 'is-owner')),
+        attendees: (event) => cell('is-people', makeAvatarStack(Array.isArray(event.attendees) ? event.attendees : [], 'ไม่มี')),
+        location: (event) => cell('is-muted', element('span', '', event.location)),
+        date: (event) => cell('is-due', element('strong', '', shortDateFormatter.format(new Date(event.startStamp)))),
+        blank: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
+    };
+
+    // ลำดับช่องต้องตรงกับหัวตารางใน calendar.blade.php ทุกตัว
+    const TASK_LAYOUTS = {
+        today: ['title', 'project', 'owner', 'collaborators', 'priority', 'time'],
+        due: ['title', 'project', 'owner', 'collaborators', 'priority', 'time'],
+        day: ['title', 'project', 'owner', 'collaborators', 'priority', 'status', 'start', 'due'],
+    };
+    const MEETING_LAYOUTS = {
+        today: ['title', 'project', 'organizer', 'attendees', 'blank', 'time'],
+        due: ['title', 'project', 'organizer', 'attendees', 'blank', 'time'],
+        day: ['title', 'time', 'organizer', 'attendees', 'location'],
+    };
+    const CELL_LABELS = {
+        title: 'รายการ',
+        project: 'โปรเจกต์ / สถานที่',
+        owner: 'เจ้าของ',
+        organizer: 'ผู้จัด',
+        collaborators: 'ผู้ร่วมโปรเจกต์',
+        attendees: 'ผู้เข้าร่วม',
+        priority: 'ความสำคัญ',
+        status: 'สถานะ',
+        time: 'เวลา',
+        start: 'วันที่เริ่ม',
+        due: 'กำหนดส่ง',
+        date: 'วันที่',
+        location: 'สถานที่',
+        blank: 'ความสำคัญ',
+    };
+
+    const makeRow = (event, layout) => {
+        const isMeeting = event.type === 'meeting';
+        const factory = isMeeting ? meetingCellFactory : taskCellFactory;
+        const node = element(isMeeting ? 'a' : 'button', `calendar-table__row${isMeeting ? ' is-meeting' : ''}`);
+        configureCalendarEventNode(node, event);
+        node.setAttribute('role', 'row');
+        node.append(...layout.map((column) => {
+            const item = factory[column](event);
+            item.dataset.label = CELL_LABELS[column] || '';
+            return item;
+        }));
         return node;
     };
 
-    const makeAgendaItem = (event) => {
-        const isMeeting = event.type === 'meeting';
-        const node = element(isMeeting ? 'a' : 'button', `mytasks-calendar-agenda__item${isMeeting ? ' is-meeting' : ''}`);
-        configureCalendarEventNode(node, event);
+    const taskRow = (variant) => (event) => makeRow(event, TASK_LAYOUTS[variant]);
+    const meetingRow = (variant) => (event) => makeRow(event, MEETING_LAYOUTS[variant]);
+    const agendaRow = (variant) => (event) => (
+        event.type === 'meeting' ? meetingRow(variant)(event) : taskRow(variant)(event)
+    );
 
-        const date = new Date(event.startStamp);
-        const dateBlock = element('span', 'mytasks-calendar-agenda__date');
-        dateBlock.append(
-            element('strong', '', String(date.getUTCDate())),
-            element('small', '', shortDateFormatter.format(date).replace(/^\d+\s*/, '')),
-        );
+    /* ---------- modal ของวันที่ที่ถูกคลิกบนปฏิทิน ---------- */
 
-        const copy = element('span', 'mytasks-calendar-agenda__copy');
-        copy.append(
-            element('strong', '', event.title),
-            element('small', '', isMeeting
-                ? `${event.startTime}–${event.endTime} น. · ${event.location}`
-                : event.project),
-        );
+    const dayForKey = (key) => monthData?.days.find((candidate) => candidate.key === key) || null;
 
-        const meta = element('span', 'mytasks-calendar-agenda__meta');
-        if (isMeeting) {
-            meta.append(element('span', 'status-review', 'ประชุม'));
-        } else {
-            const status = statusMeta[event.status] || unsupportedStatusMeta;
-            meta.append(element('span', status.className, status.label));
-        }
-        meta.append(element('small', '', taskRangeLabel(event)));
-        const arrow = element('i', 'bi bi-chevron-right');
-        arrow.setAttribute('aria-hidden', 'true');
-        node.append(dateBlock, copy, meta, arrow);
-        return node;
+    const fillDayModal = (day) => {
+        dayTitle.textContent = `งานวันที่ ${dateFormatter.format(new Date(day.stamp))}`;
+        if (dayCount) dayCount.textContent = `ทั้งหมด ${day.events.length} รายการ`;
+
+        dayTaskList.replaceChildren(...day.tasks.map(taskRow('day')));
+        dayMeetingList.replaceChildren(...day.meetings.map(meetingRow('day')));
+        if (dayTaskCount) dayTaskCount.textContent = `${day.tasks.length} งาน`;
+        if (dayMeetingCount) dayMeetingCount.textContent = `${day.meetings.length} การประชุม`;
+        // section ที่ว่างถูกซ่อนทั้งใบ วันที่มีแต่งานจึงไม่เห็นหัวตารางประชุมลอยอยู่
+        if (dayTaskGroup) dayTaskGroup.hidden = day.tasks.length === 0;
+        if (dayMeetingGroup) dayMeetingGroup.hidden = day.meetings.length === 0;
+    };
+
+    const closeDayModal = () => {
+        if (dayModal.hidden) return;
+        modalStack(document).close(dayModal);
+        activeDayKey = null;
+    };
+
+    const openDayModal = (key) => {
+        const day = dayForKey(key);
+        if (!day || !day.events.length) return;
+
+        activeDayKey = key;
+        fillDayModal(day);
+        modalStack(document).open(dayModal);
+        dayModal.querySelector('[data-calendar-task]')?.focus({preventScroll: true});
+    };
+
+    /* ---------- การ์ดสรุปใต้ปฏิทิน ---------- */
+
+    const paintSection = (list, empty, count, items, unit, makeItem) => {
+        if (!list || !empty || !count) return;
+        list.replaceChildren(...items.map(makeItem));
+        empty.hidden = items.length > 0;
+        count.textContent = `${items.length} ${unit}`;
+        // ตารางว่างต้องหายไปทั้งใบ ไม่ให้เหลือหัวตารางลอยอยู่เหนือข้อความ "ไม่มีรายการ"
+        const table = list.closest('.calendar-table');
+        if (table) table.hidden = items.length === 0;
     };
 
     const renderAgenda = (events) => {
-        if (!todayList || !todayEmpty || !todayCount || !monthList || !monthEmpty || !monthCount || !monthAgendaTitle) return;
         const agenda = buildCalendarAgenda(events, selectedYear, selectedMonth, todayKey);
-        todayList.replaceChildren(...agenda.todayTasks.map(makeAgendaItem));
-        monthList.replaceChildren(...agenda.monthEvents.map(makeAgendaItem));
-        todayEmpty.hidden = agenda.todayTasks.length > 0;
-        monthEmpty.hidden = agenda.monthEvents.length > 0;
-        todayCount.textContent = `${agenda.todayTasks.length} งาน`;
-        monthCount.textContent = `${agenda.monthEvents.length} รายการ`;
-        monthAgendaTitle.textContent = `รายการของ${monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)))}`;
+        const monthLabel = monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
+
+        paintSection(todayList, todayEmpty, todayCount, agenda.todayEvents, 'รายการ', agendaRow('today'));
+        paintSection(monthList, monthEmpty, monthCount, agenda.monthEvents, 'รายการ', agendaRow('due'));
+
+        if (monthAgendaTitle) monthAgendaTitle.textContent = `กำหนดส่งและนัดหมายใน${monthLabel}`;
+    };
+
+    /* ---------- ช่องวันที่ ---------- */
+
+    const groupLabel = (group) => `${group.count} ${group.type === 'meeting' ? 'ประชุม' : 'งาน'}`;
+
+    const makeCountChip = (group) => {
+        const tone = group.type === 'meeting' ? 'is-meeting' : (taskPriorityMeta[group.priority] || taskPriorityMeta[2]).className;
+        const node = element('span', `mytasks-calendar__count ${tone}`);
+        const dot = element('i', 'calendar-dot');
+        dot.setAttribute('aria-hidden', 'true');
+        node.append(dot, element('span', '', groupLabel(group)));
+        return node;
+    };
+
+    /**
+     * โทนของทั้งช่องวันที่ มาจากความสำคัญสูงสุดที่มีในวันนั้น (ประชุมล้วน = โทนประชุม)
+     * ชื่อคลาสถอดมาจาก taskPriorityMeta เพื่อไม่ให้มีตารางสีชุดที่สองในระบบ
+     */
+    const dayToneClass = (tone) => {
+        if (!tone) return '';
+        if (tone === 'meeting') return 'is-tone-meeting';
+
+        const priority = Number(String(tone).replace('priority-', ''));
+        const meta = taskPriorityMeta[priority] || taskPriorityMeta[2];
+        return `is-tone-${meta.className.replace('priority-', '')}`;
     };
 
     const makeDayCell = (day) => {
-        const cell = element('div', 'mytasks-calendar__day');
-        cell.setAttribute('role', 'gridcell');
-        cell.dataset.calendarDate = day.key;
-        cell.setAttribute('aria-label', dateFormatter.format(new Date(day.stamp)));
-        cell.classList.toggle('is-outside', !day.isCurrentMonth);
-        cell.classList.toggle('is-today', day.key === todayKey);
-        if (day.key === todayKey) cell.setAttribute('aria-current', 'date');
+        const cellNode = element('div', 'mytasks-calendar__day');
+        cellNode.setAttribute('role', 'gridcell');
+        cellNode.dataset.calendarDate = day.key;
+        cellNode.classList.toggle('is-outside', !day.isCurrentMonth);
+        cellNode.classList.toggle('is-today', day.key === todayKey);
+        cellNode.classList.toggle('is-busy', day.events.length > 0);
 
-        cell.append(element('span', 'mytasks-calendar__day-number', String(day.day)));
-
-        if (day.hiddenCount > 0) {
-            const more = element('button', 'mytasks-calendar__more', `+ ${day.hiddenCount} รายการ`);
-            more.type = 'button';
-            more.dataset.calendarMore = day.key;
-            more.setAttribute('aria-haspopup', 'dialog');
-            more.setAttribute('aria-expanded', 'false');
-            more.setAttribute('aria-label', `ดูรายการทั้งหมดวันที่ ${dateFormatter.format(new Date(day.stamp))}`);
-            cell.append(more);
+        const toneClass = dayToneClass(day.tone);
+        if (toneClass) {
+            cellNode.classList.add(toneClass);
+            cellNode.dataset.calendarTone = day.tone;
         }
-        return cell;
+        if (day.key === todayKey) cellNode.setAttribute('aria-current', 'date');
+
+        const summary = day.groups.map(groupLabel).join(', ');
+        cellNode.setAttribute('aria-label', summary
+            ? `${dateFormatter.format(new Date(day.stamp))}: ${summary}`
+            : dateFormatter.format(new Date(day.stamp)));
+
+        // เฉพาะวันที่มีรายการเท่านั้นที่กดได้ วันว่างจึงไม่มีปุ่มให้โฟกัสหลอก ๆ
+        if (day.events.length) {
+            const open = element('button', 'mytasks-calendar__day-open');
+            open.type = 'button';
+            open.dataset.calendarDay = day.key;
+            open.setAttribute('aria-haspopup', 'dialog');
+            open.setAttribute('aria-label', `ดูรายการทั้งหมดของวันที่ ${dateFormatter.format(new Date(day.stamp))} — ${summary}`);
+            cellNode.append(open);
+        }
+
+        cellNode.append(element('span', 'mytasks-calendar__day-number', String(day.day)));
+
+        const counts = element('span', 'mytasks-calendar__counts');
+        counts.append(...day.visibleGroups.map(makeCountChip));
+        if (day.hiddenGroups > 0) counts.append(element('span', 'mytasks-calendar__more', `+${day.hiddenGroups}`));
+        cellNode.append(counts);
+
+        return cellNode;
     };
 
     const render = () => {
-        closePopover();
         // ห้ามปิด Quick View ตรงนี้ — render() ถูกเรียกจาก ensureMeetingsForSelectedMonth()
         // ทุกครั้งที่ fetch ประชุมพื้นหลังเสร็จ (ทุกครั้งที่เปิดหน้า/เปลี่ยนเดือน) ถ้าปิดที่นี่
         // Quick View ที่เพิ่งเปิดจะถูกปิดทิ้งเองทันทีที่ fetch นั้นตอบกลับ ทำให้ดูเหมือนคลิก
         // Event ไม่ได้ผลเลย จุดที่ต้องปิดจริงคือตอน "เปลี่ยนเดือน" (goToMonth) และตอนข้อมูล
         // ถูก invalidate จริง (mytasks:viewchange / mytasks:changed) เท่านั้น
-        const events = readEvents();
+        // modal รายวันก็เช่นกัน: เติมเนื้อใหม่ให้แทนการปิดทิ้ง
+        const events = visibleEvents();
         monthData = buildMonthCalendar(events, selectedYear, selectedMonth);
         synchronizeSelectors();
         title.textContent = monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
-        const weekNodes = monthData.weeks.map((week) => {
+
+        grid.replaceChildren(...monthData.weeks.map((week) => {
             const weekNode = element('div', 'mytasks-calendar__week');
             weekNode.setAttribute('role', 'row');
             weekNode.append(...week.days.map(makeDayCell));
-            const eventLayer = element('div', 'mytasks-calendar__event-layer');
-            eventLayer.setAttribute('aria-label', 'รายการงานและการประชุมประจำสัปดาห์');
-            eventLayer.append(...week.segments.map(makeCalendarSegment));
-            weekNode.append(eventLayer);
             return weekNode;
-        });
-        grid.replaceChildren(...weekNodes);
+        }));
         renderAgenda(events);
+
+        if (activeDayKey) {
+            const day = dayForKey(activeDayKey);
+            if (day && day.events.length) fillDayModal(day);
+            else closeDayModal();
+        }
     };
 
     /**
@@ -411,6 +573,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             const url = new URL(meetingsEndpoint, window.location.origin);
             url.searchParams.set('start', range.start);
             url.searchParams.set('end', range.end);
+            if (calendar.dataset.meetingsSubjectUserId) {
+                url.searchParams.set('subject_user_id', calendar.dataset.meetingsSubjectUserId);
+            }
 
             const response = await fetch(url, {
                 headers: {Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
@@ -431,9 +596,10 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const goToMonth = (year, month) => {
-        // เดือนใหม่รื้อ chip เดิมทั้งหมด anchor ของ Quick View ที่เปิดอยู่จะหลุดออกจาก DOM
+        // เดือนใหม่รื้อช่องวันที่เดิมทั้งหมด anchor ของ Quick View ที่เปิดอยู่จะหลุดออกจาก DOM
         // ต้องปิดก่อนเสมอ ต่างจาก render() เฉย ๆ ที่อาจถูกเรียกจาก fetch พื้นหลังโดยเดือนไม่เปลี่ยน
         quickView?.close();
+        closeDayModal();
         selectedYear = year;
         selectedMonth = month;
         render();
@@ -447,41 +613,59 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     const resetCalendar = () => {
         // Keep Calendar-only reset behavior centralized so future filters can join this action.
+        if (searchInput) searchInput.value = '';
         const target = resetCalendarMonth(initialSelection);
         goToMonth(target.year, target.month);
+    };
+
+    /**
+     * เปิดรายการหนึ่งรายการ — เส้นทางเดียวกันทั้งจากการ์ดใต้ปฏิทินและ modal รายวัน
+     * สิทธิ์ยังถูกตรวจที่ server ทุกครั้งผ่าน quick-view endpoint และ Task Workspace เดิม
+     */
+    const activateEvent = (chip, domEvent) => {
+        // เปิดในแท็บใหม่ด้วย Ctrl/Cmd/Shift ยังต้องทำงานตามปกติของลิงก์
+        if (domEvent.metaKey || domEvent.ctrlKey || domEvent.shiftKey) return false;
+
+        domEvent.preventDefault();
+
+        // Quick View วางตำแหน่งจาก rect ของ anchor แถวที่อยู่ใน modal รายวันจึงใช้เป็น anchor ไม่ได้
+        // เพราะ modal ถูกปิดไปก่อน (z-index ของ Quick View เท่ากับชั้นล่างสุดของ modal stack)
+        // จุดยึดที่ยังมองเห็นอยู่จริงคือช่องวันที่บนปฏิทินซึ่งเป็นที่มาของแถวนั้นเอง
+        const anchor = dayModal.contains(chip)
+            ? (calendar.querySelector(`[data-calendar-day="${activeDayKey}"]`) || chip)
+            : chip;
+
+        // modal รายวันเป็นชั้นทึบ ต้องปิดก่อนเปิดชั้นถัดไป ไม่ให้ Quick View ไปอยู่ใต้ backdrop
+        closeDayModal();
+
+        const quickViewUrl = chip.dataset.calendarQuickView;
+        if (quickView && quickViewUrl) {
+            // detailUrl มาจาก event ที่ระบบสร้างเอง ไม่ใช่จาก HTML ที่ endpoint ตอบกลับ
+            quickView.open(quickViewUrl, anchor, chip.dataset.calendarDetailUrl || '');
+            return true;
+        }
+
+        // ไม่มี Quick View (เช่นหน้าที่ไม่ได้ฝัง shell) จึงค่อยตกไปใช้เส้นทางเดิม
+        if (chip.dataset.calendarEventType === 'meeting') {
+            if (chip.href) window.location.assign(chip.href);
+            return true;
+        }
+
+        const taskId = String(chip.dataset.calendarTask).replace(/^task-/, '');
+        if (!openTaskWorkspace(taskId)) openReadOnlyTask(taskId);
+        return true;
     };
 
     calendar.addEventListener('click', (event) => {
         const chip = event.target.closest('[data-calendar-task]');
         if (chip) {
-            // เปิดในแท็บใหม่ด้วย Ctrl/Cmd/Shift ยังต้องทำงานตามปกติของลิงก์
-            if (event.metaKey || event.ctrlKey || event.shiftKey) return;
-
-            event.preventDefault();
-            closePopover();
-
-            const quickViewUrl = chip.dataset.calendarQuickView;
-            if (quickView && quickViewUrl) {
-                // detailUrl มาจาก event ที่ระบบสร้างเอง ไม่ใช่จาก HTML ที่ endpoint ตอบกลับ
-                quickView.open(quickViewUrl, chip, chip.dataset.calendarDetailUrl || '');
-                return;
-            }
-
-            // ไม่มี Quick View (เช่นหน้าที่ไม่ได้ฝัง shell) จึงค่อยตกไปใช้เส้นทางเดิม
-            if (chip.dataset.calendarEventType === 'meeting') {
-                if (chip.href) window.location.assign(chip.href);
-                return;
-            }
-
-            const taskId = String(chip.dataset.calendarTask).replace(/^task-/, '');
-            if (!openTaskWorkspace(taskId)) openReadOnlyTask(taskId);
+            activateEvent(chip, event);
             return;
         }
 
-        const more = event.target.closest('[data-calendar-more]');
-        if (more) {
-            const day = monthData?.weeks.flatMap((week) => week.days).find((candidate) => candidate.key === more.dataset.calendarMore);
-            if (day) openPopover(more, day);
+        const dayTrigger = event.target.closest('[data-calendar-day]');
+        if (dayTrigger) {
+            openDayModal(dayTrigger.dataset.calendarDay);
             return;
         }
 
@@ -492,47 +676,60 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             const target = calendarMonthForDate(new Date());
             goToMonth(target.year, target.month);
         }
-        if (event.target.closest('[data-calendar-popover-close]')) closePopover(true);
         if (event.target.closest('[data-calendar-detail-close]')) closeDetail();
     });
+
+    // modal รายวันอยู่นอก [data-calendar] จึงต้องมี listener ของตัวเอง แต่ยังเรียก activateEvent ตัวเดิม
+    dayModal.addEventListener('click', (event) => {
+        if (event.target.closest('[data-calendar-day-close]')) {
+            closeDayModal();
+            return;
+        }
+
+        const chip = event.target.closest('[data-calendar-task]');
+        if (chip) activateEvent(chip, event);
+    });
+    dayModal.addEventListener('modalstack:dismiss', closeDayModal);
 
     calendar.addEventListener('change', (event) => {
         if (!event.target.matches('[data-calendar-month], [data-calendar-year]')) return;
         goToMonth(Number(yearSelect.value), Number(monthSelect.value));
     });
 
-    document.addEventListener('click', (event) => {
-        if (!popover.hidden && !popover.contains(event.target) && !event.target.closest('[data-calendar-more]')) closePopover();
-    });
-    calendar.addEventListener('keydown', (event) => {
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            quickView?.close();
+            render();
+        });
+        // Enter ในช่องค้นหาไม่ควร submit ฟอร์มใด ๆ ที่อาจครอบอยู่
+        searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') event.preventDefault();
+        });
+    }
+
+    const activateWithSpace = (event) => {
         if (event.key !== ' ' && event.key !== 'Spacebar') return;
         const chip = event.target.closest('[data-calendar-task]');
         if (!chip || chip.tagName !== 'A') return;
 
         event.preventDefault();
         chip.click();
-    });
+    };
+    calendar.addEventListener('keydown', activateWithSpace);
+    dayModal.addEventListener('keydown', activateWithSpace);
 
-    document.addEventListener('keydown', (event) => {
-        // การ์ดรายละเอียดปิดผ่าน modal stack เพื่อไม่ให้ Escape ทะลุไปปิดชั้นอื่น
-        if (event.key === 'Escape' && detail.hidden && !popover.hidden) closePopover(true);
-    });
     detail.addEventListener('modalstack:dismiss', closeDetail);
 
     document.addEventListener('mytasks:viewchange', (event) => {
         quickView?.close();
         if (event.detail?.view === 'calendar') render();
-        else closePopover();
+        else closeDayModal();
     });
     document.addEventListener('mytasks:changed', () => {
         // ข้อมูลงานถูกแก้จากที่อื่น (เช่น Task Workspace) เนื้อหาที่ Quick View แสดงอยู่อาจไม่ตรงแล้ว
         quickView?.close();
         render();
     });
-    window.addEventListener('resize', () => closePopover());
-    window.addEventListener('scroll', (event) => {
-        if (!popover.contains(event.target)) closePopover();
-    }, true);
 
     render();
     ensureMeetingsForSelectedMonth();

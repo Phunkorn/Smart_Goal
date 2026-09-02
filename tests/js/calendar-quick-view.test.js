@@ -76,11 +76,11 @@ function mountQuickView(t, {fetchImpl = null, innerWidth = 1024, innerHeight = 7
 
     env.document.body.innerHTML = `
         <div class="mytasks-calendar" data-calendar>
-            <button type="button" class="mytasks-calendar__task" data-calendar-task="task-1"
+            <button type="button" class="calendar-table__row" data-calendar-task="task-1"
                     data-calendar-event-type="task"
                     data-calendar-quick-view="/my-tasks/calendar/quick-view/task/1"
                     data-calendar-detail-url="/my-tasks?view=calendar&open_task=1">งานทดสอบ</button>
-            <a class="mytasks-calendar__task" data-calendar-task="meeting-1"
+            <a class="calendar-table__row" data-calendar-task="meeting-1"
                data-calendar-event-type="meeting"
                href="/meetings/1"
                data-calendar-quick-view="/my-tasks/calendar/quick-view/meeting/1"

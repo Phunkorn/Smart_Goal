@@ -16,6 +16,7 @@ use App\Support\TaskCollaboratorOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
 use App\Support\WorkOrderAssignee;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -38,7 +39,16 @@ class WorkBoardController extends Controller
         private readonly MemberWorkloadQuery $memberWorkloads,
     ) {}
 
-    public function index()
+    /**
+     * ภาพรวมทุกแผนกในองค์กร
+     *
+     * หัวหน้าแผนกเห็นรายชื่อแผนกครบเท่ากับผู้ใช้ทั่วไป — เดิมถูกกรองเหลือเฉพาะแผนกตัวเอง
+     * ทำให้หัวหน้าเห็นน้อยกว่าลูกทีมตัวเอง ซึ่งกลับหัวกลับหางกับที่ควรเป็น
+     *
+     * สิทธิ์ที่ต่างกันอยู่ที่ "ลงลึกได้แค่ไหน" ไม่ใช่ "เห็นแผนกไหนบ้าง":
+     * แผนกที่ตนดูแลเข้า Workspace เต็มได้ แผนกอื่นดูได้แค่งานวันนี้แบบเดียวกับผู้ใช้ทั่วไป
+     */
+    public function index(Request $request)
     {
         $departments = Department::query()
             ->withCount(['users as member_count' => fn ($query) => $query
@@ -71,6 +81,10 @@ class WorkBoardController extends Controller
         ]);
     }
 
+    /**
+     * รายชื่อสมาชิกของแผนกใดก็ได้ — เนื้อหาเท่ากับที่ผู้ใช้ทั่วไปเห็นอยู่แล้ว
+     * จึงไม่กันหัวหน้าแผนกออกจากแผนกอื่น ความต่างของสิทธิ์ไปอยู่ที่ member()
+     */
     public function department(Request $request, Department $department)
     {
         $directory = $this->departmentWorkBoard->directory($department, $request, false);
@@ -84,9 +98,26 @@ class WorkBoardController extends Controller
         ]);
     }
 
-    public function member(Department $department, User $user)
+    public function member(Request $request, Department $department, User $user)
     {
         $this->ensurePreviewMember($department, $user);
+
+        // สิทธิ์เต็มผูกกับ "แผนกที่ตนดูแล" ไม่ใช่ role — หัวหน้าที่เปิดดูแผนกอื่น
+        // จะตกไปใช้มุมมองเดียวกับผู้ใช้ทั่วไปด้านล่าง คือเห็นเฉพาะงานวันนี้ของคนนั้น
+        if ($request->user()->overseesDepartment($department->id)) {
+            if ($request->boolean('workspace')) {
+                return $this->adminMember($request, $department, $user, true);
+            }
+
+            return view('work-board.components.member-preview', [
+                'department' => $department,
+                'member' => $user,
+                'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
+                'isAdmin' => true,
+                'workspaceRouteName' => 'work-board.member',
+                'workspaceRouteParameters' => [$department, $user, 'workspace' => 1],
+            ]);
+        }
 
         return view('work-board.components.member-preview', [
             'department' => $department,
@@ -121,15 +152,23 @@ class WorkBoardController extends Controller
         ]);
     }
 
-    public function adminMember(Request $request, Department $department, User $user)
+    public function adminMember(Request $request, Department $department, User $user, bool $isReadOnlyWorkspace = false)
     {
         abort_unless((int) $user->department_id === (int) $department->id && $user->role === 'user', 404);
+
+        if ($isReadOnlyWorkspace) {
+            abort_unless($request->user()->overseesDepartment($department->id), 403);
+        }
 
         $workspaceView = $this->resolveMemberWorkspaceView($request);
 
         $memberJobsQuery = $this->memberWorkloads->forMember($user);
 
-        TodayWorkspace::synchronizeLate($memberJobsQuery);
+        if ($isReadOnlyWorkspace) {
+            $memberJobsQuery->where('approval_status', 'approved');
+        } else {
+            TodayWorkspace::synchronizeLate($memberJobsQuery);
+        }
 
         $allJobs = $memberJobsQuery
             ->with([
@@ -162,7 +201,7 @@ class WorkBoardController extends Controller
             ->orderBy('id')
             ->get();
         $manageableTaskLists = $taskLists
-            ->filter(fn (WorkOrderList $list) => $request->user()->can('manage', $list))
+            ->filter(fn (WorkOrderList $list) => ! $isReadOnlyWorkspace && $request->user()->can('manage', $list))
             ->values();
         $activeTasks = $jobs->reject(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $completedTasks = $jobs->filter(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
@@ -176,10 +215,26 @@ class WorkBoardController extends Controller
             Gate::authorize('viewAny', Meeting::class);
             $meetingData = app(MeetingQueryService::class)->indexData($request, $request->user(), $user);
         }
+        $calendarNow = CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE);
+        $calendarFrom = $calendarNow->subMonthNoOverflow()->startOfMonth();
+        $calendarTo = $calendarNow->addMonthNoOverflow()->endOfMonth();
+        $calendarMeetings = app(MeetingQueryService::class)->calendarMeetings(
+            $request->user(),
+            $calendarFrom,
+            $calendarTo,
+            $user
+        );
 
         return view('work-board.admin.member', [
             'workspaceView' => $workspaceView,
+            'isReadOnlyWorkspace' => $isReadOnlyWorkspace,
             'meetingData' => $meetingData,
+            'calendarMeetings' => $calendarMeetings,
+            'calendarMeetingRange' => [
+                'start' => $calendarFrom->format('Y-m-d'),
+                'end' => $calendarTo->format('Y-m-d'),
+            ],
+            'calendarMeetingSubject' => $user,
             'department' => $department,
             'departmentTone' => WorkBoardDesign::departmentTone($department),
             'departmentCode' => WorkBoardDesign::departmentCode($department),
@@ -192,10 +247,10 @@ class WorkBoardController extends Controller
             'unreadCommentCounts' => $unreadCommentCounts,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $taskLists->sortBy('name')->values(),
-            'availableCollaborators' => TaskCollaboratorOptions::forActor($request->user()),
+            'availableCollaborators' => $isReadOnlyWorkspace ? collect() : TaskCollaboratorOptions::forActor($request->user()),
             // ใช้ตัวกรองเดียวกับหน้าบอร์ดรวม เพื่อให้โมดัลมอบหมายงานที่ใช้ร่วมกันเห็นรายชื่อชุดเดียวกัน
-            'employees' => WorkOrderAssignee::query()->with('department')->orderBy('name')->get(),
-            'departments' => Department::orderBy('department_name')->get(),
+            'employees' => $isReadOnlyWorkspace ? collect() : WorkOrderAssignee::query()->with('department')->orderBy('name')->get(),
+            'departments' => $isReadOnlyWorkspace ? collect() : Department::orderBy('department_name')->get(),
             'totals' => [
                 'projects' => $taskLists->count(),
                 'tasks' => $allJobs->count(),

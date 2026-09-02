@@ -44,7 +44,7 @@
         .stat-card .value {
             font-size: 1.75rem;
             font-weight: 700;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Prompt', sans-serif;
             margin-top: .2rem;
             color: var(--text);
         }
@@ -331,7 +331,7 @@
         }
 
         .ticket-id {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Prompt', sans-serif;
             font-size: .74rem;
             color: var(--accent-strong);
             font-weight: 600;
@@ -395,7 +395,7 @@
             outline: 0;
             background: transparent;
             width: 100%;
-            font-family: 'Sarabun', sans-serif;
+            font-family: 'Prompt', sans-serif;
             font-size: .85rem;
             color: var(--text);
         }

@@ -109,20 +109,29 @@ final class MeetingQueryService
     }
 
     /**
-     * ประชุมที่ทับซ้อนช่วงเวลาที่ขอ สำหรับวางบนปฏิทินของหน้า "งานของฉัน"
+     * ประชุมที่ทับซ้อนช่วงเวลาที่ขอ สำหรับวางบนปฏิทินของ Workspace
      *
      * สิทธิ์ถูกบังคับที่ SQL ผ่าน visibleQuery() ตัวเดียวกับหน้ารายการประชุม
      * ห้ามกรองสิทธิ์ฝั่ง frontend และห้ามดึงทั้งระบบโดยไม่มีขอบเขต
+     * เมื่อมี subject ให้จำกัดซ้ำเฉพาะประชุมที่บุคคลนั้นจัดหรือเข้าร่วม สำหรับหน้าตรวจงานสมาชิก
      *
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
-    public function calendarMeetings(User $viewer, CarbonInterface $from, CarbonInterface $to): Collection
+    public function calendarMeetings(User $viewer, CarbonInterface $from, CarbonInterface $to, ?User $subject = null): Collection
     {
         $windowStart = CarbonImmutable::instance($from)->utc();
         $windowEnd = CarbonImmutable::instance($to)->utc();
 
         return $this->visibleQuery($viewer)
-            ->with('creator:id,name')
+            ->when($subject, function (Builder $query) use ($subject): void {
+                $query->where(function (Builder $related) use ($subject): void {
+                    $related->where('created_by', $subject->id)
+                        ->orWhereHas('attendees', fn (Builder $attendees) => $attendees->whereKey($subject->id));
+                });
+            })
+            // ปฏิทินแสดงผู้จัดและผู้เข้าร่วมเป็น avatar จึงต้อง eager load ไว้ตั้งแต่ต้น
+            // มิฉะนั้นการวาดตารางประชุมจะยิงคิวรีต่อหนึ่งแถว
+            ->with(['creator:id,name,profile_image', 'attendees:id,name,profile_image'])
             ->where('starts_at', '<=', $windowEnd)
             ->where('ends_at', '>=', $windowStart)
             ->orderBy('starts_at')
@@ -138,6 +147,12 @@ final class MeetingQueryService
                     'title' => $meeting->title,
                     'location' => $meeting->location ?: 'ไม่ระบุสถานที่',
                     'organizer' => $meeting->creator?->name ?? 'ไม่ระบุผู้จัด',
+                    'organizerAvatar' => $meeting->creator?->profile_image ? route('media.profile', $meeting->creator) : null,
+                    // รูปเป็น URL ที่ผ่าน MediaController เสมอ ห้ามประกอบ path จาก storage ตรง ๆ
+                    'attendees' => $meeting->attendees->map(fn (User $person): array => [
+                        'name' => $person->name,
+                        'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
+                    ])->values()->all(),
                     'start' => $startsAt->format('Y-m-d'),
                     'due' => $endsAt->format('Y-m-d'),
                     'startTime' => $startsAt->format('H:i'),
@@ -156,7 +171,14 @@ final class MeetingQueryService
     {
         $query = Meeting::query();
 
-        if (! in_array($viewer->role, ['admin', 'viewer'], true)) {
+        if ($viewer->isDepartmentHead()) {
+            $query->where(function (Builder $query) use ($viewer): void {
+                $query->whereHas('creator', fn (Builder $creator) => $creator
+                    ->where('department_id', $viewer->department_id))
+                    ->orWhereHas('attendees', fn (Builder $attendees) => $attendees
+                        ->where('department_id', $viewer->department_id));
+            });
+        } elseif (! in_array($viewer->role, ['admin', 'viewer'], true)) {
             $query->where(function (Builder $query) use ($viewer): void {
                 $query->where('created_by', $viewer->id)
                     ->orWhereHas('attendees', fn (Builder $attendees) => $attendees->whereKey($viewer->id));
@@ -198,7 +220,7 @@ final class MeetingQueryService
 
     private function normalizeEmployeeId(Request $request, User $viewer): ?int
     {
-        if (! in_array($viewer->role, ['admin', 'viewer'], true)) {
+        if (! in_array($viewer->role, ['admin', 'viewer'], true) && ! $viewer->isDepartmentHead()) {
             return null;
         }
 
@@ -208,12 +230,14 @@ final class MeetingQueryService
             ->whereKey($employeeId)
             ->where('role', 'user')
             ->where('is_active', true)
+            ->when($viewer->isDepartmentHead(), fn (Builder $query) => $query
+                ->where('department_id', $viewer->department_id))
             ->value('id');
     }
 
     private function employeeOptions(User $viewer)
     {
-        if (! in_array($viewer->role, ['admin', 'viewer'], true)) {
+        if (! in_array($viewer->role, ['admin', 'viewer'], true) && ! $viewer->isDepartmentHead()) {
             return collect();
         }
 
@@ -221,6 +245,8 @@ final class MeetingQueryService
             ->with('department:id,department_name')
             ->where('role', 'user')
             ->where('is_active', true)
+            ->when($viewer->isDepartmentHead(), fn (Builder $query) => $query
+                ->where('department_id', $viewer->department_id))
             ->orderBy('name')
             ->get(['id', 'name', 'department_id']);
     }

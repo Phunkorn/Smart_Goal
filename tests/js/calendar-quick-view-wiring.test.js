@@ -52,6 +52,11 @@ async function bootCalendar(t, {detailTemplate}) {
         title: 'ประชุมทดสอบปฏิทิน',
         location: 'ห้องประชุมชั้น 2',
         organizer: 'ผู้จัด',
+        organizerAvatar: '/media/profile/20',
+        attendees: [
+            {name: 'ผู้เข้าร่วมหนึ่ง', avatar_url: '/media/profile/21'},
+            {name: 'ผู้เข้าร่วมสอง', avatar_url: null},
+        ],
         start: today,
         due: today,
         startTime: '10:00',
@@ -72,6 +77,7 @@ async function bootCalendar(t, {detailTemplate}) {
                      data-task-quickview-template="/my-tasks/calendar/quick-view/task/__ID__"
                      data-task-detail-template="${detailTemplate}">
                 <h2 data-calendar-title></h2>
+                <input type="search" data-calendar-search>
                 <select data-calendar-month>${months}</select>
                 <select data-calendar-year></select>
                 <div data-calendar-grid></div>
@@ -84,13 +90,25 @@ async function bootCalendar(t, {detailTemplate}) {
                     <div data-calendar-month-list></div>
                     <p data-calendar-month-empty></p>
                 </div>
-                <div data-calendar-popover hidden>
-                    <strong data-calendar-popover-title></strong>
-                    <div data-calendar-popover-list></div>
-                </div>
                 <script type="application/json" data-calendar-meetings>${JSON.stringify([meeting])}</script>
             </section>
+            <script type="application/json" data-team-data>{
+                "1": {
+                    "assignee": {"name": "เจ้าของงาน", "avatar_url": "/media/profile/9"},
+                    "collaborators": [
+                        {"name": "หนึ่ง", "avatar_url": "/media/profile/10", "status": "accepted"},
+                        {"name": "สอง", "status": "pending"}
+                    ]
+                }
+            }</script>
             <div data-calendar-detail hidden></div>
+            <div data-calendar-day-modal hidden>
+                <h2 data-calendar-day-title></h2>
+                <button type="button" data-calendar-day-close></button>
+                <section data-calendar-day-tasks hidden><b data-calendar-day-task-count></b><div data-calendar-day-task-list></div></section>
+                <section data-calendar-day-meetings hidden><b data-calendar-day-meeting-count></b><div data-calendar-day-meeting-list></div></section>
+                <small data-calendar-day-count></small>
+            </div>
             ${POPOVER_SHELL}
         </div>`;
 
@@ -112,7 +130,8 @@ async function bootCalendar(t, {detailTemplate}) {
         popover: env.document.querySelector('[data-quick-view-popover]'),
         detailLink: env.document.querySelector('[data-quick-view-detail]'),
         title: env.document.querySelector('[data-quick-view-title]'),
-        chip: (id) => env.document.querySelector(`[data-calendar-grid] [data-calendar-task="${id}"]`),
+        // ช่องวันที่สรุปเป็นจำนวนงานแล้ว แถวที่คลิกได้จึงอยู่ในการ์ดสรุปใต้ปฏิทิน
+        chip: (id) => env.document.querySelector(`[data-calendar-agenda] [data-calendar-task="${id}"]`),
         agendaItem: (list, id) => env.document.querySelector(`[data-calendar-${list}-list] [data-calendar-task="${id}"]`),
         clickChip(id) {
             const node = this.chip(id);
@@ -126,19 +145,103 @@ async function bootCalendar(t, {detailTemplate}) {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-test('agenda renders today tasks separately and the selected month includes meetings without duplicates', async (t) => {
+test('today and month agenda cards combine tasks with meetings', async (t) => {
     const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
     const todayList = ui.document.querySelector('[data-calendar-today-list]');
     const monthList = ui.document.querySelector('[data-calendar-month-list]');
 
-    assert.equal(todayList.querySelectorAll('[data-calendar-task]').length, 1);
+    assert.equal(todayList.querySelectorAll('[data-calendar-task]').length, 2);
     assert.ok(ui.agendaItem('today', 'task-1'));
-    assert.equal(ui.agendaItem('today', 'meeting-1'), null);
+    assert.ok(ui.agendaItem('today', 'meeting-1'));
+
     assert.equal(monthList.querySelectorAll('[data-calendar-task]').length, 2);
     assert.ok(ui.agendaItem('month', 'task-1'));
     assert.ok(ui.agendaItem('month', 'meeting-1'));
-    assert.equal(ui.document.querySelector('[data-calendar-today-count]').textContent, '1 งาน');
+
+    assert.equal(ui.document.querySelector('[data-calendar-today-count]').textContent, '2 รายการ');
     assert.equal(ui.document.querySelector('[data-calendar-month-count]').textContent, '2 รายการ');
+    assert.equal(ui.document.querySelector('[data-calendar-meeting-list]'), null);
+
+    ui.document.querySelector('[data-calendar-day]').dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+    assert.ok(ui.document.querySelector('[data-calendar-day-meeting-list] [data-calendar-task="meeting-1"]'));
+});
+
+test('agenda cards show task collaborators and meeting attendees', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const item = ui.agendaItem('today', 'task-1');
+
+    assert.equal(item.querySelector('.calendar-avatar.is-owner img').getAttribute('src'), '/media/profile/9');
+    assert.equal(item.querySelectorAll('.calendar-people__stack .calendar-avatar').length, 2);
+    const monthItem = ui.agendaItem('month', 'task-1');
+    assert.match(monthItem.textContent, /โปรเจกต์ปฏิทิน/);
+    assert.equal(monthItem.querySelectorAll('.calendar-people__stack .calendar-avatar').length, 2);
+
+    const meetingItem = ui.agendaItem('today', 'meeting-1');
+    assert.equal(meetingItem.querySelector('.calendar-avatar.is-owner img').getAttribute('src'), '/media/profile/20');
+    assert.equal(meetingItem.querySelectorAll('.calendar-people__stack .calendar-avatar').length, 2);
+
+    ui.document.querySelector('[data-calendar-day]').dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+    const dayItem = ui.document.querySelector('[data-calendar-day-task-list] [data-calendar-task="task-1"]');
+    const collaborators = dayItem.querySelectorAll('.calendar-people__stack .calendar-avatar');
+    // รายละเอียดผู้ร่วมงานยังอยู่ครบใน Modal รายวัน
+    assert.equal(collaborators.length, 2);
+    assert.equal(collaborators[0].querySelector('img').getAttribute('src'), '/media/profile/10');
+    assert.equal(collaborators[1].querySelector('img'), null);
+    assert.equal(collaborators[1].textContent, 'ส');
+    assert.equal(collaborators[1].classList.contains('is-pending'), true);
+});
+
+test('the calendar grid summarises each day by priority instead of listing every task', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const today = isoDate(new Date());
+    const cell = ui.document.querySelector(`[data-calendar-grid] [data-calendar-date="${today}"]`);
+
+    // ช่องวันที่ต้องไม่มีชิ้นงานให้คลิกอีกแล้ว มีแต่ตัวเลขสรุปกับปุ่มเปิดกล่องรายวัน
+    assert.equal(cell.querySelectorAll('[data-calendar-task]').length, 0);
+
+    const counts = [...cell.querySelectorAll('.mytasks-calendar__count')].map((node) => node.textContent);
+    assert.deepEqual(counts, ['1 งาน', '1 ประชุม']);
+    assert.equal(cell.querySelector('.mytasks-calendar__count.priority-important') !== null, true);
+    assert.equal(cell.querySelector('.mytasks-calendar__count.is-meeting') !== null, true);
+});
+
+test('the day cell carries the tone of its most urgent item', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const today = isoDate(new Date());
+    const cell = ui.document.querySelector(`[data-calendar-grid] [data-calendar-date="${today}"]`);
+    const empty = [...ui.document.querySelectorAll('[data-calendar-grid] [data-calendar-date]')]
+        .find((node) => node.dataset.calendarDate !== today);
+
+    // งาน priority 2 (สำคัญไม่ด่วน) ชนะประชุมเสมอ เพราะประชุมอยู่ท้ายลำดับ
+    assert.equal(cell.classList.contains('is-tone-important'), true);
+    assert.equal(cell.classList.contains('is-busy'), true);
+    assert.equal(cell.dataset.calendarTone, 'priority-2');
+
+    // วันที่ไม่มีรายการต้องไม่ถูกระบายสีเลย
+    assert.equal(empty.className.includes('is-tone-'), false);
+    assert.equal(empty.classList.contains('is-busy'), false);
+});
+
+test('the calendar search narrows both the grid and the summary cards', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const search = ui.document.querySelector('[data-calendar-search]');
+    const today = isoDate(new Date());
+
+    search.value = 'ประชุมทดสอบ';
+    search.dispatchEvent(new ui.window.Event('input', {bubbles: true}));
+
+    assert.equal(ui.agendaItem('today', 'task-1'), null, 'งานที่ไม่ตรงคำค้นต้องหายจากการ์ด');
+    assert.ok(ui.agendaItem('today', 'meeting-1'), 'ประชุมที่ตรงคำค้นต้องอยู่ในการ์ดวันนี้');
+    assert.equal(ui.document.querySelector('[data-calendar-meeting-list]'), null);
+
+    const counts = [...ui.document.querySelectorAll(`[data-calendar-date="${today}"] .mytasks-calendar__count`)].map((node) => node.textContent);
+    assert.deepEqual(counts, ['1 ประชุม']);
+    ui.document.querySelector('[data-calendar-day]').dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+    assert.ok(ui.document.querySelector('[data-calendar-day-meeting-list] [data-calendar-task="meeting-1"]'));
+
+    search.value = '';
+    search.dispatchEvent(new ui.window.Event('input', {bubbles: true}));
+    assert.ok(ui.agendaItem('today', 'task-1'), 'ล้างคำค้นแล้วต้องกลับมาครบ');
 });
 
 test('agenda follows the selected month and reuses the existing task quick view handler', async (t) => {
@@ -156,7 +259,7 @@ test('agenda follows the selected month and reuses the existing task quick view 
 
     assert.equal(ui.document.querySelector('[data-calendar-month-list]').children.length, 0);
     assert.equal(ui.document.querySelector('[data-calendar-month-empty]').hidden, false);
-    assert.match(ui.document.querySelector('[data-calendar-month-agenda-title]').textContent, /^รายการของ/);
+    assert.match(ui.document.querySelector('[data-calendar-month-agenda-title]').textContent, /^กำหนดส่งและนัดหมายใน/);
 });
 
 test('คลิกงานบนปฏิทินเปิด Popover โดยไม่ navigate และคืน focus ให้ chip ที่กด', async (t) => {
@@ -184,7 +287,10 @@ test('คลิกประชุมบนปฏิทินเปิด Popover
     const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
     ui.respond(MEETING_HTML);
 
-    const {node, event} = ui.clickChip('meeting-1');
+    ui.document.querySelector('[data-calendar-day]').dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+    const node = ui.document.querySelector('[data-calendar-day-meeting-list] [data-calendar-task="meeting-1"]');
+    const event = new ui.window.MouseEvent('click', {bubbles: true, cancelable: true});
+    node.dispatchEvent(event);
     assert.equal(node.tagName, 'A', 'ประชุมยังเป็นลิงก์จริงเพื่อให้เปิดแท็บใหม่ได้');
     assert.equal(node.getAttribute('href'), '/meetings/1');
     assert.equal(event.defaultPrevented, true);
@@ -239,4 +345,84 @@ test('เปลี่ยนเดือน (re-render ปฏิทิน) ต้
     ui.document.dispatchEvent(new ui.window.CustomEvent('mytasks:changed'));
 
     assert.equal(ui.popover.hidden, true, 'anchor เดิมหลุดจาก DOM แล้ว Popover ต้องไม่ค้างเปิดชี้ไปที่ chip ที่ไม่มีอยู่แล้ว');
+});
+
+/*
+ * modal รายวัน — แทนที่ popover ของปุ่ม "+N รายการ" เดิมทั้งชุด
+ * ต้องพิสูจน์เส้นทางจริงตั้งแต่คลิกช่องวันที่จนเห็นรายการ ไม่ใช่แค่เรียกฟังก์ชันภายใน
+ */
+test('clicking a calendar date opens a modal listing that day items and Escape closes it', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const modal = ui.document.querySelector('[data-calendar-day-modal]');
+    const today = isoDate(new Date());
+    const trigger = ui.document.querySelector(`[data-calendar-grid] [data-calendar-day="${today}"]`);
+
+    assert.equal(modal.hidden, true);
+    assert.ok(trigger, 'วันที่มีรายการต้องมีปุ่มเปิดกล่องของวันนั้น');
+    // วันที่ไม่มีรายการต้องไม่มีปุ่มให้โฟกัสหลอก ๆ
+    assert.equal(ui.document.querySelectorAll('[data-calendar-grid] [data-calendar-day]').length, 1);
+
+    trigger.dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+
+    assert.equal(modal.hidden, false);
+    assert.deepEqual(
+        [...modal.querySelectorAll('[data-calendar-task]')].map((node) => node.dataset.calendarTask),
+        ['task-1', 'meeting-1'],
+    );
+    assert.equal(ui.document.querySelector('[data-calendar-day-count]').textContent, 'ทั้งหมด 2 รายการ');
+    // งานกับประชุมต้องอยู่คนละ section ไม่ปนกันในตารางเดียว
+    assert.equal(ui.document.querySelectorAll('[data-calendar-day-task-list] [data-calendar-task]').length, 1);
+    assert.equal(ui.document.querySelectorAll('[data-calendar-day-meeting-list] [data-calendar-task]').length, 1);
+    assert.equal(
+        ui.document.querySelector('[data-calendar-day-task-list] [data-calendar-task="task-1"]').querySelectorAll('.calendar-table__cell.is-due').length,
+        2,
+        'Modal รายวันต้องแสดงวันที่เริ่มและกำหนดส่งเป็นคนละช่อง',
+    );
+    assert.equal(ui.document.querySelector('[data-calendar-day-tasks]').hidden, false);
+    assert.equal(ui.document.querySelector('[data-calendar-day-meetings]').hidden, false);
+
+    ui.document.dispatchEvent(new ui.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    assert.equal(modal.hidden, true);
+});
+
+test('reopening the day modal does not accumulate rows or listeners', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const modal = ui.document.querySelector('[data-calendar-day-modal]');
+    const today = isoDate(new Date());
+    const click = () => ui.document
+        .querySelector(`[data-calendar-grid] [data-calendar-day="${today}"]`)
+        .dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+
+    for (let round = 0; round < 3; round += 1) {
+        click();
+        assert.equal(modal.hidden, false);
+        assert.equal(modal.querySelectorAll('[data-calendar-task]').length, 2);
+        ui.document.querySelector('[data-calendar-day-close]')
+            .dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+        assert.equal(modal.hidden, true);
+    }
+
+    assert.equal(ui.document.body.classList.contains('modal-open'), false);
+});
+
+test('opening a task from the day modal closes it and hands over to the shared quick view', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const modal = ui.document.querySelector('[data-calendar-day-modal]');
+    const today = isoDate(new Date());
+
+    ui.document.querySelector(`[data-calendar-grid] [data-calendar-day="${today}"]`)
+        .dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+
+    const item = modal.querySelector('[data-calendar-task="task-1"]');
+    const opened = new ui.window.MouseEvent('click', {bubbles: true, cancelable: true});
+    item.dispatchEvent(opened);
+
+    assert.equal(opened.defaultPrevented, true, 'ต้องกัน default ไม่ให้เบราว์เซอร์เปลี่ยนหน้า');
+    // กล่องรายวันเป็นชั้นทึบ ต้องปิดก่อน Quick View จะไม่ไปอยู่ใต้ backdrop
+    assert.equal(modal.hidden, true);
+    assert.deepEqual(ui.requests, ['/my-tasks/calendar/quick-view/task/1']);
+
+    await flush();
+    assert.equal(ui.popover.hidden, false);
+    assert.equal(ui.title.textContent, 'งานทดสอบปฏิทิน');
 });

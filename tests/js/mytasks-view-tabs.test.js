@@ -87,13 +87,25 @@ async function boot(t, {withCalendar = true, viewHistory = true} = {}) {
                         <select data-calendar-year></select>
                         <span data-calendar-loading hidden></span>
                         <div data-calendar-grid></div>
-                        <div data-calendar-popover hidden>
-                            <strong data-calendar-popover-title></strong>
-                            <div data-calendar-popover-list></div>
+                        <div data-calendar-agenda>
+                            <strong data-calendar-today-count></strong>
+                            <div class="calendar-table"><div class="calendar-table__body" data-calendar-today-list></div></div>
+                            <p data-calendar-today-empty></p>
+                            <h3 data-calendar-month-agenda-title></h3>
+                            <strong data-calendar-month-count></strong>
+                            <div class="calendar-table"><div class="calendar-table__body" data-calendar-month-list></div></div>
+                            <p data-calendar-month-empty></p>
                         </div>
                         <script type="application/json" data-calendar-meetings>${JSON.stringify([meeting])}</script>
                     </section>
                     <div data-calendar-detail hidden></div>
+                    <div data-calendar-day-modal hidden>
+                        <h2 data-calendar-day-title></h2>
+                        <button type="button" data-calendar-day-close></button>
+                        <section data-calendar-day-tasks hidden><b data-calendar-day-task-count></b><div data-calendar-day-task-list></div></section>
+                        <section data-calendar-day-meetings hidden><b data-calendar-day-meeting-count></b><div data-calendar-day-meeting-list></div></section>
+                        <small data-calendar-day-count></small>
+                    </div>
                     ${POPOVER_SHELL}
                 </div>
             </section>
@@ -118,7 +130,8 @@ async function boot(t, {withCalendar = true, viewHistory = true} = {}) {
         database: env.document.querySelector('.notion-database'),
         popover: env.document.querySelector('[data-quick-view-popover]'),
         title: () => env.document.querySelector('[data-calendar-title]').textContent,
-        chip: () => env.document.querySelector('[data-calendar-grid] [data-calendar-task]'),
+        // ช่องวันที่สรุปเป็นจำนวนงานต่อความสำคัญแล้ว แถวที่คลิกได้อยู่ในการ์ดสรุปใต้ปฏิทิน
+        chip: () => env.document.querySelector('[data-calendar-agenda] [data-calendar-task]'),
         click: (node) => {
             const el = typeof node === 'string' ? env.document.querySelector(node) : node;
             assert.ok(el, `ไม่พบ element: ${node}`);

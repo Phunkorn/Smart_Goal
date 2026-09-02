@@ -1,5 +1,5 @@
 import {synchronizeTaskSource} from './task-state.js';
-import {canDragTask, canTransitionTo, confirmTaskTransition} from './task-transitions.js';
+import {canDragTask, canTransitionTo, confirmTaskTransition, lockReason, nextStepHint} from './task-transitions.js';
 
 export const selectMobileKanbanStatus = (panel, status, {focus = false} = {}) => {
     const value = String(status);
@@ -103,18 +103,172 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
         }
 
         kanban.querySelector(`[data-kanban-column="${task.status}"] .mytasks-kanban__cards`)?.append(card);
+        // capabilities มาพร้อม event เมื่อการเปลี่ยนสถานะเกิดจากที่อื่น (modal/ตาราง)
+        if (task.transitions) management[String(task.id)] = {...management[String(task.id)], transitions: task.transitions};
+        paintCardGuidance(card);
         refresh();
     });
 
     let dragged = null;
-    const canDragCard = (card) => canDragTask(
-        Number(card.dataset.status),
-        management[String(card.dataset.id)]?.transitions || {}
-    );
+    const toast = document.querySelector('[data-toast]');
+    const capabilitiesOf = (card) => management[String(card.dataset.id)]?.transitions || {};
+    const canDragCard = (card) => canDragTask(Number(card.dataset.status), capabilitiesOf(card));
+
+    // ลากผิดช่องต้องบอกเหตุผล ไม่ใช่เด้งกลับเงียบ ๆ — pattern เดียวกับ table-controls.js
+    const notify = (message, ok = false) => {
+        if (!toast || !message) return;
+        toast.textContent = message;
+        toast.style.background = ok ? '#172033' : '#dc2626';
+        toast.classList.add('show');
+        window.setTimeout(() => toast.classList.remove('show'), 2400);
+    };
+
+    const columnLabel = (status) => kanban
+        .querySelector(`[data-kanban-column="${status}"] header span`)?.textContent.trim()
+        || `สถานะ ${status}`;
+
+    /**
+     * เส้นทางเปลี่ยนสถานะเส้นเดียวที่ทั้งการลากและปุ่ม "ขั้นถัดไป" ใช้ร่วมกัน
+     *
+     * แยกออกมาเพราะบนมือถือลากไม่ได้จริง ๆ — คอลัมน์อื่นถูกซ่อนด้วย is-mobile-selected
+     * และ HTML5 drag event ไม่ยิงบน touch ผู้ใช้จึงต้องมีปุ่มกดเป็นทางหลัก ไม่ใช่ทางสำรอง
+     */
+    const applyTransition = async (card, status) => {
+        const previousStatus = Number(card.dataset.status);
+        if (previousStatus === status) return;
+
+        const capabilities = capabilitiesOf(card);
+        if (!canTransitionTo(previousStatus, status, capabilities)) {
+            notify(lockReason(previousStatus, capabilities) || `ย้ายไป "${columnLabel(status)}" ไม่ได้จากสถานะนี้`);
+            return;
+        }
+
+        const payload = await confirmTaskTransition(previousStatus, status, capabilities);
+        if (!payload) return;
+
+        const previousZone = card.parentElement;
+        card.dataset.status = String(status);
+        kanban.querySelector(`[data-kanban-column="${status}"] .mytasks-kanban__cards`)?.append(card);
+        refresh();
+
+        try {
+            const response = await fetch(root.dataset.statusTemplate.replace('__ID__', card.dataset.id), {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+            }
+            if (data.transitions) management[String(card.dataset.id)].transitions = data.transitions;
+
+            const actualStatus = Number(data.job_status ?? status);
+            card.dataset.status = String(actualStatus);
+            kanban.querySelector(`[data-kanban-column="${actualStatus}"] .mytasks-kanban__cards`)?.append(card);
+            refresh();
+            paintCardGuidance(card);
+            notify(`ย้ายไป "${columnLabel(actualStatus)}" แล้ว`, true);
+            synchronizeTaskSource(root, card.dataset.id, {status: actualStatus});
+        } catch (error) {
+            card.dataset.status = String(previousStatus);
+            previousZone?.append(card);
+            refresh();
+            paintCardGuidance(card);
+            notify(error.message);
+        }
+    };
+
+    /**
+     * บอกผู้ใช้ตรง ๆ ว่าการ์ดใบนี้ไปต่อที่ไหนได้ หรือทำไมถึงขยับไม่ได้
+     * ทั้งหมดอ่านจาก allowed_statuses ที่ server ส่งมา จึงตรงกับสิ่งที่ระบบยอมรับจริงเสมอ
+     */
+    const paintCardGuidance = (card) => {
+        const status = Number(card.dataset.status);
+        const capabilities = capabilitiesOf(card);
+        const hint = nextStepHint(status, capabilities);
+        const reason = hint ? null : lockReason(status, capabilities);
+        // งานที่ปิดแล้วมีขั้นถัดไปก็จริง แต่ต้องทำผ่านเมนู จึงกดจากการ์ดไม่ได้
+        const actionable = Boolean(hint) && !hint.viaMenu;
+
+        card.querySelector('[data-kanban-next]')?.remove();
+
+        const badge = document.createElement(actionable ? 'button' : 'span');
+        badge.dataset.kanbanNext = '';
+        badge.className = `mytasks-kanban__next${actionable ? '' : ' is-locked'}`;
+
+        if (actionable) {
+            badge.type = 'button';
+            badge.dataset.kanbanNextStatus = String(hint.status);
+            badge.textContent = hint.label;
+            badge.setAttribute('aria-label', `${hint.label} — ย้ายงานนี้ไป "${columnLabel(hint.status)}"`);
+        } else {
+            badge.textContent = hint ? `ขั้นถัดไป: ${hint.label}` : reason;
+        }
+
+        // การ์ดที่ลากไม่ได้ต้องดูออกว่าลากไม่ได้ แม้จะยังมีขั้นถัดไปผ่านเมนู (เช่นเปิดงานอีกครั้ง)
+        const draggable = canDragCard(card);
+        card.classList.toggle('is-locked', !draggable);
+        const tooltip = reason || (hint?.viaMenu ? 'เปิดงานอีกครั้งได้จากเมนูในรายการงาน' : null);
+        if (tooltip) card.title = tooltip;
+        else card.removeAttribute('title');
+
+        card.draggable = draggable;
+        card.append(badge);
+    };
+
+    /**
+     * suggest = คำใบ้ก่อนเริ่มลาก (เน้นเฉพาะปลายทางที่แนะนำ)
+     * ไม่ suggest = ระหว่างลากจริง (บอกครบว่าช่องไหนวางได้ ช่องไหนวางไม่ได้)
+     */
+    const markDropTargets = (card, {suggest = false} = {}) => {
+        const status = Number(card.dataset.status);
+        const capabilities = capabilitiesOf(card);
+        const recommended = nextStepHint(status, capabilities);
+        kanban.querySelectorAll('[data-kanban-column]').forEach((column) => {
+            const target = Number(column.dataset.kanbanColumn);
+            const allowed = target !== status && canTransitionTo(status, target, capabilities);
+            column.classList.toggle('is-drop-suggested', suggest && allowed && target === recommended?.status);
+            if (suggest) return;
+            column.classList.toggle('is-drop-allowed', allowed);
+            column.classList.toggle('is-drop-blocked', !allowed && target !== status);
+        });
+    };
+
+    const clearDropTargets = () => kanban.querySelectorAll('[data-kanban-column]').forEach((column) => {
+        column.classList.remove('is-drop-allowed', 'is-drop-blocked', 'is-drop-target', 'is-drop-suggested');
+    });
+
+    // ปุ่ม "ขั้นถัดไป" ใช้ delegation เพราะการ์ดถูกวาดใหม่ทุกครั้งที่สถานะเปลี่ยน
+    kanban.addEventListener('click', (event) => {
+        const trigger = event.target.closest('button[data-kanban-next]');
+        if (!trigger) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        const card = trigger.closest('[data-kanban-card]');
+        if (card) applyTransition(card, Number(trigger.dataset.kanbanNextStatus));
+    });
 
     kanban.querySelectorAll('[data-kanban-card]').forEach((card) => {
-        card.draggable = canDragCard(card);
+        paintCardGuidance(card);
         card.querySelectorAll('*').forEach((item) => item.draggable = false);
+
+        // คำใบ้ปลายทางต้องมาตั้งแต่ยังไม่เริ่มลาก คนที่ไม่รู้ว่าการ์ดลากได้จึงจะเห็น
+        const previewTarget = () => {
+            if (canDragCard(card)) markDropTargets(card, {suggest: true});
+        };
+        card.addEventListener('mouseenter', previewTarget);
+        card.addEventListener('focusin', previewTarget);
+        card.addEventListener('mouseleave', clearDropTargets);
+        card.addEventListener('focusout', (event) => {
+            if (!card.contains(event.relatedTarget)) clearDropTargets();
+        });
+
         card.addEventListener('dragstart', (event) => {
             if (!canDragCard(card)) {
                 event.preventDefault();
@@ -124,64 +278,42 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('text/plain', card.dataset.id);
             card.classList.add('is-dragging');
+            markDropTargets(card);
         });
-        card.addEventListener('dragend', () => { card.classList.remove('is-dragging'); dragged = null; });
+        card.addEventListener('dragend', () => {
+            card.classList.remove('is-dragging');
+            clearDropTargets();
+            dragged = null;
+        });
     });
 
     kanban.querySelectorAll('[data-kanban-column]').forEach((column) => {
         const dropZone = column.querySelector('.mytasks-kanban__cards');
+
+        // ปล่อยให้วางได้ทุกช่องแล้วค่อยอธิบายเหตุผล ดีกว่าบล็อก dragover เงียบ ๆ
+        // ซึ่งทำให้การ์ดเด้งกลับโดยผู้ใช้ไม่รู้เลยว่าทำไม
         const allowDrop = (event) => {
-            const capabilities = management[String(dragged?.dataset.id)]?.transitions || {};
-            if (!canTransitionTo(Number(dragged?.dataset.status), Number(column.dataset.kanbanColumn), capabilities)) return;
+            if (!dragged) return;
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
-            column.classList.add('is-drop-target');
+            const allowed = canTransitionTo(
+                Number(dragged.dataset.status),
+                Number(column.dataset.kanbanColumn),
+                capabilitiesOf(dragged),
+            );
+            column.classList.toggle('is-drop-target', allowed);
         };
+
         const drop = async (event) => {
             event.preventDefault();
             column.classList.remove('is-drop-target');
             if (!dragged) return;
 
             const card = dragged;
-            const status = Number(column.dataset.kanbanColumn);
-            const previousZone = card.parentElement;
-            const previousStatus = card.dataset.status;
-            if (Number(previousStatus) === status) return;
-            const capabilities = management[String(card.dataset.id)]?.transitions || {};
-            if (!canTransitionTo(Number(previousStatus), status, capabilities)) return;
-            const payload = await confirmTaskTransition(Number(previousStatus), status, management[String(card.dataset.id)]?.transitions || {});
-            if (!payload) return;
-
-            card.dataset.status = String(status);
-            dropZone?.append(card);
-            refresh();
-
-            try {
-                const response = await fetch(root.dataset.statusTemplate.replace('__ID__', card.dataset.id), {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                    },
-                    body: JSON.stringify(payload),
-                });
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'status update failed');
-                if (data.transitions) management[String(card.dataset.id)].transitions = data.transitions;
-                const actualStatus = Number(data.job_status ?? status);
-                card.dataset.status = String(actualStatus);
-                kanban.querySelector(`[data-kanban-column='${actualStatus}'] .mytasks-kanban__cards`)?.append(card);
-                refresh();
-                card.draggable = canDragCard(card);
-                synchronizeTaskSource(root, card.dataset.id, {status: actualStatus});
-            } catch (error) {
-                card.dataset.status = previousStatus;
-                card.draggable = canDragCard(card);
-                previousZone?.append(card);
-                refresh();
-            }
+            dragged = null;
+            await applyTransition(card, Number(column.dataset.kanbanColumn));
         };
+
         [column, dropZone].filter(Boolean).forEach((target) => {
             target.addEventListener('dragover', allowDrop);
             target.addEventListener('dragenter', allowDrop);

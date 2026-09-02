@@ -42,7 +42,11 @@ class TaskAttachmentController extends Controller
             'count' => count($request->file('completion_attachments', [])),
         ]);
 
-        return $this->jsonOrBack($request, true, 'เพิ่มไฟล์อ้างอิงงานสำเร็จ');
+        // ส่งรายการไฟล์ล่าสุดกลับไปด้วย หน้าจอจะได้อัปเดตในที่เดิมโดยไม่ต้อง reload
+        // ซึ่งเดิมทำให้ modal แก้ไขงานปิดทันทีที่แนบสำเร็จ ผู้ใช้จึงไม่เห็นผลลัพธ์
+        return $this->jsonOrBack($request, true, 'เพิ่มไฟล์อ้างอิงงานสำเร็จ', 200, [
+            'files' => $this->attachmentPayload($job->load('images')),
+        ]);
     }
 
     public function destroyAttachment(Request $request, $id, JobImage $attachment)
@@ -56,6 +60,23 @@ class TaskAttachmentController extends Controller
         $attachment->delete();
         AuditTrail::log('attachment_deleted', $job, 'ลบไฟล์อ้างอิงงาน: '.$job->job_topic);
 
-        return $this->jsonOrBack($request, true, 'ลบไฟล์แนบแล้ว');
+        return $this->jsonOrBack($request, true, 'ลบไฟล์แนบแล้ว', 200, [
+            'files' => $this->attachmentPayload($job->load('images')),
+        ]);
+    }
+
+    /**
+     * รูปแบบเดียวกับ $attachmentData ที่ workspace-interactions.blade.php สร้างตอน render
+     * ฝั่ง JavaScript จึงนำไปแทนที่ของเดิมได้ตรง ๆ โดยไม่ต้องแปลงรูปอีกชั้น
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function attachmentPayload(WorkOrder $job): array
+    {
+        return $job->images->map(fn (JobImage $file) => [
+            'name' => $file->original_name ?? basename($file->file_path),
+            'url' => route('media.task-attachments.show', $file),
+            'delete_url' => route('tasks.attachments.destroy', [$job->job_id, $file]),
+        ])->values()->all();
     }
 }

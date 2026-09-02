@@ -87,12 +87,25 @@ class NotificationService
         );
     }
 
-    public function notifyTaskAdmins(WorkOrder $task, string $type, string $title, string $message, User $actor, ?string $dedupePrefix = null): void
+    /**
+     * ผู้ดูแลของงานนี้ = ผู้ดูแลระบบ + หัวหน้าแผนกปลายทาง
+     *
+     * เดิมส่งเฉพาะ role = 'admin' หัวหน้าแผนกจึงไม่เคยรู้เลยว่าลูกทีมมอบหมายงานกันเอง
+     * ทั้งที่เป็นคนที่ต้องติดตามภาระงานของแผนกโดยตรง
+     *
+     * @param  array<int>  $excludeIds  คนที่ได้รับแจ้งเตือนฉบับของตัวเองไปแล้ว เช่นผู้รับงาน
+     */
+    public function notifyTaskAdmins(WorkOrder $task, string $type, string $title, string $message, User $actor, ?string $dedupePrefix = null, array $excludeIds = []): void
     {
-        $adminIds = User::where('role', 'admin')->pluck('id')->all();
+        $recipientIds = collect(User::where('role', 'admin')->pluck('id'))
+            ->merge($this->departmentHeadIds($this->taskDepartmentId($task)))
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn (int $id) => in_array($id, array_map('intval', $excludeIds), true))
+            ->unique()
+            ->all();
 
         $this->notify(
-            $adminIds,
+            $recipientIds,
             $type,
             Str::limit(strip_tags($title), 120, ''),
             Str::limit(strip_tags($message), 1000, ''),
@@ -101,6 +114,48 @@ class NotificationService
             [],
             $dedupePrefix
         );
+    }
+
+    /**
+     * แผนกที่งานนี้สังกัด — ใช้เกณฑ์เดียวกับ WorkOrderPolicy::destinationDepartmentId()
+     * เพื่อไม่ให้ "แผนกที่ได้รับแจ้งเตือน" กับ "แผนกที่มีสิทธิ์ดูงาน" หลุดจากกัน
+     */
+    private function taskDepartmentId(WorkOrder $task): ?int
+    {
+        return $task->department_id ? (int) $task->department_id : $task->user?->department_id;
+    }
+
+    /** @return array<int> */
+    private function departmentHeadIds(?int $departmentId): array
+    {
+        if (! $departmentId) {
+            return [];
+        }
+
+        return User::query()
+            ->where('role', 'user')
+            ->where('is_active', true)
+            ->where('is_department_head', true)
+            ->where('department_id', $departmentId)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /** @return array<int> */
+    public function departmentApprovalRecipientIds(?int $departmentId): array
+    {
+        if (! $departmentId) {
+            return User::query()->where('role', 'admin')->where('is_active', true)
+                ->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        $headIds = $this->departmentHeadIds($departmentId);
+
+        return $headIds !== []
+            ? $headIds
+            : User::query()->where('role', 'admin')->where('is_active', true)
+                ->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
     public function notifyAssignmentCreated(WorkOrder $task, User $actor, User $assignee, bool $sameDepartment): void
@@ -132,24 +187,28 @@ class NotificationService
                 'assignment-created:'.$task->job_id.':recipient'
             );
 
+            // ผู้รับงานได้ฉบับ "มีงานใหม่" ไปแล้วด้านบน ไม่ต้องได้ฉบับสรุปของฝ่ายดูแลซ้ำอีก
             $this->notifyTaskAdmins(
                 $task,
                 'same_department_assignment',
                 'มีการมอบหมายงานภายในแผนก',
                 $actor->name.' มอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name,
                 $actor,
-                'assignment-created:'.$task->job_id.':admins'
+                'assignment-created:'.$task->job_id.':admins',
+                [$assignee->id]
             );
 
             return;
         }
 
-        $this->notifyTaskAdmins(
-            $task,
+        $this->notify(
+            $this->departmentApprovalRecipientIds($assignee->department_id),
             'cross_department_pending',
             'มีคำขอมอบหมายงานข้ามแผนกรอตรวจสอบ',
             $actor->name.' ต้องการมอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name.' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติหรือปฏิเสธ',
+            $task,
             $actor,
+            [],
             'assignment-created:'.$task->job_id.':admins'
         );
     }
@@ -333,7 +392,7 @@ class NotificationService
     {
         $task = $notification->workOrder;
 
-        if ($viewer->role === 'admin' && in_array($notification->type, [
+        if (($viewer->role === 'admin' || $viewer->isDepartmentHead()) && in_array($notification->type, [
             'cross_department_pending',
             'collaborator_approval_request',
         ], true)) {
@@ -370,6 +429,18 @@ class NotificationService
             return route('admin.work-board.member', [
                 'department' => $task->user->department_id,
                 'user' => $task->user_id,
+            ] + $query);
+        }
+
+        // งานของลูกทีมไม่ได้อยู่ในหน้า "งานของฉัน" ของหัวหน้า การส่งไป mytasks จึงเปิดงานไม่เจอ
+        // ต้องพาไป Workspace ของสมาชิกคนนั้นซึ่งเป็นที่เดียวที่หัวหน้าเปิดงานนี้ได้จริง
+        if ($task->user_id !== $viewer->id
+            && $task->user?->role === 'user'
+            && $viewer->overseesDepartment($task->user?->department_id)) {
+            return route('work-board.member', [
+                'department' => $task->user->department_id,
+                'user' => $task->user_id,
+                'workspace' => 1,
             ] + $query);
         }
         if ($viewer->role === 'viewer') {

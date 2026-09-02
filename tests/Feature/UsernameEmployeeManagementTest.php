@@ -24,13 +24,13 @@ class UsernameEmployeeManagementTest extends TestCase
         $admin = $this->user('admin');
 
         $this->actingAs($admin)
-            ->post(route('employees.store'), $this->employeePayload([
+            ->post(route('admin.accounts.store'), $this->employeePayload([
                 'name' => 'No Email User',
                 'username' => '  No.Email_User  ',
                 'email' => '',
                 'role' => 'viewer',
             ]))
-            ->assertRedirect(route('employees.index'))
+            ->assertRedirect(route('admin.accounts.index'))
             ->assertSessionDoesntHaveErrors();
 
         $this->assertDatabaseHas('users', [
@@ -47,11 +47,11 @@ class UsernameEmployeeManagementTest extends TestCase
         $deleted->delete();
 
         $this->actingAs($admin)
-            ->post(route('employees.store'), $this->employeePayload(['username' => '']))
+            ->post(route('admin.accounts.store'), $this->employeePayload(['username' => '']))
             ->assertSessionHasErrors('username');
 
         $this->actingAs($admin)
-            ->post(route('employees.store'), $this->employeePayload(['username' => 'RESERVED-USER']))
+            ->post(route('admin.accounts.store'), $this->employeePayload(['username' => 'RESERVED-USER']))
             ->assertSessionHasErrors('username');
 
         $this->assertSame(1, User::withTrashed()->where('username', 'reserved-user')->count());
@@ -77,7 +77,7 @@ class UsernameEmployeeManagementTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->patch(route('employees.update', $employee), $this->employeePayload([
+            ->patch(route('admin.accounts.update', $employee), $this->employeePayload([
                 'name' => $employee->name,
                 'username' => '  NEW-USER  ',
                 'email' => '',
@@ -85,7 +85,7 @@ class UsernameEmployeeManagementTest extends TestCase
                 'password' => '',
                 'password_confirmation' => '',
             ]))
-            ->assertRedirect(route('employees.index'));
+            ->assertRedirect(route('admin.accounts.index'));
 
         $employee->refresh();
         $this->assertSame('new-user', $employee->username);
@@ -109,7 +109,7 @@ class UsernameEmployeeManagementTest extends TestCase
 
         try {
             $this->actingAs($admin)
-                ->patch(route('employees.update', $employee), $this->employeePayload([
+                ->patch(route('admin.accounts.update', $employee), $this->employeePayload([
                     'name' => $employee->name,
                     'username' => 'must-not-persist',
                     'email' => $employee->email,
@@ -132,7 +132,7 @@ class UsernameEmployeeManagementTest extends TestCase
         $admin = $this->user('admin');
 
         $this->actingAs($admin)
-            ->patch(route('employees.update', $admin), $this->employeePayload([
+            ->patch(route('admin.accounts.update', $admin), $this->employeePayload([
                 'name' => $admin->name,
                 'username' => 'changed-admin',
                 'email' => $admin->email,

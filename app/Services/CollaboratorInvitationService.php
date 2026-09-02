@@ -75,7 +75,7 @@ class CollaboratorInvitationService
             return $status;
         }
 
-        $this->notifyAdmins($task, $candidate, $actor);
+        $this->notifyApprovers($task, $candidate, $actor);
 
         return $status;
     }
@@ -125,7 +125,7 @@ class CollaboratorInvitationService
                 continue;
             }
 
-            $this->notifyAdmins($task, $candidate, $inviter ?? $admin);
+            $this->notifyApprovers($task, $candidate, $inviter ?? $admin);
         }
     }
 
@@ -142,11 +142,11 @@ class CollaboratorInvitationService
             ]);
     }
 
-    private function notifyAdmins(WorkOrder $task, User $candidate, User $actor): void
+    private function notifyApprovers(WorkOrder $task, User $candidate, User $actor): void
     {
         $candidate->loadMissing('department');
         $this->notifications->notify(
-            User::where('role', 'admin')->pluck('id')->all(),
+            $this->notifications->departmentApprovalRecipientIds($candidate->department_id),
             'collaborator_approval_request',
             'ขออนุมัติผู้ร่วมงานข้ามแผนก',
             $actor->name.' ขอเพิ่ม '.$candidate->name.' ('.($candidate->department?->department_name ?? 'ไม่ระบุแผนก').') เข้าร่วมงาน “'.$task->job_topic.'”',

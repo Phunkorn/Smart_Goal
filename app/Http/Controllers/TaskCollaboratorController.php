@@ -108,7 +108,7 @@ class TaskCollaboratorController extends Controller
             $job = WorkOrder::with(['user.department', 'creator', 'leader', 'collaborators'])
                 ->lockForUpdate()
                 ->findOrFail($id);
-            $this->authorize('approveCollaborator', $job);
+            $this->authorize('approveCollaborator', [$job, $user]);
 
             $pivot = DB::table('work_order_collaborators')
                 ->where('work_order_id', $job->job_id)

@@ -165,7 +165,7 @@
         .nav-item .soon {
             margin-left: auto;
             font-size: .6rem;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Prompt', sans-serif;
             background: var(--surface-2);
             color: var(--text-muted);
             padding: .1rem .4rem;

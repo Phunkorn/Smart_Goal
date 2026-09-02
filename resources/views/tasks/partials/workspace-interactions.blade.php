@@ -1,13 +1,14 @@
 <?php
     $workspaceContext = $workspaceContext ?? 'user';
     $showCreateActions = $showCreateActions ?? true;
+    $forceReadOnly = $forceReadOnly ?? false;
     $teamData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
         'id' => $task->job_id,
         'topic' => $task->job_topic,
-        'locked' => (int) $task->job_status === 4 && auth()->user()->role !== 'admin',
-        'can_manage' => auth()->user()->can('manageTeam', $task),
-        'add_url' => auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.store', $task->job_id) : null,
-        'remove_url' => auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.destroy', [$task->job_id, '__USER__']) : null,
+        'locked' => $forceReadOnly || ((int) $task->job_status === 4 && auth()->user()->role !== 'admin'),
+        'can_manage' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task),
+        'add_url' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.store', $task->job_id) : null,
+        'remove_url' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.destroy', [$task->job_id, '__USER__']) : null,
         'assignee' => [
             'id' => $task->user?->id,
             'name' => $task->user?->name ?? 'ไม่ระบุ',
@@ -44,12 +45,12 @@
     $attachmentData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
         'id' => $task->job_id,
         'topic' => $task->job_topic,
-        'can_upload' => auth()->user()->can('work', $task),
-        'upload_url' => auth()->user()->can('work', $task) ? route('tasks.attachments.store', $task->job_id) : null,
+        'can_upload' => ! $forceReadOnly && auth()->user()->can('work', $task),
+        'upload_url' => ! $forceReadOnly && auth()->user()->can('work', $task) ? route('tasks.attachments.store', $task->job_id) : null,
         'files' => $task->images->map(fn ($file) => [
             'name' => $file->original_name ?? basename($file->file_path),
             'url' => route('media.task-attachments.show', $file),
-            'delete_url' => auth()->user()->can('work', $task) ? route('tasks.attachments.destroy', [$task->job_id, $file]) : null,
+            'delete_url' => ! $forceReadOnly && auth()->user()->can('work', $task) ? route('tasks.attachments.destroy', [$task->job_id, $file]) : null,
         ])->values(),
     ]]);
 ?>
@@ -82,19 +83,33 @@
 ?>
 <script type="application/json" data-timeline-data>@json($timelineData)</script>
 <?php
+    $readOnlyTransitions = fn ($task) => [
+        'can_edit' => false,
+        'can_admin_override' => false,
+        'can_submit_review' => false,
+        'can_review' => false,
+        'can_self_close' => false,
+        'can_reopen' => false,
+        'is_final' => (int) $task->job_status === 4,
+        'is_self_task' => false,
+        'approver_id' => null,
+        'allowed_statuses' => [(int) $task->job_status],
+    ];
     $taskManagementData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
-        'transitions' => app(\App\Services\TaskStatusTransitionService::class)->capabilities($task, auth()->user()),
+        'transitions' => $forceReadOnly
+            ? $readOnlyTransitions($task)
+            : app(\App\Services\TaskStatusTransitionService::class)->capabilities($task, auth()->user()),
         // ใช้ตัดสินว่า Summary Bar จะเป็นตัวควบคุมที่กดได้ หรือแสดงเป็นข้อความอ่านอย่างเดียว
         // การซ่อนปุ่มเป็นเรื่อง UI เท่านั้น สิทธิ์จริงยังถูกตรวจซ้ำที่ Policy ฝั่ง server ทุกครั้ง
-        'can_work' => auth()->user()->can('work', $task),
-        'can_comment' => auth()->user()->can('comment', $task),
+        'can_work' => ! $forceReadOnly && auth()->user()->can('work', $task),
+        'can_comment' => ! $forceReadOnly && auth()->user()->can('comment', $task),
         'can_view_comments' => auth()->user()->can('viewComments', $task),
-        'can_manage_team' => auth()->user()->can('manageTeam', $task),
+        'can_manage_team' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task),
         'project' => $task->taskList?->name ?? 'งานทั่วไป',
         'status' => (int) $task->job_status,
         'submitted_by' => $task->reviewSubmitter?->name,
         'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
-        'comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
+        'comment_url' => ! $forceReadOnly && auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
         'read_comments_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.read', $task) : null,
         'unread_comments' => (int) ($unreadCommentCounts[$task->job_id] ?? 0),
     ]]);
@@ -220,7 +235,8 @@
      */
     $workspaceRootLabel = $workspaceRootLabel ?? 'งานของฉัน';
     $workspaceRootUrl = $workspaceRootUrl ?? route('mytasks.index');
-    $statusOptions = [2 => ['กำลังทำ', 'progress'], 3 => ['รอตรวจสอบ', 'review'], 4 => ['เสร็จแล้ว', 'done'], 5 => ['พักงาน', 'paused'], 6 => ['ล่าช้า', 'late']];
+    // ลำดับเดียวกับคอลัมน์บอร์ด: พักงาน → กำลังทำ → รอตรวจสอบ → ล่าช้า → เสร็จแล้ว
+    $statusOptions = [5 => ['พักงาน', 'paused'], 2 => ['กำลังทำ', 'progress'], 3 => ['รอตรวจสอบ', 'review'], 6 => ['ล่าช้า', 'late'], 4 => ['เสร็จแล้ว', 'done']];
     $priorityOptions = [3 => ['สำคัญด่วน', 'urgent'], 4 => ['ด่วนไม่ค่อยสำคัญ', 'quick'], 2 => ['สำคัญไม่ด่วน', 'important'], 5 => ['ไม่รีบ ไม่มีกำหนด', 'flexible'], 1 => ['routine', 'routine']];
 @endphp
 
@@ -320,9 +336,19 @@
                         <input type="file" multiple data-task-inline-file-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
                     </label>
                 </header>
-                <div class="task-workspace__panel-body">
+                {{-- ทั้งพื้นที่นี้คือ drop zone ไม่ใช่แค่ปุ่ม "เพิ่มไฟล์" เล็ก ๆ ที่หัวการ์ด
+                     ผู้ใช้ลากไฟล์มาที่กรอบว่างกลางการ์ดเป็นธรรมชาติที่สุด --}}
+                <div class="task-workspace__panel-body" data-task-drop-zone>
                     <div class="task-inline-files" data-task-inline-files></div>
+                    <p class="task-workspace__file-types" data-attachment-types>
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        ลากไฟล์มาวางที่นี่ได้ — รองรับ JPG, PNG, Word, Excel, PowerPoint · ไฟล์ละไม่เกิน 10 MB · รวมไม่เกิน 5 ไฟล์
+                    </p>
                     <p class="task-workspace__file-status" data-attachment-status role="status" aria-live="polite" hidden></p>
+                    <div class="task-workspace__drop-overlay" data-attachment-drop-overlay aria-hidden="true">
+                        <i class="bi bi-cloud-arrow-up-fill" aria-hidden="true"></i>
+                        <strong>วางไฟล์เพื่อแนบ</strong>
+                    </div>
                 </div>
             </section>
 

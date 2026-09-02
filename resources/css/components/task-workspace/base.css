@@ -14,7 +14,7 @@
     --sg-blue:#2563eb; --sg-blue-soft:#eaf1ff; --sg-green:#07845f; --sg-green-soft:#e8f7f1;
     --sg-amber:#a86108; --sg-amber-soft:#fff4dc; --sg-purple:#7447b8; --sg-purple-soft:#f2ebff;
     --sg-red:#d9363e; --sg-red-soft:#feedef;
-    color:var(--sg-ink); font-family:"IBM Plex Sans Thai",sans-serif;
+    color:var(--sg-ink); font-family:"Prompt",sans-serif;
 }
 .my-tasks-page {
     width:min(1540px,calc(100% - 48px)); margin:0 auto; padding:28px 0 64px;

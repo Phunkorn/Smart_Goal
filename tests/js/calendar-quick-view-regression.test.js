@@ -75,6 +75,7 @@ async function bootCalendar(t, {includeQuickViewShell = true, meetingsDelayMs = 
             <section data-calendar
                      data-task-quickview-template="/my-tasks/calendar/quick-view/task/__ID__"
                      data-task-detail-template="/my-tasks?view=calendar&open_task=__ID__"
+                     data-meetings-subject-user-id="26"
                      data-meetings-endpoint="/my-tasks/calendar/meetings">
                 <h2 data-calendar-title></h2>
                 <button type="button" data-calendar-today>วันนี้</button>
@@ -85,13 +86,25 @@ async function bootCalendar(t, {includeQuickViewShell = true, meetingsDelayMs = 
                 <select data-calendar-year></select>
                 <span data-calendar-loading hidden></span>
                 <div data-calendar-grid></div>
-                <div data-calendar-popover hidden>
-                    <strong data-calendar-popover-title></strong>
-                    <div data-calendar-popover-list></div>
+                <div data-calendar-agenda>
+                    <strong data-calendar-today-count></strong>
+                    <div class="calendar-table"><div class="calendar-table__body" data-calendar-today-list></div></div>
+                    <p data-calendar-today-empty></p>
+                    <h3 data-calendar-month-agenda-title></h3>
+                    <strong data-calendar-month-count></strong>
+                    <div class="calendar-table"><div class="calendar-table__body" data-calendar-month-list></div></div>
+                    <p data-calendar-month-empty></p>
                 </div>
                 <script type="application/json" data-calendar-meetings>${JSON.stringify([meeting])}</script>
             </section>
             <div data-calendar-detail hidden></div>
+            <div data-calendar-day-modal hidden>
+                <h2 data-calendar-day-title></h2>
+                <button type="button" data-calendar-day-close></button>
+                <section data-calendar-day-tasks hidden><b data-calendar-day-task-count></b><div data-calendar-day-task-list></div></section>
+                <section data-calendar-day-meetings hidden><b data-calendar-day-meeting-count></b><div data-calendar-day-meeting-list></div></section>
+                <small data-calendar-day-count></small>
+            </div>
             ${includeQuickViewShell ? POPOVER_SHELL : ''}
         </div>
         <div data-toast></div>`;
@@ -123,7 +136,16 @@ async function bootCalendar(t, {includeQuickViewShell = true, meetingsDelayMs = 
         requests,
         popover: env.document.querySelector('[data-quick-view-popover]'),
         title: () => env.document.querySelector('[data-calendar-title]').textContent,
-        chip: (id) => env.document.querySelector(`[data-calendar-grid] [data-calendar-task="${id}"]`),
+        // ช่องวันที่บนปฏิทินเป็น "จำนวนงานต่อความสำคัญ" แล้ว ไม่ใช่ชิ้นงานทีละชิ้น
+        // แถวที่คลิกเปิด Quick View ได้จริงคือแถวในการ์ดสรุปใต้ปฏิทิน (และในกล่องรายวัน)
+        chip(id) {
+            const agendaRow = env.document.querySelector(`[data-calendar-agenda] [data-calendar-task="${id}"]`);
+            if (agendaRow) return agendaRow;
+
+            const dayTrigger = env.document.querySelector('[data-calendar-day]');
+            dayTrigger?.dispatchEvent(new env.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+            return env.document.querySelector(`[data-calendar-day-modal] [data-calendar-task="${id}"]`);
+        },
         click(selectorOrNode) {
             const node = typeof selectorOrNode === 'string' ? env.document.querySelector(selectorOrNode) : selectorOrNode;
             assert.ok(node, `ไม่พบ element: ${selectorOrNode}`);
@@ -319,4 +341,13 @@ test('12) ไม่มี Quick View shell ในหน้า (initialization �
     ui.click('[data-calendar-reset]');
     // ไม่มี exception ใด ๆ ตลอดทั้งหมดนี้ถือว่าผ่าน (จะไม่ผ่าน test ถ้ามี unhandled throw ทำให้ process ล้ม)
     await flush(30);
+});
+
+test('13) meeting fetch ของ Member Workspace ต้องส่ง subject user ไปทุกช่วงเดือน', async (t) => {
+    const ui = await bootCalendar(t);
+    await flush(5);
+
+    const request = ui.requests.find((url) => url.includes('/calendar/meetings'));
+    assert.ok(request, 'ต้อง fetch การประชุมของช่วงเดือน');
+    assert.equal(new URL(request).searchParams.get('subject_user_id'), '26');
 });

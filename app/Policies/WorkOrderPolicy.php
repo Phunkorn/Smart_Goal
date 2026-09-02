@@ -51,10 +51,13 @@ class WorkOrderPolicy
     public function view(User $user, WorkOrder $workOrder): bool
     {
         if ($workOrder->approval_status !== 'approved') {
-            return $user->role === 'admin' || $this->isAssignmentRequester($workOrder, $user);
+            return $user->role === 'admin'
+                || $this->isAssignmentRequester($workOrder, $user)
+                || $user->overseesDepartment($this->destinationDepartmentId($workOrder));
         }
 
         return in_array($user->role, ['admin', 'viewer'], true)
+            || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
             || $this->isTaskParticipant($workOrder, $user)
             || ($workOrder->work_order_list_id
                 && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
@@ -93,12 +96,19 @@ class WorkOrderPolicy
             && $this->isTaskParticipant($workOrder, $user);
     }
 
+    /**
+     * ทุกคนในงานส่งเข้าขั้นตรวจสอบได้ รวมถึงผู้มอบหมายเอง
+     *
+     * เดิมผู้มอบหมายถูกกันออกด้วย isAssignmentApprover() ผลคือถ้าผู้รับผิดชอบไม่กดส่งตรวจ
+     * งานจะตันสนิท โดยเฉพาะสถานะล่าช้าที่ถอยกลับไม่ได้เลย — หัวหน้าจึงไม่มีทางไปต่อได้
+     * ตอนนี้หัวหน้าดึงงานเข้าขั้นตรวจเองได้ แล้วปิดงานต่อผ่านขั้นตรวจตามเดิม
+     * ขั้นตรวจสอบยังอยู่ครบ และ AuditTrail บันทึกว่าใครเป็นคนดึงเข้าตรวจทุกครั้ง
+     */
     public function submitForReview(User $user, WorkOrder $workOrder): bool
     {
         return $workOrder->approval_status === 'approved'
             && $user->role !== 'viewer'
-            && ($this->isTaskParticipant($workOrder, $user))
-            && ! $this->isAssignmentApprover($workOrder, $user);
+            && $this->isTaskParticipant($workOrder, $user);
     }
 
     public function review(User $user, WorkOrder $workOrder): bool
@@ -138,6 +148,7 @@ class WorkOrderPolicy
         }
 
         return $user->role === 'admin'
+            || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
             || $this->isTaskParticipant($workOrder, $user)
             || ($workOrder->work_order_list_id
                 && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
@@ -182,14 +193,25 @@ class WorkOrderPolicy
     /**
      * อนุมัติ/ปฏิเสธการเปิดงาน (TaskStatusController::updateApproval) — admin เท่านั้น
      */
-    public function approve(User $user): bool
+    public function approve(User $user, ?WorkOrder $workOrder = null): bool
     {
-        return $user->role !== 'viewer' && $user->role === 'admin';
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        return $user->isDepartmentHead()
+            && ($workOrder === null
+                || $user->overseesDepartment($this->destinationDepartmentId($workOrder)));
     }
 
-    public function approveCollaborator(User $user): bool
+    public function approveCollaborator(User $user, ?WorkOrder $workOrder = null, ?User $candidate = null): bool
     {
-        return $user->role === 'admin';
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        return $user->isDepartmentHead()
+            && ($candidate === null || $user->overseesDepartment($candidate->department_id));
     }
 
     /**
@@ -276,9 +298,8 @@ class WorkOrderPolicy
         return $workOrder->created_by ?: ($workOrder->leader_user_id ?: $workOrder->user_id);
     }
 
-    private function isAssignmentApprover(WorkOrder $workOrder, User $user): bool
+    private function destinationDepartmentId(WorkOrder $workOrder): ?int
     {
-        return (int) $this->approverId($workOrder) === (int) $user->id
-            && (int) $workOrder->user_id !== (int) $user->id;
+        return $workOrder->department_id ?: $workOrder->user?->department_id;
     }
 }

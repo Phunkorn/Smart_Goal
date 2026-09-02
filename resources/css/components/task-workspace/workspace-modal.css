@@ -411,6 +411,56 @@
     overflow: auto;
 }
 
+/* การ์ดไฟล์แนบทั้งใบเป็น drop zone จึงต้องเป็น containing block ของ overlay */
+.task-workspace__panel--files .task-workspace__panel-body {
+    position: relative;
+}
+
+/* บอกชนิดไฟล์ที่รับได้ตั้งแต่ก่อนลาก ไม่ใช่ให้ลากแล้วเจอ error ทีหลัง */
+.task-workspace__file-types {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    color: #7b8aa1;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.task-workspace__file-types i {
+    flex: 0 0 auto;
+    padding-top: 1px;
+    color: #9fb2ca;
+}
+
+.task-workspace__file-types[hidden] {
+    display: none;
+}
+
+.task-workspace__drop-overlay {
+    position: absolute;
+    z-index: 2;
+    display: none;
+    border: 2px dashed #2875db;
+    border-radius: 12px;
+    background: rgba(234, 242, 255, .94);
+    color: #2259a8;
+    font-size: 13px;
+    font-weight: 650;
+    inset: 4px 14px 14px;
+    place-content: center;
+    place-items: center;
+    gap: 8px;
+}
+
+.task-workspace__drop-overlay i {
+    font-size: 26px;
+}
+
+.task-workspace__panel-body.is-dragover .task-workspace__drop-overlay {
+    display: grid;
+}
+
 .task-workspace__file-status {
     margin: 0;
     color: #52647b;
@@ -738,6 +788,25 @@
     font-family: bootstrap-icons;
     font-size: 22px;
 }
+
+/* กรอบว่างต้องดูเหมือนที่วางไฟล์ได้ ไม่ใช่แค่ข้อความบอกว่าไม่มีไฟล์ */
+.task-workspace__panel-body.is-droppable .task-inline-files > p {
+    border-color: #bcd2ee;
+    background: #fafcff;
+    color: #7b8aa1;
+}
+
+/* ไอคอนตามชนิดไฟล์ ใช้สีประจำโปรแกรมเพื่อให้กวาดตาเจอไฟล์ที่ต้องการเร็วขึ้น */
+.task-workspace .task-inline-files a > i {
+    flex: 0 0 auto;
+    font-size: 17px;
+}
+
+.task-workspace .task-inline-files .file-tone-word { color: #2b579a; }
+.task-workspace .task-inline-files .file-tone-excel { color: #217346; }
+.task-workspace .task-inline-files .file-tone-ppt { color: #d24726; }
+.task-workspace .task-inline-files .file-tone-image { color: #7c3aed; }
+.task-workspace .task-inline-files .file-tone-other { color: #64748b; }
 
 /* ---------- รายการไทม์ไลน์ ---------- */
 

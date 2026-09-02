@@ -35,7 +35,7 @@
     @if($canWork)
         <details class="board-status-menu table-status-menu" data-table-status-menu>
             <summary class="board-status-pill status-{{ $statusClass }}"><span data-table-status-label>{{ $statusText }}</span><i class="bi bi-chevron-down"></i></summary>
-            <div>@foreach([2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused']] as $value=>$meta)<button type="button" class="status-{{ $meta[1] }}" data-table-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+            <div>@foreach([5=>['พักงาน','paused'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done']] as $value=>$meta)<button type="button" class="status-{{ $meta[1] }}" data-table-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
         <input type="hidden" data-field="status" value="{{ $task->job_status }}">
         <details class="board-priority-menu table-priority-menu" data-table-priority-menu>
