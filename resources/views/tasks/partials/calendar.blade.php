@@ -62,12 +62,6 @@
             </p>
 
             <div class="mytasks-calendar__controls">
-                <label class="mytasks-calendar__search">
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                    <span class="visually-hidden">ค้นหางานหรือการประชุมในปฏิทิน</span>
-                    <input type="search" data-calendar-search placeholder="ค้นหา" autocomplete="off">
-                </label>
-
                 <div class="mytasks-calendar__navigation" aria-label="เปลี่ยนเดือน">
                     <button type="button" class="mytasks-calendar__reset" data-calendar-reset>คืนค่า</button>
                     <button type="button" data-calendar-today>วันนี้</button>
@@ -77,14 +71,59 @@
                     <label><span class="visually-hidden">เลือกปี</span><select data-calendar-year aria-label="เลือกปี"></select></label>
                 </div>
             </div>
+            
+            
         </header>
 
+        {{--
+            ตัวเลือกการแสดงผลอยู่แถวเดียวกับชื่อเดือน ไม่ใช่แถบของตัวเองอีกแถบ
+            เดิมหน้าปฏิทินมีแถบแนวนอนซ้อนกันสามชั้นก่อนถึงตารางจริง (คำอธิบายสี /
+            ตัวเลือกการแสดง / ชื่อเดือน) ทำให้ดูรกและดันตารางลงไปต่ำ
+            ปุ่มพวกนี้ควบคุมสิ่งที่อยู่ในตาราง จึงควรอยู่ติดกับหัวเรื่องของตาราง
+        --}}
         <div class="mytasks-calendar__heading">
-            <h2 id="mytasks-calendar-title" data-calendar-title aria-live="polite"></h2>
-            @if($calendarShowsMeetings)
-                <span class="mytasks-calendar__loading" data-calendar-loading role="status" aria-live="polite" hidden><i class="bi bi-arrow-repeat" aria-hidden="true"></i> กำลังโหลดการประชุม</span>
-            @endif
-            <span class="mytasks-calendar__filtered" data-calendar-filtered role="status" aria-live="polite" hidden></span>
+            <div class="mytasks-calendar__heading-text">
+                <div class="mytasks-calendar__heading-line">
+                    <h2 id="mytasks-calendar-title" data-calendar-title aria-live="polite"></h2>
+                    @if($calendarShowsMeetings)
+                        <span class="mytasks-calendar__loading" data-calendar-loading role="status" aria-live="polite" hidden><i class="bi bi-arrow-repeat" aria-hidden="true"></i> กำลังโหลดการประชุม</span>
+                    @endif
+                    <span class="mytasks-calendar__filtered" data-calendar-filtered role="status" aria-live="polite" hidden></span>
+                </div>
+                <p class="mytasks-calendar__display-note" data-calendar-display-note aria-live="polite">
+                    แสดงเส้นงานตั้งแต่วันเริ่มถึงวันสิ้นสุด สูงสุด 4 เส้นต่อวัน
+                </p>
+            </div>
+
+            <div class="mytasks-calendar__displaybar" aria-label="ตัวเลือกการแสดงปฏิทิน">
+                <div class="mytasks-calendar__option-group">
+                    <span class="mytasks-calendar__option-label">รูปแบบ</span>
+                    <div class="mytasks-calendar__segmented mytasks-calendar__segmented--single" role="group" aria-label="เลือกรูปแบบปฏิทิน">
+                        <button type="button" class="is-active" data-calendar-mode-option="timeline" aria-pressed="true">
+                            <i class="bi bi-view-stacked" aria-hidden="true"></i>
+                            เส้นช่วงงาน
+                        </button>
+                        <button type="button" data-calendar-mode-option="summary" aria-pressed="false">
+                            <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+                            ภาพรวมสี
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mytasks-calendar__option-group">
+                    <span class="mytasks-calendar__option-label">วันที่งาน</span>
+                    <div class="mytasks-calendar__segmented mytasks-calendar__segmented--multi" role="group" aria-label="เลือกวันที่ของงานที่ต้องการแสดง">
+                        <button type="button" class="is-active" data-calendar-date-point="start" aria-pressed="true">
+                            <i class="bi bi-play-circle" aria-hidden="true"></i>
+                            วันเริ่ม
+                        </button>
+                        <button type="button" class="is-active" data-calendar-date-point="due" aria-pressed="true">
+                            <i class="bi bi-flag" aria-hidden="true"></i>
+                            วันสิ้นสุด
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="mytasks-calendar__viewport">

@@ -51,7 +51,7 @@ export function lockReason(currentStatus, capabilities = {}) {
     if (capabilities.is_final === true) {
         return capabilities.can_reopen === true
             ? 'งานปิดแล้ว เปิดใหม่ได้จากเมนูในรายการงาน'
-            : 'งานปิดแล้ว ผู้ดูแลระบบเท่านั้นที่แก้ไขได้';
+            : 'งานปิดแล้ว ต้องให้ผู้เปิดงานหรือผู้มอบหมายเปิดงานอีกครั้ง';
     }
     if (capabilities.can_edit !== true) return 'คุณไม่มีสิทธิ์เปลี่ยนสถานะงานนี้';
     if (Number(currentStatus) === 3) return 'รอผู้มอบหมายตรวจสอบ';
@@ -106,17 +106,26 @@ export async function confirmTaskTransition(currentStatus, targetStatus, capabil
     if (kind === 'none') return {job_status: Number(targetStatus)};
     if (kind === 'standard') return {job_status: Number(targetStatus)};
 
+    // SweetAlert2 appends its container to <body>. Give task workflow dialogs a
+    // dedicated layer hook so they stay above the Task Workspace modal.
+    const dialogLayer = {customClass: {container: 'task-transition-dialog'}};
+
     const config = {
         submit: {title: 'ส่งงานเพื่อตรวจสอบ?', text: 'คุณยืนยันว่าดำเนินการงานนี้เสร็จแล้ว และต้องการส่งให้ผู้มอบหมายตรวจสอบหรือไม่?', confirmButtonText: 'ส่งตรวจ'},
-        approve: {title: 'ยืนยันปิดงาน?', text: 'คุณได้ตรวจสอบงานแล้วและยืนยันว่างานนี้เสร็จสมบูรณ์ใช่หรือไม่? หลังปิดงาน ผู้ใช้งานทั่วไปจะไม่สามารถแก้ไขงานนี้ได้', confirmButtonText: 'ยืนยันปิดงาน'},
-        'self-close': {title: 'ยืนยันปิดงานนี้หรือไม่?', text: 'หลังปิดงาน งานนี้จะเป็นสถานะสุดท้ายและไม่สามารถแก้ไขได้', confirmButtonText: 'ยืนยันปิดงาน'},
+        approve: {title: 'ยืนยันปิดงาน?', text: 'คุณได้ตรวจสอบงานแล้วและยืนยันว่างานนี้เสร็จสมบูรณ์ใช่หรือไม่? หากต้องแก้ไขภายหลัง ผู้เปิดงานต้องเปิดงานนี้อีกครั้ง', confirmButtonText: 'ยืนยันปิดงาน'},
+        'self-close': {title: 'ยืนยันปิดงานนี้หรือไม่?', text: 'งานจะอยู่ในสถานะเสร็จสิ้น หากต้องแก้ไขภายหลังคุณสามารถเปิดงานนี้อีกครั้งได้', confirmButtonText: 'ยืนยันปิดงาน'},
         reopen: {title: 'ต้องการเปิดงานนี้อีกครั้งหรือไม่?', text: 'งานจะกลับเข้าสู่สถานะกำลังทำ', confirmButtonText: 'เปิดงานอีกครั้ง'},
         'admin-override': {title: 'ยืนยันการปรับสถานะโดยผู้ดูแล?', text: 'สถานะจะถูกปรับโดยตรงและบันทึกในประวัติงาน', confirmButtonText: 'ยืนยันการปรับสถานะ'},
         'admin-override-complete': {title: 'ยืนยันการปิดงานโดยผู้ดูแล?', text: 'งานจะถูกปิดโดยตรงและต้องใช้คำสั่งเปิดงานอีกครั้งหากต้องการแก้ไข', confirmButtonText: 'ยืนยันปิดงาน'},
     };
 
+    Object.values(config).forEach((options) => {
+        options.customClass = dialogLayer.customClass;
+    });
+
     if (kind === 'return') {
         const result = await window.Swal.fire({
+            ...dialogLayer,
             icon: 'warning', title: 'ส่งกลับแก้ไข', input: 'textarea', inputLabel: 'เหตุผลที่ต้องแก้ไข',
             inputPlaceholder: 'ระบุสิ่งที่ต้องการให้แก้ไข', inputAttributes: {maxlength: '1000'},
             inputValidator: (value) => value?.trim() ? undefined : 'กรุณาระบุเหตุผลที่ส่งงานกลับแก้ไข',

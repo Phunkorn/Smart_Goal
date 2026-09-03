@@ -39,7 +39,12 @@ async function boot(t, {canUpload = true, files = []} = {}) {
             </form>
         </div>
         <button data-open-task-modal data-task-id="7">เปิด</button>
-        <script type="application/json" data-attachment-data>${JSON.stringify({
+        <script type="application/json" data-attachment-data
+            data-max-files="20"
+            data-max-kilobytes="1048576"
+            data-extensions="jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx,zip"
+            data-max-size-label="1 GB"
+            data-types-label="JPG, PNG, PDF, Word, Excel, PowerPoint, ZIP">${JSON.stringify({
             7: {can_upload: canUpload, upload_url: '/tasks/7/attachments', files},
         })}</script>`;
 
@@ -152,11 +157,12 @@ test('dragging over the card shows a visible drop state and clears it afterwards
 test('an unsupported file is rejected with the allowed list instead of a silent failure', async (t) => {
     const ui = await boot(t);
 
-    dragFilesOnto(ui.window, ui.zone, ['สัญญา.pdf']);
+    dragFilesOnto(ui.window, ui.zone, ['ตัวติดตั้ง.exe']);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.equal(ui.uploads.length, 0, 'ชนิดที่ server ไม่รับ ต้องไม่ถูกยิงออกไป');
-    assert.match(ui.status.textContent, /\.pdf/);
+    // ข้อความต้องบอกชุดที่รองรับ ไม่ใช่เงียบไปเฉย ๆ
+    assert.match(ui.status.textContent, /ไม่มีไฟล์ที่รองรับ/);
     assert.match(ui.status.textContent, /Word/);
     assert.equal(ui.status.hidden, false);
 });
@@ -207,22 +213,67 @@ test('the attachment flow no longer reloads the page on success', async () => {
 });
 
 test('the client hint matches the server allow-list exactly', async () => {
-    const trait = await read('app/Support/Concerns/ValidatesAttachments.php');
+    const policy = await read('app/Support/AttachmentPolicy.php');
     const script = await read('resources/js/mytasks-task-modal.js');
     const blade = await read('resources/views/tasks/partials/workspace-interactions.blade.php');
 
-    const allowed = trait
-        .slice(trait.indexOf('ALLOWED_ATTACHMENT_EXTENSIONS'), trait.indexOf('MIME type จริง'))
-        .match(/'([a-z]+)'/g)
-        .map((value) => value.replaceAll("'", ''));
+    // กติกาอยู่ที่ AttachmentPolicy ที่เดียว ไอคอนฝั่ง client ต้องรู้จักครบทุกนามสกุล
+    const allowed = policy
+        .slice(policy.indexOf('private const TYPES'), policy.indexOf('public const MAX_FILES'))
+        .match(/^\s{8}'([a-z0-9]+)' =>/gm)
+        .map((line) => line.trim().split("'")[1]);
 
-    assert.deepEqual(allowed, ['jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
+    assert.deepEqual(allowed, ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip']);
 
     const iconMap = script.slice(script.indexOf('const FILE_ICONS'), script.indexOf('const extensionOf'));
     allowed.forEach((extension) => {
-        assert.match(iconMap, new RegExp(`\\b${extension}:`), `FILE_ICONS ต้องรู้จัก .${extension}`);
+        assert.ok(iconMap.includes(`${extension}:`), `FILE_ICONS ต้องรู้จัก .${extension}`);
     });
 
-    assert.match(blade, /รองรับ JPG, PNG, Word, Excel, PowerPoint/);
-    assert.match(blade, /ลากไฟล์มาวางที่นี่ได้/);
+    // Blade ต้องไม่ฮาร์ดโค้ดรายการชนิดไฟล์หรือเพดานของตัวเองอีก
+    assert.match(blade, /AttachmentPolicy::acceptAttribute\(\)/);
+    assert.match(blade, /AttachmentPolicy::limitsLabel\(\)/);
+    assert.doesNotMatch(blade, /accept="\.jpg/);
+    assert.doesNotMatch(blade, /รวมไม่เกิน 5 ไฟล์/);
+    assert.match(blade, /ลากไฟล์หรือทั้งโฟลเดอร์มาวางที่นี่ได้/);
 });
+
+test('folder picking is offered wherever files can be attached', async () => {
+    const blade = await read('resources/views/tasks/partials/workspace-interactions.blade.php');
+    const script = await read('resources/js/mytasks-task-modal.js');
+    const board = await read('resources/js/mytasks-project-board.js');
+
+    // HTML อัปโหลดโฟลเดอร์เป็นก้อนเดียวไม่ได้ ต้องใช้ webkitdirectory ให้เบราว์เซอร์กางเป็นไฟล์ย่อย
+    assert.match(blade, /webkitdirectory directory data-task-inline-folder-input/);
+    assert.match(blade, /webkitdirectory directory data-board-modal-attachment-folder/);
+    assert.match(script, /data-task-inline-folder-input.*addEventListener\('change'/s);
+    assert.match(board, /data-board-modal-attachment-folder/);
+
+    // ไฟล์ที่ไม่รองรับในโฟลเดอร์ต้องถูกข้าม ไม่ใช่ทำให้ทั้งชุดล้ม
+    assert.match(script, /const skipped = picked\.length - accepted\.length;/);
+    assert.match(board, /const skipped = files\.length - accepted\.length;/);
+});
+
+test('client-side limits come from the server instead of being hardcoded', async () => {
+    const blade = await read('resources/views/tasks/partials/workspace-interactions.blade.php');
+    const store = await read('resources/js/pages/mytasks/attachment-store.js');
+
+    // เพดานถูกส่งจาก AttachmentPolicy ฝั่ง server ผ่าน data attribute ไม่ใช่เลขในสคริปต์
+    assert.match(blade, /data-max-files=.+AttachmentPolicy::MAX_FILES/);
+    assert.match(blade, /data-max-kilobytes=.+AttachmentPolicy::MAX_KILOBYTES/);
+    // หน่วยของป้ายมาจาก server ไม่ให้ JavaScript คำนวณเองจนได้ "1024 MB"
+    assert.match(blade, /data-max-size-label=.+AttachmentPolicy::maxSizeLabel/);
+    assert.match(store, /maxSizeLabel:/);
+    assert.match(store, /export function attachmentLimits/);
+
+    for (const path of [
+        'resources/js/mytasks-task-modal.js',
+        'resources/js/mytasks-project-board.js',
+        'resources/js/mytasks-management.js',
+    ]) {
+        const source = await read(path);
+        assert.doesNotMatch(source, /10 \* 1024 \* 1024/, `${path} ยังฮาร์ดโค้ดเพดาน 10 MB`);
+        assert.doesNotMatch(source, /ไม่เกิน 5 ไฟล์/, `${path} ยังฮาร์ดโค้ดเพดาน 5 ไฟล์`);
+    }
+});
+

@@ -30,7 +30,7 @@
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"
         data-list-delete-url="{{ route('mytasks.lists.destroy', $task->taskList) }}"
     @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
-    <button type="button" class="row-title" data-open-task-modal><strong title="{{ $task->job_topic }}">{{ $task->job_topic }}</strong></button>
+    <button type="button" class="row-title" data-open-task-modal><strong title="{{ $task->job_topic }}">{{ $task->job_topic }}</strong>@include('tasks.partials.approval-state-marker', ['task' => $task])</button>
     @php($taskPriorityClass = [1=>'routine',2=>'important',3=>'urgent',4=>'quick',5=>'flexible'][(int) $task->job_priority] ?? 'important')
     @if($canWork)
         <details class="board-status-menu table-status-menu" data-table-status-menu>
@@ -47,7 +47,7 @@
         <span class="board-status-pill status-{{ $statusClass }}">{{ $statusText }}</span>
         <span class="board-priority priority-{{ $taskPriorityClass }}"><i class="bi bi-flag-fill" aria-hidden="true"></i>{{ $priorityLabels[(int) $task->job_priority] ?? $priorityLabels[2] }}</span>
     @endif    <button type="button" class="row-owner" data-open-owner="{{ $task->job_id }}" title="{{ $assigneeName }}">
-        <i>@if($task->user?->profile_image)<img src="{{ route('media.profile', $task->user) }}" alt="">@else{{ Str::substr($assigneeName, 0, 1) }}@endif</i>
+        <i>@include('components.user-avatar-content', ['user' => $task->user ?? auth()->user()])</i>
     </button>
     <label class="row-duration {{ $isLate ? 'is-late' : '' }} {{ $canWork ? '' : 'is-readonly' }}">
         <span class="row-duration-copy"><span>{{ $startLabel }}</span><i class="bi bi-arrow-right"></i><span data-due-label>{{ $dueLabel }}</span></span>
@@ -55,8 +55,8 @@
     </label>
     <button type="button" class="row-collaborators" data-manage-team="{{ $task->job_id }}" title="{{ $canManageTeam ? 'จัดการผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}">
         <span class="collaborator-stack">
-            @foreach($acceptedCollaborators->take(3) as $person)<i class="collaborator-avatar" title="{{ $person->name }}">@if($person->profile_image)<img src="{{ route('media.profile', $person) }}" alt="">@else{{ Str::substr($person->name, 0, 1) }}@endif</i>@endforeach
-            @foreach($pendingCollaborators->take(max(0, 3 - $acceptedCollaborators->take(3)->count())) as $person)<i class="collaborator-avatar pending" title="{{ $person->name }} — รอตอบรับ">@if($person->profile_image)<img src="{{ route('media.profile', $person) }}" alt="">@else{{ Str::substr($person->name, 0, 1) }}@endif<b></b></i>@endforeach
+            @foreach($acceptedCollaborators->take(3) as $person)<i class="collaborator-avatar" title="{{ $person->name }}">@include('components.user-avatar-content', ['user' => $person])</i>@endforeach
+            @foreach($pendingCollaborators->take(max(0, 3 - $acceptedCollaborators->take(3)->count())) as $person)<i class="collaborator-avatar pending" title="{{ $person->name }} — รอตอบรับ">@include('components.user-avatar-content', ['user' => $person])<b></b></i>@endforeach
             @if($acceptedCollaborators->count() + $pendingCollaborators->count() > 3)<b class="collaborator-more">+{{ $acceptedCollaborators->count() + $pendingCollaborators->count() - 3 }}</b>@endif
             @if($acceptedCollaborators->isEmpty() && $pendingCollaborators->isEmpty())<i class="collaborator-empty bi bi-person-plus"></i>@endif
         </span>

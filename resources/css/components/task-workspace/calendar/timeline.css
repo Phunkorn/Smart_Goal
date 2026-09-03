@@ -1,0 +1,359 @@
+/* Calendar display controls and four-lane task timeline. */
+
+.my-tasks-page .mytasks-calendar__displaybar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+}
+
+.my-tasks-page .mytasks-calendar__option-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.my-tasks-page .mytasks-calendar__option-label {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.my-tasks-page .mytasks-calendar__segmented {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f1f5f9;
+    box-shadow: inset 0 1px 2px rgb(15 23 42 / 6%);
+}
+
+.my-tasks-page .mytasks-calendar__segmented button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 13px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.my-tasks-page .mytasks-calendar__segmented button > i {
+    font-size: 13px;
+    opacity: .75;
+    transition: opacity .16s ease;
+}
+
+.my-tasks-page .mytasks-calendar__segmented button:hover {
+    background: rgb(255 255 255 / 70%);
+    color: #1e293b;
+}
+
+.my-tasks-page .mytasks-calendar__segmented button:active {
+    transform: translateY(1px);
+}
+
+/*
+ * สองกลุ่มนี้ทำงานคนละแบบ แต่เดิมหน้าตาเหมือนกันเป๊ะ ผู้ใช้จึงเดาไม่ออกว่า
+ * "รูปแบบ" ต้องเลือกอย่างใดอย่างหนึ่ง ส่วน "วันที่งาน" เปิดพร้อมกันได้ทั้งคู่
+ * จึงแยกสถานะที่เลือกไว้ให้ต่างกันชัดเจน
+ */
+
+/* เลือกได้อย่างเดียว — ตัวที่เลือกทึบเต็มสี อ่านได้ทันทีว่ากำลังดูมุมมองไหน */
+.my-tasks-page .mytasks-calendar__segmented--single button.is-active {
+    background: linear-gradient(180deg, #3b82f6, #2563eb);
+    color: #fff;
+    box-shadow: 0 2px 6px rgb(37 99 235 / 32%);
+}
+
+.my-tasks-page .mytasks-calendar__segmented--single button.is-active > i {
+    opacity: 1;
+}
+
+/* เปิด/ปิดได้ทั้งคู่ — ตัวที่เปิดใช้พื้นอ่อนและมีจุดยืนยัน สื่อว่าเป็นสวิตช์ไม่ใช่ตัวเลือก */
+.my-tasks-page .mytasks-calendar__segmented--multi button.is-active {
+    background: #fff;
+    color: #1746b0;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 12%), inset 0 0 0 1px #bfdbfe;
+}
+
+.my-tasks-page .mytasks-calendar__segmented--multi button.is-active > i {
+    opacity: 1;
+    color: #2563eb;
+}
+
+.my-tasks-page .mytasks-calendar__segmented--multi button.is-active::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #2563eb;
+}
+
+/* ตัวที่ปิดอยู่ต้องดูจางลงจริง ๆ ไม่ใช่แค่สีตัวอักษรต่างนิดเดียว */
+.my-tasks-page .mytasks-calendar__segmented--multi button:not(.is-active) {
+    color: #94a3b8;
+}
+
+.my-tasks-page .mytasks-calendar__segmented--multi button:not(.is-active) > i {
+    opacity: .45;
+}
+
+.my-tasks-page .mytasks-calendar__segmented button:focus-visible {
+    outline: 3px solid rgb(37 99 235 / 22%);
+    outline-offset: 1px;
+}
+
+.my-tasks-page .mytasks-calendar__display-note {
+    margin: 0;
+    color: #64748b;
+    font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .my-tasks-page .mytasks-calendar__segmented button {
+        transition: none;
+    }
+
+    .my-tasks-page .mytasks-calendar__segmented button:active {
+        transform: none;
+    }
+}
+
+/* A taller week provides four readable lanes without changing the overall grid width. */
+.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__week,
+.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__day {
+    min-height: 158px;
+}
+
+.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__day.is-busy {
+    background: #fff;
+    box-shadow: none;
+}
+
+.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__day.is-outside {
+    background: #fbfcfe;
+}
+
+.my-tasks-page .mytasks-calendar__timeline {
+    position: absolute;
+    z-index: 2;
+    top: 40px;
+    right: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: repeat(4, 23px);
+    row-gap: 4px;
+    pointer-events: none;
+}
+
+.my-tasks-page .mytasks-calendar__task-line {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    gap: 5px;
+    min-width: 0;
+    margin-inline: 4px;
+    padding: 2px 7px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--calendar-tone, #64748b) 42%, white);
+    border-left: 3px solid var(--calendar-tone, #64748b);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--calendar-tone, #64748b) 12%, white);
+    color: #27364d;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: left;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.my-tasks-page .mytasks-calendar__task-line:hover {
+    background: color-mix(in srgb, var(--calendar-tone, #64748b) 20%, white);
+}
+
+.my-tasks-page .mytasks-calendar__task-line:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--calendar-tone, #2563eb) 32%, transparent);
+    outline-offset: 1px;
+}
+
+.my-tasks-page .mytasks-calendar__task-line.continues-before {
+    margin-left: 0;
+    border-left-width: 1px;
+    border-radius: 2px 7px 7px 2px;
+}
+
+.my-tasks-page .mytasks-calendar__task-line.continues-after {
+    margin-right: 0;
+    border-radius: 7px 2px 2px 7px;
+}
+
+.my-tasks-page .mytasks-calendar__task-line.continues-before.continues-after {
+    border-radius: 2px;
+}
+
+.my-tasks-page .mytasks-calendar__task-title {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-calendar__task-line .calendar-dot {
+    width: 7px;
+    height: 7px;
+    flex-basis: 7px;
+}
+
+.my-tasks-page .mytasks-calendar__endpoint {
+    flex: 0 0 auto;
+    color: var(--calendar-tone, #64748b);
+    font-size: 9px;
+}
+
+.my-tasks-page .mytasks-calendar__task-line[data-start-day="1"] { grid-column-start: 1; }
+.my-tasks-page .mytasks-calendar__task-line[data-start-day="2"] { grid-column-start: 2; }
+.my-tasks-page .mytasks-calendar__task-line[data-start-day="3"] { grid-column-start: 3; }
+.my-tasks-page .mytasks-calendar__task-line[data-start-day="4"] { grid-column-start: 4; }
+.my-tasks-page .mytasks-calendar__task-line[data-start-day="5"] { grid-column-start: 5; }
+.my-tasks-page .mytasks-calendar__task-line[data-start-day="6"] { grid-column-start: 6; }
+.my-tasks-page .mytasks-calendar__task-line[data-start-day="7"] { grid-column-start: 7; }
+.my-tasks-page .mytasks-calendar__task-line[data-span-days="1"] { grid-column-end: span 1; }
+.my-tasks-page .mytasks-calendar__task-line[data-span-days="2"] { grid-column-end: span 2; }
+.my-tasks-page .mytasks-calendar__task-line[data-span-days="3"] { grid-column-end: span 3; }
+.my-tasks-page .mytasks-calendar__task-line[data-span-days="4"] { grid-column-end: span 4; }
+.my-tasks-page .mytasks-calendar__task-line[data-span-days="5"] { grid-column-end: span 5; }
+.my-tasks-page .mytasks-calendar__task-line[data-span-days="6"] { grid-column-end: span 6; }
+.my-tasks-page .mytasks-calendar__task-line[data-span-days="7"] { grid-column-end: span 7; }
+.my-tasks-page .mytasks-calendar__task-line[data-lane="1"] { grid-row: 1; }
+.my-tasks-page .mytasks-calendar__task-line[data-lane="2"] { grid-row: 2; }
+.my-tasks-page .mytasks-calendar__task-line[data-lane="3"] { grid-row: 3; }
+.my-tasks-page .mytasks-calendar__task-line[data-lane="4"] { grid-row: 4; }
+
+.my-tasks-page .mytasks-calendar__timeline-more {
+    position: absolute;
+    z-index: 3;
+    right: 5px;
+    bottom: 5px;
+    max-width: calc(100% - 10px);
+    padding: 2px 6px;
+    overflow: hidden;
+    border: 1px solid #dbe3ee;
+    border-radius: 999px;
+    background: #fff;
+    color: #475569;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.my-tasks-page .mytasks-calendar__timeline-more:hover {
+    border-color: #93b4f5;
+    color: #1746b0;
+}
+
+.my-tasks-page .mytasks-calendar__timeline-more:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, .22);
+    outline-offset: 1px;
+}
+
+.my-tasks-page .mytasks-calendar[data-calendar-mode="summary"] .mytasks-calendar__timeline-more {
+    display: none;
+}
+
+/* Meetings retain their existing per-day count and never consume one of the four task lanes. */
+.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__counts {
+    position: absolute;
+    z-index: 3;
+    bottom: 7px;
+    left: 7px;
+}
+
+.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__count:not(.is-meeting),
+.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__more {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    /* จอแคบวางชื่อเดือนไว้บน แล้วให้ตัวเลือกการแสดงกินเต็มความกว้างข้างล่าง */
+    .my-tasks-page .mytasks-calendar__heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .my-tasks-page .mytasks-calendar__displaybar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .my-tasks-page .mytasks-calendar__option-group {
+        justify-content: space-between;
+    }
+
+    .my-tasks-page .mytasks-calendar__segmented {
+        flex: 1;
+    }
+
+    .my-tasks-page .mytasks-calendar__segmented button {
+        min-width: 0;
+        flex: 1;
+        padding-inline: 8px;
+    }
+
+    /* ช่องวันเตี้ยลงบนจอแคบ เส้นงานจึงต้องบางลงตามเพื่อให้ยังเห็นครบสี่เลน */
+    .my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__week,
+    .my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__day {
+        min-height: 138px;
+    }
+
+    .my-tasks-page .mytasks-calendar__timeline {
+        top: 34px;
+        grid-template-rows: repeat(4, 21px);
+        row-gap: 3px;
+    }
+
+    .my-tasks-page .mytasks-calendar__task-line {
+        margin-inline: 3px;
+        padding: 2px 5px;
+        gap: 4px;
+    }
+}
+
+@media (max-width: 420px) {
+    .my-tasks-page .mytasks-calendar__option-label {
+        display: none;
+    }
+
+    .my-tasks-page .mytasks-calendar__option-group {
+        width: 100%;
+    }
+
+    .my-tasks-page .mytasks-calendar__task-line {
+        justify-content: center;
+        padding-inline: 2px;
+    }
+
+    .my-tasks-page .mytasks-calendar__task-line[data-span-days="1"] .mytasks-calendar__endpoint {
+        display: none;
+    }
+}

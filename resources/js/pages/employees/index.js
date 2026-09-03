@@ -53,9 +53,40 @@ const syncRoleFields = (form) => {
     if (! needsDepartment) department.value = '';
 };
 
+/**
+ * ข้อความ constraint ของเบราว์เซอร์เป็นภาษาอังกฤษเสมอ ("Please match the requested format.")
+ * ซึ่งอ่านไม่ออกสำหรับผู้ใช้ และไม่บอกด้วยว่ากฎข้อไหนไม่ผ่าน
+ * แยกเป็นฟังก์ชันบริสุทธิ์เพื่อให้เทสต์ตรวจข้อความได้โดยไม่ต้องเปิดเบราว์เซอร์
+ */
+export const usernameValidationMessage = (value) => {
+    const username = String(value ?? '').trim();
+
+    if (username === '') return 'กรุณากรอกบัญชีผู้ใช้งาน';
+    if (username.length < 3) return 'บัญชีผู้ใช้งานต้องยาวอย่างน้อย 3 ตัวอักษร';
+    if (username.length > 50) return 'บัญชีผู้ใช้งานต้องยาวไม่เกิน 50 ตัวอักษร';
+    if (! /^[A-Za-z0-9._-]+$/.test(username)) {
+        return 'บัญชีผู้ใช้งานใช้ได้เฉพาะตัวอักษรอังกฤษและตัวเลข จะใส่ . - _ เพิ่มด้วยก็ได้';
+    }
+
+    return '';
+};
+
+const bindUsernameValidity = (form) => {
+    const input = form.querySelector('[data-username-input]');
+    if (! input) return;
+
+    // ล้างข้อความค้างก่อนตรวจใหม่ทุกครั้ง มิฉะนั้น setCustomValidity เดิมจะทำให้ฟอร์มส่งไม่ได้ตลอดไป
+    const refresh = () => input.setCustomValidity(usernameValidationMessage(input.value));
+
+    input.addEventListener('input', refresh);
+    input.addEventListener('invalid', refresh);
+    refresh();
+};
+
 const initializeEmployeeForms = (page) => {
     document.querySelectorAll('[data-employee-form]').forEach((form) => {
         syncRoleFields(form);
+        bindUsernameValidity(form);
         form.querySelector('[data-user-role]')?.addEventListener('change', () => syncRoleFields(form));
 
         form.querySelector('[data-profile-input]')?.addEventListener('change', (event) => {

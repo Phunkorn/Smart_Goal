@@ -178,6 +178,7 @@ class WorkBoardController extends Controller
                 'leader.department',
                 'collaborators.department',
                 'images',
+                'subtasks',
                 'updates.user.department',
                 'activityLogs.user.department',
                 'reviewSubmitter',

@@ -158,16 +158,37 @@
             white-space: nowrap;
         }
 
-        .role-chip.admin {
+        /* ชุดสีเดียวกับ .employee-role บนการ์ดหน้าจัดการพนักงาน
+           เดิมมีแค่ .admin กับ .user ทำให้หัวหน้าแผนก พนักงาน และผู้เข้าชม
+           ใช้สีเขียวเหมือนกันหมดจนแยกบทบาทจากมุมขวาบนไม่ได้ */
+        .role-chip.admin,
+        .role-chip.department-head {
             background: var(--accent-dim);
             color: var(--accent-strong);
-            border-color: #D8D2FA;
+            border-color: var(--accent-dim);
         }
 
         .role-chip.user {
-            background: var(--green-dim);
-            color: #00875A;
-            border-color: #B7EBD0;
+            background: var(--surface-2);
+            color: var(--text-muted);
+            border-color: var(--surface-2);
+        }
+
+        .role-chip.viewer {
+            background: var(--blue-dim);
+            color: var(--blue);
+            border-color: var(--blue-dim);
+        }
+
+        /* ชื่อแผนกต่อท้ายทำให้ป้ายยาวขึ้น จอแคบต้องตัดคำแทนที่จะดันปุ่มแจ้งเตือนตก */
+        .role-chip__label {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .role-chip i {
+            flex: 0 0 auto;
         }
 
         .notification-menu {

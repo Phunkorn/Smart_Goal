@@ -4,6 +4,7 @@ namespace App\Support\Concerns;
 
 use App\Models\JobImage;
 use App\Models\WorkOrder;
+use App\Support\AttachmentPolicy;
 use App\Support\ProtectedMedia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,38 +14,12 @@ use Illuminate\Support\Facades\Auth;
  * ใช้ allow-list เดียวกันทุกจุดที่รับไฟล์แนบ (สร้างงาน / ปิดงานพร้อมแนบไฟล์ /
  * อัปโหลดไฟล์เพิ่มทีหลัง ทั้งจากบอร์ดและจากหน้า "งานของฉัน") เพื่อไม่ให้มีช่องโหว่
  * หลุดจากจุดใดจุดหนึ่งที่ลืมเช็ค
+ *
+ * กติกาทั้งหมด (ชนิดไฟล์ ขนาด จำนวน) อยู่ที่ App\Support\AttachmentPolicy ที่เดียว
+ * trait นี้เหลือหน้าที่เชื่อม Request เข้ากับกติกานั้นและเก็บไฟล์ลง storage เท่านั้น
  */
 trait ValidatesAttachments
 {
-    /**
-     * นามสกุลไฟล์แนบที่อนุญาต: รูปภาพ, Word, Excel, PowerPoint เท่านั้น
-     * (ห้าม pdf, csv, zip หรือไฟล์ประเภทอื่นใดทั้งสิ้น)
-     */
-    private const ALLOWED_ATTACHMENT_EXTENSIONS = [
-        'jpg', 'jpeg', 'png',
-        'doc', 'docx',
-        'xls', 'xlsx',
-        'ppt', 'pptx',
-    ];
-
-    /**
-     * MIME type จริงที่ตรวจจากเนื้อไฟล์ (ไม่ใช่จาก header ที่ client ส่งมา)
-     * ใช้คู่กับนามสกุลไฟล์เพื่อกันการปลอมนามสกุล
-     */
-    private const ALLOWED_ATTACHMENT_MIMES = [
-        'image/jpeg',
-        'image/png',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-powerpoint',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    ];
-
-    /** ขนาดไฟล์แนบสูงสุดต่อไฟล์ (KB) = 10 MB */
-    private const ATTACHMENT_MAX_KB = 10240;
-
     /**
      * ป้องกันกรณีมีคนแก้ accept ฝั่ง client หรือปลอมนามสกุล/Content-Type มา
      */
@@ -55,22 +30,26 @@ trait ValidatesAttachments
         }
 
         foreach ($request->file($field) as $file) {
-            if (! $file->isValid()) {
-                abort(422, 'ไฟล์แนบอัปโหลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
-            }
+            $reason = AttachmentPolicy::rejectionReason($file);
 
-            $extension = strtolower((string) $file->getClientOriginalExtension());
-            $realMime = (string) $file->getMimeType();
-            $sizeKb = $file->getSize() / 1024;
-
-            if (! in_array($extension, self::ALLOWED_ATTACHMENT_EXTENSIONS, true)) {
-                abort(422, 'ไม่อนุญาตไฟล์นามสกุล .'.$extension.' — แนบได้เฉพาะไฟล์รูปภาพ (JPG, PNG), Word, Excel หรือ PowerPoint เท่านั้น');
-            } elseif (! in_array($realMime, self::ALLOWED_ATTACHMENT_MIMES, true)) {
-                abort(422, 'ไฟล์ "'.$file->getClientOriginalName().'" มีเนื้อหาไม่ตรงกับประเภทไฟล์ที่อนุญาต');
-            } elseif ($sizeKb > self::ATTACHMENT_MAX_KB) {
-                abort(422, 'ไฟล์ "'.$file->getClientOriginalName().'" มีขนาดเกิน '.(self::ATTACHMENT_MAX_KB / 1024).' MB');
+            if ($reason !== null) {
+                abort(422, $reason);
             }
         }
+    }
+
+    /**
+     * กฎ validation ของ Laravel สำหรับช่องไฟล์แนบหนึ่งช่อง
+     * ให้ทุก controller ใช้ชุดเดียวกันแทนการเขียน max:5 / mimes:... ซ้ำเอง
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function attachmentRules(string $field, bool $required = false): array
+    {
+        return [
+            $field => [$required ? 'required' : 'nullable', 'array', ...($required ? ['min:1'] : []), 'max:'.AttachmentPolicy::MAX_FILES],
+            $field.'.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+        ];
     }
 
     private function storeFiles(Request $request, WorkOrder $job, string $field): void
@@ -82,7 +61,7 @@ trait ValidatesAttachments
         foreach ($request->file($field) as $file) {
             // getClientMimeType() คือค่า Content-Type ที่ client ส่งมา ปลอมได้และยาวไม่จำกัด
             // ต้องใช้ getMimeType() ที่ตรวจจากเนื้อไฟล์จริง ซึ่งเป็นแหล่งเดียวกับที่
-            // assertAllowedAttachments() ใช้ตรวจ allow-list ค่าที่เก็บจึงถูกจำกัดชุดและความยาวเสมอ
+            // AttachmentPolicy ใช้ตรวจ allow-list ค่าที่เก็บจึงถูกจำกัดชุดและความยาวเสมอ
             // ต้องอ่านก่อน storeAttachment() เพราะหลังย้ายไฟล์ออกจากที่พักชั่วคราวจะอ่านไม่ได้แล้ว
             $mimeType = $file->getMimeType();
             $path = ProtectedMedia::storeAttachment($file, 'job-attachments/'.$job->job_id);

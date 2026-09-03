@@ -96,6 +96,12 @@ class MyTasksCalendarMeetingsTest extends TestCase
                 ->assertSee('data-calendar-today-list', false)
                 ->assertSee('data-calendar-month-list', false)
                 ->assertSee('data-calendar-month-agenda-title', false)
+                // ทุก workspace ใช้ controls ชุดเดียวกัน และเปิดด้วย timeline + วันเริ่ม/สิ้นสุด
+                ->assertSee('data-calendar-mode-option="timeline" aria-pressed="true"', false)
+                ->assertSee('data-calendar-mode-option="summary" aria-pressed="false"', false)
+                ->assertSee('data-calendar-date-point="start" aria-pressed="true"', false)
+                ->assertSee('data-calendar-date-point="due" aria-pressed="true"', false)
+                ->assertSee('สูงสุด 4 เส้นต่อวัน')
                 ->assertSee('งานและการประชุมวันนี้')
                 ->assertSee('ผู้ร่วมงาน / ผู้เข้าร่วม')
                 ->assertSee('กำหนดส่งและนัดหมายในเดือนนี้')

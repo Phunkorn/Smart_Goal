@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\RespondsWithTaskResult;
 use App\Models\JobImage;
 use App\Models\WorkOrder;
+use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProtectedMedia;
@@ -25,13 +26,13 @@ class TaskAttachmentController extends Controller
         abort_if((int) $job->job_status === 4 && $user?->role !== 'admin', 403);
 
         $request->validate([
-            'completion_attachments' => ['required', 'array', 'min:1', 'max:5'],
-            'completion_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'completion_attachments' => ['required', 'array', 'min:1', 'max:'.AttachmentPolicy::MAX_FILES],
+            'completion_attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
         ]);
 
         $incomingCount = count($request->file('completion_attachments', []));
-        if ($job->images->count() + $incomingCount > 5) {
-            return $this->jsonOrBack($request, false, 'เพิ่มไฟล์อ้างอิงงานได้สูงสุด 5 ไฟล์ต่องาน', 422);
+        if ($job->images->count() + $incomingCount > AttachmentPolicy::MAX_FILES) {
+            return $this->jsonOrBack($request, false, AttachmentPolicy::tooManyMessage($job->images->count()), 422);
         }
 
         $this->assertAllowedAttachments($request, 'completion_attachments');

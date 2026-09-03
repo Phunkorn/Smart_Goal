@@ -64,25 +64,60 @@ class TaskReviewWorkflowTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['action' => 'review_returned', 'user_id' => $creator->id]);
     }
 
-    public function test_completed_task_is_locked_but_comments_remain_available_and_admin_can_explicitly_reopen(): void
+    public function test_only_creator_or_admin_can_explicitly_reopen_a_completed_delegated_task(): void
     {
         $creator = $this->user();
         $assignee = $this->user();
+        $outsider = $this->user();
         $admin = $this->user('admin');
         $task = $this->task($assignee, $creator, 4, ['job_completed_at' => now(), 'final_approved_by' => $creator->id, 'final_approved_at' => now()]);
 
         $this->actingAs($assignee)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
         $this->actingAs($admin)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
         $this->actingAs($assignee)->postJson(route('tasks.comments.store', $task), ['message' => 'follow up'])->assertCreated();
-        $this->actingAs($admin)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2])->assertUnprocessable();
-        $this->actingAs($admin)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])->assertOk();
+        $this->actingAs($assignee)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])->assertForbidden();
+        $this->actingAs($outsider)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])->assertForbidden();
+        $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2])->assertUnprocessable();
+        $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])
+            ->assertOk()
+            ->assertJsonPath('transitions.can_edit', true);
 
         $task->refresh();
         $this->assertSame(2, (int) $task->job_status);
         $this->assertNull($task->job_completed_at);
         $this->assertNull($task->final_approved_by);
-        $this->assertDatabaseHas('activity_logs', ['action' => 'task_reopened', 'user_id' => $admin->id]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'task_reopened', 'user_id' => $creator->id]);
         $this->assertDatabaseHas('system_notifications', ['user_id' => $assignee->id, 'type' => 'task_reopened']);
+
+        $adminTask = $this->task($assignee, $creator, 4, ['job_completed_at' => now()]);
+        $this->actingAs($admin)->patchJson(route('tasks.updateStatus', $adminTask), [
+            'job_status' => 2,
+            'action' => 'reopen',
+        ])->assertOk();
+    }
+
+    public function test_owner_can_reopen_and_then_edit_a_completed_self_task(): void
+    {
+        $owner = $this->user();
+        $task = $this->task($owner, $owner, 4, [
+            'job_completed_at' => now(),
+            'final_approved_by' => $owner->id,
+            'final_approved_at' => now(),
+        ]);
+
+        $capabilities = app(TaskStatusTransitionService::class)->capabilities($task, $owner);
+        $this->assertTrue($capabilities['can_reopen']);
+        $this->assertContains(2, $capabilities['allowed_statuses']);
+
+        $this->actingAs($owner)->patchJson(route('tasks.updateStatus', $task), [
+            'job_status' => 2,
+            'action' => 'reopen',
+        ])->assertOk();
+        $this->actingAs($owner)->patchJson(route('tasks.details.update', $task), [
+            'job_topic' => 'Edited after reopening',
+        ])->assertOk();
+
+        $this->assertSame('Edited after reopening', $task->fresh()->job_topic);
     }
 
     public function test_self_created_task_can_close_without_review_and_legacy_complete_endpoint_cannot_bypass_delegated_review(): void

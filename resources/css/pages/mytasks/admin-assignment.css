@@ -26,3 +26,22 @@
 .my-tasks-page .mytasks-kanban__collaborators { display: inline-flex; align-items: center; gap: 4px; color: #667085; font-size: 12px; }
 .admin-member-task-workspace [data-open-create],
 .admin-member-task-workspace [data-add-in-group] { display: none !important; }
+
+/* ป้ายบอกว่างานที่ผู้ขอเห็นอยู่นี้ยังรออนุมัติ หรือถูกปฏิเสธไปแล้ว */
+.my-tasks-page .task-approval-marker {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.my-tasks-page .task-approval-marker.is-pending { border: 1px solid #fde68a; background: #fffbeb; color: #b45309; }
+.my-tasks-page .task-approval-marker.is-rejected { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; }
+.my-tasks-page .notion-row .task-approval-marker { margin: 0 0 0 8px; vertical-align: middle; }

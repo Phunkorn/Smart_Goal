@@ -23,6 +23,19 @@
 .user-task-create__new-project[hidden] { display: none; }
 .user-task-create__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .user-task-create__grid label:last-child { grid-column: 1 / -1; }
+.user-task-create__details { display: grid; gap: 9px; padding: 12px; border: 1px solid #dce5f0; border-radius: 10px; background: #f8fafc; }
+.user-task-create__details-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.user-task-create__details-head > div { display: grid; gap: 1px; }
+.user-task-create__details-head strong { color: var(--sg-ink); font-size: 12px; }
+.user-task-create__details-head small { color: var(--sg-muted); font-size: 10px; }
+.user-task-create__details-head > button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border: 1px solid #b9cff0; border-radius: 8px; background: #fff; color: var(--sg-blue); font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
+.user-task-create__details-head > button:hover { background: #edf4ff; }
+.user-task-create__details-list { display: grid; gap: 7px; }
+.user-task-create__detail-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 32px; align-items: center; gap: 6px; }
+.user-task-create__detail-row > i { color: #7890b1; text-align: center; }
+.user-task-create__detail-row > input { min-height: 38px; }
+.user-task-create__detail-row > button { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #94a3b8; cursor: pointer; }
+.user-task-create__detail-row > button:hover { background: #feecec; color: #dc2626; }
 .user-task-create__card > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px; border-top: 1px solid var(--user-task-line); background: #fff; }
 .user-task-create__card > footer p { margin: 0; color: var(--sg-muted); font-size: 10px; }
 .user-task-create__card > footer div { display: flex; gap: 8px; }
@@ -37,6 +50,8 @@
     .user-task-create__new-project,
     .user-task-create__grid { grid-template-columns: 1fr; }
     .user-task-create__grid label:last-child { grid-column: auto; }
+    .user-task-create__details-head { align-items: flex-start; flex-direction: column; }
+    .user-task-create__details-head > button { align-self: stretch; justify-content: center; }
     .user-task-create__card > footer { align-items: stretch; flex-direction: column; padding: 10px 12px; }
     .user-task-create__card > footer div { display: grid; grid-template-columns: 1fr 1.4fr; }
     .user-task-create__card > footer button { min-height: 46px; }

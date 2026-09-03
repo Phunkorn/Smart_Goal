@@ -20,6 +20,7 @@ use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
+use App\Http\Controllers\WorkOrderSubtaskController;
 use App\Models\WorkOrderListTaskRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -261,6 +262,22 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::post('/my-tasks/new-task', [MyTaskController::class, 'store'])
         ->name('mytasks.create');
+
+    Route::post('/my-tasks/{workOrder}/details', [WorkOrderSubtaskController::class, 'store'])
+        ->middleware('role:admin,user')
+        ->name('mytasks.details.store');
+
+    Route::patch('/my-tasks/details/{detail}', [WorkOrderSubtaskController::class, 'update'])
+        ->middleware('role:admin,user')
+        ->name('mytasks.details.update');
+
+    Route::delete('/my-tasks/details/{detail}', [WorkOrderSubtaskController::class, 'destroy'])
+        ->middleware('role:admin,user')
+        ->name('mytasks.details.destroy');
+
+    Route::patch('/my-tasks/details/{detail}/move', [WorkOrderSubtaskController::class, 'move'])
+        ->middleware('role:admin,user')
+        ->name('mytasks.details.move');
 
     Route::post('/my-tasks/lists', [MyTaskController::class, 'storeList'])
         ->name('mytasks.lists.store');

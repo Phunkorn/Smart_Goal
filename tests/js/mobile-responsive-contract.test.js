@@ -34,11 +34,25 @@ test('every auth page shares one backdrop, font set, and experience script', asy
 
         assert.match(blade, /@include\('auth\.partials\.backdrop'\)/, page);
         assert.match(blade, /@include\('auth\.partials\.brand'/, page);
-        assert.match(blade, /family=Anuphan[^"]*IBM\+Plex\+Sans\+Thai/, page);
+        assert.ok(blade.includes('family=Prompt:wght@400;500;600;700'), page);
         assert.match(blade, /resources\/js\/pages\/auth\/experience\.js/, page);
         assert.match(entry, /components\/auth\/base\.css/, page);
         assert.match(entry, /components\/auth\/form-base\.css/, page);
     }
+});
+
+test('auth pages use Prompt only and restored login history revalidates the session', async () => {
+    for (const component of ['base', 'form-base', 'welcome']) {
+        const source = await css('resources/css/components/auth/' + component + '.css');
+        assert.doesNotMatch(source, /Anuphan|IBM Plex Sans Thai/, component);
+        assert.ok(source.includes('font-family: "Prompt"'), component);
+    }
+
+    const script = await css('resources/js/pages/auth/experience.js');
+    assert.ok(script.includes("classList.contains('auth-login')"));
+    assert.ok(script.includes("addEventListener('pageshow'"));
+    assert.ok(script.includes('event.persisted'));
+    assert.ok(script.includes('window.location.reload()'));
 });
 
 /*
@@ -88,13 +102,17 @@ test('the animated backdrop ships with a reduced-motion escape hatch', async () 
 test('mobile role chip keeps a compact visible label with an accessible name', async () => {
     const source = await css('resources/css/components/layout/responsive.css');
     const blade = await css('resources/views/layouts/app.blade.php');
+    const shared = await css('resources/css/components/layout/shared-ui.css');
     const mobile = source.slice(source.indexOf('@media (max-width: 991px)'));
 
-    assert.match(mobile, /\.role-chip\s*\{[^}]*width:\s*auto[^}]*min-width:\s*0[^}]*max-width:\s*none[^}]*flex:\s*0 0 auto[^}]*justify-content:\s*center[^}]*gap:\s*\.35rem[^}]*padding:\s*0 \.65rem/s);
+    // ป้ายบทบาทมีชื่อแผนกต่อท้ายแล้ว จึงต้องยอมย่อและตัดคำแทนที่จะดันปุ่มแจ้งเตือนตกบรรทัด
+    assert.match(mobile, /\.role-chip\s*\{[^}]*width:\s*auto[^}]*min-width:\s*0[^}]*max-width:\s*52vw[^}]*flex:\s*0 1 auto[^}]*justify-content:\s*center[^}]*gap:\s*\.35rem[^}]*padding:\s*0 \.65rem/s);
     assert.match(mobile, /\.role-chip i\s*\{[^}]*margin:\s*0/s);
     assert.match(mobile, /\.role-chip__label\s*\{[^}]*display:\s*inline[^}]*font-size:\s*\.72rem/s);
-    assert.match(blade, /class="role-chip \{\{ \$isAdmin[^"]+" aria-label="\{\{ \$roleLabel \}\}" title="\{\{ \$roleLabel \}\}"/);
-    assert.match(blade, /<span class="role-chip__label">\{\{ \$roleLabel \}\}<\/span>/);
+    assert.match(shared, /\.role-chip__label\s*\{[^}]*min-width:\s*0[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis/s);
+    assert.match(shared, /\.role-chip i\s*\{[^}]*flex:\s*0 0 auto/s);
+    assert.match(blade, /class="role-chip \{\{ \$roleChipClass \}\}" aria-label="\{\{ \$roleChipText \}\}" title="\{\{ \$roleChipText \}\}"/);
+    assert.match(blade, /<span class="role-chip__label">\{\{ \$roleChipText \}\}<\/span>/);
 });
 
 test('mobile kanban stacks status columns without the desktop minimum width', async () => {
@@ -133,11 +151,12 @@ test('mobile board controls and project header remain scoped to the board page',
 test('shared board titles and assignee header use explicit compact contracts', async () => {
     const source = await css('resources/css/pages/mytasks/project-board.css');
     const blade = await css('resources/views/tasks/partials/project-board-card.blade.php');
+    const taskDetails = await css('resources/views/tasks/components/task-details.blade.php');
     const script = await css('resources/js/mytasks-project-board.js');
     const adminMember = await css('resources/views/work-board/admin/member.blade.php');
 
     assert.match(blade, /<strong class=\x22board-project-group__title\x22>/);
-    assert.match(blade, /<span class=\x22board-reference-task__title\x22>/);
+    assert.match(taskDetails, /<span class=\x22board-reference-task__title\x22>/);
     assert.doesNotMatch(blade, /board-reference-task__open[^>]*>\s*<strong/);
     assert.match(source, /\.board-project-group__title\s*\{[^}]*font-weight:\s*600/s);
     assert.match(source, /\.board-reference-task__title\s*\{[^}]*font-weight:\s*500/s);
@@ -147,9 +166,14 @@ test('shared board titles and assignee header use explicit compact contracts', a
     assert.match(adminMember, /family=IBM\+Plex\+Sans\+Thai:wght@400;500;600;700/);
 });
 
-test('the month grid summarises each day by priority and never scrolls sideways on mobile', async () => {
+test('the month grid supports a responsive four-lane timeline and the priority summary view', async () => {
     const source = await css('resources/css/components/task-workspace/calendar/base.css');
+    const timeline = await css('resources/css/components/task-workspace/calendar/timeline.css');
+    const entry = await css('resources/css/pages/mytasks.css');
+    const blade = await css('resources/views/tasks/partials/calendar.blade.php');
+    const script = await css('resources/js/pages/mytasks/calendar.js');
     const mobile = source.slice(source.lastIndexOf('@media (max-width: 760px)'));
+    const timelineMobile = timeline.slice(timeline.lastIndexOf('@media (max-width: 760px)'));
 
     assert.doesNotMatch(source, /\.mytasks-calendar__legend\s*\{[^}]*border:\s*1px/s);
     assert.match(source, /\.mytasks-calendar__legend-item\s*\{[^}]*padding:\s*5px 9px[^}]*border:\s*1px solid var\(--calendar-legend-border[^}]*border-radius:\s*999px[^}]*background:\s*var\(--calendar-legend-background/s);
@@ -162,9 +186,17 @@ test('the month grid summarises each day by priority and never scrolls sideways 
     assert.match(source, /\.mytasks-calendar__counts\s*\{[^}]*flex-direction:\s*column/s);
     assert.match(source, /\.calendar-dot\s*\{[^}]*background:\s*var\(--calendar-tone/s);
 
-    // แถบลากข้ามวันถูกถอดออกทั้งชุด ต้องไม่เหลือสไตล์ค้างไว้ให้เผลอกลับมาใช้
-    assert.doesNotMatch(source, /mytasks-calendar__event-layer/);
-    assert.doesNotMatch(source, /mytasks-calendar__task--segment/);
+    assert.match(entry, /calendar\/timeline\.css/);
+    assert.match(timeline, /\.mytasks-calendar__timeline\s*\{[^}]*grid-template-columns:\s*repeat\(7, minmax\(0, 1fr\)\)[^}]*grid-template-rows:\s*repeat\(4, 23px\)/s);
+    assert.match(timeline, /\.mytasks-calendar__task-title\s*\{[^}]*text-overflow:\s*ellipsis/s);
+    assert.match(timeline, /\.mytasks-calendar__timeline-more\s*\{[^}]*position:\s*absolute/s);
+    assert.match(timelineMobile, /\.mytasks-calendar__timeline\s*\{[^}]*grid-template-rows:\s*repeat\(4, 21px\)/s);
+    assert.match(blade, /data-calendar-mode-option="timeline" aria-pressed="true"/);
+    assert.match(blade, /data-calendar-mode-option="summary" aria-pressed="false"/);
+    assert.match(blade, /data-calendar-date-point="start" aria-pressed="true"/);
+    assert.match(blade, /data-calendar-date-point="due" aria-pressed="true"/);
+    assert.match(script, /let calendarMode = 'timeline'/);
+    assert.match(script, /maxTimelineLanes: 4/);
     assert.doesNotMatch(source, /mytasks-calendar__popover/);
 
     assert.match(mobile, /\.mytasks-calendar__viewport\s*\{[^}]*overflow-x:\s*hidden/s);

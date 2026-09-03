@@ -7,6 +7,8 @@ use App\Models\WorkOrder;
 use App\Services\CollaboratorInvitationService;
 use App\Services\NotificationService;
 use App\Services\TaskStatusTransitionService;
+use App\Support\ApprovalPresenter;
+use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use Illuminate\Http\Request;
@@ -30,14 +32,14 @@ class TaskStatusController extends Controller
 
         $validated = $request->validate([
             'job_status' => ['required', 'integer', 'in:2,3,4,5,6'],
-            'completion_attachments' => ['nullable', 'array', 'max:5'],
-            'completion_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'completion_attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
+            'completion_attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
             'action' => ['nullable', 'string', 'in:reopen'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        if ($request->hasFile('completion_attachments') && $job->images()->count() + count($request->file('completion_attachments', [])) > 5) {
-            return $this->jsonOrBack($request, false, 'เพิ่มไฟล์อ้างอิงงานได้สูงสุด 5 ไฟล์ต่องาน', 422);
+        if ($request->hasFile('completion_attachments') && $job->images()->count() + count($request->file('completion_attachments', [])) > AttachmentPolicy::MAX_FILES) {
+            return $this->jsonOrBack($request, false, AttachmentPolicy::tooManyMessage($job->images()->count()), 422);
         }
 
         $this->assertAllowedAttachments($request, 'completion_attachments');
@@ -99,7 +101,9 @@ class TaskStatusController extends Controller
             } else {
                 $invitations->rejectPendingAfterAssignmentRejection($job, Auth::user());
             }
-            AuditTrail::log('approval_updated', $job, 'Admin อัปเดตการอนุมัติงาน: '.$job->job_topic, [
+            $approver = Auth::user();
+            $approver?->loadMissing('department');
+            AuditTrail::log('approval_updated', $job, ApprovalPresenter::approverLabel($approver).' '.ApprovalPresenter::decisionVerb($validated['approval_status']).'การมอบหมายงาน: '.$job->job_topic, [
                 'before' => $before,
                 'after' => $job->attributesToArray(),
             ]);

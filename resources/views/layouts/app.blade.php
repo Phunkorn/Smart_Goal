@@ -211,9 +211,32 @@
             <i class="bi bi-list"></i>
         </button>
         <div class="ms-auto d-flex align-items-center gap-2">
-            <span class="role-chip {{ $isAdmin ? 'admin' : 'user' }}" aria-label="{{ $roleLabel }}" title="{{ $roleLabel }}">
-                <i class="bi {{ $isAdmin ? 'bi-shield-check' : ($isDepartmentHead ? 'bi-person-badge' : 'bi-person-check') }}"></i>
-                <span class="role-chip__label">{{ $roleLabel }}</span>
+            @php
+                // ป้ายบทบาทมุมขวาบนเคยมีแค่สองสี (admin เป็นม่วง ที่เหลือเขียวหมด)
+                // หัวหน้าแผนกกับพนักงานจึงหน้าตาเหมือนกัน และไม่บอกด้วยว่าอยู่แผนกไหน
+                // ตอนนี้ใช้ชุดสีและคำเดียวกับ .employee-role บนการ์ดหน้าจัดการพนักงาน
+                // เพื่อให้บทบาทเดียวกันอ่านได้เหมือนกันทุกหน้า
+                $roleChipClass = match (true) {
+                    $isAdmin => 'admin',
+                    $isDepartmentHead => 'department-head',
+                    $isViewer => 'viewer',
+                    default => 'user',
+                };
+                $roleChipIcon = match ($roleChipClass) {
+                    'admin' => 'bi-shield-check',
+                    'department-head' => 'bi-person-badge',
+                    'viewer' => 'bi-eye',
+                    default => 'bi-person-check',
+                };
+                // admin และ viewer ไม่ผูกกับแผนก (UserController บังคับ department_id เป็น null)
+                $roleChipDepartment = $isAdmin || $isViewer
+                    ? null
+                    : optional($currentUser?->department)->department_name;
+                $roleChipText = $roleLabel.($roleChipDepartment ? ' '.$roleChipDepartment : '');
+            @endphp
+            <span class="role-chip {{ $roleChipClass }}" aria-label="{{ $roleChipText }}" title="{{ $roleChipText }}">
+                <i class="bi {{ $roleChipIcon }}"></i>
+                <span class="role-chip__label">{{ $roleChipText }}</span>
             </span>
             <div class="dropdown">
                 <button class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false" title="แจ้งเตือน">

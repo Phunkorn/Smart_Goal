@@ -3,10 +3,15 @@ import {confirmTaskTransition, isModalStatusOptionDisabled} from './pages/mytask
 import {hasWorkspaceChanges, workspaceChanges, workspaceMenuPosition} from './pages/mytasks/task-workspace-model.js';
 import {clearPeopleSelection, initializePeopleSelectors, selectedIdsOf, setExcludedIds} from './components/people-selector.js';
 import {modalStack} from './components/modal-stack.js';
-import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {synchronizeTaskManagement, synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
 
 const layers = modalStack(document);
 initializePeopleSelectors(document);
+
+// SweetAlert2 แปะ container ไว้ที่ <body> ด้วย z-index 1060 ซึ่งต่ำกว่าโมดัลของ workspace ทุกตัว
+// กล่องยืนยันที่เปิดจากในโมดัลจึงต้องยกเลเยอร์เสมอ ไม่งั้นจะไปโผล่อยู่ข้างหลังจนกดไม่ได้
+const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}};
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -190,6 +195,7 @@ initializePeopleSelectors(document);
         const message = 'ยังมีการแก้ไขที่ยังไม่ได้บันทึก ต้องการปิดโดยไม่บันทึกใช่หรือไม่?';
         const confirmed = window.Swal
             ? (await window.Swal.fire({
+                ...workspaceDialogLayer,
                 icon: 'warning',
                 title: 'ยังไม่ได้บันทึกการแก้ไข',
                 text: message,
@@ -237,9 +243,7 @@ initializePeopleSelectors(document);
             workflowAction.disabled = true;
             try {
                 const data = await request(endpoint(workspace.dataset.statusTemplate, activeRow.dataset.id), 'PATCH', payload);
-                if (data.transitions && management[String(activeRow.dataset.id)]) {
-                    management[String(activeRow.dataset.id)].transitions = data.transitions;
-                }
+                synchronizeTaskManagement(management, activeRow.dataset.id, data);
                 synchronizeTaskSource(workspace, activeRow.dataset.id, {status: Number(data.job_status ?? target)});
                 close();
             } catch (error) {
@@ -574,6 +578,7 @@ initializePeopleSelectors(document);
         const member = activeTeam.collaborators.find((person) => String(person.id) === remove.dataset.removeTeamMember);
         const confirmed = window.Swal
             ? (await window.Swal.fire({
+                ...workspaceDialogLayer,
                 icon: 'warning',
                 title: 'นำออกจากทีม',
                 text: `ต้องการนำ ${member?.name || 'สมาชิกคนนี้'} ออกจากทีมงานนี้หรือไม่?`,
@@ -628,7 +633,8 @@ initializePeopleSelectors(document);
     const box = modal?.querySelector('[data-task-attachments]');
     if (!modal || !dataNode || !form || !box) return;
 
-    const data = JSON.parse(dataNode.textContent || '{}');
+    // ใช้อ็อบเจกต์เดียวกับบอร์ดและปฏิทิน ไม่ parse สำเนาของตัวเองอีก
+    const data = attachmentStore(document);
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const list = box.querySelector('[data-task-inline-files]');
     const drop = box.querySelector('[data-task-inline-drop]');
@@ -647,10 +653,16 @@ initializePeopleSelectors(document);
      */
     const FILE_ICONS = {
         jpg: 'bi-file-earmark-image', jpeg: 'bi-file-earmark-image', png: 'bi-file-earmark-image',
+        pdf: 'bi-file-earmark-pdf',
         doc: 'bi-file-earmark-word', docx: 'bi-file-earmark-word',
         xls: 'bi-file-earmark-excel', xlsx: 'bi-file-earmark-excel',
         ppt: 'bi-file-earmark-ppt', pptx: 'bi-file-earmark-ppt',
+        zip: 'bi-file-earmark-zip',
     };
+
+    // เพดานมาจาก AttachmentPolicy ฝั่ง server ไม่ฮาร์ดโค้ดซ้ำที่นี่
+    // ถ้า server เปลี่ยนเพดาน หน้าจอจะตามทันทีโดยไม่ต้องแก้ JavaScript
+    const limits = attachmentLimits(document);
 
     const extensionOf = (name) => String(name ?? '').split('.').pop().toLowerCase();
     const iconFor = (name) => FILE_ICONS[extensionOf(name)] || 'bi-file-earmark';
@@ -697,6 +709,7 @@ initializePeopleSelectors(document);
         // ใช้ Swal ก่อนตามแบบเดียวกับส่วนอื่นของไฟล์นี้ แล้วค่อยตกไป confirm ของเบราว์เซอร์
         const confirmed = window.Swal
             ? (await window.Swal.fire({
+                ...workspaceDialogLayer,
                 icon: 'warning',
                 title: 'ต้องการลบไฟล์นี้หรือไม่?',
                 showCancelButton: true,
@@ -719,6 +732,7 @@ initializePeopleSelectors(document);
             task.files = Array.isArray(result.files)
                 ? result.files
                 : task.files.filter((file) => file.delete_url !== remove.dataset.deleteInlineFile);
+            publishTaskFiles(taskId, task.files);
             render();
             setStatus('ลบไฟล์แล้ว');
         } catch (error) {
@@ -737,15 +751,25 @@ initializePeopleSelectors(document);
             return;
         }
 
-        // การลากไฟล์ข้ามผ่าน accept="" ของ input ได้ จึงต้องบอกชนิดที่รับไม่ได้ตรงนี้เอง
-        const rejected = [...files].filter((file) => !FILE_ICONS[extensionOf(file.name)]);
-        if (rejected.length) {
-            setStatus(`แนบไฟล์ ${rejected.map((file) => `.${extensionOf(file.name)}`).join(', ')} ไม่ได้ — รองรับเฉพาะ JPG, PNG, Word, Excel, PowerPoint`, true);
+        // เลือกทั้งโฟลเดอร์จะได้ไฟล์ที่ระบบไม่รองรับติดมาด้วยเป็นเรื่องปกติ
+        // จึงคัดออกเงียบ ๆ แล้วบอกจำนวนที่ข้าม แทนที่จะปฏิเสธทั้งชุดจนแนบอะไรไม่ได้เลย
+        const picked = [...files];
+        const accepted = picked.filter((file) => limits.extensions.includes(extensionOf(file.name)));
+        const skipped = picked.length - accepted.length;
+
+        if (!accepted.length) {
+            setStatus(`ไม่มีไฟล์ที่รองรับในสิ่งที่เลือก — รองรับเฉพาะ ${limits.typesLabel}`, true);
             return;
         }
 
-        if (task.files.length + files.length > 5 || [...files].some((file) => file.size > 10 * 1024 * 1024)) {
-            setStatus('แนบได้รวมไม่เกิน 5 ไฟล์ และไฟล์ละไม่เกิน 10 MB', true);
+        if (task.files.length + accepted.length > limits.maxFiles) {
+            setStatus(`แนบได้รวมไม่เกิน ${limits.maxFiles} ไฟล์ (ขณะนี้มี ${task.files.length} ไฟล์)`, true);
+            return;
+        }
+
+        const oversized = accepted.find((file) => file.size / 1024 > limits.maxKilobytes);
+        if (oversized) {
+            setStatus(`ไฟล์ “${oversized.name}” มีขนาดเกิน ${limits.maxSizeLabel}`, true);
             return;
         }
 
@@ -754,15 +778,17 @@ initializePeopleSelectors(document);
         setStatus('กำลังอัปโหลดไฟล์...');
         try {
             const body = new FormData();
-            [...files].forEach((file) => body.append('completion_attachments[]', file));
+            accepted.forEach((file) => body.append('completion_attachments[]', file));
             const response = await fetch(task.upload_url, {method: 'POST', headers: {Accept: 'application/json', 'X-CSRF-TOKEN': csrf}, body});
             const result = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(result.message || '');
 
             // อัปเดตในที่เดิม การ reload ทั้งหน้าจะปิด modal ทิ้ง ผู้ใช้เลยไม่เห็นว่าไฟล์ขึ้นแล้ว
             task.files = Array.isArray(result.files) ? result.files : task.files;
+            // ปุ่มคลิปหนีบบนการ์ดบอร์ด/ตาราง/kanban ต้องขยับตามทันที ไม่ต้องรอรีโหลด
+            publishTaskFiles(taskId, task.files);
             render();
-            setStatus(`แนบไฟล์แล้ว ${files.length} ไฟล์`);
+            setStatus(`แนบไฟล์แล้ว ${accepted.length} ไฟล์${skipped ? ` (ข้ามไฟล์ที่ไม่รองรับ ${skipped} ไฟล์)` : ''}`);
         } catch (error) {
             setStatus(error.message || 'แนบไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', true);
         } finally {
@@ -773,6 +799,7 @@ initializePeopleSelectors(document);
     };
 
     fileInput?.addEventListener('change', (event) => upload(event.target.files));
+    box.querySelector('[data-task-inline-folder-input]')?.addEventListener('change', (event) => upload(event.target.files));
     drop?.addEventListener('dragover', (event) => { event.preventDefault(); event.currentTarget.classList.add('is-dragover'); });
     drop?.addEventListener('dragleave', (event) => event.currentTarget.classList.remove('is-dragover'));
     drop?.addEventListener('drop', (event) => {

@@ -53,9 +53,10 @@
                                 <input id="{{ $modalId }}Username" type="text" name="username"
                                     class="form-control {{ $useOldValues && $errors->has('username') ? 'is-invalid' : '' }}"
                                     value="{{ $value('username', $employee->username ?? '') }}" minlength="3" maxlength="50"
-                                    pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="เช่น user2" aria-describedby="{{ $modalId }}UsernameHelp" required>
+                                    pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="เช่น user2" aria-describedby="{{ $modalId }}UsernameHelp" required
+                                    data-username-input>
                                 @if($useOldValues) @error('username')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
-                                <p class="employee-form-help" id="{{ $modalId }}UsernameHelp">ใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง ระบบจะบันทึกเป็นตัวพิมพ์เล็ก</p>
+                                <p class="employee-form-help" id="{{ $modalId }}UsernameHelp">ตัวอักษรอังกฤษและตัวเลข อย่างน้อย 3 ตัว จะใส่ . - _ เพิ่มด้วยก็ได้ (ไม่บังคับ) ระบบบันทึกเป็นตัวพิมพ์เล็กเสมอ</p>
                             </div>
                         </div>
                     </section>

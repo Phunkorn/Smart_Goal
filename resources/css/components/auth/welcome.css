@@ -39,7 +39,7 @@
 
 .welcome-fact__value {
     color: var(--ink);
-    font-family: "Anuphan", sans-serif;
+    font-family: "Prompt", sans-serif;
     font-size: 20px;
     font-weight: 700;
     overflow-wrap: anywhere;
@@ -86,7 +86,7 @@
 .welcome-tile h3 {
     margin: 0 0 6px;
     color: var(--ink);
-    font-family: "Anuphan", sans-serif;
+    font-family: "Prompt", sans-serif;
     font-size: 16px;
     font-weight: 600;
 }

@@ -41,9 +41,9 @@ test('a card with nowhere to go explains why instead of looking draggable', () =
 
     assert.equal(
         lockReason(4, {can_edit: false, is_final: true, can_reopen: false, allowed_statuses: [4]}),
-        'งานปิดแล้ว ผู้ดูแลระบบเท่านั้นที่แก้ไขได้',
+        'งานปิดแล้ว ต้องให้ผู้เปิดงานหรือผู้มอบหมายเปิดงานอีกครั้ง',
     );
-    // admin ยังมีขั้นถัดไปคือเปิดงานใหม่ แต่ต้องบอกว่าทำผ่านเมนู ไม่ใช่ลากการ์ด
+    // ผู้เปิดงานหรือ admin ยังเปิดงานใหม่ได้ แต่ต้องทำผ่านเมนู ไม่ใช่ลากการ์ด
     assert.deepEqual(
         nextStepHint(4, {can_edit: false, is_final: true, can_reopen: true, allowed_statuses: [4, 2]}),
         {status: 2, label: 'เปิดงานอีกครั้ง', viaMenu: true},

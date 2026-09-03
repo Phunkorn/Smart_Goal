@@ -22,6 +22,27 @@ class AuthenticationSecurityTest extends TestCase
         config()->set('session.driver', 'database');
     }
 
+    public function test_login_page_is_not_stored_in_browser_history_cache(): void
+    {
+        $response = $this->get(route('login'))->assertOk();
+
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $response->assertHeader('Pragma', 'no-cache');
+        $response->assertHeader('Expires', '0');
+    }
+
+    public function test_authenticated_user_cannot_return_to_the_login_form(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'user',
+            'must_change_password' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('login'))
+            ->assertRedirect(route('mytasks.index'));
+    }
+
     public function test_inactive_users_cannot_authenticate(): void
     {
         $user = User::factory()->create([

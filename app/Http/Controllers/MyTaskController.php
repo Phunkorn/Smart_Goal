@@ -12,6 +12,7 @@ use App\Services\MeetingQueryService;
 use App\Services\NotificationService;
 use App\Services\TaskCommentService;
 use App\Services\TaskStatusTransitionService;
+use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProjectCreatorSummary;
@@ -106,6 +107,7 @@ class MyTaskController extends Controller
                 'leader.department',
                 'collaborators.department',
                 'images',
+                'subtasks',
                 'updates.user.department',
                 'activityLogs.user.department',
                 'reviewSubmitter',
@@ -400,6 +402,10 @@ class MyTaskController extends Controller
         }
 
         $projectItems = $this->normalizeProjectItems($validated);
+        $subtaskTitles = collect($validated['subtasks'] ?? [])
+            ->map(fn ($title) => trim((string) $title))
+            ->filter()
+            ->values();
 
         if ($projectItems->isEmpty()) {
             $projectName = trim((string) ($validated['project_name'] ?? ''));
@@ -455,7 +461,7 @@ class MyTaskController extends Controller
         $approval = WorkOrderApprovalResolver::resolve($actor, $assignee);
         $sameDepartment = $approval['same_department'];
 
-        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $approval, $request, $projectItems, $invitations) {
+        $job = DB::transaction(function () use ($validated, $actor, $assignee, $sameDepartment, $approval, $request, $projectItems, $subtaskTitles, $invitations) {
             $leaderId = $approval['leader_user_id'];
             $firstItem = $projectItems->first();
             $projectName = trim((string) ($validated['project_name'] ?? '')) ?: $firstItem['job_topic'];
@@ -495,6 +501,16 @@ class MyTaskController extends Controller
                     'job_start_at' => Carbon::parse($validated['job_start_at']),
                     'job_due_at' => Carbon::parse($validated['job_due_at']),
                 ]);
+
+                if ($itemIndex === 0 && $subtaskTitles->isNotEmpty()) {
+                    $job->subtasks()->createMany($subtaskTitles
+                        ->map(fn (string $title, int $index) => [
+                            'created_by' => $actor->id,
+                            'title' => $title,
+                            'sort_order' => $index,
+                        ])
+                        ->all());
+                }
 
                 AuditTrail::log('project_leader_assigned', $job, 'กำหนดหัวหน้าโปรเจกต์สำหรับงาน: '.$job->job_topic, [
                     'leader_user_id' => $leaderId,
@@ -598,6 +614,8 @@ class MyTaskController extends Controller
             'project_owner_id' => ['nullable', 'integer', 'exists:users,id,role,user'],
             'job_topic' => ['nullable', 'string', 'max:255'],
             'job_details' => ['nullable', 'string', 'max:2000'],
+            'subtasks' => ['nullable', 'array', 'max:50'],
+            'subtasks.*' => ['nullable', 'string', 'max:255'],
             'project_items' => ['nullable', 'array', 'max:20'],
             'project_items.*.job_topic' => ['nullable', 'string', 'max:255'],
             'project_items.*.job_details' => ['nullable', 'string', 'max:2000'],
@@ -608,8 +626,8 @@ class MyTaskController extends Controller
             'job_due_at' => ['nullable', 'date', 'after_or_equal:job_start_at'],
             'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
             'project_priority' => ['nullable', 'integer', 'in:1,2,3'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
+            'attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
         ];
     }
 
@@ -724,15 +742,15 @@ class MyTaskController extends Controller
         $this->authorize('manage', $list);
 
         $request->validate([
-            'attachments' => ['required', 'array', 'min:1', 'max:5'],
-            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'attachments' => ['required', 'array', 'min:1', 'max:'.AttachmentPolicy::MAX_FILES],
+            'attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
         ]);
 
         $incomingFiles = $request->file('attachments', []);
         abort_if(
-            $list->attachments()->count() + count($incomingFiles) > 5,
+            $list->attachments()->count() + count($incomingFiles) > AttachmentPolicy::MAX_FILES,
             422,
-            'แนบไฟล์ของโปรเจกต์ได้รวมไม่เกิน 5 ไฟล์'
+            AttachmentPolicy::tooManyMessage($list->attachments()->count())
         );
 
         $this->assertAllowedAttachments($request, 'attachments');

@@ -1,4 +1,5 @@
 @php
+    use App\Support\ApprovalPresenter;
     use App\Support\WorkBoardDesign;
 @endphp
 
@@ -31,7 +32,14 @@
                     <div class="admin-approvals-request__cell admin-approvals-request__topic" role="cell" data-label="งาน / Project">
                         <strong>{{ $assignment->job_topic }}</strong>
                         <span>{{ $assignment->taskList?->name ?? 'งานทั่วไป' }}</span>
-                        <span class="badge rounded-pill text-bg-warning">pending</span>
+                        <span class="badge rounded-pill text-bg-{{ ApprovalPresenter::statusTone($assignment->approval_status) }}">{{ ApprovalPresenter::statusLabel($assignment->approval_status) }}</span>
+                        @if(filled($assignment->job_details))
+                            {{-- ผู้อนุมัติต้องรู้ว่างานคืออะไรก่อนกดรับเข้าแผนก ไม่ใช่ตัดสินจากชื่องานอย่างเดียว --}}
+                            <details class="admin-approvals-request__details">
+                                <summary>ดูรายละเอียดงาน</summary>
+                                <p>{{ $assignment->job_details }}</p>
+                            </details>
+                        @endif
                     </div>
                     <div class="admin-approvals-request__cell" role="cell" data-label="ผู้มอบหมาย">
                         <strong>{{ $assignment->creator?->name ?? '-' }}</strong>

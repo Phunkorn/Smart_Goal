@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Http\Controllers\TaskAttachmentController;
 use App\Models\Department;
 use App\Models\JobImage;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderListAttachment;
+use App\Support\AttachmentPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -155,9 +155,13 @@ class TaskAttachmentFileTypeTest extends TestCase
 
     public function test_every_allowed_mime_fits_the_file_type_column(): void
     {
-        $allowed = (new ReflectionClass(TaskAttachmentController::class))
-            ->getReflectionConstant('ALLOWED_ATTACHMENT_MIMES')
-            ->getValue();
+        $allowed = collect((new ReflectionClass(AttachmentPolicy::class))
+            ->getReflectionConstant('TYPES')
+            ->getValue())
+            ->flatten()
+            ->unique()
+            ->values()
+            ->all();
 
         $this->assertNotEmpty($allowed);
 

@@ -3,7 +3,7 @@
 @else
     <div class="meetings-page__attendees" aria-label="ผู้เข้าร่วม {{ $meeting->attendees->count() }} คน">
         @foreach($meeting->attendees->take($compact ?? 1000) as $person)
-            <span class="meetings-page__attendee"><i aria-hidden="true">{{ Str::substr($person->name, 0, 1) }}</i>{{ $person->name }}</span>
+            <span class="meetings-page__attendee"><i aria-hidden="true">@include('components.user-avatar-content', ['user' => $person])</i>{{ $person->name }}</span>
         @endforeach
         @if(isset($compact) && $meeting->attendees->count() > $compact)<span class="meetings-page__attendee-more">+{{ $meeting->attendees->count() - $compact }}</span>@endif
     </div>

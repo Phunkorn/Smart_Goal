@@ -34,7 +34,7 @@ body {
 body {
     margin: 0;
     color: var(--ink);
-    font-family: "IBM Plex Sans Thai", "Segoe UI", sans-serif;
+    font-family: "Prompt", "Segoe UI", sans-serif;
     background: #eef5ff;
 }
 
@@ -204,7 +204,7 @@ body {
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
-    font-family: "Anuphan", sans-serif;
+    font-family: "Prompt", sans-serif;
     font-size: clamp(40px, 5.6vw, 76px);
     font-weight: 700;
     letter-spacing: -2px;

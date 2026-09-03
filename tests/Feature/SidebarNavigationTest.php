@@ -117,10 +117,10 @@ class SidebarNavigationTest extends TestCase
 
     public function test_role_chip_shows_its_role_label_and_keeps_an_accessible_name(): void
     {
+        // admin และ viewer ไม่ผูกกับแผนก ป้ายจึงมีแต่ชื่อบทบาท
         foreach ([
-            'user' => ['mytasks.index', 'user', 'พนักงาน'],
             'admin' => ['board.index', 'admin', 'ผู้ดูแลระบบ'],
-            'viewer' => ['board.index', 'user', 'ผู้เข้าชม'],
+            'viewer' => ['board.index', 'viewer', 'ผู้เข้าชม'],
         ] as $role => [$routeName, $chipClass, $label]) {
             $this->actingAs($this->userWithRole($role))
                 ->get(route($routeName))
@@ -131,6 +131,40 @@ class SidebarNavigationTest extends TestCase
                 )
                 ->assertSee('<span class="role-chip__label">'.$label.'</span>', false);
         }
+    }
+
+    /**
+     * เดิมป้ายบทบาทมีแค่คลาส admin กับ user หัวหน้าแผนกและพนักงานจึงเป็นสีเขียว
+     * เหมือนกันหมด และไม่บอกว่าอยู่แผนกไหน ทั้งที่ทั้งสองบทบาทมีสิทธิ์ต่างกันชัดเจน
+     */
+    public function test_role_chip_names_the_department_and_separates_head_from_staff(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+
+        $staff = User::factory()->create([
+            'role' => 'user',
+            'department_id' => $department->id,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+
+        $head = User::factory()->create([
+            'role' => 'user',
+            'department_id' => $department->id,
+            'is_department_head' => true,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($staff)->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee('<span class="role-chip user" aria-label="พนักงาน IT" title="พนักงาน IT">', false)
+            ->assertSee('<span class="role-chip__label">พนักงาน IT</span>', false);
+
+        $this->actingAs($head)->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee('<span class="role-chip department-head" aria-label="หัวหน้าแผนก IT" title="หัวหน้าแผนก IT">', false)
+            ->assertSee('<span class="role-chip__label">หัวหน้าแผนก IT</span>', false);
     }
 
     private function userWithRole(string $role): User

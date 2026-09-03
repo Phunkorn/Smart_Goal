@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    buildCalendarAgenda,
     buildMonthCalendar,
     buildMonthGrid,
     daysUntilDue,
     normalizeCalendarTask,
+    toggleCalendarDatePoint,
 } from '../../resources/js/pages/mytasks/calendar-model.js';
 import {synchronizeTaskSource} from '../../resources/js/pages/mytasks/task-state.js';
 
@@ -28,31 +30,155 @@ test('a missing range boundary falls back to a one-day task', () => {
     assert.equal(normalizeCalendarTask({id: 3, start: '', due: ''}), null);
 });
 
-/*
- * ปฏิทินยึด "วันสิ้นสุดงาน" เท่านั้นตาม requirement ใหม่ ไม่ลากแถบจากวันเริ่มอีกต่อไป
- * และช่องวันที่สรุปเป็น "จำนวนงานต่อความสำคัญ" แทนการวางชื่องานทีละชิ้น
- */
-test('a task is anchored on its due date only, never on the days from its start', () => {
+test('the default calendar keeps the complete task range and splits its line by week', () => {
     const calendar = buildMonthCalendar([
         {id: 1, title: 'Cross-week task', priority: 3, start: '2026-08-07', due: '2026-08-11'},
     ], 2026, 7);
     const daysWithTask = calendar.days.filter((day) => day.events.length > 0).map((day) => day.key);
 
-    assert.deepEqual(daysWithTask, ['2026-08-11']);
+    assert.deepEqual(daysWithTask, [
+        '2026-08-07',
+        '2026-08-08',
+        '2026-08-09',
+        '2026-08-10',
+        '2026-08-11',
+    ]);
     assert.deepEqual(
         calendar.days.find((day) => day.key === '2026-08-11').groups,
         [{key: 'priority-3', type: 'task', priority: 3, count: 1}],
     );
+
+    assert.deepEqual(
+        calendar.weeks.flatMap((week) => week.segments).map((segment) => ({
+            startDay: segment.startDay,
+            spanDays: segment.spanDays,
+            continuesBefore: segment.continuesBefore,
+            continuesAfter: segment.continuesAfter,
+        })),
+        [
+            {startDay: 4, spanDays: 3, continuesBefore: false, continuesAfter: true},
+            {startDay: 0, spanDays: 2, continuesBefore: true, continuesAfter: false},
+        ],
+    );
 });
 
-test('a task that ends in the next month appears on that due date alone', () => {
+test('a task crossing the month boundary stays continuous inside the six-week grid', () => {
     const calendar = buildMonthCalendar([
         {id: 1, title: 'Month boundary', priority: 2, start: '2026-08-30', due: '2026-09-02'},
     ], 2026, 7);
 
-    assert.equal(calendar.days.find((day) => day.key === '2026-08-30').events.length, 0);
+    assert.equal(calendar.days.find((day) => day.key === '2026-08-30').events.length, 1);
+    assert.equal(calendar.days.find((day) => day.key === '2026-08-31').events.length, 1);
     assert.equal(calendar.days.find((day) => day.key === '2026-09-02').events.length, 1);
     assert.equal(calendar.weeks[5].days[2].key, '2026-09-02');
+    assert.equal(calendar.weeks[4].segments[0].continuesAfter, true);
+    assert.equal(calendar.weeks[5].segments[0].continuesBefore, true);
+    assert.equal(calendar.weeks[5].segments[0].showDueMarker, true);
+});
+
+test('start and due controls can collapse a task to either endpoint', () => {
+    const task = [{id: 1, title: 'Selectable dates', priority: 2, start: '2026-08-07', due: '2026-08-11'}];
+    const visibleDates = (datePoints) => buildMonthCalendar(task, 2026, 7, 3, {datePoints})
+        .days.filter((day) => day.tasks.length).map((day) => day.key);
+
+    assert.deepEqual(visibleDates({start: true, due: false}), ['2026-08-07']);
+    assert.deepEqual(visibleDates({start: false, due: true}), ['2026-08-11']);
+    assert.deepEqual(visibleDates({start: false, due: false}), ['2026-08-11']);
+});
+
+test('the summary placement colors selected endpoints without coloring the days between them', () => {
+    const calendar = buildMonthCalendar([
+        {id: 1, title: 'Endpoint summary', priority: 3, start: '2026-08-07', due: '2026-08-11'},
+    ], 2026, 7, 3, {
+        placement: 'points',
+        datePoints: {start: true, due: true},
+    });
+
+    assert.deepEqual(
+        calendar.days.filter((day) => day.tasks.length).map((day) => day.key),
+        ['2026-08-07', '2026-08-11'],
+    );
+});
+
+test('date-point controls always leave at least one visible endpoint', () => {
+    assert.deepEqual(toggleCalendarDatePoint({start: true, due: true}, 'start'), {start: false, due: true});
+    assert.deepEqual(toggleCalendarDatePoint({start: true, due: false}, 'start'), {start: true, due: false});
+    assert.deepEqual(toggleCalendarDatePoint({start: true, due: false}, 'due'), {start: true, due: true});
+});
+
+test('timeline reserves four overlapping lanes by priority and reports the fifth task per day', () => {
+    const tasks = [
+        {id: 1, title: 'routine', priority: 1, start: '2026-08-10', due: '2026-08-12'},
+        {id: 2, title: 'flexible', priority: 5, start: '2026-08-10', due: '2026-08-12'},
+        {id: 3, title: 'important', priority: 2, start: '2026-08-10', due: '2026-08-12'},
+        {id: 4, title: 'quick', priority: 4, start: '2026-08-10', due: '2026-08-12'},
+        {id: 5, title: 'urgent', priority: 3, start: '2026-08-10', due: '2026-08-12'},
+    ];
+    const calendar = buildMonthCalendar(tasks, 2026, 7, 3, {maxTimelineLanes: 4});
+    const week = calendar.weeks.find((candidate) => candidate.days.some((day) => day.key === '2026-08-10'));
+
+    assert.deepEqual(week.segments.map((segment) => segment.event.priority), [3, 4, 2, 5]);
+    assert.deepEqual(week.segments.map((segment) => segment.lane), [0, 1, 2, 3]);
+    for (const key of ['2026-08-10', '2026-08-11', '2026-08-12']) {
+        assert.equal(calendar.days.find((day) => day.key === key).hiddenTimelineTasks, 1);
+    }
+});
+
+test('a low-priority range is hidden only on the crowded day and continues on both sides', () => {
+    const tasks = [
+        {id: 1, title: 'routine range', priority: 1, start: '2026-08-10', due: '2026-08-12'},
+        {id: 2, title: 'urgent', priority: 3, start: '2026-08-11', due: '2026-08-11'},
+        {id: 3, title: 'quick', priority: 4, start: '2026-08-11', due: '2026-08-11'},
+        {id: 4, title: 'important', priority: 2, start: '2026-08-11', due: '2026-08-11'},
+        {id: 5, title: 'flexible', priority: 5, start: '2026-08-11', due: '2026-08-11'},
+    ];
+    const calendar = buildMonthCalendar(tasks, 2026, 7);
+    const week = calendar.weeks.find((candidate) => candidate.days[0].key === '2026-08-10');
+    const routineSegments = week.segments.filter((segment) => segment.event.id === '1');
+
+    assert.deepEqual(routineSegments.map((segment) => [segment.startDay, segment.spanDays]), [[0, 1], [2, 1]]);
+    assert.equal(calendar.days.find((day) => day.key === '2026-08-10').hiddenTimelineTasks, 0);
+    assert.equal(calendar.days.find((day) => day.key === '2026-08-11').hiddenTimelineTasks, 1);
+    assert.equal(calendar.days.find((day) => day.key === '2026-08-12').hiddenTimelineTasks, 0);
+});
+
+test('non-overlapping tasks reuse a lane instead of triggering the four-line overflow', () => {
+    const tasks = Array.from({length: 7}, (_, index) => ({
+        id: index + 1,
+        title: `day ${index + 1}`,
+        priority: 3,
+        start: `2026-08-${String(10 + index).padStart(2, '0')}`,
+        due: `2026-08-${String(10 + index).padStart(2, '0')}`,
+    }));
+    const calendar = buildMonthCalendar(tasks, 2026, 7);
+    const week = calendar.weeks.find((candidate) => candidate.days[0].key === '2026-08-10');
+
+    assert.equal(week.segments.length, 7);
+    assert.ok(week.segments.every((segment) => segment.lane === 0));
+    assert.ok(week.days.every((day) => day.hiddenTimelineTasks === 0));
+});
+
+test('meetings stay in day summaries but never consume task timeline lanes', () => {
+    const calendar = buildMonthCalendar([
+        {id: 1, title: 'งาน', priority: 3, start: '2026-08-12', due: '2026-08-12'},
+        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-13'},
+    ], 2026, 7);
+    const day = calendar.days.find((candidate) => candidate.key === '2026-08-12');
+    const week = calendar.weeks.find((candidate) => candidate.days.includes(day));
+
+    assert.equal(day.meetings.length, 1);
+    assert.deepEqual(day.groups.map((group) => group.key), ['priority-3', 'meeting']);
+    assert.equal(week.segments.length, 1);
+    assert.equal(week.segments[0].event.type, 'task');
+});
+
+test('agenda remains due-based even though the month grid uses full task ranges', () => {
+    const agenda = buildCalendarAgenda([
+        {id: 1, title: 'Range task', priority: 3, start: '2026-08-01', due: '2026-09-02'},
+    ], 2026, 7, '2026-08-01');
+
+    assert.equal(agenda.todayTasks.length, 0);
+    assert.equal(agenda.monthTasks.length, 0);
 });
 
 /*

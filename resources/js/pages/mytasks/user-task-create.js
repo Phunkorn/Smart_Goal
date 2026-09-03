@@ -8,6 +8,9 @@ if (modal && form) {
     const errorBox = form.querySelector('[data-user-task-create-error]');
     const submit = form.querySelector('[type=submit]');
     const openButtons = document.querySelectorAll('[data-open-user-task-create]');
+    const details = form.querySelector('[data-user-task-details]');
+    const detailsList = form.querySelector('[data-user-task-details-list]');
+    const detailTemplate = form.querySelector('[data-user-task-detail-template]');
 
     const syncProjectMode = () => {
         const createsProject = !project.value;
@@ -40,6 +43,19 @@ if (modal && form) {
         if (event.key === 'Escape' && !modal.hidden) close();
     });
     project.addEventListener('change', syncProjectMode);
+    details?.addEventListener('click', (event) => {
+        const add = event.target.closest('[data-add-user-task-detail]');
+        if (add && detailTemplate && detailsList) {
+            const row = detailTemplate.content.firstElementChild.cloneNode(true);
+            detailsList.append(row);
+            row.querySelector('input')?.focus();
+            return;
+        }
+
+        const remove = event.target.closest('[data-remove-user-task-detail]');
+        if (!remove) return;
+        remove.closest('[data-user-task-detail-row]')?.remove();
+    });
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();

@@ -5,6 +5,7 @@ import {
     employeeMatchesSearch,
     formatTemporaryPassword,
     normalizeEmployeeSearch,
+    usernameValidationMessage,
 } from '../../resources/js/pages/employees/index.js';
 
 const source = readFileSync(new URL('../../resources/js/pages/employees/index.js', import.meta.url), 'utf8');
@@ -70,4 +71,22 @@ test('invalid form modal reopens only after resolving a real modal element', () 
     assert.match(source, /document\.getElementById\(modalId\)/);
     assert.match(source, /if \(! modalElement \|\| ! window\.bootstrap\?\.Modal\) return;/);
     assert.match(source, /Modal\.getOrCreateInstance\(modalElement\)\.show\(\)/);
+});
+
+test('username constraint messages are Thai and never demand a dot', () => {
+    // ข้อความ constraint ของเบราว์เซอร์เป็นอังกฤษเสมอ จึงต้องแทนด้วย setCustomValidity
+    assert.equal(usernameValidationMessage(''), 'กรุณากรอกบัญชีผู้ใช้งาน');
+    assert.equal(usernameValidationMessage('ab'), 'บัญชีผู้ใช้งานต้องยาวอย่างน้อย 3 ตัวอักษร');
+    assert.match(usernameValidationMessage('ผู้ใช้'), /ตัวอักษรอังกฤษและตัวเลข/);
+    assert.equal(usernameValidationMessage('a'.repeat(51)), 'บัญชีผู้ใช้งานต้องยาวไม่เกิน 50 ตัวอักษร');
+
+    // ตัวอักษรล้วนต้องผ่าน จุดเป็นตัวเลือก ไม่ใช่ข้อบังคับ
+    assert.equal(usernameValidationMessage('beam'), '');
+    assert.equal(usernameValidationMessage('beam.dev'), '');
+    assert.equal(usernameValidationMessage('beam_dev-01'), '');
+
+    assert.match(source, /setCustomValidity\(usernameValidationMessage/);
+    assert.match(modalSource, /data-username-input/);
+    // คำใบ้ต้องไม่ทำให้เข้าใจว่าจุดเป็นสิ่งจำเป็น
+    assert.match(modalSource, /จะใส่ \. - _ เพิ่มด้วยก็ได้ \(ไม่บังคับ\)/);
 });

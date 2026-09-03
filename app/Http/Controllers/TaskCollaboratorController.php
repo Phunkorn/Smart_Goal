@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\CollaboratorInvitationService;
 use App\Services\NotificationService;
+use App\Support\ApprovalPresenter;
 use App\Support\AuditTrail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -131,6 +132,8 @@ class TaskCollaboratorController extends Controller
 
             $job->load('collaborators');
             $actor = Auth::user();
+            $actor->loadMissing('department');
+            $approver = ApprovalPresenter::approverLabel($actor);
             $inviter = $pivot->added_by ? User::find($pivot->added_by) : null;
 
             if ($validated['status'] === 'accepted') {
@@ -138,7 +141,7 @@ class TaskCollaboratorController extends Controller
                     [$user],
                     'collaborator_added',
                     'ได้รับอนุมัติให้ร่วมงานแล้ว',
-                    'ผู้ดูแลระบบอนุมัติให้คุณร่วมงาน "'.$job->job_topic.'" แล้ว',
+                    $approver.' อนุมัติให้คุณร่วมงาน "'.$job->job_topic.'" แล้ว',
                     $job,
                     $actor,
                     [],
@@ -151,7 +154,7 @@ class TaskCollaboratorController extends Controller
                     [$inviter],
                     $validated['status'] === 'accepted' ? 'collaborator_approved' : 'collaborator_rejected',
                     $validated['status'] === 'accepted' ? 'อนุมัติผู้ร่วมงานแล้ว' : 'ปฏิเสธผู้ร่วมงานแล้ว',
-                    'ผู้ดูแลระบบ'.($validated['status'] === 'accepted' ? 'อนุมัติ' : 'ปฏิเสธ').'การเพิ่ม '.$user->name.' ในงาน "'.$job->job_topic.'"',
+                    $approver.' '.ApprovalPresenter::decisionVerb($validated['status']).'การเพิ่ม '.$user->name.' ในงาน "'.$job->job_topic.'"',
                     $job,
                     $actor,
                     [],
@@ -159,7 +162,7 @@ class TaskCollaboratorController extends Controller
                 );
             }
 
-            AuditTrail::log('collaborator_'.$validated['status'], $job, 'ผู้ดูแลระบบตัดสินคำขอผู้ร่วมงาน: '.$job->job_topic, [
+            AuditTrail::log('collaborator_'.$validated['status'], $job, $approver.' ตัดสินคำขอผู้ร่วมงาน: '.$job->job_topic, [
                 'user_id' => $user->id,
                 'status' => $validated['status'],
                 'decided_by' => Auth::id(),

@@ -230,6 +230,8 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
                                         </div>
 
+                                        @include('tasks.partials.approval-state-marker', ['task' => $task])
+
                                         <span class="mytasks-kanban__project-name">
                                             โปรเจกต์: {{ $task->taskList?->name ?? 'งานทั่วไป' }}
                                         </span>
@@ -260,7 +262,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
                                             @if ($task->user)
                                                 <span class="mytasks-kanban__avatar">
-                                                    {{ Str::upper(Str::substr($task->user->name, 0, 1)) }}
+                                                    @include('components.user-avatar-content', ['user' => $task->user, 'avatarUpper' => true])
                                                 </span>
 
                                                 <span class="mytasks-kanban__assignee-name">

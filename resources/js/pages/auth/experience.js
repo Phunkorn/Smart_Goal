@@ -8,6 +8,19 @@
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/**
+ * Chromium can restore the login page from its back-forward cache without
+ * asking Laravel again. Revalidate only that restored login snapshot so an
+ * authenticated user follows showLogin() back into the application.
+ */
+const bindLoginHistoryRevalidation = () => {
+    if (!document.body.classList.contains('auth-login')) return;
+
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) window.location.reload();
+    });
+};
+
 /** ทยอยไล่ให้แต่ละชิ้นลอยขึ้นตามลำดับที่เขียนไว้ใน DOM */
 const playEntrance = () => {
     document.querySelectorAll('[data-auth-rise]').forEach((node, index) => {
@@ -99,6 +112,7 @@ const bindPasswordToggle = () => {
     });
 };
 
+bindLoginHistoryRevalidation();
 playEntrance();
 bindParallax();
 bindRipple();

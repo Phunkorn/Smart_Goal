@@ -1,3 +1,7 @@
+@php
+    use App\Support\ApprovalPresenter;
+@endphp
+
 <section class="admin-approvals-queue" id="collaborator-approval-queue" aria-labelledby="collaboratorApprovalHeading">
     <div class="admin-approvals-queue__heading">
         <div>
@@ -38,7 +42,7 @@
                             <span>{{ $candidate->department?->department_name ?? 'ไม่ระบุแผนก' }}</span>
                         </div>
                         <div class="admin-approvals-request__cell" role="cell" data-label="สถานะ">
-                            <span class="badge rounded-pill text-bg-warning">pending</span>
+                            <span class="badge rounded-pill text-bg-{{ ApprovalPresenter::statusTone($candidate->pivot?->status) }}">{{ ApprovalPresenter::statusLabel($candidate->pivot?->status) }}</span>
                         </div>
                         <div class="admin-approvals-request__cell admin-approvals-request__actions" role="cell" data-label="จัดการ">
                             @foreach(['accepted' => ['อนุมัติ', 'btn-success', 'bi-check-lg'], 'rejected' => ['ปฏิเสธ', 'btn-outline-danger', 'bi-x-lg']] as $decision => $meta)

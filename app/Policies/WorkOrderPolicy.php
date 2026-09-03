@@ -120,7 +120,12 @@ class WorkOrderPolicy
 
     public function reopen(User $user, WorkOrder $workOrder): bool
     {
-        return $user->role === 'admin' && (int) $workOrder->job_status === 4;
+        if ($user->role === 'viewer' || (int) $workOrder->job_status !== 4) {
+            return false;
+        }
+
+        return $user->role === 'admin'
+            || (int) $this->approverId($workOrder) === (int) $user->id;
     }
 
     /**

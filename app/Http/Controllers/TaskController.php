@@ -12,6 +12,7 @@ use App\Models\WorkOrderListAttachment;
 use App\Services\CollaboratorInvitationService;
 use App\Services\NotificationService;
 use App\Services\TaskStatusTransitionService;
+use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProtectedMedia;
@@ -833,8 +834,8 @@ class TaskController extends Controller
         return [
             'project_name' => ['required', 'string', 'max:80'],
             'project_priority' => ['required', 'integer', 'in:1,2,3'],
-            'project_attachments' => ['nullable', 'array', 'max:5'],
-            'project_attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'project_attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
+            'project_attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
             'tasks' => ['required', 'array', 'min:1', 'max:20'],
             'tasks.*.job_topic' => ['required', 'string', 'max:255'],
             'tasks.*.job_details' => ['nullable', 'string', 'max:2000'],
@@ -844,8 +845,8 @@ class TaskController extends Controller
             'tasks.*.job_due_at' => ['required', 'date', 'after_or_equal:tasks.*.job_start_at'],
             'tasks.*.collaborators' => ['nullable', 'array'],
             'tasks.*.collaborators.*' => ['integer', 'exists:users,id,role,user'],
-            'tasks.*.attachments' => ['nullable', 'array', 'max:5'],
-            'tasks.*.attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'tasks.*.attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
+            'tasks.*.attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
         ];
     }
 
@@ -862,8 +863,8 @@ class TaskController extends Controller
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id,role,user'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:'.implode(',', self::ALLOWED_ATTACHMENT_EXTENSIONS), 'max:'.self::ATTACHMENT_MAX_KB],
+            'attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
+            'attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
         ];
     }
 

@@ -482,11 +482,28 @@ class AdminWorkBoardTest extends TestCase
         ]);
         $sameDay = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
         $this->assertTrue($sameDay->viewData('todayTasks')->contains('job_id', $completed->job_id));
+        $sameDayHtml = $sameDay->getContent();
+        $sameDayTableStart = strpos($sameDayHtml, 'data-table-kanban');
+        $sameDayCalendarStart = strpos($sameDayHtml, 'data-calendar', $sameDayTableStart);
+        $this->assertNotFalse($sameDayTableStart);
+        $this->assertNotFalse($sameDayCalendarStart);
+        $this->assertStringContainsString(
+            'data-id='.chr(34).$completed->job_id.chr(34),
+            substr($sameDayHtml, $sameDayTableStart, $sameDayCalendarStart - $sameDayTableStart)
+        );
 
         $this->travelTo(Carbon::parse('2026-08-19 12:00:00'));
         $nextDay = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
         $this->assertFalse($nextDay->viewData('todayTasks')->contains('job_id', $completed->job_id));
         $this->assertTrue($nextDay->viewData('todayTasks')->contains('job_id', $paused->job_id));
+        $nextDayHtml = $nextDay->getContent();
+        $nextDayTableStart = strpos($nextDayHtml, 'data-table-kanban');
+        $nextDayCalendarStart = strpos($nextDayHtml, 'data-calendar', $nextDayTableStart);
+        $this->assertNotFalse($nextDayTableStart);
+        $this->assertNotFalse($nextDayCalendarStart);
+        $nextDayTableHtml = substr($nextDayHtml, $nextDayTableStart, $nextDayCalendarStart - $nextDayTableStart);
+        $this->assertStringNotContainsString('data-id='.chr(34).$completed->job_id.chr(34), $nextDayTableHtml);
+        $this->assertStringContainsString('data-id='.chr(34).$paused->job_id.chr(34), $nextDayTableHtml);
 
         $this->travelTo(Carbon::parse('2026-08-21 12:00:00'));
         $lateResponse = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();

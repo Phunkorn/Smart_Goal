@@ -59,12 +59,9 @@ export const normalizeCalendarTask = (task) => {
  * ปฏิทินวางได้ทั้งงานและการประชุม รูปทรงข้อมูลจึงเหมือนกัน ต่างที่ `type`
  * รายการที่ไม่ระบุ type ถือเป็นงานเสมอ เพื่อให้ผู้เรียกเดิมทำงานได้เหมือนก่อน
  *
- * งานถูกยึดไว้ที่ "วันสิ้นสุด" วันเดียวตาม requirement ของปฏิทิน ไม่ลากเป็นแถบ
- * ตั้งแต่วันเริ่มอีกต่อไป การยุบ startStamp ให้เท่ากับ dueStamp ตรงนี้ทำให้เครื่องมือ
- * lane/segment เดิมได้ช่วง 1 วันโดยอัตโนมัติ จึงไม่ต้องแก้ buildMonthCalendar เลย
- * ส่วนวันเริ่มจริงถูกเก็บไว้ที่ scheduleStart* เพื่อให้การ์ดและ modal ยังแสดงได้
- *
- * ประชุมคงช่วงจริงไว้ เพราะประชุมที่คร่อมเที่ยงคืนต้องต่อเป็นแท่งเดียว
+ * งานต้องเก็บช่วงวันจริงไว้เป็น source of truth เพราะมุมมองเส้นใช้ช่วงตั้งแต่วันเริ่ม
+ * ถึงวันสิ้นสุด ส่วน agenda ยังคงเลือกงานด้วย dueStamp โดยตรง จึงไม่เปลี่ยนความหมาย
+ * ของรายการ "ครบกำหนดวันนี้" และ "กำหนดส่งในเดือนนี้"
  */
 export const normalizeCalendarEvent = (event) => {
     const normalized = normalizeCalendarTask(event);
@@ -78,8 +75,6 @@ export const normalizeCalendarEvent = (event) => {
         type,
         scheduleStart: normalized.start,
         scheduleStartStamp: normalized.startStamp,
-        start: normalized.due,
-        startStamp: normalized.dueStamp,
     };
 };
 
@@ -213,6 +208,134 @@ export const buildMonthGrid = (year, month) => {
  */
 export const CALENDAR_PRIORITY_ORDER = [3, 4, 2, 5, 1];
 
+const priorityRank = (event) => {
+    const rank = CALENDAR_PRIORITY_ORDER.indexOf(event.priority);
+    return rank === -1 ? CALENDAR_PRIORITY_ORDER.indexOf(2) : rank;
+};
+
+const timelineEventOrder = (left, right) => (
+    priorityRank(left) - priorityRank(right)
+    || left.displayStartStamp - right.displayStartStamp
+    || left.displayDueStamp - right.displayDueStamp
+    || eventOrder(left, right)
+);
+
+/**
+ * เมื่อเลือกทั้งสองจุด งานจะแสดงเป็นช่วงจริง เมื่อเลือกจุดเดียว งานจะยุบไปที่จุดนั้น
+ * ประชุมไม่ใช้ตัวกรองนี้และยังคงช่วงเวลาเดิมเสมอ
+ */
+const displayRangeForEvent = (event, datePoints) => {
+    if (event.type === 'meeting') {
+        return {displayStartStamp: event.startStamp, displayDueStamp: event.dueStamp};
+    }
+
+    const showStart = datePoints.start !== false;
+    const showDue = datePoints.due !== false;
+    if (showStart && !showDue) {
+        return {displayStartStamp: event.startStamp, displayDueStamp: event.startStamp};
+    }
+    if (!showStart && showDue) {
+        return {displayStartStamp: event.dueStamp, displayDueStamp: event.dueStamp};
+    }
+
+    return {displayStartStamp: event.startStamp, displayDueStamp: event.dueStamp};
+};
+
+export const toggleCalendarDatePoint = (datePoints, point) => {
+    const current = {
+        start: datePoints?.start !== false,
+        due: datePoints?.due !== false,
+    };
+    if (!Object.hasOwn(current, point)) return current;
+
+    const next = {...current, [point]: !current[point]};
+    return next.start || next.due ? next : current;
+};
+
+/**
+ * แบ่งเส้นงานทีละสัปดาห์และจัด lane โดยให้ความสำคัญสูงกว่าจองพื้นที่ก่อน
+ * lane หนึ่งรับงานหลายชิ้นได้ถ้าช่วงวันไม่ทับกัน และทุกวันมีเส้นได้สูงสุดตาม limit
+ */
+export const buildTimelineWeek = (events, weekDays, maxLanes = 4, datePoints = {start: true, due: true}) => {
+    if (!weekDays.length) return {segments: [], hiddenByDate: {}};
+
+    const weekStart = weekDays[0].stamp;
+    const weekEnd = weekDays[weekDays.length - 1].stamp;
+    const limit = Math.max(1, Math.floor(Number(maxLanes) || 4));
+    const lanes = Array.from({length: limit}, () => []);
+    const hiddenByDate = {};
+    const candidates = events
+        .filter((event) => event.type === 'task')
+        .map((event) => ({...event, ...displayRangeForEvent(event, datePoints)}))
+        .filter((event) => event.displayStartStamp <= weekEnd && event.displayDueStamp >= weekStart)
+        .sort(timelineEventOrder);
+
+    // เลือกสี่งานที่สำคัญที่สุดแยกในแต่ละวันก่อน จึงไม่ซ่อนงานด่วนเพียงเพราะ
+    // lane ของวันข้างเคียงถูกใช้อยู่ และค่า +N จะตรงกับจำนวนที่ล้นของวันนั้นจริง
+    const visibleIdsByDay = weekDays.map((day) => {
+        const active = candidates.filter((event) => (
+            event.displayStartStamp <= day.stamp && event.displayDueStamp >= day.stamp
+        ));
+        if (active.length > limit) hiddenByDate[day.key] = active.length - limit;
+        return new Set(active.slice(0, limit).map((event) => event.id));
+    });
+
+    const unclottedSegments = [];
+    candidates.forEach((event) => {
+        const visibleDays = weekDays
+            .map((_, dayIndex) => dayIndex)
+            .filter((dayIndex) => visibleIdsByDay[dayIndex].has(event.id));
+        if (!visibleDays.length) return;
+
+        let runStart = visibleDays[0];
+        let previous = visibleDays[0];
+        [...visibleDays.slice(1), null].forEach((dayIndex) => {
+            if (dayIndex !== null && dayIndex === previous + 1) {
+                previous = dayIndex;
+                return;
+            }
+
+            const runStartStamp = weekDays[runStart].stamp;
+            const runDueStamp = weekDays[previous].stamp;
+            unclottedSegments.push({
+                event,
+                startDay: runStart,
+                endDay: previous,
+                spanDays: previous - runStart + 1,
+                continuesBefore: event.displayStartStamp < runStartStamp,
+                continuesAfter: event.displayDueStamp > runDueStamp,
+                showStartMarker: datePoints.start !== false && event.startStamp >= runStartStamp && event.startStamp <= runDueStamp,
+                showDueMarker: datePoints.due !== false && event.dueStamp >= runStartStamp && event.dueStamp <= runDueStamp,
+            });
+
+            if (dayIndex !== null) runStart = dayIndex;
+            previous = dayIndex;
+        });
+    });
+
+    unclottedSegments.sort((left, right) => (
+        left.startDay - right.startDay
+        || timelineEventOrder(left.event, right.event)
+        || left.endDay - right.endDay
+    ));
+
+    const segments = unclottedSegments.map((segment) => {
+        const lane = lanes.findIndex((occupied) => occupied.every((range) => (
+            segment.endDay < range.startDay || segment.startDay > range.endDay
+        )));
+        // การเลือกต่อวันรับประกัน clique ไม่เกิน limit ดังนั้น interval coloring ต้องหา lane ได้เสมอ
+        if (lane === -1) return null;
+
+        lanes[lane].push({startDay: segment.startDay, endDay: segment.endDay});
+        return {
+            ...segment,
+            lane,
+        };
+    }).filter(Boolean);
+
+    return {segments, hiddenByDate};
+};
+
 /**
  * สรุปรายการของหนึ่งวันเป็น "จำนวนงานต่อความสำคัญ" แทนการวางชื่องานทีละชิ้น
  * ช่องวันที่จึงอ่านออกในพริบตาแม้วันนั้นจะมีงานหลายสิบชิ้น
@@ -251,18 +374,34 @@ export const summarizeDayEvents = (events, maxVisible = 3) => {
     };
 };
 
-export const buildMonthCalendar = (events, year, month, maxVisible = 3) => {
+export const buildMonthCalendar = (events, year, month, maxVisible = 3, options = {}) => {
     const days = buildMonthGrid(year, month);
+    const placement = options.placement === 'points' ? 'points' : 'range';
+    const datePoints = {
+        start: options.datePoints?.start !== false,
+        due: options.datePoints?.due !== false,
+    };
+    // UI ป้องกันไม่ให้ปิดทั้งคู่ แต่ model ต้องมี fallback ที่ปลอดภัยสำหรับผู้เรียกอื่นด้วย
+    if (!datePoints.start && !datePoints.due) datePoints.due = true;
     const unique = new Map();
     // id ของงานและประชุมใช้คนละ prefix การกันซ้ำจึงตัดรายการที่มาถึงสองรอบออกได้ตรง ๆ
     events.map(normalizeCalendarEvent).filter(Boolean).forEach((event) => {
         if (!unique.has(event.id)) unique.set(event.id, event);
     });
     const normalizedEvents = [...unique.values()].sort(eventOrder);
+    const placedEvents = normalizedEvents.map((event) => ({...event, ...displayRangeForEvent(event, datePoints)}));
 
     const renderedDays = days.map((day) => {
-        // งานยุบเหลือวันสิ้นสุดวันเดียวแล้ว เงื่อนไขนี้จึงเหลือผลกับ "ช่วงจริง" ของประชุมเท่านั้น
-        const dayEvents = normalizedEvents.filter((event) => event.startStamp <= day.stamp && event.dueStamp >= day.stamp);
+        const dayEvents = placedEvents.filter((event) => {
+            if (event.type === 'meeting') {
+                return event.displayStartStamp <= day.stamp && event.displayDueStamp >= day.stamp;
+            }
+            if (placement === 'points') {
+                return (datePoints.start && event.startStamp === day.stamp)
+                    || (datePoints.due && event.dueStamp === day.stamp);
+            }
+            return event.displayStartStamp <= day.stamp && event.displayDueStamp >= day.stamp;
+        });
 
         return {
             ...day,
@@ -273,10 +412,22 @@ export const buildMonthCalendar = (events, year, month, maxVisible = 3) => {
         };
     });
 
+    const maxTimelineLanes = Math.max(1, Math.floor(Number(options.maxTimelineLanes) || 4));
+    const weeks = Array.from({length: 6}, (_, index) => {
+        const weekDays = renderedDays.slice(index * 7, (index + 1) * 7);
+        const timeline = buildTimelineWeek(normalizedEvents, weekDays, maxTimelineLanes, datePoints);
+        timeline.segments.forEach((segment) => { segment.weekIndex = index; });
+        weekDays.forEach((day) => { day.hiddenTimelineTasks = timeline.hiddenByDate[day.key] || 0; });
+        return {...timeline, days: weekDays};
+    });
+
     return {
         days: renderedDays,
         events: normalizedEvents,
-        weeks: Array.from({length: 6}, (_, index) => ({days: renderedDays.slice(index * 7, (index + 1) * 7)})),
+        weeks,
         maxVisible: Math.max(1, Math.floor(Number(maxVisible) || 3)),
+        maxTimelineLanes,
+        datePoints,
+        placement,
     };
 };

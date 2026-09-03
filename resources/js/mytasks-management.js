@@ -1,3 +1,4 @@
+import {attachmentLimits} from './pages/mytasks/attachment-store.js';
 (() => {
     const workspace = document.querySelector('[data-workspace]');
     if (!workspace) return;
@@ -149,9 +150,10 @@
         const container = input.closest('[data-project-attachments]');
         if (!container?.dataset.uploadUrl) return;
         const currentCount = Number(container.querySelector('[data-project-attachment-count]')?.textContent || 0);
-        if (currentCount + input.files.length > 5 || [...input.files].some((file) => file.size > 10 * 1024 * 1024)) {
+        const limits = attachmentLimits(document);
+        if (currentCount + input.files.length > limits.maxFiles || [...input.files].some((file) => file.size / 1024 > limits.maxKilobytes)) {
             input.value = '';
-            window.Swal?.fire({icon: 'warning', title: 'ตรวจสอบจำนวนหรือขนาดไฟล์', text: 'แนบได้รวมไม่เกิน 5 ไฟล์ และไฟล์ละไม่เกิน 10 MB'});
+            window.Swal?.fire({icon: 'warning', title: 'ตรวจสอบจำนวนหรือขนาดไฟล์', text: `แนบได้รวมไม่เกิน ${limits.maxFiles} ไฟล์ และไฟล์ละไม่เกิน ${limits.maxSizeLabel}`});
             return;
         }
         input.disabled = true;

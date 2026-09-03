@@ -271,3 +271,20 @@
     top: var(--table-menu-top, auto);
     z-index: 130;
 }
+
+/*
+ * Editable rows render a details menu while read-only rows render the pill
+ * directly. Keep both variants centered on the same status/priority tracks.
+ */
+.my-tasks-page .notion-database[data-view=table] .notion-row > .table-status-menu,
+.my-tasks-page .notion-database[data-view=table] .notion-row > .table-priority-menu {
+    padding-inline: 0;
+}
+
+.my-tasks-page .notion-database[data-view=table] .notion-row > .board-status-pill,
+.my-tasks-page .notion-database[data-view=table] .notion-row > .board-priority,
+.my-tasks-page .notion-database[data-view=table] .notion-row > .table-status-menu,
+.my-tasks-page .notion-database[data-view=table] .notion-row > .table-priority-menu {
+    justify-self: center;
+    max-width: calc(100% - 24px);
+}

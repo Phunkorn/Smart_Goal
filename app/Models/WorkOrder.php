@@ -134,6 +134,13 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderUpdate::class, 'work_order_id', 'job_id')->latest();
     }
 
+    public function subtasks(): HasMany
+    {
+        return $this->hasMany(WorkOrderSubtask::class, 'work_order_id', 'job_id')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
     public function activityLogs(): MorphMany
     {
         return $this->morphMany(ActivityLog::class, 'subject')->latest('created_at');

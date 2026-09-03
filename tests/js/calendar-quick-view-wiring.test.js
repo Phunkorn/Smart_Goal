@@ -77,6 +77,11 @@ async function bootCalendar(t, {detailTemplate}) {
                      data-task-quickview-template="/my-tasks/calendar/quick-view/task/__ID__"
                      data-task-detail-template="${detailTemplate}">
                 <h2 data-calendar-title></h2>
+                <button type="button" data-calendar-mode-option="timeline" aria-pressed="true">เส้นช่วงงาน</button>
+                <button type="button" data-calendar-mode-option="summary" aria-pressed="false">ภาพรวมสี</button>
+                <button type="button" data-calendar-date-point="start" aria-pressed="true">วันเริ่ม</button>
+                <button type="button" data-calendar-date-point="due" aria-pressed="true">วันสิ้นสุด</button>
+                <p data-calendar-display-note></p>
                 <input type="search" data-calendar-search>
                 <select data-calendar-month>${months}</select>
                 <select data-calendar-year></select>
@@ -191,18 +196,48 @@ test('agenda cards show task collaborators and meeting attendees', async (t) => 
     assert.equal(collaborators[1].classList.contains('is-pending'), true);
 });
 
-test('the calendar grid summarises each day by priority instead of listing every task', async (t) => {
+test('the calendar opens as a task timeline and can switch to the priority summary', async (t) => {
     const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
     const today = isoDate(new Date());
     const cell = ui.document.querySelector(`[data-calendar-grid] [data-calendar-date="${today}"]`);
 
-    // ช่องวันที่ต้องไม่มีชิ้นงานให้คลิกอีกแล้ว มีแต่ตัวเลขสรุปกับปุ่มเปิดกล่องรายวัน
+    assert.equal(ui.document.querySelector('[data-calendar]').dataset.calendarMode, 'timeline');
     assert.equal(cell.querySelectorAll('[data-calendar-task]').length, 0);
+    const line = cell.closest('.mytasks-calendar__week').querySelector('.mytasks-calendar__task-line');
+    assert.ok(line);
+    assert.equal(line.textContent.includes('งานทดสอบปฏิทิน'), true);
+    assert.equal(line.classList.contains('priority-important'), true);
+    assert.ok(line.querySelector('.calendar-dot'));
+    assert.ok(line.querySelector('.bi-play-fill'));
+    assert.ok(line.querySelector('.bi-flag-fill'));
 
-    const counts = [...cell.querySelectorAll('.mytasks-calendar__count')].map((node) => node.textContent);
+    // มุมมองเส้นคงป้ายประชุมไว้ แต่ใช้งานเป็นเส้นแทนตัวเลขสรุป
+    assert.deepEqual(
+        [...cell.querySelectorAll('.mytasks-calendar__count')].map((node) => node.textContent),
+        ['1 ประชุม'],
+    );
+
+    ui.document.querySelector('[data-calendar-mode-option="summary"]')
+        .dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+    const summaryCell = ui.document.querySelector(`[data-calendar-grid] [data-calendar-date="${today}"]`);
+    const counts = [...summaryCell.querySelectorAll('.mytasks-calendar__count')].map((node) => node.textContent);
     assert.deepEqual(counts, ['1 งาน', '1 ประชุม']);
-    assert.equal(cell.querySelector('.mytasks-calendar__count.priority-important') !== null, true);
-    assert.equal(cell.querySelector('.mytasks-calendar__count.is-meeting') !== null, true);
+    assert.equal(summaryCell.querySelector('.mytasks-calendar__count.priority-important') !== null, true);
+    assert.equal(summaryCell.querySelector('.mytasks-calendar__count.is-meeting') !== null, true);
+    assert.equal(ui.document.querySelectorAll('.mytasks-calendar__task-line').length, 0);
+});
+
+test('date controls cannot leave the calendar with both endpoints disabled', async (t) => {
+    const ui = await bootCalendar(t, {detailTemplate: '/my-tasks?view=calendar&amp;open_task=__ID__'});
+    const start = ui.document.querySelector('[data-calendar-date-point="start"]');
+    const due = ui.document.querySelector('[data-calendar-date-point="due"]');
+
+    start.dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+    assert.equal(start.getAttribute('aria-pressed'), 'false');
+    assert.equal(due.getAttribute('aria-pressed'), 'true');
+
+    due.dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+    assert.equal(due.getAttribute('aria-pressed'), 'true');
 });
 
 test('the day cell carries the tone of its most urgent item', async (t) => {

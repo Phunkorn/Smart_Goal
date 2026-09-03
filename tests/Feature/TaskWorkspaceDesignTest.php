@@ -92,7 +92,7 @@ class TaskWorkspaceDesignTest extends TestCase
             ->assertSee('href="'.route('admin.work-board.member', [$this->department, $member]).'"', false);
     }
 
-    public function test_workspace_has_no_task_detail_field_anywhere(): void
+    public function test_workspace_uses_repeatable_task_details_without_restoring_the_legacy_description_field(): void
     {
         [$member, $admin] = $this->scenario();
 
@@ -103,7 +103,8 @@ class TaskWorkspaceDesignTest extends TestCase
             $content = $this->actingAs($actor)->get($url)
                 ->assertOk()
                 ->assertDontSee('name="job_details"', false)
-                ->assertDontSee('รายละเอียดงาน')
+                ->assertSee('data-task-details', false)
+                ->assertSee('รายละเอียด')
                 ->assertDontSee('รายละเอียดโปรเจกต์')
                 ->getContent();
 

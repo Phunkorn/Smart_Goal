@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 
 import {confirmTaskTransition, isModalStatusOptionDisabled, transitionKind} from '../../resources/js/pages/mytasks/task-transitions.js';
+
+const workspaceModalCss = readFileSync(new URL('../../resources/css/components/task-workspace/workspace-modal.css', import.meta.url), 'utf8');
 
 test('transition kind is shared across table board and modal callers', () => {
     assert.equal(transitionKind(2, 3, {can_submit_review: true}), 'submit');
@@ -50,9 +53,25 @@ test('return confirmation requires and forwards the revision reason', async () =
     const payload = await confirmTaskTransition(3, 2, {can_review: true});
 
     assert.equal(configuration.input, 'textarea');
+    assert.equal(configuration.customClass.container, 'task-transition-dialog');
     assert.ok(configuration.inputValidator(''));
     assert.equal(configuration.inputValidator('พร้อมส่ง'), undefined);
     assert.deepEqual(payload, {job_status: 2, reason: 'แก้ไขเอกสารแนบ'});
+});
+
+test('task transition confirmation stays above the open Task Workspace modal', async () => {
+    let configuration;
+    global.window = {Swal: {fire: async (value) => {
+        configuration = value;
+        return {isConfirmed: false};
+    }}};
+
+    assert.equal(await confirmTaskTransition(3, 4, {can_review: true}), null);
+    assert.equal(configuration.customClass.container, 'task-transition-dialog');
+
+    const modalLayer = Number(workspaceModalCss.match(/\.task-workspace-modal\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]);
+    const dialogLayer = Number(workspaceModalCss.match(/\.swal2-container\.task-transition-dialog\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]);
+    assert.ok(dialogLayer > modalLayer);
 });
 
 test('reopen is explicit and cancellation prevents a request', async () => {

@@ -1,6 +1,7 @@
 import {statusMeta, taskPriorityMeta, unsupportedStatusMeta} from './priority-meta.js';
 import {modalStack} from '../../components/modal-stack.js';
 import {createCalendarQuickView} from './calendar-quick-view.js';
+import {attachmentStore} from './attachment-store.js';
 import {
     buddhistYear,
     buildCalendarAgenda,
@@ -13,6 +14,7 @@ import {
     parseCalendarDate,
     rangeForMonths,
     resetCalendarMonth,
+    toggleCalendarDatePoint,
 } from './calendar-model.js';
 
 const monthFormatter = new Intl.DateTimeFormat('th-TH', {month: 'long', year: 'numeric', timeZone: 'UTC'});
@@ -54,7 +56,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     const json = (selector) => { const node = document.querySelector(selector); return node ? JSON.parse(node.textContent || '{}') : {}; };
     const teamData = json('[data-team-data]');
-    const attachmentData = json('[data-attachment-data]');
+    // อ็อบเจกต์เดียวกับบอร์ดและโมดัลรายละเอียดงาน ปฏิทินจึงเห็นไฟล์ที่เพิ่งแนบทันที
+    const attachmentData = attachmentStore(document);
 
     const loadingIndicator = calendar.querySelector('[data-calendar-loading]');
     const filteredIndicator = calendar.querySelector('[data-calendar-filtered]');
@@ -66,6 +69,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const monthEmpty = calendar.querySelector('[data-calendar-month-empty]');
     const monthCount = calendar.querySelector('[data-calendar-month-count]');
     const monthAgendaTitle = calendar.querySelector('[data-calendar-month-agenda-title]');
+    const modeButtons = [...calendar.querySelectorAll('[data-calendar-mode-option]')];
+    const datePointButtons = [...calendar.querySelectorAll('[data-calendar-date-point]')];
+    const displayNote = calendar.querySelector('[data-calendar-display-note]');
     const meetingsEndpoint = calendar.dataset.meetingsEndpoint || '';
     const meetingsById = new Map();
     const loadedMonths = new Set();
@@ -79,6 +85,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     let selectedMonth = initialSelection.month;
     let monthData = null;
     let activeDayKey = null;
+    let calendarMode = 'timeline';
+    const datePoints = {start: true, due: true};
 
     const ensureYearOption = (year) => {
         if (!yearSelect.querySelector(`option[value="${year}"]`)) {
@@ -465,6 +473,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const makeCountChip = (group) => {
         const tone = group.type === 'meeting' ? 'is-meeting' : (taskPriorityMeta[group.priority] || taskPriorityMeta[2]).className;
         const node = element('span', `mytasks-calendar__count ${tone}`);
+        node.dataset.count = String(group.count);
         const dot = element('i', 'calendar-dot');
         dot.setAttribute('aria-hidden', 'true');
         node.append(dot, element('span', '', groupLabel(group)));
@@ -517,11 +526,86 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         cellNode.append(element('span', 'mytasks-calendar__day-number', String(day.day)));
 
         const counts = element('span', 'mytasks-calendar__counts');
-        counts.append(...day.visibleGroups.map(makeCountChip));
+        const countGroups = calendarMode === 'timeline'
+            ? day.groups.filter((group) => group.type === 'meeting')
+            : day.visibleGroups;
+        counts.append(...countGroups.map(makeCountChip));
         if (day.hiddenGroups > 0) counts.append(element('span', 'mytasks-calendar__more', `+${day.hiddenGroups}`));
         cellNode.append(counts);
 
+        if (day.hiddenTimelineTasks > 0) {
+            const more = element('button', 'mytasks-calendar__timeline-more', `+${day.hiddenTimelineTasks} งาน`);
+            more.type = 'button';
+            more.dataset.calendarDay = day.key;
+            more.setAttribute('aria-haspopup', 'dialog');
+            more.setAttribute('aria-label', `ดูงานอีก ${day.hiddenTimelineTasks} รายการของวันที่ ${dateFormatter.format(new Date(day.stamp))}`);
+            cellNode.append(more);
+        }
+
         return cellNode;
+    };
+
+    const makeTimelineSegment = (segment) => {
+        const event = segment.event;
+        const tone = toneOf(event);
+        const node = element('button', `mytasks-calendar__task-line ${tone}`);
+        configureCalendarEventNode(node, event);
+        node.dataset.startDay = String(segment.startDay + 1);
+        node.dataset.spanDays = String(segment.spanDays);
+        node.dataset.lane = String(segment.lane + 1);
+        node.classList.toggle('continues-before', segment.continuesBefore);
+        node.classList.toggle('continues-after', segment.continuesAfter);
+        node.title = eventAriaLabel(event);
+
+        const priority = taskPriorityMeta[event.priority] || taskPriorityMeta[2];
+        const dot = element('i', `calendar-dot ${tone}`);
+        dot.setAttribute('aria-hidden', 'true');
+        dot.title = priority.label;
+        node.append(dot);
+
+        if (segment.showStartMarker) {
+            const startMarker = element('i', 'mytasks-calendar__endpoint bi bi-play-fill');
+            startMarker.setAttribute('aria-hidden', 'true');
+            node.append(startMarker);
+        }
+
+        node.append(element('span', 'mytasks-calendar__task-title', event.title));
+
+        if (segment.showDueMarker) {
+            const dueMarker = element('i', 'mytasks-calendar__endpoint bi bi-flag-fill');
+            dueMarker.setAttribute('aria-hidden', 'true');
+            node.append(dueMarker);
+        }
+
+        return node;
+    };
+
+    const synchronizeDisplayControls = () => {
+        calendar.dataset.calendarMode = calendarMode;
+        modeButtons.forEach((button) => {
+            const isActive = button.dataset.calendarModeOption === calendarMode;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+        });
+        datePointButtons.forEach((button) => {
+            const isActive = Boolean(datePoints[button.dataset.calendarDatePoint]);
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+        });
+
+        if (!displayNote) return;
+        if (calendarMode === 'timeline') {
+            const selectedLabel = datePoints.start && datePoints.due
+                ? 'ตั้งแต่วันเริ่มถึงวันสิ้นสุด'
+                : (datePoints.start ? 'เฉพาะวันเริ่ม' : 'เฉพาะวันสิ้นสุด');
+            displayNote.textContent = `แสดงเส้นงาน${selectedLabel} สูงสุด 4 เส้นต่อวัน`;
+            return;
+        }
+
+        const selectedLabel = datePoints.start && datePoints.due
+            ? 'ที่วันเริ่มและวันสิ้นสุด'
+            : (datePoints.start ? 'เฉพาะวันเริ่ม' : 'เฉพาะวันสิ้นสุด');
+        displayNote.textContent = `แสดงภาพรวมสีตามความสำคัญของงาน${selectedLabel}`;
     };
 
     const render = () => {
@@ -532,14 +616,25 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         // ถูก invalidate จริง (mytasks:viewchange / mytasks:changed) เท่านั้น
         // modal รายวันก็เช่นกัน: เติมเนื้อใหม่ให้แทนการปิดทิ้ง
         const events = visibleEvents();
-        monthData = buildMonthCalendar(events, selectedYear, selectedMonth);
+        monthData = buildMonthCalendar(events, selectedYear, selectedMonth, 3, {
+            datePoints,
+            maxTimelineLanes: 4,
+            placement: calendarMode === 'summary' ? 'points' : 'range',
+        });
         synchronizeSelectors();
+        synchronizeDisplayControls();
         title.textContent = monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
 
         grid.replaceChildren(...monthData.weeks.map((week) => {
             const weekNode = element('div', 'mytasks-calendar__week');
             weekNode.setAttribute('role', 'row');
             weekNode.append(...week.days.map(makeDayCell));
+            if (calendarMode === 'timeline' && week.segments.length) {
+                const timeline = element('div', 'mytasks-calendar__timeline');
+                timeline.setAttribute('role', 'presentation');
+                timeline.append(...week.segments.map(makeTimelineSegment));
+                weekNode.append(timeline);
+            }
             return weekNode;
         }));
         renderAgenda(events);
@@ -614,6 +709,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const resetCalendar = () => {
         // Keep Calendar-only reset behavior centralized so future filters can join this action.
         if (searchInput) searchInput.value = '';
+        calendarMode = 'timeline';
+        datePoints.start = true;
+        datePoints.due = true;
         const target = resetCalendarMonth(initialSelection);
         goToMonth(target.year, target.month);
     };
@@ -657,6 +755,27 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     calendar.addEventListener('click', (event) => {
+        const modeTrigger = event.target.closest('[data-calendar-mode-option]');
+        if (modeTrigger) {
+            calendarMode = modeTrigger.dataset.calendarModeOption === 'summary' ? 'summary' : 'timeline';
+            quickView?.close();
+            render();
+            return;
+        }
+
+        const datePointTrigger = event.target.closest('[data-calendar-date-point]');
+        if (datePointTrigger) {
+            const point = datePointTrigger.dataset.calendarDatePoint;
+            const nextDatePoints = toggleCalendarDatePoint(datePoints, point);
+            // ต้องเหลือวันเริ่มหรือวันสิ้นสุดอย่างน้อยหนึ่งตัว เพื่อไม่ให้ปฏิทินว่างโดยไม่รู้สาเหตุ
+            if (nextDatePoints.start === datePoints.start && nextDatePoints.due === datePoints.due) return;
+            Object.assign(datePoints, nextDatePoints);
+            quickView?.close();
+            closeDayModal();
+            render();
+            return;
+        }
+
         const chip = event.target.closest('[data-calendar-task]');
         if (chip) {
             activateEvent(chip, event);

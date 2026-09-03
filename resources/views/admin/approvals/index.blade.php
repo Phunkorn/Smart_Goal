@@ -13,9 +13,15 @@
 @section('content')
 <div class="admin-approvals-page">
     <header class="admin-approvals-header">
-        <span class="admin-approvals-eyebrow">ADMIN APPROVALS</span>
+        <span class="admin-approvals-eyebrow">{{ $isAdminViewer ? 'ADMIN APPROVALS' : 'DEPARTMENT APPROVALS' }}</span>
         <h1>คำขออนุมัติ</h1>
-        <p>จัดการคำขอที่ต้องได้รับการอนุมัติจากผู้ดูแลระบบ</p>
+        <p>
+            @if($isAdminViewer)
+                คำขอข้ามแผนกทั้งหมดที่รอการตัดสินใจ — ขอบเขต {{ $approvalScopeLabel }}
+            @else
+                คำขอที่ขอส่งงานเข้ามาที่{{ $approvalScopeLabel }} คุณเป็นผู้ตัดสินว่าจะรับหรือไม่
+            @endif
+        </p>
     </header>
 
     <section class="admin-approvals-summary" aria-label="สรุปคำขออนุมัติ">

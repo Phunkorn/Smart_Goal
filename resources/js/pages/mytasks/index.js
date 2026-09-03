@@ -11,3 +11,4 @@ import './admin-assignment-markers.js';
 import './calendar.js';
 import './task-request.js';
 import './user-task-create.js';
+import './task-details.js';

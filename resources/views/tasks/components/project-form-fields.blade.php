@@ -22,10 +22,10 @@
     </div>
 </label>
 <label class="project-create-files">
-    <span>ไฟล์แนบของโปรเจกต์ <em>ไม่บังคับ · สูงสุด 5 ไฟล์</em></span>
+    <span>ไฟล์แนบของโปรเจกต์ <em>ไม่บังคับ · {{ \App\Support\AttachmentPolicy::limitsLabel() }}</em></span>
     <div class="project-file-drop">
         <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
         <div><strong>เลือกไฟล์ที่เกี่ยวข้อง</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB ต่อไฟล์</small></div>
-        <input type="file" name="attachments[]" multiple accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
+        <input type="file" name="attachments[]" multiple accept="{{ \App\Support\AttachmentPolicy::acceptAttribute() }}">
     </div>
 </label>

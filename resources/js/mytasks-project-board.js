@@ -6,7 +6,8 @@ import {
     resolveBoardFloatingMenu,
 } from './pages/mytasks/board-floating-menu.js';
 import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
-import {synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {synchronizeCompletedTaskGroup, synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
 import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 
 (() => {
@@ -21,8 +22,8 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
     const toast = document.querySelector('[data-toast]');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const attachmentModal = document.querySelector('[data-board-attachment-modal]');
-    const attachmentDataNode = document.querySelector('[data-attachment-data]');
-    const attachmentData = attachmentDataNode ? JSON.parse(attachmentDataNode.textContent || '{}') : {};
+    // อ็อบเจกต์เดียวกับโมดัลรายละเอียดงานและปฏิทิน การแนบไฟล์จากที่ใดก็ตามจึงเห็นตรงกัน
+    const attachmentData = attachmentStore(document);
     const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
 
     const refreshStatusControls = (task) => {
@@ -110,6 +111,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             const meta = statusMeta[status];
             task.dataset.status = String(status);
             task.dataset.late = status === 6 ? '1' : '0';
+            synchronizeCompletedTaskGroup(cardGrid, task, status);
             const summary = task.querySelector('[data-board-status-menu] > summary');
             summary?.classList.remove(...statusClasses);
             summary?.classList.add(meta.className);
@@ -171,24 +173,44 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         const files = [...(input.files || [])];
         if (!files.length) return;
 
-        const existingCount = Number(input.dataset.existingCount || 0);
-        if (existingCount + files.length > 5) {
+        // ปุ่มแนบมีสองที่: เมนูบนการ์ด (data-task-id ที่แถวงาน) และ modal ไฟล์แนบ
+        const taskId = input.dataset.taskId
+            || input.closest('[data-board-task]')?.dataset.taskId
+            || attachmentModal?.dataset.taskId
+            || '';
+
+        // เพดานมาจาก AttachmentPolicy ฝั่ง server ผ่านโหนดข้อมูลเดียวกับที่โมดัลใช้
+        const limits = attachmentLimits(document);
+        const extensionOf = (name) => String(name ?? '').split('.').pop().toLowerCase();
+
+        // ปุ่ม "เพิ่มทั้งโฟลเดอร์" จะได้ไฟล์ที่ไม่รองรับติดมาด้วยเสมอ คัดออกแทนการปฏิเสธทั้งชุด
+        const accepted = files.filter((file) => limits.extensions.includes(extensionOf(file.name)));
+        const skipped = files.length - accepted.length;
+
+        if (!accepted.length) {
             input.value = '';
-            notify(`แนบได้รวมไม่เกิน 5 ไฟล์ (ขณะนี้มี ${existingCount} ไฟล์)`, false);
+            notify(`ไม่มีไฟล์ที่รองรับในสิ่งที่เลือก — รองรับเฉพาะ ${limits.typesLabel}`, false);
             return;
         }
 
-        const oversized = files.find((file) => file.size > 10 * 1024 * 1024);
+        const existingCount = Number(input.dataset.existingCount || 0);
+        if (existingCount + accepted.length > limits.maxFiles) {
+            input.value = '';
+            notify(`แนบได้รวมไม่เกิน ${limits.maxFiles} ไฟล์ (ขณะนี้มี ${existingCount} ไฟล์)`, false);
+            return;
+        }
+
+        const oversized = accepted.find((file) => file.size / 1024 > limits.maxKilobytes);
         if (oversized) {
             input.value = '';
-            notify(`ไฟล์ “${oversized.name}” มีขนาดเกิน 10 MB`, false);
+            notify(`ไฟล์ “${oversized.name}” มีขนาดเกิน ${limits.maxSizeLabel}`, false);
             return;
         }
 
         const menu = input.closest('.board-task-menu');
         const trigger = menu?.querySelector('[data-board-pick-attachment]');
         const formData = new FormData();
-        files.forEach((file) => formData.append('completion_attachments[]', file));
+        accepted.forEach((file) => formData.append('completion_attachments[]', file));
         if (trigger) trigger.disabled = true;
 
         try {
@@ -199,8 +221,11 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'แนบไฟล์ไม่สำเร็จ');
-            notify('แนบไฟล์เรียบร้อยแล้ว');
-            window.setTimeout(() => window.location.reload(), 450);
+            notify(skipped ? `แนบไฟล์แล้ว ${accepted.length} ไฟล์ (ข้ามไฟล์ที่ไม่รองรับ ${skipped} ไฟล์)` : 'แนบไฟล์เรียบร้อยแล้ว');
+            // เดิมรีโหลดทั้งหน้า ซึ่งทำให้ modal ไฟล์แนบปิดและเสียตำแหน่ง scroll
+            // ตอนนี้อัปเดตข้อมูลกลางแล้วให้ทุกมุมมองวาดใหม่เอง
+            publishTaskFiles(taskId, Array.isArray(data.files) ? data.files : []);
+            if (attachmentModal && !attachmentModal.hidden) openAttachmentModal(taskId);
         } catch (error) {
             notify(error.message, false);
             if (trigger) trigger.disabled = false;
@@ -239,9 +264,13 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         });
         empty.hidden = (data.files || []).length > 0;
         upload.hidden = !data.can_upload;
-        input.dataset.url = data.upload_url;
-        input.dataset.existingCount = String((data.files || []).length);
-        input.value = '';
+        const folderInput = attachmentModal.querySelector('[data-board-modal-attachment-folder]');
+        [input, folderInput].filter(Boolean).forEach((field) => {
+            field.dataset.url = data.upload_url;
+            field.dataset.existingCount = String((data.files || []).length);
+            field.value = '';
+        });
+        attachmentModal.dataset.taskId = String(taskId);
         attachmentModal.hidden = false;
         document.body.style.overflow = 'hidden';
     };
@@ -332,6 +361,14 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
     filterBoard(false);
     document.addEventListener('mytasks:changed', (event) => applyTaskChange(event.detail || {}));
 
+    // โมดัลรายละเอียดงานแนบ/ลบไฟล์ได้เอง บอร์ดต้องวาด modal ไฟล์แนบใหม่ถ้ากำลังเปิดงานเดียวกันอยู่
+    document.addEventListener('mytasks:attachments-changed', (event) => {
+        const changedId = String(event.detail?.id || '');
+        if (attachmentModal && !attachmentModal.hidden && attachmentModal.dataset.taskId === changedId) {
+            openAttachmentModal(changedId);
+        }
+    });
+
     document.addEventListener('click', async (event) => {
         const nativeSummary = event.target.closest('summary');
         if (nativeSummary && board.contains(nativeSummary) && !nativeSummary.matches(boardFloatingMenuSummarySelector)) {
@@ -341,10 +378,12 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
 
         if (!event.target.closest(boardFloatingMenuSelector)) closeBoardMenus();
 
-        const attachmentOpen = event.target.closest('[data-board-open-attachments]');
+        // ปุ่มคลิปหนีบมีสามที่ (การ์ดบอร์ด, แถวตาราง, การ์ด kanban) ทุกที่ใช้โมดัลเดียวกัน
+        // เดิมมีโมดัลไฟล์แนบตัวที่สองไว้ให้ตาราง/kanban แต่ไม่มีโมดูลใดผูก JavaScript กับมันเลย
+        const attachmentOpen = event.target.closest('[data-board-open-attachments], [data-open-attachments]');
         if (attachmentOpen) {
             event.preventDefault();
-            openAttachmentModal(attachmentOpen.dataset.boardOpenAttachments);
+            openAttachmentModal(attachmentOpen.dataset.boardOpenAttachments || attachmentOpen.dataset.openAttachments);
             return;
         }
         if (event.target.closest('[data-close-board-attachments]') || event.target === attachmentModal) {
@@ -658,7 +697,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
     });
 
     attachmentModal?.addEventListener('change', async (event) => {
-        const input = event.target.closest('[data-board-modal-attachment-input]');
+        const input = event.target.closest('[data-board-modal-attachment-input], [data-board-modal-attachment-folder]');
         if (input) await uploadAttachments(input);
     });
 

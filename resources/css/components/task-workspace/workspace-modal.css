@@ -27,6 +27,20 @@
     display: none;
 }
 
+/* SweetAlert2 is appended to <body>, so its default layer otherwise sits below this modal.
+   SweetAlert2 ตั้ง .swal2-container ไว้ที่ z-index 1060 ซึ่งต่ำกว่าทุก overlay ของ workspace
+   (modal 1200, team modal 1250, owner modal 1300) กล่องยืนยันที่เปิดจากในโมดัลจึงไปอยู่ข้างหลัง
+   ทุกกล่องที่เปิดจากในโมดัลต้องติดคลาสใดคลาสหนึ่งนี้เสมอ */
+.swal2-container.task-transition-dialog {
+    z-index: 1400;
+}
+
+/* กล่องยืนยันอื่น ๆ ที่เปิดจากในโมดัล (ลบไฟล์แนบ นำสมาชิกออกจากทีม เตือนยังไม่บันทึก)
+   ประกาศแยกบล็อกเพื่อให้แต่ละคลาสตรวจสอบค่าได้ตรง ๆ ไม่ต้องแกะจากรายการรวม */
+.swal2-container.task-workspace-dialog {
+    z-index: 1400;
+}
+
 .task-workspace {
     display: flex;
     width: min(1180px, 100%);
@@ -390,6 +404,12 @@
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+}
+
+/* ปุ่มเลือกทั้งโฟลเดอร์อยู่ข้างปุ่มเพิ่มไฟล์ ใช้โทนรองเพื่อไม่แย่งสายตาจากปุ่มหลัก */
+.task-workspace__add-file--folder {
+    border-style: dashed;
+    background: transparent;
 }
 
 .task-workspace__add-file.is-dragover {

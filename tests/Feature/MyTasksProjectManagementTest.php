@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Models\WorkOrderSubtask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -17,11 +18,11 @@ class MyTasksProjectManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_my_tasks_opens_without_legacy_subtask_queries_or_numeric_progress_routes(): void
+    public function test_my_tasks_loads_task_details_without_restoring_numeric_progress_routes(): void
     {
         $owner = User::factory()->create(['role' => 'user']);
         $list = WorkOrderList::create(['user_id' => $owner->id, 'name' => 'Current project']);
-        WorkOrder::create([
+        $workOrder = WorkOrder::create([
             'user_id' => $owner->id,
             'created_by' => $owner->id,
             'leader_user_id' => $owner->id,
@@ -31,6 +32,12 @@ class MyTasksProjectManagementTest extends TestCase
             'approval_status' => 'approved',
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
+        ]);
+        WorkOrderSubtask::create([
+            'work_order_id' => $workOrder->job_id,
+            'created_by' => $owner->id,
+            'title' => 'Detail item',
+            'sort_order' => 0,
         ]);
 
         $queries = [];
@@ -42,13 +49,16 @@ class MyTasksProjectManagementTest extends TestCase
             ->get(route('mytasks.index'))
             ->assertOk()
             ->assertDontSee('data-progress-template', false)
-            ->assertDontSee('data-field="progress"', false);
+            ->assertDontSee('data-field="progress"', false)
+            ->assertSee('data-task-details', false)
+            ->assertSee('Detail item');
 
-        $this->assertFalse(collect($queries)->contains(fn (string $sql) => str_contains($sql, 'work_order_subtasks')));
+        $this->assertTrue(collect($queries)->contains(fn (string $sql) => str_contains($sql, 'work_order_subtasks')));
         $this->assertFalse(Route::has('tasks.progress.store'));
-        $this->assertFalse(Route::has('mytasks.subtasks.store'));
-        $this->assertFalse(Route::has('mytasks.subtasks.update'));
-        $this->assertFalse(Route::has('mytasks.subtasks.toggle'));
+        $this->assertTrue(Route::has('mytasks.details.store'));
+        $this->assertTrue(Route::has('mytasks.details.update'));
+        $this->assertTrue(Route::has('mytasks.details.destroy'));
+        $this->assertTrue(Route::has('mytasks.details.move'));
     }
 
     public function test_board_task_menu_only_targets_the_task_and_project_header_edit_remains_available(): void

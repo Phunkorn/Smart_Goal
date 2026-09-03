@@ -54,7 +54,12 @@
         ])->values(),
     ]]);
 ?>
-<script type="application/json" data-attachment-data>@json($attachmentData)</script>
+<script type="application/json" data-attachment-data
+    data-max-files="{{ \App\Support\AttachmentPolicy::MAX_FILES }}"
+    data-max-kilobytes="{{ \App\Support\AttachmentPolicy::MAX_KILOBYTES }}"
+    data-max-size-label="{{ \App\Support\AttachmentPolicy::maxSizeLabel() }}"
+    data-extensions="{{ implode(',', \App\Support\AttachmentPolicy::extensions()) }}"
+    data-types-label="{{ \App\Support\AttachmentPolicy::typesLabel() }}">@json($attachmentData)</script>
 <?php
     $commentPresenter = app(\App\Support\TaskCommentPresenter::class);
     $commentReceipts = $commentPresenter->receiptsForTasks($allTasks);
@@ -189,23 +194,6 @@
     </section>
 </div>
 
-<div class="task-edit-modal notion-modal" data-attachment-modal hidden>
-    <section class="task-edit-card attachment-modal-card" role="dialog" aria-modal="true" aria-labelledby="attachment-modal-title">
-        <header>
-            <div><span class="task-edit-kicker">ATTACHMENTS</span><strong id="attachment-modal-title">ไฟล์แนบ</strong><small data-attachment-topic></small></div>
-            <button type="button" class="task-modal-close" data-close-attachments aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
-        </header>
-        <div class="attachment-modal-body">
-            <div class="attachment-modal-list" data-attachment-list></div>
-            <div class="attachment-modal-empty" data-attachment-empty hidden><i class="bi bi-paperclip"></i><strong>ยังไม่มีไฟล์แนบ</strong><span>เพิ่มเอกสารหรือรูปภาพที่เกี่ยวข้องกับงานนี้ได้ด้านล่าง</span></div>
-            <div class="attachment-modal-upload" data-attachment-upload>
-                <label><i class="bi bi-cloud-arrow-up"></i><span><strong>เพิ่มไฟล์แนบ</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB/ไฟล์ · รวมไม่เกิน 5 ไฟล์</small></span><input type="file" multiple data-modal-attachment-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>
-            </div>
-        </div>
-        <footer><button type="button" class="task-secondary" data-close-attachments>ปิด</button></footer>
-    </section>
-</div>
-
 <div class="notion-modal board-attachment-modal" data-board-attachment-modal hidden>
     <section class="board-attachment-modal__card" role="dialog" aria-modal="true" aria-labelledby="board-attachment-modal-title">
         <header>
@@ -216,7 +204,8 @@
             <div class="board-attachment-modal__list" data-board-attachment-list></div>
             <div class="board-attachment-modal__empty" data-board-attachment-empty hidden><i class="bi bi-paperclip"></i><strong>ยังไม่มีไฟล์แนบ</strong><span>เพิ่มเอกสารหรือรูปภาพที่เกี่ยวข้องกับงานนี้ได้ด้านล่าง</span></div>
             <div class="board-attachment-modal__upload" data-board-attachment-upload>
-                <label><i class="bi bi-cloud-arrow-up"></i><span><strong>เพิ่มไฟล์แนบ</strong><small>JPG, PNG, Word, Excel, PowerPoint · สูงสุด 10 MB/ไฟล์ · รวมไม่เกิน 5 ไฟล์</small></span><input type="file" multiple data-board-modal-attachment-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx"></label>
+                <label><i class="bi bi-cloud-arrow-up"></i><span><strong>เพิ่มไฟล์แนบ</strong><small>{{ \App\Support\AttachmentPolicy::limitsLabel() }}</small></span><input type="file" multiple data-board-modal-attachment-input accept="{{ \App\Support\AttachmentPolicy::acceptAttribute() }}"></label>
+                <label class="attachment-modal-folder"><i class="bi bi-folder-plus"></i><span><strong>เพิ่มทั้งโฟลเดอร์</strong><small>ระบบจะแนบเฉพาะไฟล์ที่รองรับ</small></span><input type="file" multiple webkitdirectory directory data-board-modal-attachment-folder></label>
             </div>
         </div>
         <footer><button type="button" class="task-secondary" data-close-board-attachments>ปิด</button></footer>
@@ -333,7 +322,14 @@
                     <strong id="task-workspace-files-title">ไฟล์แนบ</strong>
                     <label class="task-workspace__add-file" data-task-inline-drop>
                         <i class="bi bi-plus-lg" aria-hidden="true"></i> เพิ่มไฟล์
-                        <input type="file" multiple data-task-inline-file-input accept=".jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
+                        <input type="file" multiple data-task-inline-file-input accept="{{ \App\Support\AttachmentPolicy::acceptAttribute() }}">
+                    </label>
+                    {{-- HTML อัปโหลด "โฟลเดอร์" เป็นก้อนเดียวไม่ได้ webkitdirectory ให้เบราว์เซอร์
+                         กางโฟลเดอร์เป็นไฟล์ย่อยแล้วส่งมาทีละไฟล์ การตรวจชนิดและขนาดจึงยังทำงานตามปกติ
+                         เบราว์เซอร์ที่ไม่รองรับจะปฏิบัติกับปุ่มนี้เหมือนปุ่มเลือกไฟล์ธรรมดา --}}
+                    <label class="task-workspace__add-file task-workspace__add-file--folder" title="เลือกทั้งโฟลเดอร์ ระบบจะแนบเฉพาะไฟล์ที่รองรับ">
+                        <i class="bi bi-folder-plus" aria-hidden="true"></i> เพิ่มทั้งโฟลเดอร์
+                        <input type="file" multiple webkitdirectory directory data-task-inline-folder-input>
                     </label>
                 </header>
                 {{-- ทั้งพื้นที่นี้คือ drop zone ไม่ใช่แค่ปุ่ม "เพิ่มไฟล์" เล็ก ๆ ที่หัวการ์ด
@@ -342,7 +338,7 @@
                     <div class="task-inline-files" data-task-inline-files></div>
                     <p class="task-workspace__file-types" data-attachment-types>
                         <i class="bi bi-info-circle" aria-hidden="true"></i>
-                        ลากไฟล์มาวางที่นี่ได้ — รองรับ JPG, PNG, Word, Excel, PowerPoint · ไฟล์ละไม่เกิน 10 MB · รวมไม่เกิน 5 ไฟล์
+                        ลากไฟล์หรือทั้งโฟลเดอร์มาวางที่นี่ได้ — รองรับ {{ \App\Support\AttachmentPolicy::limitsLabel() }}
                     </p>
                     <p class="task-workspace__file-status" data-attachment-status role="status" aria-live="polite" hidden></p>
                     <div class="task-workspace__drop-overlay" data-attachment-drop-overlay aria-hidden="true">

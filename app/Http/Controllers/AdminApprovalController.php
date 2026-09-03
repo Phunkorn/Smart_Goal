@@ -13,6 +13,20 @@ class AdminApprovalController extends Controller
     {
         $this->authorize('approve', WorkOrder::class);
 
-        return view('admin.approvals.index', $approvals->data($request->user()));
+        $viewer = $request->user();
+
+        // คิวนี้เปิดให้ทั้ง admin และหัวหน้าแผนก (ดู WorkOrderPolicy::approve())
+        // แต่ขอบเขตที่เห็นต่างกัน หัวหน้าเห็นเฉพาะคำขอที่ปลายทางเป็นแผนกตัวเอง
+        // (AdminApprovalQuery::scopeAssignments()) หัวเรื่องจึงต้องบอกขอบเขตจริง
+        // ไม่ใช่เขียนว่า "ผู้ดูแลระบบ" เหมือนกันหมดจนหัวหน้าเข้าใจผิดว่าไม่ใช่หน้าที่ตน
+        $isAdminViewer = $viewer->role === 'admin';
+
+        return view('admin.approvals.index', [
+            ...$approvals->data($viewer),
+            'isAdminViewer' => $isAdminViewer,
+            'approvalScopeLabel' => $isAdminViewer
+                ? 'ทุกแผนกในระบบ'
+                : 'แผนก'.($viewer->department?->department_name ?? 'ของคุณ'),
+        ]);
     }
 }

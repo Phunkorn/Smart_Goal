@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderListTaskRequest;
 use App\Models\WorkOrderUpdate;
+use App\Support\ApprovalPresenter;
 use App\Support\TaskCommentPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -178,7 +179,7 @@ class NotificationService
                 [$assignee->id],
                 'admin_created_task',
                 'มีงานใหม่',
-                'ผู้ดูแลระบบมอบหมายงาน "'.$task->job_topic.'" ให้คุณ',
+                $actor->name.' (ผู้ดูแลระบบ) มอบหมายงาน "'.$task->job_topic.'" ให้คุณ',
                 $task,
                 $actor,
                 [],
@@ -229,14 +230,16 @@ class NotificationService
     public function notifyAssignmentDecision(WorkOrder $task, User $admin, string $decision): void
     {
         $task->loadMissing(['user', 'creator']);
+        $admin->loadMissing('department');
         $requesterId = $task->assigned_by ?: $task->created_by;
+        $approver = ApprovalPresenter::approverLabel($admin);
 
         if ($decision === 'approved') {
             $this->notify(
                 [$task->user_id],
                 'task_assigned',
                 'ได้รับมอบหมายงานแล้ว',
-                'ผู้ดูแลระบบอนุมัติงาน "'.$task->job_topic.'" และมอบหมายให้คุณแล้ว',
+                $approver.' อนุมัติงาน "'.$task->job_topic.'" และมอบหมายให้คุณแล้ว',
                 $task,
                 $admin,
                 [],
@@ -247,7 +250,7 @@ class NotificationService
                 [$requesterId],
                 'assignment_approved',
                 'อนุมัติการมอบหมายงานแล้ว',
-                'ผู้ดูแลระบบอนุมัติการมอบหมายงาน "'.$task->job_topic.'" แล้ว',
+                $approver.' อนุมัติการมอบหมายงาน "'.$task->job_topic.'" แล้ว',
                 $task,
                 $admin,
                 [],
@@ -261,7 +264,7 @@ class NotificationService
             [$requesterId],
             'assignment_rejected',
             'ปฏิเสธการมอบหมายงาน',
-            'ผู้ดูแลระบบปฏิเสธการมอบหมายงาน "'.$task->job_topic.'"',
+            $approver.' ปฏิเสธการมอบหมายงาน "'.$task->job_topic.'"',
             $task,
             $admin,
             [],

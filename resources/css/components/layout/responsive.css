@@ -117,8 +117,8 @@
             .role-chip {
                 width: auto;
                 min-width: 0;
-                max-width: none;
-                flex: 0 0 auto;
+                max-width: 52vw;
+                flex: 0 1 auto;
                 justify-content: center;
                 gap: .35rem;
                 padding: 0 .65rem;

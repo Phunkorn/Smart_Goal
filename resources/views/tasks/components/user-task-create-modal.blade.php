@@ -51,6 +51,29 @@
                     <div><strong id='user-task-detail-heading'>ข้อมูลงาน</strong><small>ระบบจะมอบหมายงานนี้ให้คุณโดยอัตโนมัติ</small></div>
                 </div>
                 <label><span>ชื่องาน <b aria-hidden='true'>*</b></span><input name='job_topic' maxlength='255' required placeholder='ระบุสิ่งที่ต้องทำ'></label>
+                <div class='user-task-create__details' data-user-task-details>
+                    <div class='user-task-create__details-head'>
+                        <div>
+                            <strong>รายละเอียดงาน</strong>
+                            <small>แยกสิ่งที่ต้องทำใต้ชื่องาน เพิ่มได้หลายรายการ</small>
+                        </div>
+                        <button type='button' data-add-user-task-detail><i class='bi bi-plus-lg' aria-hidden='true'></i> เพิ่มรายละเอียด</button>
+                    </div>
+                    <div class='user-task-create__details-list' data-user-task-details-list>
+                        <div class='user-task-create__detail-row' data-user-task-detail-row>
+                            <i class='bi bi-diagram-3' aria-hidden='true'></i>
+                            <input name='subtasks[]' maxlength='255' aria-label='รายละเอียดงานรายการที่ 1' placeholder='เช่น ซื้ออุปกรณ์'>
+                            <button type='button' data-remove-user-task-detail aria-label='ลบรายละเอียดงานรายการนี้'><i class='bi bi-x-lg' aria-hidden='true'></i></button>
+                        </div>
+                    </div>
+                    <template data-user-task-detail-template>
+                        <div class='user-task-create__detail-row' data-user-task-detail-row>
+                            <i class='bi bi-diagram-3' aria-hidden='true'></i>
+                            <input name='subtasks[]' maxlength='255' aria-label='รายละเอียดงาน' placeholder='เพิ่มรายละเอียดงาน'>
+                            <button type='button' data-remove-user-task-detail aria-label='ลบรายละเอียดงานรายการนี้'><i class='bi bi-x-lg' aria-hidden='true'></i></button>
+                        </div>
+                    </template>
+                </div>
                 <div class='user-task-create__grid'>
                     <label><span>วันที่เริ่ม <b aria-hidden='true'>*</b></span><input type='datetime-local' name='job_start_at' value='{{ $initialStart }}' required></label>
                     <label><span>กำหนดส่ง <b aria-hidden='true'>*</b></span><input type='datetime-local' name='job_due_at' value='{{ $initialDue }}' required></label>
