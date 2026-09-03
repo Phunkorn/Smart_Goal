@@ -7,6 +7,7 @@ use App\Models\Meeting;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\NotificationMaintenanceService;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -328,6 +329,117 @@ class DepartmentHeadAuthorizationTest extends TestCase
         $this->actingAs($head)->get($notifications->target($notification, $head->fresh()))
             ->assertOk()
             ->assertSee('Internal IT assignment');
+    }
+
+    /**
+     * งานเลยกำหนดคือเรื่องเดียวในงานประจำวันที่หัวหน้าเข้าไปช่วยได้จริง จึงแจ้งเฉพาะกรณีนี้
+     * ส่วน "ครบกำหนดวันนี้" เป็นจังหวะทำงานปกติ ถ้าแจ้งด้วยหัวหน้าจะโดนถล่มจนเลิกอ่าน
+     */
+    public function test_department_head_hears_about_overdue_work_but_not_routine_due_dates(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $sales = Department::create(['department_name' => 'Sales']);
+        $itHead = $this->user($it, true);
+        $salesHead = $this->user($sales, true);
+        $member = $this->user($it);
+
+        $overdue = $this->task($it, $member, 'Overdue IT task');
+        $overdue->update(['job_due_at' => now()->subDays(3)]);
+        $dueToday = $this->task($it, $member, 'Due today IT task');
+        $dueToday->update(['job_due_at' => now()]);
+
+        app(NotificationMaintenanceService::class)->generateDeadlines();
+
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $itHead->id,
+            'type' => 'deadline_overdue',
+            'work_order_id' => $overdue->job_id,
+        ]);
+        $this->assertDatabaseMissing('system_notifications', [
+            'user_id' => $itHead->id,
+            'type' => 'deadline_due_today',
+        ]);
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $salesHead->id]);
+
+        // เจ้าของงานยังได้ครบทั้งสองแบบเหมือนเดิม การเพิ่มหัวหน้าต้องไม่ไปแทนที่ใคร
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $member->id,
+            'type' => 'deadline_due_today',
+            'work_order_id' => $dueToday->job_id,
+        ]);
+
+        // cron รันซ้ำในวันเดียวกันต้องไม่แจ้งหัวหน้าซ้ำ
+        app(NotificationMaintenanceService::class)->generateDeadlines();
+        $this->assertSame(1, SystemNotification::where('user_id', $itHead->id)
+            ->where('type', 'deadline_overdue')->count());
+    }
+
+    /** งานที่หายไปจากแผนกต้องมีผู้รับผิดชอบรู้เสมอ ทั้งตอนขอลบและตอนลบจริง */
+    public function test_department_head_hears_about_delete_requests_and_deletions(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $sales = Department::create(['department_name' => 'Sales']);
+        $itHead = $this->user($it, true);
+        $salesHead = $this->user($sales, true);
+        $admin = $this->user(null, false, 'admin');
+        $member = $this->user($it);
+        $task = $this->task($it, $member, 'Task to remove');
+
+        $this->actingAs($member)->postJson(route('tasks.deleteRequest.store', $task->job_id), [
+            'reason' => 'สร้างผิดโปรเจกต์',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $itHead->id,
+            'type' => 'delete_request',
+            'work_order_id' => $task->job_id,
+        ]);
+        // ผู้ดูแลระบบยังเป็นผู้ตัดสินใจเหมือนเดิม หัวหน้าแค่รับรู้
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $admin->id,
+            'type' => 'delete_request',
+        ]);
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $salesHead->id]);
+
+        app(NotificationService::class)
+            ->notifyTaskDeleted($task->fresh(), 'งาน "Task to remove" ถูกลบแล้ว', $admin);
+
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $itHead->id,
+            'type' => 'task_deleted',
+        ]);
+    }
+
+    /**
+     * เมนู "รายงานแผนก" ต้องพาไปหน้าเลือกประเภทรายงานก่อน ไม่ใช่กระโดดข้ามไปภาพรวมเลย
+     * และหน้าเลือกพนักงานต้องไม่โฆษณา "ทุกแผนก" ให้คนที่ดูได้แผนกเดียว
+     */
+    public function test_head_report_menu_lands_on_the_report_chooser_and_hides_cross_department_options(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $sales = Department::create(['department_name' => 'Sales']);
+        $head = $this->user($it, true);
+        $member = $this->user($it);
+        $outsider = $this->user($sales);
+
+        // เมนูต้องชี้ไปหน้าเลือกประเภทรายงาน ไม่ใช่ /reports/organization
+        $this->actingAs($head)->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee(route('reports.index'), false)
+            ->assertDontSee('href="'.route('reports.organization').'"', false);
+
+        $this->actingAs($head)->get(route('reports.index'))->assertOk();
+
+        // หน้าเลือกพนักงาน: เห็นเฉพาะแผนกตัวเอง และต้องไม่มีตัวเลือก "ทุกแผนก" ที่ให้ผลเท่ากัน
+        $this->actingAs($head)->get(route('reports.employees.index'))
+            ->assertOk()
+            ->assertSee($member->name)
+            ->assertDontSee($outsider->name)
+            ->assertDontSee('ทุกแผนก')
+            ->assertSee('IT');
+
+        // ข้อมูลยังถูกจำกัดที่เซิร์ฟเวอร์เหมือนเดิม ไม่ได้พึ่งการซ่อนปุ่ม
+        $this->actingAs($head)->get(route('reports.employee', $outsider))->assertForbidden();
     }
 
     private function user(?Department $department, bool $head = false, string $role = 'user'): User

@@ -25,11 +25,12 @@ class NotificationController extends Controller
         $projects = WorkOrderList::whereIn('id', $projectIds)->orderBy('name')->get();
 
         $groups = $items->getCollection()->groupBy(fn ($notice) => $notifications->groupLabel($notice->created_at));
+        $unreadCount = $notifications->unreadCount($request->user());
         $readCount = SystemNotification::forUser($request->user())->whereNotNull('read_at')->count();
 
         $notificationService = $notifications;
 
-        return view('notifications.index', compact('items', 'projects', 'filters', 'groups', 'readCount', 'notificationService'));
+        return view('notifications.index', compact('items', 'projects', 'filters', 'groups', 'unreadCount', 'readCount', 'notificationService'));
     }
 
     public function open(Request $request, int $notification, NotificationService $notifications): RedirectResponse

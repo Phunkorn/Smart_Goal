@@ -17,6 +17,12 @@ final class AdminReportService
 
     private const DEFAULT_PERIOD = 'last_6_months';
 
+    /** ตัวกรองรวมของทุกสถานะที่ยังไม่ปิด ใช้เฉพาะบนหน้าจอ ไม่ใช่สถานะจริงของงาน */
+    public const ACTIVE_STATUS_FILTER = 'active';
+
+    /** จำนวนคนสูงสุดในกราฟงานค้างรายบุคคล มากกว่านี้แท่งจะเตี้ยจนอ่านไม่ออก */
+    private const MEMBER_WORKLOAD_LIMIT = 8;
+
     private const PERIOD_LABELS = [
         'this_month' => 'เดือนนี้',
         'last_month' => 'เดือนที่แล้ว',
@@ -92,6 +98,28 @@ final class AdminReportService
                 ];
             })->values();
 
+        /*
+         * เมื่อรายงานถูกจำกัดไว้ที่แผนกเดียว การเทียบ "แผนกไหนงานค้างเยอะสุด" ไม่มีความหมาย
+         * เพราะเหลือแท่งเดียวที่ไม่มีอะไรให้เทียบ — หัวหน้าแผนกเจอกรณีนี้ตลอดเพราะเห็นแผนกตัวเองเท่านั้น
+         *
+         * คำถามที่มีประโยชน์จริงในขอบเขตนี้คือ "งานค้างของทีมกองอยู่ที่ใคร"
+         * จึงสลับแกนจากแผนกเป็นรายคน โดยเรียงจากคนที่ค้างมากที่สุดลงมา
+         */
+        $workloadByMember = $filters['department_id'] !== null;
+
+        $memberSummary = $jobs
+            ->filter(fn (WorkOrder $job) => ReportMetrics::isIncomplete($job) && $job->user)
+            ->groupBy(fn (WorkOrder $job) => (int) $job->user_id)
+            ->map(fn (Collection $memberJobs) => [
+                'name' => $memberJobs->first()->user?->name ?? 'ไม่ระบุผู้รับผิดชอบ',
+                'doing' => $memberJobs->filter(fn (WorkOrder $job) => ReportMetrics::statusKey($job, $now) === 'doing')->count(),
+                'review' => $memberJobs->filter(fn (WorkOrder $job) => ReportMetrics::statusKey($job, $now) === 'review')->count(),
+                'late' => $memberJobs->filter(fn (WorkOrder $job) => ReportMetrics::statusKey($job, $now) === 'late')->count(),
+            ])
+            ->sortByDesc(fn (array $row) => $row['doing'] + $row['review'] + $row['late'])
+            ->take(self::MEMBER_WORKLOAD_LIMIT)
+            ->values();
+
         $attentionJobs = $jobs
             ->filter(fn (WorkOrder $job) => ReportMetrics::isIncomplete($job)
                 && (ReportMetrics::isOverdue($job, $now) || ReportMetrics::isDueSoon($job, $now)))
@@ -133,6 +161,8 @@ final class AdminReportService
             'activeJobs' => $jobs->filter(fn (WorkOrder $job) => ReportMetrics::isIncomplete($job))->count(),
             'overdueJobs' => $overdueJobs->count(),
             'completionRate' => $totalJobs > 0 ? min(100, (int) round(($completedCount / $totalJobs) * 100)) : 0,
+            'workloadByMember' => $workloadByMember,
+            'memberSummary' => $memberSummary,
             'statusSummary' => $statusSummary,
             'departmentSummary' => $departmentSummary,
             'prioritySummary' => $prioritySummary,
@@ -169,12 +199,20 @@ final class AdminReportService
                     'values' => $prioritySummary->pluck('count')->all(),
                     'tones' => $prioritySummary->pluck('tone')->all(),
                 ],
-                'workload' => [
-                    'labels' => $departmentSummary->pluck('name')->all(),
-                    'doing' => $departmentSummary->pluck('workload.doing')->all(),
-                    'review' => $departmentSummary->pluck('workload.review')->all(),
-                    'late' => $departmentSummary->pluck('workload.late')->all(),
-                ],
+                // ขอบเขตแผนกเดียวใช้แกนรายคน ขอบเขตหลายแผนกใช้แกนรายแผนก
+                'workload' => $workloadByMember
+                    ? [
+                        'labels' => $memberSummary->pluck('name')->all(),
+                        'doing' => $memberSummary->pluck('doing')->all(),
+                        'review' => $memberSummary->pluck('review')->all(),
+                        'late' => $memberSummary->pluck('late')->all(),
+                    ]
+                    : [
+                        'labels' => $departmentSummary->pluck('name')->all(),
+                        'doing' => $departmentSummary->pluck('workload.doing')->all(),
+                        'review' => $departmentSummary->pluck('workload.review')->all(),
+                        'late' => $departmentSummary->pluck('workload.late')->all(),
+                    ],
             ],
         ];
     }
@@ -217,7 +255,9 @@ final class AdminReportService
 
         return $query->get()
             ->when($filters['status'], fn (Collection $items, string $status) => $items
-                ->filter(fn (WorkOrder $job) => ReportMetrics::statusKey($job, $now) === $status)
+                ->filter(fn (WorkOrder $job) => $status === self::ACTIVE_STATUS_FILTER
+                    ? ! ReportMetrics::isCompleted($job)
+                    : ReportMetrics::statusKey($job, $now) === $status)
                 ->values());
     }
 
@@ -238,8 +278,12 @@ final class AdminReportService
 
         $departmentId = $forcedDepartmentId ?: $request->integer('department');
         $departmentId = $departments->contains('id', $departmentId) ? $departmentId : null;
+        // active = ทุกสถานะที่ยังไม่ปิด ใช้ให้การ์ด "ยังทำอยู่" กดกรองได้เหมือนการ์ดอื่น
+        // ไม่ใช่สถานะจริงในระบบ จึงไม่ถูกเพิ่มเข้า WorkBoardDesign::STATUSES
         $status = $request->string('status')->toString();
-        $status = array_key_exists($status, WorkBoardDesign::STATUSES) ? $status : null;
+        $status = $status === self::ACTIVE_STATUS_FILTER || array_key_exists($status, WorkBoardDesign::STATUSES)
+            ? $status
+            : null;
         $priority = $request->integer('priority');
         $priority = array_key_exists($priority, WorkBoardDesign::TASK_PRIORITIES) ? $priority : null;
 

@@ -30,6 +30,10 @@ class EmployeeUiTest extends TestCase
             ->assertSee('ข้อมูลติดต่อ')
             ->assertSee('สิทธิ์และองค์กร')
             ->assertSee('รูปภาพโปรไฟล์')
+            ->assertSee('บัญชีผู้ใช้งาน')
+            ->assertSee('แผนก:')
+            ->assertSee($employee->username)
+            ->assertDontSee('@'.$employee->username)
             ->assertSee('id="createUserModalPassword"', false)
             ->assertDontSee('id="editUserModal'.$employee->id.'Password"', false);
 
@@ -65,9 +69,13 @@ class EmployeeUiTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $createStart = strpos($html, '<div class="modal fade employee-form-modal employee-form-modal--create"');
+        $createIdPosition = strpos($html, 'id="createUserModal"');
+        $createStart = $createIdPosition === false
+            ? false
+            : strrpos(substr($html, 0, $createIdPosition), '<div class="modal fade employee-form-modal');
         $createEnd = strpos($html, 'id="editUserModal'.$employee->id.'"', $createStart);
 
+        $this->assertIsInt($createIdPosition);
         $this->assertIsInt($createStart);
         $this->assertIsInt($createEnd);
 
@@ -76,7 +84,7 @@ class EmployeeUiTest extends TestCase
         $this->assertStringContainsString('employee-form-modal--create', $createModal);
         $this->assertSame(1, substr_count($createModal, 'name="password"'));
         $this->assertStringNotContainsString('name="password_confirmation"', $createModal);
-        $this->assertStringContainsString('ใช้สำหรับเข้าสู่ระบบครั้งแรก ผู้ใช้จะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ', $createModal);
+        $this->assertStringContainsString('ใช้สำหรับเข้าสู่ระบบครั้งแรก พนักงานจะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ', $createModal);
         $this->assertStringNotContainsString(\App\Support\PasswordPolicy::description(), $createModal);
 
         preg_match('/<input id="createUserModalPassword"[^>]*>/', $createModal, $passwordInput);
@@ -93,7 +101,9 @@ class EmployeeUiTest extends TestCase
         $this->actingAs($viewer)
             ->get(route('employees.index'))
             ->assertOk()
-            ->assertSee('@'.$employee->username)
+            ->assertSee('บัญชีผู้ใช้งาน')
+            ->assertSee($employee->username)
+            ->assertDontSee('@'.$employee->username)
             ->assertDontSee('employee-current-work', false)
             ->assertDontSee('employee-meeting-link', false)
             ->assertDontSee('data-bs-target="#createUserModal"', false)

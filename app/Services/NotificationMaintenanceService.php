@@ -32,6 +32,14 @@ class NotificationMaintenanceService
                         : 'งาน “'.$task->job_topic.'” เลยกำหนดแล้ว';
                     $recipients = collect([$task->user_id, $task->created_by, $task->leader_user_id])
                         ->merge($task->collaborators->filter(fn ($user) => $user->pivot?->status === 'accepted')->pluck('id'));
+
+                    // งานเลยกำหนดคือเรื่องเดียวที่หัวหน้าแผนกเข้าไปช่วยได้จริง จึงแจ้งเฉพาะกรณีนี้
+                    // ส่วน "ครบกำหนดวันนี้" เป็นจังหวะทำงานปกติของทีม ไม่ต้องรบกวนหัวหน้า
+                    // dedupe key รายวันทำให้ 1 งานแจ้งได้ครั้งเดียวต่อวัน จึงไม่ท่วมกระดิ่ง
+                    if (! $isDueToday) {
+                        $recipients = $recipients->merge($this->notifications->departmentHeadIdsForTask($task));
+                    }
+
                     $before = SystemNotification::count();
                     $this->notifications->notify($recipients, $type, $title, $message, $task, null,
                         ['due_date' => $due->toDateString()],

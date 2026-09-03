@@ -120,6 +120,19 @@ class NotificationService
      * แผนกที่งานนี้สังกัด — ใช้เกณฑ์เดียวกับ WorkOrderPolicy::destinationDepartmentId()
      * เพื่อไม่ให้ "แผนกที่ได้รับแจ้งเตือน" กับ "แผนกที่มีสิทธิ์ดูงาน" หลุดจากกัน
      */
+    /**
+     * หัวหน้าแผนกที่รับผิดชอบงานชิ้นนี้
+     *
+     * เปิดเป็น public เพราะเหตุการณ์ที่หัวหน้าต้องรู้ไม่ได้อยู่ในบริการนี้ทั้งหมด
+     * เช่นงานเลยกำหนดถูกสร้างจาก NotificationMaintenanceService และคำขอลบงานจาก TaskController
+     *
+     * @return array<int>
+     */
+    public function departmentHeadIdsForTask(WorkOrder $task): array
+    {
+        return $this->departmentHeadIds($this->taskDepartmentId($task));
+    }
+
     private function taskDepartmentId(WorkOrder $task): ?int
     {
         return $task->department_id ? (int) $task->department_id : $task->user?->department_id;
@@ -260,8 +273,10 @@ class NotificationService
     {
         $task->loadMissing('collaborators');
 
+        // งานหายไปจากแผนกต้องมีผู้รับผิดชอบรู้เสมอ และเกิดไม่บ่อยพอที่จะไม่กลายเป็นสิ่งรบกวน
         $recipientIds = collect([$task->user_id, $task->created_by, $task->leader_user_id])
             ->merge($task->collaborators->pluck('id'))
+            ->merge($this->departmentHeadIdsForTask($task))
             ->filter()
             ->unique()
             ->reject(fn ($userId) => (int) $userId === (int) $actor->id)

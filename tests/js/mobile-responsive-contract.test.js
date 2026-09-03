@@ -4,13 +4,85 @@ import {readFile} from 'node:fs/promises';
 
 const css = async (path) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
 
-test('login owns its tablet composition through 820px', async () => {
-    const source = await css('resources/css/components/auth/login.css');
+/*
+ * ทั้งสามหน้า auth ใช้โครงหน้าเดียวกันจาก base.css แล้ว จุดหักจึงย้ายมาที่ 1100px
+ * ตามดีไซน์ชุดใหม่ คุณสมบัติที่ต้องมีเหมือนเดิมคือแถบแบรนด์ต้องซ้อนลงมาเป็นแถว
+ * ไม่ใช่บีบให้แคบจนอ่านไม่ออก และการ์ดต้องเลื่อนแนวตั้งได้เมื่อเนื้อหาสูงเกินจอ
+ */
+test('the shared auth layout stacks instead of squeezing on tablet', async () => {
+    const source = await css('resources/css/components/auth/base.css');
+    const tablet = source.slice(source.indexOf('@media (max-width: 1100px)'));
 
-    assert.match(source, /@media\(max-width:820px\)/);
-    assert.match(source, /grid-template-rows:max-content max-content/);
-    assert.match(source, /align-content:start/);
-    assert.match(source, /overflow-y:auto/);
+    assert.match(tablet, /grid-template-columns:\s*1fr/);
+    assert.match(tablet, /grid-template-rows:\s*max-content max-content/);
+    assert.match(tablet, /align-content:\s*start/);
+    assert.match(tablet, /overflow-y:\s*auto/);
+
+    // การ์ดต้องกินความกว้างเต็มแทนที่จะค้างอยู่ที่ 410px จนล้นจอแคบ
+    const form = await css('resources/css/components/auth/form-base.css');
+    assert.match(form, /@media \(max-width: 1100px\)[\s\S]*?\.auth-stage[^{]*\{[^}]*width:\s*100%/);
+});
+
+/* ทั้งสามหน้าต้องได้ฉากหลัง ฟอนต์ และสคริปต์ชุดเดียวกัน ห้ามหน้าใดหลุดออกไปเอง */
+test('every auth page shares one backdrop, font set, and experience script', async () => {
+    const pages = ['login', 'setup-password', 'welcome'];
+    const entries = {login: 'auth-login', 'setup-password': 'auth-setup-password', welcome: 'auth-welcome'};
+
+    for (const page of pages) {
+        const blade = await css(`resources/views/auth/${page}.blade.php`);
+        const entry = await css(`resources/css/pages/${entries[page]}.css`);
+
+        assert.match(blade, /@include\('auth\.partials\.backdrop'\)/, page);
+        assert.match(blade, /@include\('auth\.partials\.brand'/, page);
+        assert.match(blade, /family=Anuphan[^"]*IBM\+Plex\+Sans\+Thai/, page);
+        assert.match(blade, /resources\/js\/pages\/auth\/experience\.js/, page);
+        assert.match(entry, /components\/auth\/base\.css/, page);
+        assert.match(entry, /components\/auth\/form-base\.css/, page);
+    }
+});
+
+/*
+ * Regression: ripple ที่ experience.js สร้างเป็น <span> ลูกโดยตรงของ .btn เหมือนกับ
+ * span ที่ครอบข้อความปุ่ม กฎ `.btn > span` (1 class + 1 type) จึงเคยชนะ `.btn__ripple`
+ * (1 class) แล้วทับ position:absolute ทิ้ง ripple กลายเป็น element ในสายงานปกติ
+ * ขนาดเท่าความกว้างปุ่ม ดันปุ่มให้สูงขึ้นราว 340px ทันทีที่กด — ทุกปุ่มทั้งสามหน้า
+ */
+test('the button ripple cannot fall back into normal flow and stretch the button', async () => {
+    const source = await css('resources/css/components/auth/form-base.css');
+    const script = await css('resources/js/pages/auth/experience.js');
+
+    // ripple ยังเป็น span ลูกโดยตรงของปุ่มอยู่ กฎ CSS จึงต้องกันการชนกันเอง
+    assert.match(script, /createElement\('span'\)/);
+    assert.match(script, /className = 'btn__ripple'/);
+
+    // กฎของ label ต้องกัน ripple ออก และกฎของ ripple ต้องจำเพาะกว่า
+    assert.match(source, /\.btn > span:not\(\.btn__ripple\)\s*\{/);
+    assert.match(source, /\.btn > \.btn__ripple\s*\{[^}]*position:\s*absolute/s);
+
+    // ปุ่มต้องยังคลิป ripple ไว้ในตัวเอง
+    assert.match(source, /^\.btn \{[^}]*overflow:\s*hidden/ms);
+});
+
+/* โลโก้ต้องเป็นไฟล์ภาพจริงของ PremiumCare ไม่ใช่ตัวอักษรที่จัดให้ดูคล้ายโลโก้ */
+test('the auth brand mark uses the real PremiumCare logo file', async () => {
+    const brand = await css('resources/views/auth/partials/brand.blade.php');
+    const source = await css('resources/css/components/auth/base.css');
+
+    assert.match(brand, /images\/premiuum-care-logo\.png/);
+    assert.match(brand, /class="brand-mark__logo"/);
+    assert.doesNotMatch(brand, /brand-mark__word/);
+    assert.match(source, /\.brand-mark__logo\s*\{[^}]*width:\s*122px/s);
+});
+
+/* เอฟเฟกต์แสงวิ่งและ orb คือแกนของดีไซน์ชุดนี้ และต้องปิดได้เมื่อผู้ใช้ขอลดการเคลื่อนไหว */
+test('the animated backdrop ships with a reduced-motion escape hatch', async () => {
+    const source = await css('resources/css/components/auth/base.css');
+    const reduced = source.slice(source.indexOf('@media (prefers-reduced-motion: reduce)'));
+
+    assert.match(source, /\.auth-bg__sheen\s*\{[^}]*animation:\s*auth-sheen/s);
+    assert.match(source, /@keyframes auth-sheen/);
+    assert.match(source, /\.auth-bg__orb--a\s*\{[^}]*animation:\s*auth-drift-a/s);
+    assert.match(reduced, /\.auth-bg__sheen,?[\s\S]{0,200}animation:\s*none/);
 });
 
 test('mobile role chip keeps a compact visible label with an accessible name', async () => {

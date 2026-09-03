@@ -54,6 +54,9 @@
 .employee-profile__identity { min-width: 0; }
 .employee-profile__identity h2 { overflow: hidden; margin: 0; color: var(--text); font-size: 1rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .employee-profile__identity p { overflow: hidden; margin: 3px 0 0; color: var(--text-muted); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.employee-profile__identity .employee-department { display: flex; align-items: center; gap: 5px; }
+.employee-department i { color: var(--text-muted); font-size: .7rem; }
+.employee-department span { color: var(--text-muted); font-weight: 600; }
 
 .employee-status { display: inline-flex; min-height: 25px; flex: 0 0 auto; align-items: center; gap: 6px; border-radius: 999px; padding: 0 8px; font-size: .66rem; font-weight: 800; }
 .employee-status > span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -63,7 +66,8 @@
 .employee-role, .employee-password-state { display: inline-flex; min-height: 27px; align-items: center; gap: 6px; border-radius: 999px; padding: 0 9px; font-size: .68rem; font-weight: 800; }
 .employee-role--admin { background: var(--accent-dim); color: var(--accent-strong); }
 .employee-role--viewer { background: var(--blue-dim); color: var(--blue); }
-.employee-role--user { background: var(--green-dim); color: var(--green); }
+.employee-role--user { background: var(--surface-2); color: var(--text-muted); }
+.employee-role--department-head { background: var(--accent-dim); color: var(--accent-strong); }
 .employee-password-state { background: var(--amber-dim); color: var(--amber); }
 
 .employee-meta { display: grid; gap: 9px; margin: 0; }
@@ -81,6 +85,52 @@
 .employee-action--delete { margin-left: auto; border-color: var(--red); background: var(--red-dim); color: var(--red); }
 .employee-action--delete:hover { border-color: var(--red); background: var(--surface); color: var(--red); }
 .employee-action--delete:focus-visible { outline-color: var(--red); }
+
+.employee-page[data-account-context='employee'] {
+    max-width: 1180px;
+}
+
+.employee-page[data-account-context='employee'] .employee-grid {
+    gap: 12px;
+}
+
+.employee-page[data-account-context='employee'] .employee-card {
+    gap: 10px;
+    padding: 14px;
+}
+
+.employee-page[data-account-context='employee'] .employee-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+}
+
+.employee-page[data-account-context='employee'] .employee-card__badges {
+    gap: 5px;
+}
+
+.employee-page[data-account-context='employee'] .employee-meta {
+    gap: 7px;
+}
+
+.employee-page[data-account-context='employee'] .employee-meta > div {
+    grid-template-columns: 105px minmax(0, 1fr);
+    gap: 6px;
+}
+
+.employee-page[data-account-context='employee'] .employee-card__actions {
+    gap: 6px;
+    padding-top: 10px;
+}
+
+.employee-page[data-account-context='employee'] .employee-action {
+    min-height: 34px;
+    padding-inline: 9px;
+}
+
+.employee-page[data-account-context='employee'] .employee-action--delete {
+    margin-left: 0;
+}
 
 .employee-empty-state { grid-column: 1 / -1; display: grid; min-height: 260px; place-items: center; align-content: center; gap: 7px; padding: 28px; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text-muted); text-align: center; }
 .employee-empty-state[hidden] { display: none; }

@@ -12,6 +12,7 @@ export default defineConfig({
                 'resources/css/pages/auth-login.css',
                 'resources/css/pages/auth-setup-password.css',
                 'resources/css/pages/auth-welcome.css',
+                'resources/js/pages/auth/experience.js',
                 'resources/css/pages/board.css',
                 'resources/css/pages/board-admin.css',
                 'resources/css/pages/admin-approvals.css',

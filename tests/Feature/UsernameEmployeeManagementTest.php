@@ -163,7 +163,9 @@ class UsernameEmployeeManagementTest extends TestCase
         $this->actingAs($admin)
             ->get(route('employees.index'))
             ->assertOk()
-            ->assertSee('@noemail-user');
+            ->assertSee('บัญชีผู้ใช้งาน')
+            ->assertSee('noemail-user')
+            ->assertDontSee('@noemail-user');
         $this->actingAs($employee)
             ->get(route('settings.index'))
             ->assertOk()

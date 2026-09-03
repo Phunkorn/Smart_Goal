@@ -20,7 +20,6 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
     const tabs = [...workspace.querySelectorAll('[role="tab"][data-view]')];
     const boardToolbar = workspace.querySelector('[data-board-toolbar]');
     const scopeControl = workspace.querySelector('[data-task-scope-control]');
-    const scopeSelect = workspace.querySelector('[data-task-scope]');
     if (!database) return;
     if (!tabs.length) {
         database.dataset.view = 'table';
@@ -51,7 +50,6 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
         const view = knownViews.includes(requestedView) ? requestedView : fallbackView;
         database.dataset.view = view;
         if (boardToolbar) boardToolbar.hidden = view !== 'board';
-        if (scopeControl) scopeControl.hidden = view === 'calendar' || view === 'meeting';
         tabs.forEach((tab) => {
             const active = tab.dataset.view === view;
             tab.classList.toggle('active', active);
@@ -95,20 +93,48 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
         applyView(knownViews.includes(view) ? view : serverView, false);
     });
 
-    scopeSelect?.addEventListener('change', () => {
-        if (workspace.dataset.context !== 'user') return;
+    /*
+     * ตัวกรองขอบเขตงานเป็น popover <details> ไม่ใช่ <select> อีกต่อไป
+     * เพราะ native select ใส่หัวกลุ่มและคำอธิบายกำกับแต่ละตัวเลือกไม่ได้
+     *
+     * ตามกฎ popover ของโปรเจกต์: ปิดเมื่อคลิกนอกกรอบและเมื่อกด Escape
+     * แล้วคืนโฟกัสให้ตัวเปิดเสมอ
+     */
+    const scopeMenu = workspace.querySelector('[data-task-scope-menu]');
+
+    const closeScopeMenu = ({restoreFocus = false} = {}) => {
+        if (!scopeMenu?.open) return;
+        scopeMenu.removeAttribute('open');
+        if (restoreFocus) scopeMenu.querySelector('summary')?.focus();
+    };
+
+    scopeControl?.addEventListener('click', (event) => {
+        const option = event.target.closest('[data-task-scope-option]');
+        if (!option) return;
+
+        event.preventDefault();
+        closeScopeMenu();
 
         const url = new URL(window.location.href);
         const state = boardFilterStateFrom(url.searchParams);
         const parameters = parametersForTaskWorkspace(
             url.searchParams,
             state,
-            normalizeTaskScope(scopeSelect.value),
+            normalizeTaskScope(option.dataset.taskScopeOption),
         );
         parameters.set('view', database.dataset.view);
         url.search = parameters.toString();
         window.location.assign(url);
     });
+
+    if (scopeMenu) {
+        document.addEventListener('click', (event) => {
+            if (!scopeMenu.contains(event.target)) closeScopeMenu();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeScopeMenu({restoreFocus: true});
+        });
+    }
 
     groupSelect?.addEventListener('change', () => {
         if (database.dataset.view !== 'board') tableGrouping = groupSelect.value;

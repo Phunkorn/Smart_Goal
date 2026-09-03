@@ -12,14 +12,17 @@ test('employee chart configs normalize malformed values and expose required char
         priority: {labels: ['Routine'], values: [1], tones: ['gray']},
     });
 
-    assert.equal(configs.trend.type, 'line');
+    // ชุดกราฟต้องเหมือนหน้าภาพรวมทุกประการ ต่างแค่ขอบเขตข้อมูล
+    assert.equal(configs.trend.type, 'bar');
     assert.equal(configs.status.type, 'doughnut');
     assert.equal(configs.completed.type, 'bar');
-    assert.equal(configs.priority.type, 'doughnut');
+    assert.equal(configs.priority.type, 'bar');
+    assert.equal(configs.priority.options.indexAxis, 'y');
     // อัตราตรงเวลาเป็นค่าตัวเดียว จึงแสดงเป็นตัวเลขใหญ่ใน Blade แทนโดนัท
     assert.equal(configs.onTime, undefined);
+    // หน้ารายบุคคลไม่มีกราฟงานค้างรายแผนก เพราะขอบเขตเป็นคนเดียว
+    assert.equal(configs.workload, undefined);
     assert.equal(configs.trend.options.animation.duration, 460);
-    assert.equal(configs.trend.options.animations.x.duration, 500);
     assert.equal(configs.completed.options.animation.duration, 460);
     assert.equal(configs.completed.options.animations, undefined);
     assert.equal(configs.status.options.animation.animateRotate, true);

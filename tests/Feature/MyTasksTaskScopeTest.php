@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -56,9 +57,12 @@ class MyTasksTaskScopeTest extends TestCase
                 ->assertViewHas('taskScope', $scope);
 
             $this->assertEqualsCanonicalizing($taskIds, $this->workspaceTaskIds($response));
-            $this->assertContains($delegated->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
-            $this->assertContains($pending->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
-            $this->assertNotContains($unrelated->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
+
+            // ปฏิทินต้องเห็นชุดเดียวกับตารางและบอร์ดเป๊ะ ๆ
+            // เดิมปฏิทินใช้ชุดที่ยังไม่กรอง ผู้ใช้จึงกรองแล้วสลับไปปฏิทินแล้วเห็นงานทุกคนกลับมา
+            $calendarIds = $response->viewData('calendarTasks')->pluck('job_id')->all();
+            $this->assertEqualsCanonicalizing($taskIds, $calendarIds);
+            $this->assertNotContains($unrelated->job_id, $calendarIds);
         }
 
         $invalid = $this->actingAs($actor)
@@ -67,6 +71,7 @@ class MyTasksTaskScopeTest extends TestCase
             ->assertViewHas('taskScope', 'all');
 
         $this->assertEqualsCanonicalizing($expected['all'], $this->workspaceTaskIds($invalid));
+        $this->assertEqualsCanonicalizing($expected['all'], $invalid->viewData('calendarTasks')->pluck('job_id')->all());
         $this->assertNotContains($unrelated->job_id, $invalid->viewData('calendarTasks')->pluck('job_id')->all());
 
         $this->actingAs($assignee)
@@ -75,7 +80,8 @@ class MyTasksTaskScopeTest extends TestCase
             ->assertViewHas('activeTasks', fn ($tasks) => $tasks->contains('job_id', $delegated->job_id));
     }
 
-    public function test_assigned_scope_keeps_completed_grouping_and_full_calendar_modal_source(): void
+    /** ตัวกรองต้องนำไปใช้กับทุกมุมมองรวมทั้งปฏิทิน ไม่ใช่แค่ตารางกับบอร์ด */
+    public function test_assigned_scope_narrows_every_view_including_the_calendar(): void
     {
         $actor = $this->user();
         $assignee = $this->user();
@@ -96,13 +102,18 @@ class MyTasksTaskScopeTest extends TestCase
             ->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->contains($active->job_id))
             ->assertViewHas('workspaceTaskLists', fn ($lists) => $lists->contains('id', $list->id)
                 && ! $lists->contains('id', $calendarOnlyList->id))
-            ->assertSee($selfAssigned->job_topic)
             ->assertSee('data-completed-group', false);
 
+        // งานที่ตัวเองรับผิดชอบต้องหลุดออกจากปฏิทินด้วย ไม่ใช่หลุดแค่ตารางกับบอร์ด
         $calendarIds = $response->viewData('calendarTasks')->pluck('job_id')->all();
         $this->assertContains($active->job_id, $calendarIds);
         $this->assertContains($completed->job_id, $calendarIds);
-        $this->assertContains($selfAssigned->job_id, $calendarIds);
+        $this->assertNotContains($selfAssigned->job_id, $calendarIds);
+        $response->assertDontSee($selfAssigned->job_topic);
+
+        // บรรทัดสรุปต้องบอกจำนวนงานที่กรองได้จริง ผู้ใช้จะได้รู้ว่าทำไมรายการสั้นลง
+        $this->assertSame(2, $response->viewData('taskScopeCount'));
+        $response->assertSee('data-task-scope-summary', false);
     }
 
     public function test_assigned_scope_reuses_viewer_specific_unread_badges_in_both_views(): void
@@ -137,7 +148,11 @@ class MyTasksTaskScopeTest extends TestCase
         $this->assertStringContainsString('class="board-comments has-comments" data-open-task-modal data-task-id="'.$task->job_id.'"', $content);
     }
 
-    public function test_viewer_is_still_redirected_and_admin_member_markup_has_no_scope_control(): void
+    /**
+     * Admin ก็สร้างและมอบหมายงานเหมือนกัน จึงต้องกรองงานของตัวเองได้เท่าผู้ใช้ทั่วไป
+     * เดิมถูกกันไว้ที่ role === 'user' ทำให้ Admin ไม่มีตัวกรองเลย
+     */
+    public function test_admin_gets_the_same_scope_filter_and_viewer_is_still_redirected(): void
     {
         $viewer = $this->user('viewer');
 
@@ -149,9 +164,34 @@ class MyTasksTaskScopeTest extends TestCase
         $adminResponse = $this->actingAs($admin)
             ->get(route('mytasks.index', ['task_scope' => 'assigned_by_me']))
             ->assertOk()
-            ->assertDontSee('data-task-scope-control', false);
+            ->assertSee('data-task-scope-control', false);
 
-        $this->assertSame('all', $adminResponse->viewData('taskScope'));
+        $this->assertSame('assigned_by_me', $adminResponse->viewData('taskScope'));
+    }
+
+    /**
+     * ขอบเขต "ทั้งแผนก" ยังไม่เปิด เพราะ scopeVisibleInProjectsFor() ให้หัวหน้าแผนก
+     * เห็นเท่าผู้ใช้ทั่วไป ตัวกรองนี้จึงทำได้แค่แคบลง ไม่สามารถขยายการมองเห็นได้
+     * ค่าที่ยัดมาเองต้องตกกลับเป็น all ไม่ใช่หลุดไปเห็นงานทั้งแผนก
+     */
+    public function test_department_scope_is_not_offered_and_cannot_be_forced_through_the_query(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $head = $this->user();
+        $head->update(['department_id' => $department->id, 'is_department_head' => true]);
+        $member = $this->user();
+        $member->update(['department_id' => $department->id]);
+
+        $teamTask = $this->task($member, $member, $this->list($member), 'Team task');
+        $teamTask->update(['department_id' => $department->id]);
+
+        $response = $this->actingAs($head->fresh())
+            ->get(route('mytasks.index', ['task_scope' => 'department']))
+            ->assertOk()
+            ->assertViewHas('taskScope', 'all');
+
+        $this->assertNotContains('department', collect($response->viewData('taskScopeOptions'))->pluck('value')->all());
+        $this->assertNotContains($teamTask->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
     }
 
     private function workspaceTaskIds($response): array

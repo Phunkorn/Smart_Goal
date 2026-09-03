@@ -112,23 +112,91 @@ export function doughnutConfig(data, {cutout = '68%'} = {}) {
     };
 }
 
+/** แท่งแนวนอนสำหรับข้อมูลแบบสัดส่วนที่มีหมวดไม่เกินราว 6 หมวด */
+export function horizontalBarConfig(data) {
+    return {
+        type: 'bar',
+        data: {labels: data.labels, datasets: [{label: 'จำนวนงาน', data: data.values, backgroundColor: data.colors, borderRadius: 4, maxBarThickness: 22}]},
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: reportChartAnimation,
+            plugins: {legend: {display: false}, tooltip: shareTooltip},
+            scales: {
+                x: {beginAtZero: true, ticks: {precision: 0, color: '#64748b'}, border: {display: false}, grid: {color: 'rgba(148,163,184,.13)'}},
+                y: {grid: {display: false}, border: {display: false}, ticks: {color: '#334155'}},
+            },
+        },
+    };
+}
+
+/**
+ * เขียนยอดรวมไว้ท้ายแท่งซ้อนแต่ละแถว
+ *
+ * แท่งซ้อนบอกสัดส่วนได้ดี แต่ตอบไม่ได้ว่า "รวมแล้วกี่งาน" โดยไม่ต้องกวาดตาไปที่แกน
+ * ยอดรวมท้ายแท่งทำให้อ่านได้ทั้งสัดส่วนและปริมาณในสายตาเดียว
+ *
+ * เขียนเป็นปลั๊กอินสั้น ๆ แทนการเพิ่ม chartjs-plugin-datalabels เพราะใช้ที่เดียว
+ */
+export const stackedTotalLabels = {
+    id: 'stackedTotalLabels',
+    afterDatasetsDraw(chart) {
+        const {ctx, scales} = chart;
+        const datasets = chart.data.datasets || [];
+        if (!datasets.length || !scales.x) return;
+
+        const totals = (chart.data.labels || []).map((_, index) => datasets
+            .reduce((sum, dataset) => sum + (Number(dataset.data?.[index]) || 0), 0));
+
+        ctx.save();
+        ctx.fillStyle = '#334155';
+        ctx.font = '600 11px "IBM Plex Sans Thai", "Segoe UI", sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+
+        // อ่านตำแหน่งจาก meta ของชุดข้อมูลสุดท้ายที่มองเห็น จึงตรงกับแท่งที่วาดจริงเสมอ
+        const lastVisible = datasets.map((_, index) => index).reverse()
+            .find((index) => chart.isDatasetVisible(index));
+        if (lastVisible === undefined) return;
+
+        chart.getDatasetMeta(lastVisible).data.forEach((element, index) => {
+            if (!totals[index]) return;
+            ctx.fillText(`${totals[index]} งาน`, element.x + 8, element.y);
+        });
+        ctx.restore();
+    },
+};
+
 export function buildReportChartConfigs(data = {}) {
     const n = normalizeReportChartData(data);
 
     return {
+        /*
+         * แท่งคู่ต่อเดือน ไม่ใช่กราฟเส้น
+         *
+         * เส้นลากผ่านเดือนที่ไม่มีข้อมูลแล้วสื่อว่า "โตพรวด" ทั้งที่ความจริงคือเพิ่งเริ่มใช้ระบบ
+         * แท่งแสดงเดือนที่ไม่มีข้อมูลเป็นช่องว่างตามความจริง และเทียบเข้า/ปิด คู่กันได้ตรง ๆ
+         */
         trend: {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: n.trend.labels,
                 datasets: [
-                    {label: 'งานที่สร้าง', data: n.trend.created, borderColor: reportChartColors.blue, backgroundColor: 'rgba(29,78,216,.10)', borderWidth: 2, fill: true, tension: .35, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderWidth: 2},
-                    {label: 'งานที่เสร็จ', data: n.trend.completed, borderColor: reportChartColors.green, backgroundColor: 'rgba(5,150,105,.09)', borderWidth: 2, fill: true, tension: .35, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderWidth: 2},
+                    {label: 'งานที่สร้าง', data: n.trend.created, backgroundColor: reportChartColors.blue, borderRadius: 4, maxBarThickness: 26},
+                    {label: 'งานที่เสร็จ', data: n.trend.completed, backgroundColor: reportChartColors.green, borderRadius: 4, maxBarThickness: 26},
                 ],
             },
-            options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}, animation: reportChartAnimation, animations: lineAnimations, plugins: cartesianPlugins, scales: cartesianScales},
+            options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}, animation: reportChartAnimation, plugins: cartesianPlugins, scales: cartesianScales},
         },
         status: doughnutConfig(orderStatusSlices(n.status)),
-        priority: doughnutConfig(n.priority),
+        /*
+         * ความสำคัญเป็นแท่งแนวนอน ไม่ใช่โดนัทใบที่สอง
+         *
+         * หน้าเดียวมีโดนัทสองใบที่ตอบคนละคำถามแต่หน้าตาเหมือนกัน สายตาจะพยายามเทียบกันเอง
+         * แท่งแนวนอนเทียบความยาวได้ง่ายกว่าเทียบมุม และมีลำดับจากมากไปน้อยในตัว
+         */
+        priority: horizontalBarConfig(n.priority),
         completed: {
             type: 'bar',
             data: {labels: n.completed.labels, datasets: [{label: 'งานเสร็จ', data: n.completed.values, backgroundColor: reportChartColors.blue, borderRadius: 4, maxBarThickness: 42}]},
@@ -146,11 +214,14 @@ export function buildReportChartConfigs(data = {}) {
                     {label: 'ล่าช้า', data: n.workload.late, backgroundColor: reportChartColors.red, borderColor: '#fff', borderWidth: 2, borderRadius: 3},
                 ],
             },
+            plugins: [stackedTotalLabels],
             options: {
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: reportChartAnimation,
+                // เผื่อที่ทางขวาให้ยอดรวมท้ายแท่ง ไม่ให้ถูกตัดขอบ
+                layout: {padding: {right: 56}},
                 plugins: cartesianPlugins,
                 scales: {
                     x: {stacked: true, beginAtZero: true, ticks: {precision: 0, color: '#64748b'}, grid: {color: 'rgba(148,163,184,.13)'}},

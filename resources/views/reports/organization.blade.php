@@ -28,12 +28,25 @@
 
     @php
         // ตัวเลขทั้งหมดมาจาก AdminReportService ที่คำนวณไว้อยู่แล้ว ไม่มีคิวรีเพิ่ม
+        //
+        // การ์ดทุกใบกดได้และกรองทั้งหน้าตามสถานะนั้น ตัวเลขจึงเชื่อมกับกราฟด้านล่าง
+        // ก่อนหน้านี้เป็นเลขลอย ๆ ที่ไม่มีกราฟไหนอ้างถึง ผู้ใช้เลยรู้สึกว่าคนละทิศคนละทาง
+        //
+        // การ์ด "ต้องติดตาม" ถูกถอดออกเพราะนับซ้อนกับ "ล่าช้า" (ล่าช้า + ใกล้ครบกำหนด)
+        // ผลรวมของการ์ดจึงไม่ตรงกับงานทั้งหมด และผู้อ่านต้องเดาว่าซ้อนกันแค่ไหน
+        // งานกลุ่มนี้ยังอยู่ครบในบล็อก "งานที่ต้องติดตาม" ด้านล่าง ซึ่งกดเปิดงานได้จริง
+        $scopedQuery = fn (?string $status) => array_filter(array_merge(request()->query(), ['status' => $status]), fn ($value) => $value !== null && $value !== '');
+        $currentStatus = $filters['status'] ?? null;
+
         $kpiCards = [
-            ['label' => 'งานทั้งหมด', 'value' => number_format($totalJobs), 'note' => 'ในช่วงที่เลือก', 'icon' => 'bi-collection'],
-            ['label' => 'ปิดงานได้', 'value' => number_format($completedJobs), 'note' => 'คิดเป็น '.$completionRate.'% ของงานทั้งหมด', 'icon' => 'bi-check2-circle', 'tone' => 'good', 'alert' => $completedJobs > 0],
-            ['label' => 'ยังทำอยู่', 'value' => number_format($activeJobs), 'note' => 'งานที่ยังไม่ปิด', 'icon' => 'bi-hourglass-split'],
-            ['label' => 'ล่าช้า', 'value' => number_format($overdueJobs), 'note' => $overdueJobs > 0 ? 'เลยกำหนดส่งแล้ว ต้องตามด่วน' : 'ไม่มีงานเลยกำหนด', 'icon' => 'bi-exclamation-triangle', 'tone' => 'danger', 'alert' => $overdueJobs > 0],
-            ['label' => 'ต้องติดตาม', 'value' => number_format($attentionJobs->count()), 'note' => 'ล่าช้าหรือครบกำหนดใน 3 วัน', 'icon' => 'bi-bell', 'tone' => 'warning', 'alert' => $attentionJobs->isNotEmpty()],
+            ['label' => 'งานทั้งหมด', 'value' => number_format($totalJobs), 'note' => 'ในช่วงที่เลือก', 'icon' => 'bi-collection',
+                'href' => route('reports.organization', $scopedQuery(null)), 'current' => $currentStatus === null],
+            ['label' => 'ปิดงานได้', 'value' => number_format($completedJobs), 'note' => 'คิดเป็น '.$completionRate.'% ของงานทั้งหมด', 'icon' => 'bi-check2-circle', 'tone' => 'good', 'alert' => $completedJobs > 0,
+                'href' => route('reports.organization', $scopedQuery('done')), 'current' => $currentStatus === 'done'],
+            ['label' => 'ยังทำอยู่', 'value' => number_format($activeJobs), 'note' => 'งานที่ยังไม่ปิด', 'icon' => 'bi-hourglass-split',
+                'href' => route('reports.organization', $scopedQuery('active')), 'current' => $currentStatus === 'active'],
+            ['label' => 'ล่าช้า', 'value' => number_format($overdueJobs), 'note' => $overdueJobs > 0 ? 'เลยกำหนดส่งแล้ว ต้องตามด่วน' : 'ไม่มีงานเลยกำหนด', 'icon' => 'bi-exclamation-triangle', 'tone' => 'danger', 'alert' => $overdueJobs > 0,
+                'href' => route('reports.organization', $scopedQuery('late')), 'current' => $currentStatus === 'late'],
         ];
     @endphp
     @include('reports.components.kpi-band', ['cards' => $kpiCards, 'ariaLabel' => 'สรุปตัวเลขภาพรวมองค์กร'])

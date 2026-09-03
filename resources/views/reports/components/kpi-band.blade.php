@@ -18,12 +18,24 @@
             $tone = $card['tone'] ?? 'neutral';
             $isAlert = $tone !== 'neutral' && ($card['alert'] ?? true);
         @endphp
-        <article class="report-kpi report-kpi--{{ $isAlert ? $tone : 'neutral' }}">
+        @php
+            // การ์ดที่มี href กลายเป็นทางเข้าไปกรองข้อมูลทั้งหน้า
+            // ตัวเลขจึงเชื่อมกับกราฟด้านล่าง ไม่ใช่เลขลอยที่อ่านแล้วทำอะไรต่อไม่ได้
+            $tag = empty($card['href']) ? 'article' : 'a';
+        @endphp
+        <{{ $tag }}
+            class="report-kpi report-kpi--{{ $isAlert ? $tone : 'neutral' }} {{ empty($card['href']) ? '' : 'report-kpi--linked' }} {{ ($card['current'] ?? false) ? 'is-current' : '' }}"
+            @if (!empty($card['href'])) href="{{ $card['href'] }}" @endif
+            @if ($card['current'] ?? false) aria-current="true" @endif
+        >
             <span class="report-kpi__label">
                 @if (!empty($card['icon']))
                     <i class="bi {{ $card['icon'] }}" aria-hidden="true"></i>
                 @endif
                 {{ $card['label'] }}
+                @if (!empty($card['href']))
+                    <i class="bi bi-funnel report-kpi__filter-hint" aria-hidden="true" title="กดเพื่อกรองทั้งหน้า"></i>
+                @endif
             </span>
             <strong class="report-kpi__value">{{ $card['value'] }}{{ $card['unit'] ?? '' }}</strong>
             <small class="report-kpi__note">
@@ -32,6 +44,6 @@
                 @endif
                 {{ $card['note'] }}
             </small>
-        </article>
+        </{{ $tag }}>
     @endforeach
 </section>

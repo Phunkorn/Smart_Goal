@@ -19,10 +19,11 @@ const updateUnreadIndicators = (count) => {
 
 const emptyStateMarkup = () => `
     <div class="notification-center__empty" data-notification-empty>
-        <i class="bi bi-bell-slash" aria-hidden="true"></i>
-        <strong>ไม่มีการแจ้งเตือน</strong>
-        <span>ยังไม่มีรายการที่ตรงกับตัวกรองนี้</span>
-        <small>ลองเปลี่ยนตัวกรองหรือเลือกหมวดหมู่อื่น</small>
+        <span class="notification-center__empty-icon">
+            <i class="bi bi-bell" aria-hidden="true"></i>
+        </span>
+        <strong>ไม่มีรายการในหน้านี้แล้ว</strong>
+        <span>การแจ้งเตือนรายการอื่นอาจอยู่ในหน้าถัดไป</span>
     </div>`;
 
 const submitAjax = async (form, fetchImpl) => {

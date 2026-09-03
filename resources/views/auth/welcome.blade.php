@@ -10,38 +10,76 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ยินดีต้อนรับ | Smart Goal By PremiumCare</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    @vite('resources/css/pages/auth-welcome.css')
+    @vite(['resources/css/pages/auth-welcome.css', 'resources/js/pages/auth/experience.js'])
 </head>
-<body>
-<main class="welcome-layout">
-    <section class="brand-panel">
-        <img src="{{ asset('images/premiuum-care-logo.png') }}" alt="PremiumCare" class="brand-logo">
-        <div class="brand-copy"><div class="brand-eyebrow">PREMIUMCARE WORKFORCE</div><h1>Smart Goal<br>By PremiumCare</h1><p class="brand-tagline">ระบบจัดการองค์กรและติดตามงาน</p></div>
-        <p class="brand-description">พื้นที่จัดการงานสำหรับทีม : เช็กงานที่ได้รับมอบหมาย<br>อัปเดตสถานะ และส่งงานตรงเวลา</p>
-    </section>
-    <section class="welcome-card">
-        <div class="hero"><div class="success-pill"><i class="bi bi-check-lg"></i> ยินดีต้อนรับ</div><h2>ยินดีต้อนรับเข้าสู่พื้นที่จัดการงานสำหรับทีม</h2><p>คุณ {{ $user->name }} พร้อมเริ่มใช้งานแล้ว ตรวจสอบข้อมูลบัญชีของคุณ และคำแนะนำสั้นๆ ก่อนเข้าสู่ระบบ</p></div>
-        <div class="profile-grid">
-            <div class="profile-item"><div class="label"><i class="bi bi-person-badge"></i> ชื่อผู้ใช้</div><div class="value">{{ $user->name }}</div></div>
-            <div class="profile-item"><div class="label"><i class="bi bi-building"></i> แผนก</div><div class="value">{{ $department }}</div></div>
-            <div class="profile-item"><div class="label"><i class="bi bi-shield-check"></i> สิทธิ์การใช้งาน</div><div class="value">{{ $roleLabel }}</div></div>
+<body class="auth-welcome">
+    @include('auth.partials.backdrop')
+
+    <main class="auth-layout">
+        @include('auth.partials.brand', [
+            'heading' => "Smart Goal\nBy PremiumCare",
+            'tagline' => 'พื้นที่ทำงานของคุณพร้อมแล้ว เริ่มจากงานที่ได้รับมอบหมายวันนี้',
+        ])
+
+        <div class="auth-stage auth-rise" data-auth-rise data-width="wide">
+            <section class="auth-card auth-card__enter" data-auth-card>
+                <div class="card-pill card-pill--good"><span><i class="bi bi-check-lg" aria-hidden="true"></i> ยินดีต้อนรับ</span></div>
+                <div class="card-head">
+                    <h2>ยินดีต้อนรับเข้าสู่พื้นที่จัดการงานสำหรับทีม</h2>
+                    <p>คุณ <b>{{ $user->name }}</b> พร้อมเริ่มใช้งานแล้ว ตรวจสอบข้อมูลบัญชีของคุณ และคำแนะนำสั้น ๆ ก่อนเข้าสู่ระบบ</p>
+                </div>
+
+                <div class="welcome-facts">
+                    <div class="welcome-fact">
+                        <div class="welcome-fact__label"><i class="bi bi-person-badge" aria-hidden="true"></i> ชื่อผู้ใช้</div>
+                        <div class="welcome-fact__value">{{ $user->name }}</div>
+                    </div>
+                    <div class="welcome-fact">
+                        <div class="welcome-fact__label"><i class="bi bi-building" aria-hidden="true"></i> แผนก</div>
+                        <div class="welcome-fact__value">{{ $department }}</div>
+                    </div>
+                    <div class="welcome-fact">
+                        <div class="welcome-fact__label"><i class="bi bi-shield-check" aria-hidden="true"></i> สิทธิ์การใช้งาน</div>
+                        <div class="welcome-fact__value">{{ $roleLabel }}</div>
+                    </div>
+                </div>
+
+                <div class="welcome-tiles">
+                    <div class="welcome-tile">
+                        <div class="welcome-tile__badge"><i class="bi bi-list-check" aria-hidden="true"></i></div>
+                        <h3>ดูงานที่ได้รับมอบหมาย</h3>
+                        <p>ตรวจสอบงาน รายละเอียด ผู้ร่วมงาน และกำหนดส่งงานจากหน้าหลักของคุณ</p>
+                    </div>
+                    <div class="welcome-tile">
+                        <div class="welcome-tile__badge"><i class="bi bi-arrow-repeat" aria-hidden="true"></i></div>
+                        <h3>อัปเดตสถานะงาน</h3>
+                        <p>เปลี่ยนสถานะเมื่อเริ่มทำงาน ส่งตรวจ หรือทำงานเสร็จ เพื่อให้ทีมเห็นภาพรวมตรงกัน</p>
+                    </div>
+                    <div class="welcome-tile">
+                        <div class="welcome-tile__badge"><i class="bi bi-people" aria-hidden="true"></i></div>
+                        <h3>ทำงานร่วมกับทีม</h3>
+                        <p>ระบบแสดงผู้รับผิดชอบและทีมที่เกี่ยวข้องในแต่ละงาน ช่วยให้ติดตามงานได้ง่ายขึ้น</p>
+                    </div>
+                </div>
+
+                <div class="welcome-actions">
+                    <form method="POST" action="{{ route('logout') }}" data-auth-form>
+                        @csrf
+                        <button type="submit" class="btn btn--ghost" data-auth-submit data-loading-label="กำลังออกจากระบบ"><span><i class="bi bi-box-arrow-right" aria-hidden="true"></i> ออกจากระบบ</span></button>
+                    </form>
+                    <a href="{{ $nextRoute }}" class="btn"><span>เข้าสู่ระบบ <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i></span></a>
+                </div>
+            </section>
         </div>
-        <div class="guide">
-            <div class="guide-item"><div class="guide-icon"><i class="bi bi-list-check"></i></div><div class="guide-title">ดูงานที่ได้รับมอบหมาย</div><div class="guide-text">ตรวจสอบงาน รายละเอียด ผู้ร่วมงาน และกำหนดส่งงานจากหน้าหลักของคุณ</div></div>
-            <div class="guide-item"><div class="guide-icon"><i class="bi bi-arrow-repeat"></i></div><div class="guide-title">อัปเดตสถานะงาน</div><div class="guide-text">เปลี่ยนสถานะเมื่อเริ่มทำงาน ส่งตรวจ หรือทำงานเสร็จ เพื่อให้ทีมเห็นภาพรวมตรงกัน</div></div>
-            <div class="guide-item"><div class="guide-icon"><i class="bi bi-people"></i></div><div class="guide-title">ทำงานร่วมกับทีม</div><div class="guide-text">ระบบจะแสดงผู้รับผิดชอบและทีมที่เกี่ยวข้องในแต่ละงาน ช่วยให้ติดตามงานได้ง่ายขึ้น</div></div>
-        </div>
-        <div class="actions">
-            <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit" class="logout-button"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</button></form>
-            <a href="{{ $nextRoute }}" class="button">เข้าสู่ระบบ <i class="bi bi-box-arrow-in-right"></i></a>
-        </div>
-    </section>
-</main>
+    </main>
+
+    @include('auth.partials.toast')
 </body>
 </html>

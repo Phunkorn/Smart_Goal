@@ -14,7 +14,7 @@
     $titleId = $modalId.'Title';
 @endphp
 
-<div class="modal fade employee-form-modal {{ $isEdit ? 'employee-form-modal--edit' : 'employee-form-modal--create' }}" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $titleId }}" aria-hidden="true">
+<div class="modal fade employee-form-modal {{ $isEdit ? 'employee-form-modal--edit' : 'employee-form-modal--create' }} {{ $isSystemAccount ? 'employee-form-modal--system' : 'employee-form-modal--employee' }}" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $titleId }}" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content employee-form-modal__content">
             <div class="modal-header employee-form-modal__header">
@@ -36,7 +36,7 @@
                 <input type="hidden" name="_employee_form_modal" value="{{ $modalId }}">
 
                 <div class="modal-body employee-form-modal__body">
-                    <section class="employee-form-section" aria-labelledby="{{ $modalId }}AccountTitle">
+                    <section class="employee-form-section employee-form-section--account" aria-labelledby="{{ $modalId }}AccountTitle">
                         <div class="employee-form-section__header">
                             <h3 id="{{ $modalId }}AccountTitle">ข้อมูลบัญชี</h3>
                         </div>
@@ -49,18 +49,18 @@
                                 @if($useOldValues) @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
                             </div>
                             <div class="col-md-6">
-                                <label for="{{ $modalId }}Username" class="form-label">Username</label>
+                                <label for="{{ $modalId }}Username" class="form-label">บัญชีผู้ใช้งาน</label>
                                 <input id="{{ $modalId }}Username" type="text" name="username"
                                     class="form-control {{ $useOldValues && $errors->has('username') ? 'is-invalid' : '' }}"
                                     value="{{ $value('username', $employee->username ?? '') }}" minlength="3" maxlength="50"
-                                    pattern="[A-Za-z0-9._-]+" autocomplete="off" aria-describedby="{{ $modalId }}UsernameHelp" required>
+                                    pattern="[A-Za-z0-9._-]+" autocomplete="off" placeholder="เช่น user2" aria-describedby="{{ $modalId }}UsernameHelp" required>
                                 @if($useOldValues) @error('username')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
                                 <p class="employee-form-help" id="{{ $modalId }}UsernameHelp">ใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง ระบบจะบันทึกเป็นตัวพิมพ์เล็ก</p>
                             </div>
                         </div>
                     </section>
 
-                    <section class="employee-form-section" aria-labelledby="{{ $modalId }}ContactTitle">
+                    <section class="employee-form-section employee-form-section--contact" aria-labelledby="{{ $modalId }}ContactTitle">
                         <div class="employee-form-section__header">
                             <h3 id="{{ $modalId }}ContactTitle">ข้อมูลติดต่อ</h3>
                         </div>
@@ -82,7 +82,7 @@
                         </div>
                     </section>
 
-                    <section class="employee-form-section" aria-labelledby="{{ $modalId }}AccessTitle">
+                    <section class="employee-form-section employee-form-section--access" aria-labelledby="{{ $modalId }}AccessTitle">
                         <div class="employee-form-section__header">
                             <h3 id="{{ $modalId }}AccessTitle">สิทธิ์และองค์กร</h3>
                         </div>
@@ -135,11 +135,13 @@
                                     @if($useOldValues) @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
                                 </div>
                             </div>
-                            <p class="employee-form-help" id="{{ $modalId }}PasswordHelp">ใช้สำหรับเข้าสู่ระบบครั้งแรก ผู้ใช้จะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ</p>
+                            <p class="employee-form-help" id="{{ $modalId }}PasswordHelp">
+                                {{ $isSystemAccount ? 'ใช้สำหรับเข้าสู่ระบบครั้งแรก ผู้ใช้จะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ' : 'ใช้สำหรับเข้าสู่ระบบครั้งแรก พนักงานจะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ' }}
+                            </p>
                         </section>
                     @endif
 
-                    <section class="employee-form-section" aria-labelledby="{{ $modalId }}ProfileTitle">
+                    <section class="employee-form-section employee-form-section--profile" aria-labelledby="{{ $modalId }}ProfileTitle">
                         <div class="employee-form-section__header">
                             <h3 id="{{ $modalId }}ProfileTitle">รูปภาพโปรไฟล์</h3>
                         </div>

@@ -87,7 +87,7 @@ test('bulk delete confirmation includes the server-provided read count and prese
     mounted.cleanup();
 });
 
-test('notification responsive CSS owns mobile, tablet, overflow, long-text, dropdown, and SweetAlert contracts', async () => {
+test('notification redesign keeps filters focused, the full row actionable, and responsive controls usable', async () => {
     const css = await readFile(new URL('../../resources/css/pages/notifications.css', import.meta.url), 'utf8');
     const blade = await readFile(new URL('../../resources/views/notifications/index.blade.php', import.meta.url), 'utf8');
     const js = await readFile(new URL('../../resources/js/pages/notifications.js', import.meta.url), 'utf8');
@@ -95,15 +95,19 @@ test('notification responsive CSS owns mobile, tablet, overflow, long-text, drop
     const tablet = css.slice(css.indexOf('@media (min-width: 761px) and (max-width: 991px)'), css.indexOf('@media (max-width: 760px)'));
 
     assert.match(css, /\.notification-center\s*\{[^}]*min-width:\s*0/s);
-    assert.match(css, /\.notification-center__tabs\s*\{[^}]*overflow-x:\s*auto/s);
+    assert.match(css, /\.notification-center__advanced-filters\s*\{[^}]*grid-template-columns:/s);
+    assert.match(css, /\.notification-center__item-link\s*\{[^}]*display:\s*grid/s);
     assert.match(css, /overflow-wrap:\s*anywhere/);
     assert.match(css, /\.notification-center__actions \.dropdown-menu\s*\{[^}]*max-width:\s*calc\(100vw - 24px\)/s);
     assert.match(css, /\.swal2-popup\.notification-confirm\s*\{[^}]*max-width:\s*calc\(100vw - 24px\)/s);
-    assert.match(tablet, /\.notification-center__filters\s*\{[^}]*flex-wrap:\s*wrap/s);
-    assert.match(mobile, /\.notification-center__header-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/s);
-    assert.match(mobile, /\.notification-center__project-filter\s*\{[^}]*width:\s*100%/s);
+    assert.match(tablet, /\.notification-center__advanced-filters\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/s);
+    assert.match(mobile, /\.notification-center__advanced-filters\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+    assert.match(mobile, /\.notification-center__item-link\s*\{[^}]*grid-template-columns:/s);
     assert.match(mobile, /-webkit-line-clamp:\s*3/);
     assert.match(blade, /data-bs-boundary="viewport"/);
+    assert.match(blade, /class="notification-center__item-link"/);
+    assert.match(blade, /data-bs-target="#notificationFilters"/);
+    assert.doesNotMatch(blade, />งาน<\/a>/);
     assert.match(js, /swal = globalThis\.Swal/);
     assert.doesNotMatch(js, /\bconfirm\s*\(/);
 });

@@ -25,7 +25,14 @@
     <section class="employee-picker__departments" aria-labelledby="department-picker-title">
         <div class="employee-picker__section-head"><div><h2 id="department-picker-title">เลือกแผนก</h2><p>จำนวนพนักงานที่ใช้งานอยู่ในแต่ละแผนก</p></div></div>
         <div class="department-picker" role="list">
-            <a role="listitem" href="{{ route('reports.employees.index', array_filter(['search' => $search])) }}" class="department-picker__item {{ $departmentId ? '' : 'is-active' }}"><span><i class="bi bi-grid" aria-hidden="true"></i>ทุกแผนก</span><strong>{{ $departments->sum('active_users_count') }} คน</strong></a>
+            {{--
+                "ทุกแผนก" มีความหมายเฉพาะกับผู้ที่ดูได้หลายแผนกจริง
+                หัวหน้าแผนกถูกบังคับให้เห็นแผนกตัวเองแผนกเดียวอยู่แล้ว (ReportController::forcedDepartmentId())
+                ปุ่มนี้จึงกลายเป็นตัวเลือกลวงที่ให้ผลเท่ากับแผนกตัวเอง และทำให้เข้าใจผิดว่ามีสิทธิ์ดูทั้งองค์กร
+            --}}
+            @if($departments->count() > 1)
+                <a role="listitem" href="{{ route('reports.employees.index', array_filter(['search' => $search])) }}" class="department-picker__item {{ $departmentId ? '' : 'is-active' }}"><span><i class="bi bi-grid" aria-hidden="true"></i>ทุกแผนก</span><strong>{{ $departments->sum('active_users_count') }} คน</strong></a>
+            @endif
             @foreach($departments as $department)
                 <a role="listitem" href="{{ route('reports.employees.index', array_filter(['department' => $department->id, 'search' => $search])) }}" class="department-picker__item {{ $departmentId === $department->id ? 'is-active' : '' }}"><span><i class="bi bi-building" aria-hidden="true"></i>{{ $department->department_name }}</span><strong>{{ $department->active_users_count }} คน</strong></a>
             @endforeach

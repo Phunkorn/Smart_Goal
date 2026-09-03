@@ -2,77 +2,63 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เข้าสู่ระบบ | Smart Goals </title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>เข้าสู่ระบบ | Smart Goals</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    @vite('resources/css/pages/auth-login.css')
+    @vite(['resources/css/pages/auth-login.css', 'resources/js/pages/auth/experience.js'])
 </head>
-<body>
+<body class="auth-login">
+    @include('auth.partials.backdrop')
+
     <main class="auth-layout">
-        <section class="brand-panel" aria-label="Smart Goal By PremiumCare">
-            <img src="{{ asset('images/premiuum-care-logo.png') }}" alt="PremiumCare" class="brand-logo">
-            <div class="brand-copy">
-                <div class="brand-eyebrow">PREMIUMCARE WORKFORCE</div>
-                <h1>Smart Goals</h1>
-                <p class="brand-tagline">ระบบจัดการองค์กรและติดตามงาน</p>
-            </div>
-            <p class="brand-description">พื้นที่จัดการงานสำหรับทีม : เช็กงานที่ได้รับมอบหมาย<br>อัปเดตสถานะ และส่งงานตรงเวลา</p>
-        </section>
+        @include('auth.partials.brand', [
+            'heading' => 'Smart Goals',
+            'tagline' => 'ระบบจัดการองค์กรและติดตามงาน ที่ทำให้ทุกคนในทีมเห็นภาพเดียวกัน',
+        ])
 
-        <section class="auth-card">
-            <div class="card-head">
-                <h2>เข้าสู่ระบบ</h2>
-                <p>กรอกชื่อผู้ใช้และรหัสผ่านเพื่อเริ่มต้นการทำงาน</p>
-            </div>
-
-            @if ($errors->any())
-                <div class="alert" role="alert">
-                    <i class="bi bi-exclamation-circle-fill"></i>
-                    <span>{{ $errors->first() }}</span>
+        <div class="auth-stage auth-rise" data-auth-rise data-width="narrow">
+            <section class="auth-card auth-card__enter" data-auth-card>
+                <div class="card-head">
+                    <h2>เข้าสู่ระบบ</h2>
+                    <p>กรอกชื่อผู้ใช้และรหัสผ่านเพื่อเริ่มต้นการทำงาน</p>
                 </div>
-            @endif
 
-            <form method="POST" action="{{ route('login.submit') }}" data-login-form>
-                @csrf
-                <div class="field">
-                    <label for="username">ชื่อผู้ใช้</label>
-                    <div class="control">
-                        <i class="bi bi-person-fill"></i>
-                        <input type="text" id="username" name="username" value="{{ old('username') }}" placeholder="ชื่อผู้ใช้" required autofocus autocomplete="username">
+                @if ($errors->any())
+                    <div class="alert" role="alert">
+                        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+                        <span>{{ $errors->first() }}</span>
                     </div>
-                </div>
+                @endif
 
-                <div class="field">
-                    <label for="password">รหัสผ่าน</label>
-                    <div class="control">
-                        <i class="bi bi-lock-fill"></i>
-                        <input type="password" id="password" name="password" placeholder="กรอกรหัสผ่าน" required autocomplete="current-password">
-                        <button type="button" class="icon-button" onclick="togglePassword('password', this)" aria-label="แสดงหรือซ่อนรหัสผ่าน"><i class="bi bi-eye-fill"></i></button>
+                <form method="POST" action="{{ route('login.submit') }}" data-login-form data-auth-form>
+                    @csrf
+                    <div class="field">
+                        <label for="username">ชื่อผู้ใช้</label>
+                        <div class="control">
+                            <i class="bi bi-person" aria-hidden="true"></i>
+                            <input type="text" id="username" name="username" value="{{ old('username') }}" placeholder="ชื่อผู้ใช้" required autofocus autocomplete="username">
+                        </div>
                     </div>
-                </div>
 
-                <button type="submit" class="submit" data-submit>เข้าสู่ระบบ</button>
-            </form>
-        </section>
+                    <div class="field">
+                        <label for="password">รหัสผ่าน</label>
+                        <div class="control">
+                            <i class="bi bi-lock" aria-hidden="true"></i>
+                            <input type="password" id="password" name="password" placeholder="กรอกรหัสผ่าน" required autocomplete="current-password">
+                            <button type="button" class="icon-button" data-toggle-password="password" aria-label="แสดงรหัสผ่าน"><i class="bi bi-eye-fill" aria-hidden="true"></i></button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn--block" data-submit data-auth-submit data-loading-label="กำลังตรวจสอบ"><span>เข้าสู่ระบบ</span></button>
+                </form>
+
+                </section>
+        </div>
     </main>
 
-    <script>
-        function togglePassword(inputId, button) {
-            const input = document.getElementById(inputId);
-            const icon = button.querySelector('i');
-            const isHidden = input.type === 'password';
-            input.type = isHidden ? 'text' : 'password';
-            icon.classList.toggle('bi-eye-fill', !isHidden);
-            icon.classList.toggle('bi-eye-slash-fill', isHidden);
-        }
-        document.querySelector('[data-login-form]').addEventListener('submit', function () {
-            const button = this.querySelector('[data-submit]');
-            button.disabled = true;
-            button.textContent = 'กำลังเข้าสู่ระบบ…';
-        });
-    </script>
+    @include('auth.partials.toast')
 </body>
 </html>

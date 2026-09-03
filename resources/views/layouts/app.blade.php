@@ -102,8 +102,13 @@
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดงาน</span>
                 </a>
-                <a href="{{ $isDepartmentHead ? route('reports.organization') : route('reports.my') }}"
-                    class="nav-item {{ request()->routeIs($isDepartmentHead ? 'reports.organization' : 'reports.my') ? 'active' : '' }}">
+                {{--
+                    หัวหน้าแผนกต้องเข้าหน้าเลือกประเภทรายงานก่อน (ภาพรวม / รายบุคคล)
+                    เดิมชี้ตรงไป reports.organization ทำให้ข้ามหน้าเลือกไปเลย
+                    และเมนูไม่ขึ้น active เมื่ออยู่หน้ารายงานอื่นในกลุ่มเดียวกัน
+                --}}
+                <a href="{{ $isDepartmentHead ? route('reports.index') : route('reports.my') }}"
+                    class="nav-item {{ request()->routeIs($isDepartmentHead ? 'reports.*' : 'reports.my') ? 'active' : '' }}">
                     <i class="bi bi-clipboard-data"></i>
                     <span class="nav-item__label">{{ $isDepartmentHead ? 'รายงานแผนก' : 'รายงานของฉัน' }}</span>
                 </a>

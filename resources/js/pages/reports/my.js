@@ -1,6 +1,6 @@
 import Chart from 'chart.js/auto';
 import {initializeChartCards, parseChartData} from './chart-lifecycle.js';
-import {priorityChartConfig, workloadChartConfig} from './my-chart-config.js';
+import {workloadChartConfig} from './my-chart-config.js';
 
 /**
  * ใช้วงจรชีวิตกราฟชุดเดียวกับหน้ารายงานฝั่ง admin
@@ -16,13 +16,9 @@ if (page) {
     initializeChartCards({
         root: document,
         ChartCtor: Chart,
-        configs: {
-            workload: workloadChartConfig(chartData.workload),
-            priority: priorityChartConfig(chartData.priority),
-        },
-        definitions: [
-            {id: 'personalWorkloadChart', key: 'workload'},
-            {id: 'personalPriorityChart', key: 'priority'},
-        ],
+        // เหลือกราฟเดียว โดนัทความสำคัญถูกถอดออกจากหน้านี้
+        // พนักงานไม่ได้ใช้สัดส่วนความสำคัญตัดสินใจอะไร และมันทำให้หน้ายาวขึ้นโดยเปล่าประโยชน์
+        configs: {workload: workloadChartConfig(chartData.workload)},
+        definitions: [{id: 'personalWorkloadChart', key: 'workload'}],
     });
 }

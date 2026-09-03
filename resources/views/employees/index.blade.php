@@ -16,7 +16,7 @@
         $roleMeta = [
             'admin' => ['label' => 'Admin', 'icon' => 'bi-shield-check', 'class' => 'admin'],
             'user' => ['label' => 'พนักงาน', 'icon' => 'bi-person-check', 'class' => 'user'],
-            'department_head' => ['label' => 'หัวหน้าแผนก', 'icon' => 'bi-person-badge', 'class' => 'user'],
+            'department_head' => ['label' => 'หัวหน้าแผนก', 'icon' => 'bi-person-badge', 'class' => 'department-head'],
             'viewer' => ['label' => 'ผู้เข้าชม', 'icon' => 'bi-eye', 'class' => 'viewer'],
         ];
         $currentDeptId = request()->filled('department_id') ? (int) request('department_id') : null;
@@ -52,7 +52,7 @@
                 <span class="employee-search__control">
                     <i class="bi bi-search" aria-hidden="true"></i>
                     <input type="search" id="employeeSearchInput" data-employee-search
-                        placeholder="ชื่อ Username อีเมล เบอร์โทร หรือแผนก" autocomplete="off">
+                        placeholder="ชื่อ บัญชีผู้ใช้งาน อีเมล เบอร์โทร หรือแผนก" autocomplete="off">
                 </span>
             </label>
 
@@ -109,7 +109,11 @@
                             </div>
                             <div class="employee-profile__identity">
                                 <h2 title="{{ $employee->name }}">{{ $employee->name }}</h2>
-                                <p>{{ $isSystemAccounts ? $role['label'] : (optional($employee->department)->department_name ?? 'ไม่ได้ระบุแผนก') }}</p>
+                                @if($isSystemAccounts)
+                                    <p>{{ $role['label'] }}</p>
+                                @else
+                                    <p class="employee-department"><i class="bi bi-building" aria-hidden="true"></i><span>แผนก:</span> {{ optional($employee->department)->department_name ?? 'ไม่ได้ระบุ' }}</p>
+                                @endif
                             </div>
                         </div>
                         <span class="employee-status {{ $employee->is_active ? 'is-active' : 'is-inactive' }}">
@@ -127,7 +131,7 @@
                     </div>
 
                     <dl class="employee-meta">
-                        <div><dt><i class="bi bi-person-badge" aria-hidden="true"></i>Username</dt><dd>{{ '@'.$employee->username }}</dd></div>
+                        <div><dt><i class="bi bi-person-badge" aria-hidden="true"></i>บัญชีผู้ใช้งาน</dt><dd>{{ $employee->username }}</dd></div>
                         <div><dt><i class="bi bi-envelope" aria-hidden="true"></i>Email</dt><dd>{{ $employee->email ?: 'ไม่ได้ระบุ' }}</dd></div>
                         <div><dt><i class="bi bi-telephone" aria-hidden="true"></i>โทรศัพท์</dt><dd>{{ $employee->phone ?: 'ไม่ได้ระบุ' }}</dd></div>
                     </dl>
@@ -167,7 +171,7 @@
         <div class="employee-empty-state" data-employee-search-empty hidden>
             <i class="bi bi-search" aria-hidden="true"></i>
             <h2>{{ $isSystemAccounts ? 'ไม่พบบัญชีระบบที่ค้นหา' : 'ไม่พบพนักงานที่ค้นหา' }}</h2>
-            <p>ลองตรวจคำค้น หรือค้นหาด้วยชื่อ Username อีเมล หรือเบอร์โทร</p>
+            <p>ลองตรวจคำค้น หรือค้นหาด้วยชื่อ บัญชีผู้ใช้งาน อีเมล หรือเบอร์โทร</p>
         </div>
     </div>
 

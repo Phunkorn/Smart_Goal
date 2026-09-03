@@ -60,19 +60,11 @@
 
         @include('tasks.partials.viewbar', ['views' => $workspaceViews, 'activeView' => $workspaceView])
 
-        @if(auth()->user()->role === 'user')
-            <label class="mytasks-scope-control" data-task-scope-control {{ in_array($workspaceView, ['calendar', 'meeting'], true) ? 'hidden' : '' }}>
-                <i class="bi bi-funnel" aria-hidden="true"></i>
-                <span class="visually-hidden">เลือกขอบเขตงาน</span>
-                <select data-task-scope aria-label="เลือกขอบเขตงาน">
-                    <option value="all" @selected($taskScope === 'all')>งานทั้งหมด</option>
-                    <option value="responsible" @selected($taskScope === 'responsible')>งานที่ฉันรับผิดชอบ</option>
-                    <option value="created" @selected($taskScope === 'created')>งานที่ฉันสร้าง</option>
-                    <option value="assigned_by_me" @selected($taskScope === 'assigned_by_me')>งานที่ฉันมอบหมาย</option>
-                    <option value="collaborating" @selected($taskScope === 'collaborating')>งานที่ฉันร่วมงาน</option>
-                </select>
-            </label>
-        @endif
+        {{--
+            ตัวกรองใช้ได้ทุกมุมมองรวมทั้งปฏิทิน จึงไม่ซ่อนตามมุมมองอีกต่อไป
+            ของเดิมซ่อนตัวเองตอนสลับไปปฏิทินแล้วปฏิทินก็ไม่กรองด้วย ผู้ใช้จึงไม่รู้ว่าตัวกรองยังอยู่ไหม
+        --}}
+        @include('tasks.partials.scope-menu')
 
         {{-- ปุ่มเดียวที่เปิด modal สร้างโปรเจกต์ ต้องอยู่นอก <nav role="tablist"> เพื่อไม่ให้ปน role="tab" --}}
         @if($showCreateActions)

@@ -619,8 +619,16 @@ class TaskController extends Controller
             'requested_by' => $user->id,
         ]);
 
-        $admins = User::where('role', 'admin')->where('id', '!=', $user->id)->get();
-        app(NotificationService::class)->notify($admins, 'delete_request', 'มีคำขอลบงาน',
+        // หัวหน้าแผนกต้องรู้ว่ามีคนขอลบงานของแผนกตัวเอง แม้การตัดสินใจยังเป็นของผู้ดูแลระบบ
+        $notifications = app(NotificationService::class);
+        $recipientIds = User::where('role', 'admin')->pluck('id')
+            ->merge($notifications->departmentHeadIdsForTask($job))
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn (int $id) => $id === (int) $user->id)
+            ->unique()
+            ->values();
+
+        $notifications->notify($recipientIds, 'delete_request', 'มีคำขอลบงาน',
             $user->name.' ขออนุญาตลบงาน "'.$job->job_topic.'" เหตุผล: '.Str::limit($validated['reason'], 180),
             $job, $user);
 

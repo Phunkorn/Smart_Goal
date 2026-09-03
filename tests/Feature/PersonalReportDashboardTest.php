@@ -123,17 +123,28 @@ class PersonalReportDashboardTest extends TestCase
         $this->assertNull($retired->viewData('filters')['status']);
     }
 
-    public function test_empty_report_renders_all_priority_levels_and_no_nan(): void
+    /**
+     * รายงานของพนักงานเหลือ 3 บล็อก: ตัวเลขที่ลงมือต่อได้ สิ่งที่ต้องรีบ และกราฟภาระงานเดียว
+     *
+     * สัดส่วนความสำคัญและรายการงานที่กำลังจะถึงถูกถอดออก เพราะซ้ำกับหน้างานของฉัน
+     * และพนักงานไม่ได้ใช้ข้อมูลสองอย่างนั้นตัดสินใจอะไร รายงานที่ยาวเกินจะไม่ถูกเปิดอ่าน
+     */
+    public function test_personal_report_keeps_only_the_blocks_a_worker_acts_on(): void
     {
         $response = $this->actingAs($this->user())->get(route('reports.my', ['period' => 'this_month']));
 
         $response->assertOk()
-            ->assertSee('ไม่พบงานตามตัวกรอง')
-            ->assertSee('สำคัญด่วน')
-            ->assertSee('ไม่รีบ ไม่มีกำหนด')
+            ->assertSee('สิ่งที่ต้องรีบ')
+            ->assertSee('ไม่มีงานที่ต้องรีบจัดการ')
             ->assertDontSee('NaN');
+
+        // กราฟเดียวเท่านั้น และไม่มีบล็อกที่ถูกถอดออกหลงเหลือ
+        $this->assertSame(1, substr_count($response->getContent(), 'data-report-chart'));
+        $response->assertDontSee('personalPriorityChart', false);
+        $response->assertDontSee('personal-report__upcoming', false);
+        $response->assertDontSee('งานที่กำลังจะถึง');
+
         $this->assertSame([0, 0, 0], $response->viewData('chartData')['workload']['values']);
-        $this->assertSame([0, 0, 0, 0, 0], $response->viewData('chartData')['priority']['values']);
     }
 
     public function test_csv_export_keeps_the_same_personal_scope(): void

@@ -40,11 +40,16 @@
     }
 }
 
+/*
+ * เว้นที่ด้านล่างเผื่อบรรทัดสรุปของตัวกรอง ซึ่งลอยอยู่ใต้ปุ่มแบบ absolute
+ * ถ้าปล่อยให้บรรทัดสรุปอยู่ในสายงานปกติ กล่องตัวกรองจะสูงสองแถว แล้ว align-items:center
+ * จะดันปุ่มขึ้นไปไม่ตรงแนวกับแถบมุมมอง
+ */
 .my-tasks-page .mytasks-view-controls {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 30px;
 }
 
 .my-tasks-page .mytasks-view-controls .notion-viewbar {
@@ -56,36 +61,187 @@
     margin-inline-start: auto;
 }
 
-.my-tasks-page .mytasks-scope-control {
+/*
+ * ตัวกรองขอบเขตงาน — popover ไม่ใช่ native select
+ *
+ * ของเดิมเป็น <select> ที่ไม่ได้รีเซ็ต appearance เบราว์เซอร์จึงวาดลูกศรของตัวเองซ้อน
+ * กับไอคอนกรวยที่เราใส่ไว้ และ max-width:210px ตัดข้อความตัวเลือกยาว ๆ ทิ้ง
+ */
+.my-tasks-page .mytasks-scope {
+    position: relative;
+    min-width: 0;
+}
+
+.my-tasks-page .mytasks-scope__menu {
+    position: relative;
+}
+
+.my-tasks-page .mytasks-scope__menu > summary {
     display: inline-flex;
     align-items: center;
     gap: 7px;
     min-height: 42px;
-    padding: 0 10px;
+    padding: 0 11px;
     border: 1px solid var(--sg-line);
     border-radius: 10px;
     background: #fff;
-    color: var(--sg-muted);
-}
-
-.my-tasks-page .mytasks-scope-control[hidden] {
-    display: none;
-}
-
-.my-tasks-page .mytasks-scope-control:focus-within {
-    border-color: #93b4fa;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
-}
-
-.my-tasks-page .mytasks-scope-control select {
-    max-width: 210px;
-    border: 0;
-    outline: 0;
-    background: transparent;
     color: var(--sg-ink);
     font-size: 12px;
     font-weight: 650;
+    list-style: none;
     cursor: pointer;
+}
+
+.my-tasks-page .mytasks-scope__menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.my-tasks-page .mytasks-scope__menu > summary:hover,
+.my-tasks-page .mytasks-scope__menu[open] > summary {
+    border-color: #93b4fa;
+}
+
+.my-tasks-page .mytasks-scope__menu > summary:focus-visible {
+    outline: 0;
+    border-color: #93b4fa;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+
+.my-tasks-page .mytasks-scope__current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-scope__caret {
+    margin-left: auto;
+    color: var(--sg-muted);
+    font-size: 11px;
+    transition: transform .18s ease;
+}
+
+.my-tasks-page .mytasks-scope__menu[open] .mytasks-scope__caret {
+    transform: rotate(180deg);
+}
+
+/* popover ยึดกับตัวเปิด ไม่ล็อกการเลื่อนหน้า และไม่บังทั้งจอ */
+.my-tasks-page .mytasks-scope__panel {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    width: 296px;
+    max-width: calc(100vw - 32px);
+    padding: 7px;
+    border: 1px solid var(--sg-line);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 18px 40px -18px rgba(15, 23, 42, .3), 0 2px 6px rgba(15, 23, 42, .06);
+}
+
+.my-tasks-page .mytasks-scope__group {
+    margin: 9px 0 4px;
+    padding: 0 9px;
+    color: var(--sg-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .3px;
+}
+
+.my-tasks-page .mytasks-scope__group:first-child {
+    margin-top: 2px;
+}
+
+.my-tasks-page .mytasks-scope__option {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 8px 9px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--sg-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.my-tasks-page .mytasks-scope__option:hover,
+.my-tasks-page .mytasks-scope__option:focus-visible {
+    outline: 0;
+    background: #f4f8ff;
+}
+
+.my-tasks-page .mytasks-scope__option > i:first-child {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    color: #2f6fe4;
+    font-size: 14px;
+}
+
+.my-tasks-page .mytasks-scope__option span {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 2px;
+}
+
+.my-tasks-page .mytasks-scope__option strong {
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.my-tasks-page .mytasks-scope__option small {
+    color: var(--sg-muted);
+    font-size: 10.5px;
+    line-height: 1.45;
+}
+
+.my-tasks-page .mytasks-scope__tick {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    color: #2f6fe4;
+    font-size: 13px;
+    opacity: 0;
+}
+
+.my-tasks-page .mytasks-scope__option.is-selected {
+    background: #eef4ff;
+}
+
+.my-tasks-page .mytasks-scope__option.is-selected .mytasks-scope__tick {
+    opacity: 1;
+}
+
+/* บรรทัดสรุปว่ากำลังแสดงอะไรอยู่ ป้องกันความสับสนเวลาตารางว่างเพราะตัวกรอง */
+/*
+ * ลอยอยู่ใต้ปุ่มโดยไม่กินความสูงของแถว ปุ่มจึงตรงแนวกับแถบมุมมองพอดี
+ * (พื้นที่ด้านล่างถูกเผื่อไว้ที่ margin-bottom ของ .mytasks-view-controls แล้ว)
+ */
+.my-tasks-page .mytasks-scope__summary {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    max-width: min(420px, 60vw);
+    margin: 0;
+    color: var(--sg-muted);
+    font-size: 11px;
+}
+
+.my-tasks-page .mytasks-scope__summary i {
+    font-size: 11px;
+}
+
+.my-tasks-page .mytasks-scope__summary b {
+    color: var(--sg-ink);
+    font-weight: 700;
+    white-space: nowrap;
 }
 
 @media (max-width: 760px) {
@@ -99,13 +255,28 @@
         margin-inline-start: 0;
     }
 
-    .my-tasks-page .mytasks-scope-control {
+    .my-tasks-page .mytasks-scope__menu > summary {
         justify-content: space-between;
+        width: 100%;
     }
 
-    .my-tasks-page .mytasks-scope-control select {
-        max-width: none;
+    .my-tasks-page .mytasks-scope__panel {
         width: 100%;
+    }
+
+    /*
+     * แถวเรียงเป็นคอลัมน์แล้ว บรรทัดสรุปแบบลอยจะไปทับปุ่มถัดไป
+     * จึงคืนให้อยู่ในสายงานปกติ และเลิกเผื่อที่ว่างด้านล่างที่ไม่ต้องใช้แล้ว
+     */
+    .my-tasks-page .mytasks-view-controls {
+        margin-bottom: 10px;
+    }
+
+    .my-tasks-page .mytasks-scope__summary {
+        position: static;
+        width: auto;
+        max-width: none;
+        margin-top: 6px;
     }
 }
 

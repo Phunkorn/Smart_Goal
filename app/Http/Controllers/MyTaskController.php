@@ -17,6 +17,7 @@ use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProjectCreatorSummary;
 use App\Support\ProtectedMedia;
 use App\Support\TaskCollaboratorOptions;
+use App\Support\TaskScopeOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
@@ -38,12 +39,19 @@ class MyTaskController extends Controller
 {
     use ValidatesAttachments;
 
+    /**
+     * ตัวกรอง "ฉันเกี่ยวข้องกับงานนี้ยังไง" ที่ทุก role ใช้ได้
+     *
+     * จัดเป็นสองแกนให้ผู้ใช้เลือกง่าย: งานที่ต้องลงมือทำเอง (responsible, collaborating)
+     * กับงานที่ต้องติดตามคนอื่น (assigned_by_me, created)
+     * ชื่อเดิมอย่าง "งานที่ฉันมอบหมาย" อ่านได้สองทางในภาษาไทย จึงเปลี่ยนถ้อยคำที่ Blade
+     */
     private const TASK_SCOPES = [
         'all',
         'responsible',
-        'created',
-        'assigned_by_me',
         'collaborating',
+        'assigned_by_me',
+        'created',
     ];
 
     /** มุมมองที่ทุก role ซึ่งเข้าหน้านี้ได้มี panel รองรับจริง */
@@ -75,9 +83,9 @@ class MyTaskController extends Controller
             return redirect()->route('board.index');
         }
 
-        $taskScope = $user->role === 'user'
-            ? $this->normalizeTaskScope($request->query('task_scope'))
-            : 'all';
+        // Admin ก็สร้างและมอบหมายงานเหมือนกัน จึงได้ตัวกรองชุดเดียวกับผู้ใช้ทั่วไป
+        // เดิมถูกกันไว้ที่ role === 'user' ทำให้ Admin ไม่มีทางกรองงานของตัวเองได้เลย
+        $taskScope = $this->normalizeTaskScope($request->query('task_scope'), $user);
 
         $workspaceView = $this->resolveWorkspaceView($request, $user);
 
@@ -127,10 +135,17 @@ class MyTaskController extends Controller
         $activeTasks = $workspaceWorkOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $completedTasks = $workspaceWorkOrders->filter(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $todayTasks = TodayWorkspace::tasks($workspaceWorkOrders);
-        $calendarTasks = $workOrders;
+        // ปฏิทินต้องเคารพตัวกรองเดียวกับตารางและบอร์ด
+        // เดิมใช้ $workOrders ที่ยังไม่กรอง ผู้ใช้จึงกรองแล้วสลับไปปฏิทินแล้วเห็นงานทุกคนโผล่กลับมา
+        $calendarTasks = $workspaceWorkOrders;
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($workOrders->pluck('job_id'), $user);
         $availableCollaborators = TaskCollaboratorOptions::forActor($user);
         $projectCreatorMeta = ProjectCreatorSummary::forListIds($taskLists->pluck('id'));
+
+        // ถ้อยคำของตัวกรองมาจาก Support ตัวเดียว เพื่อให้ทุก role เห็นคำอธิบายชุดเดียวกัน
+        $taskScopeOptions = TaskScopeOptions::forUser($user);
+        $taskScopeActive = TaskScopeOptions::active($user, $taskScope);
+        $taskScopeCount = $workspaceWorkOrders->count();
 
         // ประชุมถูก query ต่อเมื่อผู้ใช้เปิดมุมมองนั้นจริง เพื่อไม่ให้ทุกการเปิดหน้างานมีคิวรีเพิ่ม
         $meetings = app(MeetingQueryService::class);
@@ -162,7 +177,10 @@ class MyTaskController extends Controller
             'projectCreatorMeta',
             'todayTasks',
             'unreadCommentCounts',
-            'taskScope'
+            'taskScope',
+            'taskScopeOptions',
+            'taskScopeActive',
+            'taskScopeCount'
         ));
     }
 
@@ -1033,9 +1051,11 @@ class MyTaskController extends Controller
         return WorkOrder::query()->with(['collaborators'])->involving($user);
     }
 
-    private function normalizeTaskScope(mixed $taskScope): string
+    private function normalizeTaskScope(mixed $taskScope, User $user): string
     {
-        return is_string($taskScope) && in_array($taskScope, self::TASK_SCOPES, true)
+        $available = collect(TaskScopeOptions::forUser($user))->pluck('value')->all();
+
+        return is_string($taskScope) && in_array($taskScope, $available, true)
             ? $taskScope
             : 'all';
     }

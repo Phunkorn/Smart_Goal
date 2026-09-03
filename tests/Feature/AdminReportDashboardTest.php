@@ -56,7 +56,8 @@ class AdminReportDashboardTest extends TestCase
             ->assertSee('report-dashboard-card--workload', false)
             ->assertSee('report-dashboard-card--departments', false)
             ->assertSee('report-dashboard-card--attention', false)
-            ->assertSee('data-chart-kind="line"', false)
+            // แนวโน้มเป็นแท่งคู่ ไม่ใช่เส้น เพราะเส้นลากผ่านเดือนที่ไม่มีข้อมูลแล้วสื่อทิศทางผิด
+            ->assertDontSee('data-chart-kind="line"', false)
             ->assertSee('data-chart-kind="bar"', false)
             ->assertSee('data-chart-kind="doughnut"', false)
             ->assertSee('data-chart-kind="stacked-bar"', false)
@@ -80,6 +81,83 @@ class AdminReportDashboardTest extends TestCase
         $this->actingAs($user)->get(route('reports.organization'))->assertForbidden();
         $this->actingAs($user)->get(route('reports.exportCsv'))->assertForbidden();
         $this->actingAs($user)->get(route('reports.my'))->assertOk();
+    }
+
+    /**
+     * การ์ดตัวเลขต้องเป็นทางเข้าไปกรองทั้งหน้า ไม่ใช่เลขลอยที่ไม่มีกราฟไหนอ้างถึง
+     * และต้องไม่มีการ์ดที่นับซ้อนกับการ์ดอื่น เพราะทำให้ผลรวมไม่ตรงและอ่านแล้วสับสน
+     */
+    public function test_kpi_cards_filter_the_page_and_no_card_double_counts(): void
+    {
+        $admin = $this->user('admin');
+
+        $response = $this->actingAs($admin)->get(route('reports.organization'))->assertOk();
+
+        foreach (['done', 'active', 'late'] as $status) {
+            $response->assertSee(route('reports.organization', ['status' => $status]), false);
+        }
+
+        // การ์ด "ต้องติดตาม" ถูกถอดออกเพราะซ้อนกับ "ล่าช้า"
+        $response->assertDontSee('ล่าชาหรือครบกำหนดใน 3 วัน');
+        $response->assertSee('report-kpi--linked', false);
+
+        // งานกลุ่มนั้นยังอยู่ครบในบล็อกรายการที่กดเปิดงานได้จริง
+        $response->assertSee('report-dashboard-card--attention', false);
+    }
+
+    /** ตัวกรอง active ต้องรวมทุกสถานะที่ยังไม่ปิด และต้องไม่ลากงานที่ปิดแล้วมาด้วย */
+    public function test_active_status_filter_keeps_only_unfinished_work(): void
+    {
+        $admin = $this->user('admin');
+        $department = Department::create(['department_name' => 'Reports']);
+
+        $this->task($department, ['job_topic' => 'Still running', 'job_status' => 2]);
+        $this->task($department, [
+            'job_topic' => 'Already closed',
+            'job_status' => 4,
+            'job_completed_at' => '2026-08-20 00:00:00',
+        ]);
+
+        $this->actingAs($admin)->get(route('reports.organization', ['status' => 'active']))
+            ->assertOk()
+            ->assertViewHas('totalJobs', 1)
+            ->assertViewHas('completedJobs', 0);
+    }
+
+    /**
+     * กราฟ "แผนกไหนงานค้างมากที่สุด" เป็นการเทียบข้ามแผนก
+     * เมื่อรายงานถูกจำกัดไว้ที่แผนกเดียว มันเหลือแท่งเดียวที่ไม่มีอะไรให้เทียบ
+     * ขอบเขตนั้นจึงต้องสลับไปตอบว่า "งานค้างกองอยู่ที่ใคร" แทน
+     */
+    public function test_workload_chart_switches_to_people_when_the_report_is_one_department(): void
+    {
+        $admin = $this->user('admin');
+        $it = Department::create(['department_name' => 'IT']);
+        $sales = Department::create(['department_name' => 'Sales']);
+
+        $busy = $this->user('user', $it);
+        $this->task($it, ['user_id' => $busy->id, 'job_topic' => 'Busy A', 'job_status' => 2]);
+        $this->task($it, ['user_id' => $busy->id, 'job_topic' => 'Busy B', 'job_status' => 3]);
+        $quiet = $this->user('user', $it);
+        $this->task($it, ['user_id' => $quiet->id, 'job_topic' => 'Quiet A', 'job_status' => 2]);
+        $this->task($sales, ['job_topic' => 'Sales task', 'job_status' => 2]);
+
+        // ทุกแผนก: แกนเป็นชื่อแผนก
+        $all = $this->actingAs($admin)->get(route('reports.organization'))->assertOk();
+        $this->assertFalse($all->viewData('workloadByMember'));
+        $this->assertSame(['IT', 'Sales'], $all->viewData('chartData')['workload']['labels']);
+        $all->assertSee('แผนกไหนมีงานค้างมากที่สุด');
+
+        // แผนกเดียว: แกนเป็นรายคน เรียงจากคนที่ค้างมากที่สุด
+        $scoped = $this->actingAs($admin)
+            ->get(route('reports.organization', ['department' => $it->id]))
+            ->assertOk();
+
+        $this->assertTrue($scoped->viewData('workloadByMember'));
+        $this->assertSame([$busy->name, $quiet->name], $scoped->viewData('chartData')['workload']['labels']);
+        $this->assertSame([1, 1], $scoped->viewData('chartData')['workload']['doing']);
+        $scoped->assertSee('งานค้างกองอยู่ที่ใคร');
+        $scoped->assertDontSee('แผนกไหนมีงานค้างมากที่สุด');
     }
 
     public function test_legacy_report_query_redirects_to_organization_with_query_preserved(): void

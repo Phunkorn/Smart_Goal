@@ -1,1 +1,293 @@
-:root{--blue:#244897;--button:#3f6dbd;--line:#8eb8f1}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:'Prompt',sans-serif;background:#ddecfb}.brand-panel{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}.brand-logo{height:auto}.brand-eyebrow{font-weight:700;color:#1162c2}.brand-copy h1{margin:0;color:var(--blue)}.brand-tagline{margin:7px 0 0;color:#3d6ca8;font-size:14px;font-weight:600;line-height:1.35}.brand-description{padding-left:11px;border-left:2px solid #3d7acb;font-size:13px;line-height:1.35}
+/*
+ * ฉากหลังและแถบแบรนด์ที่ใช้ร่วมกันทั้ง 3 หน้า auth (login / setup-password / welcome)
+ *
+ * ทุกอย่างในไฟล์นี้เป็นงานตกแต่งล้วน ไม่มีผลต่อ logic ใด ๆ
+ * เอฟเฟกต์แสงวิ่ง (.auth-bg__sheen) และ orb ลอย เป็นตัวหลักของดีไซน์ชุดนี้
+ */
+
+:root {
+    --ink: #0a1f4d;
+    --brand: #2b57c4;
+    --brand-deep: #1e3e9b;
+    --brand-light: #5b93f5;
+    --accent: #e23b2e;
+    --muted: #6b7fa6;
+    --line: #dbe6fa;
+    --success: #17a673;
+    --success-soft: #e7f7f0;
+    --shadow-card: 0 30px 70px -30px rgba(16, 49, 116, .45), 0 2px 6px rgba(16, 49, 116, .06);
+
+    /* ชื่อเดิมที่ยังถูกอ้างจากหน้าอื่น เก็บไว้ให้ค่าตรงกับชุดสีใหม่ */
+    --blue: var(--brand-deep);
+    --button: var(--brand);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    color: var(--ink);
+    font-family: "IBM Plex Sans Thai", "Segoe UI", sans-serif;
+    background: #eef5ff;
+}
+
+/* ---------- ฉากหลัง ---------- */
+
+.auth-bg {
+    position: fixed;
+    z-index: 0;
+    overflow: hidden;
+    inset: 0;
+}
+
+.auth-bg::after {
+    content: "";
+    position: absolute;
+    background:
+        linear-gradient(115deg, rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, 0) 45%),
+        linear-gradient(180deg, #f4f9ff 0%, #dfebff 55%, #cfe0ff 100%);
+    inset: 0;
+}
+
+.auth-bg__grid {
+    position: absolute;
+    z-index: 2;
+    background-image:
+        linear-gradient(rgba(43, 87, 196, .07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(43, 87, 196, .07) 1px, transparent 1px);
+    background-size: 64px 64px;
+    inset: -10%;
+    mask-image: radial-gradient(90% 70% at 50% 40%, #000 30%, transparent 100%);
+    -webkit-mask-image: radial-gradient(90% 70% at 50% 40%, #000 30%, transparent 100%);
+    transition: transform .9s cubic-bezier(.16, 1, .3, 1);
+}
+
+.auth-bg__orb {
+    position: absolute;
+    z-index: 1;
+    border-radius: 50%;
+    opacity: .55;
+    filter: blur(70px);
+}
+
+.auth-bg__orb--a {
+    width: 46vw;
+    height: 46vw;
+    top: -14vw;
+    left: -8vw;
+    background: radial-gradient(circle at 35% 35%, #8fbcff, #3e74e8);
+    animation: auth-drift-a 22s ease-in-out infinite;
+}
+
+.auth-bg__orb--b {
+    width: 38vw;
+    height: 38vw;
+    top: 6vh;
+    right: -6vw;
+    background: radial-gradient(circle at 60% 40%, #bfe0ff, #6ea8f7);
+    animation: auth-drift-b 28s ease-in-out infinite;
+}
+
+.auth-bg__orb--c {
+    width: 34vw;
+    height: 34vw;
+    bottom: -16vw;
+    left: 26vw;
+    background: radial-gradient(circle at 50% 50%, #d6e6ff, #95b7ff);
+    opacity: .5;
+    animation: auth-drift-c 25s ease-in-out infinite;
+}
+
+@keyframes auth-drift-a { 50% { transform: translate3d(7vw, 5vh, 0) scale(1.12); } }
+@keyframes auth-drift-b { 50% { transform: translate3d(-6vw, 7vh, 0) scale(.9); } }
+@keyframes auth-drift-c { 50% { transform: translate3d(5vw, -6vh, 0) scale(1.08); } }
+
+/* แสงวิ่งพาดผ่านฉากหลังเป็นจังหวะ */
+.auth-bg__sheen {
+    position: absolute;
+    top: -40%;
+    left: -30%;
+    z-index: 3;
+    width: 60%;
+    height: 180%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .5), transparent);
+    pointer-events: none;
+    transform: rotate(12deg);
+    animation: auth-sheen 14s linear infinite;
+}
+
+@keyframes auth-sheen {
+    0% { left: -40%; }
+    60%, 100% { left: 130%; }
+}
+
+/* ---------- โครงหน้า ---------- */
+
+.auth-layout {
+    position: relative;
+    z-index: 5;
+    display: grid;
+    min-height: 100vh;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 40px;
+    padding: 38px 5vw;
+}
+
+.brand-mark {
+    position: absolute;
+    top: 34px;
+    left: 5vw;
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+}
+
+.brand-mark__logo {
+    width: 122px;
+    height: auto;
+    object-fit: contain;
+}
+
+.brand-panel {
+    max-width: 520px;
+}
+
+.brand-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 8px;
+    border: 1px solid rgba(43, 87, 196, .18);
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .7);
+    color: var(--brand);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    backdrop-filter: blur(6px);
+}
+
+.brand-eyebrow__pulse {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+}
+
+.brand-eyebrow__pulse::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    background: var(--success);
+    inset: 0;
+    animation: auth-pulse 2.4s ease-out infinite;
+}
+
+@keyframes auth-pulse {
+    0% { transform: scale(1); opacity: .7; }
+    100% { transform: scale(3.2); opacity: 0; }
+}
+
+.brand-panel h1 {
+    margin: 18px 0 10px;
+    background: linear-gradient(100deg, var(--brand-deep) 10%, #3f7ae8 55%, var(--brand-deep) 90%);
+    background-size: 220% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    font-family: "Anuphan", sans-serif;
+    font-size: clamp(40px, 5.6vw, 76px);
+    font-weight: 700;
+    letter-spacing: -2px;
+    line-height: .98;
+    animation: auth-shift 9s ease-in-out infinite;
+}
+
+@keyframes auth-shift { 50% { background-position: 100% 0; } }
+
+.brand-tagline {
+    max-width: 34ch;
+    margin: 0;
+    color: #3d5480;
+    font-size: 19px;
+    line-height: 1.6;
+}
+
+.brand-description {
+    position: absolute;
+    bottom: 38px;
+    left: 5vw;
+    max-width: 420px;
+    padding-left: 14px;
+    border-left: 3px solid var(--brand);
+    color: #4a6087;
+    font-size: 14.5px;
+    line-height: 1.7;
+}
+
+/* ---------- การเข้าหน้า ---------- */
+
+.auth-rise {
+    opacity: 0;
+    transform: translateY(22px);
+}
+
+.auth-rise.is-in {
+    animation: auth-rise .9s cubic-bezier(.16, 1, .3, 1) forwards;
+}
+
+@keyframes auth-rise { to { opacity: 1; transform: none; } }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1100px) {
+    .auth-layout {
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        grid-template-rows: max-content max-content;
+        align-content: start;
+        gap: 44px;
+        padding: 110px 24px 90px;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .brand-mark { left: 24px; }
+    .brand-panel { max-width: none; }
+    .brand-description { position: static; margin-top: 6px; max-width: none; }
+}
+
+@media (max-width: 640px) {
+    .auth-layout { padding: 96px 16px 84px; gap: 32px; }
+    .brand-mark { top: 26px; left: 16px; }
+    .brand-mark__logo { width: 96px; }
+    .brand-panel h1 { font-size: clamp(34px, 11vw, 46px); letter-spacing: -1px; }
+    .brand-tagline { font-size: 16px; }
+    .brand-description { font-size: 13px; }
+}
+
+/*
+ * เคารพการตั้งค่าลดการเคลื่อนไหวของระบบ — ฉากหลังชุดนี้เคลื่อนไหวตลอดเวลา
+ * ผู้ใช้ที่ไวต่อการเคลื่อนไหวต้องปิดได้จริง ไม่ใช่แค่ลดความเร็ว
+ */
+@media (prefers-reduced-motion: reduce) {
+    .auth-bg__orb,
+    .auth-bg__sheen,
+    .brand-panel h1,
+    .brand-eyebrow__pulse::after {
+        animation: none;
+    }
+
+    .auth-bg__grid { transition: none; }
+    .auth-rise { opacity: 1; transform: none; }
+    .auth-rise.is-in { animation: none; }
+}
