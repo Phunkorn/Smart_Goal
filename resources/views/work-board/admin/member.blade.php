@@ -76,6 +76,7 @@
         data-context="admin-member"
         data-view-history="true"
         data-subject-user-id="{{ $member->id }}"
+        data-task-scope="{{ $taskScope }}"
         data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
         data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
         data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
@@ -84,7 +85,15 @@
         data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
         data-current-user-name="{{ auth()->user()->name }}"
         data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.profile', auth()->user()) : '' }}">
-        @include('tasks.partials.viewbar', ['views' => $workspaceViews, 'activeView' => $workspaceView])
+        <div class="mytasks-view-controls">
+            @include('tasks.partials.viewbar', ['views' => $workspaceViews, 'activeView' => $workspaceView])
+
+            {{--
+                ตัวกรองขอบเขตงานตัวเดียวกับหน้า "งานของฉัน" — ห้ามคัดลอก markup ใหม่
+                ถ้อยคำถูกเขียนในมุมของสมาชิกที่กำลังถูกดูโดย TaskScopeOptions::forSubject()
+            --}}
+            @include('tasks.partials.scope-menu')
+        </div>
 
         {{-- server ตัดสินมุมมองตั้งแต่ HTML แรก จึงไม่มีการกระพริบตอนเปิดหน้า --}}
         <section class="notion-database" data-view="{{ $workspaceView }}">
@@ -96,11 +105,19 @@
             </div> --}}
             <div class="notion-table-scroll">
                 <div class="project-board" data-project-board>
-                    @include('tasks.partials.project-board-card', compact('allTasks', 'manageableTaskLists', 'projectCreatorMeta', 'showQuickAdd', 'taskLinkMode', 'workspaceContext'))
+                    @include('tasks.partials.project-board-card', [
+                        'allTasks' => $allTasks,
+                        'taskLists' => $workspaceTaskLists,
+                        'manageableTaskLists' => $manageableTaskLists,
+                        'projectCreatorMeta' => $projectCreatorMeta,
+                        'showQuickAdd' => $showQuickAdd,
+                        'taskLinkMode' => $taskLinkMode,
+                        'workspaceContext' => $workspaceContext,
+                    ])
                     <div class="project-board-empty" data-board-empty hidden><i class="bi bi-kanban"></i><p>ไม่พบงานตามตัวกรอง</p></div>
                 </div>
                 <div class="mytasks-kanban-view" data-table-kanban>
-                    @include('tasks.partials.table-kanban', ['allTasks' => $todayTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'projectCreatorMeta' => $projectCreatorMeta, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
+                    @include('tasks.partials.table-kanban', ['allTasks' => $workspaceTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'projectCreatorMeta' => $projectCreatorMeta, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
                 </div>
                 @include('tasks.partials.calendar')
                 @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))

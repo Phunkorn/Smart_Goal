@@ -1,6 +1,7 @@
 /* Authenticated application shell entry point. Import order mirrors the
    historical monolithic stylesheet and is part of the cascade contract. */
 @import '../foundations/tokens.css';
+@import '../foundations/typography.css';
 @import './layout/sidebar.css';
 @import './layout/topbar.css';
 @import './layout/shell.css';

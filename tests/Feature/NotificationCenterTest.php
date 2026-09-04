@@ -37,13 +37,17 @@ class NotificationCenterTest extends TestCase
             ->assertSee('data-bell-notification-count', false);
 
         $known = $this->user();
-        foreach (range(1, 5) as $index) $this->notice($known, 'known '.$index, now());
+        foreach (range(1, 5) as $index) {
+            $this->notice($known, 'known '.$index, now());
+        }
         $this->actingAs($known)->get(route('notifications.index'))->assertOk()
             ->assertSee('data-sidebar-notification-count>5</span>', false)
             ->assertSee('data-bell-notification-count>5</span>', false);
 
         $large = $this->user();
-        foreach (range(1, 100) as $index) $this->notice($large, 'large '.$index, now());
+        foreach (range(1, 100) as $index) {
+            $this->notice($large, 'large '.$index, now());
+        }
         $this->actingAs($large)->get(route('notifications.index'))->assertOk()
             ->assertSee('data-sidebar-notification-count>99+</span>', false)
             ->assertSee('data-bell-notification-count>99+</span>', false);
@@ -98,7 +102,9 @@ class NotificationCenterTest extends TestCase
     public function test_dropdown_uses_persisted_age_rules_limit_and_exact_unread_count(): void
     {
         $user = $this->user();
-        foreach (range(1, 16) as $index) $this->notice($user, 'unread '.$index, now()->subDays(100));
+        foreach (range(1, 16) as $index) {
+            $this->notice($user, 'unread '.$index, now()->subDays(100));
+        }
         $recentRead = $this->notice($user, 'recent read', now()->subDays(6), now());
         $oldRead = $this->notice($user, 'old read', now()->subDays(8), now());
 
@@ -296,6 +302,38 @@ class NotificationCenterTest extends TestCase
         $this->assertDatabaseHas('system_notifications', ['work_order_id' => $future->job_id, 'type' => 'deadline_due_today']);
     }
 
+    /**
+     * ศูนย์การแจ้งเตือนแสดงครั้งละ 10 รายการ
+     *
+     * ก่อนหน้านี้แสดงครั้งละ 25 รายการ ซึ่งยาวเกินกว่าจะกวาดตาหาเรื่องที่ต้องทำได้
+     * และตัวแบ่งหน้าใช้ markup ของ Bootstrap 5 ที่โปรเจกต์โหลดอยู่แล้ว
+     * ไม่ใช่ตัวตั้งต้นของ Laravel ที่เขียนด้วยคลาสของ Tailwind และฝัง <svg> ลูกศรมาเอง
+     * (ซึ่งถูกวาดตามขนาดตั้งต้นของ svg จนลูกศรใหญ่เต็มหน้าจอ เพราะไม่มี Tailwind มาคุมขนาด)
+     */
+    public function test_notification_centre_pages_ten_rows_with_bootstrap_pagination(): void
+    {
+        $user = $this->user();
+        foreach (range(1, 12) as $index) {
+            $this->notice($user, 'แจ้งเตือน '.$index, now()->subMinutes($index));
+        }
+
+        $response = $this->actingAs($user)->get(route('notifications.index'))->assertOk();
+
+        $this->assertSame(10, NotificationService::CENTER_PAGE_SIZE);
+        $this->assertCount(10, $response->viewData('items')->items());
+        $this->assertSame(12, $response->viewData('items')->total());
+
+        $content = $response->getContent();
+        // ตัวแบ่งหน้าของ Bootstrap 5 ไม่มี <svg> ลูกศรฝังมาเหมือนตัวตั้งต้นที่ใช้ Tailwind
+        $paginationStart = strpos($content, 'notification-center__pagination');
+        $this->assertNotFalse($paginationStart);
+        $pagination = substr($content, $paginationStart);
+        $this->assertStringContainsString('class="pagination', $pagination);
+        $this->assertStringContainsString('page-link', $pagination);
+        $this->assertStringNotContainsString('<svg', $pagination);
+        $this->assertStringContainsString('page=2', $pagination);
+    }
+
     public function test_filters_pagination_and_bangkok_grouping_are_deterministic(): void
     {
         $user = $this->user();
@@ -325,7 +363,9 @@ class NotificationCenterTest extends TestCase
         $user = $this->user();
         $now = CarbonImmutable::parse('2026-08-20 12:00', 'Asia/Bangkok');
         CarbonImmutable::setTestNow($now);
-        foreach ([0, 1, 5, 20, 31] as $days) $this->notice($user, 'group '.$days, $now->subDays($days)->utc());
+        foreach ([0, 1, 5, 20, 31] as $days) {
+            $this->notice($user, 'group '.$days, $now->subDays($days)->utc());
+        }
 
         $this->actingAs($user)->get(route('notifications.index'))->assertOk()
             ->assertSee('วันนี้')->assertSee('เมื่อวาน')->assertSee('7 วันที่ผ่านมา')
@@ -357,6 +397,7 @@ class NotificationCenterTest extends TestCase
     {
         $notice = SystemNotification::create(['user_id' => $user->id, 'type' => 'system', 'title' => $title, 'read_at' => $readAt]);
         $notice->forceFill(['created_at' => $createdAt, 'updated_at' => $createdAt])->saveQuietly();
+
         return $notice;
     }
 

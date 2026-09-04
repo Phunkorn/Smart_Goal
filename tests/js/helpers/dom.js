@@ -26,6 +26,7 @@ export function mountDom(html = '<!doctype html><html><body></body></html>', {ur
         window: globalThis.window,
         Element: globalThis.Element,
         HTMLElement: globalThis.HTMLElement,
+        Event: globalThis.Event,
         CustomEvent: globalThis.CustomEvent,
         CSS: globalThis.CSS,
         requestAnimationFrame: globalThis.requestAnimationFrame,
@@ -35,6 +36,13 @@ export function mountDom(html = '<!doctype html><html><body></body></html>', {ur
     globalThis.window = window;
     globalThis.Element = window.Element;
     globalThis.HTMLElement = window.HTMLElement;
+    /*
+     * ต้องเป็น Event ของ jsdom ไม่ใช่ของ Node
+     * โค้ด production หลายที่ dispatch ด้วย new Event('change', {bubbles: true}) ตรง ๆ
+     * ถ้าปล่อยให้ globalThis.Event เป็นคลาสของ Node jsdom จะไม่รู้จัก event นั้น
+     * listener จึงไม่ถูกเรียก และเส้นทางนั้นจะดูเหมือนผ่านทั้งที่ไม่เคยถูกทดสอบจริง
+     */
+    globalThis.Event = window.Event;
     globalThis.CustomEvent = window.CustomEvent;
     globalThis.CSS = window.CSS;
     globalThis.requestAnimationFrame = window.requestAnimationFrame;

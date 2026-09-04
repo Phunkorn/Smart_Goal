@@ -245,11 +245,6 @@
             white-space: nowrap;
         }
 
-        .sidebar-foot__logout {
-            margin: 0;
-            flex: 0 0 auto;
-        }
-
         /* ---------- สถานะย่อ: เดสก์ท็อปเท่านั้น ---------- */
         @media (min-width: 992px) {
             body.sidebar-collapsed .sidebar {
@@ -332,4 +327,25 @@
                 gap: .5rem;
                 padding: .8rem .5rem;
             }
+        }
+
+        /*
+         * เครื่องหมายประจำแอปเป็นโลโก้จริงของบริษัท ไม่ใช่ไอคอนอาคารของ Bootstrap Icons อีกต่อไป
+         *
+         * โลโก้เป็นภาพสี่เหลี่ยมพื้นขาว จึงไม่ใช้พื้นไล่สีน้ำเงินเดิมมารองอีกชั้น
+         * (ตัวอักษรบนโลโก้จะจมหายไปกับพื้นเข้ม) ใช้พื้นขาวกับกรอบบางแทน
+         * และ object-fit:contain เพื่อไม่ให้สัดส่วนโลโก้ถูกยืด ไม่ว่ากล่องจะเป็นขนาดใด
+         */
+        .brand-mark {
+            overflow: hidden;
+            padding: 3px;
+            border: 1px solid var(--border);
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(22, 35, 61, .08);
+        }
+
+        .brand-mark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }

@@ -77,7 +77,17 @@ if (modal && form) {
                 throw new Error(Object.values(payload.errors || {}).flat()[0] || payload.message || 'สร้างงานไม่สำเร็จ');
             }
 
-            window.location.reload();
+            /*
+             * งานที่เพิ่งสร้างจะเห็นได้ชัดที่สุดในมุมมองบอร์ด เพราะบอร์ดจัดกลุ่มตามโปรเจกต์
+             * ผู้ใช้จึงเห็นรายการใหม่อยู่ใต้โปรเจกต์ที่เพิ่งเลือกไปทันที
+             * ของเดิม reload() ทิ้งไว้ที่มุมมองเดิม ซึ่งถ้าเป็นมุมมองปฏิทินหรือประชุม
+             * ผู้ใช้จะไม่เห็นอะไรเปลี่ยนเลยหลังกดสร้าง
+             *
+             * ใช้ query string ตัวเดิมของหน้าต่อ เพื่อไม่ให้ตัวกรองขอบเขตงานที่เลือกไว้หายไป
+             */
+            const destination = new URL(window.location.href);
+            destination.searchParams.set('view', 'board');
+            window.location.assign(destination);
         } catch (error) {
             errorBox.textContent = error.message;
             errorBox.hidden = false;

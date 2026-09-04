@@ -132,3 +132,34 @@ test('a non contiguous gap still marks the months inside the fetched span', () =
 
     assert.deepEqual(range.keys, ['2026-12', '2027-01', '2027-02']);
 });
+
+/*
+ * การ์ด "กำหนดส่งและนัดหมายในเดือนนี้" ต้องไล่วันที่จากต้นเดือนไปท้ายเดือน
+ *
+ * ของเดิมเรียงด้วย eventOrder() ซึ่งใช้วันเริ่มงานเป็นหลัก ถูกสำหรับปฏิทินที่วาดเป็นเส้นช่วงงาน
+ * แต่แถวในการ์ดนี้แสดง "กำหนดส่ง" ของงาน รายการจึงดูเหมือนข้ามวันไปมา
+ * เช่นงานที่เริ่มวันที่ 1 แต่ครบกำหนดวันที่ 20 ไปนั่งอยู่ก่อนงานที่ครบกำหนดวันที่ 5
+ */
+test('the month agenda runs in calendar order of the date each row shows', () => {
+    const agenda = buildCalendarAgenda([
+        task(1, '2026-08-01', '2026-08-20'),
+        task(2, '2026-08-04', '2026-08-05'),
+        meeting(3, '2026-08-03', '2026-08-03'),
+        task(4, '2026-08-02', '2026-08-12'),
+    ], 2026, 7, '2026-08-01');
+
+    assert.deepEqual(
+        agenda.monthEvents.map((event) => event.id),
+        ['meeting-3', 'task-2', 'task-4', 'task-1'],
+    );
+});
+
+test('two rows on the same day fall back to a stable order instead of shuffling', () => {
+    const agenda = buildCalendarAgenda([
+        task(2, '2026-08-01', '2026-08-10'),
+        task(1, '2026-08-05', '2026-08-10'),
+    ], 2026, 7, '2026-08-01');
+
+    // วันเดียวกันเรียงด้วยวันเริ่มก่อน แล้วจึงชื่อและ id ผลลัพธ์จึงเหมือนเดิมทุกครั้งที่วาดใหม่
+    assert.deepEqual(agenda.monthEvents.map((event) => event.id), ['task-2', 'task-1']);
+});

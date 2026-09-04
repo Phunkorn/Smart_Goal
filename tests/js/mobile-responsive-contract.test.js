@@ -111,7 +111,12 @@ test('mobile role chip keeps a compact visible label with an accessible name', a
     assert.match(mobile, /\.role-chip__label\s*\{[^}]*display:\s*inline[^}]*font-size:\s*\.72rem/s);
     assert.match(shared, /\.role-chip__label\s*\{[^}]*min-width:\s*0[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis/s);
     assert.match(shared, /\.role-chip i\s*\{[^}]*flex:\s*0 0 auto/s);
-    assert.match(blade, /class="role-chip \{\{ \$roleChipClass \}\}" aria-label="\{\{ \$roleChipText \}\}" title="\{\{ \$roleChipText \}\}"/);
+    // ป้ายบทบาทถูกจำกัดให้เห็นเฉพาะจอเล็ก เพราะบนเดสก์ท็อปท้าย Sidebar บอกบทบาทอยู่แล้ว
+    assert.match(blade, /class="role-chip role-chip--mobile-only \{\{ \$roleChipClass \}\}" aria-label="\{\{ \$roleChipText \}\}" title="\{\{ \$roleChipText \}\}"/);
+    assert.match(
+        await css('resources/css/components/layout/topbar.css'),
+        /@media \(min-width: 992px\) \{\s*\.role-chip--mobile-only \{\s*display: none/s,
+    );
     assert.match(blade, /<span class="role-chip__label">\{\{ \$roleChipText \}\}<\/span>/);
 });
 

@@ -797,3 +797,95 @@
         transition: none;
     }
 }
+
+
+/* ============================================================================
+ * คอลัมน์ที่กางรายการเพิ่ม
+ *
+ * ย้ายมาจาก <style> ที่ pages/mytasks/kanban-card-limit.js เคยฉีดใส่ head เอง
+ * ========================================================================== */
+
+/*
+ * การ์ดต้องยุบตามความกว้างของคอลัมน์ได้
+ *
+ * .mytasks-kanban__cards เป็น grid ซึ่ง grid item มี min-width: auto โดยปริยาย
+ * การ์ดจึงกว้างไม่ต่ำกว่าเนื้อหาที่ยาวที่สุดในตัวมัน (ชื่องานหรือชื่อโปรเจกต์ยาว ๆ)
+ * และล้นออกนอกคอลัมน์ พอคอลัมน์ถูกกางแล้วมี overflow-y: auto
+ * CSS จะบังคับให้ overflow-x กลายเป็น auto ตามไปด้วย (แกนหนึ่งไม่ visible อีกแกนก็ไม่ได้)
+ * จึงเกิดแถบเลื่อนแนวนอนที่กินความสูงและตัดการ์ดใบล่างสุดขาดครึ่ง
+ */
+.my-tasks-page .mytasks-kanban__cards > * {
+    min-width: 0;
+}
+
+.my-tasks-page .mytasks-kanban__card-head strong,
+.my-tasks-page .mytasks-kanban__project-name,
+.my-tasks-page .mytasks-kanban__assignee-name {
+    overflow-wrap: anywhere;
+}
+
+.my-tasks-page .mytasks-kanban__cards.is-expanded {
+    /* ระบุทั้งสองแกนชัดเจน ไม่ปล่อยให้ overflow-x ถูกอนุมานเป็น auto */
+    overflow: hidden auto;
+    max-height: min(62vh, 620px);
+    /* เว้นที่ให้เงาของการ์ดใบล่างสุด ไม่ให้ดูเหมือนถูกตัดขาดที่ขอบ */
+    padding-right: 4px;
+    padding-bottom: 6px;
+    /* เลื่อนจนสุดคอลัมน์แล้วต้องไม่ลามไปเลื่อนทั้งหน้า */
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, .2) transparent;
+}
+
+.my-tasks-page .mytasks-kanban__cards.is-expanded::-webkit-scrollbar {
+    width: 4px;
+}
+
+.my-tasks-page .mytasks-kanban__cards.is-expanded::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.my-tasks-page .mytasks-kanban__cards.is-expanded::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(100, 116, 139, .18);
+}
+
+.my-tasks-page .mytasks-kanban__cards.is-expanded:hover::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, .34);
+}
+
+/*
+ * ปุ่ม "ดูเพิ่ม / ย่อรายการ" ต้องอยู่นอกกล่องที่เลื่อนเสมอ
+ * ไม่เช่นนั้นผู้ใช้ต้องเลื่อนลงไปจนสุดก่อนถึงจะเจอปุ่มย่อกลับ
+ */
+.my-tasks-page .mytasks-kanban__more {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 10px;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #2563eb;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.my-tasks-page .mytasks-kanban__more:hover {
+    background: #eef4ff;
+    color: #1d4ed8;
+}
+
+.my-tasks-page .mytasks-kanban__more:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .2);
+}
+
+.my-tasks-page .mytasks-kanban__more[hidden] {
+    display: none;
+}

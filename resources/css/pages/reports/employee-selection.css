@@ -6,3 +6,87 @@
 @media(max-width:1100px){.employee-picker__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.employee-picker__header{flex-direction:column}.employee-picker__filters{grid-template-columns:minmax(0,1fr) 1fr}.employee-picker__search{grid-column:1/-1}.employee-picker__grid{grid-template-columns:minmax(0,1fr)}.department-picker__item{min-width:150px}}
 @media(max-width:380px){.employee-picker__filters{grid-template-columns:minmax(0,1fr)}.employee-picker__search{grid-column:1}.employee-picker__filters .btn{width:100%}}
+
+/* ============================================================================
+ * หน้าเลือกพนักงานใช้สีของธีมหลัก ไม่ใช่สีเขียวชุดของตัวเอง
+ *
+ * หน้านี้เคยใช้เขียว #159459 / #16a963 เป็นสีเน้นทั้งหน้า ซึ่งไม่มีที่อื่นในระบบใช้เลย
+ * (--accent ของธีมคือน้ำเงิน #1E4FD6) เปิดจาก Sidebar สีน้ำเงินเข้ามาแล้วสีกระโดด
+ * และหัวหน้าแผนกซึ่งเข้าหน้านี้บ่อยที่สุดต้องสลับบริบทสายตาทุกครั้ง
+ * ประกาศไว้ท้ายไฟล์เพื่อทับค่าเดิมโดยไม่ต้องแก้ทุกบรรทัดของสไตล์ที่ย่อไว้แล้ว
+ * ========================================================================== */
+
+.employee-picker__eyebrow,
+.employee-card__action,
+.employee-card__avatar {
+    color: var(--accent-strong, #16389E);
+}
+
+.employee-card__avatar {
+    background: var(--accent-dim, #E7EDFC);
+}
+
+.department-picker__item.is-active {
+    border-color: var(--accent, #1E4FD6);
+    background: var(--accent-dim, #E7EDFC);
+    color: var(--accent-strong, #16389E);
+    box-shadow: inset 0 0 0 1px rgba(30, 79, 214, .16);
+}
+
+.department-picker__item.is-active i,
+.department-picker__item.is-active strong {
+    color: var(--accent-strong, #16389E);
+}
+
+.department-picker__item:focus-visible,
+.employee-card__action:focus-visible {
+    outline: 3px solid rgba(30, 79, 214, .22);
+    outline-offset: 3px;
+}
+
+/* ============================================================================
+ * แถบค้นหา
+ *
+ * ของเดิมช่องค้นหาเป็น minmax(220px, 1fr) จึงยืดเต็มความกว้างของหน้า
+ * บนจอ 1080px ขึ้นไปกลายเป็นแถบยาวเกือบ 1,500px สำหรับคำค้นสั้น ๆ อย่างชื่อคน
+ * และปุ่ม "ค้นหา" ถูกผลักไปติดขอบขวาสุด ห่างจากช่องที่เพิ่งพิมพ์จนต้องกวาดตาตามไปทั้งหน้าจอ
+ * ตอนนี้จำกัดความกว้างของช่อง แล้วให้ปุ่มอยู่ติดกันเป็นกลุ่มเดียว
+ * ========================================================================== */
+
+.employee-picker__filters {
+    grid-template-columns: minmax(0, 460px) auto auto;
+    justify-content: start;
+}
+
+.employee-picker__filters .btn-primary {
+    min-width: 104px;
+    border-color: var(--accent, #1E4FD6);
+    background: var(--accent, #1E4FD6);
+    font-weight: 700;
+}
+
+.employee-picker__filters .btn-primary:hover,
+.employee-picker__filters .btn-primary:focus-visible {
+    border-color: var(--accent-strong, #16389E);
+    background: var(--accent-strong, #16389E);
+}
+
+.employee-picker__search input:focus {
+    border-color: var(--accent, #1E4FD6);
+    box-shadow: 0 0 0 3px rgba(30, 79, 214, .14);
+}
+
+@media (max-width: 760px) {
+    /* จอแคบไม่มีพื้นที่เหลือให้จำกัดความกว้างอีก ช่องค้นหาจึงกินเต็มบรรทัดของตัวเอง */
+    .employee-picker__filters {
+        grid-template-columns: minmax(0, 1fr) auto;
+        justify-content: stretch;
+    }
+}
+
+@media (max-width: 380px) {
+    /* จอแคบสุดเรียงทุกช่องลงมาเป็นแถวเดียว — ประกาศซ้ำเพราะกฎด้านบนของไฟล์นี้ถูกทับไปแล้ว */
+    .employee-picker__filters {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

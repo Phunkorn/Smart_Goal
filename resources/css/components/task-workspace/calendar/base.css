@@ -480,6 +480,106 @@
     pointer-events: none;
 }
 
+/* ============================================================================
+ * แถบเครื่องมือของปฏิทินรวมทุกปุ่มควบคุมไว้แถบเดียว
+ *
+ * ใช้กริดสองแถวที่ประกาศไว้ชัดเจน แทนการปล่อยให้ flex-wrap ตัดสินเอง
+ *   แถวบน: คำอธิบายสี (ซ้าย) กับปุ่มเปลี่ยนเดือน (ขวา)
+ *   แถวล่าง: ตัวเลือกการแสดงผล เต็มความกว้าง
+ *
+ * ของเดิมทั้งสามกลุ่มอยู่ในสายเดียวกันแล้ว flex-wrap ตัดตรงไหนก็ได้ตามความกว้างที่เหลือ
+ * ปุ่ม "คืนค่า / วันนี้ / เดือน / ปี" จึงถูกดันตกไปคนละบรรทัดกับที่ควรอยู่
+ * กริดทำให้ตำแหน่งของทั้งสามกลุ่มคงที่ทุกความกว้าง
+ * ========================================================================== */
+
+.my-tasks-page .mytasks-calendar__toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px 16px;
+}
+
+/*
+ * คำอธิบายสีเป็นข้อมูลอ้างอิง กินความกว้างของตัวเองได้เต็มแถวบน
+ * ส่วนแถวล่างคือ "ปุ่มที่กดได้" ทั้งหมด: ตัวเลือกการแสดงผล (ซ้าย) กับปุ่มเปลี่ยนเดือน (ขวา)
+ *
+ * ของเดิมปุ่มเปลี่ยนเดือนอยู่แถวบนคู่กับคำอธิบายสี ส่วนตัวเลือกการแสดงผลถูกดันลงไปแถวล่าง
+ * ทั้งที่ทั้งสองกลุ่มเป็นปุ่มควบคุมปฏิทินเหมือนกัน จึงควรอยู่ระดับเดียวกัน
+ */
+.my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__legend {
+    grid-column: 1 / -1;
+    grid-row: 1;
+}
+
+.my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__displaybar {
+    grid-column: 1;
+    grid-row: 2;
+    padding-top: 10px;
+    border-top: 1px solid #eef2f8;
+}
+
+.my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__controls {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    padding-top: 10px;
+    border-top: 1px solid #eef2f8;
+}
+
+/* ป้ายกำกับของแต่ละกลุ่มตัวเลือกย่อได้ก่อน เพราะปุ่มเป็นสิ่งที่ต้องกดจริง */
+.my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__displaybar {
+    column-gap: 12px;
+}
+
+.my-tasks-page .mytasks-calendar__option-label {
+    font-size: 9px;
+}
+
+/*
+ * ปุ่มเปลี่ยนเดือนทุกปุ่มสูงเท่ากันและกว้างพอ ๆ กัน จึงอ่านเป็นแถบเดียวกัน
+ * ขนาดถูกลดจาก 34px เป็น 30px เพื่อให้ทั้งกลุ่มแคบลงราว 60px และไม่เบียดคำอธิบายสี
+ */
+.my-tasks-page .mytasks-calendar__navigation button,
+.my-tasks-page .mytasks-calendar__navigation label {
+    height: 30px;
+}
+
+.my-tasks-page .mytasks-calendar__navigation button {
+    min-width: 34px;
+    padding: 0 9px;
+    font-size: 10px;
+}
+
+.my-tasks-page .mytasks-calendar__navigation select {
+    padding: 0 24px 0 8px;
+    font-size: 10px;
+}
+
+.my-tasks-page [data-calendar-month] {
+    min-width: 92px;
+}
+
+.my-tasks-page [data-calendar-year] {
+    min-width: 64px;
+}
+
+/* คำอธิบายสีเป็นข้อมูลอ้างอิง ไม่ใช่ปุ่ม จึงย่อได้ก่อนใครเมื่อพื้นที่ไม่พอ */
+.my-tasks-page .mytasks-calendar__legend-item {
+    padding: 4px 8px;
+    font-size: 10px;
+}
+
+/*
+ * วันนี้ใช้สีฟ้าของระบบ ไม่ใช่สีม่วง
+ *
+ * สีม่วงในปฏิทินนี้ถูกใช้เป็นโทนของ "การประชุม" อยู่แล้ว (is-tone-meeting)
+ * วงกลมวันนี้ที่เป็นสีม่วงด้วยจึงอ่านสับสนว่าวันนั้นมีประชุม
+ */
+.my-tasks-page .mytasks-calendar__day.is-today .mytasks-calendar__day-number {
+    background: #2563eb;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, .28);
+}
+
 @media (max-width: 760px) {
     .my-tasks-page .notion-viewbar {
         display: flex;
@@ -492,11 +592,24 @@
         padding-inline: 8px;
     }
 
+    /*
+     * แถบเครื่องมือเป็นกริดสองแถวบนจอกว้าง จอแคบยุบเหลือคอลัมน์เดียว
+     * เรียงเป็น คำอธิบายสี → ตัวเลือกการแสดงผล → ปุ่มเปลี่ยนเดือน ตามลำดับการตัดสินใจ
+     */
     .my-tasks-page .mytasks-calendar__toolbar {
-        align-items: stretch;
-        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr);
         gap: 10px;
         padding: 12px;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__displaybar {
+        grid-row: 2;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__controls {
+        grid-column: 1;
+        grid-row: 3;
+        justify-self: stretch;
     }
 
     .my-tasks-page .mytasks-calendar__legend {

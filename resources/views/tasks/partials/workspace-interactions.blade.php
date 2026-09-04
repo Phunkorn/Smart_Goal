@@ -284,7 +284,7 @@
                 <span class="task-workspace__cell-icon tone-date"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
                 <span class="task-workspace__cell-body">
                     <span class="task-workspace__cell-label">วันที่เริ่ม</span>
-                    <input type="date" name="job_start_at" class="task-workspace__date" required>
+                    <input type="date" data-date-picker name="job_start_at" class="task-workspace__date" required>
                 </span>
             </label>
 
@@ -292,7 +292,7 @@
                 <span class="task-workspace__cell-icon tone-date"><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
                 <span class="task-workspace__cell-body">
                     <span class="task-workspace__cell-label">กำหนดส่ง</span>
-                    <input type="date" name="job_due_at" class="task-workspace__date" required>
+                    <input type="date" data-date-picker name="job_due_at" class="task-workspace__date" required>
                 </span>
             </label>
 

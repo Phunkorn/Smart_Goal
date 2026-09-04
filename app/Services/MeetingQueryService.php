@@ -115,12 +115,23 @@ final class MeetingQueryService
      * ห้ามกรองสิทธิ์ฝั่ง frontend และห้ามดึงทั้งระบบโดยไม่มีขอบเขต
      * เมื่อมี subject ให้จำกัดซ้ำเฉพาะประชุมที่บุคคลนั้นจัดหรือเข้าร่วม สำหรับหน้าตรวจงานสมาชิก
      *
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * ไม่มี subject แปลว่านี่คือ "ปฏิทินของฉัน" จึงต้องใช้ผู้ที่ล็อกอินเป็น subject
+     * visibleQuery() อย่างเดียวไม่พอสำหรับหัวหน้าแผนก เพราะมันคืนประชุมทุกใบที่คนในแผนก
+     * เป็นผู้จัดหรือเข้าร่วม ปฏิทินส่วนตัวของหัวหน้าจึงขึ้นประชุมที่ตัวเองไม่ได้จัด
+     * และไม่ได้ถูกเชิญ ปนกับนัดหมายจริงของตัวเองจนแยกไม่ออก
+     *
+     * Admin เป็นข้อยกเว้นที่ตั้งใจ: ปฏิทินของ Admin คือปฏิทินภาพรวมทั้งองค์กร
+     * (ดู MyTasksCalendarMeetingsTest::test_endpoint_scopes_results_per_viewer)
+     *
+     * ส่วนหน้ารายการประชุมยังใช้ visibleQuery() เต็มขอบเขตตามเดิม เพราะเป็นหน้ากำกับดูแล
+     *
+     * @return Collection<int, array<string, mixed>>
      */
     public function calendarMeetings(User $viewer, CarbonInterface $from, CarbonInterface $to, ?User $subject = null): Collection
     {
         $windowStart = CarbonImmutable::instance($from)->utc();
         $windowEnd = CarbonImmutable::instance($to)->utc();
+        $subject ??= $viewer->role === 'admin' ? null : $viewer;
 
         return $this->visibleQuery($viewer)
             ->when($subject, function (Builder $query) use ($subject): void {

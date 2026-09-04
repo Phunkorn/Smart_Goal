@@ -1,4 +1,5 @@
 @import '../components/people-selector.css';
+@import '../components/date-picker.css';
 @import './meetings/index.css';
 @import './meetings/form.css';
 @import './meetings/responsive.css';

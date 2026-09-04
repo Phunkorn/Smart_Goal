@@ -1,0 +1,280 @@
+/*
+ * ตัวเลือกวันที่ที่ใช้ร่วมกันทุกบทบาท (พนักงาน / หัวหน้าแผนก / ผู้ดูแลระบบ)
+ *
+ * เป็น popover จึงลอยอยู่ระดับ body ไม่ถูกตัดโดย overflow ของตารางบอร์ด
+ * และไม่มี backdrop ไม่ล็อกการเลื่อนหน้า z-index สูงกว่าเมนูสถานะ/ความสำคัญของบอร์ด
+ * แต่ยังต่ำกว่า modal ของหน้างาน (1200) เพื่อไม่ให้ทับกล่องที่เปิดมันขึ้นมา
+ */
+.sg-date-picker {
+    position: fixed;
+    z-index: 1190;
+    width: 268px;
+    padding: 12px;
+    border: 1px solid #d8e1ee;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, .18);
+    color: #1f2d44;
+    font-family: inherit;
+}
+
+.sg-date-picker[hidden] {
+    display: none;
+}
+
+.sg-date-picker__header {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 74px 30px;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.sg-date-picker__nav {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #dde5f0;
+    border-radius: 9px;
+    background: #fff;
+    color: #5a6b85;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.sg-date-picker__nav:hover {
+    border-color: #a9c3ed;
+    background: #f2f7ff;
+    color: #2563eb;
+}
+
+.sg-date-picker__month,
+.sg-date-picker__year {
+    min-width: 0;
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid #dde5f0;
+    border-radius: 9px;
+    outline: 0;
+    background: #fff;
+    color: #1f2d44;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.sg-date-picker__month:focus-visible,
+.sg-date-picker__year:focus-visible,
+.sg-date-picker__nav:focus-visible,
+.sg-date-picker__day:focus-visible,
+.sg-date-picker__today:focus-visible,
+.sg-date-picker__close:focus-visible {
+    outline: 0;
+    border-color: #7aa5ee;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+}
+
+.sg-date-picker__weekdays,
+.sg-date-picker__grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+}
+
+.sg-date-picker__weekdays {
+    margin-bottom: 4px;
+}
+
+.sg-date-picker__weekdays span {
+    display: grid;
+    place-items: center;
+    height: 22px;
+    color: #90a0b8;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.sg-date-picker__day {
+    display: grid;
+    height: 32px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    color: #22314a;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 550;
+    cursor: pointer;
+}
+
+.sg-date-picker__day:hover:not(:disabled) {
+    background: #eef4ff;
+    color: #1d4ed8;
+}
+
+/* วันนอกเดือนที่กำลังดูยังกดได้ แต่ต้องจางกว่าเสมอเพื่อไม่ให้แย่งสายตา */
+.sg-date-picker__day.is-outside {
+    color: #b3bece;
+}
+
+.sg-date-picker__day:disabled {
+    color: #cfd6e1;
+    cursor: not-allowed;
+}
+
+/* วันนี้ใช้กรอบ ส่วนวันที่เลือกไว้ใช้พื้นทึบ ทั้งสองจึงอยู่ด้วยกันได้โดยไม่กลบกัน */
+.sg-date-picker__day.is-today {
+    border-color: #2563eb;
+    color: #1d4ed8;
+    font-weight: 750;
+}
+
+.sg-date-picker__day.is-selected {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 750;
+}
+
+.sg-date-picker__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eef2f8;
+}
+
+.sg-date-picker__today,
+.sg-date-picker__close {
+    min-height: 30px;
+    padding: 0 12px;
+    border: 1px solid #dde5f0;
+    border-radius: 9px;
+    background: #fff;
+    color: #4a5b76;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.sg-date-picker__today {
+    border-color: #bcd2f5;
+    background: #f2f7ff;
+    color: #1d4ed8;
+}
+
+.sg-date-picker__today:disabled {
+    border-color: #e5eaf2;
+    background: #f6f8fb;
+    color: #a9b4c5;
+    cursor: not-allowed;
+}
+
+.sg-date-picker__today:hover:not(:disabled),
+.sg-date-picker__close:hover {
+    border-color: #a9c3ed;
+    background: #eef4ff;
+    color: #1d4ed8;
+}
+
+/*
+ * ช่องวันที่บนบอร์ดต้องดูกดได้ ไม่ใช่ข้อความเปล่า ๆ
+ * ของเดิมไม่มีกรอบเลย ผู้ใช้จึงไม่รู้ว่าตรงนี้แก้ไขได้จนกว่าจะเผลอกดโดน
+ */
+.my-tasks-page .board-start-editable,
+.my-tasks-page .board-due-editable {
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+}
+
+.my-tasks-page .board-start-editable:hover,
+.my-tasks-page .board-due-editable:hover,
+.my-tasks-page .board-start-editable:focus-within,
+.my-tasks-page .board-due-editable:focus-within {
+    border-color: #bcd2f5;
+    background: #f4f8ff;
+}
+
+@media (max-width: 420px) {
+    /* จอแคบให้กล่องกว้างเท่าหน้าจอลบขอบ เพื่อไม่ให้ตารางวันที่ถูกบีบจนกดพลาด */
+    .sg-date-picker {
+        width: calc(100vw - 24px);
+        max-width: 300px;
+    }
+}
+
+/*
+ * ช่องวันที่ที่มองเห็นได้ (โมดัลงานและโมดัลขอเพิ่มงาน) ต้องไม่มีปุ่มปฏิทินของเบราว์เซอร์ซ้อน
+ * มิฉะนั้นในหน้าเดียวกันจะมีไอคอนปฏิทินสองอัน และกดคนละอันได้ปฏิทินคนละแบบ
+ * ค่าที่พิมพ์เองยังใช้ได้ตามเดิม เพราะเราซ่อนเฉพาะปุ่มเรียกปฏิทิน ไม่ได้ปิดการพิมพ์
+ */
+input[data-date-picker]::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
+input[data-date-picker] {
+    cursor: pointer;
+}
+
+/*
+ * แถวเลือกเวลา — มีเฉพาะช่องประเภท datetime-local (หน้าประชุม)
+ *
+ * งานในโปรเจกต์ใช้ความละเอียดระดับวัน แถวนี้จึงถูกซ่อนไว้ที่นั่น
+ * วางไว้ใต้ตารางวันเพื่อให้อ่านตามลำดับการตัดสินใจ: เลือกวันก่อน แล้วค่อยเลือกเวลา
+ */
+.sg-date-picker__time {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eef2f8;
+    color: #4a5b76;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.sg-date-picker__time[hidden] {
+    display: none;
+}
+
+.sg-date-picker__time-input {
+    min-width: 0;
+    height: 32px;
+    flex: 0 1 130px;
+    padding: 0 8px;
+    border: 1px solid #dde5f0;
+    border-radius: 9px;
+    outline: 0;
+    background: #fff;
+    color: #1f2d44;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    text-align: center;
+}
+
+.sg-date-picker__time-input:focus-visible {
+    outline: 0;
+    border-color: #7aa5ee;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+}
+
+/*
+ * ช่องประชุมอยู่ใน Bootstrap modal ซึ่งมี z-index 1055
+ * popover จึงต้องสูงกว่านั้น ไม่เช่นนั้นปฏิทินจะถูกกล่องประชุมทับจนกดไม่ได้
+ */
+.sg-date-picker {
+    z-index: 1190;
+}

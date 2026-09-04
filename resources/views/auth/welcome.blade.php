@@ -1,9 +1,7 @@
 @php
     $user = auth()->user();
     $isAdmin = $user?->role === 'admin';
-    $roleLabel = $user?->isDepartmentHead()
-        ? 'หัวหน้าแผนก'
-        : ($isAdmin ? 'ผู้ดูแลระบบ' : ($user?->role === 'viewer' ? 'ผู้เข้าชม' : 'พนักงาน'));
+    $roleLabel = \App\Support\RoleLabel::for($user);
     $department = $user?->department?->department_name ?? 'ยังไม่ได้ระบุแผนก';
     $nextRoute = $isAdmin ? route('board.index') : route('mytasks.index');
 @endphp

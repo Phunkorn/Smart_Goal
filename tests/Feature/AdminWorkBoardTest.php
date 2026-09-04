@@ -502,8 +502,29 @@ class AdminWorkBoardTest extends TestCase
         $this->assertNotFalse($nextDayTableStart);
         $this->assertNotFalse($nextDayCalendarStart);
         $nextDayTableHtml = substr($nextDayHtml, $nextDayTableStart, $nextDayCalendarStart - $nextDayTableStart);
-        $this->assertStringNotContainsString('data-id='.chr(34).$completed->job_id.chr(34), $nextDayTableHtml);
         $this->assertStringContainsString('data-id='.chr(34).$paused->job_id.chr(34), $nextDayTableHtml);
+        /*
+         * งานที่ปิดไปแล้วต้องหลุดจากคอลัมน์ "เสร็จแล้ว" ของตารางเมื่อขึ้นวันใหม่
+         *
+         * คอลัมน์นี้ตอบคำถามว่า "วันนี้ปิดอะไรไปบ้าง" ไม่ใช่คลังงานที่ปิดแล้วทั้งหมด
+         * ถ้าไม่ตัดตามวัน มันจะยาวขึ้นเรื่อย ๆ จนกลบงานที่ยังต้องทำในคอลัมน์อื่น
+         * ประวัติงานที่ปิดแล้วยังอยู่ครบในกลุ่ม "งานที่เสร็จแล้ว" ของมุมมองบอร์ด
+         *
+         * ส่วนงานที่ยังไม่ปิดจะไม่ถูกตัดด้วยเงื่อนไขวันเลย แม้จะยังไม่ถึงวันเริ่มก็ตาม
+         * (ดู MyTasksTaskScopeTest::test_table_view_lists_every_task_the_scope_summary_counts)
+         */
+        $this->assertStringNotContainsString('data-id='.chr(34).$completed->job_id.chr(34), $nextDayTableHtml);
+
+        // และตารางของผู้ใช้กับของ Admin ต้องตัดสินเรื่องนี้เหมือนกันเสมอ
+        $nextDayUserHtml = $this->actingAs($member)->get(route('mytasks.index'))->assertOk()->getContent();
+        $nextDayUserTableStart = strpos($nextDayUserHtml, 'data-table-kanban');
+        $nextDayUserTableHtml = substr(
+            $nextDayUserHtml,
+            $nextDayUserTableStart,
+            strpos($nextDayUserHtml, 'data-calendar', $nextDayUserTableStart) - $nextDayUserTableStart
+        );
+        $this->assertStringContainsString('data-id='.chr(34).$paused->job_id.chr(34), $nextDayUserTableHtml);
+        $this->assertStringNotContainsString('data-id='.chr(34).$completed->job_id.chr(34), $nextDayUserTableHtml);
 
         $this->travelTo(Carbon::parse('2026-08-21 12:00:00'));
         $lateResponse = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
@@ -615,6 +636,7 @@ class AdminWorkBoardTest extends TestCase
             'job_due_at' => now()->addDay(),
         ]);
     }
+
     public function test_task_added_by_admin_stays_in_its_project_after_member_opens_my_tasks(): void
     {
         $department = Department::create(['department_name' => 'Retention IT']);
@@ -688,5 +710,4 @@ class AdminWorkBoardTest extends TestCase
         $this->assertSame('Loose admin assignment', $project->name);
         $this->assertSame($project->id, (int) $job->fresh()->work_order_list_id);
     }
-
 }

@@ -41,11 +41,8 @@
         $isAdmin = $currentUser?->role === 'admin';
         $isViewer = $currentUser?->role === 'viewer';
         $isDepartmentHead = $currentUser?->isDepartmentHead() ?? false;
-        $roleLabel = $isDepartmentHead ? 'หัวหน้าแผนก' : match ($currentUser?->role) {
-            'admin' => 'ผู้ดูแลระบบ',
-            'viewer' => 'ผู้เข้าชม',
-            default => 'พนักงาน',
-        };
+        // ชื่อบทบาทมาจาก Support ตัวเดียวเสมอ เพื่อไม่ให้หน้าไหนลืมธง is_department_head
+        $roleLabel = \App\Support\RoleLabel::for($currentUser);
         $notificationService = app(\App\Services\NotificationService::class);
         $systemNotifications = $notificationService->dropdown($currentUser);
         $notificationCount = $notificationService->unreadCount($currentUser);
@@ -54,7 +51,8 @@
 
     <aside class="sidebar" id="appSidebar">
         <div class="sidebar-brand">
-            <span class="brand-mark" aria-hidden="true"><i class="bi bi-buildings"></i></span>
+            {{-- โลโก้บริษัทอยู่ใน public/images จึงเสิร์ฟตรงได้ ไม่ต้องผ่าน MediaController ที่มีไว้สำหรับไฟล์ส่วนตัว --}}
+            <span class="brand-mark" aria-hidden="true"><img src="{{ asset('images/premiuum-care-logo.png') }}" alt=""></span>
             <div class="brand-text">
                 <div class="brand-name">Smart Goals</div>
                 <div class="brand-subtitle">ระบบจัดการองค์กร</div>
@@ -195,12 +193,11 @@
                 <div class="role">{{ $roleLabel }}{{ optional($currentUser->department)->department_name ? ' · ' . optional($currentUser->department)->department_name : '' }}</div>
             </div>
 
-            <form method="POST" action="{{ route('logout') }}" class="sidebar-foot__logout">
-                @csrf
-                <button type="submit" class="icon-btn icon-btn-compact" title="ออกจากระบบ">
-                    <i class="bi bi-box-arrow-right"></i>
-                </button>
-            </form>
+            {{--
+                ปุ่มออกจากระบบอยู่ที่ Topbar ถัดจากไอคอนแจ้งเตือน ไม่ใช่ที่นี่
+                ท้าย Sidebar เหลือไว้เพื่อบอกว่า "กำลังใช้งานในนามใคร" อย่างเดียว
+                และเมื่อ Sidebar ถูกย่อหรือปิดบนจอเล็ก ปุ่มออกจากระบบต้องยังกดได้อยู่
+            --}}
         </div>
     </aside>
     <div class="sidebar-backdrop" data-sidebar-close></div>
@@ -234,7 +231,11 @@
                     : optional($currentUser?->department)->department_name;
                 $roleChipText = $roleLabel.($roleChipDepartment ? ' '.$roleChipDepartment : '');
             @endphp
-            <span class="role-chip {{ $roleChipClass }}" aria-label="{{ $roleChipText }}" title="{{ $roleChipText }}">
+            {{--
+                ป้ายบทบาทซ้ำกับท้าย Sidebar ซึ่งบอกทั้งชื่อ บทบาท และแผนกอยู่แล้วบนเดสก์ท็อป
+                จึงแสดงเฉพาะจอเล็กที่ Sidebar ถูกยุบเป็น off-canvas และมองไม่เห็นท้ายเมนู
+            --}}
+            <span class="role-chip role-chip--mobile-only {{ $roleChipClass }}" aria-label="{{ $roleChipText }}" title="{{ $roleChipText }}">
                 <i class="bi {{ $roleChipIcon }}"></i>
                 <span class="role-chip__label">{{ $roleChipText }}</span>
             </span>
@@ -277,6 +278,15 @@
                     <a href="{{ route('notifications.index') }}" class="notification-more d-block text-center">ดูการแจ้งเตือนทั้งหมด</a>
                 </div>
             </div>
+
+            {{-- ออกจากระบบเป็น mutation จึงต้องเป็น POST ที่มี CSRF ไม่ใช่ลิงก์ --}}
+            <form method="POST" action="{{ route('logout') }}" class="topbar-logout">
+                @csrf
+                <button type="submit" class="icon-btn topbar-logout__button" title="ออกจากระบบ" aria-label="ออกจากระบบ">
+                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                    <span class="topbar-logout__label">ออกจากระบบ</span>
+                </button>
+            </form>
         </div>
     </header>
 

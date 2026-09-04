@@ -119,8 +119,12 @@ class MyTaskController extends Controller
             ->get();
 
         $workspaceWorkOrders = $workOrders;
-        if ($taskScope !== 'all') {
-            $workspaceTaskIds = $this->applyTaskScope($this->baseWorkOrderQuery(), $user, $taskScope)
+        if (TaskScopeOptions::isBusinessDayScope($taskScope)) {
+            // "งานของวันนี้" ตัดสินด้วยวันทำงานไทย จึงกรองในหน่วยความจำด้วยนิยามเดียวกับ TodayWorkspace
+            $workspaceWorkOrders = TodayWorkspace::tasks($workOrders);
+        } elseif ($taskScope !== 'all') {
+            // ตัวกรองทำได้แค่ "แคบลง" จากสิ่งที่หน้านี้แสดงอยู่ จึงต้องตั้งต้นจากชุดเดียวกัน
+            $workspaceTaskIds = $this->applyTaskScope(WorkOrder::query()->visibleInProjectsFor($user), $user, $taskScope)
                 ->pluck('job_id');
             $workspaceWorkOrders = $workOrders
                 ->whereIn('job_id', $workspaceTaskIds)
@@ -137,6 +141,18 @@ class MyTaskController extends Controller
         $activeTasks = $workspaceWorkOrders->reject(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $completedTasks = $workspaceWorkOrders->filter(fn (WorkOrder $workOrder) => (int) $workOrder->job_status === 4)->values();
         $todayTasks = TodayWorkspace::tasks($workspaceWorkOrders);
+        /*
+         * มุมมอง "ตาราง" แสดงงานที่ยังไม่ปิดครบทุกใบในขอบเขตที่กรองไว้
+         *
+         * ของเดิมส่ง $todayTasks (ผ่าน TodayWorkspace::tasks()) เข้าไปวาดคอลัมน์สถานะ
+         * งานที่ยังไม่ถึงวันเริ่มจึงถูกตัดทิ้งเงียบ ๆ ผู้ใช้เห็นตัวกรองบอกว่ามี 1 งาน
+         * แต่ทุกคอลัมน์เป็น 0 และไม่มีอะไรบอกว่าถูกซ่อนเพราะเหตุใด
+         *
+         * ส่วนคอลัมน์ "เสร็จแล้ว" ถูกตัดตามวันโดย TodayWorkspace::workspaceTable()
+         * เพราะมันคือช่องบอกว่า "วันนี้ปิดอะไรไปบ้าง" ไม่ใช่คลังงานที่ปิดแล้วทั้งหมด
+         * ประวัติงานที่ปิดแล้วอยู่ครบในกลุ่ม "งานที่เสร็จแล้ว" ของมุมมองบอร์ด
+         */
+        $workspaceTasks = TodayWorkspace::workspaceTable($workspaceWorkOrders);
         // ปฏิทินต้องเคารพตัวกรองเดียวกับตารางและบอร์ด
         // เดิมใช้ $workOrders ที่ยังไม่กรอง ผู้ใช้จึงกรองแล้วสลับไปปฏิทินแล้วเห็นงานทุกคนโผล่กลับมา
         $calendarTasks = $workspaceWorkOrders;
@@ -178,6 +194,7 @@ class MyTaskController extends Controller
             'availableCollaborators',
             'projectCreatorMeta',
             'todayTasks',
+            'workspaceTasks',
             'unreadCommentCounts',
             'taskScope',
             'taskScopeOptions',
@@ -997,15 +1014,16 @@ class MyTaskController extends Controller
     }
 
     /**
-     * Return every project list that the current user owns OR that contains at
-     * least one work order the current user can access. This keeps project
-     * visibility aligned with baseWorkOrderQuery() for same-department
-     * assignments, admin assignments and accepted collaborator access.
+     * โปรเจกต์ทุกใบที่ผู้ใช้เป็นเจ้าของ หรือที่มีงานซึ่งผู้ใช้เห็นได้อย่างน้อยหนึ่งใบ
+     *
+     * ต้องอิงชุดเดียวกับที่หน้านี้แสดงจริง คือ scopeVisibleInProjectsFor()
+     * ไม่ใช่ involving() ซึ่งแคบกว่า มิฉะนั้นหัวหน้าแผนกจะได้งานของลูกทีมมาแต่ไม่มีหัวโปรเจกต์
+     * ให้จัดกลุ่ม งานทั้งกลุ่มจึงหายไปจากบอร์ดทั้งที่คิวรีคืนมาแล้ว
      */
     private function taskListsForCurrentUser()
     {
         $user = Auth::user();
-        $accessibleListIds = $this->baseWorkOrderQuery()
+        $accessibleListIds = WorkOrder::query()->visibleInProjectsFor($user)
             ->whereNotNull('work_order_list_id')
             ->pluck('work_order_list_id')
             ->filter()
@@ -1071,26 +1089,12 @@ class MyTaskController extends Controller
 
     private function normalizeTaskScope(mixed $taskScope, User $user): string
     {
-        $available = collect(TaskScopeOptions::forUser($user))->pluck('value')->all();
-
-        return is_string($taskScope) && in_array($taskScope, $available, true)
-            ? $taskScope
-            : 'all';
+        return TaskScopeOptions::normalize(TaskScopeOptions::forUser($user), $taskScope);
     }
 
     private function applyTaskScope(Builder $query, User $user, string $taskScope): Builder
     {
-        return match ($taskScope) {
-            'responsible' => $query->where('user_id', $user->id),
-            'created' => $query->where('created_by', $user->id),
-            'assigned_by_me' => $query
-                ->where('assigned_by', $user->id)
-                ->where('user_id', '!=', $user->id),
-            'collaborating' => $query->whereHas('collaborators', fn (Builder $collaboratorQuery) => $collaboratorQuery
-                ->where('users.id', $user->id)
-                ->where('work_order_collaborators.status', 'accepted')),
-            default => $query,
-        };
+        return TaskScopeOptions::apply($query, $user, $taskScope);
     }
 
     private function isCompletedLocked(WorkOrder $workOrder): bool

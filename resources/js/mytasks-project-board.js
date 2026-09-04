@@ -123,6 +123,26 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         filterBoard(false);
     };
 
+    /*
+     * วาดป้ายวันที่ทั้งสองข้างใหม่จาก dataset ของแถว
+     *
+     * ต้องวาดทั้งคู่เสมอ เพราะการแก้ปลายทางข้างเดียวอาจลากอีกข้างขยับตามไปด้วย
+     * (เลื่อนวันเริ่มไปหลังกำหนดส่ง กำหนดส่งจะถูกดันตาม และกลับกัน)
+     */
+    const thaiDate = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'short', year: 'numeric'});
+
+    const paintScheduleLabels = (task) => {
+        [['start', '[data-board-start-label]'], ['due', '[data-board-due-label]']].forEach(([field, selector]) => {
+            const value = task.dataset[field] || '';
+            const input = task.querySelector(`[data-board-field="${field}"]`);
+            if (input) input.value = value;
+
+            const label = task.querySelector(selector);
+            const date = new Date(`${value}T00:00:00`);
+            if (label && value && !Number.isNaN(date.getTime())) label.textContent = thaiDate.format(date);
+        });
+    };
+
     const tasksForProject = (header) => header
         ? [...cardGrid.querySelectorAll('[data-board-task]')].filter((task) => task.dataset.projectKey === header.dataset.projectKey)
         : [];
@@ -496,12 +516,15 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             return;
         }
 
-        const dateControl = event.target.closest('.board-start-editable, .board-due-editable');
-        if (dateControl && !event.target.matches('input')) {
-            const input = dateControl.querySelector('input[type="date"]');
-            input?.showPicker?.();
-            input?.focus();
-        }
+        /*
+         * ช่องวันที่ไม่เรียกปฏิทินของเบราว์เซอร์อีกต่อไป
+         *
+         * ปฏิทินของเบราว์เซอร์ใช้ ค.ศ. ตามเครื่องผู้ใช้ วางตำแหน่งเองโดยไม่อิงกับปุ่มที่กด
+         * และ API ที่ใช้เรียกมันก็ไม่มีในทุกเบราว์เซอร์ บางเครื่องจึงกดแล้วเงียบไปเฉย ๆ
+         * ตอนนี้ใช้ตัวเลือกวันที่ของระบบ (resources/js/components/date-picker.js)
+         * ซึ่งผูกไว้แบบ delegated ที่ document ผ่าน data-date-picker บนตัว <input> เดิม
+         * มันเขียนค่าลง input ตัวเดิมแล้ว dispatch 'change' ตัวจัดการด้านล่างจึงทำงานเหมือนเดิม
+         */
 
         const collapse = event.target.closest('[data-board-collapse]');
         if (collapse) {
@@ -627,6 +650,8 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         if (!control || !task) return;
         const field = control.dataset.boardField;
         const id = task.dataset.taskId;
+        // ข้อความแจ้งเฉพาะกรณีที่ระบบขยับปลายทางอีกข้างให้เอง ปกติจะว่างและใช้ข้อความมาตรฐาน
+        let scheduleNotice = '';
         control.disabled = true;
 
         try {
@@ -648,43 +673,55 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                 wrapper.classList.add({1:'priority-low',2:'priority-medium',3:'priority-high'}[control.value] || 'priority-medium');
                 synchronizeTaskSource(workspace, id, {priority: Number(control.value)});
             } else if (field === 'start') {
-                if (!control.value || (task.dataset.due && control.value > task.dataset.due)) {
-                    throw new Error('วันที่เริ่มต้องไม่เกินกำหนดส่ง');
-                }
+                if (!control.value) throw new Error('ต้องเลือกวันที่เริ่ม');
+
+                /*
+                 * เลื่อนวันเริ่มไปไกลกว่ากำหนดส่งได้ โดยลากกำหนดส่งตามไปด้วย
+                 *
+                 * ของเดิมช่องวันเริ่มถูกครอบด้วย max = กำหนดส่ง ปฏิทินจึงปิดทุกวันหลังกำหนดส่ง
+                 * งานที่เริ่มและครบกำหนดวันเดียวกัน (ซึ่งเป็นค่าเริ่มต้นของงานที่สร้างใหม่)
+                 * จะเลื่อนวันเริ่มไปข้างหน้าไม่ได้เลย ต้องไปแก้กำหนดส่งก่อนทุกครั้ง
+                 * ตอนนี้เลือกวันไหนก็ได้ แล้วปลายทางอีกข้างขยับตามให้ พร้อมบอกผู้ใช้ว่าขยับให้แล้ว
+                 * กติกา "กำหนดส่งต้องไม่ก่อนวันเริ่ม" ยังถูกบังคับที่ server เหมือนเดิม
+                 */
+                const shiftedDue = task.dataset.due && control.value > task.dataset.due
+                    ? control.value
+                    : task.dataset.due;
+                const dueMoved = shiftedDue !== task.dataset.due;
+
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
                     job_start_at: control.value,
-                    job_due_at: task.dataset.due,
+                    job_due_at: shiftedDue,
                 });
                 if (data.transitions) management[String(id)].transitions = data.transitions;
                 task.dataset.start = data.job_start_at ?? control.value;
                 task.dataset.due = data.job_due_at ?? task.dataset.due;
                 task.dataset.status = String(data.job_status ?? task.dataset.status);
-                const date = new Date(`${task.dataset.start}T00:00:00`);
-                const label = control.closest('.board-start')?.querySelector('[data-board-start-label]');
-                if (label && !Number.isNaN(date.getTime())) label.textContent = new Intl.DateTimeFormat('th-TH', {day:'numeric', month:'short', year:'numeric'}).format(date);
-                const dueInput = task.querySelector('[data-board-field="due"]');
-                if (dueInput) dueInput.min = task.dataset.start;
+                paintScheduleLabels(task);
+                scheduleNotice = dueMoved ? 'เลื่อนวันที่เริ่มแล้ว และเลื่อนกำหนดส่งตามไปด้วย' : '';
                 synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, status: Number(task.dataset.status)});
             } else if (field === 'due') {
-                if (!control.value || (task.dataset.start && control.value < task.dataset.start)) {
-                    throw new Error('กำหนดส่งต้องไม่น้อยกว่าวันที่เริ่ม');
-                }
+                if (!control.value) throw new Error('ต้องเลือกกำหนดส่ง');
+
+                // เหตุผลเดียวกับช่องวันเริ่ม: เลือกวันไหนก็ได้ แล้วลากปลายทางอีกข้างตามมา
+                const shiftedStart = task.dataset.start && control.value < task.dataset.start
+                    ? control.value
+                    : task.dataset.start;
+                const startMoved = shiftedStart !== task.dataset.start;
+
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
-                    job_start_at: task.dataset.start,
+                    job_start_at: shiftedStart,
                     job_due_at: control.value,
                 });
                 if (data.transitions) management[String(id)].transitions = data.transitions;
                 task.dataset.start = data.job_start_at ?? task.dataset.start;
                 task.dataset.due = data.job_due_at ?? control.value;
                 task.dataset.status = String(data.job_status ?? task.dataset.status);
-                const date = new Date(`${control.value}T00:00:00`);
-                const label = control.closest('.board-due')?.querySelector('[data-board-due-label]');
-                if (label && !Number.isNaN(date.getTime())) label.textContent = new Intl.DateTimeFormat('th-TH', {day:'numeric', month:'short', year:'numeric'}).format(date);
-                const startInput = task.querySelector('[data-board-field="start"]');
-                if (startInput) startInput.max = task.dataset.due;
+                paintScheduleLabels(task);
+                scheduleNotice = startMoved ? 'เลื่อนกำหนดส่งแล้ว และเลื่อนวันที่เริ่มตามมาด้วย' : '';
                 synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, status: Number(task.dataset.status)});
             }
-            notify('บันทึกการเปลี่ยนแปลงแล้ว');
+            notify(scheduleNotice || 'บันทึกการเปลี่ยนแปลงแล้ว');
             filterBoard();
         } catch (error) {
             notify(error.message, false);

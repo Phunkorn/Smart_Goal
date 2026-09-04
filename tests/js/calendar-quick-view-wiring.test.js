@@ -211,11 +211,16 @@ test('the calendar opens as a task timeline and can switch to the priority summa
     assert.ok(line.querySelector('.bi-play-fill'));
     assert.ok(line.querySelector('.bi-flag-fill'));
 
-    // มุมมองเส้นคงป้ายประชุมไว้ แต่ใช้งานเป็นเส้นแทนตัวเลขสรุป
-    assert.deepEqual(
-        [...cell.querySelectorAll('.mytasks-calendar__count')].map((node) => node.textContent),
-        ['1 ประชุม'],
-    );
+    /*
+     * มุมมองเส้นไม่มีชิปนับรายการของตัวเองแล้ว
+     * งานได้เลนทั้งสี่ก่อนเสมอ ส่วนประชุมถูกบอกไว้ในปุ่มสรุปมุมล่างขวา ปุ่มเดียวกับงานที่ล้น
+     * ผู้ใช้จึงยังรู้ว่าวันนั้นมีประชุม แม้เลนทั้งสี่จะถูกงานด่วนใช้ไปหมดแล้ว
+     */
+    assert.deepEqual([...cell.querySelectorAll('.mytasks-calendar__count')], []);
+    const overflow = cell.querySelector('.mytasks-calendar__timeline-more');
+    assert.ok(overflow, 'วันที่มีประชุมต้องมีปุ่มสรุปบอกไว้เสมอ');
+    assert.equal(overflow.querySelector('.is-meeting-count').textContent, '1 ประชุม');
+    assert.equal(overflow.dataset.calendarDay, today, 'กดแล้วต้องเปิดรายการของวันนั้น');
 
     ui.document.querySelector('[data-calendar-mode-option="summary"]')
         .dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
@@ -269,8 +274,9 @@ test('the calendar search narrows both the grid and the summary cards', async (t
     assert.ok(ui.agendaItem('today', 'meeting-1'), 'ประชุมที่ตรงคำค้นต้องอยู่ในการ์ดวันนี้');
     assert.equal(ui.document.querySelector('[data-calendar-meeting-list]'), null);
 
-    const counts = [...ui.document.querySelectorAll(`[data-calendar-date="${today}"] .mytasks-calendar__count`)].map((node) => node.textContent);
-    assert.deepEqual(counts, ['1 ประชุม']);
+    // โหมดเส้นบอกจำนวนประชุมผ่านปุ่มสรุป ไม่ใช่ชิปนับรายการอีกต่อไป
+    const meetingSummary = ui.document.querySelector(`[data-calendar-date="${today}"] .mytasks-calendar__timeline-more .is-meeting-count`);
+    assert.equal(meetingSummary?.textContent, '1 ประชุม');
     ui.document.querySelector('[data-calendar-day]').dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
     assert.ok(ui.document.querySelector('[data-calendar-day-meeting-list] [data-calendar-task="meeting-1"]'));
 
@@ -395,7 +401,11 @@ test('clicking a calendar date opens a modal listing that day items and Escape c
     assert.equal(modal.hidden, true);
     assert.ok(trigger, 'วันที่มีรายการต้องมีปุ่มเปิดกล่องของวันนั้น');
     // วันที่ไม่มีรายการต้องไม่มีปุ่มให้โฟกัสหลอก ๆ
-    assert.equal(ui.document.querySelectorAll('[data-calendar-grid] [data-calendar-day]').length, 1);
+    // นับเป็น "วัน" ไม่ใช่ "ปุ่ม" เพราะวันเดียวกันมีทั้งปุ่มเต็มช่องและปุ่มสรุปมุมล่างขวาได้
+    const daysWithTriggers = new Set(
+        [...ui.document.querySelectorAll('[data-calendar-grid] [data-calendar-day]')].map((node) => node.dataset.calendarDay),
+    );
+    assert.deepEqual([...daysWithTriggers], [today]);
 
     trigger.dispatchEvent(new ui.window.MouseEvent('click', {bubbles: true, cancelable: true}));
 

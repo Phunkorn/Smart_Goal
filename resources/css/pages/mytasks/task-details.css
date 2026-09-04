@@ -253,3 +253,21 @@
         padding-left: 17px;
     }
 }
+
+/*
+ * ช่องเพิ่มรายละเอียดงานต้องสั้นพอที่จะอ่านว่าเป็น "ช่องเพิ่มรายการหนึ่งบรรทัด"
+ *
+ * ของเดิมเป็น minmax(0,1fr) จึงยืดเต็มความกว้างของคอลัมน์ "ชื่องาน" ทั้งคอลัมน์
+ * ซึ่งบนจอกว้างยาวเกือบ 700px กลายเป็นแถบว่างยาวพาดกลางบอร์ดและกินสายตามากกว่าตัวงานเอง
+ * ความกว้างจึงถูกจำกัดไว้ แต่ยังหดลงได้เองเมื่อคอลัมน์แคบกว่านั้น
+ */
+.my-tasks-page .board-task-details__create {
+    grid-template-columns: minmax(0, 320px) auto;
+    justify-content: start;
+}
+
+@media (max-width: 760px) {
+    .my-tasks-page .board-task-details__create {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+}

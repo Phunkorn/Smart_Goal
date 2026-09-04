@@ -614,3 +614,71 @@
         display: none;
     }
 }
+
+/* ============================================================================
+ * การแจ้งเตือนที่ยังไม่ได้อ่านต้องแยกออกจากพื้นหลังของหน้าให้เห็นชัด
+ *
+ * พื้นของหน้าคือ --bg (#F5F7FC) ส่วนการ์ดที่ยังไม่อ่านเคยใช้ #f7f9ff
+ * ซึ่งต่างกันไม่ถึงหนึ่งขั้นของความสว่าง เมื่อวางเรียงกันจึงกลืนกันจนแยกไม่ออกว่า
+ * รายการไหนยังไม่ได้อ่าน ทั้งที่นี่คือข้อมูลหลักที่หน้านี้ต้องสื่อ
+ * ตอนนี้ใช้โทนฟ้าของ --accent-dim บวกเส้นสถานะที่หนาและเข้มขึ้น
+ * ========================================================================== */
+
+.notification-center__item.is-unread {
+    background: #E6EEFD;
+    box-shadow: inset 4px 0 0 var(--accent, #1E4FD6);
+}
+
+.notification-center__item.is-unread:hover {
+    background: #DCE7FC;
+}
+
+.notification-center__item.is-unread .notification-center__title {
+    color: var(--accent-strong, #16389E);
+    font-weight: 700;
+}
+
+/* ============================================================================
+ * ตัวแบ่งหน้า
+ *
+ * AppServiceProvider ตั้งให้ทั้งระบบใช้ markup ของ Bootstrap 5 แทนของ Tailwind
+ * ที่ฝัง <svg> ลูกศรมาเอง (ซึ่งถูกวาดใหญ่เต็มหน้าจอเพราะไม่มี CSS ของ Tailwind มาคุมขนาด)
+ * ที่นี่คุมแค่ขนาดและระยะให้เข้ากับความหนาแน่นของรายการแจ้งเตือน
+ * ========================================================================== */
+
+.notification-center__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-center__pagination .pagination {
+    margin: 0;
+    gap: 4px;
+}
+
+.notification-center__pagination .page-link {
+    min-width: 36px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: .85rem;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.notification-center__pagination .page-link svg,
+.notification-center__pagination .page-link i {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    vertical-align: -2px;
+}
+
+/* บรรทัด "Showing x to y of z" ของ Bootstrap 5 อยู่ในบล็อกที่ซ่อนไว้บนจอเล็กอยู่แล้ว
+ * ทำให้เหลือแต่ปุ่มตัวเลขหน้า ซึ่งเป็นสิ่งเดียวที่ต้องกดจริงบนมือถือ */
+@media (max-width: 575.98px) {
+    .notification-center__pagination .pagination {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+}

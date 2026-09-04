@@ -4,6 +4,7 @@ import {
     normalizeKeyword,
     updateSelection,
 } from '../../components/people-selector.js';
+import {useDatePickers} from '../../components/date-picker.js';
 
 /**
  * ตัวเลือกผู้เข้าร่วมย้ายไปอยู่ที่ components/people-selector.js แล้ว
@@ -101,6 +102,13 @@ export function initializeMeetingPage(root = document, bootstrapApi = globalThis
     initializeMeetingModals(root, bootstrapApi);
     initializeDeleteConfirmation(root);
     initializePeopleSelectors(root);
+    /*
+     * ช่องเวลาเริ่ม/สิ้นสุดของการประชุมใช้ตัวเลือกวันที่ชุดเดียวกับหน้างาน
+     * ต่างกันแค่ประชุมเป็น datetime-local จึงมีแถวเลือกเวลาเพิ่มมาให้
+     * ส่วนงานในโปรเจกต์เป็นความละเอียดระดับวัน ไม่มีแถวเวลา
+     * ผู้ใช้ทุกบทบาทจึงเห็นปฏิทิน พ.ศ. หน้าตาเดียวกันทุกที่ในระบบ
+     */
+    useDatePickers();
     showFeedback(root, bootstrapApi);
 }
 

@@ -710,18 +710,29 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
  * แก้โดยให้คอลัมน์ชื่องานและคอลัมน์กลางยุบได้ (ขอบล่าง 0) แต่คงคอลัมน์ปุ่มไว้เท่าเดิม
  * ผลรวม fixed tracks คงเดิม โดยย้ายพื้นที่บางส่วนจากความสำคัญให้ผู้รับผิดชอบอ่านได้หนึ่งบรรทัด
  */
+/*
+ * คอลัมน์ "ผู้ร่วมงาน" ต้องกว้างเท่าเนื้อหาที่กว้างที่สุดที่มันวาดได้จริง
+ *
+ * เนื้อหาสูงสุดคือ avatar 2 ใบซ้อนกัน + ป้าย "+N" + ปุ่มจัดการผู้ร่วมงาน รวมประมาณ 96px
+ * บวก padding ของช่องอีก 16px เป็น 112px แต่ของเดิมกันไว้เพียง 92px
+ * grid item ไม่ตัดเนื้อหาที่ล้นให้เอง กลุ่ม avatar จึงยื่นไปทับคอลัมน์ "ไฟล์แนบ" ที่อยู่ถัดไป
+ * จนไอคอนคลิปหนีบถูกบังและกดไม่ได้
+ *
+ * พื้นที่ที่เพิ่มให้มาจากคอลัมน์วันที่ (ป้ายยาวสุดคือ "3 ก.ย. 2569") และคอลัมน์ความสำคัญ
+ * ผลรวมของ track คงที่จึงแคบลงกว่าเดิม คอลัมน์ชื่องานได้พื้นที่คืนไปด้วย
+ */
 .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
 .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
     grid-template-columns:
         minmax(0, 1fr)
         minmax(0, 112px)
-        minmax(0, 140px)
-        minmax(0, 112px)
-        minmax(0, 112px)
-        minmax(0, 90px)
-        minmax(0, 92px)
-        minmax(0, 72px)
-        minmax(0, 72px)
+        minmax(0, 132px)
+        minmax(0, 96px)
+        minmax(0, 96px)
+        minmax(0, 80px)
+        minmax(0, 118px)
+        minmax(0, 70px)
+        minmax(0, 74px)
         38px;
 }
 
@@ -739,13 +750,13 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         grid-template-columns:
             minmax(0, 1fr)
             minmax(0, 104px)
-            minmax(0, 116px)
-            minmax(0, 104px)
-            minmax(0, 104px)
-            minmax(0, 86px)
-            minmax(0, 82px)
-            minmax(0, 68px)
-            minmax(0, 68px)
+            minmax(0, 124px)
+            minmax(0, 92px)
+            minmax(0, 92px)
+            minmax(0, 76px)
+            minmax(0, 114px)
+            minmax(0, 66px)
+            minmax(0, 70px)
             34px;
     }
 }
@@ -1032,5 +1043,77 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
 
     .my-tasks-page .board-completed-group__rows {
         padding-block: 1px;
+    }
+}
+
+/* ============================================================================
+ * การจัดแนวคอลัมน์ของบอร์ด (data-view="board")
+ *
+ * ทุกช่องในหนึ่งแถวคือ grid item ของ .board-reference-row ที่ใช้ track ชุดเดียวกับ
+ * หัวตาราง .board-reference-columns ถ้าช่องไหน justify-self ไม่ตรงกับหัวตาราง
+ * ค่าที่แสดงจะไม่อยู่ใต้ชื่อคอลัมน์ของตัวเอง
+ *
+ * ใช้เฉพาะตั้งแต่ 761px ขึ้นไป เพราะต่ำกว่านั้นแถวเปลี่ยนเป็นเลย์เอาต์การ์ดที่ไม่มีหัวตาราง
+ * และวางทุกช่องชิดซ้ายตามลำดับการอ่านของการ์ดแทน
+ * ========================================================================== */
+
+/*
+ * สถานะของงานที่แก้ไขไม่ได้ต้องอยู่ตรงกลางคอลัมน์เท่ากับงานที่แก้ไขได้
+ *
+ * งานที่ผู้ใช้มีสิทธิ์ทำ (@can('work')) ถูก render เป็น <details class="board-status-menu">
+ * ซึ่งถูกสั่ง justify-self:center ไว้แล้ว ส่วนงานแบบอ่านอย่างเดียว — เช่นงานที่เราเข้าไปร่วม
+ * ในโปรเจกต์แต่ยังไม่ได้เป็นผู้ร่วมงาน — ถูก render เป็น <span class="board-status-pill">
+ * เปล่า ๆ ซึ่งตกไปใช้ค่า justify-self:start ของตัวเอง ป้ายสถานะจึงชิดซ้ายไม่ตรงกับหัวคอลัมน์
+ * ทำให้ดูเหมือนสองแถวใช้คนละคอลัมน์กัน ทั้งที่เป็นคอลัมน์เดียวกัน
+ */
+@media (min-width: 761px) {
+    /*
+     * หัวตารางต้องไม่ตัดบรรทัด
+     *
+     * ชื่อคอลัมน์เป็นคำไทยคำเดียว ("คอมเมนต์", "ผู้รับผิดชอบ") ซึ่งเบราว์เซอร์ตัดบรรทัด
+     * กลางคำได้ตามกฎการตัดคำไทย พอคอลัมน์แคบกว่าความยาวคำเพียงไม่กี่พิกเซล
+     * หัวตารางจึงกลายเป็นสองบรรทัดและดันความสูงของทั้งแถวหัวตาราง
+     * คอลัมน์เหล่านี้ถูกขยายให้พอดีกับชื่อของตัวเองแล้ว และกันไว้อีกชั้นด้วย nowrap
+     */
+    .my-tasks-page .board-reference-columns > span {
+        white-space: nowrap;
+    }
+
+    /*
+     * ทุกช่องต้องอยู่ระดับเดียวกับ "ชื่องาน" เสมอ ไม่ว่าจะกางรายละเอียดงานกี่รายการ
+     *
+     * ของเดิมแถวใช้ align-items:center เมื่อกางรายละเอียดงาน ช่องแรกจะสูงขึ้นตามจำนวนรายการ
+     * แล้วช่องที่เหลือ (สถานะ ความสำคัญ วันที่ ผู้รับผิดชอบ ผู้ร่วมงาน ไฟล์แนบ คอมเมนต์)
+     * ถูกจัดกึ่งกลางของความสูงใหม่ จึงค่อย ๆ ไหลลงไปเรื่อย ๆ ตามจำนวนรายละเอียดที่เพิ่ม
+     * และไม่ตรงกับชื่องานที่อยู่บรรทัดบนสุดอีกต่อไป
+     *
+     * เปลี่ยนเป็นยึดขอบบนแล้วเว้นระยะบน-ล่างที่ตัวแถวแทน ทุกช่องจึงเริ่มที่บรรทัดเดียวกัน
+     * ค่า 10px ทำให้กึ่งกลางของหัวข้อรายละเอียด (สูง 28px) กับป้ายสถานะ (สูง ~29px) ตรงกัน
+     */
+    .my-tasks-page .board-reference-row {
+        align-items: start;
+        padding-block: 10px;
+    }
+
+    .my-tasks-page .board-reference-row > .board-reference-task {
+        padding-block: 0;
+    }
+
+    .my-tasks-page .board-reference-row > .board-status-pill,
+    .my-tasks-page .board-reference-row > .board-priority,
+    .my-tasks-page .board-reference-row > .board-attachments,
+    .my-tasks-page .board-reference-row > .board-comments {
+        justify-self: center;
+    }
+
+    /* กลุ่ม avatar ต้องอยู่กลางคอลัมน์และไม่ยื่นออกนอกช่องของตัวเองอีก */
+    .my-tasks-page .board-collaborators {
+        justify-content: center;
+        justify-self: center;
+        max-width: 100%;
+    }
+
+    .my-tasks-page .board-collaborators > button {
+        max-width: 100%;
     }
 }

@@ -446,25 +446,76 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     /* ---------- การ์ดสรุปใต้ปฏิทิน ---------- */
 
-    const paintSection = (list, empty, count, items, unit, makeItem) => {
+    /*
+     * การ์ดสรุปแสดงครั้งละสิบแถว
+     *
+     * เดือนที่ยุ่งมีได้หลายสิบรายการ ถ้าปล่อยให้ยาวลงไปทั้งหมด การ์ดจะสูงกว่าตัวปฏิทินเอง
+     * และผู้ใช้ต้องเลื่อนผ่านมันทุกครั้งเพื่อกลับไปดูเดือนอื่น
+     * หน้าปัจจุบันเก็บไว้ต่อการ์ด และถูกรีเซ็ตเมื่อชุดรายการเปลี่ยน (เปลี่ยนเดือนหรือค้นหา)
+     */
+    const AGENDA_PAGE_SIZE = 10;
+    const agendaPages = {today: 0, month: 0};
+
+    const paintSection = (list, empty, count, items, unit, makeItem, section) => {
         if (!list || !empty || !count) return;
-        list.replaceChildren(...items.map(makeItem));
+
+        const pages = Math.max(1, Math.ceil(items.length / AGENDA_PAGE_SIZE));
+        const page = Math.min(agendaPages[section] ?? 0, pages - 1);
+        agendaPages[section] = page;
+        const visible = items.slice(page * AGENDA_PAGE_SIZE, (page + 1) * AGENDA_PAGE_SIZE);
+
+        list.replaceChildren(...visible.map(makeItem));
         empty.hidden = items.length > 0;
+        // ตัวนับบอกจำนวนทั้งหมดเสมอ ไม่ใช่จำนวนของหน้าที่กำลังดู
         count.textContent = `${items.length} ${unit}`;
         // ตารางว่างต้องหายไปทั้งใบ ไม่ให้เหลือหัวตารางลอยอยู่เหนือข้อความ "ไม่มีรายการ"
         const table = list.closest('.calendar-table');
         if (table) table.hidden = items.length === 0;
+
+        const pager = calendar.querySelector(`[data-calendar-agenda-pager="${section}"]`);
+        if (!pager) return;
+
+        pager.hidden = pages <= 1;
+        pager.querySelector('[data-calendar-agenda-page]').textContent = `หน้า ${page + 1} / ${pages}`;
+        pager.querySelector('[data-calendar-agenda-previous]').disabled = page === 0;
+        pager.querySelector('[data-calendar-agenda-next]').disabled = page >= pages - 1;
+    };
+
+    let lastAgenda = null;
+
+    const paintAgenda = () => {
+        if (!lastAgenda) return;
+
+        paintSection(todayList, todayEmpty, todayCount, lastAgenda.todayEvents, 'รายการ', agendaRow('today'), 'today');
+        paintSection(monthList, monthEmpty, monthCount, lastAgenda.monthEvents, 'รายการ', agendaRow('due'), 'month');
     };
 
     const renderAgenda = (events) => {
         const agenda = buildCalendarAgenda(events, selectedYear, selectedMonth, todayKey);
         const monthLabel = monthFormatter.format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
 
-        paintSection(todayList, todayEmpty, todayCount, agenda.todayEvents, 'รายการ', agendaRow('today'));
-        paintSection(monthList, monthEmpty, monthCount, agenda.monthEvents, 'รายการ', agendaRow('due'));
+        // ชุดรายการเปลี่ยน (เปลี่ยนเดือน ค้นหา หรือกรอง) ต้องกลับไปหน้าแรกเสมอ
+        // ไม่เช่นนั้นผู้ใช้จะค้างอยู่หน้า 3 ของเดือนที่ไม่มีหน้า 3 แล้ว
+        agendaPages.today = 0;
+        agendaPages.month = 0;
+        lastAgenda = agenda;
+        paintAgenda();
 
         if (monthAgendaTitle) monthAgendaTitle.textContent = `กำหนดส่งและนัดหมายใน${monthLabel}`;
     };
+
+    calendar.addEventListener('click', (event) => {
+        const pager = event.target.closest('[data-calendar-agenda-pager]');
+        if (!pager) return;
+
+        const section = pager.dataset.calendarAgendaPager;
+        if (event.target.closest('[data-calendar-agenda-previous]')) agendaPages[section] -= 1;
+        else if (event.target.closest('[data-calendar-agenda-next]')) agendaPages[section] += 1;
+        else return;
+
+        agendaPages[section] = Math.max(0, agendaPages[section]);
+        paintAgenda();
+    });
 
     /* ---------- ช่องวันที่ ---------- */
 
@@ -525,20 +576,43 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
         cellNode.append(element('span', 'mytasks-calendar__day-number', String(day.day)));
 
-        const counts = element('span', 'mytasks-calendar__counts');
-        const countGroups = calendarMode === 'timeline'
-            ? day.groups.filter((group) => group.type === 'meeting')
-            : day.visibleGroups;
-        counts.append(...countGroups.map(makeCountChip));
-        if (day.hiddenGroups > 0) counts.append(element('span', 'mytasks-calendar__more', `+${day.hiddenGroups}`));
-        cellNode.append(counts);
+        // โหมดเส้นช่วงงานสรุปทุกอย่างที่ยังไม่ได้แสดงไว้ในปุ่มเดียว จึงไม่ต้องมีชิปนับซ้ำ
+        if (calendarMode !== 'timeline') {
+            const counts = element('span', 'mytasks-calendar__counts');
+            counts.append(...day.visibleGroups.map(makeCountChip));
+            if (day.hiddenGroups > 0) counts.append(element('span', 'mytasks-calendar__more', `+${day.hiddenGroups}`));
+            cellNode.append(counts);
+        }
 
-        if (day.hiddenTimelineTasks > 0) {
-            const more = element('button', 'mytasks-calendar__timeline-more', `+${day.hiddenTimelineTasks} งาน`);
+        /*
+         * ปุ่ม "+N" ของโหมดเส้นช่วงงานบอกทั้งงานที่ล้นออกจากสี่เลน และจำนวนประชุมของวันนั้น
+         *
+         * งานได้เลนก่อนเสมอ เพราะเป็นสิ่งที่ต้องลงมือทำและมีช่วงวันที่ต้องเห็นเป็นเส้น
+         * ส่วนประชุมเป็นนัดหมายชั่วโมงเดียว การวาดเป็นเส้นทั้งวันจึงทำให้เข้าใจผิด
+         * แต่ก่อนหน้านี้ประชุมถูกวาดเป็นชิปแยกอีกมุมหนึ่ง ซึ่งวันที่งานเต็มสี่เลนแล้วจะถูกเบียดจนไม่เห็น
+         * ตอนนี้จึงรวมมาไว้ในปุ่มเดียวกัน กดแล้วเปิดรายการของวันนั้นซึ่งมีทั้งงานและประชุมครบ
+         */
+        const meetingCount = day.groups
+            .filter((group) => group.type === 'meeting')
+            .reduce((total, group) => total + group.count, 0);
+
+        if (calendarMode === 'timeline' && (day.hiddenTimelineTasks > 0 || meetingCount > 0)) {
+            const more = element('button', 'mytasks-calendar__timeline-more');
             more.type = 'button';
             more.dataset.calendarDay = day.key;
             more.setAttribute('aria-haspopup', 'dialog');
-            more.setAttribute('aria-label', `ดูงานอีก ${day.hiddenTimelineTasks} รายการของวันที่ ${dateFormatter.format(new Date(day.stamp))}`);
+
+            const parts = [];
+            if (day.hiddenTimelineTasks > 0) {
+                more.append(element('span', null, `+${day.hiddenTimelineTasks} งาน`));
+                parts.push(`งานอีก ${day.hiddenTimelineTasks} รายการ`);
+            }
+            if (meetingCount > 0) {
+                more.append(element('span', 'is-meeting-count', `${meetingCount} ประชุม`));
+                parts.push(`ประชุม ${meetingCount} รายการ`);
+            }
+
+            more.setAttribute('aria-label', `ดู${parts.join(' และ ')}ของวันที่ ${dateFormatter.format(new Date(day.stamp))}`);
             cellNode.append(more);
         }
 

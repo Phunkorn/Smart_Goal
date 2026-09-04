@@ -13,6 +13,7 @@ use App\Services\MemberWorkloadQuery;
 use App\Services\TaskCommentService;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TaskCollaboratorOptions;
+use App\Support\TaskScopeOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
 use App\Support\WorkOrderAssignee;
@@ -185,7 +186,30 @@ class WorkBoardController extends Controller
             ])
             ->withCount('images')
             ->get();
-        $jobs = $this->filterJobs($allJobs, $request);
+        /*
+         * ตัวกรองขอบเขตงานชุดเดียวกับหน้า "งานของฉัน" แต่ผูกกับสมาชิกที่กำลังถูกดู
+         *
+         * เดิม Member Workspace ไม่มีตัวกรองนี้เลย Admin และหัวหน้าแผนกจึงแยกไม่ออกว่า
+         * งานใบไหนสมาชิกรับผิดชอบเอง และใบไหนเขาแค่ถูกชวนมาร่วมทำ ทั้งที่ทั้งสองอย่าง
+         * ถูกดึงมารวมกันโดย MemberWorkloadQuery::forMember()
+         *
+         * ตัวกรองบังคับที่ฝั่ง server เสมอ เช่นเดียวกับ MyTaskController::applyTaskScope()
+         */
+        $taskScopeOptions = TaskScopeOptions::forSubject($user);
+        $taskScope = TaskScopeOptions::normalize($taskScopeOptions, $request->query('task_scope'));
+        $taskScopeActive = TaskScopeOptions::activeForSubject($user, $taskScope);
+
+        $scopedJobs = $allJobs;
+        if (TaskScopeOptions::isBusinessDayScope($taskScope)) {
+            // "งานของวันนี้" ใช้กติกาวันทำงานไทยชุดเดียวกับหน้า "งานของฉัน"
+            $scopedJobs = TodayWorkspace::tasks($allJobs);
+        } elseif ($taskScope !== 'all') {
+            $scopedIds = TaskScopeOptions::apply($this->memberWorkloads->forMember($user), $user, $taskScope)
+                ->pluck('job_id');
+            $scopedJobs = $allJobs->whereIn('job_id', $scopedIds)->values();
+        }
+
+        $jobs = $this->filterJobs($scopedJobs, $request);
         $jobs = (match ($request->string('sort')->toString()) {
             'name_asc' => $jobs->sortBy('job_topic', SORT_NATURAL | SORT_FLAG_CASE),
             'status_asc' => $jobs->sortBy(fn (WorkOrder $job) => WorkBoardDesign::statusKey($job)),
@@ -204,9 +228,20 @@ class WorkBoardController extends Controller
         $manageableTaskLists = $taskLists
             ->filter(fn (WorkOrderList $list) => ! $isReadOnlyWorkspace && $request->user()->can('manage', $list))
             ->values();
+        /*
+         * บอร์ดต้องวาดเฉพาะโปรเจกต์ที่ยังมีงานอยู่ในขอบเขตที่กรองไว้
+         * ไม่เช่นนั้นการกรองจะเหลือหัวโปรเจกต์เปล่า ๆ เรียงกันโดยไม่มีงานข้างใน
+         * ส่วน KPI ด้านบนยังนับจากชุดเต็มเสมอ เพราะเป็นตัวเลขของสมาชิกไม่ใช่ของตัวกรอง
+         */
+        $workspaceTaskLists = $taskScope === 'all'
+            ? $taskLists
+            : $taskLists->whereIn('id', $scopedJobs->pluck('work_order_list_id')->filter()->unique())->values();
         $activeTasks = $jobs->reject(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $completedTasks = $jobs->filter(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
-        $todayTasks = TodayWorkspace::tasks($allJobs);
+        $todayTasks = TodayWorkspace::tasks($scopedJobs);
+        // มุมมอง "ตาราง" แสดงงานที่ยังไม่ปิดครบทุกใบในขอบเขตที่กรองไว้
+        // ส่วนคอลัมน์ "เสร็จแล้ว" เก็บเฉพาะงานที่ปิดวันนี้ เหตุผลเดียวกับ MyTaskController::index()
+        $workspaceTasks = TodayWorkspace::workspaceTable($scopedJobs);
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($allJobs->pluck('job_id'), $request->user());
 
         // ประชุมถูก query ต่อเมื่อ Admin เปิดมุมมองนั้นจริง เหมือนที่หน้า "งานของฉัน" ทำ
@@ -241,10 +276,16 @@ class WorkBoardController extends Controller
             'departmentCode' => WorkBoardDesign::departmentCode($department),
             'member' => $user,
             'taskLists' => $taskLists,
+            'workspaceTaskLists' => $workspaceTaskLists,
             'manageableTaskLists' => $manageableTaskLists,
             'activeTasks' => $activeTasks,
             'completedTasks' => $completedTasks,
             'todayTasks' => $todayTasks,
+            'workspaceTasks' => $workspaceTasks,
+            'taskScope' => $taskScope,
+            'taskScopeOptions' => $taskScopeOptions,
+            'taskScopeActive' => $taskScopeActive,
+            'taskScopeCount' => $scopedJobs->count(),
             'unreadCommentCounts' => $unreadCommentCounts,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $taskLists->sortBy('name')->values(),

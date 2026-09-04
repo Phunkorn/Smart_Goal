@@ -203,8 +203,28 @@ class WorkOrder extends Model
                             ->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
                                 ->where('users.id', $user->id)
                                 ->where('work_order_collaborators.status', 'accepted')));
-                });
+                })
+                ->when($user->isDepartmentHead(), fn (Builder $visible) => $visible
+                    ->orWhere(fn (Builder $departmentTasks) => $departmentTasks->inDepartmentOf($user)));
         });
     }
 
+    /**
+     * งานที่อนุมัติแล้วซึ่ง "ปลายทางเป็นแผนกนี้"
+     *
+     * ต้องนิยามปลายทางให้ตรงกับ WorkOrderPolicy::destinationDepartmentId() ทุกประการ
+     * คือใช้ department_id ของงานก่อน แล้วจึงตกไปใช้แผนกของผู้รับผิดชอบเมื่องานไม่ได้ระบุไว้
+     * มิฉะนั้นหัวหน้าจะเจอสภาพที่ policy บอกว่า "ดูได้" แต่คิวรีไม่คืนงานใบนั้นมาให้เห็น
+     */
+    public function scopeInDepartmentOf(Builder $query, User $user): Builder
+    {
+        return $query->where('approval_status', 'approved')
+            ->where(function (Builder $destination) use ($user): void {
+                $destination->where('department_id', $user->department_id)
+                    ->orWhere(fn (Builder $fallback) => $fallback
+                        ->whereNull('department_id')
+                        ->whereHas('user', fn (Builder $assignee) => $assignee
+                            ->where('department_id', $user->department_id)));
+            });
+    }
 }

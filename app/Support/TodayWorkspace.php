@@ -21,6 +21,9 @@ final class TodayWorkspace
     /** สถานะที่ระบบดันเป็น "ล่าช้า" เองได้เมื่อเลยกำหนดส่ง — กำลังทำ และ พักงาน */
     private const LATE_ELIGIBLE_STATUSES = [2, 5];
 
+    /** สถานะ "เสร็จแล้ว/ปิดงาน" */
+    private const DONE_STATUS = 4;
+
     public static function synchronizeLate(Builder $query): void
     {
         $todayStartUtc = self::businessToday()->utc();
@@ -88,6 +91,31 @@ final class TodayWorkspace
             2, 3 => self::isWithinActiveRange($task, $today),
             default => false,
         })->values();
+    }
+
+    /**
+     * งานที่มุมมอง "ตาราง" ควรแสดงตามขอบเขตที่ผู้ใช้กรองไว้
+     *
+     * ตารางจัดคอลัมน์ตามสถานะ คอลัมน์ "เสร็จแล้ว" จึงเป็นช่องบอกว่า "วันนี้ปิดอะไรไปบ้าง"
+     * ไม่ใช่คลังงานที่ปิดแล้วทั้งหมด ถ้าไม่ตัดตามวัน คอลัมน์นี้จะยาวขึ้นทุกวันจนกลบ
+     * งานที่ยังต้องทำ และผู้ใช้ต้องเลื่อนผ่านงานเก่าทุกครั้งที่เปิดหน้า
+     *
+     * งานที่ปิดไปแล้วไม่ได้หายไปไหน มันย้ายไปอยู่กลุ่ม "งานที่เสร็จแล้ว" ของมุมมองบอร์ด
+     * ซึ่งจัดกลุ่มตามโปรเจกต์และเก็บประวัติทั้งหมดไว้
+     *
+     * งานที่ยังไม่ปิดจะแสดงครบทุกใบเสมอ ไม่ว่าจะยังไม่ถึงวันเริ่มหรือเลยกำหนดไปแล้ว
+     * เพราะตัวนับของตัวกรองนับงานเหล่านั้นอยู่ ถ้าตารางซ่อนไว้ตัวเลขกับสิ่งที่เห็นจะไม่ตรงกัน
+     *
+     * @param  Collection<int, WorkOrder>  $tasks
+     * @return Collection<int, WorkOrder>
+     */
+    public static function workspaceTable(Collection $tasks): Collection
+    {
+        $today = self::businessToday();
+
+        return $tasks->filter(fn (WorkOrder $task): bool => (int) $task->job_status !== self::DONE_STATUS
+            || ($task->job_completed_at && self::businessDate($task->job_completed_at)->isSameDay($today)))
+            ->values();
     }
 
     public static function timeProgress(WorkOrder $task, ?CarbonInterface $date = null): ?array

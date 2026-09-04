@@ -97,7 +97,7 @@
             </div>
 
             <div class="mytasks-kanban-view" data-table-kanban>
-                @include('tasks.partials.table-kanban', ['allTasks' => $todayTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
+                @include('tasks.partials.table-kanban', ['allTasks' => $workspaceTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
             </div>
 
             @include('tasks.partials.calendar')

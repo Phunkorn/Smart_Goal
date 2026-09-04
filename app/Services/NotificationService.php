@@ -17,6 +17,9 @@ use Illuminate\Support\Str;
 
 class NotificationService
 {
+    /** จำนวนการแจ้งเตือนต่อหนึ่งหน้าของศูนย์การแจ้งเตือน */
+    public const CENTER_PAGE_SIZE = 10;
+
     public function __construct(private readonly TaskCommentPresenter $commentPresenter) {}
 
     private function create(User|int $recipient, string $type, string $title, ?string $message = null, ?WorkOrder $task = null, ?User $actor = null, array $data = [], ?string $dedupeKey = null, array $metadata = []): SystemNotification
@@ -372,7 +375,7 @@ class NotificationService
             ->when(($filters['status'] ?? 'all') === 'unread', fn ($query) => $query->unread())
             ->when(in_array($filters['category'] ?? '', ['task', 'review', 'comment', 'deadline', 'system'], true), fn ($query) => $query->where('category', $filters['category']))
             ->when(! empty($filters['project']), fn ($query) => $query->where('work_order_list_id', $filters['project']))
-            ->latest()->paginate(25)->withQueryString();
+            ->latest()->paginate(self::CENTER_PAGE_SIZE)->withQueryString();
     }
 
     public function groupLabel(CarbonInterface $createdAt, ?CarbonInterface $now = null): string

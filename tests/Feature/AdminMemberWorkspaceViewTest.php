@@ -374,6 +374,142 @@ class AdminMemberWorkspaceViewTest extends TestCase
             ->assertNotFound();
     }
 
+    /**
+     * Admin และหัวหน้าแผนกต้องมีตัวกรองขอบเขตงานตอนเปิดดูงานของสมาชิก
+     *
+     * ของเดิมตัวกรองมีเฉพาะหน้า "งานของฉัน" พอเข้ามาดูงานของ user ในแผนกตัวเองแล้วมันหายไป
+     * ทั้งที่นี่คือหน้าที่ต้องแยกให้ออกที่สุดว่างานใบไหนสมาชิกรับผิดชอบเอง
+     * และใบไหนเขาแค่ถูกชวนมาร่วมทำ เพราะ MemberWorkloadQuery::forMember() รวมทั้งสองแบบมาให้
+     *
+     * ถ้อยคำต้องพูดถึงสมาชิกคนนั้น ไม่ใช่ "ฉัน" มิฉะนั้นผู้ดูจะเข้าใจว่ากำลังกรองงานของตัวเอง
+     */
+    public function test_member_workspace_offers_a_subject_scoped_task_filter(): void
+    {
+        $admin = $this->user('admin');
+        $member = $this->user();
+        $owner = $this->user();
+        $project = WorkOrderList::create([
+            'user_id' => $member->id,
+            'name' => 'Scope project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $ownTask = $this->task($project, $member, $member, 'งานที่สมาชิกรับผิดชอบเอง');
+        $joinedTask = $this->task($project, $owner, $owner, 'งานที่สมาชิกถูกชวนมาร่วม');
+        $joinedTask->collaborators()->attach($member->id, [
+            'added_by' => $owner->id,
+            'status' => 'accepted',
+            'responded_at' => now(),
+        ]);
+
+        $unfiltered = $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member]))
+            ->assertOk()
+            ->assertSee('data-task-scope-control', false)
+            ->assertSee('data-task-scope="all"', false)
+            // ถ้อยคำอ้างถึงสมาชิกที่กำลังถูกดู ไม่ใช่ผู้ที่ล็อกอิน
+            ->assertSee($member->name.' รับผิดชอบเอง')
+            ->assertSee($member->name.' ถูกชวนมาร่วมทำ');
+
+        $this->assertSame(2, $unfiltered->viewData('taskScopeCount'));
+
+        $responsible = $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member, 'task_scope' => 'responsible']))
+            ->assertOk()
+            ->assertViewHas('taskScope', 'responsible');
+
+        $this->assertSame(1, $responsible->viewData('taskScopeCount'));
+        $this->assertSame(
+            [$ownTask->job_id],
+            $responsible->viewData('workspaceTasks')->pluck('job_id')->all()
+        );
+
+        $collaborating = $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member, 'task_scope' => 'collaborating']))
+            ->assertOk();
+
+        $this->assertSame(
+            [$joinedTask->job_id],
+            $collaborating->viewData('workspaceTasks')->pluck('job_id')->all()
+        );
+
+        // ค่าที่ยัดมาเองซึ่งหน้านี้ไม่มีให้เลือก ต้องตกกลับเป็น all ไม่ใช่คิวรีตามค่านั้น
+        $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member, 'task_scope' => 'assigned_by_me']))
+            ->assertOk()
+            ->assertViewHas('taskScope', 'all');
+
+        // หัวหน้าแผนกที่เปิดดูแบบอ่านอย่างเดียวต้องได้ตัวกรองชุดเดียวกัน
+        $head = $this->user();
+        $head->forceFill(['is_department_head' => true])->save();
+
+        $this->actingAs($head)
+            ->get(route('work-board.member', [$this->department, $member, 'workspace' => 1, 'task_scope' => 'responsible']))
+            ->assertOk()
+            ->assertSee('data-task-scope-control', false)
+            ->assertViewHas('taskScope', 'responsible')
+            ->assertViewHas('workspaceTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$ownTask->job_id]);
+    }
+
+    /**
+     * "งานของวันนี้" ต้องใช้ได้ทั้งหน้า "งานของฉัน" และ Member Workspace
+     *
+     * เป็นคำถามหลักที่หน้าตรวจงานสมาชิกมีไว้ตอบ: ตอนนี้คนนี้กำลังทำอะไรอยู่
+     * และคอลัมน์ "เสร็จแล้ว" ของตารางต้องตัดตามวันเหมือนกันทั้งสองหน้า
+     */
+    public function test_member_workspace_shares_the_today_scope_and_the_done_column_cutoff(): void
+    {
+        $admin = $this->user('admin');
+        $member = $this->user();
+        $project = WorkOrderList::create([
+            'user_id' => $member->id,
+            'name' => 'Today project',
+            'is_visible' => true,
+            'sort_order' => 1,
+        ]);
+
+        $activeToday = $this->task($project, $member, $member, 'อยู่ในช่วงวันนี้');
+        $future = $this->task($project, $member, $member, 'ยังไม่ถึงวันเริ่ม', [
+            'job_start_at' => now()->addDays(3),
+            'job_due_at' => now()->addDays(5),
+        ]);
+        $closedYesterday = $this->task($project, $member, $member, 'ปิดเมื่อวาน', [
+            'job_status' => 4,
+            'job_completed_at' => now()->subDay(),
+        ]);
+
+        // ตัวกรองปกติ: ตารางแสดงงานที่ยังไม่ปิดครบ แต่ไม่เก็บงานที่ปิดไปเมื่อวาน
+        $all = $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member]))
+            ->assertOk()
+            ->assertSee('งานของวันนี้');
+
+        $this->assertEqualsCanonicalizing(
+            [$activeToday->job_id, $future->job_id],
+            $all->viewData('workspaceTasks')->pluck('job_id')->all()
+        );
+        $this->assertSame(3, $all->viewData('taskScopeCount'), 'ตัวนับยังนับงานที่ปิดแล้วอยู่');
+
+        $today = $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member, 'task_scope' => 'today']))
+            ->assertOk()
+            ->assertViewHas('taskScope', 'today');
+
+        $this->assertSame([$activeToday->job_id], $today->viewData('workspaceTasks')->pluck('job_id')->all());
+        $this->assertSame(1, $today->viewData('taskScopeCount'));
+        $this->assertNotContains($closedYesterday->job_id, $today->viewData('workspaceTasks')->pluck('job_id')->all());
+
+        // หัวหน้าแผนกที่เปิดแบบอ่านอย่างเดียวต้องได้กติกาชุดเดียวกัน
+        $head = $this->user();
+        $head->forceFill(['is_department_head' => true])->save();
+
+        $this->actingAs($head)
+            ->get(route('work-board.member', [$this->department, $member, 'workspace' => 1, 'task_scope' => 'today']))
+            ->assertOk()
+            ->assertViewHas('workspaceTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$activeToday->job_id]);
+    }
+
     private function meetingListSection(string $content): string
     {
         $start = strpos($content, 'meetings-page__list');

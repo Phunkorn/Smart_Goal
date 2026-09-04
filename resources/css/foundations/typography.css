@@ -1,0 +1,48 @@
+/*
+ * ระยะห่างตัวอักษรของป้ายกำกับตัวพิมพ์ใหญ่
+ *
+ * Prompt ออกแบบมาเพื่อภาษาไทยเป็นหลัก ตัวพิมพ์ใหญ่ละตินของฟอนต์นี้จึงมีช่องไฟตั้งต้นแคบมาก
+ * เมื่อถูกใช้เป็นป้ายกำกับตัวเล็ก (9–12px) ที่ตัวหนา 700–800 ตามที่หน้าต่าง ๆ ใช้กัน
+ * ตัวอักษรจะเบียดจนติดกันและอ่านยาก โดยเฉพาะคำที่มีตัวตรงเรียงกันอย่าง
+ * "ASSIGNMENT APPROVAL" หรือ "ADMIN MEMBER WORKSPACE"
+ *
+ * ป้ายพวกนี้กระจายอยู่หลายหน้าและตั้งค่ากันเองคนละค่า (บางที่ .02em บางที่ไม่ตั้งเลย)
+ * ที่นี่จึงกำหนดค่ากลางไว้ตัวเดียว ให้ทุกป้ายตัวพิมพ์ใหญ่อ่านเป็นชุดเดียวกันทั้งระบบ
+ * ไฟล์นี้ถูก import ก่อนไฟล์ของแต่ละหน้า หน้าที่ต้องการค่าเฉพาะจึงยังทับค่านี้ได้ตามเดิม
+ *
+ * CSS เลือกองค์ประกอบจาก "ข้อความที่เป็นตัวพิมพ์ใหญ่" ไม่ได้ รายการนี้จึงต้องระบุคลาสตรง ๆ
+ * เมื่อเพิ่มป้ายกำกับตัวพิมพ์ใหญ่ใหม่ ให้เพิ่มคลาสไว้ที่นี่แทนการตั้ง letter-spacing ซ้ำ
+ */
+:root {
+    --caps-tracking: .1em;
+}
+
+/* ป้ายที่ประกาศ text-transform: uppercase ไว้ตรง ๆ */
+.table-clean th,
+.nav-section-label,
+.admin-approvals-list__header,
+.admin-approvals-request__cell::before,
+.employee-reset-modal__eyebrow,
+.mytasks-calendar__option-label,
+.meetings-page__eyebrow,
+.employee-picker__eyebrow,
+.employee-report__eyebrow,
+.report-landing__eyebrow,
+.report-page__eyebrow,
+.personal-report__eyebrow,
+
+/* ป้ายที่ข้อความเป็นตัวพิมพ์ใหญ่มาตั้งแต่ใน Blade
+ * (ป้ายที่ข้อความเป็นภาษาไทยล้วนไม่อยู่ในรายการนี้ เพราะการถ่างช่องไฟ
+ * ทำให้สระและวรรณยุกต์ของไทยหลุดออกจากพยัญชนะที่มันเกาะอยู่) */
+.notion-kicker,
+.wb-eyebrow,
+.task-edit-kicker,
+.meetings-page__modal-kicker,
+.admin-assignment-heading__eyebrow,
+.admin-approvals-queue__heading > div > span,
+.board-attachment-modal__card > header span,
+.mytasks-calendar-day__card > header span,
+.mytasks-calendar-detail__card > header span {
+    letter-spacing: var(--caps-tracking);
+    line-height: 1.5;
+}

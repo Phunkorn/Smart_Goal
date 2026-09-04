@@ -90,3 +90,69 @@
             line-height: 1;
             font-weight: 850;
         }
+
+        /* ---------- ออกจากระบบ ----------
+         *
+         * ย้ายมาจากท้าย Sidebar เพราะที่นั่นเข้าถึงไม่ได้ในสองสถานะที่พบบ่อยที่สุด:
+         * เมื่อ Sidebar ถูกย่อบนเดสก์ท็อป และเมื่อ Sidebar เป็น off-canvas ที่ปิดอยู่บนจอเล็ก
+         * ตอนนี้อยู่ถัดจากไอคอนแจ้งเตือน ซึ่งเป็นมุมที่ผู้ใช้มองหาบัญชีของตัวเองอยู่แล้ว
+         */
+        .topbar-logout {
+            margin: 0;
+            flex: 0 0 auto;
+        }
+
+        .topbar-logout__button {
+            width: auto;
+            gap: .45rem;
+            padding: 0 .7rem;
+            font-size: .82rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .topbar-logout__button:hover {
+            border-color: var(--brand-red);
+            background: var(--brand-red-dim);
+            color: var(--brand-red);
+        }
+
+        .topbar-logout__button:focus-visible {
+            outline: 0;
+            border-color: var(--brand-red);
+            box-shadow: 0 0 0 3px rgba(232, 53, 43, .18);
+        }
+
+        /* จอแคบเหลือแค่ไอคอน เพื่อไม่ให้แถบบนล้นจนป้ายบทบาทถูกบีบหาย */
+        @media (max-width: 767.98px) {
+            .topbar-logout__label {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                margin: -1px;
+                padding: 0;
+                overflow: hidden;
+                clip-path: inset(50%);
+                white-space: nowrap;
+            }
+
+            .topbar-logout__button {
+                width: 36px;
+                padding: 0;
+            }
+        }
+
+        /*
+         * ป้ายบทบาทมุมขวาบนแสดงเฉพาะจอเล็ก
+         *
+         * บนเดสก์ท็อป Sidebar กางอยู่และท้ายเมนูบอก ชื่อ / บทบาท / แผนก ครบอยู่แล้ว
+         * ป้ายนี้จึงเป็นข้อมูลซ้ำที่กินพื้นที่แถบบนไปเปล่า ๆ
+         * จอเล็กที่ Sidebar เป็น off-canvas ปิดอยู่ ป้ายนี้คือที่เดียวที่บอกว่ากำลังใช้งานในบทบาทใด
+         *
+         * ใช้ display:none ไม่ใช่ visibility หรือ opacity เพื่อไม่ให้เหลือกล่องว่างค้างในแถว
+         */
+        @media (min-width: 992px) {
+            .role-chip--mobile-only {
+                display: none;
+            }
+        }

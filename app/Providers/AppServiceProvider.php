@@ -7,6 +7,7 @@ use App\Models\WorkOrderListTaskRequest;
 use App\Services\AdminApprovalQuery;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -27,6 +28,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        /*
+         * ตัวแบ่งหน้าเริ่มต้นของ Laravel เขียนด้วยคลาสของ Tailwind และฝัง <svg> ลูกศรไว้ในตัว
+         * โปรเจกต์นี้ใช้ Bootstrap 5 ไม่ใช่ Tailwind คลาสเหล่านั้นจึงไม่ถูกใช้เลย
+         * ผลคือ <svg> ถูกวาดตามขนาดตั้งต้นของตัวเอง ลูกศร "ก่อนหน้า/ถัดไป" จึงใหญ่เต็มหน้าจอ
+         * ตั้งค่าที่นี่ที่เดียวเพื่อให้ทุกหน้าที่เรียก ->links() ได้ตัวแบ่งหน้าหน้าตาเดียวกัน
+         */
+        Paginator::useBootstrapFive();
+
         View::composer('layouts.app', function (IlluminateView $view): void {
             $user = request()->user();
             if (! $user || ($user->role !== 'admin' && ! $user->isDepartmentHead())) {

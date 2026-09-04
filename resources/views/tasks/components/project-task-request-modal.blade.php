@@ -29,8 +29,8 @@
                 <label><span>ชื่องาน</span><input class="form-control" name="job_topic" maxlength="255" required><div class="invalid-feedback" data-project-task-request-error="job_topic"></div></label>
                 <div class="project-task-request-modal__grid">
                     <label><span>ความสำคัญ</span><select class="form-select" name="job_priority" required><option value="1">Routine</option><option value="2" selected>สำคัญไม่ด่วน</option><option value="3">สำคัญด่วน</option><option value="4">ด่วนไม่สำคัญ</option><option value="5">ไม่รีบ</option></select><div class="invalid-feedback" data-project-task-request-error="job_priority"></div></label>
-                    <label><span>วันที่เริ่ม</span><input class="form-control" type="date" name="job_start_at" required><div class="invalid-feedback" data-project-task-request-error="job_start_at"></div></label>
-                    <label><span>กำหนดส่ง</span><input class="form-control" type="date" name="job_due_at" required><div class="invalid-feedback" data-project-task-request-error="job_due_at"></div></label>
+                    <label><span>วันที่เริ่ม</span><input class="form-control" type="date" data-date-picker name="job_start_at" required><div class="invalid-feedback" data-project-task-request-error="job_start_at"></div></label>
+                    <label><span>กำหนดส่ง</span><input class="form-control" type="date" data-date-picker name="job_due_at" required><div class="invalid-feedback" data-project-task-request-error="job_due_at"></div></label>
                 </div>
                 <p><i class="bi bi-info-circle"></i> ระบบจะสร้างงานเมื่อเจ้าของโปรเจกต์อนุมัติเท่านั้น</p>
             </div>

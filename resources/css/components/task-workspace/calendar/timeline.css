@@ -175,9 +175,15 @@
     background: color-mix(in srgb, var(--calendar-tone, #64748b) 12%, white);
     color: #27364d;
     font-family: inherit;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1;
+    /*
+     * ชื่องานบนเส้นเคยเป็น 10px หนัก 700 ซึ่งอ่านยากมากในฟอนต์ Prompt:
+     * ตัวเล็กเกินจนสระและวรรณยุกต์ไทยเกาะติดกัน ส่วนน้ำหนัก 700 ทำให้เส้นอักษรหนาจนบวม
+     * ขยายเป็น 11px และลดน้ำหนักลงเหลือ 500 ตัวอักษรจึงโปร่งและอ่านได้ในแวบเดียว
+     * สูงของเลนยังเป็น 23px เท่าเดิม จึงไม่กระทบจำนวนเลนหรือความสูงของช่องวันที่
+     */
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.1;
     text-align: left;
     cursor: pointer;
     pointer-events: auto;
@@ -246,13 +252,24 @@
 .my-tasks-page .mytasks-calendar__task-line[data-lane="3"] { grid-row: 3; }
 .my-tasks-page .mytasks-calendar__task-line[data-lane="4"] { grid-row: 4; }
 
+/*
+ * ปุ่มบอกส่วนที่ล้นออกจากสี่เลน
+ *
+ * เดิมนับเฉพาะงานที่ล้น ประชุมของวันนั้นถูกวาดแยกเป็นชิปเล็ก ๆ อีกมุมหนึ่งของช่อง
+ * พอวันไหนมีงานเต็มสี่เลน ชิปประชุมก็ถูกเบียดจนแทบมองไม่เห็น
+ * ตอนนี้ปุ่มเดียวนี้บอกทั้ง "งานที่ยังไม่ได้แสดง" และ "มีประชุมกี่รายการ"
+ * งานยังได้เลนก่อนเสมอเพราะเป็นสิ่งที่ต้องลงมือทำ ส่วนประชุมได้ที่ยืนที่แน่นอนแทน
+ */
 .my-tasks-page .mytasks-calendar__timeline-more {
     position: absolute;
     z-index: 3;
     right: 5px;
     bottom: 5px;
+    display: flex;
     max-width: calc(100% - 10px);
-    padding: 2px 6px;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
     overflow: hidden;
     border: 1px solid #dbe3ee;
     border-radius: 999px;
@@ -264,6 +281,26 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
+}
+
+.my-tasks-page .mytasks-calendar__timeline-more > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* จุดสีม่วงชุดเดียวกับโทน "การประชุม" ของปฏิทิน เพื่อให้รู้ทันทีว่าเลขนี้คือประชุม */
+.my-tasks-page .mytasks-calendar__timeline-more .is-meeting-count {
+    color: #6d28d9;
+}
+
+.my-tasks-page .mytasks-calendar__timeline-more .is-meeting-count::before {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
 }
 
 .my-tasks-page .mytasks-calendar__timeline-more:hover {
@@ -280,18 +317,15 @@
     display: none;
 }
 
-/* Meetings retain their existing per-day count and never consume one of the four task lanes. */
-.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__counts {
-    position: absolute;
-    z-index: 3;
-    bottom: 7px;
-    left: 7px;
-}
-
-.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__count:not(.is-meeting),
-.my-tasks-page .mytasks-calendar[data-calendar-mode="timeline"] .mytasks-calendar__more {
-    display: none;
-}
+/*
+ * โหมดเส้นช่วงงานไม่วาดชิปนับรายการเลย จึงไม่มีสไตล์ของมันในโหมดนี้
+ *
+ * ประชุมเคยถูกวาดเป็นชิปแยกมุมล่างซ้าย ซึ่งชนกับปุ่ม "+N" ที่มุมล่างขวาเมื่อช่องแคบ
+ * และผู้ใช้ต้องกวาดตาสองที่เพื่อรู้ว่าวันนั้นมีอะไรที่ยังไม่ได้แสดง
+ * ตอนนี้ทั้งงานที่ล้นและจำนวนประชุมถูกรวมไว้ในปุ่มเดียวที่มุมล่างขวา
+ * โดย makeDayCell() ใน calendar.js ไม่สร้าง .mytasks-calendar__counts ในโหมดนี้อีกเลย
+ * (ไม่ใช่สร้างแล้วซ่อนด้วย CSS) ส่วนโหมด "ภาพรวมสี" ยังใช้ชิปนับรายการตามเดิมทุกประการ
+ */
 
 @media (max-width: 760px) {
     /* จอแคบวางชื่อเดือนไว้บน แล้วให้ตัวเลือกการแสดงกินเต็มความกว้างข้างล่าง */

@@ -1,9 +1,17 @@
+/*
+ * ค่าที่ยอมรับได้ของ ?task_scope=
+ *
+ * ต้องตรงกับ App\Support\TaskScopeOptions ฝั่งเซิร์ฟเวอร์ ซึ่งเป็นผู้บังคับตัวกรองจริง
+ * รายการนี้มีไว้เพียงเพื่อไม่ให้ค่าที่พิมพ์ผิดถูกใส่กลับลง URL เท่านั้น
+ */
 export const taskScopes = Object.freeze([
     'all',
+    'today',
     'responsible',
     'created',
     'assigned_by_me',
     'collaborating',
+    'department',
 ]);
 
 const boardStatuses = new Set(['', '1', '2', '3', '4', '5', 'late']);

@@ -146,12 +146,12 @@
                             <span class="board-priority priority-{{ $priority[1] }}">{{ $priority[0] }}</span>
                         @endcan
                         @if($canEditSchedule)
-                            <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $startLabel }}</span><input type="date" data-board-field="start" value="{{ optional($task->job_start_at)->format('Y-m-d') }}" max="{{ optional($task->job_due_at)->format('Y-m-d') }}" aria-label="เลือกวันที่เริ่ม"></label>
+                            <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $startLabel }}</span><input type="date" data-date-picker data-board-field="start" value="{{ optional($task->job_start_at)->format('Y-m-d') }}" data-range-partner="due" aria-label="เลือกวันที่เริ่ม"></label>
                         @else
                             <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
                         @endif
                         @if($canEditSchedule)
-                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="date" data-board-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" min="{{ optional($task->job_start_at)->format('Y-m-d') }}" aria-label="เลือกกำหนดส่ง"></label>
+                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="date" data-date-picker data-board-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" data-range-partner="start" aria-label="เลือกกำหนดส่ง"></label>
                         @else
                             <span class="board-due {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $dueLabel }}</span>
                         @endif

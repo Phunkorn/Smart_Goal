@@ -61,40 +61,13 @@
                 @endif
             </p>
 
-            <div class="mytasks-calendar__controls">
-                <div class="mytasks-calendar__navigation" aria-label="เปลี่ยนเดือน">
-                    <button type="button" class="mytasks-calendar__reset" data-calendar-reset>คืนค่า</button>
-                    <button type="button" data-calendar-today>วันนี้</button>
-                    <button type="button" data-calendar-previous aria-label="เดือนก่อนหน้า"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
-                    <button type="button" data-calendar-next aria-label="เดือนถัดไป"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
-                    <label><span class="visually-hidden">เลือกเดือน</span><select data-calendar-month aria-label="เลือกเดือน">@foreach(['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'] as $index => $month)<option value="{{ $index }}">{{ $month }}</option>@endforeach</select></label>
-                    <label><span class="visually-hidden">เลือกปี</span><select data-calendar-year aria-label="เลือกปี"></select></label>
-                </div>
-            </div>
-            
-            
-        </header>
-
-        {{--
-            ตัวเลือกการแสดงผลอยู่แถวเดียวกับชื่อเดือน ไม่ใช่แถบของตัวเองอีกแถบ
-            เดิมหน้าปฏิทินมีแถบแนวนอนซ้อนกันสามชั้นก่อนถึงตารางจริง (คำอธิบายสี /
-            ตัวเลือกการแสดง / ชื่อเดือน) ทำให้ดูรกและดันตารางลงไปต่ำ
-            ปุ่มพวกนี้ควบคุมสิ่งที่อยู่ในตาราง จึงควรอยู่ติดกับหัวเรื่องของตาราง
-        --}}
-        <div class="mytasks-calendar__heading">
-            <div class="mytasks-calendar__heading-text">
-                <div class="mytasks-calendar__heading-line">
-                    <h2 id="mytasks-calendar-title" data-calendar-title aria-live="polite"></h2>
-                    @if($calendarShowsMeetings)
-                        <span class="mytasks-calendar__loading" data-calendar-loading role="status" aria-live="polite" hidden><i class="bi bi-arrow-repeat" aria-hidden="true"></i> กำลังโหลดการประชุม</span>
-                    @endif
-                    <span class="mytasks-calendar__filtered" data-calendar-filtered role="status" aria-live="polite" hidden></span>
-                </div>
-                <p class="mytasks-calendar__display-note" data-calendar-display-note aria-live="polite">
-                    แสดงเส้นงานตั้งแต่วันเริ่มถึงวันสิ้นสุด สูงสุด 4 เส้นต่อวัน
-                </p>
-            </div>
-
+            {{--
+                ตัวเลือกการแสดงผลอยู่ในแถบเครื่องมือระดับเดียวกับคำอธิบายสีและปุ่มเปลี่ยนเดือน
+                เดิมอยู่ในแถวหัวเรื่องคู่กับชื่อเดือน ทำให้ "ชื่อของสิ่งที่กำลังดู" (กันยายน 2569)
+                กับ "ปุ่มที่เปลี่ยนสิ่งที่ดู" ปนกันอยู่บรรทัดเดียว
+                ปุ่มควบคุมทั้งหมดของปฏิทินจึงถูกรวมไว้ในแถบเครื่องมือแถบเดียว
+                และแถวหัวเรื่องเหลือเพียงชื่อเดือนกับคำอธิบายการแสดงผล
+            --}}
             <div class="mytasks-calendar__displaybar" aria-label="ตัวเลือกการแสดงปฏิทิน">
                 <div class="mytasks-calendar__option-group">
                     <span class="mytasks-calendar__option-label">รูปแบบ</span>
@@ -123,6 +96,33 @@
                         </button>
                     </div>
                 </div>
+            </div>
+
+            <div class="mytasks-calendar__controls">
+                <div class="mytasks-calendar__navigation" aria-label="เปลี่ยนเดือน">
+                    <button type="button" class="mytasks-calendar__reset" data-calendar-reset>คืนค่า</button>
+                    <button type="button" data-calendar-today>วันนี้</button>
+                    <button type="button" data-calendar-previous aria-label="เดือนก่อนหน้า"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                    <button type="button" data-calendar-next aria-label="เดือนถัดไป"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                    <label><span class="visually-hidden">เลือกเดือน</span><select data-calendar-month aria-label="เลือกเดือน">@foreach(['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'] as $index => $month)<option value="{{ $index }}">{{ $month }}</option>@endforeach</select></label>
+                    <label><span class="visually-hidden">เลือกปี</span><select data-calendar-year aria-label="เลือกปี"></select></label>
+                </div>
+            </div>
+        </header>
+
+        {{-- แถวหัวเรื่องบอกอย่างเดียวว่ากำลังดูเดือนไหนและตารางกำลังแสดงอะไร ไม่มีปุ่มควบคุมแล้ว --}}
+        <div class="mytasks-calendar__heading">
+            <div class="mytasks-calendar__heading-text">
+                <div class="mytasks-calendar__heading-line">
+                    <h2 id="mytasks-calendar-title" data-calendar-title aria-live="polite"></h2>
+                    @if($calendarShowsMeetings)
+                        <span class="mytasks-calendar__loading" data-calendar-loading role="status" aria-live="polite" hidden><i class="bi bi-arrow-repeat" aria-hidden="true"></i> กำลังโหลดการประชุม</span>
+                    @endif
+                    <span class="mytasks-calendar__filtered" data-calendar-filtered role="status" aria-live="polite" hidden></span>
+                </div>
+                <p class="mytasks-calendar__display-note" data-calendar-display-note aria-live="polite">
+                    แสดงเส้นงานตั้งแต่วันเริ่มถึงวันสิ้นสุด สูงสุด 4 เส้นต่อวัน
+                </p>
             </div>
         </div>
 
@@ -166,6 +166,16 @@
                 <span>วันนี้ไม่มีงานที่ครบกำหนดหรือการประชุม</span>
             </p>
             <footer class="mytasks-calendar-agenda__footer">
+                {{--
+                    การ์ดแสดงครั้งละ 10 แถว เกินกว่านั้นเดินหน้า/ถอยหลังทีละหน้า
+                    ปุ่มถูก render จาก Blade เสมอ แล้ว calendar.js เป็นผู้เปิด/ปิดตามจำนวนแถวจริง
+                    เพื่อไม่ให้มีการสร้างปุ่มซ้ำเมื่อการ์ดถูกวาดใหม่ทุกครั้งที่เปลี่ยนเดือน
+                --}}
+                <nav class="mytasks-calendar-agenda__pager" data-calendar-agenda-pager="today" aria-label="เปลี่ยนหน้ารายการ" hidden>
+                    <button type="button" data-calendar-agenda-previous aria-label="หน้าก่อนหน้า"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                    <span data-calendar-agenda-page role="status" aria-live="polite"></span>
+                    <button type="button" data-calendar-agenda-next aria-label="หน้าถัดไป"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                </nav>
                 <a href="{{ $calendarTableUrl }}">ดูทั้งหมด <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </footer>
         </section>
@@ -192,6 +202,16 @@
                 <span>เดือนนี้ยังไม่มีงานที่ครบกำหนดหรือการประชุม</span>
             </p>
             <footer class="mytasks-calendar-agenda__footer">
+                {{--
+                    การ์ดแสดงครั้งละ 10 แถว เกินกว่านั้นเดินหน้า/ถอยหลังทีละหน้า
+                    ปุ่มถูก render จาก Blade เสมอ แล้ว calendar.js เป็นผู้เปิด/ปิดตามจำนวนแถวจริง
+                    เพื่อไม่ให้มีการสร้างปุ่มซ้ำเมื่อการ์ดถูกวาดใหม่ทุกครั้งที่เปลี่ยนเดือน
+                --}}
+                <nav class="mytasks-calendar-agenda__pager" data-calendar-agenda-pager="month" aria-label="เปลี่ยนหน้ารายการ" hidden>
+                    <button type="button" data-calendar-agenda-previous aria-label="หน้าก่อนหน้า"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                    <span data-calendar-agenda-page role="status" aria-live="polite"></span>
+                    <button type="button" data-calendar-agenda-next aria-label="หน้าถัดไป"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                </nav>
                 <a href="{{ $calendarTableUrl }}">ดูทั้งหมด <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </footer>
         </section>

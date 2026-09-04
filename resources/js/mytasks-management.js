@@ -184,12 +184,11 @@ import {attachmentLimits} from './pages/mytasks/attachment-store.js';
     };
 
     workspace.addEventListener('click', (event) => {
-        const due = event.target.closest('.row-duration');
-        if (due && !event.target.matches('input')) {
-            const input = due.querySelector('input[type="date"]');
-            input?.showPicker?.();
-            input?.focus();
-        }
+        /*
+         * ช่องกำหนดส่งของแถวงานใช้ตัวเลือกวันที่ของระบบชุดเดียวกับบอร์ด
+         * ผูกไว้แบบ delegated ที่ document ผ่าน data-date-picker บนตัว <input> เดิม
+         * จึงไม่ต้องเรียกปฏิทินของเบราว์เซอร์ที่นี่อีก และผู้ใช้ทุกบทบาทได้ปฏิทินหน้าตาเดียวกัน
+         */
 
         const summary = event.target.closest('.task-more-menu summary, .project-more-menu summary');
         if (summary) {

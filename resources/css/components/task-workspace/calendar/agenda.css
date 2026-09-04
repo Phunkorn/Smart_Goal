@@ -374,3 +374,69 @@
         gap: 6px;
     }
 }
+
+/* ============================================================================
+ * ตัวเปลี่ยนหน้าของการ์ดสรุป
+ *
+ * การ์ดแสดงครั้งละ 10 แถว เดือนที่ยุ่งจึงไม่ทำให้การ์ดสูงกว่าตัวปฏิทินเอง
+ * ตัวเปลี่ยนหน้าอยู่ซ้าย ส่วนลิงก์ "ดูทั้งหมด" อยู่ขวา เพราะเป็นทางออกไปหน้าอื่น
+ * ========================================================================== */
+
+.my-tasks-page .mytasks-calendar-agenda__footer {
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__pager {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__pager[hidden] {
+    display: none;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__pager button {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #dbe3ee;
+    border-radius: 8px;
+    background: #fff;
+    color: #5a6b85;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__pager button:hover:not(:disabled) {
+    border-color: #a9c3ed;
+    background: #f2f7ff;
+    color: #2563eb;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__pager button:disabled {
+    color: #c2cbd8;
+    cursor: not-allowed;
+}
+
+.my-tasks-page .mytasks-calendar-agenda__pager button:focus-visible {
+    outline: 0;
+    border-color: #7aa5ee;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+}
+
+.my-tasks-page .mytasks-calendar-agenda__pager span {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* การ์ดที่มีหน้าเดียวยังต้องวางลิงก์ "ดูทั้งหมด" ไว้กลางเหมือนเดิม */
+.my-tasks-page .mytasks-calendar-agenda__footer:has(.mytasks-calendar-agenda__pager[hidden]) {
+    justify-content: center;
+}

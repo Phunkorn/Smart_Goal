@@ -130,6 +130,28 @@ const eventOrder = (left, right) => (
     || left.id.localeCompare(right.id)
 );
 
+/**
+ * วันที่ที่แถวหนึ่งในการ์ดรายเดือน "หมายถึง" จริง ๆ
+ *
+ * งานถูกวางไว้ที่กำหนดส่ง เพราะการ์ดนี้ชื่อว่า "กำหนดส่งและนัดหมายในเดือนนี้"
+ * ส่วนประชุมถูกวางไว้ที่เวลาเริ่ม เพราะประชุมเป็นนัดหมายไม่ใช่ช่วงงาน
+ */
+export const agendaStamp = (event) => (event.type === 'meeting' ? event.startStamp : event.dueStamp);
+
+/**
+ * เรียงตามวันที่ที่แถวนั้นแสดงจริง ไม่ใช่ตามวันเริ่มงาน
+ *
+ * eventOrder() เรียงด้วย startStamp ก่อน ซึ่งถูกสำหรับปฏิทินที่วาดเป็นเส้นช่วงงาน
+ * แต่ในการ์ดรายเดือนแถวหนึ่งแสดง "กำหนดส่ง" ของงาน ผลคือรายการดูเหมือนข้ามวันไปมา
+ * (งานที่เริ่มวันที่ 1 แต่ครบกำหนดวันที่ 20 ไปนั่งอยู่ก่อนงานที่ครบกำหนดวันที่ 5)
+ */
+export const agendaOrder = (left, right) => (
+    agendaStamp(left) - agendaStamp(right)
+    || left.startStamp - right.startStamp
+    || String(left.title || '').localeCompare(String(right.title || ''), 'th')
+    || left.id.localeCompare(right.id)
+);
+
 export const buildCalendarAgenda = (events, year, month, todayKey) => {
     const unique = new Map();
     events.map(normalizeCalendarEvent).filter(Boolean).forEach((event) => {
@@ -167,7 +189,8 @@ export const buildCalendarAgenda = (events, year, month, todayKey) => {
         todayEvents: [...todayTasks, ...todayMeetings].sort(eventOrder),
         monthTasks,
         monthMeetings,
-        monthEvents: [...monthTasks, ...monthMeetings].sort(eventOrder),
+        // เรียงตามวันที่ของแถว (กำหนดส่งของงาน / เวลาเริ่มของประชุม) จึงไล่วันที่ 1 ไปจนสิ้นเดือน
+        monthEvents: [...monthTasks, ...monthMeetings].sort(agendaOrder),
     };
 };
 

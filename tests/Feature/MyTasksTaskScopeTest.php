@@ -170,11 +170,14 @@ class MyTasksTaskScopeTest extends TestCase
     }
 
     /**
-     * ขอบเขต "ทั้งแผนก" ยังไม่เปิด เพราะ scopeVisibleInProjectsFor() ให้หัวหน้าแผนก
-     * เห็นเท่าผู้ใช้ทั่วไป ตัวกรองนี้จึงทำได้แค่แคบลง ไม่สามารถขยายการมองเห็นได้
-     * ค่าที่ยัดมาเองต้องตกกลับเป็น all ไม่ใช่หลุดไปเห็นงานทั้งแผนก
+     * หัวหน้าแผนกต้องเห็นงานของลูกทีมในบอร์ดของตัวเอง รวมงานที่ปิดไปแล้ว
+     *
+     * WorkOrderPolicy::view() อนุญาตให้หัวหน้าดูงานที่ปลายทางเป็นแผนกตนอยู่ก่อนแล้ว
+     * แต่ scopeVisibleInProjectsFor() เคยคืนเฉพาะงานที่หัวหน้า "เกี่ยวข้องเอง"
+     * หัวหน้าจึงเปิดบอร์ดแล้วไม่เห็นงานของลูกทีมเลย ทั้งที่ policy บอกว่าดูได้
+     * ตอนนี้คิวรีกับ policy ตรงกันแล้ว และตัวกรอง "งานทั้งแผนก" จึงมีความหมายจริง
      */
-    public function test_department_scope_is_not_offered_and_cannot_be_forced_through_the_query(): void
+    public function test_department_head_sees_team_work_including_what_is_already_finished(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $head = $this->user();
@@ -182,16 +185,175 @@ class MyTasksTaskScopeTest extends TestCase
         $member = $this->user();
         $member->update(['department_id' => $department->id]);
 
-        $teamTask = $this->task($member, $member, $this->list($member), 'Team task');
-        $teamTask->update(['department_id' => $department->id]);
+        // โปรเจกต์ของลูกทีมเอง หัวหน้าไม่ได้สร้าง ไม่ได้รับผิดชอบ และไม่ได้เป็นผู้ร่วมงาน
+        $teamProject = $this->list($member);
+        $openTask = $this->task($member, $member, $teamProject, 'งานที่ลูกทีมยังทำอยู่');
+        $openTask->update(['department_id' => $department->id]);
+        $doneTask = $this->task($member, $member, $teamProject, 'งานที่ลูกทีมปิดไปแล้ว', [
+            'job_status' => 4,
+            'job_completed_at' => now()->subWeek(),
+        ]);
+        $doneTask->update(['department_id' => $department->id]);
 
-        $response = $this->actingAs($head->fresh())
+        $head = $head->fresh();
+        $response = $this->actingAs($head)->get(route('mytasks.index', ['view' => 'board']))->assertOk();
+
+        // งานที่ปิดแล้วต้องอยู่ในกลุ่ม "งานที่เสร็จแล้ว" ของโปรเจกต์นั้นบนบอร์ด
+        $this->assertTrue($response->viewData('completedTasks')->contains('job_id', $doneTask->job_id));
+        $this->assertTrue($response->viewData('activeTasks')->contains('job_id', $openTask->job_id));
+        $response->assertSee('board-completed-group', false)
+            ->assertSee('งานที่ลูกทีมปิดไปแล้ว');
+
+        // และโปรเจกต์ของลูกทีมต้องถูกดึงมาเป็นหัวกลุ่มด้วย ไม่เช่นนั้นงานจะไม่มีที่ให้วาง
+        $this->assertTrue($response->viewData('workspaceTaskLists')->contains('id', $teamProject->id));
+    }
+
+    /**
+     * ขอบเขต "ทั้งแผนก" เป็นของหัวหน้าแผนกเท่านั้น
+     *
+     * พนักงานทั่วไปเห็นเฉพาะงานที่ตนเกี่ยวข้อง ตัวเลือกนี้จึงไม่มีความหมายสำหรับเขา
+     * และค่าที่ยัดมาเองทาง URL ต้องตกกลับเป็น all ไม่ใช่เปิดทางให้เห็นงานทั้งแผนก
+     */
+    public function test_department_scope_belongs_to_heads_and_cannot_be_forced_by_a_member(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $head = $this->user();
+        $head->update(['department_id' => $department->id, 'is_department_head' => true]);
+        $member = $this->user();
+        $member->update(['department_id' => $department->id]);
+        $teammate = $this->user();
+        $teammate->update(['department_id' => $department->id]);
+
+        $teamTask = $this->task($teammate, $teammate, $this->list($teammate), 'Team task');
+        $teamTask->update(['department_id' => $department->id]);
+        $ownTask = $this->task($member->fresh(), $member->fresh(), $this->list($member), 'Own task');
+
+        // พนักงานทั่วไป: ไม่มีตัวเลือกนี้ และยัดค่ามาเองก็ต้องตกกลับเป็น all
+        $memberResponse = $this->actingAs($member->fresh())
             ->get(route('mytasks.index', ['task_scope' => 'department']))
             ->assertOk()
             ->assertViewHas('taskScope', 'all');
 
-        $this->assertNotContains('department', collect($response->viewData('taskScopeOptions'))->pluck('value')->all());
-        $this->assertNotContains($teamTask->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
+        $this->assertNotContains('department', collect($memberResponse->viewData('taskScopeOptions'))->pluck('value')->all());
+        $memberIds = $memberResponse->viewData('calendarTasks')->pluck('job_id')->all();
+        $this->assertNotContains($teamTask->job_id, $memberIds, 'พนักงานทั่วไปต้องไม่เห็นงานของเพื่อนร่วมแผนก');
+        $this->assertContains($ownTask->job_id, $memberIds);
+
+        // หัวหน้าแผนก: มีตัวเลือกนี้ และกดแล้วได้งานของทั้งแผนกจริง
+        $headResponse = $this->actingAs($head->fresh())
+            ->get(route('mytasks.index', ['task_scope' => 'department']))
+            ->assertOk()
+            ->assertViewHas('taskScope', 'department')
+            ->assertSee('งานทั้งแผนก');
+
+        $this->assertContains('department', collect($headResponse->viewData('taskScopeOptions'))->pluck('value')->all());
+        $this->assertContains($teamTask->job_id, $headResponse->viewData('calendarTasks')->pluck('job_id')->all());
+    }
+
+    /**
+     * มุมมอง "ตาราง" ต้องแสดงงานทุกใบที่ตัวกรองบอกว่ามี
+     *
+     * ของเดิมตารางถูกกรองซ้ำด้วย TodayWorkspace::tasks() งานที่ยังไม่ถึงวันเริ่มจึงหายไปเงียบ ๆ
+     * ผู้ใช้ที่เลือก "ฉันถูกชวนมาร่วมทำ" เห็นบรรทัดสรุปบอกว่ามี 1 งาน แต่ทุกคอลัมน์เป็น 0
+     * ขณะที่มุมมองบอร์ดแสดงงานใบเดียวกันนั้นอยู่ ตัวเลขกับสิ่งที่เห็นจึงขัดกันเอง
+     */
+    public function test_table_view_lists_every_task_the_scope_summary_counts(): void
+    {
+        $actor = $this->user();
+        $owner = $this->user();
+
+        $futureTask = $this->task($owner, $owner, $this->list($owner), 'Starts tomorrow', [
+            'job_start_at' => now()->addDay(),
+            'job_due_at' => now()->addDays(2),
+        ]);
+        $futureTask->collaborators()->attach($actor->id, [
+            'added_by' => $owner->id,
+            'status' => 'accepted',
+            'responded_at' => now(),
+        ]);
+
+        $response = $this->actingAs($actor)
+            ->get(route('mytasks.index', ['task_scope' => 'collaborating']))
+            ->assertOk();
+
+        $this->assertSame(1, $response->viewData('taskScopeCount'));
+        $this->assertSame([$futureTask->job_id], $response->viewData('workspaceTasks')->pluck('job_id')->all());
+
+        // งานยังไม่ถึงวันเริ่ม จึงไม่นับเป็นงานของ "วันนี้" แต่ต้องอยู่ในตารางอยู่ดี
+        $this->assertEmpty($response->viewData('todayTasks')->pluck('job_id')->all());
+
+        $html = $response->getContent();
+        $tableStart = strpos($html, 'data-table-kanban');
+        $tableHtml = substr($html, $tableStart, strpos($html, 'data-calendar', $tableStart) - $tableStart);
+        $this->assertStringContainsString('data-id='.chr(34).$futureTask->job_id.chr(34), $tableHtml);
+    }
+
+    /**
+     * คอลัมน์ "เสร็จแล้ว" ของมุมมองตารางเก็บเฉพาะงานที่ปิดวันนี้
+     *
+     * ตารางจัดคอลัมน์ตามสถานะ ช่อง "เสร็จแล้ว" จึงตอบคำถามว่า "วันนี้ปิดอะไรไปบ้าง"
+     * ถ้าไม่ตัดตามวัน คอลัมน์นี้จะยาวขึ้นทุกวันจนกลบงานที่ยังต้องทำ
+     * ประวัติงานที่ปิดแล้วไม่ได้หายไป มันอยู่ครบในกลุ่ม "งานที่เสร็จแล้ว" ของมุมมองบอร์ด
+     */
+    public function test_table_view_keeps_only_tasks_completed_today_in_the_done_column(): void
+    {
+        $actor = $this->user();
+        $list = $this->list($actor);
+
+        $open = $this->task($actor, $actor, $list, 'ยังทำอยู่');
+        $closedToday = $this->task($actor, $actor, $list, 'ปิดวันนี้', [
+            'job_status' => 4,
+            'job_completed_at' => now(),
+        ]);
+        $closedYesterday = $this->task($actor, $actor, $list, 'ปิดเมื่อวาน', [
+            'job_status' => 4,
+            'job_completed_at' => now()->subDay(),
+        ]);
+
+        $response = $this->actingAs($actor)->get(route('mytasks.index'))->assertOk();
+
+        $tableIds = $response->viewData('workspaceTasks')->pluck('job_id')->all();
+        $this->assertEqualsCanonicalizing([$open->job_id, $closedToday->job_id], $tableIds);
+
+        // งานที่ปิดไปแล้วยังอยู่ในบอร์ดและในตัวนับของตัวกรองครบเหมือนเดิม
+        $this->assertSame(3, $response->viewData('taskScopeCount'));
+        $this->assertTrue($response->viewData('completedTasks')->contains('job_id', $closedYesterday->job_id));
+    }
+
+    /**
+     * ตัวกรอง "งานของวันนี้" ใช้กติกาวันทำงานไทยชุดเดียวกับ TodayWorkspace
+     *
+     * ผู้ใช้ขอตัวเลือกนี้เพราะ "งานทั้งหมด" แสดงทุกอย่างที่มีสิทธิ์เห็นรวมงานในโปรเจกต์ของคนอื่นด้วย
+     * ซึ่งถูกต้องตามเงื่อนไข แต่ไม่ตอบคำถามว่า "วันนี้ต้องทำอะไร"
+     */
+    public function test_today_scope_narrows_the_workspace_to_the_business_day(): void
+    {
+        $actor = $this->user();
+        $list = $this->list($actor);
+
+        $activeToday = $this->task($actor, $actor, $list, 'อยู่ในช่วงวันนี้');
+        $future = $this->task($actor, $actor, $list, 'ยังไม่ถึงวันเริ่ม', [
+            'job_start_at' => now()->addDays(3),
+            'job_due_at' => now()->addDays(5),
+        ]);
+        $closedYesterday = $this->task($actor, $actor, $list, 'ปิดเมื่อวาน', [
+            'job_status' => 4,
+            'job_completed_at' => now()->subDay(),
+        ]);
+
+        $response = $this->actingAs($actor)
+            ->get(route('mytasks.index', ['task_scope' => 'today']))
+            ->assertOk()
+            ->assertViewHas('taskScope', 'today');
+
+        $this->assertSame([$activeToday->job_id], $this->workspaceTaskIds($response));
+        $this->assertSame(1, $response->viewData('taskScopeCount'));
+        $this->assertNotContains($future->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
+        $this->assertNotContains($closedYesterday->job_id, $response->viewData('calendarTasks')->pluck('job_id')->all());
+
+        // ตัวเลือกต้องมีอยู่จริงในเมนู ไม่ใช่รับได้แต่ค่าใน URL เท่านั้น
+        $this->assertContains('today', collect($response->viewData('taskScopeOptions'))->pluck('value')->all());
+        $response->assertSee('งานของวันนี้');
     }
 
     private function workspaceTaskIds($response): array

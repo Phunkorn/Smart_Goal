@@ -44,7 +44,9 @@
                     <i class="bi bi-person-badge" aria-hidden="true"></i>
                     <div>
                         <span>สิทธิ์การใช้งาน</span>
-                        <strong>{{ ['admin' => 'ผู้ดูแลระบบ', 'viewer' => 'ผู้เข้าชม', 'user' => 'พนักงาน'][$user->role] ?? 'พนักงาน' }}</strong>
+                        {{-- แปลงบทบาทที่ Support ตัวเดียว ตารางแปลงเดิมที่นี่มีแต่ค่าใน users.role
+                             จึงแสดงหัวหน้าแผนกเป็น "พนักงาน" ทั้งที่แถบบนของหน้าเดียวกันแสดงถูก --}}
+                        <strong>{{ \App\Support\RoleLabel::for($user) }}</strong>
                     </div>
                 </div>
                 <div class="settings-account-meta__item">

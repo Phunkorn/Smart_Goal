@@ -269,6 +269,41 @@ class MyTasksCalendarMeetingsTest extends TestCase
             ->assertStatus(422);
     }
 
+    /**
+     * ปฏิทินส่วนตัวของหัวหน้าแผนกต้องมีเฉพาะประชุมของตัวเอง
+     *
+     * MeetingQueryService::visibleQuery() ให้หัวหน้าแผนกเห็นประชุมทุกใบที่คนในแผนกจัดหรือเข้าร่วม
+     * ซึ่งถูกต้องสำหรับหน้ารายการประชุมที่เป็นหน้ากำกับดูแล แต่ผิดสำหรับปฏิทินของตัวเอง
+     * เพราะทำให้นัดหมายที่หัวหน้าไม่ได้ถูกเชิญไปปนกับนัดหมายจริงจนแยกไม่ออกว่าต้องไปไหนบ้าง
+     */
+    public function test_department_head_personal_calendar_only_shows_their_own_meetings(): void
+    {
+        $head = $this->user();
+        $head->forceFill(['is_department_head' => true])->save();
+        $teammate = $this->user();
+
+        $this->meeting($head, 'ประชุมของหัวหน้าเอง', '2026-08-24 09:00', '2026-08-24 10:00');
+        $this->meeting($teammate, 'ประชุมของลูกทีมที่หัวหน้าไม่ได้ร่วม', '2026-08-24 11:00', '2026-08-24 12:00');
+
+        $this->actingAs($head)
+            ->get(route('mytasks.index', ['view' => 'calendar']))
+            ->assertOk()
+            ->assertSee('ประชุมของหัวหน้าเอง')
+            ->assertDontSee('ประชุมของลูกทีมที่หัวหน้าไม่ได้ร่วม');
+
+        $this->actingAs($head)
+            ->getJson(route('mytasks.calendar.meetings', ['start' => '2026-08-01', 'end' => '2026-08-31']))
+            ->assertOk()
+            ->assertJsonCount(1, 'meetings')
+            ->assertJsonPath('meetings.0.title', 'ประชุมของหัวหน้าเอง');
+
+        // หน้ารายการประชุมยังเป็นหน้ากำกับดูแล จึงยังเห็นประชุมของทั้งแผนกตามเดิม
+        $this->actingAs($head)
+            ->get(route('meetings.index'))
+            ->assertOk()
+            ->assertSee('ประชุมของลูกทีมที่หัวหน้าไม่ได้ร่วม');
+    }
+
     public function test_viewer_cannot_reach_the_calendar_meeting_endpoint(): void
     {
         $viewer = $this->user('viewer');

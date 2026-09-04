@@ -1,3 +1,4 @@
+import {useDatePickers} from '../../components/date-picker.js';
 import '../../mytasks-notion.js';
 import '../../mytasks-task-modal.js';
 import '../../mytasks-views.js';
@@ -12,3 +13,6 @@ import './calendar.js';
 import './task-request.js';
 import './user-task-create.js';
 import './task-details.js';
+
+// ช่องวันที่ทุกช่องที่ประกาศ data-date-picker ใช้ปฏิทินของระบบแทนของเบราว์เซอร์
+useDatePickers();
