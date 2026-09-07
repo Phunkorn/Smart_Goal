@@ -210,10 +210,13 @@ class UserController extends Controller
         UserSessionSecurity::assertSupportedDriver();
         $payload = $this->auditUserPayload($user);
 
-        if ($user->profile_image) {
-            Storage::disk('public')->delete($user->profile_image);
-        }
-
+        // ห้ามลบรูปโปรไฟล์ที่นี่
+        //
+        // User ใช้ SoftDeletes บัญชีจึงกู้คืนได้จากถังขยะภายใน 30 วัน แต่เดิมโค้ดลบ
+        // ไฟล์รูปทิ้งก่อนเขียน trash log ผลคือกู้บัญชีกลับมาได้พร้อมคอลัมน์ profile_image
+        // ที่ชี้ไปยังไฟล์ซึ่งไม่มีอยู่แล้ว รูปพังถาวรโดยไม่มีทางแก้
+        //
+        // การลบไฟล์เป็นหน้าที่ของ TrashRetention ตอนลบถาวรเท่านั้น
         AuditTrail::trash($user, Auth::user(), ['user' => $payload]);
         AuditTrail::log('deleted', $user, 'Admin deleted '.$this->accountAuditLabel($accountContext).': '.$user->name, [
             'before' => $payload,

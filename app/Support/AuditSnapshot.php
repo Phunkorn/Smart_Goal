@@ -68,6 +68,15 @@ class AuditSnapshot
             'attachments' => 'ไฟล์อ้างอิงงาน',
             'ip_address' => 'หมายเลข IP',
             'reason' => 'เหตุผล',
+            // สองตัวนี้เคยไม่มีป้าย readableTrashPayload() จึงทิ้งค่าไปเงียบ ๆ
+            // ผู้ดูแลเปิดดูข้อมูลที่ถูกลบแล้วไม่เห็นรายละเอียดงานกับความสำคัญเลย
+            'job_details' => 'รายละเอียดงาน',
+            'priority' => 'ความสำคัญ',
+            'file_path' => 'ที่เก็บไฟล์',
+            'original_name' => 'ชื่อไฟล์',
+            'file_type' => 'ชนิดไฟล์',
+            'byte_size' => 'ขนาดไฟล์',
+            'uploaded_by' => 'ผู้อัปโหลด',
         ];
     }
 
@@ -122,6 +131,24 @@ class AuditSnapshot
     public static function actionLabels(): array
     {
         return [
+            // การกระทำที่โค้ดเขียนจริงแต่ตารางนี้ไม่รู้จัก หน้าจอจึงแสดงคีย์ภาษาอังกฤษดิบ
+            'purged' => 'ลบถาวร',
+            'reverted' => 'ย้อนค่าเดิม',
+            'password_reset' => 'รีเซ็ตรหัสผ่าน',
+            'moved' => 'ย้ายลำดับ',
+            'admin_status_overridden' => 'ผู้ดูแลระบบแก้สถานะ',
+            'review_approved' => 'ตรวจผ่านและปิดงาน',
+            'review_returned' => 'ส่งกลับแก้ไข',
+            'task_reopened' => 'เปิดงานอีกครั้ง',
+            'self_closed' => 'ปิดงานด้วยตัวเอง',
+            'submitted_for_review' => 'ส่งตรวจสอบ',
+            'work_log_created' => 'สร้างบันทึกงานประจำวัน',
+            'work_log_updated' => 'แก้ไขบันทึกงานประจำวัน',
+            'work_log_deleted' => 'ลบบันทึกงานประจำวัน',
+            'work_log_category_deleted' => 'ลบหมวดงานประจำวัน',
+            'work_log_template_deleted' => 'ลบแม่แบบงานประจำ',
+            'workspace_board_deleted' => 'ลบกระดานไอเดีย',
+
             'created' => 'สร้าง',
             'create' => 'สร้าง',
             'updated' => 'แก้ไข',

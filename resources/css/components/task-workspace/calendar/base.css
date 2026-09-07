@@ -535,6 +535,77 @@
     font-size: 9px;
 }
 
+/* ==========================================================================
+ * จอกว้าง: แถบเครื่องมือยุบเหลือแถบเดียว หัวเรื่องจึงเป็นบรรทัดที่สอง
+ *
+ * ของเดิมหน้าปฏิทินมีแถบแนวนอนสามชั้นก่อนถึงตาราง คือ คำอธิบายสี → ปุ่มควบคุม
+ * → ชื่อเดือน สาเหตุคือปุ่มในแถบตัวเลือกการแสดงผลสูง 34px และตัวอักษร 12px
+ * ซึ่งเป็นขนาดสำหรับนิ้วสัมผัส กลุ่มปุ่มจึงกว้างจนคำอธิบายสีอยู่ร่วมแถวไม่ได้
+ *
+ * ที่ความกว้างตั้งแต่ 1200px ขึ้นไปอุปกรณ์นำทางเป็นเมาส์ ปุ่มจึงย่อลงได้โดยไม่
+ * กระทบการกด แล้ววางทั้งสามกลุ่มไว้แถวเดียวกัน: คำอธิบายสี | ตัวเลือกการแสดงผล
+ * | ปุ่มเปลี่ยนเดือน เหลือชื่อเดือนเป็นบรรทัดที่สองบรรทัดเดียว
+ *
+ * ขนาดปุ่มฐาน (34px / 12px) ใน calendar/timeline.css ไม่ถูกแตะต้อง จอแคบและ
+ * อุปกรณ์สัมผัสจึงยังได้เป้ากดขนาดเดิมทุกประการ การย่อนี้จำกัดอยู่ในแถบเครื่องมือ
+ * ของจอกว้างเท่านั้น
+ * ========================================================================== */
+
+@media (min-width: 1200px) {
+    .my-tasks-page .mytasks-calendar__toolbar {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__legend {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    /*
+     * ทั้งสองกลุ่มขึ้นมาอยู่แถวเดียวกับคำอธิบายสี จึงต้องล้างเส้นคั่นและระยะห่าง
+     * ด้านบนที่เคยใช้ตอนเป็นแถวล่าง ไม่งั้นจะเหลือเส้นลอยกลางแถบ
+     */
+    .my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__displaybar,
+    .my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__controls {
+        grid-row: 1;
+        padding-top: 0;
+        border-top: 0;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__displaybar {
+        grid-column: 2;
+        flex-wrap: nowrap;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar > .mytasks-calendar__controls {
+        grid-column: 3;
+        justify-self: end;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar .mytasks-calendar__option-group {
+        gap: 6px;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar .mytasks-calendar__segmented {
+        gap: 2px;
+        padding: 3px;
+        border-radius: 10px;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar .mytasks-calendar__segmented button {
+        gap: 4px;
+        min-height: 28px;
+        padding: 0 9px;
+        border-radius: 7px;
+        font-size: 11px;
+        white-space: nowrap;
+    }
+
+    .my-tasks-page .mytasks-calendar__toolbar .mytasks-calendar__segmented button > i {
+        font-size: 12px;
+    }
+}
+
 /*
  * ปุ่มเปลี่ยนเดือนทุกปุ่มสูงเท่ากันและกว้างพอ ๆ กัน จึงอ่านเป็นแถบเดียวกัน
  * ขนาดถูกลดจาก 34px เป็น 30px เพื่อให้ทั้งกลุ่มแคบลงราว 60px และไม่เบียดคำอธิบายสี

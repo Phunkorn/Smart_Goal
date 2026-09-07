@@ -52,11 +52,24 @@ trait ValidatesAttachments
         ];
     }
 
-    private function storeFiles(Request $request, WorkOrder $job, string $field): void
+    /**
+     * เก็บไฟล์ลง storage แล้วคืนข้อมูลที่ต้องบันทึกลงตาราง โดยไม่ผูกกับตารางใด
+     *
+     * แยกออกมาเพราะแต่ละโดเมนมีตารางไฟล์แนบของตัวเอง (job_images ของงาน,
+     * work_order_list_attachments ของโครงการ, work_log_attachments ของบันทึก
+     * งานประจำวัน) แต่ "วิธีเก็บไฟล์และวิธีอ่าน MIME" ต้องเหมือนกันทุกที่
+     * ก่อนหน้านี้ MyTaskController::storeListAttachments() ต้องคัดลอกลูปนี้ไป
+     * เขียนเองเพราะ storeFiles() ผูกกับ WorkOrder
+     *
+     * @return array<int, array{path: string, original_name: string, file_type: string}>
+     */
+    private function collectStoredAttachments(Request $request, string $field, string $directory): array
     {
         if (! $request->hasFile($field)) {
-            return;
+            return [];
         }
+
+        $stored = [];
 
         foreach ($request->file($field) as $file) {
             // getClientMimeType() คือค่า Content-Type ที่ client ส่งมา ปลอมได้และยาวไม่จำกัด
@@ -64,13 +77,25 @@ trait ValidatesAttachments
             // AttachmentPolicy ใช้ตรวจ allow-list ค่าที่เก็บจึงถูกจำกัดชุดและความยาวเสมอ
             // ต้องอ่านก่อน storeAttachment() เพราะหลังย้ายไฟล์ออกจากที่พักชั่วคราวจะอ่านไม่ได้แล้ว
             $mimeType = $file->getMimeType();
-            $path = ProtectedMedia::storeAttachment($file, 'job-attachments/'.$job->job_id);
 
-            JobImage::create([
-                'job_id' => $job->job_id,
-                'file_path' => $path,
+            $stored[] = [
+                'path' => ProtectedMedia::storeAttachment($file, $directory),
                 'original_name' => $file->getClientOriginalName(),
                 'file_type' => $mimeType,
+            ];
+        }
+
+        return $stored;
+    }
+
+    private function storeFiles(Request $request, WorkOrder $job, string $field): void
+    {
+        foreach ($this->collectStoredAttachments($request, $field, 'job-attachments/'.$job->job_id) as $stored) {
+            JobImage::create([
+                'job_id' => $job->job_id,
+                'file_path' => $stored['path'],
+                'original_name' => $stored['original_name'],
+                'file_type' => $stored['file_type'],
                 'uploaded_by' => Auth::id(),
             ]);
         }

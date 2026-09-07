@@ -26,7 +26,21 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const remainder = readers.length - visible.length;
         return `<div class="task-timeline-entry__readers" aria-label="อ่านแล้วโดย ${escapeHtml(names)}">${visible.map(readerAvatar).join('')}${remainder > 0 ? `<span class="task-timeline-reader task-timeline-reader--more">+${remainder}</span>` : ''}</div>`;
     };
-    const entry = (item) => `<article class="task-timeline-entry${item.is_comment === true && item.is_mine ? ' is-mine' : ''}" data-comment-id="${escapeHtml(item.id)}"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div class="task-timeline-entry__content"><strong>${escapeHtml(item.author)}</strong><div class="task-timeline-entry__bubble"><p>${escapeHtml(item.note)}</p></div><small>${escapeHtml(item.at)}</small>${readReceipts(item)}</div></article>`;
+    /**
+     * รูปในฟองแชท
+     *
+     * url มาจาก TaskCommentPresenter ซึ่งสร้างจาก route ที่ตรวจสิทธิ์แล้ว
+     * ไม่ใช่ path ในดิสก์ แต่ยัง escape ทุกค่าเพราะชื่อไฟล์มาจากผู้ใช้
+     */
+    const commentImages = (item) => {
+        const images = Array.isArray(item.images) ? item.images : [];
+        if (!images.length) return '';
+
+        return `<div class="task-timeline-entry__images" data-comment-images>${images.map((image) => `<a class="task-timeline-entry__image" href="${escapeHtml(image.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name)}" loading="lazy"></a>`).join('')}</div>`;
+    };
+
+    // ฟองที่มีแต่รูปไม่ต้องมีย่อหน้าข้อความว่างมาดันความสูง
+    const entry = (item) => `<article class="task-timeline-entry${item.is_comment === true && item.is_mine ? ' is-mine' : ''}" data-comment-id="${escapeHtml(item.id)}"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div class="task-timeline-entry__content"><strong>${escapeHtml(item.author)}</strong><div class="task-timeline-entry__bubble">${String(item.note ?? '').trim() ? `<p>${escapeHtml(item.note)}</p>` : ''}${commentImages(item)}</div><small>${escapeHtml(item.at)}</small>${readReceipts(item)}</div></article>`;
     const compose = panel.querySelector('.task-timeline__compose');
 
     const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม' : 'ยังไม่มีรายการอัปเดต';
@@ -143,6 +157,86 @@ import {shouldSendUpdate} from './task-workspace-model.js';
      * ปุ่มส่งและปุ่ม Enter ใช้เส้นทางเดียวกันทั้งหมด รวมถึงการกันกดซ้ำ
      * ต้องอ่าน button ใหม่ทุกครั้ง เพราะ button.disabled คือ state ที่ใช้กันการส่งซ้อน
      */
+    /*
+     * รูปที่เลือกไว้แต่ยังไม่ได้ส่ง
+     *
+     * เก็บเป็นอาเรย์ของตัวเอง ไม่อ่านจาก input.files ตรง ๆ เพราะ FileList แก้ไขไม่ได้
+     * ผู้ใช้จึงเอารูปทีละใบออกจากที่เลือกไว้ไม่ได้เลยถ้าพึ่ง input อย่างเดียว
+     */
+    let pendingImages = [];
+    const MAX_IMAGES = 4;
+
+    /*
+     * ใช้ URL ของหน้าต่างที่เอกสารนี้อยู่ ไม่ใช่ global
+     *
+     * object URL ผูกกับ document ที่สร้างมัน การหยิบจาก view เดียวกันจึงถูกต้องกว่า
+     * และทำให้โมดูลนี้ทำงานได้ในสภาพแวดล้อมที่ global URL เป็นคนละตัวกับของหน้าต่าง
+     */
+    const view = () => panel.ownerDocument?.defaultView ?? globalThis;
+
+    const imageInput = () => panel.querySelector('[data-comment-image-input]');
+    const previewBox = () => panel.querySelector('[data-comment-image-preview]');
+
+    const renderPreviews = () => {
+        const box = previewBox();
+        if (!box) return;
+
+        // ปล่อย object URL ของรอบก่อนก่อนสร้างชุดใหม่ ไม่งั้นหน่วยความจำรั่วทุกครั้งที่เลือกรูป
+        box.querySelectorAll('img[src^="blob:"]').forEach((img) => view().URL.revokeObjectURL(img.src));
+        box.innerHTML = '';
+        box.hidden = pendingImages.length === 0;
+
+        pendingImages.forEach((file, index) => {
+            const item = document.createElement('span');
+            item.className = 'task-timeline__preview';
+
+            const image = document.createElement('img');
+            image.src = view().URL.createObjectURL(file);
+            image.alt = file.name;
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'task-timeline__preview-remove';
+            remove.dataset.removeCommentImage = String(index);
+            remove.setAttribute('aria-label', `เอารูป ${file.name} ออก`);
+            remove.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+
+            item.append(image, remove);
+            box.append(item);
+        });
+    };
+
+    const clearImages = () => {
+        pendingImages = [];
+        const input = imageInput();
+        if (input) input.value = '';
+        renderPreviews();
+    };
+
+    panel.addEventListener('change', (event) => {
+        if (!event.target.matches('[data-comment-image-input]')) return;
+
+        const incoming = [...event.target.files];
+        const room = MAX_IMAGES - pendingImages.length;
+
+        if (incoming.length > room) {
+            window.Swal?.fire({icon: 'info', title: `แนบได้สูงสุด ${MAX_IMAGES} รูปต่อหนึ่งข้อความ`});
+        }
+
+        pendingImages = [...pendingImages, ...incoming.slice(0, Math.max(0, room))];
+        // ล้างค่า input เสมอ เพื่อให้เลือกไฟล์เดิมซ้ำแล้วยัง fire change อีกครั้ง
+        event.target.value = '';
+        renderPreviews();
+    });
+
+    panel.addEventListener('click', (event) => {
+        const remove = event.target.closest('[data-remove-comment-image]');
+        if (!remove) return;
+
+        pendingImages.splice(Number(remove.dataset.removeCommentImage), 1);
+        renderPreviews();
+    });
+
     const sendUpdate = async () => {
         const input = panel.querySelector('[data-task-update-note]');
         const button = panel.querySelector('[data-submit-task-update]');
@@ -151,18 +245,25 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const message = input.value.trim();
         const url = management[String(taskId)]?.comment_url;
         // pending มาจากปุ่มที่ถูก disable ระหว่างรอ ทำให้กดรัว ๆ ไม่เกิดข้อความซ้ำ
-        if (!shouldSendUpdate({taskId, url, message, pending: button.disabled})) return;
+        if (!shouldSendUpdate({taskId, url, message, pending: button.disabled, imageCount: pendingImages.length})) return;
         button.disabled = true;
         try {
+            // ต้องเป็น FormData เมื่อมีไฟล์ และห้ามตั้ง Content-Type เอง
+            // เบราว์เซอร์เป็นผู้ใส่ boundary ของ multipart ให้ ถ้าเขียนทับจะพังทั้งคำขอ
+            const body = new FormData();
+            body.append('message', message);
+            pendingImages.forEach((file) => body.append('images[]', file));
+
             const response = await fetch(url, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
-                body: JSON.stringify({message}),
+                headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+                body,
             });
             if (!response.ok) throw new Error();
             const payload = await response.json();
             prependComment(timeline, taskId, payload.comment);
             input.value = '';
+            clearImages();
             tab = 'updates';
             render({scroll: 'bottom'});
             markRead();

@@ -11,12 +11,18 @@ let fixture = 0;
  * ติดตั้งหน้า Audit Log ในรูปแบบที่ Blade ของแท็บถังขยะ render จริง
  * แล้วโหลดโมดูลใหม่ทุกครั้ง เพราะ IIFE ผูกกับ document ตอน evaluate
  */
-async function mountAuditPage(t, {canRestore = true} = {}) {
+async function mountAuditPage(t, {canRestore = true, withFilters = false} = {}) {
     const env = mountDom();
     t.after(env.cleanup);
 
     env.document.body.innerHTML = `
         <div class="audit-page">
+            ${withFilters ? `
+            <form method="GET" action="/admin/audit" class="audit-filters" data-audit-filters>
+                <input type="search" name="q" value="">
+                <select name="entity_type"><option value="">ทั้งหมด</option></select>
+                <button class="audit-btn audit-btn--primary" type="submit">กรอง</button>
+            </form>` : ''}
             <table class="audit-table"><tbody>
                 <tr>
                     <td>
@@ -26,6 +32,10 @@ async function mountAuditPage(t, {canRestore = true} = {}) {
                                 <input type="hidden" name="_method" value="PATCH">
                                 <button class="audit-btn audit-btn--primary" type="submit">กู้คืน</button>
                             </form>` : ''}
+                            <form method="POST" action="/admin/trash/7" data-audit-purge data-name="โปรเจกต์ทดสอบ">
+                                <input type="hidden" name="_method" value="DELETE">
+                                <button class="audit-btn audit-btn--danger" type="submit">ลบถาวร</button>
+                            </form>
                         </div>
                     </td>
                 </tr>
@@ -68,6 +78,7 @@ async function mountAuditPage(t, {canRestore = true} = {}) {
         confirmCalls,
         setAnswer: (value) => { answer = value; },
         form: () => env.document.querySelector('[data-audit-restore]'),
+        purgeForm: () => env.document.querySelector('[data-audit-purge]'),
         submit: (form) => form.dispatchEvent(new env.window.Event('submit', {bubbles: true, cancelable: true})),
     };
 }
@@ -181,4 +192,81 @@ test('ประโยคของเหตุการณ์ตัดบรร�
     const css = await read('resources/css/pages/admin/audit.css');
 
     assert.match(css, /\.audit-sentence\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/s);
+});
+
+/*
+ * ลบถาวรอยู่ในแถวเดียวกับกู้คืน การกดพลาดหนึ่งครั้งคือข้อมูลและไฟล์หายถาวร
+ * การยืนยันจึงต้องแพงกว่าการกดปุ่มเดียว คือพิมพ์ชื่อรายการให้ตรงก่อน
+ */
+test('การลบถาวรบังคับให้พิมพ์ชื่อรายการให้ตรงก่อนยืนยัน', async (t) => {
+    const ui = await mountAuditPage(t);
+
+    ui.submit(ui.purgeForm());
+    await flush();
+
+    assert.equal(ui.swalCalls.length, 1);
+    const options = ui.swalCalls[0];
+
+    assert.equal(options.input, 'text', 'ต้องมีช่องให้พิมพ์ยืนยัน ไม่ใช่แค่ปุ่มตกลง');
+    assert.equal(typeof options.inputValidator, 'function');
+    assert.equal(options.icon, 'warning');
+    assert.equal(options.confirmButtonColor, '#dc2626', 'ปุ่มยืนยันต้องเป็นสีอันตราย');
+
+    // ชื่อที่ไม่ตรงต้องถูกปฏิเสธ ชื่อที่ตรง (แม้มีช่องว่างหัวท้าย) ต้องผ่าน
+    assert.equal(typeof options.inputValidator('ชื่ออื่น'), 'string');
+    assert.equal(options.inputValidator(''), 'ชื่อไม่ตรงกับรายการที่จะลบ');
+    assert.equal(options.inputValidator('  โปรเจกต์ทดสอบ  '), undefined);
+});
+
+/*
+ * ชื่อรายการมาจากข้อมูลที่ผู้ใช้กรอก การต่อเข้า innerHTML ตรง ๆ คือช่องทาง XSS
+ * บนหน้าที่มีแต่ผู้ดูแลระบบเข้าถึง ซึ่งเป็นเป้าหมายที่มีค่าที่สุดของระบบ
+ */
+test('ชื่อรายการในกล่องยืนยันถูกใส่ด้วย textContent ไม่ใช่ต่อเข้า HTML', async (t) => {
+    const ui = await mountAuditPage(t);
+    ui.purgeForm().dataset.name = '<img src=x onerror=alert(1)>';
+
+    ui.submit(ui.purgeForm());
+    await flush();
+
+    const options = ui.swalCalls[0];
+    assert.doesNotMatch(options.html, /<img/, 'ห้ามต่อชื่อรายการเข้า html');
+    assert.equal(typeof options.didOpen, 'function');
+
+    const popup = ui.document.createElement('div');
+    popup.innerHTML = options.html;
+    options.didOpen(popup);
+
+    assert.equal(popup.querySelector('strong').textContent, '<img src=x onerror=alert(1)>');
+    assert.equal(popup.querySelector('img'), null);
+});
+
+test('กดยกเลิกในกล่องลบถาวรแล้วต้องไม่ส่งฟอร์ม', async (t) => {
+    const ui = await mountAuditPage(t);
+    ui.setAnswer({isConfirmed: false});
+
+    ui.submit(ui.purgeForm());
+    await flush();
+
+    assert.equal(ui.submitted.length, 0);
+});
+
+/*
+ * ตัวกรองส่งเองเมื่อหยุดพิมพ์ ปุ่ม "กรอง" ยังอยู่สำหรับผู้ใช้คีย์บอร์ด
+ * และกรณีที่ JavaScript ไม่ทำงาน
+ */
+test('ช่องค้นหาส่งฟอร์มเองหลังหยุดพิมพ์ และ dropdown ส่งทันทีที่เปลี่ยน', async (t) => {
+    const ui = await mountAuditPage(t, {withFilters: true});
+    const filters = ui.document.querySelector('[data-audit-filters]');
+
+    filters.querySelector('input[type="search"]').dispatchEvent(
+        new ui.window.Event('input', {bubbles: true})
+    );
+    assert.equal(ui.submitted.length, 0, 'ต้องรอให้หยุดพิมพ์ก่อน ไม่ยิงทุกตัวอักษร');
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(ui.submitted.length, 1);
+
+    filters.querySelector('select').dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+    assert.equal(ui.submitted.length, 2, 'เปลี่ยนตัวเลือกแล้วส่งทันที ไม่ต้องรอ');
 });

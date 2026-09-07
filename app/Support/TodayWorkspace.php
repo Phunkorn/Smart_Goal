@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\WorkOrder;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -206,9 +207,41 @@ final class TodayWorkspace
         return self::thaiDateRange(self::businessDate($start), self::businessDate($due));
     }
 
-    private static function businessNow(?CarbonInterface $date = null): CarbonInterface
+    /**
+     * เวลาปัจจุบันตามเวลาทำการ (Asia/Bangkok)
+     *
+     * เปิดเป็น public เพราะฟีเจอร์ที่ทำงานระดับ "เวลานาฬิกา" (เช่น บันทึกงาน
+     * ประจำวัน) ต้องถามเวลาทางธุรกิจเหมือนกัน และต้องถามจากที่นี่ที่เดียว
+     * ห้ามเรียก now()->setTimezone('Asia/Bangkok') เองในคลาสอื่น เพราะค่า
+     * timezone ถูกคัดลอกกระจายไปหลายที่แล้วและเริ่มเพี้ยนออกจากกัน
+     */
+    public static function businessNow(?CarbonInterface $date = null): CarbonInterface
     {
         return ($date ?? now())->copy()->setTimezone(self::BUSINESS_TIMEZONE);
+    }
+
+    /**
+     * ขอบเขตของหนึ่งวันทำการ คืนเป็นเวลา UTC เพื่อนำไปใช้กับคอลัมน์ที่เก็บ UTC
+     *
+     * ใช้เมื่อต้องหาว่ารายการใด "อยู่ในวันนั้น" โดยไม่ต้องแปลง timezone ทีละแถว
+     * ใน SQL ซึ่งพฤติกรรมต่างกันระหว่าง SQLite (ทดสอบ) กับ MySQL (production)
+     *
+     * @return array{0: CarbonInterface, 1: CarbonInterface} [เริ่มวัน, สิ้นสุดวัน] ตามเวลา UTC
+     */
+    public static function businessDayBounds(string|CarbonInterface|null $date = null): array
+    {
+        $day = $date instanceof CarbonInterface
+            ? self::businessDate($date)
+            : self::businessNow(
+                is_string($date) && $date !== ''
+                    ? Carbon::createFromFormat('Y-m-d', $date, self::BUSINESS_TIMEZONE)->startOfDay()
+                    : null
+            )->startOfDay();
+
+        return [
+            $day->copy()->utc(),
+            $day->copy()->endOfDay()->utc(),
+        ];
     }
 
     private static function businessToday(?CarbonInterface $date = null): CarbonInterface

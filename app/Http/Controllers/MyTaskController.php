@@ -17,6 +17,7 @@ use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProjectCreatorSummary;
 use App\Support\ProtectedMedia;
+use App\Support\ScheduleChangeNote;
 use App\Support\TaskCollaboratorOptions;
 use App\Support\TaskScopeOptions;
 use App\Support\TodayWorkspace;
@@ -109,6 +110,7 @@ class MyTaskController extends Controller
                 'images',
                 'subtasks',
                 'updates.user.department',
+                'updates.attachments',
                 'activityLogs.user.department',
                 'reviewSubmitter',
             ])
@@ -256,6 +258,7 @@ class MyTaskController extends Controller
             'creator',
             'collaborators.department',
             'updates.user',
+            'updates.attachments',
         ])->withCount('images')->findOrFail($id);
 
         $this->authorize('view', $task);
@@ -724,8 +727,18 @@ class MyTaskController extends Controller
         abort_if($this->listIsCompleted($list) && $user->role !== 'admin', 403);
 
         DB::transaction(function () use ($list, $user) {
+            // WorkOrderList ไม่มี SoftDeletes แถวจึงหายจากฐานข้อมูลจริง และ FK
+            // แบบ cascadeOnDelete จะลบแถวไฟล์แนบตามไปโดยไม่ยิง Eloquent event
+            //
+            // จึงต้องถ่ายสำเนาแถวไฟล์แนบเก็บไว้ใน payload ตั้งแต่ตอนนี้ เพื่อให้ตอน
+            // กู้คืนสร้างกลับมาชี้ไฟล์เดิมได้ และต้อง "ไม่" เรียก delete() บนแถวเหล่านั้น
+            // เพราะการลบผ่าน Eloquent จะพาไฟล์บนดิสก์หายไปด้วย ทั้งที่โปรเจกต์ยังกู้คืนได้
+            // (พฤติกรรมเดิมคือลบไฟล์ทิ้ง ผู้ใช้จึงกู้มาได้โปรเจกต์ที่ไฟล์แนบหายหมด)
             AuditTrail::trash($list, $user, [
                 'list' => $list->attributesToArray(),
+                'attachments' => $list->attachments()->get()
+                    ->map(fn (WorkOrderListAttachment $attachment) => $attachment->attributesToArray())
+                    ->all(),
                 'work_order_count' => $list->workOrders()->count(),
             ]);
             AuditTrail::log('deleted', $list, 'ลบโปรเจกต์: '.$list->name, [
@@ -743,8 +756,8 @@ class MyTaskController extends Controller
                 $workOrder->delete();
             }, 100, 'job_id');
 
-            $list->attachments()->each(fn (WorkOrderListAttachment $attachment) => $attachment->delete());
-
+            // ไม่ลบแถวไฟล์แนบเอง ปล่อยให้ FK cascade จัดการ ไฟล์บนดิสก์จึงรอดมาให้กู้คืน
+            // การลบไฟล์จริงเป็นหน้าที่ของ TrashRetention ตอนลบถาวรเท่านั้น
             $list->delete();
         });
 
@@ -772,20 +785,21 @@ class MyTaskController extends Controller
 
         $this->assertAllowedAttachments($request, 'attachments');
 
-        $storedPaths = [];
-        try {
-            DB::transaction(function () use ($incomingFiles, $list, &$storedPaths) {
-                foreach ($incomingFiles as $file) {
-                    // getMimeType() ตรวจจากเนื้อไฟล์จริง ต่างจาก getClientMimeType() ที่ปลอมได้ และต้องอ่านก่อนย้ายไฟล์
-                    $mimeType = $file->getMimeType();
-                    $path = ProtectedMedia::storeAttachment($file, 'project-attachments/'.$list->id);
-                    $storedPaths[] = $path;
+        // การเก็บไฟล์และการอ่าน MIME จากเนื้อไฟล์ใช้ตัวช่วยร่วมของ
+        // ValidatesAttachments เดิมโค้ดส่วนนี้ถูกคัดลอกมาจาก storeFiles() เพราะ
+        // เมธอดนั้นผูกกับ WorkOrder ตอนนี้ตัวช่วยไม่ผูกกับตารางใดแล้ว
+        // ทุกโดเมนจึงใช้วิธีเก็บไฟล์เดียวกันจริง
+        $stored = $this->collectStoredAttachments($request, 'attachments', 'project-attachments/'.$list->id);
+        $storedPaths = array_column($stored, 'path');
 
+        try {
+            DB::transaction(function () use ($stored, $incomingFiles, $list) {
+                foreach ($stored as $file) {
                     WorkOrderListAttachment::create([
                         'work_order_list_id' => $list->id,
-                        'file_path' => $path,
-                        'original_name' => $file->getClientOriginalName(),
-                        'file_type' => $mimeType,
+                        'file_path' => $file['path'],
+                        'original_name' => $file['original_name'],
+                        'file_type' => $file['file_type'],
                         'uploaded_by' => Auth::id(),
                     ]);
                 }
@@ -816,10 +830,17 @@ class MyTaskController extends Controller
         abort_unless((int) $attachment->work_order_list_id === (int) $list->id, 404);
 
         $before = $attachment->attributesToArray();
+
+        // เข้าถังขยะก่อน ตัวไฟล์ยังอยู่บนดิสก์จนกว่าจะถูกลบถาวร (KeepsFileUntilPurged)
+        AuditTrail::trash($attachment, Auth::user(), [
+            'attachment' => $before,
+            'list' => ['id' => $list->id, 'name' => $list->name],
+        ]);
+
         $attachment->delete();
 
         AuditTrail::log('attachment_deleted', $list, 'ลบไฟล์แนบโปรเจกต์: '.$list->name, [
-            'attachment' => $before,
+            'before' => $before,
         ]);
 
         return response()->json([
@@ -949,16 +970,25 @@ class MyTaskController extends Controller
         abort_if($this->isCompletedLocked($workOrder), 403);
 
         $before = $workOrder->attributesToArray();
+        $previousDueAt = $workOrder->job_due_at;
         $workOrder->update(['job_due_at' => $validated['job_due_at']]);
         if (! TodayWorkspace::reconcileLateAfterScheduleChange($workOrder)) {
             TodayWorkspace::normalizeLateForTransition($workOrder);
         }
         $workOrder->refresh();
 
-        AuditTrail::log('due_date_changed', $workOrder, 'เปลี่ยนกำหนดส่งงาน: '.$workOrder->job_topic, [
-            'before' => $before,
-            'after' => $workOrder->fresh()->attributesToArray(),
-        ]);
+        // ข้อความต้องบอกวันเดิมกับวันใหม่ในตัวมันเอง เพราะแถบกิจกรรมของงานอ่านแค่ description
+        AuditTrail::log(
+            'due_date_changed',
+            $workOrder,
+            ScheduleChangeNote::describe('เปลี่ยนกำหนดส่งงาน: '.$workOrder->job_topic, [
+                ['label' => 'กำหนดส่ง', 'from' => $previousDueAt, 'to' => $workOrder->job_due_at],
+            ]),
+            [
+                'before' => $before,
+                'after' => $workOrder->fresh()->attributesToArray(),
+            ]
+        );
 
         return response()->json([
             'ok' => true,

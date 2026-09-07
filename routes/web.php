@@ -20,7 +20,15 @@ use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
+use App\Http\Controllers\WorkLogAttachmentController;
+use App\Http\Controllers\WorkLogCategoryController;
+use App\Http\Controllers\WorkLogController;
+use App\Http\Controllers\WorkLogTemplateController;
+use App\Http\Controllers\WorkLogTimerController;
 use App\Http\Controllers\WorkOrderSubtaskController;
+use App\Http\Controllers\WorkspaceBoardAttachmentController;
+use App\Http\Controllers\WorkspaceBoardController;
+use App\Http\Controllers\WorkspaceBoardDocumentController;
 use App\Models\WorkOrderListTaskRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -122,6 +130,15 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         Route::delete('/{department}', [DepartmentController::class, 'destroy'])->name('destroy');
     });
 
+    // หมวดงานของบันทึกงานประจำวัน — ตาราง lookup ที่ admin เพิ่มเองได้
+    // ไม่ต้องเขียน migration ใหม่ทุกครั้งที่องค์กรอยากเพิ่มหมวด
+    Route::prefix('admin/work-log-categories')->name('admin.work-log-categories.')->middleware('admin')->group(function () {
+        Route::get('/', [WorkLogCategoryController::class, 'index'])->name('index');
+        Route::post('/', [WorkLogCategoryController::class, 'store'])->name('store');
+        Route::patch('/{category}', [WorkLogCategoryController::class, 'update'])->name('update');
+        Route::delete('/{category}', [WorkLogCategoryController::class, 'destroy'])->name('destroy');
+    });
+
     // การอนุมัติและจัดการงานโดยผู้ดูแลระบบ
     Route::get('/admin/approvals', [AdminApprovalController::class, 'index'])
         ->middleware('role:admin,user')
@@ -152,6 +169,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('admin.audit.index');
 
+    // ย้อนค่าที่ถูกแก้ทับ — เขียนทับข้อมูลปัจจุบัน จึงจำกัดที่ admin และมีบันทึกกำกับ
+    Route::post('/admin/audit/{log}/revert', [AuditController::class, 'revert'])
+        ->middleware('admin')
+        ->name('admin.audit.revert');
+
     // เส้นทางเดิมยังใช้ได้ เพื่อไม่ให้ bookmark และลิงก์ในบันทึกเก่าพัง
     // ต้องพา query string เดิมไปด้วย มิฉะนั้นลิงก์ที่มีตัวกรองจะกลายเป็นหน้าเปล่า
     Route::get('/admin/activity-logs', fn (Request $request) => redirect()->route(
@@ -171,6 +193,16 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/admin/trash/{trash}/restore', [TrashController::class, 'restore'])
         ->middleware('admin')
         ->name('admin.trash.restore');
+
+    // ต้องประกาศก่อน /admin/trash/{trash} ด้านล่าง ไม่งั้น "expired" จะถูกอ่านเป็น id
+    Route::delete('/admin/trash/expired', [TrashController::class, 'purgeExpired'])
+        ->middleware('admin')
+        ->name('admin.trash.purge-expired');
+
+    // ลบถาวร กู้กลับไม่ได้ — หน้าจอบังคับให้พิมพ์ชื่อรายการยืนยันก่อน
+    Route::delete('/admin/trash/{trash}', [TrashController::class, 'purge'])
+        ->middleware('admin')
+        ->name('admin.trash.purge');
 
     Route::patch('/tasks/{id}/invitation', [TaskCollaboratorController::class, 'respondInvitation'])
         ->name('tasks.invitation.respond');
@@ -198,6 +230,13 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->name('media.task-attachments.show');
     Route::get('/media/project-attachments/{attachment}', [MediaController::class, 'projectAttachment'])
         ->name('media.project-attachments.show');
+    // ต้องประกาศก่อน route /media/{path} ด้านล่าง ไม่งั้นจะถูก catch-all ดักไปก่อน
+    Route::get('/media/work-log-attachments/{attachment}', [MediaController::class, 'workLogAttachment'])
+        ->name('media.work-log-attachments.show');
+    Route::get('/media/workspace-board-attachments/{attachment}', [MediaController::class, 'workspaceBoardAttachment'])
+        ->name('media.workspace-board-attachments.show');
+    Route::get('/media/comment-attachments/{attachment}', [MediaController::class, 'commentAttachment'])
+        ->name('media.comment-attachments.show');
     Route::get('/media/{path}', [MediaController::class, 'legacy'])
         ->where('path', '.*')
         ->name('media.show');
@@ -210,6 +249,14 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::get('/reports/organization/export.csv', [ReportController::class, 'exportCsv'])
         ->name('reports.exportCsv');
+
+    // รายงานภาระงานปฏิบัติการ — แยก metric จาก Project Performance โดยเจตนา
+    // สิทธิ์เข้าถึงต่างจากรายงานโครงการ (viewer เข้าไม่ได้) ตรวจใน controller
+    Route::get('/reports/operational', [ReportController::class, 'operational'])
+        ->name('reports.operational');
+
+    Route::get('/reports/operational/export.csv', [ReportController::class, 'exportOperationalCsv'])
+        ->name('reports.operationalExportCsv');
 
     Route::get('/reports/export.csv', [ReportController::class, 'exportCsv'])
         ->name('reports.legacyExportCsv');
@@ -327,6 +374,65 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::get('/my-tasks', [MyTaskController::class, 'index'])
         ->name('mytasks.index');
+
+    // บันทึกงานประจำวัน — งานปฏิบัติการรายวัน (งานประจำ / งานแทรก / งานนอกสถานที่)
+    // แยกจากบอร์ดโปรเจกต์โดยตั้งใจ เพื่อไม่ให้ตัวเลข KPI ของโปรเจกต์เพี้ยน
+    // viewer ถูกกันสองชั้น: ที่ route นี้ และในทุก ability ของ WorkLogPolicy
+    Route::prefix('daily-logs')->name('daily-logs.')->middleware('role:admin,user')->group(function (): void {
+        Route::get('/', [WorkLogController::class, 'index'])->name('index');
+        Route::post('/', [WorkLogController::class, 'store'])->name('store');
+        Route::patch('/{workLog}', [WorkLogController::class, 'update'])->name('update');
+        Route::delete('/{workLog}', [WorkLogController::class, 'destroy'])->name('destroy');
+
+        Route::post('/timer/start', [WorkLogTimerController::class, 'start'])->name('timer.start');
+        Route::post('/{workLog}/timer/start', [WorkLogTimerController::class, 'resume'])->name('timer.resume');
+        Route::post('/{workLog}/timer/stop', [WorkLogTimerController::class, 'stop'])->name('timer.stop');
+
+        Route::post('/{workLog}/attachments', [WorkLogAttachmentController::class, 'store'])
+            ->name('attachments.store');
+        Route::delete('/{workLog}/attachments/{attachment}', [WorkLogAttachmentController::class, 'destroy'])
+            ->name('attachments.destroy');
+
+        // แม่แบบงานประจำ — เป็นการตั้งค่าส่วนตัว ไม่ใช่ข้อมูลผลงานที่หัวหน้าต้องเห็น
+        Route::get('/routines', [WorkLogTemplateController::class, 'index'])->name('routines.index');
+        Route::post('/routines', [WorkLogTemplateController::class, 'store'])->name('routines.store');
+        Route::post('/routines/materialize', [WorkLogTemplateController::class, 'materialize'])->name('routines.materialize');
+        Route::patch('/routines/{template}', [WorkLogTemplateController::class, 'update'])->name('routines.update');
+        Route::delete('/routines/{template}', [WorkLogTemplateController::class, 'destroy'])->name('routines.destroy');
+    });
+
+    // กระดานไอเดีย (Workspace) — พื้นที่วาดเปล่าแบบไวท์บอร์ดของแต่ละแผนก
+    //
+    // route ที่เป็นการ "อ่าน" ตั้งใจไม่ใส่ role middleware เพื่อให้ viewer เข้าถึงได้
+    // แล้วให้ WorkspaceBoardPolicy เป็นผู้ตัดสินทีละกระดาน (viewer เห็นเฉพาะกระดาน
+    // ที่ตั้งเป็น "ทั้งองค์กร") ส่วน role:admin,user บน route ที่เขียนข้อมูลเป็น
+    // การกันสองชั้น ไม่ใช่แหล่งความจริงของสิทธิ์
+    Route::prefix('workspace')->name('workspace.')->group(function (): void {
+        Route::get('/', [WorkspaceBoardController::class, 'index'])->name('index');
+        Route::get('/departments/{department}', [WorkspaceBoardController::class, 'department'])
+            ->name('department');
+        Route::get('/boards/{board}', [WorkspaceBoardController::class, 'show'])
+            ->name('boards.show');
+
+        // อ่านเนื้อหาผืนผ้าใบ — ใช้สิทธิ์ view เพราะคนที่ดูอย่างเดียวก็ต้องเห็นภาพวาด
+        Route::get('/boards/{board}/document', [WorkspaceBoardDocumentController::class, 'show'])
+            ->name('boards.document');
+
+        Route::middleware('role:admin,user')->group(function (): void {
+            Route::post('/boards', [WorkspaceBoardController::class, 'store'])->name('boards.store');
+            Route::patch('/boards/{board}', [WorkspaceBoardController::class, 'update'])->name('boards.update');
+            Route::delete('/boards/{board}', [WorkspaceBoardController::class, 'destroy'])->name('boards.destroy');
+
+            // บันทึกอัตโนมัติ — ใช้สิทธิ์ update ซึ่งเท่ากับ "วาดบนกระดานนี้ได้"
+            Route::put('/boards/{board}/document', [WorkspaceBoardDocumentController::class, 'update'])
+                ->name('boards.document.save');
+
+            Route::post('/boards/{board}/attachments', [WorkspaceBoardAttachmentController::class, 'store'])
+                ->name('boards.attachments.store');
+            Route::delete('/boards/{board}/attachments/{attachment}', [WorkspaceBoardAttachmentController::class, 'destroy'])
+                ->name('boards.attachments.destroy');
+        });
+    });
 
     // งานที่ใช้ร่วมกันระหว่าง Admin และ User
     // การสร้างและแก้รายละเอียดจำกัด role ที่ระดับ route ส่วนสิทธิ์รายงานตรวจซ้ำใน Policy

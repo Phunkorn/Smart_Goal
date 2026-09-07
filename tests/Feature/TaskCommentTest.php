@@ -2,12 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\SystemNotification;
 use App\Models\Department;
+use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCommentRead;
 use App\Models\WorkOrderUpdate;
+use App\Services\TaskCommentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -96,8 +97,8 @@ class TaskCommentTest extends TestCase
         $this->assertNull(SystemNotification::where('user_id', $otherReader->id)->firstOrFail()->read_at);
 
         $this->actingAs($author)->postJson(route('tasks.comments.store', $task), ['message' => 'second'])->assertCreated();
-        $this->assertSame(1, app(\App\Services\TaskCommentService::class)->unreadCounts(collect([$task->job_id]), $reader)->get($task->job_id));
-        $this->assertSame(2, app(\App\Services\TaskCommentService::class)->unreadCounts(collect([$task->job_id]), $otherReader)->get($task->job_id));
+        $this->assertSame(1, app(TaskCommentService::class)->unreadCounts(collect([$task->job_id]), $reader)->get($task->job_id));
+        $this->assertSame(2, app(TaskCommentService::class)->unreadCounts(collect([$task->job_id]), $otherReader)->get($task->job_id));
     }
 
     public function test_comment_validation_and_read_visibility_are_enforced(): void
@@ -138,6 +139,57 @@ class TaskCommentTest extends TestCase
             ->assertOk()->assertDontSee($unread, false)->assertSee($read, false);
         $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))
             ->assertOk()->assertSee($unread, false);
+    }
+
+    /**
+     * หัวหน้าแผนกปลายทางคอมเมนต์ได้โดยไม่ต้องถูกเพิ่มเป็นผู้ร่วมงาน
+     *
+     * เดิมสิทธิ์คอมเมนต์ผูกกับการเป็นผู้รับผิดชอบ ผู้สร้าง หัวหน้างาน หรือผู้ร่วมงาน
+     * ที่ตอบรับแล้วเท่านั้น หัวหน้าแผนกจึงอ่านความคิดเห็นของงานลูกทีมได้แต่ตอบไม่ได้
+     */
+    public function test_department_head_of_the_destination_department_can_comment(): void
+    {
+        $department = Department::create(['department_name' => 'ฝ่ายไอที']);
+        $assignee = $this->user();
+        $assignee->forceFill(['department_id' => $department->id])->save();
+        $head = $this->departmentHead($department);
+        $task = $this->task($assignee, $assignee);
+
+        $this->actingAs($head)->postJson(route('tasks.comments.store', $task), [
+            'message' => 'ขอความคืบหน้าด้วยครับ',
+        ])->assertCreated()->assertJsonPath('comment.author', $head->name);
+
+        $this->assertDatabaseHas('work_order_updates', [
+            'work_order_id' => $task->job_id,
+            'user_id' => $head->id,
+            'is_comment' => true,
+        ]);
+    }
+
+    public function test_department_head_of_another_department_still_cannot_comment(): void
+    {
+        $ownDepartment = Department::create(['department_name' => 'ฝ่ายไอที']);
+        $otherDepartment = Department::create(['department_name' => 'ฝ่ายบัญชี']);
+        $assignee = $this->user();
+        $assignee->forceFill(['department_id' => $ownDepartment->id])->save();
+        $outsider = $this->departmentHead($otherDepartment);
+        $task = $this->task($assignee, $assignee);
+
+        $this->actingAs($outsider)->postJson(route('tasks.comments.store', $task), ['message' => 'blocked'])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('work_order_updates', 0);
+    }
+
+    private function departmentHead(Department $department): User
+    {
+        return User::factory()->create([
+            'role' => 'user',
+            'is_department_head' => true,
+            'department_id' => $department->id,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
     }
 
     private function user(string $role = 'user'): User

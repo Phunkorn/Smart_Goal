@@ -160,7 +160,8 @@ export function taskWorkspaceMarkup({
             <section class="task-timeline" data-task-timeline>
                 <nav><button type="button" data-timeline-tab="updates">อัปเดต</button><button type="button" data-timeline-tab="activity">กิจกรรม</button></nav>
                 <div data-timeline-items></div>
-                <div class="task-timeline__compose"><textarea data-task-update-note></textarea><button type="button" data-submit-task-update>ส่ง</button></div>
+                <div class="task-timeline__previews" data-comment-image-preview hidden></div>
+                <div class="task-timeline__compose"><label class="task-timeline__attach"><input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden data-comment-image-input></label><textarea data-task-update-note></textarea><button type="button" data-submit-task-update>ส่ง</button></div>
             </section>
         </div>
         <footer class="task-workspace__footer">
@@ -186,6 +187,19 @@ export async function mountTaskWorkspace(options = {}, {url = 'http://localhost/
     globalThis.fetch = async () => ({ok: true, json: async () => ({})});
 
     importCounter += 1;
+    /*
+     * jsdom ไม่ได้ implement URL.createObjectURL / revokeObjectURL เลย
+     *
+     * แถบพรีวิวรูปในกล่องคอมเมนต์ใช้สองเมธอดนี้สร้างและคืน object URL ของไฟล์ที่เลือกไว้
+     * เป็นช่องว่างของ jsdom ไม่ใช่ข้อจำกัดของโค้ด จึงเติมให้เหมือนที่โปรเจกต์เติม
+     * requestSubmit และ setPointerCapture ในเทสต์อื่น
+     *
+     * คืนค่าเป็น blob: เพื่อให้ตัวโค้ดที่กวาดหา img[src^="blob:"] ตอนล้างพรีวิวยังทำงานตรงจริง
+     */
+    let objectUrlCounter = 0;
+    env.window.URL.createObjectURL = () => `blob:fixture/${++objectUrlCounter}`;
+    env.window.URL.revokeObjectURL = () => {};
+
     await import(`../../../resources/js/mytasks-task-modal.js?fixture=${importCounter}`);
 
     return {
@@ -197,6 +211,8 @@ export async function mountTaskWorkspace(options = {}, {url = 'http://localhost/
         boardTitle: () => env.document.querySelector('.board-reference-task__open'),
         boardComment: () => env.document.querySelector('.board-comments'),
         compose: () => env.document.querySelector('[data-task-update-note]'),
+        imageInput: () => env.document.querySelector('[data-comment-image-input]'),
+        previews: () => env.document.querySelector('[data-comment-image-preview]'),
         sendUpdate: () => env.document.querySelector('[data-submit-task-update]'),
         manageTeam: () => env.document.querySelector('.task-workspace__cell-action[data-manage-team]'),
     };

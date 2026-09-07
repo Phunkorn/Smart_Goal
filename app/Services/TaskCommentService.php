@@ -15,14 +15,32 @@ class TaskCommentService
 {
     public function __construct(private readonly NotificationService $notifications) {}
 
-    public function post(WorkOrder $task, User $author, string $message): WorkOrderUpdate
+    /**
+     * @param  array<int, array{path: string, original_name: string, file_type: string}>  $images
+     *                                                                                             ไฟล์ที่ถูกเก็บลง storage เรียบร้อยแล้วโดยผู้เรียก
+     *
+     *   รับเป็นไฟล์ที่เก็บแล้ว ไม่ใช่ UploadedFile เพราะการเก็บไฟล์ต้องเกิดนอก
+     *   transaction ถ้าเก็บข้างในแล้ว transaction ล้ม ไฟล์จะค้างบนดิสก์โดยไม่มี
+     *   แถวอ้างถึง ผู้เรียกจึงเป็นผู้รับผิดชอบลบไฟล์กำพร้าเมื่อเมธอดนี้โยน
+     */
+    public function post(WorkOrder $task, User $author, string $message, array $images = []): WorkOrderUpdate
     {
-        return DB::transaction(function () use ($task, $author, $message) {
+        return DB::transaction(function () use ($task, $author, $message, $images) {
             $comment = $task->updates()->create([
                 'user_id' => $author->id,
                 'note' => $message,
                 'is_comment' => true,
             ]);
+
+            foreach ($images as $image) {
+                $comment->attachments()->create([
+                    'file_path' => $image['path'],
+                    'original_name' => $image['original_name'],
+                    'file_type' => $image['file_type'],
+                    'byte_size' => $image['byte_size'] ?? 0,
+                    'uploaded_by' => $author->id,
+                ]);
+            }
 
             WorkOrderCommentRead::updateOrCreate(
                 ['work_order_id' => $task->job_id, 'user_id' => $author->id],
@@ -36,7 +54,7 @@ class TaskCommentService
                 Str::limit($author->name.' แสดงความคิดเห็นในงาน “'.$task->job_topic.'”', 1000, ''),
                 $task, $author, ['comment_id' => $comment->id]);
 
-            return $comment->load('user');
+            return $comment->load(['user', 'attachments']);
         });
     }
 
@@ -92,7 +110,9 @@ class TaskCommentService
 
     public function unreadCounts(Collection $taskIds, User $user): Collection
     {
-        if ($taskIds->isEmpty()) return collect();
+        if ($taskIds->isEmpty()) {
+            return collect();
+        }
 
         return WorkOrderUpdate::query()->selectRaw('work_order_id, COUNT(*) AS aggregate')
             ->whereIn('work_order_id', $taskIds)->where('is_comment', true)

@@ -192,6 +192,7 @@
     background: #dbe8ff;
     color: #2459c2;
     font-size: 34px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 750;
     box-shadow: 0 8px 22px rgba(37, 99, 235, .14);
 }
@@ -428,6 +429,7 @@
     overflow: hidden;
     color: var(--sg-muted);
     font-size: 12px;
+    line-height: var(--thai-line-height, 1.6);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -605,6 +607,7 @@
     background: #e8effd;
     color: #2459c2;
     font-size: 13px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 750;
 }
 
@@ -643,6 +646,7 @@
     background: #f4f7fc;
     color: #45658e;
     font-size: 9px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -867,6 +871,7 @@
     background: #e8effd;
     color: #2459c2;
     font-size: 10px;
+    line-height: var(--thai-line-height, 1.6);
 }
 
 .team-modal .people-selector__chip-avatar img {

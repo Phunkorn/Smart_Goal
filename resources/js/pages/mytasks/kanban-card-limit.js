@@ -12,6 +12,34 @@
     const LIMIT = 5;
 
 
+    /**
+     * ตั้งความสูงของกล่องที่กางแล้วให้เท่ากับการ์ดห้าใบพอดี
+     *
+     * วัดจากขอบบนของการ์ดใบที่หกจริง ไม่ใช่คูณความสูงเฉลี่ย เพราะการ์ดแต่ละใบ
+     * สูงไม่เท่ากัน (ชื่องานยาวไม่เท่ากัน บางใบมีปุ่มสถานะเพิ่ม) ค่าคงที่อย่าง
+     * min(62vh, 620px) แบบเดิมจึงไปตกกลางการ์ดเสมอ
+     *
+     * ลบ gap ออกหนึ่งช่วง เพื่อให้ขอบล่างอยู่ที่รอยต่อพอดี ไม่เหลือช่องว่างลอย
+     * แล้วเผยขอบบนของใบที่หกโผล่มานิดหนึ่ง
+     */
+    const applyExpandedHeight = (cards, items, expanded) => {
+        if (!expanded || items.length <= LIMIT) {
+            cards.style.removeProperty('--kanban-expanded-height');
+
+            return;
+        }
+
+        const sixth = items[LIMIT];
+        // getBoundingClientRect ไม่ขึ้นกับ offsetParent จึงได้ค่าถูกต้องแม้กล่องแม่
+        // จะถูกจัดวางด้วย transform หรือ position ที่ต่างกันในแต่ละมุมมอง
+        const gap = parseFloat(getComputedStyle(cards).rowGap) || 0;
+        const height = sixth.getBoundingClientRect().top
+            - cards.getBoundingClientRect().top
+            - gap;
+
+        if (height > 0) cards.style.setProperty('--kanban-expanded-height', `${Math.round(height)}px`);
+    };
+
     const refreshColumn = (column) => {
         const cards = column.querySelector('.mytasks-kanban__cards');
         if (!cards) return;
@@ -36,6 +64,7 @@
         });
 
         cards.classList.toggle('is-expanded', expanded);
+        applyExpandedHeight(cards, items, expanded);
         more.hidden = overflow === 0;
         more.innerHTML = expanded
             ? '<i class="bi bi-chevron-up"></i> ย่อรายการ'
@@ -57,11 +86,11 @@
         button.dataset.expanded = expanding ? '1' : '0';
         refreshColumn(column);
 
-        if (expanding) {
-            const cards = column.querySelector('.mytasks-kanban__cards');
-            const sixthCard = cards?.querySelectorAll(':scope > [data-kanban-card]')[LIMIT];
-            if (cards && sixthCard) cards.scrollTop = Math.max(0, sixthCard.offsetTop - cards.offsetTop - 8);
-        }
+        // ไม่เลื่อนตำแหน่งให้เอง
+        //
+        // กล่องเปิดมาที่ใบแรกเสมอ ผู้ใช้จึงเห็นห้าใบเดิมที่กำลังมองอยู่ไม่หายไปไหน
+        // แล้วเลื่อนลงดูส่วนที่เพิ่งเปิดเองตามจังหวะของตัวเอง การสั่งเลื่อนให้มีแต่จะ
+        // ดึงตำแหน่งหนีจากจุดที่กำลังมองอยู่
     });
 
     // Refresh only after known task mutations. Avoid observing our own DOM changes,

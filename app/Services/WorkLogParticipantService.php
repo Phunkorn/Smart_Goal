@@ -1,0 +1,148 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\User;
+use App\Models\WorkLog;
+use App\Support\AuditTrail;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * ผู้ร่วมงานของบันทึกงานประจำวัน
+ *
+ * งานปฏิบัติการหลายอย่างทำกันหลายคน เช่น ตรวจสอบคอมพิวเตอร์ตอนเช้าที่ขึ้นไป
+ * กันสองคน การให้ทั้งคู่พิมพ์บันทึกของตัวเองแยกกันทำให้เสียเวลาซ้ำและทำให้
+ * รายงานนับงานชิ้นเดียวเป็นสองรายการ
+ *
+ * เงื่อนไขว่าใครถูกเพิ่มได้ ใช้กติกาเดียวกับผู้ร่วมงานของงานโครงการใน
+ * CollaboratorInvitationService คือ บัญชีเปิดใช้งาน + role เป็น user +
+ * อยู่แผนกเดียวกับงานนั้น
+ *
+ * ต่างกันที่ไม่มีขั้นตอนรออนุมัติ เพราะบันทึกงานประจำวันเป็นการบันทึกสิ่งที่
+ * เกิดขึ้นไปแล้ว ไม่ใช่การมอบหมายงานให้ใครไปทำ การใส่ขั้นอนุมัติจะทำให้
+ * เรื่องที่ควรใช้เวลาไม่กี่วินาทีกลายเป็นงานเอกสาร
+ */
+class WorkLogParticipantService
+{
+    /**
+     * ตั้งรายชื่อผู้ร่วมงานของบันทึกหนึ่งให้ตรงกับที่ส่งมา
+     *
+     * id ที่ไม่ผ่านเงื่อนไขจะถูกตัดทิ้งเงียบ ๆ ไม่ใช่โยน error เพราะรายชื่อมาจาก
+     * ตัวเลือกที่เซิร์ฟเวอร์เป็นคนสร้างอยู่แล้ว การส่งค่าที่ใช้ไม่ได้มาจึงเป็น
+     * ความพยายามเลี่ยงกติกา ไม่ใช่ความผิดพลาดที่ผู้ใช้ต้องได้รับคำอธิบาย
+     *
+     * @param  array<int, mixed>  $userIds
+     * @return int จำนวนผู้ร่วมงานหลังตั้งค่า
+     */
+    public function sync(WorkLog $log, User $actor, array $userIds): int
+    {
+        $eligible = $this->eligibleIds($log, $userIds);
+        $before = $log->participants()->pluck('users.id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
+
+        DB::transaction(function () use ($log, $actor, $eligible): void {
+            $log->participants()->sync(
+                collect($eligible)->mapWithKeys(fn (int $id): array => [$id => ['added_by' => $actor->id]])->all()
+            );
+        });
+
+        $after = collect($eligible)->sort()->values()->all();
+
+        if ($before !== $after) {
+            AuditTrail::log(
+                'work_log_participants_synced',
+                $log,
+                sprintf('ปรับผู้ร่วมงานของบันทึก "%s" เป็น %d คน', $log->title, count($after)),
+                ['before' => $before, 'after' => $after]
+            );
+        }
+
+        return count($after);
+    }
+
+    /**
+     * กรอง id ที่ส่งมาให้เหลือเฉพาะคนที่เพิ่มได้จริง
+     *
+     * @param  array<int, mixed>  $userIds
+     * @return array<int, int>
+     */
+    public function eligibleIds(WorkLog $log, array $userIds): array
+    {
+        $ids = collect($userIds)
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            // เจ้าของบันทึกไม่ใช่ "ผู้ร่วมงาน" ของตัวเอง
+            ->reject(fn (int $id): bool => $id === (int) $log->user_id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return $this->eligibleQuery($log)
+            ->whereKey($ids)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    /**
+     * ตัวเลือกผู้ร่วมงานของบันทึกหนึ่ง (เพื่อนร่วมแผนกที่ยังไม่ถูกเพิ่ม)
+     *
+     * @return Collection<int, User>
+     */
+    public function candidatesFor(WorkLog $log): Collection
+    {
+        return $this->eligibleQuery($log)
+            ->orderBy('name')
+            ->get(['id', 'name', 'department_id', 'profile_image']);
+    }
+
+    /**
+     * ตัวเลือกผู้ร่วมงานสำหรับบันทึกที่ยังไม่ถูกสร้าง
+     *
+     * ใช้ตอนเปิดหน้าเพื่อเตรียมรายชื่อไว้ในฟอร์ม โดยอิงแผนกของผู้บันทึกเอง
+     * ซึ่งเป็นค่าเดียวกับที่ WorkLogService จะบันทึกเป็น department_id
+     *
+     * @return Collection<int, User>
+     */
+    public function candidatesForOwner(User $owner): Collection
+    {
+        if ($owner->department_id === null) {
+            return collect();
+        }
+
+        return User::query()
+            ->where('role', 'user')
+            ->where('is_active', true)
+            ->where('department_id', $owner->department_id)
+            ->whereKeyNot($owner->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'department_id', 'profile_image']);
+    }
+
+    /**
+     * คนที่เพิ่มเป็นผู้ร่วมงานของบันทึกนี้ได้
+     *
+     * แผนกอ้างอิงคือแผนกที่บันทึกไว้ตอนสร้าง (snapshot) แล้ว fallback ไปที่แผนก
+     * ปัจจุบันของเจ้าของ ให้ตรงกับ WorkLogPolicy::logDepartmentId() ที่ใช้ตัดสิน
+     * ว่าหัวหน้าคนไหนเห็นบันทึกนี้ได้ ทั้งสองเรื่องจึงอิงแผนกเดียวกันเสมอ
+     */
+    private function eligibleQuery(WorkLog $log): Builder
+    {
+        $departmentId = $log->department_id ?: $log->user?->department_id;
+
+        return User::query()
+            ->where('role', 'user')
+            ->where('is_active', true)
+            ->when(
+                $departmentId !== null,
+                fn (Builder $query) => $query->where('department_id', $departmentId),
+                // บันทึกที่ไม่มีแผนกเลยไม่ควรเพิ่มใครได้ เพราะไม่มีขอบเขตให้ตรวจ
+                fn (Builder $query) => $query->whereRaw('1 = 0')
+            )
+            ->whereKeyNot($log->user_id);
+    }
+}

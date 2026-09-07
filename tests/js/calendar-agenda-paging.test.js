@@ -93,18 +93,37 @@ test('display options and month navigation share one toolbar row', async () => {
 /*
  * คอลัมน์ของมุมมองตารางที่กางรายการเพิ่ม
  *
- * overflow-y: auto ทำให้ overflow-x กลายเป็น auto ตามไปด้วยถ้าไม่ระบุ
- * การ์ดที่กว้างเกินคอลัมน์จึงสร้างแถบเลื่อนแนวนอนที่กินความสูงและตัดการ์ดใบล่างขาดครึ่ง
+ * กางแล้วต้องเห็นห้าใบพอดีแล้วเลื่อนดูที่เหลือ ไม่ใช่ยืดยาวทั้งคอลัมน์
+ *
+ * ความสูงต้องมาจากการวัดตำแหน่งจริงของการ์ดใบที่หก ไม่ใช่ค่าคงที่ เพราะการ์ด
+ * แต่ละใบสูงไม่เท่ากัน ค่าตายตัวจึงไปตกกลางการ์ดเสมอ
  */
-test('an expanded kanban column clips only the axis it means to scroll', async () => {
+test('an expanded kanban column shows exactly five whole cards then scrolls', async () => {
     const css = await read('resources/css/components/task-workspace/kanban.css');
     const script = await read('resources/js/pages/mytasks/kanban-card-limit.js');
 
     const expanded = css.match(/\.mytasks-kanban__cards\.is-expanded \{([^}]*)\}/s)?.[1] ?? '';
 
-    assert.match(expanded, /overflow: hidden auto/, 'ต้องระบุทั้งสองแกน ไม่ปล่อยให้ overflow-x ถูกอนุมาน');
+    assert.match(expanded, /overflow: hidden auto/, 'ต้องระบุสองแกน ไม่ปล่อยให้ overflow-x ถูกอนุมาน');
+    assert.match(expanded, /max-height: var\(--kanban-expanded-height/, 'ความสูงต้องมาจากค่าที่วัดจริง');
     assert.match(expanded, /overscroll-behavior: contain/, 'เลื่อนสุดคอลัมน์แล้วต้องไม่ลามไปเลื่อนทั้งหน้า');
-    assert.match(expanded, /padding-bottom:\s*\d+px/, 'ต้องเว้นที่ให้เงาของการ์ดใบล่างสุด');
+    assert.match(expanded, /scroll-snap-type:\s*y proximity/, 'ตำแหน่งที่ผู้ใช้เลื่อนเองต้องหยุดที่ขอบการ์ด');
+    assert.doesNotMatch(expanded, /max-height:\s*min\(/, 'ห้ามกลับไปใช้ความสูงคงที่ที่ไม่เกี่ยวกับการ์ด');
+
+    assert.match(
+        css,
+        /\.mytasks-kanban__cards\.is-expanded > \[data-kanban-card\] \{[^}]*scroll-snap-align:\s*start/s,
+        'จุด snap ต้องอยู่ที่ขอบบนของการ์ดแต่ละใบ',
+    );
+
+    // ต้องวัดจากใบที่หกจริง แล้วหักช่องไฟออกหนึ่งช่วงให้ขอบล่างตรงรอยต่อพอดี
+    assert.match(script, /items\[LIMIT\]/, 'ต้องวัดจากการ์ดใบที่หก');
+    assert.match(script, /getBoundingClientRect\(\)/);
+    assert.match(script, /rowGap/, 'ต้องหักช่องไฟระหว่างการ์ดออก');
+    assert.match(script, /--kanban-expanded-height/);
+
+    // ยุบกลับแล้วต้องคืนค่าที่วัดไว้ ไม่ค้างจนกล่องที่ยังไม่กางถูกจำกัดความสูงตาม
+    assert.match(script, /removeProperty\('--kanban-expanded-height'\)/);
 
     // การ์ดต้องยุบตามคอลัมน์ได้ ไม่เช่นนั้นชื่องานยาว ๆ จะดันความกว้างจนล้น
     assert.match(css, /\.mytasks-kanban__cards > \* \{[^}]*min-width: 0/s);

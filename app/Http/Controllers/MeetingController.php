@@ -99,6 +99,16 @@ class MeetingController extends Controller
         try {
             DB::transaction(function () use ($meeting): void {
                 $payload = $this->auditPayload($meeting, $meeting->attendees()->pluck('users.id')->all());
+
+                // การประชุมไม่มี SoftDeletes แถวหายจากฐานข้อมูลจริง สำเนาทั้งแถวใน
+                // payload_json จึงเป็นสิ่งเดียวที่ใช้กู้คืนได้ (auditPayload คัดมาเฉพาะ
+                // ฟิลด์ที่อ่านง่าย จึงใช้แทนกันไม่ได้)
+                // ไม่ต้องส่งผู้ลบ AuditTrail::trash() อ่านจาก Auth::id() ให้เองเมื่อเป็น null
+                AuditTrail::trash($meeting, null, [
+                    'meeting' => $meeting->attributesToArray(),
+                    'summary' => $payload,
+                ]);
+
                 AuditTrail::log('deleted', $meeting, 'ลบการประชุม: '.$meeting->title, ['before' => $payload]);
                 $meeting->delete();
             });

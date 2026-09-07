@@ -1,0 +1,55 @@
+/*
+ * แถบงานที่กำลังจับเวลา
+ *
+ * ใช้โทน teal ไม่ใช่เขียว ตามการตัดสินใจด้านสีของฟีเจอร์นี้ที่เลี่ยงสีเขียว
+ * ทั้งในกราฟและหน้ารายการ เพื่อให้ทั้งระบบอ่านเป็นชุดสีเดียวกัน
+ *
+ * ติดอยู่บนสุดของคอลัมน์หลัก เพราะเป็นสิ่งเดียวในหน้านี้ที่ "กำลังเกิดขึ้น"
+ * และผู้ใช้ต้องเห็นได้ตลอดว่ายังลืมกดจบงานอยู่หรือไม่
+ */
+.timer-banner { position:sticky; top:10px; z-index:20; display:flex; align-items:center; gap:13px; padding:13px 16px; border:1px solid #99f6e4; border-radius:14px; background:linear-gradient(180deg,#f0fdfa,#fff); box-shadow:0 8px 22px -18px rgba(15,118,110,.6); }
+.timer-banner[hidden] { display:none !important; }
+
+.timer-banner__pulse { flex:0 0 auto; width:10px; height:10px; border-radius:50%; background:#0d9488; animation:timer-pulse 1.6s ease-in-out infinite; }
+
+.timer-banner__body { display:grid; gap:1px; min-width:0; }
+.timer-banner__label { color:#0f766e; font-size:.72rem; font-weight:700; letter-spacing:.02em; }
+.timer-banner__title { color:#0f172a; font-size:.95rem; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.timer-banner__clock { margin-left:auto; color:#115e59; font-size:1.2rem; font-weight:750; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
+
+.timer-banner__stop { display:inline-flex; align-items:center; gap:6px; padding:8px 15px; border:0; border-radius:10px; background:#0d9488; color:#fff; font-size:.85rem; font-weight:650; cursor:pointer; transition:background-color .15s ease; }
+.timer-banner__stop:hover { background:#0f766e; }
+.timer-banner__stop:focus-visible { outline:2px solid #115e59; outline-offset:2px; }
+
+/* ปุ่มจับเวลาในแต่ละแถวของไทม์ไลน์ */
+.log-card__timer { display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border:1px solid #dde5f1; border-radius:9px; background:#fff; font-size:.78rem; font-weight:650; white-space:nowrap; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
+.log-card__timer:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+.log-card__timer[disabled] { opacity:.6; cursor:progress; }
+.log-card__timer--start { color:#1d4ed8; }
+.log-card__timer--start:hover { border-color:#93b4fa; background:#eff5ff; }
+.log-card__timer--stop { border-color:#99f6e4; background:#f0fdfa; color:#0f766e; }
+.log-card__timer--stop:hover { border-color:#5eead4; background:#ccfbf1; }
+
+@keyframes timer-pulse {
+    0%, 100% { opacity:1; transform:scale(1); }
+    50% { opacity:.45; transform:scale(.82); }
+}
+
+/*
+ * ผู้ใช้บางคนตั้งค่าระบบให้ลดการเคลื่อนไหว การกะพริบต่อเนื่องอาจรบกวนได้
+ * จุดสีเขียวยังทำหน้าที่บอกสถานะได้โดยไม่ต้องขยับ
+ */
+@media (prefers-reduced-motion: reduce) {
+    .timer-banner__pulse { animation:none; }
+}
+
+@media (max-width: 640px) {
+    .timer-banner { flex-wrap:wrap; gap:9px 11px; top:6px; }
+    .timer-banner__body { flex:1 1 100%; order:1; }
+    .timer-banner__pulse { order:0; }
+    .timer-banner__clock { order:2; margin-left:0; }
+    .timer-banner__stop { order:3; margin-left:auto; }
+    .log-card__timer span { display:none; }
+    .log-card__timer { padding:6px 9px; }
+}

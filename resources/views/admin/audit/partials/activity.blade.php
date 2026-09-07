@@ -143,6 +143,46 @@
                                                             @endif
                                                         @endforeach
                                                     </div>
+
+                                                    @php($revertable = ($revertableFields ?? [])[$log->id] ?? [])
+                                                    @if ($revertable !== [])
+                                                        {{--
+                                                            ค่าเดิมอยู่ใน changes.before ของบันทึกนี้อยู่แล้ว เพราะ handler
+                                                            ส่วนใหญ่ snapshot ทั้งแถวไม่ใช่เฉพาะฟิลด์ที่แตะ การย้อนจึงเป็น
+                                                            แค่การเขียนค่าที่มีอยู่กลับคืน
+
+                                                            เลือกได้ทีละฟิลด์ ไม่ใช่ทั้งแถว เพราะการแก้หนึ่งครั้งมักตั้งใจ
+                                                            เปลี่ยนแค่บางอย่าง การย้อนทั้งแถวจะลากค่าที่ไม่เกี่ยวกลับไปด้วย
+
+                                                            ฟิลด์ที่ย้อนได้ถูกจำกัดด้วย allow-list ใน AuditRevertService
+                                                            สถานะงานไม่อยู่ในนั้น เพราะต้องผ่าน TaskStatusTransitionService
+                                                        --}}
+                                                        <form method="POST" action="{{ route('admin.audit.revert', $log) }}"
+                                                              class="audit-revert" data-audit-revert>
+                                                            @csrf
+                                                            <div class="audit-revert__head">
+                                                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                                                <strong>ย้อนค่าเดิม</strong>
+                                                                <span class="audit-muted">เลือกเฉพาะค่าที่ต้องการย้อนกลับ</span>
+                                                            </div>
+
+                                                            @foreach ($revertable as $row)
+                                                                <label class="audit-revert__option">
+                                                                    <input type="checkbox" name="fields[]" value="{{ $row['field'] }}" checked>
+                                                                    <span class="audit-revert__field">{{ $row['label'] }}</span>
+                                                                    <span class="audit-revert__values">
+                                                                        <span class="audit-value-new">{{ AuditSnapshot::formatValue($row['field'], $row['current']) }}</span>
+                                                                        <i class="bi bi-arrow-right audit-change-arrow" aria-hidden="true"></i>
+                                                                        <span class="audit-value-old">{{ AuditSnapshot::formatValue($row['field'], $row['before']) }}</span>
+                                                                    </span>
+                                                                </label>
+                                                            @endforeach
+
+                                                            <button class="audit-btn audit-btn--primary" type="submit">
+                                                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> ย้อนค่าที่เลือก
+                                                            </button>
+                                                        </form>
+                                                    @endif
                                                 </div>
                                             </div>
                                         </div>

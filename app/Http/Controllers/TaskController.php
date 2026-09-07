@@ -16,6 +16,7 @@ use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProtectedMedia;
+use App\Support\ScheduleChangeNote;
 use App\Support\TodayWorkspace;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
@@ -566,6 +567,8 @@ class TaskController extends Controller
         ]);
 
         $before = $job->attributesToArray();
+        $previousStartAt = $job->job_start_at;
+        $previousDueAt = $job->job_due_at;
         $job->update([
             'job_start_at' => Carbon::parse($validated['job_start_at']),
             'job_due_at' => Carbon::parse($validated['job_due_at']),
@@ -575,10 +578,19 @@ class TaskController extends Controller
         }
         $job->refresh();
 
-        AuditTrail::log('schedule_changed', $job, 'เปลี่ยนช่วงเวลางาน: '.$job->job_topic, [
-            'before' => $before,
-            'after' => $job->fresh()->attributesToArray(),
-        ]);
+        // ข้อความต้องบอกวันเดิมกับวันใหม่ในตัวมันเอง เพราะแถบกิจกรรมของงานอ่านแค่ description
+        AuditTrail::log(
+            'schedule_changed',
+            $job,
+            ScheduleChangeNote::describe('เปลี่ยนช่วงเวลางาน: '.$job->job_topic, [
+                ['label' => 'วันเริ่ม', 'from' => $previousStartAt, 'to' => $job->job_start_at],
+                ['label' => 'กำหนดส่ง', 'from' => $previousDueAt, 'to' => $job->job_due_at],
+            ]),
+            [
+                'before' => $before,
+                'after' => $job->fresh()->attributesToArray(),
+            ]
+        );
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([

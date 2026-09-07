@@ -1,0 +1,67 @@
+/*
+ * การปรับตามความกว้างจอ
+ *
+ * จุดตัดหลักคือ 1200px ที่กล่องสรุปย้ายจากคอลัมน์ขวามาอยู่บนสุด เพราะเมื่อพื้นที่
+ * ไม่พอ ตัวเลขสรุปยังมีประโยชน์กว่าการบีบไทม์ไลน์ให้แคบลงจนอ่านยาก
+ *
+ * สำคัญ: ตอนย้ายขึ้นมาอยู่บนสุด ห้ามเปลี่ยนตัวกล่องสรุปเองให้เป็นกริดหลายคอลัมน์
+ * เพราะลูกของมันเป็นบล็อกที่ต้องเรียงต่อกันตามลำดับการอ่าน (ยอดรวม → แถบสัดส่วน
+ * → รายละเอียดแต่ละประเภท → ตัวเลขเน้น) การโยนทั้งหมดเข้ากริด auto-fit ทำให้
+ * แถบสัดส่วนไปอยู่คนละคอลัมน์กับตัวเลขที่มันอธิบาย และหัวข้อลอยไปอยู่กลางกล่อง
+ * สิ่งที่ควรทำคือให้เฉพาะ "รายการแยกตามประเภท" กระจายเป็นหลายคอลัมน์เท่านั้น
+ */
+@media (max-width: 1200px) {
+    .daily-log__body { grid-template-columns:minmax(0,1fr); }
+    .daily-log__side { position:static; order:-1; }
+
+    /* กล่องสรุปยังเป็นคอลัมน์เดียวเหมือนเดิม เปลี่ยนเฉพาะการวางภายใน */
+    .log-summary { gap:11px; }
+    .log-summary__total { display:flex; align-items:baseline; gap:10px; }
+    .log-summary__kinds { grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px 16px; }
+    .log-summary__highlight { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
+    .log-summary__highlight-note { flex:1 1 100%; }
+}
+
+@media (max-width: 900px) {
+    .daily-log { padding:18px 16px 32px; }
+    .daily-log__header { align-items:flex-start; }
+    .daily-log__controls { width:100%; justify-content:flex-start; }
+    .log-composer__row--options { align-items:flex-start; }
+}
+
+@media (max-width: 640px) {
+    .daily-log { padding:14px 12px 28px; }
+    .daily-log__title { font-size:1.3rem; }
+    .daily-log__controls { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+    .daily-log__routines-link { justify-content:center; }
+    .daily-log__member-form,
+    .daily-log__member-select { width:100%; }
+    .daily-log__date-nav { justify-content:space-between; }
+
+    .log-composer { padding:13px 14px; }
+    .log-composer__row--options { flex-direction:column; align-items:stretch; }
+    .log-composer__kinds { justify-content:flex-start; }
+    .log-composer__category { flex:1 1 auto; }
+    .participant-picker__summary { width:100%; justify-content:center; }
+    .log-composer__actions { margin-left:0; flex-wrap:wrap; }
+    .log-composer__more,
+    .log-composer__start,
+    .log-composer__submit { flex:1 1 140px; justify-content:center; }
+
+    /*
+     * แถวของบันทึกบนมือถือ: เวลาขึ้นไปอยู่บรรทัดเดียวกับปุ่มจัดการ แล้วเนื้อหา
+     * กินเต็มความกว้างข้างล่าง ถ้าคงคอลัมน์เวลา 74px ไว้ ชื่องานจะเหลือความกว้าง
+     * ไม่กี่ตัวอักษรจนอ่านไม่ได้
+     */
+    .log-card { grid-template-columns:minmax(0,1fr) auto; gap:8px 10px; padding:12px 13px; }
+    .log-card__time { grid-column:1; grid-row:1; display:flex; align-items:baseline; gap:9px; }
+    .log-card__body { grid-column:1 / -1; grid-row:2; }
+    .log-card__actions { grid-column:2; grid-row:1; gap:6px; }
+
+    .log-modal { padding:0; }
+    .log-modal__panel { width:100%; max-height:100vh; border-radius:0; }
+    .log-modal__body { padding:16px; }
+    .log-modal__header,
+    .log-modal__footer { padding-left:16px; padding-right:16px; }
+    .log-attachments { padding-left:16px; padding-right:16px; border-radius:0; }
+}

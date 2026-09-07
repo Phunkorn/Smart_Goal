@@ -1,0 +1,35 @@
+/*
+ * โครงหน้าและหัวเรื่องของบันทึกงานประจำวัน
+ *
+ * สรุปเวลาอยู่คอลัมน์ขวาบนจอกว้าง เพราะเป็นตัวเลขที่ผู้ใช้เหลือบดูระหว่างทำงาน
+ * ไม่ใช่สิ่งที่ต้องอ่านก่อนเริ่มบันทึก ส่วนบนจอแคบจะสลับไปอยู่บนสุด (ดู responsive.css)
+ */
+.daily-log { display:grid; gap:18px; padding:22px 24px 40px; }
+
+.daily-log__header { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; }
+.daily-log__eyebrow { display:flex; align-items:center; gap:7px; color:#6b7a94; font-size:.78rem; font-weight:650; letter-spacing:.02em; }
+.daily-log__eyebrow i { color:#2563eb; }
+.daily-log__title { margin:4px 0 2px; color:#0f172a; font-size:1.55rem; font-weight:750; letter-spacing:-.01em; }
+.daily-log__subtitle { margin:0; color:#7382a0; font-size:.85rem; }
+
+.daily-log__controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.daily-log__member-form { display:flex; align-items:center; gap:8px; }
+.daily-log__member-select { min-width:190px; border-radius:10px; font-size:.85rem; }
+.daily-log__routines-link { display:inline-flex; align-items:center; gap:7px; border-radius:10px; font-size:.85rem; font-weight:600; white-space:nowrap; }
+
+.daily-log__date-nav { display:flex; align-items:center; gap:4px; padding:4px; border:1px solid #e4eaf3; border-radius:12px; background:#fff; }
+.daily-log__date-step { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; color:#526180; text-decoration:none; transition:background-color .15s ease, color .15s ease; }
+.daily-log__date-step:hover { background:#eef3fb; color:#1d4ed8; }
+.daily-log__date-step:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+.daily-log__date-step--disabled { color:#c6cede; cursor:not-allowed; }
+.daily-log__date-step--disabled:hover { background:transparent; color:#c6cede; }
+.daily-log__date-label { display:flex; align-items:center; gap:8px; padding:0 10px; color:#1e293b; font-size:.9rem; font-weight:650; white-space:nowrap; }
+.daily-log__today-chip { padding:2px 8px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:.7rem; font-weight:700; }
+
+/* แถบแจ้งว่ากำลังดูของคนอื่น — ต้องเห็นชัดว่าทำไมปุ่มแก้ไขหายไป */
+.daily-log__notice { display:flex; align-items:center; gap:8px; margin:0; padding:11px 14px; border:1px solid #dbe4f3; border-radius:12px; background:#f4f8ff; color:#41547a; font-size:.85rem; }
+.daily-log__notice i { color:#5b7cc4; }
+
+.daily-log__body { display:grid; grid-template-columns:minmax(0,1fr) 300px; align-items:start; gap:20px; }
+.daily-log__main { display:grid; gap:16px; min-width:0; }
+.daily-log__side { position:sticky; top:18px; min-width:0; }

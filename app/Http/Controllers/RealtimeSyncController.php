@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\NotificationService;
 use App\Models\WorkOrder;
+use App\Services\NotificationService;
 use App\Support\TaskCommentPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +19,7 @@ class RealtimeSyncController extends Controller
 
         $payload = $notifications->syncFeed($request->user(), (int) $validated['after']);
         $task = isset($validated['task_id'])
-            ? WorkOrder::with(['collaborators', 'updates.user'])->find($validated['task_id'])
+            ? WorkOrder::with(['collaborators', 'updates.user', 'updates.attachments'])->find($validated['task_id'])
             : null;
         $payload['comment_receipts'] = $task && $request->user()->can('viewComments', $task)
             ? ['task_id' => $task->job_id, 'receipts' => $presenter->receipts($task)]

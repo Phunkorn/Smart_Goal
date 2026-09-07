@@ -44,8 +44,10 @@
         <div class="employee-picker__grid">
             @forelse($employees as $employee)
                 <article class="employee-card">
+                    {{-- ตัวย่อชื่ออยู่ข้างล่างเสมอ เผื่อไฟล์รูปหายไปจาก storage แล้ว --}}
                     <div class="employee-card__avatar">
-                        @if($employee->profile_image)<img src="{{ route('media.profile', $employee) }}" alt="รูปโปรไฟล์ของ {{ $employee->name }}">@else<span aria-hidden="true">{{ \App\Support\WorkBoardDesign::initials($employee->name) }}</span>@endif
+                        <span aria-hidden="true">{{ \App\Support\WorkBoardDesign::initials($employee->name) }}</span>
+                        @if($employee->profile_image)<img src="{{ route('media.profile', $employee) }}" alt="รูปโปรไฟล์ของ {{ $employee->name }}" data-avatar-image>@endif
                     </div>
                     <div class="employee-card__identity"><h3>{{ $employee->name }}</h3><p><i class="bi bi-building" aria-hidden="true"></i>{{ $employee->department?->department_name ?? 'ไม่ระบุแผนก' }}</p></div>
                     <a href="{{ route('reports.employee', $employee) }}" class="employee-card__action">ดูรายงาน <i class="bi bi-arrow-right" aria-hidden="true"></i></a>

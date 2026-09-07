@@ -91,15 +91,23 @@ class DepartmentController extends Controller
             $hasUsers = $lockedDepartment->users()->withTrashed()->exists();
             $hasJobs = $lockedDepartment->jobs()->withTrashed()->exists();
 
-            if ($hasUsers || $hasJobs) {
+            // กระดานไอเดียผูกกับแผนกด้วย FK แบบ restrict การลบแผนกที่ยังมีกระดาน
+            // จะถูกฐานข้อมูลปฏิเสธเป็น QueryException ที่ผู้ใช้อ่านไม่รู้เรื่อง
+            // จึงดักไว้ที่นี่เพื่อคืนข้อความภาษาไทย
+            $hasWorkspaceBoards = $lockedDepartment->workspaceBoards()->withTrashed()->exists();
+
+            if ($hasUsers || $hasJobs || $hasWorkspaceBoards) {
                 return false;
             }
 
+            // แผนกไม่มี SoftDeletes แถวหายจากฐานข้อมูลจริง ต้องเก็บสำเนาทั้งแถว
+            // ไม่ใช่แค่ id กับชื่อ ไม่งั้นกู้คืนแล้วได้แผนกที่ค่าอื่นหายไปหมด
+            AuditTrail::trash($lockedDepartment, Auth::user(), [
+                'department' => $lockedDepartment->attributesToArray(),
+            ]);
+
             AuditTrail::log('deleted', $lockedDepartment, 'Admin deleted department: '.$lockedDepartment->department_name, [
-                'before' => [
-                    'id' => $lockedDepartment->id,
-                    'department_name' => $lockedDepartment->department_name,
-                ],
+                'before' => $lockedDepartment->attributesToArray(),
             ]);
 
             $lockedDepartment->delete();

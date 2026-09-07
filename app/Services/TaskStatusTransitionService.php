@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\AuditTrail;
+use App\Support\TaskReviewStage;
 use App\Support\TodayWorkspace;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,8 @@ class TaskStatusTransitionService
             'can_reopen' => Gate::forUser($actor)->allows('reopen', $task),
             'is_final' => $status === 4,
             'is_self_task' => $selfTask,
+            // งานของตัวเองไม่มีขั้นตรวจสอบ หน้าจอจึงต้องไม่แสดงสถานะ 3 ให้เลือกเลย
+            'shows_review_stage' => TaskReviewStage::appliesTo($task, $actor),
             'approver_id' => $this->approverId($task),
             'allowed_statuses' => $this->allowedStatuses($task, $actor),
         ];
@@ -240,7 +243,7 @@ class TaskStatusTransitionService
 
     private function approverId(WorkOrder $task): ?int
     {
-        return $task->created_by ?: ($task->leader_user_id ?: $task->user_id);
+        return TaskReviewStage::approverId($task);
     }
 
     /** @return array<int> */
@@ -314,7 +317,7 @@ class TaskStatusTransitionService
 
     private function isSelfTask(WorkOrder $task, User $actor): bool
     {
-        return (int) $task->user_id === (int) $actor->id && (int) $this->approverId($task) === (int) $actor->id;
+        return TaskReviewStage::isSelfTask($task, $actor);
     }
 
     private function reject(string $message): never

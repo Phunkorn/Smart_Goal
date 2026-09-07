@@ -15,11 +15,24 @@
     background: #fff;
 }
 
+/*
+ * จำนวนคอลัมน์ต้องเท่ากับจำนวนสถานะที่ render จริง
+ *
+ * คอลัมน์ "รอตรวจสอบ" ถูกตัดออกจาก $statuses เมื่อผู้ใช้ดูเฉพาะงานที่เปิดเอง
+ * (งานที่ตัวเองเปิด รับผิดชอบ และอนุมัติเอง ไม่มีวันเข้าขั้นตรวจ) แต่กริดถูกตรึงไว้
+ * ที่ 5 คอลัมน์พร้อม min-width: 1250px ช่องที่ห้าจึงยังกินพื้นที่ค้างไว้เป็นที่ว่าง
+ * และบังคับให้มีแถบเลื่อนแนวนอนทั้งที่เนื้อหาไม่ได้กว้างขนาดนั้น
+ *
+ * grid-auto-flow: column สร้าง track ตามจำนวนลูกที่มีอยู่จริง เพิ่มหรือลดสถานะ
+ * ในอนาคตจึงไม่ต้องกลับมาแก้ตัวเลขที่นี่อีก
+ */
 .my-tasks-page .mytasks-kanban__columns {
     display: grid;
-    grid-template-columns: repeat(5, minmax(245px, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(245px, 1fr);
     gap: 14px;
-    min-width: 1250px;
+    /* กว้างอย่างน้อยเท่าที่คอลัมน์ทั้งหมดต้องการ ที่เหลือให้กล่องแม่เลื่อนแนวนอนเอง */
+    min-width: min-content;
 }
 
 .my-tasks-page .mytasks-kanban__column {
@@ -123,6 +136,7 @@
     overflow: hidden;
     color: #64748b;
     font-size: 11px;
+    line-height: var(--thai-line-height, 1.6);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -196,6 +210,7 @@
     background: #2875db;
     color: #fff;
     font-size: 9px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 700;
 }
 
@@ -211,6 +226,7 @@
     max-width: 120px;
     color: #40516a;
     font-size: 11px;
+    line-height: var(--thai-line-height, 1.6);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -824,10 +840,22 @@
     overflow-wrap: anywhere;
 }
 
+/*
+ * กางแล้วเห็น 5 ใบพอดี ที่เหลือเลื่อนดู
+ *
+ * ความสูงมาจากตัวแปร --kanban-expanded-height ที่ JavaScript วัดจากตำแหน่งจริง
+ * ของการ์ดใบที่หก ไม่ใช่ค่าคงที่อย่าง min(62vh, 620px) แบบเดิม
+ *
+ * นี่คือหัวใจของการแก้: การ์ดแต่ละใบสูงไม่เท่ากัน (ชื่องานยาวไม่เท่ากัน บางใบมีปุ่ม
+ * สถานะเพิ่ม) ความสูงที่ตั้งเป็นตัวเลขตายตัวจึงไปตกกลางการ์ดเสมอ พอวัดจากขอบของ
+ * ใบที่หกจริง ขอบล่างของกล่องจะตรงกับรอยต่อระหว่างใบที่ห้ากับใบที่หกพอดี
+ *
+ * มีค่าสำรองไว้เผื่อ JavaScript ยังไม่ทำงาน กล่องจึงไม่ยืดยาวทั้งคอลัมน์ระหว่างรอ
+ */
 .my-tasks-page .mytasks-kanban__cards.is-expanded {
     /* ระบุทั้งสองแกนชัดเจน ไม่ปล่อยให้ overflow-x ถูกอนุมานเป็น auto */
     overflow: hidden auto;
-    max-height: min(62vh, 620px);
+    max-height: var(--kanban-expanded-height, 620px);
     /* เว้นที่ให้เงาของการ์ดใบล่างสุด ไม่ให้ดูเหมือนถูกตัดขาดที่ขอบ */
     padding-right: 4px;
     padding-bottom: 6px;
@@ -835,6 +863,17 @@
     overscroll-behavior: contain;
     scrollbar-width: thin;
     scrollbar-color: rgba(100, 116, 139, .2) transparent;
+    /*
+     * ตำแหน่งที่ผู้ใช้เลื่อนไปหยุดเองก็ต้องอยู่ที่ขอบการ์ดเช่นกัน
+     * ใช้ proximity ไม่ใช่ mandatory เพราะการ์ดที่สูงกว่ากรอบที่มองเห็นจะถูก
+     * mandatory ดีดกลับจนเลื่อนดูเนื้อหาส่วนล่างของใบนั้นไม่ได้เลย
+     */
+    scroll-snap-type: y proximity;
+    scroll-padding-top: 2px;
+}
+
+.my-tasks-page .mytasks-kanban__cards.is-expanded > [data-kanban-card] {
+    scroll-snap-align: start;
 }
 
 .my-tasks-page .mytasks-kanban__cards.is-expanded::-webkit-scrollbar {

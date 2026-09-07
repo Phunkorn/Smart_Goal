@@ -32,6 +32,13 @@ class TaskCommentPresenter
             'is_comment' => (bool) $comment->is_comment,
             'is_mine' => (int) $comment->user_id === (int) $viewer->id,
             'readers' => $readers,
+            // ส่งเฉพาะ URL ที่ผ่านการตรวจสิทธิ์ ห้ามส่ง file_path จริงออกไปที่ JSON
+            'images' => $comment->relationLoaded('attachments')
+                ? $comment->attachments->map(fn ($image) => [
+                    'url' => route('media.comment-attachments.show', $image),
+                    'name' => $image->original_name,
+                ])->values()->all()
+                : [],
         ];
     }
 

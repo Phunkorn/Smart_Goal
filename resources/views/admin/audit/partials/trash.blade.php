@@ -1,5 +1,26 @@
 @php
     use App\Support\AuditSnapshot;
+
+    /*
+     * ตัวกรองลัดตอบคำถามที่ผู้ดูแลระบบถามบ่อยที่สุด
+     *
+     * "อะไรกำลังจะหาย" กับ "อะไรกู้ไม่ได้แล้ว" เดิมต้องเดาเอาจากคอลัมน์วันที่
+     * เพราะตัวกรองมีแต่ประเภทข้อมูลกับแผนก
+     *
+     * กดซ้ำที่ชิปเดิมคือการยกเลิก จึงไม่ต้องมีปุ่ม "ล้าง" แยกอีกตัวสำหรับกลุ่มนี้
+     */
+    $activeShortcut = request('shortcut');
+    $shortcutLink = fn (?string $key) => route('admin.audit.index', array_merge(
+        request()->except(['shortcut', 'page']),
+        ['tab' => 'trash'],
+        $key === null || $key === $activeShortcut ? [] : ['shortcut' => $key],
+    ));
+
+    $shortcuts = [
+        'expiring' => ['label' => 'ใกล้หมดเวลา 7 วัน', 'icon' => 'bi-alarm', 'count' => $stats['near_expiry']],
+        'expired' => ['label' => 'กู้คืนไม่ได้แล้ว', 'icon' => 'bi-x-octagon', 'count' => null],
+        'files' => ['label' => 'เฉพาะไฟล์และรูป', 'icon' => 'bi-paperclip', 'count' => $stats['files']],
+    ];
 @endphp
 
 <section class="audit-stats">
@@ -10,19 +31,53 @@
         <span>งานและโปรเจกต์</span><strong>{{ $stats['work_items'] }}</strong><small>กู้คืนแล้วกลับเข้าบอร์ดเดิม</small>
     </div>
     <div class="audit-stat">
-        <span>บัญชีพนักงาน</span><strong>{{ $stats['users'] }}</strong><small>กู้คืนแล้วเข้าใช้งานได้อีกครั้ง</small>
+        <span>ไฟล์และรูป</span><strong>{{ $stats['files'] }}</strong><small>ไฟล์จริงยังอยู่ กู้คืนแล้วเปิดได้</small>
     </div>
     <div class="audit-stat {{ $stats['near_expiry'] > 0 ? 'audit-stat--warning' : '' }}">
         <span>ใกล้ถูกลบถาวร</span><strong>{{ $stats['near_expiry'] }}</strong><small>ภายใน 7 วัน หลังจากนั้นกู้คืนไม่ได้</small>
     </div>
 </section>
 
+{{--
+    แถบเครื่องมือของถังขยะ: ตัวกรองลัดอยู่ซ้าย การกระทำที่ทำลายข้อมูลอยู่ขวาสุด
+    ห่างจากชิปที่กดบ่อย เพื่อไม่ให้มือไปโดนโดยไม่ตั้งใจ
+--}}
+<div class="audit-trashbar">
+    <div class="audit-trashbar__shortcuts" role="group" aria-label="ตัวกรองลัด">
+        <a class="audit-chip {{ $activeShortcut ? '' : 'is-active' }}" href="{{ $shortcutLink(null) }}">ทั้งหมด</a>
+        @foreach ($shortcuts as $key => $shortcut)
+            <a class="audit-chip {{ $activeShortcut === $key ? 'is-active' : '' }}"
+               href="{{ $shortcutLink($key) }}"
+               @if($activeShortcut === $key) aria-current="true" @endif>
+                <i class="bi {{ $shortcut['icon'] }}" aria-hidden="true"></i>
+                {{ $shortcut['label'] }}
+                @if ($shortcut['count'] !== null)
+                    <b>{{ $shortcut['count'] }}</b>
+                @endif
+            </a>
+        @endforeach
+    </div>
+
+    @if ($expiredCount > 0)
+        {{-- การยืนยันเป็นหน้าที่ของ audit.js ผ่าน SweetAlert ไม่ใช่ native confirm --}}
+        <form method="POST" action="{{ route('admin.trash.purge-expired') }}"
+              data-audit-purge-expired data-count="{{ $expiredCount }}">
+            @csrf
+            @method('DELETE')
+            <button class="audit-btn audit-btn--danger" type="submit">
+                <i class="bi bi-trash3-fill" aria-hidden="true"></i>
+                ล้างของหมดอายุ ({{ $expiredCount }})
+            </button>
+        </form>
+    @endif
+</div>
+
 <section class="audit-card">
     @if ($trashLogs->isEmpty())
         <div class="audit-empty">
             <i class="bi bi-trash3" aria-hidden="true"></i>
             <strong>ไม่พบข้อมูลที่ถูกลบตามเงื่อนไขที่เลือก</strong>
-            <span>ข้อมูลที่ถูกลบจะเก็บไว้ 30 วันก่อนลบถาวร</span>
+            <span>ข้อมูลที่ถูกลบจะเก็บไว้ 30 วันก่อนลบถาวร รวมถึงไฟล์แนบและรูปภาพ</span>
         </div>
     @else
         <div class="audit-table-scroll">
@@ -42,10 +97,23 @@
                         @php($summary = $trash->summary)
                         <tr>
                             <td>
-                                <div class="audit-strong">{{ $summary['name'] }}</div>
-                                <div class="audit-item-meta">
-                                    <span class="audit-subject">{{ $summary['entity_label'] }}</span>
-                                    <span class="audit-muted">ID #{{ $trash->entity_id }}</span>
+                                <div class="audit-item">
+                                    {{--
+                                        ไฟล์แสดงไอคอนนำหน้าเพื่อให้กวาดตาหาเจอในตารางยาว ๆ
+                                        ไม่แสดงภาพตัวอย่างจริง เพราะไฟล์ที่ถูกลบยังไม่ควรถูกเสิร์ฟ
+                                        ออกจากระบบ การเปิดเส้นทางสื่อให้ไฟล์ในถังขยะคือการเพิ่ม
+                                        ช่องทางเข้าถึงข้อมูลที่ตั้งใจเอาออกไปแล้ว
+                                    --}}
+                                    @if ($summary['is_file'])
+                                        <span class="audit-item__icon" aria-hidden="true"><i class="bi bi-paperclip"></i></span>
+                                    @endif
+                                    <div>
+                                        <div class="audit-strong">{{ $summary['name'] }}</div>
+                                        <div class="audit-item-meta">
+                                            <span class="audit-subject">{{ $summary['entity_label'] }}</span>
+                                            <span class="audit-muted">ID #{{ $trash->entity_id }}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                             <td><span class="audit-context">{{ $summary['department'] }}</span></td>
@@ -90,8 +158,21 @@
 
                                     <button type="button" class="audit-btn audit-btn--ghost"
                                             data-bs-toggle="modal" data-bs-target="#auditTrash{{ $trash->id }}">
-                                        <i class="bi bi-list-columns" aria-hidden="true"></i> ข้อมูลที่บันทึกไว้
+                                        <i class="bi bi-list-columns" aria-hidden="true"></i> ข้อมูล
                                     </button>
+
+                                    {{--
+                                        ลบถาวรอยู่ท้ายสุดของแถวเสมอ ห่างจากปุ่มกู้คืนที่กดบ่อย
+                                        และ audit.js บังคับให้พิมพ์ชื่อรายการให้ตรงก่อนยืนยัน
+                                    --}}
+                                    <form method="POST" action="{{ route('admin.trash.purge', $trash) }}"
+                                          data-audit-purge data-name="{{ $summary['name'] }}">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="audit-btn audit-btn--danger" type="submit">
+                                            <i class="bi bi-trash3" aria-hidden="true"></i> ลบถาวร
+                                        </button>
+                                    </form>
 
                                     <div class="modal fade audit-modal" id="auditTrash{{ $trash->id }}" tabindex="-1" aria-hidden="true">
                                         <div class="modal-dialog modal-dialog-scrollable modal-lg">

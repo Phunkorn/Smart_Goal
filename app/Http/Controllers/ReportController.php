@@ -4,12 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Models\User;
+use App\Models\WorkLog;
 use App\Services\AdminReportService;
 use App\Services\EmployeeReportService;
+use App\Services\OperationalWorkloadReportService;
 use App\Services\PersonalReportService;
+use App\Support\TodayWorkspace;
+use App\Support\WorkLogDesign;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
@@ -41,6 +46,31 @@ class ReportController extends Controller
         return $this->downloadJobsCsv(
             $reports->exportJobs($request, $this->forcedDepartmentId()),
             'smart-goals-report-'.now()->format('Ymd-His').'.csv',
+        );
+    }
+
+    /**
+     * รายงานภาระงานปฏิบัติการ — งานประจำ งานแทรก และงานนอกสถานที่
+     *
+     * ใช้ตัวตรวจสิทธิ์ของตัวเอง ไม่ใช่ authorizeAdminReports() เพราะรายงานนี้
+     * เป็นข้อมูลรายบุคคลที่ละเอียดกว่าภาพรวมองค์กร viewer จึงต้องไม่เห็น
+     */
+    public function operational(Request $request, OperationalWorkloadReportService $reports)
+    {
+        $this->authorizeOperationalReports();
+
+        return view('reports.operational', $reports->build($request, $this->forcedDepartmentId()));
+    }
+
+    public function exportOperationalCsv(
+        Request $request,
+        OperationalWorkloadReportService $reports
+    ): StreamedResponse {
+        $this->authorizeOperationalReports();
+
+        return $this->downloadWorkLogsCsv(
+            $reports->exportRows($request, $this->forcedDepartmentId()),
+            'smart-goals-operational-'.now()->format('Ymd-His').'.csv',
         );
     }
 
@@ -90,12 +120,44 @@ class ReportController extends Controller
         return $this->downloadEmployeeCsv(Auth::user(), (int) $request->query('year', now()->year));
     }
 
-    public function employeeReport(Request $request, User $user, EmployeeReportService $reports)
-    {
+    public function employeeReport(
+        Request $request,
+        User $user,
+        EmployeeReportService $reports,
+        OperationalWorkloadReportService $operational
+    ) {
         $this->authorizeAdminReports();
         $this->ensureReportableEmployee($user);
 
-        return view('reports.employee', $reports->build($user, $request));
+        $data = $reports->build($user, $request);
+
+        return view('reports.employee', [
+            ...$data,
+            /*
+             * บล็อกภาระงานปฏิบัติการบนหน้ารายงานรายบุคคล
+             *
+             * ตั้งใจแยกจากตัวเลขผลงานโครงการด้านบน ไม่รวมเป็นก้อนเดียวกัน เพราะ
+             * ชั่วโมงงานปฏิบัติการไม่ใช่ผลงานโครงการ การรวมกันจะทำให้อัตราปิดงาน
+             * และความคืบหน้าของโครงการเพี้ยน สองบล็อกนี้ตอบคนละคำถาม:
+             * ด้านบนคือ "ทำโครงการได้ดีแค่ไหน" ด้านล่างคือ "เวลาที่เหลือไปอยู่ไหน"
+             *
+             * แสดงเฉพาะผู้ที่มีสิทธิ์ดูรายงานภาระงานปฏิบัติการ (admin และหัวหน้าแผนก)
+             * เพื่อไม่ให้ viewer เห็นปุ่มที่กดแล้วเจอ 403
+             */
+            'operational' => Gate::allows('viewReport', WorkLog::class)
+                ? $operational->forEmployee(
+                    $user,
+                    $data['filters']['start_date'],
+                    $data['filters']['end_date']
+                )
+                : null,
+            'operationalUrl' => route('reports.operational', array_filter([
+                'department' => $user->department_id,
+                'period' => $data['filters']['period'],
+                'start_date' => $data['filters']['start_date'],
+                'end_date' => $data['filters']['end_date'],
+            ])),
+        ]);
     }
 
     public function exportEmployeeCsv(Request $request, User $user, EmployeeReportService $reports): StreamedResponse
@@ -177,6 +239,60 @@ class ReportController extends Controller
     {
         $user = Auth::user();
         abort_unless(in_array($user?->role, ['admin', 'viewer'], true) || $user?->isDepartmentHead(), 403);
+    }
+
+    /**
+     * สิทธิ์ดูรายงานภาระงานปฏิบัติการ
+     *
+     * ตั้งใจให้ต่างจาก authorizeAdminReports() ที่เปิดให้ viewer ดูได้
+     * เพราะบันทึกงานประจำวันเป็นข้อมูลรายบุคคลที่ละเอียดกว่าภาพรวมองค์กร
+     * กติกาจริงอยู่ที่ WorkLogPolicy::viewReport() เพียงที่เดียว
+     */
+    private function authorizeOperationalReports(): void
+    {
+        abort_unless(Gate::allows('viewReport', WorkLog::class), 403);
+    }
+
+    /**
+     * ไฟล์ CSV ของบันทึกงานประจำวัน
+     *
+     * โครงเดียวกับ downloadJobsCsv() (BOM + fputcsv + streamDownload) แต่หัวคอลัมน์
+     * เป็นของงานปฏิบัติการ ไม่ปนกับงานโครงการ
+     *
+     * @param  Collection<int, WorkLog>  $logs
+     */
+    private function downloadWorkLogsCsv(Collection $logs, string $fileName): StreamedResponse
+    {
+        return response()->streamDownload(function () use ($logs): void {
+            $handle = fopen('php://output', 'w');
+            // BOM เพื่อให้ Excel บน Windows อ่านภาษาไทยได้ถูกต้อง
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+            fputcsv($handle, [
+                'วันที่', 'ผู้บันทึก', 'แผนก', 'ประเภท', 'หมวดงาน', 'เรื่อง',
+                'เริ่ม', 'สิ้นสุด', 'นาที', 'โปรเจกต์', 'งาน',
+            ]);
+
+            $logs->chunk(200)->each(function (Collection $chunk) use ($handle): void {
+                foreach ($chunk as $log) {
+                    fputcsv($handle, [
+                        $log->work_date?->format('Y-m-d'),
+                        $log->user?->name,
+                        $log->department?->department_name ?? $log->user?->department?->department_name,
+                        WorkLogDesign::kind($log->kind)['label'],
+                        $log->category?->name,
+                        $log->title,
+                        // แปลงกลับเป็นเวลาทำการ ไม่ใช่ UTC ที่เก็บในฐานข้อมูล
+                        $log->started_at === null ? '' : TodayWorkspace::businessNow($log->started_at)->format('H:i'),
+                        $log->ended_at === null ? '' : TodayWorkspace::businessNow($log->ended_at)->format('H:i'),
+                        $log->duration_minutes,
+                        $log->project?->name,
+                        $log->job_id === null ? '' : 'IT-'.$log->job_id,
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     private function ensureReportableEmployee(User $user): void

@@ -83,3 +83,66 @@ test('narrow screens stack the heading above full-width controls', async () => {
     assert.match(mobile, /\.mytasks-calendar__heading\s*\{[^}]*flex-direction:\s*column/s);
     assert.match(mobile, /\.mytasks-calendar__segmented button\s*\{[^}]*flex:\s*1/s);
 });
+
+/*
+ * จอกว้างต้องเหลือแถบเดียวเหนือชื่อเดือน
+ *
+ * ปุ่มตัวเลือกการแสดงผลขนาดสำหรับนิ้วสัมผัสกว้างจนคำอธิบายสีอยู่ร่วมแถวไม่ได้
+ * หน้าปฏิทินจึงมีแถบแนวนอนสามชั้นก่อนถึงตาราง ที่ 1200px ขึ้นไปอุปกรณ์เป็นเมาส์
+ * ปุ่มย่อลงได้ และทั้งสามกลุ่มต้องอยู่แถวเดียวกัน
+ */
+test('wide screens put the legend, display options and month navigation on one row', async () => {
+    const css = await read('resources/css/components/task-workspace/calendar/base.css');
+    const wide = css.slice(css.indexOf('@media (min-width: 1200px)'));
+
+    assert.ok(css.includes('@media (min-width: 1200px)'), 'ต้องมีจุดหักของจอกว้าง');
+    assert.match(wide, /\.mytasks-calendar__toolbar \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto auto/s);
+
+    // ทั้งสามกลุ่มต้องถูกวางไว้ที่แถวเดียวกันอย่างชัดเจน ไม่ใช่ปล่อยให้ flex-wrap ตัดสิน
+    // จับเป็นรายกฎ เพราะกฎที่ประกาศ selector สองตัวพร้อมกันลงท้ายด้วย __controls เหมือนกัน
+    // การ match ด้วย regex ตรง ๆ จะไปโดนกฎรวมก่อนเสมอ
+    const flatten = (text) => text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').trim();
+    const ruleFor = (selector) => wide
+        .split('}')
+        .map((chunk) => chunk.split('{'))
+        .filter((parts) => parts.length === 2 && flatten(parts[0]) === flatten(selector))
+        .map((parts) => parts[1])[0] ?? '';
+
+    const scope = '.my-tasks-page .mytasks-calendar__toolbar';
+    const legend = ruleFor(`${scope} > .mytasks-calendar__legend`);
+    const displaybar = ruleFor(`${scope} > .mytasks-calendar__displaybar`);
+    const controls = ruleFor(`${scope} > .mytasks-calendar__controls`);
+    const shared = ruleFor(`${scope} > .mytasks-calendar__displaybar, ${scope} > .mytasks-calendar__controls`);
+
+    assert.match(legend, /grid-column:\s*1/);
+    assert.match(legend, /grid-row:\s*1/);
+    assert.match(displaybar, /grid-column:\s*2/);
+    assert.match(controls, /grid-column:\s*3/);
+    assert.match(shared, /grid-row:\s*1/, 'ตัวเลือกการแสดงผลและปุ่มเปลี่ยนเดือนต้องขึ้นมาแถวเดียวกัน');
+
+    // เส้นคั่นและระยะห่างของ "แถวล่าง" ต้องถูกล้าง ไม่งั้นจะเหลือเส้นลอยกลางแถบ
+    assert.match(shared, /border-top:\s*0/);
+    assert.match(shared, /padding-top:\s*0/);
+});
+
+/*
+ * การย่อปุ่มต้องจำกัดอยู่ในแถบเครื่องมือของจอกว้างเท่านั้น
+ *
+ * ขนาดฐาน 34px / 12px คือเป้ากดสำหรับนิ้วสัมผัส ห้ามลดที่ต้นทาง
+ */
+test('the compact buttons only apply to the wide-screen toolbar', async () => {
+    const base = await read('resources/css/components/task-workspace/calendar/base.css');
+    const timeline = await read('resources/css/components/task-workspace/calendar/timeline.css');
+    const wide = base.slice(base.indexOf('@media (min-width: 1200px)'));
+
+    const compact = wide.match(/\.mytasks-calendar__toolbar \.mytasks-calendar__segmented button \{([^}]*)\}/)?.[1] ?? '';
+    assert.ok(Number(compact.match(/min-height:\s*(\d+)px/)?.[1]) < 34, 'ปุ่มในแถบเครื่องมือจอกว้างต้องเตี้ยลง');
+
+    // ทุกกฎที่ย่อขนาดต้องมี .mytasks-calendar__toolbar นำหน้า จึงไม่หลุดไปโดนจอแคบ
+    for (const rule of wide.split('}').filter((chunk) => chunk.includes('__segmented'))) {
+        assert.match(rule, /\.mytasks-calendar__toolbar\s/, `กฎนี้กว้างเกินขอบเขตแถบเครื่องมือ: ${rule.trim()}`);
+    }
+
+    const base34 = timeline.match(/\.mytasks-calendar__segmented button \{([^}]*)\}/)?.[1] ?? '';
+    assert.match(base34, /min-height:\s*34px/, 'ขนาดฐานสำหรับนิ้วสัมผัสต้องไม่ถูกแตะ');
+});

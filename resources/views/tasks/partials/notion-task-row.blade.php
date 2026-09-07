@@ -19,6 +19,8 @@
     $taskAdminSenderName = $task->creator?->role === 'admin' ? $task->creator->name : null;
     $canQuickAddToList = $showQuickAdd && $task->taskList && auth()->user()->can('manage', $task->taskList);
     $canWork = auth()->user()->can('work', $task);
+    // งานของตัวเองไม่มีผู้ตรวจ จึงต้องไม่เสนอสถานะ "รอตรวจสอบ" ให้เลือก
+    $showsReviewStage = \App\Support\TaskReviewStage::appliesTo($task, auth()->user());
     $canManageTeam = auth()->user()->can('manageTeam', $task);
     $taskDeleteUrl = $workspaceContext === 'admin-member'
         ? route('admin.tasks.destroy', $task->job_id)
@@ -35,7 +37,7 @@
     @if($canWork)
         <details class="board-status-menu table-status-menu" data-table-status-menu>
             <summary class="board-status-pill status-{{ $statusClass }}"><span data-table-status-label>{{ $statusText }}</span><i class="bi bi-chevron-down"></i></summary>
-            <div>@foreach([5=>['พักงาน','paused'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done']] as $value=>$meta)<button type="button" class="status-{{ $meta[1] }}" data-table-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+            <div>@foreach([5=>['พักงาน','paused'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done']] as $value=>$meta)@continue($value === 3 && ! $showsReviewStage)<button type="button" class="status-{{ $meta[1] }}" data-table-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
         <input type="hidden" data-field="status" value="{{ $task->job_status }}">
         <details class="board-priority-menu table-priority-menu" data-table-priority-menu>

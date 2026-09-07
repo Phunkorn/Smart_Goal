@@ -1,0 +1,43 @@
+/*
+ * กล่องสรุปเวลาของวัน
+ *
+ * "เวลาที่ไม่ได้ลงโปรเจกต์" ถูกเน้นเป็นบล็อกแยก เพราะเป็นตัวเลขที่ตอบคำถาม
+ * ทางธุรกิจของฟีเจอร์นี้โดยตรง ไม่ใช่แค่ยอดรวมอีกตัวหนึ่ง
+ */
+.log-summary { display:grid; gap:13px; padding:17px 18px; border:1px solid #e2e9f4; border-radius:16px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.log-summary__heading { margin:0; color:#64748b; font-size:.8rem; font-weight:650; letter-spacing:.02em; }
+
+.log-summary__total { display:grid; gap:2px; margin:0; }
+.log-summary__total-value { color:#0f172a; font-size:1.8rem; font-weight:750; line-height:1.15; letter-spacing:-.01em; }
+.log-summary__total-note { color:#7c8aa3; font-size:.78rem; }
+
+/* แถบสัดส่วนแบบ stacked — อ่านสัดส่วนได้ทันทีโดยไม่ต้องโหลดไลบรารีกราฟ */
+.log-summary__bar { display:flex; overflow:hidden; height:9px; border-radius:999px; background:#eef2f8; }
+.log-summary__bar-part { min-width:3px; }
+.log-summary__bar-part--blue { background:#2563eb; }
+.log-summary__bar-part--amber { background:#f59e0b; }
+.log-summary__bar-part--teal { background:#0d9488; }
+.log-summary__bar-part--gray { background:#94a3b8; }
+
+.log-summary__kinds { display:grid; gap:8px; margin:0; }
+.log-summary__kind { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.log-summary__kind dt { display:flex; align-items:center; gap:7px; color:#526180; font-size:.83rem; font-weight:600; }
+.log-summary__kind dd { display:flex; align-items:baseline; gap:7px; margin:0; text-align:right; }
+.log-summary__kind dd strong { color:#0f172a; font-size:.88rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.log-summary__kind dd span { color:#94a3b8; font-size:.74rem; }
+.log-summary__kind--blue dt i { color:#2563eb; }
+.log-summary__kind--amber dt i { color:#d97706; }
+.log-summary__kind--teal dt i { color:#0d9488; }
+
+.log-summary__highlight { display:grid; gap:3px; padding:12px 14px; border:1px solid #dbe4f3; border-radius:12px; background:#f6f9ff; }
+.log-summary__highlight-label { color:#5c6b85; font-size:.78rem; font-weight:600; }
+.log-summary__highlight-value { color:#1d4ed8; font-size:1.22rem; font-weight:750; font-variant-numeric:tabular-nums; }
+.log-summary__highlight-note { color:#8494ae; font-size:.72rem; line-height:1.45; }
+
+.log-summary__note { display:flex; align-items:center; gap:7px; margin:0; color:#7c8aa3; font-size:.78rem; }
+.log-summary__note i { font-size:.8rem; }
+.log-summary__note--warning { color:#92400e; }
+.log-summary__note--warning i { color:#d97706; }
+
+.log-summary__link { display:inline-flex; align-items:center; gap:6px; color:#2563eb; font-size:.8rem; font-weight:600; text-decoration:none; }
+.log-summary__link:hover { text-decoration:underline; }

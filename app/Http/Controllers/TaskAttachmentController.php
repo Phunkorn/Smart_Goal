@@ -8,7 +8,6 @@ use App\Models\WorkOrder;
 use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
-use App\Support\ProtectedMedia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -57,9 +56,22 @@ class TaskAttachmentController extends Controller
         abort_unless((int) $attachment->job_id === (int) $job->job_id, 404);
         abort_if((int) $job->job_status === 4 && Auth::user()?->role !== 'admin', 403);
 
-        ProtectedMedia::deleteAttachment($attachment->file_path);
+        // ต้องบันทึกลงถังขยะก่อนลบ ไม่ใช่หลัง เพราะหลัง delete() แถวถูกซ่อนด้วย
+        // global scope ของ SoftDeletes แล้ว การอ่านค่าไปเขียน payload จึงต้องทำก่อน
+        //
+        // ไฟล์ยังคงอยู่บนดิสก์ ProtectedMedia จะถูกเรียกเมื่อ forceDelete() เท่านั้น
+        // ผ่าน KeepsFileUntilPurged — เดิมที่นี่ลบไฟล์ทิ้งเองทำให้กู้คืนไม่ได้ตลอดกาล
+        AuditTrail::trash($attachment, Auth::user(), [
+            'attachment' => $attachment->attributesToArray(),
+            'work_order' => ['job_id' => $job->job_id, 'job_topic' => $job->job_topic],
+        ]);
+
         $attachment->delete();
-        AuditTrail::log('attachment_deleted', $job, 'ลบไฟล์อ้างอิงงาน: '.$job->job_topic);
+
+        // เดิมไม่ส่ง $changes มาเลย บันทึกกิจกรรมจึงไม่บอกด้วยซ้ำว่าไฟล์ชื่ออะไร
+        AuditTrail::log('attachment_deleted', $job, 'ลบไฟล์อ้างอิงงาน: '.$job->job_topic, [
+            'before' => $attachment->attributesToArray(),
+        ]);
 
         return $this->jsonOrBack($request, true, 'ลบไฟล์แนบแล้ว', 200, [
             'files' => $this->attachmentPayload($job->load('images')),

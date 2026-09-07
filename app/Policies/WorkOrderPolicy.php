@@ -139,11 +139,25 @@ class WorkOrderPolicy
             && (int) $workOrder->job_status !== 4;
     }
 
+    /**
+     * เขียนความคิดเห็นในงาน
+     *
+     * หัวหน้าแผนกปลายทางคอมเมนต์ได้ แม้ไม่ได้เป็นผู้รับผิดชอบหรือผู้ร่วมงาน
+     *
+     * เดิมสิทธิ์นี้จำกัดที่ isTaskParticipant() อย่างเดียว หัวหน้าแผนกจึงเปิดงาน
+     * ของลูกทีมได้ อ่านความคิดเห็นได้ (viewComments อนุญาต overseesDepartment
+     * อยู่แล้ว) แต่ตอบกลับในงานเดียวกันไม่ได้ ต้องไปคุยนอกระบบแทน ซึ่งทำให้
+     * บทสนทนาที่ควรอยู่คู่กับงานหายไปจากประวัติ
+     *
+     * ขอบเขตยังแคบกว่า viewComments() เสมอ เพราะที่นี่ไม่รวมผู้ร่วมงานของโปรเจกต์
+     * ที่ไม่ได้อยู่ในงานนี้ ทุกคนที่คอมเมนต์ได้จึงอ่านความคิดเห็นได้แน่นอน
+     */
     public function comment(User $user, WorkOrder $workOrder): bool
     {
         return $workOrder->approval_status === 'approved'
             && $user->role !== 'viewer'
-            && $this->isTaskParticipant($workOrder, $user);
+            && ($this->isTaskParticipant($workOrder, $user)
+                || $user->overseesDepartment($this->destinationDepartmentId($workOrder)));
     }
 
     public function viewComments(User $user, WorkOrder $workOrder): bool

@@ -13,7 +13,8 @@
         @include('work-board.partials.avatar', ['user' => $member, 'size' => 'lg'])
         <div>
             <h3>{{ $member->name }}</h3>
-            <p>พนักงาน <span aria-hidden="true">·</span> {{ $department->department_name }}</p>
+            {{-- บทบาทมาจาก RoleLabel ด้วยเหตุผลเดียวกับการ์ดสมาชิกในหน้ารายชื่อ --}}
+            <p>{{ \App\Support\RoleLabel::for($member) }} <span aria-hidden="true">·</span> {{ $department->department_name }}</p>
         </div>
     </header>
 

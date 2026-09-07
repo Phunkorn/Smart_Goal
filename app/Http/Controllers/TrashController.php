@@ -28,6 +28,41 @@ class TrashController extends Controller
         return back()->with('success', 'กู้คืนข้อมูลเรียบร้อยแล้ว');
     }
 
+    /**
+     * ลบถาวรทีละรายการตามคำสั่งของผู้ดูแลระบบ
+     *
+     * เดิมไม่มีทางลบข้อมูลออกจากฐานข้อมูลจริงเลยนอกจากรอครบ 30 วัน ข้อมูลที่ลบผิด
+     * หรือข้อมูลอ่อนไหวที่ต้องเอาออกทันทีจึงค้างอยู่โดยไม่มีปุ่มให้กด
+     *
+     * ปลายทางนี้ทำลายข้อมูลอย่างถาวรและกู้กลับไม่ได้ ฝั่งหน้าจอจึงบังคับให้พิมพ์ชื่อ
+     * รายการให้ตรงก่อนกดยืนยัน และที่นี่บันทึกกิจกรรมว่าใครเป็นผู้สั่งทุกครั้ง
+     */
+    public function purge(TrashLog $trash)
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        TrashRetention::purge($trash, Auth::user());
+
+        return back()->with('success', 'ลบข้อมูลออกจากระบบถาวรแล้ว');
+    }
+
+    /**
+     * ล้างรายการที่หมดอายุทั้งหมดในครั้งเดียว
+     *
+     * คำสั่งตามเวลา trash:purge-expired ทำสิ่งเดียวกันทุกคืนอยู่แล้ว ปุ่มนี้มีไว้ให้
+     * ผู้ดูแลระบบสั่งเองได้เมื่อจำเป็น โดยไม่ต้องรอรอบถัดไปและไม่ต้องเข้าเซิร์ฟเวอร์
+     */
+    public function purgeExpired()
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $count = TrashRetention::purgeExpired();
+
+        return back()->with('success', $count > 0
+            ? 'ลบรายการที่หมดเวลากู้คืนแล้ว '.$count.' รายการ'
+            : 'ไม่มีรายการที่หมดเวลากู้คืน');
+    }
+
     public function export(Request $request): StreamedResponse
     {
         abort_unless(Auth::user()?->role === 'admin', 403);

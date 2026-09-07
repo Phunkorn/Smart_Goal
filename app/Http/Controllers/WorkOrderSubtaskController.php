@@ -78,11 +78,22 @@ class WorkOrderSubtaskController extends Controller
         $this->authorize('work', $workOrder);
 
         $before = $detail->attributesToArray();
+
+        // รายการย่อยไม่มี SoftDeletes แถวหายจากฐานข้อมูลจริง สำเนาใน payload_json
+        // จึงเป็นสิ่งเดียวที่ใช้กู้คืนได้ ต้องเก็บทั้งแถวไม่ใช่แค่บางฟิลด์
+        AuditTrail::trash($detail, $request->user(), [
+            'detail' => $before,
+            'work_order' => ['job_id' => $workOrder->job_id, 'job_topic' => $workOrder->job_topic],
+        ]);
+
         $detail->delete();
         $this->normalizePositions($workOrder);
 
+        // ต้องเป็นคีย์ before ไม่ใช่ detail — AuditSnapshot::changeSets() อ่านเฉพาะ
+        // before/after (หรือ old/new) หน้า Audit Log จึงเคยแสดงว่า "ไม่มีรายละเอียด"
+        // ทั้งที่ข้อมูลถูกเก็บไว้ครบตั้งแต่แรก
         AuditTrail::log('deleted', $workOrder, 'ลบรายละเอียดงาน: '.$before['title'], [
-            'detail' => $before,
+            'before' => $before,
             'deleted_by' => $request->user()->id,
         ]);
 

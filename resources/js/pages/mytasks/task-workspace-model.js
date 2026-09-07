@@ -56,12 +56,16 @@ export function workspaceMenuPosition(trigger, panel, viewport, gutter = 8) {
 }
 
 /**
- * ส่งอัปเดตได้ก็ต่อเมื่อมีข้อความจริง มีปลายทาง และยังไม่มีคำขอค้างอยู่
+ * ส่งอัปเดตได้ก็ต่อเมื่อมีเนื้อหาจริง มีปลายทาง และยังไม่มีคำขอค้างอยู่
+ *
+ * "เนื้อหาจริง" คือข้อความหรือรูปอย่างน้อยหนึ่งอย่าง การส่งภาพหน้าจอเปล่า ๆ
+ * เป็นการสื่อสารที่สมบูรณ์ในตัวเอง ไม่ควรบังคับให้พิมพ์อะไรกำกับ
+ *
  * เงื่อนไข pending คือสิ่งที่ทำให้กดปุ่มรัว ๆ แล้วไม่เกิดข้อความซ้ำ
  */
-export function shouldSendUpdate({taskId, url, message, pending} = {}) {
+export function shouldSendUpdate({taskId, url, message, pending, imageCount = 0} = {}) {
     if (pending) return false;
     if (!taskId || !url) return false;
 
-    return String(message ?? '').trim() !== '';
+    return String(message ?? '').trim() !== '' || Number(imageCount) > 0;
 }

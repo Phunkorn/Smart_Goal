@@ -120,6 +120,42 @@ test('mobile role chip keeps a compact visible label with an accessible name', a
     assert.match(blade, /<span class="role-chip__label">\{\{ \$roleChipText \}\}<\/span>/);
 });
 
+/*
+ * ป้ายบทบาทใช้พื้นฟ้าอ่อนชุดเดียวกันทุกบทบาท และแยกบทบาทด้วยไอคอน
+ *
+ * สีที่ต่างกันสี่ชุดบนแถบบนอ่านเป็น "สถานะ" (เขียวคือดี แดงคือเตือน) ทั้งที่บทบาท
+ * ไม่มีดีหรือแย่ ส่วนฟ้าอ่อนเป็นสีกลางชุดเดียวกับ badge อื่นในระบบ
+ */
+test('the role chip shares one soft blue and tells roles apart by icon', async () => {
+    const shared = await css('resources/css/components/layout/shared-ui.css');
+    const blade = await css('resources/views/layouts/app.blade.php');
+
+    const chip = shared.match(/\.role-chip \{([^}]*)\}/)?.[1] ?? '';
+
+    assert.match(chip, /background:\s*var\(--blue-dim\)/, 'ป้ายบทบาทต้องใช้พื้นฟ้าอ่อนของระบบ');
+    assert.match(chip, /border-radius:\s*999px/, 'ต้องเป็นแคปซูลเหมือน badge อื่น');
+
+    // สีไม่ใช่ตัวแยกบทบาท จึงต้องไม่มีกฎที่ผูกสีกลับเข้ากับ class บทบาท
+    for (const role of ['admin', 'department-head', 'user', 'viewer']) {
+        assert.doesNotMatch(
+            shared,
+            new RegExp(`\.role-chip\.${role}[^{]*\{[^}]*background:`, 's'),
+            `.role-chip.${role} ต้องไม่กำหนดพื้นหลังของตัวเอง สีไม่ใช่ตัวแยกบทบาท`,
+        );
+    }
+
+    // ไอคอนคือสิ่งที่แยกบทบาท โล่สงวนไว้ให้ผู้ดูแลระบบเท่านั้น
+    const icons = blade.match(/\$roleChipIcon = match \(\$roleChipClass\) \{([^}]*)\}/s)?.[1] ?? '';
+
+    assert.match(icons, /'admin' => 'bi-shield-check'/, 'ผู้ดูแลระบบใช้โล่');
+    assert.match(icons, /'viewer' => 'bi-eye'/, 'ผู้เข้าชมใช้รูปตา');
+    assert.match(icons, /default => 'bi-person-fill'/, 'พนักงานกับหัวหน้าแผนกใช้รูปคนเหมือนกัน');
+    assert.doesNotMatch(icons, /'department-head' =>/, 'หัวหน้าแผนกต้องตกไปใช้รูปคนตัวเดียวกับพนักงาน');
+
+    // โล่ปรากฏได้ครั้งเดียวในตารางนี้ คือบรรทัดของผู้ดูแลระบบ
+    assert.equal((icons.match(/bi-shield/g) ?? []).length, 1, 'โล่สงวนไว้ให้ผู้ดูแลระบบเท่านั้น');
+});
+
 test('mobile kanban stacks status columns without the desktop minimum width', async () => {
     const source = await css('resources/css/components/task-workspace/kanban.css');
 
@@ -392,4 +428,35 @@ test('the shared assignment modal ships with the admin work board entry point', 
     assert.doesNotMatch(modal, /#boardCollaboratorHint/);
     assert.doesNotMatch(modal, /#boardCollaboratorList/);
     assert.match(modal, /\.avatar-mini\s*\{/);
+});
+
+/*
+ * Regression: บนมือถือ หัวข้อโปรเจกต์บนบอร์ดกางได้อย่างเดียว พับเก็บไม่ได้
+ *
+ * เลย์เอาต์การ์ดของแถวงานประกาศ display:grid ผ่าน selector ที่มี
+ * .notion-database[data-view="board"] ติดมาด้วย (4 ระดับ class) ซึ่งชนะกฎซ่อนแถว
+ * .my-tasks-page .board-reference-row.is-project-collapsed (3 ระดับ class) เสมอ
+ * ปุ่มพับจึงใส่คลาสให้ถูกต้องแล้วแต่แถวยังแสดงอยู่ ตัวกรองบอร์ดที่ใช้ [hidden] ก็โดนด้วย
+ * กฎซ่อนต้องมี specificity เท่ากันและมาทีหลังในบล็อกมือถือเดียวกัน
+ */
+test('the mobile board can actually collapse a project group and hide filtered rows', async () => {
+    const source = await css('resources/css/pages/mytasks/project-board.css');
+    const cardLayout = '.my-tasks-page .notion-database[data-view="board"] .board-reference-row {';
+    const collapsed = '.my-tasks-page .notion-database[data-view="board"] .board-reference-row.is-project-collapsed';
+    const filtered = '.my-tasks-page .notion-database[data-view="board"] .board-reference-row[hidden]';
+
+    const layoutIndex = source.indexOf(cardLayout);
+    const collapsedIndex = source.indexOf(collapsed);
+    const filteredIndex = source.indexOf(filtered);
+
+    assert.ok(layoutIndex > 0, 'เลย์เอาต์การ์ดบนมือถือต้องยังอยู่');
+    assert.ok(collapsedIndex > layoutIndex, 'กฎพับโปรเจกต์ต้องมี specificity เท่าเลย์เอาต์การ์ดและมาทีหลัง');
+    assert.ok(filteredIndex > layoutIndex, 'กฎซ่อนแถวที่ถูกกรองต้องมี specificity เท่าเลย์เอาต์การ์ดและมาทีหลัง');
+
+    const rule = source.slice(collapsedIndex);
+    assert.match(rule.slice(0, rule.indexOf('}')), /display:\s*none/);
+
+    // กฎทั้งคู่ต้องอยู่ในบล็อกมือถือ ไม่ใช่หลุดไปมีผลกับจอใหญ่
+    const mobileStart = source.lastIndexOf('@media(max-width:760px)', collapsedIndex);
+    assert.ok(mobileStart > 0 && mobileStart < collapsedIndex);
 });

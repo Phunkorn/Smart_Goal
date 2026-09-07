@@ -149,9 +149,21 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const taskDetailTemplate = calendar.dataset.taskDetailTemplate || '';
     const quickView = createCalendarQuickView(document);
 
+    /*
+     * ปฏิทินคือ "งานที่ยังต้องทำ" ไม่ใช่คลังงานทั้งหมด
+     *
+     * ของเดิมวาดงานทุกใบรวมงานที่ปิดแล้ว เดือนที่ผ่านมาจึงแน่นไปด้วยงานที่จบไปแล้ว
+     * จนงานที่ยังค้างอยู่มองไม่เห็น ที่นี่อ่านสถานะจากแถวข้อมูลเดียวกับที่บอร์ดอัปเดต
+     * เมื่อผู้ใช้คนใดก็ตาม (พนักงาน หัวหน้าแผนก หรือ Admin) เปิดงานที่ปิดแล้วขึ้นมาแก้ต่อ
+     * synchronizeTaskSource() จะเขียน data-status ใหม่แล้วยิง mytasks:changed
+     * ซึ่งสั่ง render() อีกครั้ง งานใบนั้นจึงกลับเข้าปฏิทินทันทีโดยไม่ต้องรีโหลดหน้า
+     */
+    const CALENDAR_HIDDEN_STATUS = 4;
+
     const readEvents = () => {
         const unique = new Map();
         source.querySelectorAll('[data-row]').forEach((row) => {
+            if (Number(row.dataset.status) === CALENDAR_HIDDEN_STATUS) return;
             const id = `task-${row.dataset.id}`;
             unique.set(id, {
                 id,

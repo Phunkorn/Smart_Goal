@@ -1,0 +1,15 @@
+/*
+ * บันทึกงานประจำวัน — จุดรวม import ของหน้านี้
+ *
+ * ไฟล์แบน (flat entry) นี้เท่านั้นที่ลงทะเบียนใน vite.config.js ตามธรรมเนียมเดิม
+ * ส่วนย่อยแยกตามบล็อกของหน้าเพื่อให้แก้เฉพาะจุดได้โดยไม่ต้องเลื่อนหาในไฟล์ยาว
+ */
+@import './daily-logs/layout.css';
+@import './daily-logs/composer.css';
+@import './daily-logs/timer.css';
+@import './daily-logs/participants.css';
+@import './daily-logs/timeline.css';
+@import './daily-logs/summary.css';
+@import './daily-logs/routines.css';
+@import './daily-logs/modal.css';
+@import './daily-logs/responsive.css';

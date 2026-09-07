@@ -34,6 +34,23 @@
             'cta' => 'เลือกพนักงานเพื่อดูรายงาน',
             'route' => route('reports.employees.index'),
         ])
+
+        {{--
+            รายงานภาระงานปฏิบัติการเป็นข้อมูลรายบุคคลที่ละเอียดกว่าภาพรวมองค์กร
+            จึงแสดงเฉพาะผู้ที่มีสิทธิ์ตาม WorkLogPolicy::viewReport() (admin และ
+            หัวหน้าแผนก) ต่างจากสองการ์ดด้านบนที่ viewer ก็เข้าได้
+        --}}
+        @can('viewReport', \App\Models\WorkLog::class)
+            @include('reports.components.landing-card', [
+                'tone' => 'operational',
+                'icon' => 'bi-journal-check',
+                'title' => 'ดูภาระงานปฏิบัติการ',
+                'description' => 'ชั่วโมงงานประจำ งานแทรก และงานนอกสถานที่ ที่ไม่ปรากฏบนบอร์ดโปรเจกต์',
+                'features' => ['ชั่วโมงงานตามประเภทและหมวดงาน', 'ภาระงานรายคน', 'ช่วงที่งานแทรกพุ่ง', 'เวลาที่ไม่ได้ลงโปรเจกต์'],
+                'cta' => 'เข้าสู่รายงานภาระงานปฏิบัติการ',
+                'route' => route('reports.operational'),
+            ])
+        @endcan
     </section>
 
     <aside class="report-landing__note" aria-label="คำแนะนำการใช้งาน">

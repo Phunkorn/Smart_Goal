@@ -115,6 +115,7 @@
                             ? auth()->user()->can('delete', $task)
                             : auth()->user()->can('deleteOwn', $task);
                         $canManageTeam = auth()->user()->can('manageTeam', $task);
+                        $taskShowsReviewStage = \App\Support\TaskReviewStage::appliesTo($task, auth()->user());
                         $canManageTaskDetails = auth()->user()->can('work', $task);
                         $canEditSchedule = auth()->user()->can('work', $task)
                             && ((int) $task->job_status !== 4 || auth()->user()->role === 'admin');
@@ -133,6 +134,8 @@
                                 <summary class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}"><span data-board-status-label>{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span><i class="bi bi-chevron-down"></i></summary>
                                 <div>
                                     @foreach([5=>['พักงาน','paused'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done']] as $value=>$meta)
+                                        {{-- งานของตัวเองไม่มีผู้ตรวจ สถานะ "รอตรวจสอบ" จึงมีเฉพาะงานที่ทำร่วมกับผู้อื่น --}}
+                                        @continue($value === 3 && ! $taskShowsReviewStage)
                                         <button type="button" class="status-{{ $meta[1] }}" data-board-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>
                                     @endforeach
                                 </div>

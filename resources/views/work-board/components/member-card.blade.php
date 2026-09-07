@@ -5,7 +5,12 @@
 
     <div class="wb-member-card__identity">
         <h3>{{ $person->name }}</h3>
-        <p>พนักงาน <span aria-hidden="true">·</span> {{ $department->department_name }}</p>
+        {{--
+            บทบาทต้องมาจาก RoleLabel ไม่ใช่คำว่า "พนักงาน" ที่เขียนตายตัว
+            หัวหน้าแผนกมี users.role = 'user' เหมือนกัน ต่างกันที่ธง is_department_head
+            การเขียนคำนี้ตรง ๆ จึงแสดงหัวหน้าแผนกเป็นพนักงานทุกครั้ง
+        --}}
+        <p>{{ \App\Support\RoleLabel::for($person) }} <span aria-hidden="true">·</span> {{ $department->department_name }}</p>
     </div>
 
     <div class="wb-member-card__summary {{ $person->board_task_count > 0 ? 'has-work' : 'is-empty' }}">

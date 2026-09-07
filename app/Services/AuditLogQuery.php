@@ -9,6 +9,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Support\AuditSnapshot;
 use App\Support\TodayWorkspace;
+use App\Support\TrashRestorers;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -88,7 +89,39 @@ class AuditLogQuery
                 });
             });
 
+        $this->applyTrashShortcut($query, $request);
+
         return $this->applyDateRange($query, $request, 'deleted_at');
+    }
+
+    /**
+     * ตัวกรองลัดของแท็บถังขยะ
+     *
+     * คำถามที่ผู้ดูแลระบบถามบ่อยที่สุดคือ "อะไรกำลังจะหาย" กับ "อะไรกู้ไม่ได้แล้ว"
+     * ทั้งสองอย่างเดิมต้องเดาจากคอลัมน์วันที่เอาเอง เพราะตัวกรองมีแต่ประเภทกับแผนก
+     *
+     * เป็นตัวกรองเดี่ยว ไม่ใช่หลายตัวพร้อมกัน เพราะเงื่อนไขขัดกันเอง
+     * (หมดเวลาแล้วกับใกล้หมดเวลาเป็นคนละเซ็ตที่ไม่มีทางทับกัน)
+     *
+     * @param  Builder<TrashLog>  $query
+     */
+    private function applyTrashShortcut(Builder $query, Request $request): void
+    {
+        $shortcut = $request->string('shortcut')->toString();
+
+        match ($shortcut) {
+            // ใกล้ถูกลบถาวรภายใน 7 วัน — ต้องรีบตัดสินใจว่าจะกู้หรือปล่อย
+            'expiring' => $query->whereNotNull('purge_after')
+                ->whereBetween('purge_after', [now(), now()->addDays(7)]),
+
+            // พ้นกำหนดแล้ว กดกู้คืนไม่ได้ เหลือแค่รอคำสั่งล้าง
+            'expired' => $query->whereNotNull('purge_after')->where('purge_after', '<=', now()),
+
+            // เฉพาะไฟล์และรูป ซึ่งเป็นสิ่งที่ผู้ใช้ตามหามากที่สุดเวลาลบผิด
+            'files' => $query->whereIn('entity_type', TrashRestorers::FILE_OWNERS),
+
+            default => null,
+        };
     }
 
     /**
@@ -138,7 +171,25 @@ class AuditLogQuery
                 ->where('purge_after', '>', $now)
                 ->where('purge_after', '<=', $nearExpiryCutoff)
                 ->count(),
+
+            // ไฟล์และรูปที่กู้คืนได้ — เดิมไม่มีตัวเลขนี้เพราะกู้ไฟล์ไม่ได้เลย
+            'files' => $this->trash($request)
+                ->whereIn('entity_type', TrashRestorers::FILE_OWNERS)
+                ->count(),
         ];
+    }
+
+    /**
+     * จำนวนรายการที่พ้นกำหนดกู้คืนแล้วทั้งระบบ
+     *
+     * ไม่ผูกกับตัวกรองของหน้า เพราะปุ่ม "ล้างของหมดอายุ" ล้างทั้งระบบเสมอ
+     * ตัวเลขที่ขึ้นบนปุ่มจึงต้องตรงกับสิ่งที่ปุ่มจะทำจริง ไม่ใช่ตรงกับสิ่งที่เห็นบนหน้าจอ
+     */
+    public function expiredTrashCount(): int
+    {
+        return TrashLog::whereNotNull('purge_after')
+            ->where('purge_after', '<=', now())
+            ->count();
     }
 
     /**

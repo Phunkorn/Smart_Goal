@@ -86,6 +86,17 @@ export function canDragTask(currentStatus, capabilities = {}) {
         && capabilities.allowed_statuses.some((status) => Number(status) !== Number(currentStatus));
 }
 
+/**
+ * ตัวเลือกสถานะที่ต้องไม่ปรากฏเลย ต่างจากตัวเลือกที่ปรากฏแต่กดไม่ได้
+ *
+ * "รอตรวจสอบ" มีอยู่เฉพาะงานที่ทำร่วมกับผู้อื่น งานที่ผู้ใช้เปิดเองและอนุมัติเอง
+ * ไม่มีผู้ตรวจ การโชว์ตัวเลือกไว้แบบจาง ๆ ทำให้เข้าใจผิดว่ามีขั้นตอนที่ยังทำไม่ได้
+ * ค่าที่ใช้ตัดสินมาจาก capabilities ของ server ชุดเดียวกับที่บอร์ดและตารางใช้
+ */
+export function isModalStatusOptionHidden(optionStatus, capabilities = {}) {
+    return Number(optionStatus) === 3 && capabilities.shows_review_stage === false;
+}
+
 export function isModalStatusOptionDisabled(currentStatus, optionStatus, capabilities = {}) {
     if (capabilities.is_final === true) return true;
     if (Array.isArray(capabilities.allowed_statuses)) {

@@ -71,6 +71,15 @@
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดรวม</span>
                 </a>
+                <a href="{{ route('daily-logs.index') }}" class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}">
+                    <i class="bi bi-journal-check"></i>
+                    <span class="nav-item__label">บันทึกงานประจำวัน</span>
+                </a>
+                <a href="{{ route('workspace.index') }}"
+                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
+                    <i class="bi bi-easel"></i>
+                    <span class="nav-item__label">กระดานไอเดีย</span>
+                </a>
                 <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-bar-chart-line"></i>
                     <span class="nav-item__label">รายงาน</span>
@@ -81,6 +90,11 @@
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
                     <i class="bi bi-grid-1x2"></i>
                     <span class="nav-item__label">แดชบอร์ด</span>
+                </a>
+                <a href="{{ route('workspace.index') }}"
+                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
+                    <i class="bi bi-easel"></i>
+                    <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
                 <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-bar-chart-line"></i>
@@ -95,10 +109,21 @@
                     <i class="bi bi-briefcase"></i>
                     <span class="nav-item__label">งานของฉัน</span>
                 </a>
+                {{-- บันทึกงานประจำวันเป็นเรื่องส่วนตัวก่อน จึงอยู่ถัดจาก "งานของฉัน" --}}
+                <a href="{{ route('daily-logs.index') }}"
+                    class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}">
+                    <i class="bi bi-journal-check"></i>
+                    <span class="nav-item__label">บันทึกงานประจำวัน</span>
+                </a>
                 <a href="{{ $isDepartmentHead ? route('work-board.department', $currentUser->department_id) : route('work-board.index') }}"
                     class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดงาน</span>
+                </a>
+                <a href="{{ route('workspace.index') }}"
+                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
+                    <i class="bi bi-easel"></i>
+                    <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
                 {{--
                     หัวหน้าแผนกต้องเข้าหน้าเลือกประเภทรายงานก่อน (ภาพรวม / รายบุคคล)
@@ -171,6 +196,14 @@
                     <i class="bi bi-shield-lock"></i>
                     <span class="nav-item__label">Audit Log</span>
                 </a>
+
+                {{-- หมวดงานของบันทึกงานประจำวันเป็นตาราง lookup ที่ admin แก้ได้เอง
+                     จึงอยู่ในกลุ่ม "ระบบ" ไม่ใช่กลุ่มงาน --}}
+                <a href="{{ route('admin.work-log-categories.index') }}"
+                    class="nav-item {{ request()->routeIs('admin.work-log-categories.*') ? 'active' : '' }}">
+                    <i class="bi bi-tags"></i>
+                    <span class="nav-item__label">หมวดงานประจำวัน</span>
+                </a>
             @endif
 
             <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
@@ -219,11 +252,17 @@
                     $isViewer => 'viewer',
                     default => 'user',
                 };
+                /*
+                 * ไอคอนคือสิ่งที่แยกบทบาท เพราะป้ายใช้พื้นฟ้าอ่อนชุดเดียวกันทุกบทบาท
+                 *
+                 * พนักงานกับหัวหน้าแผนกใช้รูปคนเหมือนกัน เพราะทั้งคู่คือ "คนทำงาน"
+                 * ในสายตาของระบบ ต่างกันที่ขอบเขตความรับผิดชอบซึ่งข้อความข้าง ๆ
+                 * บอกอยู่แล้ว ส่วนโล่สงวนไว้ให้ผู้ดูแลระบบซึ่งมีสิทธิ์เหนือทุกแผนก
+                 */
                 $roleChipIcon = match ($roleChipClass) {
                     'admin' => 'bi-shield-check',
-                    'department-head' => 'bi-person-badge',
                     'viewer' => 'bi-eye',
-                    default => 'bi-person-check',
+                    default => 'bi-person-fill',
                 };
                 // admin และ viewer ไม่ผูกกับแผนก (UserController บังคับ department_id เป็น null)
                 $roleChipDepartment = $isAdmin || $isViewer
@@ -372,6 +411,7 @@
             syncState();
         })();
     </script>
+    @vite('resources/js/components/avatar-fallback.js')
     @vite('resources/js/components/realtime-sync.js')
     @stack('scripts')
 </body>

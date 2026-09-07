@@ -97,6 +97,7 @@
         'can_reopen' => false,
         'is_final' => (int) $task->job_status === 4,
         'is_self_task' => false,
+        'shows_review_stage' => (int) $task->job_status === 3,
         'approver_id' => null,
         'allowed_statuses' => [(int) $task->job_status],
     ];
@@ -107,14 +108,17 @@
         // ใช้ตัดสินว่า Summary Bar จะเป็นตัวควบคุมที่กดได้ หรือแสดงเป็นข้อความอ่านอย่างเดียว
         // การซ่อนปุ่มเป็นเรื่อง UI เท่านั้น สิทธิ์จริงยังถูกตรวจซ้ำที่ Policy ฝั่ง server ทุกครั้ง
         'can_work' => ! $forceReadOnly && auth()->user()->can('work', $task),
-        'can_comment' => ! $forceReadOnly && auth()->user()->can('comment', $task),
+        // ความคิดเห็นไม่ใช่การแก้งาน จึงไม่ถูกปิดด้วย forceReadOnly เหมือนปุ่มอื่น
+        // Workspace แบบอ่านอย่างเดียวของหัวหน้าแผนกยังต้องตอบกลับในงานลูกทีมได้
+        // สิทธิ์จริงตัดสินที่ WorkOrderPolicy::comment() ฝั่ง server ที่เดียว
+        'can_comment' => auth()->user()->can('comment', $task),
         'can_view_comments' => auth()->user()->can('viewComments', $task),
         'can_manage_team' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task),
         'project' => $task->taskList?->name ?? 'งานทั่วไป',
         'status' => (int) $task->job_status,
         'submitted_by' => $task->reviewSubmitter?->name,
         'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
-        'comment_url' => ! $forceReadOnly && auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
+        'comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
         'read_comments_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.read', $task) : null,
         'unread_comments' => (int) ($unreadCommentCounts[$task->job_id] ?? 0),
     ]]);
@@ -354,8 +358,20 @@
                     <button type="button" role="tab" aria-selected="false" data-timeline-tab="activity">กิจกรรม</button>
                 </nav>
                 <div class="task-workspace__timeline-items" data-timeline-items></div>
+                {{--
+                    แถบพรีวิวอยู่เหนือช่องพิมพ์ ผู้ใช้จึงเห็นว่ากำลังจะส่งรูปอะไรไปก่อนกดส่ง
+                    และเอาออกทีละใบได้ ไม่ใช่ต้องล้างทั้งหมดแล้วเลือกใหม่
+                --}}
+                <div class="task-timeline__previews" data-comment-image-preview hidden></div>
                 <div class="task-timeline__compose">
-                    <textarea data-task-update-note maxlength="2000" rows="1" placeholder="เขียนอัปเดต..." aria-label="เขียนอัปเดต"></textarea>
+                    {{-- accept จำกัดที่หน้าจอเพื่อความสะดวก สิทธิ์และชนิดไฟล์จริงตรวจที่ TaskCommentController --}}
+                    <label class="task-timeline__attach" title="แนบรูปภาพ">
+                        <input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden data-comment-image-input>
+                        <i class="bi bi-image" aria-hidden="true"></i>
+                        <span class="visually-hidden">แนบรูปภาพ</span>
+                    </label>
+                    {{-- rows=4 เพื่อให้สูงพอเห็นสิ่งที่พิมพ์ไปแล้วตั้งแต่ก่อน CSS โหลด --}}
+                    <textarea data-task-update-note maxlength="2000" rows="4" placeholder="เขียนอัปเดต..." aria-label="เขียนอัปเดต"></textarea>
                     <button type="button" data-submit-task-update aria-label="ส่งอัปเดต"><i class="bi bi-send-fill" aria-hidden="true"></i></button>
                 </div>
             </section>

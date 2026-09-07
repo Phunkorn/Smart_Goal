@@ -105,12 +105,22 @@
     min-width: 0;
 }
 
+/*
+ * ชื่องานในหัวโมดัล — จุดที่สระกับวรรณยุกต์ถูกตัดชัดที่สุด
+ *
+ * overflow: hidden บวกกับ line-height ที่ไม่ได้ประกาศ (จึงเป็น normal) ทำให้กล่อง
+ * สูงพอดีกับตัวอักษรละตินเท่านั้น คำไทยที่มีสระบนซ้อนวรรณยุกต์อย่าง "ที่" "น้ำ"
+ * จึงโดนขอบบนของกล่องตัดหายไป ยิ่งตัวอักษรใหญ่ ส่วนที่หายยิ่งเห็นชัด
+ *
+ * ลดขนาดลงและประกาศ line-height ให้พอกับสองชั้นเหนือเส้นฐาน
+ */
 .task-workspace__title h2 {
     margin: 0;
     min-width: 0;
     overflow: hidden;
     color: #0f172a;
-    font-size: 22px;
+    font-size: 19px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 800;
     letter-spacing: -.02em;
     text-overflow: ellipsis;
@@ -127,7 +137,9 @@
     background: #fff;
     color: #0f172a;
     font: inherit;
-    font-size: 19px;
+    font-size: 17px;
+    /* font: inherit ล้าง line-height ที่สืบทอดมาด้วย จึงต้องตั้งคืนหลังจากนั้น */
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 800;
 }
 
@@ -253,6 +265,7 @@
     overflow: hidden;
     color: #0f172a;
     font-size: 13px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -560,7 +573,8 @@
 .task-workspace .task-timeline__compose {
     display: flex;
     flex: 0 0 auto;
-    align-items: center;
+    /* ช่องพิมพ์สูงหลายบรรทัดแล้ว ปุ่มจึงต้องเกาะขอบล่าง ไม่ใช่ลอยอยู่กลางกล่อง */
+    align-items: flex-end;
     gap: 8px;
     margin: 0 14px 14px;
     padding: 6px 6px 6px 12px;
@@ -569,11 +583,21 @@
     background: #fff;
 }
 
+/*
+ * ช่องพิมพ์สูงพอเห็นสิ่งที่พิมพ์ไปแล้ว
+ *
+ * ของเดิมสูงราวหนึ่งบรรทัดครึ่ง (34px) ข้อความที่พิมพ์ไปจึงเลื่อนหายขึ้นไปทันทีที่
+ * ขึ้นบรรทัดที่สอง และเพราะกล่องเตี้ยมาก การลากเลือกข้อความข้ามบรรทัดทำให้เบราว์เซอร์
+ * เลื่อนอัตโนมัติกระตุกขึ้นลงตลอดเวลา จนคัดลอกบรรทัดที่ต้องการแทบไม่ได้
+ *
+ * ตั้งให้เห็นสี่บรรทัดตั้งแต่แรก (4 × 21px + padding) และขยายได้ถึงราวแปดบรรทัด
+ * ก่อนจะเริ่มเลื่อน ส่วน resize: vertical เปิดให้ผู้ใช้ยืดเองได้เมื่อพิมพ์ยาวกว่านั้น
+ */
 .task-workspace .task-timeline__compose textarea {
     /* textarea มีความกว้างตั้งต้นจาก cols ต้องบังคับ min-width:0 ไม่งั้นดันกล่องจนล้นบนจอแคบ */
     min-width: 0;
-    min-height: 34px;
-    max-height: 96px;
+    min-height: 100px;
+    max-height: 190px;
     flex: 1;
     padding: 8px 0;
     border: 0;
@@ -582,7 +606,123 @@
     color: #172033;
     font: inherit;
     font-size: 13px;
-    resize: none;
+    line-height: var(--thai-line-height, 1.6);
+    /* ระบุทั้งสองแกน ไม่ปล่อยให้ overflow-x ถูกอนุมานเป็น auto จนมีแถบเลื่อนแนวนอนโผล่ */
+    overflow: hidden auto;
+    resize: vertical;
+}
+
+/*
+ * ปุ่มแนบรูปต้องดูเหมือนปุ่มที่กดได้
+ *
+ * มันคือ <label> ที่ครอบ <input type="file"> ซึ่งซ่อนอยู่ จึงไม่ได้รูปลักษณ์ของปุ่ม
+ * มาจากเบราว์เซอร์เลย ถ้าไม่ประกาศกรอบและพื้นหลังเอง จะเหลือแค่ไอคอนลอย ๆ ที่
+ * ไม่มีอะไรบอกว่ากดได้
+ *
+ * ชุดนี้เคยประกาศไว้เฉพาะฝั่ง .task-edit-modal หน้าที่ใช้ .task-workspace จึงไม่ได้
+ * รูปลักษณ์นี้ไปด้วย ทั้งที่เป็นองค์ประกอบเดียวกันใน Blade ไฟล์เดียวกัน
+ */
+.task-workspace .task-timeline__attach {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    align-self: flex-end;
+    place-items: center;
+    border: 1px solid #cfdced;
+    border-radius: 9px;
+    background: #fff;
+    color: #64748b;
+    font-size: 16px;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+
+.task-workspace .task-timeline__attach:hover {
+    border-color: #93b4f5;
+    background: #f4f8ff;
+    color: #2563eb;
+}
+
+/* input ที่ซ่อนอยู่รับโฟกัสแทน label ตัวกรอบจึงต้องขานรับด้วย focus-within */
+.task-workspace .task-timeline__attach:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+}
+
+/*
+ * แถบพรีวิวรูปที่เลือกไว้แต่ยังไม่ได้ส่ง
+ *
+ * อยู่เหนือกล่องพิมพ์และอยู่นอก flex ของ .task-timeline__compose เพราะจำนวนรูป
+ * เปลี่ยนได้ตลอด ถ้าอยู่แถวเดียวกันความกว้างของช่องพิมพ์จะขยับทุกครั้งที่เพิ่มรูป
+ */
+.task-workspace .task-timeline__previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 14px 8px;
+}
+
+.task-workspace .task-timeline__previews[hidden] {
+    display: none;
+}
+
+.task-workspace .task-timeline__preview {
+    position: relative;
+    display: inline-flex;
+    width: 58px;
+    height: 58px;
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+    border-radius: 9px;
+}
+
+.task-workspace .task-timeline__preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.task-workspace .task-timeline__preview-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(15 23 42 / 62%);
+    color: #fff;
+    font-size: 9px;
+    cursor: pointer;
+}
+
+.task-workspace .task-timeline__preview-remove:hover {
+    background: #dc2626;
+}
+
+/* รูปในฟองแชท กดเปิดขนาดเต็มได้ที่แท็บใหม่ */
+.task-workspace .task-timeline-entry__images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.task-workspace .task-timeline-entry__image {
+    display: inline-flex;
+    max-width: 170px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.task-workspace .task-timeline-entry__image img {
+    width: 100%;
+    height: auto;
+    max-height: 170px;
+    object-fit: cover;
 }
 
 .task-workspace [data-submit-task-update] {
@@ -846,12 +986,21 @@
     display: grid;
     width: 32px;
     height: 32px;
+    /*
+     * ห้ามให้ถูกบีบตามความกว้างที่เหลือ
+     *
+     * .task-timeline-entry เป็น flex container ส่วน avatar เป็น flex item ที่ค่าปริยาย
+     * ยอมหดได้ (flex-shrink: 1) พอเนื้อหาในฟองยาวหรือมีรูปแนบกว้าง ๆ ตัว avatar จะถูก
+     * บีบเฉพาะแนวนอนโดยความสูงยังเท่าเดิม วงกลมจึงกลายเป็นวงรีและรูปคนถูกบีบแบน
+     */
+    flex: 0 0 32px;
     place-items: center;
     overflow: hidden;
     border-radius: 50%;
     background: #e8eef7;
     color: #52647b;
     font-size: 13px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 700;
 }
 
@@ -924,6 +1073,8 @@
 .task-workspace .task-timeline-reader {
     width: 19px;
     height: 19px;
+    /* บั๊กเดียวกับ avatar ของฟองแชท: เป็น flex item จึงถูกบีบเป็นวงรีเมื่อคนอ่านเยอะ */
+    flex: 0 0 19px;
     display: grid;
     place-items: center;
     overflow: hidden;
@@ -933,6 +1084,7 @@
     background: #dbe7f8;
     color: #36506f;
     font-size: 8px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 800;
 }
 

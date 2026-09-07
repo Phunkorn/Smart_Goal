@@ -29,6 +29,7 @@
         </div>
     </header>
 
+
     @php
         $kpiCards = [
             ['label' => 'งานทั้งหมด', 'value' => number_format($totalJobs), 'note' => 'ในช่วงที่เลือก', 'icon' => 'bi-collection'],
@@ -84,6 +85,10 @@
         <div class="employee-report__panel-head"><div><h2 id="employee-task-table-title">รายละเอียดงาน</h2><p>ตรวจสอบที่มาของตัวเลขในรายงาน</p></div><span>{{ $taskRows->count() }} งาน</span></div>
         <div class="employee-report__table-wrap"><table><thead><tr><th>ชื่องาน</th><th>โปรเจกต์</th><th>สถานะ</th><th>ความสำคัญ</th><th>เริ่ม</th><th>กำหนดส่ง</th><th>เสร็จ</th></tr></thead><tbody>@forelse($taskRows as $job)<tr><th><a href="{{ $job['url'] }}">{{ $job['topic'] }}</a></th><td>{{ $job['project'] }}</td><td><span class="report-tag report-tone-{{ $job['status']['tone'] }}">{{ $job['status']['label'] }}</span></td><td><span class="report-tag report-tone-{{ $job['priority']['tone'] }}">{{ $job['priority']['label'] }}</span></td><td>{{ $job['start_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td><td>{{ $job['due_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td><td>{{ $job['completed_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td></tr>@empty<tr><td colspan="7"><div class="report-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>ยังไม่มีข้อมูลในช่วงเวลานี้</strong></div></td></tr>@endforelse</tbody></table></div>
     </section>
+
+    @if($operational !== null)
+        @include('reports.components.employee-operational')
+    @endif
 
     <script type="application/json" id="employee-report-chart-data">@json($chartData)</script>
 </div>

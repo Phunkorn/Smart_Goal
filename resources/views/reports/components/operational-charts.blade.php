@@ -1,0 +1,64 @@
+{{--
+    กราฟของรายงานภาระงานปฏิบัติการ
+
+    ใช้ markup shape เดียวกับ reports.components.charts ทุกจุด
+    (data-report-chart / data-chart-kind / data-chart-state="loading" พร้อม
+    โหนด skeleton, empty และ error) เพื่อให้ resources/js/pages/reports/chart-lifecycle.js
+    ทำงานกับหน้านี้ได้โดยไม่ต้องแก้อะไรเลย
+
+    เขียนเป็นไฟล์แยกแทนการเติมเงื่อนไขเข้าไปใน charts.blade.php เพราะไฟล์นั้น
+    ฮาร์ดโค้ดกราฟห้าอันของงานโครงการไว้ และการยัดสองโดเมนไว้ไฟล์เดียวจะทำให้
+    ทั้งสองอ่านยากขึ้นโดยไม่ได้อะไรกลับมา
+--}}
+@php
+    $charts = [
+        [
+            'id' => 'operationalDailyChart',
+            'kind' => 'stacked-bar',
+            'class' => 'report-dashboard-card--trend',
+            'title' => 'ชั่วโมงงานตามประเภท ต่อช่วงเวลา',
+            'description' => 'ถ้าแท่งงานแทรกและงานนอกสถานที่สูงต่อเนื่อง แปลว่าเวลาถูกดึงออกจากงานโครงการ',
+            'label' => 'กราฟแท่งซ้อนชั่วโมงงานประจำ งานแทรก และงานนอกสถานที่',
+        ],
+        [
+            'id' => 'operationalCategoryChart',
+            'kind' => 'doughnut',
+            'class' => 'report-dashboard-card--status',
+            'title' => 'เวลาหมดไปกับหมวดงานไหน',
+            'description' => 'สัดส่วนชั่วโมงตามหมวดงานในช่วงที่เลือก',
+            'label' => 'กราฟวงกลมสัดส่วนชั่วโมงตามหมวดงาน',
+        ],
+        [
+            'id' => 'operationalMemberChart',
+            'kind' => 'bar',
+            'class' => 'report-dashboard-card--priority',
+            'title' => 'ชั่วโมงงานปฏิบัติการรายคน',
+            'description' => 'เรียงจากมากไปน้อย แสดงสูงสุด 8 คนแรก',
+            'label' => 'กราฟแท่งแนวนอนชั่วโมงงานปฏิบัติการรายคน',
+        ],
+        [
+            'id' => 'operationalInterruptChart',
+            'kind' => 'line',
+            'class' => 'report-dashboard-card--completed',
+            'title' => 'งานแทรกพุ่งช่วงไหน',
+            'description' => 'จำนวนงานแทรกต่อช่วงเวลา — ใช้อธิบายวันที่โครงการไม่ขยับ',
+            'label' => 'กราฟเส้นจำนวนงานแทรกต่อช่วงเวลา',
+        ],
+    ];
+@endphp
+
+@foreach($charts as $chart)
+    <article class="report-panel report-dashboard-card report-card-order-{{ $loop->index }} {{ $chart['class'] }}"
+        data-report-chart data-chart-kind="{{ $chart['kind'] }}" data-chart-state="loading">
+        <div class="report-panel__heading">
+            <div><h2>{{ $chart['title'] }}</h2><p>{{ $chart['description'] }}</p></div>
+            <span class="report-panel__period">{{ $filters['period_label'] }}</span>
+        </div>
+        <div class="report-chart-shell">
+            <div class="report-chart-skeleton" data-chart-skeleton aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="report-chart-wrap"><canvas id="{{ $chart['id'] }}" aria-label="{{ $chart['label'] }}" role="img">{{ $chart['label'] }}</canvas></div>
+            <div class="report-chart-state report-chart-state--empty" data-chart-empty role="status"><i class="bi bi-bar-chart" aria-hidden="true"></i><strong>ยังไม่มีข้อมูลในช่วงเวลานี้</strong><span>ลองเปลี่ยนช่วงเวลาหรือตัวกรอง</span></div>
+            <div class="report-chart-state report-chart-state--error" data-chart-error role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><strong>ไม่สามารถแสดงกราฟนี้ได้</strong><span>ข้อมูลส่วนอื่นยังใช้งานได้ตามปกติ</span></div>
+        </div>
+    </article>
+@endforeach

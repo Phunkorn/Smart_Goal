@@ -30,14 +30,23 @@ class SidebarNavigationTest extends TestCase
             ->getContent();
 
         $myTasksPosition = strpos($content, 'href="'.route('mytasks.index').'"');
+        $dailyLogPosition = strpos($content, 'href="'.route('daily-logs.index').'"');
         $workBoardPosition = strpos($content, 'href="'.route('work-board.index').'"');
+        // กระดานไอเดียเป็นงานร่วมของทั้งแผนก จึงอยู่ต่อจากบอร์ดงานซึ่งเป็นงานของทีม
+        // เหมือนกัน และมาก่อนรายงานซึ่งเป็นการสรุปผลย้อนหลัง
+        $workspacePosition = strpos($content, 'href="'.route('workspace.index').'"');
         $reportPosition = strpos($content, 'href="'.route('reports.my').'"');
 
         $this->assertNotFalse($myTasksPosition);
+        $this->assertNotFalse($dailyLogPosition);
         $this->assertNotFalse($workBoardPosition);
+        $this->assertNotFalse($workspacePosition);
         $this->assertNotFalse($reportPosition);
-        $this->assertLessThan($workBoardPosition, $myTasksPosition, '"งานของฉัน" ต้องอยู่ก่อน "บอร์ดงาน"');
-        $this->assertLessThan($reportPosition, $workBoardPosition, '"บอร์ดงาน" ต้องอยู่ก่อน "รายงานของฉัน"');
+        $this->assertLessThan($dailyLogPosition, $myTasksPosition, '"งานของฉัน" ต้องอยู่ก่อน "บันทึกงานประจำวัน"');
+        // บันทึกงานประจำวันเป็นงานส่วนตัวเช่นเดียวกับ "งานของฉัน" จึงอยู่ก่อนบอร์ดของทีม
+        $this->assertLessThan($workBoardPosition, $dailyLogPosition, '"บันทึกงานประจำวัน" ต้องอยู่ก่อน "บอร์ดงาน"');
+        $this->assertLessThan($workspacePosition, $workBoardPosition, '"บอร์ดงาน" ต้องอยู่ก่อน "กระดานไอเดีย"');
+        $this->assertLessThan($reportPosition, $workspacePosition, '"กระดานไอเดีย" ต้องอยู่ก่อน "รายงานของฉัน"');
     }
 
     public function test_admin_sidebar_is_split_into_clear_operational_sections(): void
@@ -58,6 +67,8 @@ class SidebarNavigationTest extends TestCase
 
         $positions = [
             strpos($content, 'href="'.route('board.index').'"'),
+            strpos($content, 'href="'.route('daily-logs.index').'"'),
+            strpos($content, 'href="'.route('workspace.index').'"'),
             strpos($content, 'href="'.route('reports.index').'"'),
             strpos($content, 'href="'.route('notifications.index').'"'),
             strpos($content, 'href="'.route('admin.approvals.index').'"'),
@@ -84,10 +95,16 @@ class SidebarNavigationTest extends TestCase
             ->assertSee('<div class="nav-section-label">องค์กร</div>', false)
             ->assertSee('<div class="nav-section-label">ระบบ</div>', false)
             ->assertDontSee('<div class="nav-section-label">พื้นที่ของฉัน</div>', false)
+            // viewer เป็น read-only จึงไม่มีบันทึกงานประจำวันของตัวเอง
+            // และต้องไม่เห็นเมนูที่กดแล้วเจอ 403
+            ->assertDontSee('href="'.route('daily-logs.index').'"', false)
             ->getContent();
 
         $positions = [
             strpos($content, 'href="'.route('board.index').'"'),
+            // viewer เห็นเมนูกระดานไอเดียได้ เพราะกระดานที่ตั้งเป็น "ทั้งองค์กร"
+            // เปิดให้อ่านได้ทุกคน ส่วนการวาดถูกปิดที่ WorkspaceBoardPolicy
+            strpos($content, 'href="'.route('workspace.index').'"'),
             strpos($content, 'href="'.route('reports.index').'"'),
             strpos($content, 'href="'.route('notifications.index').'"'),
             strpos($content, 'href="'.route('meetings.index').'"'),

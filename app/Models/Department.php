@@ -20,4 +20,9 @@ class Department extends Model
     {
         return $this->hasMany(WorkOrder::class, 'department_id');
     }
+
+    public function workspaceBoards(): HasMany
+    {
+        return $this->hasMany(WorkspaceBoard::class, 'department_id');
+    }
 }

@@ -47,6 +47,7 @@
     overflow: hidden;
     padding: 0 9px;
     font-size: 13px;
+    line-height: var(--thai-line-height, 1.6);
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;

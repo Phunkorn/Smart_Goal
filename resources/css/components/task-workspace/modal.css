@@ -1,4 +1,4 @@
-.task-edit-modal{z-index:1200;width:100%;max-width:none;margin:0;padding:24px;align-items:center;justify-content:center}.task-edit-modal:not([hidden]){display:flex}.task-edit-card{width:min(720px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#fff;border:1px solid #d9e0eb;border-radius:14px;box-shadow:0 24px 70px rgba(15,23,42,.22)}.task-edit-card>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid #e5e9f0}.task-edit-card>header>div{display:grid;gap:2px}.task-edit-kicker{font-size:10px;font-weight:700;letter-spacing:.12em;color:#94a3b8}.task-edit-card>header strong{font-size:21px;color:#0f172a}.task-edit-card>header small{color:#64748b}.task-modal-close{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d9e0eb;border-radius:8px;background:#fff;color:#64748b}.task-edit-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:22px 24px}.task-field{display:grid;gap:7px;min-width:0}.task-field.full{grid-column:1/-1}.task-field>span{font-size:12px;font-weight:600;color:#475569}.task-field input,.task-field textarea,.task-field select{width:100%;border:1px solid #d9e0eb;border-radius:8px;background:#fff;padding:10px 12px;color:#0f172a;outline:none}.task-field textarea{resize:vertical;line-height:1.55}.task-field input:focus,.task-field textarea:focus,.task-field select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}.task-field input[readonly]{background:#f8fafc;color:#64748b}.task-edit-card>footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #e5e9f0}.task-secondary{border:1px solid #d9e0eb;border-radius:8px;background:#fff;padding:9px 16px;color:#475569}.row-title{border:0;background:transparent;text-align:left;cursor:pointer;color:inherit;min-width:0;padding:0;font:inherit}.row-open{cursor:pointer}.task-edit-card button:disabled{opacity:.6;cursor:wait}@media(max-width:640px){.task-edit-modal{padding:10px;align-items:flex-end}.task-edit-card{max-height:92vh;border-radius:14px 14px 0 0}.task-edit-body{grid-template-columns:1fr;padding:18px}.task-field.full{grid-column:auto}.task-edit-card>header,.task-edit-card>footer{padding-left:18px;padding-right:18px}}
+.task-edit-modal{z-index:1200;width:100%;max-width:none;margin:0;padding:24px;align-items:center;justify-content:center}.task-edit-modal:not([hidden]){display:flex}.task-edit-card{width:min(720px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#fff;border:1px solid #d9e0eb;border-radius:14px;box-shadow:0 24px 70px rgba(15,23,42,.22)}.task-edit-card>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid #e5e9f0}.task-edit-card>header>div{display:grid;gap:2px}.task-edit-kicker{font-size:10px;line-height:1.6;font-weight:700;letter-spacing:.12em;color:#94a3b8}.task-edit-card>header strong{font-size:18px;line-height:1.6;color:#0f172a}.task-edit-card>header small{color:#64748b}.task-modal-close{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d9e0eb;border-radius:8px;background:#fff;color:#64748b}.task-edit-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:22px 24px}.task-field{display:grid;gap:7px;min-width:0}.task-field.full{grid-column:1/-1}.task-field>span{font-size:12px;line-height:1.6;font-weight:600;color:#475569}.task-field input,.task-field textarea,.task-field select{width:100%;border:1px solid #d9e0eb;border-radius:8px;background:#fff;padding:9px 12px;color:#0f172a;outline:none;font-size:13px;line-height:1.6}.task-field textarea{resize:vertical;line-height:1.6}.task-field input:focus,.task-field textarea:focus,.task-field select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}.task-field input[readonly]{background:#f8fafc;color:#64748b}.task-edit-card>footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #e5e9f0}.task-secondary{border:1px solid #d9e0eb;border-radius:8px;background:#fff;padding:9px 16px;color:#475569}.row-title{border:0;background:transparent;text-align:left;cursor:pointer;color:inherit;min-width:0;padding:0;font:inherit}.row-open{cursor:pointer}.task-edit-card button:disabled{opacity:.6;cursor:wait}@media(max-width:640px){.task-edit-modal{padding:10px;align-items:flex-end}.task-edit-card{max-height:92vh;border-radius:14px 14px 0 0}.task-edit-body{grid-template-columns:1fr;padding:18px}.task-field.full{grid-column:auto}.task-edit-card>header,.task-edit-card>footer{padding-left:18px;padding-right:18px}}
 
 /* =========================================================
    TASK DETAIL MODAL REFRESH
@@ -177,11 +177,109 @@
     background: #fff;
 }
 
+/*
+ * แถบพรีวิวรูปที่เลือกไว้แต่ยังไม่ได้ส่ง
+ *
+ * อยู่เหนือช่องพิมพ์และอยู่นอกกริดของ .task-timeline__compose เพราะจำนวนรูป
+ * เปลี่ยนได้ตลอด ถ้าอยู่ในกริดเดียวกันความกว้างของช่องพิมพ์จะขยับตามทุกครั้งที่เพิ่มรูป
+ */
+.my-tasks-page ~ .task-edit-modal .task-timeline__previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 18px 0;
+    background: #fff;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline__preview {
+    position: relative;
+    display: inline-flex;
+    width: 62px;
+    height: 62px;
+    border: 1px solid #d8e1ed;
+    border-radius: 9px;
+    overflow: hidden;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline__preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline__preview-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(15 23 42 / 62%);
+    color: #fff;
+    font-size: 9px;
+    cursor: pointer;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline__preview-remove:hover {
+    background: #dc2626;
+}
+
+/* ปุ่มแนบรูปเป็น label ครอบ input ที่ซ่อนไว้ จึงต้องประกาศเป็นปุ่มเองทั้งหมด */
+.my-tasks-page ~ .task-edit-modal .task-timeline__attach {
+    display: grid;
+    width: 44px;
+    height: 48px;
+    align-self: end;
+    place-items: center;
+    border: 1px solid #d8e1ed;
+    border-radius: 9px;
+    background: #fff;
+    color: #64748b;
+    font-size: 17px;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline__attach:hover {
+    border-color: #93b4f5;
+    color: #2563eb;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline__attach:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+}
+
+/* รูปในฟองแชท กดเปิดขนาดเต็มได้ที่แท็บใหม่ */
+.my-tasks-page ~ .task-edit-modal .task-timeline-entry__images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline-entry__image {
+    display: inline-flex;
+    max-width: 160px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline-entry__image img {
+    width: 100%;
+    height: auto;
+    max-height: 160px;
+    object-fit: cover;
+}
+
 .my-tasks-page ~ .task-edit-modal .task-timeline__compose {
     position: static;
 
     display: grid;
-    grid-template-columns: 1fr 44px;
+    grid-template-columns: 44px 1fr 44px;
     gap: 8px;
 
     margin: 0;
@@ -192,17 +290,26 @@
     background: #fff;
 }
 
+/*
+ * ช่องพิมพ์สูงพอเห็นสิ่งที่พิมพ์ไปแล้ว — เหตุผลเดียวกับฝั่ง .task-workspace
+ *
+ * 48px คือราวหนึ่งบรรทัดครึ่ง ข้อความจึงเลื่อนหายทันทีที่ขึ้นบรรทัดที่สอง และการลาก
+ * เลือกข้อความข้ามบรรทัดทำให้เบราว์เซอร์เลื่อนอัตโนมัติกระตุกจนคัดลอกไม่ได้
+ */
 .my-tasks-page ~ .task-edit-modal .task-timeline__compose textarea {
     width: 100%;
-    min-height: 48px;
-    max-height: 100px;
+    min-height: 104px;
+    max-height: 190px;
 
     padding: 11px 12px;
 
     border: 1px solid #d8e1ed;
     border-radius: 9px;
 
-    resize: none;
+    line-height: var(--thai-line-height, 1.6);
+    /* ระบุทั้งสองแกน ไม่ปล่อยให้ overflow-x ถูกอนุมานเป็น auto */
+    overflow: hidden auto;
+    resize: vertical;
     outline: none;
 }
 
@@ -266,7 +373,7 @@
 .task-edit-modal .task-attachment-button { display:inline-flex; align-items:center; justify-content:center; gap:7px; width:max-content; min-height:40px; padding:0 13px; border:1px solid #cfdced; border-radius:9px; background:#fff; color:#286acb; font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
 .task-edit-modal .task-attachment-button:hover { border-color:#8db3e8; background:#f4f8ff; }
 .task-edit-modal .task-timeline-entry { display:grid; grid-template-columns:32px minmax(0,1fr); gap:10px; }
-.task-edit-modal .task-timeline-entry__avatar { display:grid; place-items:center; width:32px; height:32px; overflow:hidden; border-radius:50%; background:#2875db; color:#fff; font-size:11px; font-weight:700; }
+.task-edit-modal .task-timeline-entry__avatar { display:grid; place-items:center; width:32px; height:32px; flex:0 0 32px; overflow:hidden; border-radius:50%; background:#2875db; color:#fff; font-size:11px;line-height:var(--thai-line-height,1.6); font-weight:700; }
 .task-edit-modal .task-timeline-entry__avatar img { width:100%; height:100%; object-fit:cover; }
 .task-edit-modal .task-timeline-entry p { margin:3px 0; color:#40516a; font-size:12px; }
 .task-edit-modal .task-timeline-entry small { color:#718096; font-size:10px; }.task-edit-modal .task-inline-files{display:grid;gap:7px}.task-edit-modal .task-inline-files article{display:flex;align-items:center;gap:8px;min-height:42px;padding:7px 9px;border:1px solid #e1e8f1;border-radius:8px}.task-edit-modal .task-inline-files a{display:flex;align-items:center;gap:8px;min-width:0;flex:1;color:#40516a;text-decoration:none}.task-edit-modal .task-inline-files a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.task-edit-modal .task-inline-files article>button{width:30px;height:30px;border:0;border-radius:6px;background:transparent;color:#64748b}.task-edit-modal .task-inline-files article>button:hover{background:#fff1f1;color:#dc2626}.task-edit-modal .task-inline-drop{display:grid;grid-template-columns:22px minmax(0,1fr);column-gap:9px;padding:13px;border:1px dashed #9dc1ef;border-radius:9px;background:#f7faff;color:#2875db;cursor:pointer}.task-edit-modal .task-inline-drop>i{grid-row:1/3;font-size:19px}.task-edit-modal .task-inline-drop strong{font-size:12px}.task-edit-modal .task-inline-drop small{color:#718096;font-size:10px}.task-edit-modal .task-inline-drop input{position:absolute;width:1px;height:1px;opacity:0}.task-edit-modal .task-inline-drop.is-dragover{border-color:#2875db;background:#eaf2ff}.task-edit-modal .task-field.full textarea{min-height:88px}.task-edit-modal .task-collaborator-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;border:1px solid #cfdced;border-radius:9px;background:#fff;color:#286acb;font:inherit;font-size:12px;font-weight:650;cursor:pointer}.task-edit-modal .task-collaborator-button:hover{border-color:#8db3e8;background:#f4f8ff}.task-edit-modal .task-attachment-field{grid-column:1 / -1}.task-edit-modal .task-collaborator-field{grid-column:auto}.task-edit-modal .task-attachment-field .task-inline-drop{margin-top:2px}

@@ -1,5 +1,5 @@
 import {statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta, unsupportedStatusMeta} from './pages/mytasks/priority-meta.js';
-import {confirmTaskTransition, isModalStatusOptionDisabled} from './pages/mytasks/task-transitions.js';
+import {confirmTaskTransition, isModalStatusOptionDisabled, isModalStatusOptionHidden} from './pages/mytasks/task-transitions.js';
 import {hasWorkspaceChanges, workspaceChanges, workspaceMenuPosition} from './pages/mytasks/task-workspace-model.js';
 import {clearPeopleSelection, initializePeopleSelectors, selectedIdsOf, setExcludedIds} from './components/people-selector.js';
 import {modalStack} from './components/modal-stack.js';
@@ -144,6 +144,7 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         saveButton.hidden = !canUpdate;
 
         form.querySelectorAll('[data-modal-status-value]').forEach((button) => {
+            button.hidden = isModalStatusOptionHidden(Number(button.dataset.modalStatusValue), transitions);
             button.disabled = isModalStatusOptionDisabled(
                 Number(form.elements.job_status.value),
                 Number(button.dataset.modalStatusValue),

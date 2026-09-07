@@ -1,0 +1,76 @@
+/*
+ * ไทม์ไลน์ของวัน
+ *
+ * แต่ละแถวอ่านจากซ้ายไปขวา: เวลา → ประเภทและหมวด → ชื่องาน
+ * คอลัมน์เวลาถูกตรึงความกว้างไว้เพื่อให้ตาไล่ลงมาตามแนวตั้งได้โดยไม่สะดุด
+ */
+.log-timeline { display:grid; gap:12px; }
+.log-timeline__head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.log-timeline__heading { margin:0; color:#0f172a; font-size:1.02rem; font-weight:700; }
+
+.log-timeline__filters { display:flex; flex-wrap:wrap; gap:6px; }
+.log-filter { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid #dde5f1; border-radius:999px; background:#fff; color:#526180; font-size:.8rem; font-weight:600; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
+.log-filter:hover { border-color:#b9cbe8; }
+.log-filter:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+.log-filter.is-active { border-color:#2563eb; background:#eff5ff; color:#1d4ed8; }
+.log-filter__count { padding:1px 7px; border-radius:999px; background:#eef2f8; color:#64748b; font-size:.72rem; font-weight:700; }
+.log-filter.is-active .log-filter__count { background:#dbeafe; color:#1d4ed8; }
+
+.log-timeline__hint { display:flex; align-items:center; gap:8px; margin:0; padding:9px 13px; border:1px solid #f3e2c0; border-radius:11px; background:#fffaeb; color:#8a6212; font-size:.82rem; }
+
+.log-timeline__list { display:grid; gap:9px; }
+.log-timeline__empty { display:flex; flex-direction:column; align-items:center; gap:9px; margin:0; padding:38px 24px; border:1px dashed #d9e2f0; border-radius:14px; color:#7c8aa3; font-size:.88rem; text-align:center; }
+.log-timeline__empty i { color:#a8b6cc; font-size:1.7rem; }
+
+/* หนึ่งบันทึก */
+.log-card { position:relative; display:grid; grid-template-columns:74px minmax(0,1fr) auto; align-items:start; gap:14px; padding:14px 16px; border:1px solid #e4eaf3; border-left:3px solid #cbd5e1; border-radius:13px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.03); transition:border-color .15s ease, box-shadow .15s ease; }
+.log-card:hover { border-color:#cfdcf0; box-shadow:0 8px 20px -16px rgba(15,23,42,.45); }
+.log-card--blue { border-left-color:#2563eb; }
+.log-card--amber { border-left-color:#d97706; }
+.log-card--teal { border-left-color:#0d9488; }
+.log-card--gray { border-left-color:#94a3b8; }
+
+.log-card__time { display:grid; gap:2px; }
+.log-card__clock { color:#0f172a; font-size:.94rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.log-card__duration { color:#7c8aa3; font-size:.75rem; font-weight:600; }
+
+.log-card__body { display:grid; gap:6px; min-width:0; }
+.log-card__chips { display:flex; flex-wrap:wrap; gap:5px; }
+.log-card__title { margin:0; color:#111827; font-size:.95rem; font-weight:650; line-height:1.4; overflow-wrap:anywhere; }
+
+.log-card__meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; margin:0; color:#7382a0; font-size:.78rem; }
+.log-card__meta-item { display:inline-flex; align-items:center; gap:5px; min-width:0; }
+.log-card__meta-item i { color:#9aa8bf; font-size:.8rem; }
+.log-card__meta-item--muted { color:#a3adc0; text-decoration:line-through; }
+.log-card__range { font-variant-numeric:tabular-nums; }
+
+.log-card__details { margin:2px 0 0; color:#5c6b85; font-size:.83rem; line-height:1.55; overflow-wrap:anywhere; }
+
+.log-card__actions { display:flex; align-items:flex-start; }
+.log-card__menu-trigger { display:grid; place-items:center; width:30px; height:30px; border:1px solid transparent; border-radius:8px; background:transparent; color:#8494ae; cursor:pointer; transition:background-color .15s ease, color .15s ease, border-color .15s ease; }
+.log-card__menu-trigger:hover { border-color:#dde5f1; background:#f5f8fd; color:#33415c; }
+.log-card__menu-trigger:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+.log-card__menu-trigger[aria-expanded="true"] { border-color:#c2d4f0; background:#eff5ff; color:#1d4ed8; }
+
+/* ป้ายกำกับเล็กในแถว */
+.log-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:#eef2f8; color:#526180; font-size:.72rem; font-weight:650; }
+.log-chip i { font-size:.75rem; }
+.log-chip--blue { background:#eff5ff; color:#1d4ed8; }
+.log-chip--amber { background:#fffaeb; color:#b45309; }
+.log-chip--teal { background:#effcfa; color:#0f766e; }
+.log-chip--purple { background:#f5f2ff; color:#6d28d9; }
+.log-chip--cyan { background:#ecfeff; color:#0e7490; }
+.log-chip--gray { background:#f1f5f9; color:#475569; }
+.log-chip--warning { background:#fef3c7; color:#92400e; }
+.log-chip--live { background:#ccfbf1; color:#0f766e; }
+
+/* เมนูจัดการรายแถว — เป็น popover ไม่ใช่ modal จึงไม่มี backdrop และไม่ล็อกการเลื่อนหน้า */
+.log-row-menu { position:absolute; z-index:40; min-width:172px; padding:6px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 18px 40px -22px rgba(15,23,42,.6); }
+.log-row-menu[hidden] { display:none !important; }
+.log-row-menu__item { display:flex; align-items:center; gap:9px; width:100%; padding:8px 10px; border:0; border-radius:8px; background:transparent; color:#33415c; font-size:.85rem; text-align:left; cursor:pointer; }
+.log-row-menu__item:hover { background:#f2f6fd; }
+.log-row-menu__item:focus-visible { outline:2px solid #2563eb; outline-offset:-2px; }
+.log-row-menu__item i { color:#8494ae; }
+.log-row-menu__item--danger { color:#b42318; }
+.log-row-menu__item--danger:hover { background:#fef3f2; }
+.log-row-menu__item--danger i { color:#d92d20; }

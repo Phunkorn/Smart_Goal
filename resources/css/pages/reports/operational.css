@@ -1,0 +1,82 @@
+/*
+ * ส่วนที่เป็นของรายงานภาระงานปฏิบัติการเท่านั้น
+ *
+ * โครงหน้า แถบ KPI การ์ดกราฟ และตารางใช้สไตล์ร่วมจาก reports/organization.css
+ * ที่นี่จึงมีเฉพาะสิ่งที่รายงานนี้เพิ่มขึ้นมา
+ */
+
+/* ตารางรายคนกินความกว้างทั้งแถวเพราะมีแปดคอลัมน์ */
+/*
+ * ตารางรายคนอยู่นอก .report-dashboard จึงไม่ได้ gap ของกริดนั้น
+ *
+ * grid-column ที่ประกาศไว้ไม่มีผลใด ๆ เพราะพ่อแม่ไม่ใช่กริด การ์ดจึงไปติดกับ
+ * การ์ดกราฟด้านบนแบบไม่มีระยะห่างเลย ต้องประกาศระยะห่างเป็นของตัวเอง
+ * ใช้ค่าเท่ากับ gap ของ .report-dashboard เพื่อให้จังหวะทั้งหน้าเท่ากัน
+ */
+.report-operational-table { margin-top:16px; }
+
+/*
+ * ตารางนี้มีแปดคอลัมน์ มากกว่าตารางแผนกที่ยืมสไตล์มาใช้
+ *
+ * min-width ที่สืบทอดมาคือ 620px ซึ่งพอสำหรับตารางแผนก แต่ที่นี่ทำให้แปดคอลัมน์
+ * ถูกอัดอยู่ในความกว้างเท่านั้นโดยไม่เกิดแถบเลื่อน หัวตารางจึงเบียดกันจนอ่านไม่ออก
+ * บนจอที่แคบกว่าราว 900px
+ *
+ * ตั้งค่าให้ยอมเลื่อนแนวนอนแทนการบีบ อ่านตัวเลขได้ครบเสมอไม่ว่าจอกว้างเท่าไร
+ */
+.report-operational-table .report-department-table { min-width:880px; }
+
+/*
+ * เว้นขอบซ้ายขวาให้เท่ากับขอบในของการ์ด
+ *
+ * .report-department-scroll กินเต็มความกว้างของการ์ด คอลัมน์แรกและคอลัมน์สุดท้าย
+ * จึงชิดขอบการ์ดพอดีเมื่อเลื่อนไปสุด ตัวเลขดูเหมือนล้นออกนอกกรอบ
+ */
+.report-operational-table .report-department-table th:first-child,
+.report-operational-table .report-department-table td:first-child { padding-left:2px; }
+.report-operational-table .report-department-table th:last-child,
+.report-operational-table .report-department-table td:last-child { padding-right:2px; }
+
+.report-operational-table__number { text-align:right !important; white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+/*
+ * งานที่ทำบ่อยที่สุด — เป็นลำดับ ไม่ใช่กราฟ เพราะสิ่งที่อ่านคือ "ชื่องาน"
+ *
+ * ใช้แค่ .report-panel ซึ่งให้เฉพาะกรอบและพื้นหลัง ไม่ได้ให้ระยะขอบใน
+ * (padding มาจาก .report-dashboard-card ซึ่งการ์ดใบนี้ไม่ได้ใช้) หัวข้อและ
+ * รายการจึงชิดขอบการ์ดทั้งสี่ด้าน ต้องประกาศระยะขอบในเอง
+ */
+.report-operational-top { margin-top:16px; padding:17px; }
+.report-operational-top__list { display:grid; gap:7px; margin:0; padding:0; list-style:none; counter-reset:operational-top; }
+.report-operational-top__list li {
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto auto;
+    align-items:center;
+    gap:12px;
+    padding:9px 12px;
+    border:1px solid #eef2f8;
+    border-radius:10px;
+    background:#fff;
+    counter-increment:operational-top;
+}
+.report-operational-top__list li::before {
+    content:counter(operational-top);
+    display:grid;
+    place-items:center;
+    width:22px;
+    height:22px;
+    border-radius:6px;
+    background:#eff5ff;
+    color:#1d4ed8;
+    font-size:.72rem;
+    font-weight:700;
+}
+.report-operational-top__name { min-width:0; color:#16233d; font-size:.88rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.report-operational-top__count { color:#64748b; font-size:.78rem; white-space:nowrap; }
+.report-operational-top__hours { color:#1d4ed8; font-size:.82rem; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+@media (max-width: 640px) {
+    .report-operational-top__list li { grid-template-columns:auto minmax(0,1fr); gap:6px 10px; }
+    .report-operational-top__count,
+    .report-operational-top__hours { grid-column:2; }
+}

@@ -114,8 +114,11 @@ class TaskAuthorizationTest extends TestCase
                 'files' => [],
             ]);
 
-        $this->assertDatabaseMissing('job_images', ['id' => $attachment->id]);
-        Storage::disk('local')->assertMissing($attachment->file_path);
+        // ไฟล์แนบเข้าถังขยะ 30 วัน ไม่ได้หายทันทีอีกต่อไป แถวถูกซ่อนจากหน้าจอด้วย
+        // SoftDeletes ส่วนตัวไฟล์ต้องอยู่ต่อ ไม่งั้นปุ่มกู้คืนในหน้า Audit Log
+        // จะคืนได้แค่แถวเปล่าที่ชี้ไปยังไฟล์ซึ่งไม่มีอยู่จริง
+        $this->assertSoftDeleted('job_images', ['id' => $attachment->id]);
+        Storage::disk('local')->assertExists($attachment->file_path);
     }
 
     public function test_admin_approves_collaborator_invitation_and_owner_can_remove_them(): void

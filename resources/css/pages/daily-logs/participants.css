@@ -1,0 +1,49 @@
+/*
+ * ตัวเลือกผู้ร่วมงาน
+ *
+ * ใช้ <details> ของเบราว์เซอร์ จึงไม่ต้องมี CSS สำหรับสถานะเปิด/ปิดเอง
+ * แต่ต้องซ่อนสามเหลี่ยมเริ่มต้นของ <summary> เพราะเราวางไอคอนของตัวเองแล้ว
+ */
+.participant-picker { position:relative; min-width:0; }
+.participant-picker__summary { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px solid #dde5f1; border-radius:999px; background:#fff; color:#526180; font-size:.82rem; font-weight:600; white-space:nowrap; cursor:pointer; list-style:none; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
+.participant-picker__summary::-webkit-details-marker { display:none; }
+.participant-picker__summary:hover { border-color:#b9cbe8; }
+.participant-picker__summary:focus-visible { outline:2px solid #2563eb; outline-offset:2px; }
+.participant-picker[open] > .participant-picker__summary { border-color:#2563eb; background:#eff5ff; color:#1d4ed8; }
+.participant-picker__count { display:grid; place-items:center; min-width:19px; height:19px; padding:0 5px; border-radius:999px; background:#2563eb; color:#fff; font-size:.7rem; font-weight:700; }
+.participant-picker__count[hidden] { display:none !important; }
+
+/*
+ * แผงตัวเลือกลอยอยู่เหนือเนื้อหา เพื่อไม่ให้แถบเครื่องมือกระโดดตอนกางออก
+ * ไม่ใช่ modal จึงไม่มี backdrop และไม่ล็อกการเลื่อนหน้า
+ */
+.participant-picker__panel { position:absolute; z-index:30; top:calc(100% + 6px); left:0; width:min(300px,88vw); padding:11px 12px; border:1px solid #e2e8f0; border-radius:13px; background:#fff; box-shadow:0 18px 40px -22px rgba(15,23,42,.6); }
+.participant-picker__hint { margin:0 0 9px; color:#8494ae; font-size:.74rem; line-height:1.5; }
+.participant-picker__options { display:grid; gap:3px; max-height:230px; overflow-y:auto; }
+
+.participant-option { display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:9px; cursor:pointer; }
+.participant-option:hover { background:#f4f8ff; }
+.participant-option input { position:absolute; opacity:0; width:0; height:0; }
+.participant-option__avatar { display:grid; place-items:center; flex:0 0 auto; width:27px; height:27px; border-radius:50%; background:#eef2f8; color:#526180; font-size:.7rem; font-weight:700; }
+.participant-option__name { min-width:0; color:#33415c; font-size:.84rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.participant-option__tick { margin-left:auto; color:transparent; font-size:.9rem; }
+.participant-option input:checked ~ .participant-option__tick { color:#2563eb; }
+.participant-option input:checked ~ .participant-option__avatar,
+.participant-option:has(input:checked) .participant-option__avatar { background:#dbeafe; color:#1d4ed8; }
+.participant-option:has(input:checked) { background:#eff5ff; }
+.participant-option input:focus-visible ~ .participant-option__avatar { outline:2px solid #2563eb; outline-offset:2px; }
+
+/* ชื่อย่อของผู้ร่วมงานในแถวไทม์ไลน์ */
+.log-card__people { gap:4px; }
+.log-card__person { display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#eef2f8; color:#526180; font-size:.62rem; font-weight:700; }
+
+@media (max-width: 640px) {
+    .participant-picker__panel { left:auto; right:0; }
+}
+
+/*
+ * ในฟอร์มเต็ม แผงตัวเลือกอยู่ในกล่องที่เลื่อนได้ (log-modal__body มี overflow-y)
+ * ถ้าลอยแบบ absolute จะถูกตัดที่ขอบกล่องเมื่อกางใกล้ด้านล่าง จึงให้ไหลไปกับ
+ * เนื้อหาแทน ซึ่งในบริบทนั้นไม่มีอะไรให้บังอยู่แล้ว
+ */
+.log-modal__body .participant-picker__panel { position:static; width:auto; margin-top:8px; box-shadow:none; }

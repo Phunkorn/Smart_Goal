@@ -1,0 +1,61 @@
+/*
+ * ฟอร์มเต็มของบันทึกงาน (modal จริง)
+ *
+ * z-index และ backdrop ถูกกำหนดโดย modal-stack ผ่าน data-modal-backdrop
+ * และ inline style ไฟล์นี้จึงกำหนดแค่รูปลักษณ์ ไม่ยุ่งกับลำดับชั้น
+ */
+.log-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; }
+.log-modal[hidden] { display:none !important; }
+.log-modal[data-modal-backdrop="on"]::before { content:''; position:absolute; inset:0; background:rgba(15,23,42,.45); }
+
+.log-modal__panel { position:relative; display:flex; flex-direction:column; width:min(680px,100%); max-height:calc(100vh - 40px); border-radius:18px; background:#fff; box-shadow:0 30px 70px -30px rgba(15,23,42,.7); }
+
+.log-modal__header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 22px 12px; border-bottom:1px solid #eef2f8; }
+.log-modal__title { margin:0; color:#0f172a; font-size:1.08rem; font-weight:700; }
+.log-modal__close { display:grid; place-items:center; width:32px; height:32px; border:0; border-radius:9px; background:transparent; color:#8494ae; cursor:pointer; }
+.log-modal__close:hover { background:#f2f6fd; color:#33415c; }
+.log-modal__close:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+
+.log-modal__form { display:flex; flex-direction:column; min-height:0; }
+.log-modal__body { display:grid; gap:14px; overflow-y:auto; padding:18px 22px; }
+.log-modal__footer { display:flex; justify-content:flex-end; gap:9px; padding:14px 22px 18px; border-top:1px solid #eef2f8; }
+.log-modal__error { margin:0; padding:10px 13px; border:1px solid #fbd5d1; border-radius:10px; background:#fef3f2; color:#b42318; font-size:.83rem; }
+.log-modal__error[hidden] { display:none !important; }
+
+.log-field { display:grid; gap:5px; min-width:0; }
+.log-field .form-label { margin:0; color:#475569; font-size:.82rem; font-weight:600; }
+.log-field .form-control,
+.log-field .form-select { border:1px solid #dde5f1; border-radius:10px; font-size:.88rem; }
+.log-field .form-control:focus,
+.log-field .form-select:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.14); }
+.log-field[hidden] { display:none !important; }
+
+.log-field-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+.log-field__hint { margin:-6px 0 0; color:#8494ae; font-size:.76rem; line-height:1.5; }
+
+/*
+ * ไฟล์แนบในฟอร์มเต็ม
+ *
+ * อยู่นอกฟอร์มหลัก (HTML ซ้อนฟอร์มกันไม่ได้) และแสดงเฉพาะตอนแก้ไขบันทึกที่มีอยู่แล้ว
+ * จึงจัดเป็นบล็อกแยกที่มีเส้นคั่นชัดเจน ไม่ให้ดูเหมือนช่องหนึ่งของฟอร์มด้านบน
+ */
+.log-attachments { display:grid; gap:10px; padding:15px 22px 20px; border-top:1px solid #eef2f8; background:#fbfcfe; border-radius:0 0 18px 18px; }
+.log-attachments[hidden] { display:none !important; }
+.log-attachments__heading { display:flex; align-items:center; gap:7px; margin:0; color:#475569; font-size:.85rem; font-weight:650; }
+.log-attachments__heading i { color:#8494ae; }
+
+.log-attachments__list { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
+.log-attachments__item { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid #e4eaf3; border-radius:9px; background:#fff; }
+.log-attachments__link { display:flex; align-items:center; gap:7px; min-width:0; color:#33415c; font-size:.83rem; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.log-attachments__link:hover { color:#1d4ed8; text-decoration:underline; }
+.log-attachments__link i { flex:0 0 auto; color:#8494ae; }
+.log-attachments__remove { display:grid; place-items:center; width:26px; height:26px; margin-left:auto; border:0; border-radius:7px; background:transparent; color:#9aa8bf; cursor:pointer; }
+.log-attachments__remove:hover { background:#fef3f2; color:#d92d20; }
+.log-attachments__remove:focus-visible { outline:2px solid #d92d20; outline-offset:1px; }
+
+.log-attachments__form { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin:0; }
+.log-attachments__picker { position:relative; cursor:pointer; }
+.log-attachments__picker input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.log-attachments__picker span { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px dashed #c2d4f0; border-radius:9px; background:#fff; color:#1d4ed8; font-size:.83rem; font-weight:600; }
+.log-attachments__picker:hover span { border-color:#93b4fa; background:#f4f8ff; }
+.log-attachments__hint { margin:0; color:#8494ae; font-size:.74rem; }

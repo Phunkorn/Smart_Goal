@@ -8,13 +8,33 @@
 .report-filter__heading h2 { margin:0; font-size:1rem; font-weight:800; }
 .report-filter__heading h2 i { margin-right:5px; color:#2874e6; }
 .report-filter__heading p { margin:3px 0 13px; color:#77849a; font-size:.8rem; }
-.report-filter__form { display:grid; grid-template-columns:repeat(3,minmax(180px,240px)) auto; justify-content:end; gap:10px; align-items:end; min-width:0; }
+
+/*
+ * ตัวกรองเรียงจากซ้ายและเติมความกว้างที่มี
+ *
+ * ของเดิมตรึงไว้ที่สามคอลัมน์กว้างสุด 240px แล้วดันทั้งแถวไปชิดขวาด้วย
+ * justify-content:end ผลคือครึ่งซ้ายของการ์ดว่างเปล่า และหน้าที่มีตัวกรองสี่ตัว
+ * (ภาระงานปฏิบัติการ) ตัวที่สี่จะไปแย่งช่องของกลุ่มปุ่ม ดันปุ่มตกไปอยู่คนละแถว
+ * แบบชิดซ้าย ขณะที่ตัวกรองอยู่ชิดขวา อ่านแล้วเหมือนสองกลุ่มไม่เกี่ยวกัน
+ *
+ * auto-fit ทำให้จำนวนคอลัมน์เดินตามจำนวนตัวกรองที่หน้านั้นมีจริง เพิ่มหรือลด
+ * ตัวกรองในอนาคตจึงไม่ต้องกลับมาแก้ตัวเลขที่นี่
+ */
+.report-filter__form { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px 14px; align-items:end; min-width:0; }
 .report-filter__form > div { min-width:0; }
 .report-filter .form-label { margin-bottom:4px; color:#526179; font-size:.77rem; font-weight:700; }
 .report-filter .form-select,.report-filter .form-control { min-height:40px; border-color:#dce4ef; font-size:.84rem; }
-.report-filter__custom-dates { display:grid; grid-column:1/-1; grid-template-columns:repeat(2,minmax(0,190px)); justify-content:end; gap:10px; }
-.report-filter__actions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.report-filter__custom-dates { display:grid; grid-column:1/-1; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px 14px; }
+
+/*
+ * ปุ่มอยู่แถวของตัวเองเสมอ คั่นด้วยเส้นบาง
+ *
+ * "แสดงผล" คือการกระทำหลัก จึงอยู่ซ้ายสุดของแถวติดกับตัวกรองที่เพิ่งเลือก
+ * ส่วน Export CSV เป็นทางออกรอง ดันไปขวาสุดเพื่อไม่ให้กดสลับกันโดยไม่ตั้งใจ
+ */
+.report-filter__actions { display:flex; grid-column:1/-1; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px; padding-top:13px; border-top:1px solid #eef2f8; }
 .report-filter__actions .btn { min-height:40px; white-space:nowrap; font-size:.82rem; }
+.report-filter__actions .btn-outline-primary { margin-left:auto; }
 
 .report-dashboard { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; min-width:0; }
 .report-panel { min-width:0; overflow:hidden; border:1px solid #e3e9f2; border-radius:14px; background:#fff; box-shadow:0 5px 16px rgba(28,51,84,.05); }
@@ -32,6 +52,20 @@
 
 /* ตารางเปรียบเทียบแผนก แทนกราฟแท่งรายแผนกสามอันเดิม */
 .report-department-scroll { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; }
+
+/*
+ * แถบเปลี่ยนหน้าของตารางรายงาน
+ *
+ * อยู่นอกกล่องที่เลื่อนแนวนอน ผู้ใช้จึงไม่ต้องเลื่อนตารางไปทางขวาเพื่อหาปุ่ม
+ * ปุ่มที่กดแล้วไม่เกิดอะไรขึ้นถูกปิด ไม่ใช่ปล่อยให้กดได้แล้วเงียบ
+ */
+.report-table-pager { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:12px; padding-top:12px; border-top:1px solid #eef2f8; }
+.report-table-pager[hidden] { display:none; }
+.report-table-pager button { display:grid; width:32px; height:32px; place-items:center; border:1px solid #dce4ef; border-radius:8px; background:#fff; color:#526179; cursor:pointer; transition:border-color .15s ease, color .15s ease, background-color .15s ease; }
+.report-table-pager button:hover:not(:disabled) { border-color:#93b4f5; background:#f4f8ff; color:#1d4ed8; }
+.report-table-pager button:disabled { opacity:.45; cursor:not-allowed; }
+.report-table-pager button:focus-visible { outline:3px solid rgba(37,99,235,.18); outline-offset:2px; }
+.report-table-pager > span { color:#65748c; font-size:.78rem; font-weight:700; font-variant-numeric:tabular-nums; }
 .report-department-table { width:100%; min-width:620px; border-collapse:collapse; }
 .report-department-table th,.report-department-table td { padding:11px 12px; border-bottom:1px solid #edf1f6; text-align:left; vertical-align:middle; }
 .report-department-table thead th { color:#64748b; font-size:.74rem; font-weight:650; white-space:nowrap; }
@@ -74,23 +108,22 @@
     .report-dashboard-card--workload { grid-column:span 6; }
     .report-dashboard-card--departments { grid-column:1/-1; }
     .report-dashboard-card--attention { grid-column:span 6; }
-    .report-filter__form { grid-template-columns:repeat(3,minmax(150px,1fr)); justify-content:stretch; }
-    .report-filter__actions { grid-column:1/-1; justify-content:flex-end; }
+    .report-filter__form { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
 }
 @media (max-width:991px) {
     .report-dashboard-card { grid-column:span 6; }
     .report-dashboard-card--trend,.report-dashboard-card--status,.report-dashboard-card--departments { grid-column:1/-1; }
     .report-filter__form { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    .report-filter__actions { grid-column:1/-1; }
 }
 @media (max-width:760px) {
     .report-page__header { flex-direction:column; }
     .report-dashboard { grid-template-columns:minmax(0,1fr); }
     .report-dashboard-card,.report-dashboard-card--trend,.report-dashboard-card--status,.report-dashboard-card--departments,.report-dashboard-card--attention { grid-column:1; padding:14px; }
     .report-filter__form { grid-template-columns:minmax(0,1fr); }
-    .report-filter__custom-dates,.report-filter__actions { grid-column:1; justify-content:stretch; }
     .report-filter__custom-dates { grid-template-columns:minmax(0,1fr); }
+    /* จอแคบปุ่มกินเต็มความกว้าง Export จึงไม่ต้องถูกดันไปขวาอีก */
     .report-filter__actions .btn { flex:1 1 auto; }
+    .report-filter__actions .btn-outline-primary { margin-left:0; }
     .report-panel__heading { align-items:flex-start; flex-direction:column; }
 }
 @media (max-width:430px) { .report-filter__actions { display:grid; grid-template-columns:1fr; } .report-dashboard-card { --report-chart-height-mobile:245px; } }

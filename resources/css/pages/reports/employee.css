@@ -89,3 +89,60 @@
     .employee-chart-card { --report-chart-height-mobile:240px; }
 }
 @media print { .sidebar,.topbar,.employee-report__actions,.report-breadcrumb { display:none !important; } .main { margin:0 !important; padding:18px !important; } .employee-report__panel,.employee-report__header { box-shadow:none; } .employee-report__tasks { break-before:page; } }
+
+/*
+ * บล็อกภาระงานปฏิบัติการบนหน้ารายงานรายบุคคล
+ *
+ * ต้องอ่านเป็น "อีกเรื่องหนึ่ง" ไม่ใช่ส่วนต่อของตัวเลขผลงานโครงการด้านบน
+ * จึงมีเส้นคั่นหนา พื้นหลังต่างระดับ และหัวข้อของตัวเอง เวอร์ชันก่อนหน้าเป็น
+ * บรรทัดเดียวบาง ๆ ซึ่งกลืนไปกับเนื้อหารอบข้างจนผู้ใช้มองไม่เห็น
+ */
+.employee-operational { display:grid; gap:14px; margin-top:26px; padding-top:22px; border-top:3px solid #e4eaf3; }
+
+.employee-operational__head { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:14px; }
+.employee-operational__intro { min-width:0; }
+.employee-operational__eyebrow { display:inline-flex; align-items:center; gap:6px; color:#1d4ed8; font-size:.74rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; }
+.employee-operational__intro h2 { margin:5px 0 3px; color:#0f172a; font-size:1.15rem; font-weight:750; }
+.employee-operational__intro p { margin:0; max-width:62ch; color:#7382a0; font-size:.83rem; line-height:1.55; }
+
+/* ปุ่มจริง ไม่ใช่ลิงก์ข้อความ เพราะเป็นทางออกหลักไปยังรายงานเต็ม */
+.employee-operational__cta { display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; padding:10px 18px; border-radius:11px; background:#1d4ed8; color:#fff; font-size:.87rem; font-weight:650; text-decoration:none; box-shadow:0 10px 22px -14px rgba(29,78,216,.9); transition:background-color .15s ease, transform .15s ease; }
+.employee-operational__cta:hover { background:#1740b8; color:#fff; transform:translateY(-1px); }
+.employee-operational__cta:focus-visible { outline:2px solid #1d4ed8; outline-offset:3px; }
+
+.employee-operational__stats { display:grid; grid-template-columns:minmax(200px,260px) minmax(0,1fr); align-items:center; gap:16px; padding:15px 18px; border:1px solid #e2e9f4; border-radius:14px; background:#f8fbff; }
+.employee-operational__total { display:grid; gap:2px; }
+.employee-operational__total-label { color:#64748b; font-size:.76rem; font-weight:650; }
+.employee-operational__total-value { color:#0f172a; font-size:1.65rem; font-weight:750; line-height:1.15; }
+.employee-operational__total-note { color:#7c8aa3; font-size:.74rem; line-height:1.5; }
+
+.employee-operational__kinds { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:0; }
+.employee-operational__kind { display:grid; gap:2px; padding:9px 12px; border:1px solid #e4eaf3; border-radius:11px; background:#fff; }
+.employee-operational__kind dt { display:flex; align-items:center; gap:6px; color:#526180; font-size:.77rem; font-weight:600; }
+.employee-operational__kind dd { display:flex; align-items:baseline; gap:7px; margin:0; }
+.employee-operational__kind dd strong { color:#0f172a; font-size:.95rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.employee-operational__kind dd span { color:#94a3b8; font-size:.72rem; }
+/* ไม่ใช้สีเขียวตามการตัดสินใจด้านสีของฟีเจอร์นี้ */
+.employee-operational__kind--blue dt i { color:#1d4ed8; }
+.employee-operational__kind--amber dt i { color:#d97706; }
+.employee-operational__kind--teal dt i { color:#0f766e; }
+
+.employee-operational__chart { --report-chart-height:280px; }
+.employee-operational__table small { display:block; margin-top:2px; color:#8494ae; font-size:.71rem; }
+.employee-operational__duration { white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:650; }
+
+@media (max-width: 900px) {
+    .employee-operational__stats { grid-template-columns:minmax(0,1fr); }
+}
+
+@media (max-width: 640px) {
+    .employee-operational__head { align-items:stretch; }
+    .employee-operational__cta { width:100%; justify-content:center; }
+}
+
+/*
+ * โทน teal ของประเภทงาน "งานนอกสถานที่" ยังไม่มีใน shared.css เพราะรายงาน
+ * โครงการไม่ได้ใช้ เพิ่มไว้ที่นี่เพื่อให้ป้ายในตารางไม่ตกไปเป็นสีเทาจนแยกไม่ออก
+ */
+.report-tone-teal { --report-tone:#0f766e; }
+.report-tone-cyan { --report-tone:#0e7490; }

@@ -2,11 +2,19 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\KeepsFileUntilPurged;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class JobImage extends Model
 {
+    /**
+     * เดิมโมเดลนี้ไม่มี hook ลบไฟล์เลย TaskAttachmentController เป็นคนเรียก
+     * ProtectedMedia::deleteAttachment() เองก่อนสั่ง delete() ผลคือการลบงานถาวร
+     * ซึ่ง cascade มาถึงตารางนี้ผ่าน FK ไม่เคยลบไฟล์ตามเลยสักครั้ง
+     */
+    use KeepsFileUntilPurged;
+
     /**
      * ความยาวสูงสุดของคอลัมน์ file_type
      *

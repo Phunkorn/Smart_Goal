@@ -143,41 +143,31 @@
             color: var(--accent-strong);
         }
 
+        /*
+         * ป้ายบทบาทใช้พื้นฟ้าอ่อนชุดเดียวกันทุกบทบาท
+         *
+         * สิ่งที่แยกบทบาทคือ "ไอคอน" ไม่ใช่สี — โล่สำหรับผู้ดูแลระบบ รูปคนสำหรับ
+         * พนักงานและหัวหน้าแผนก และรูปตาสำหรับผู้เข้าชม
+         *
+         * เลือกแยกด้วยไอคอนแทนสี เพราะสีที่ต่างกันสี่ชุดบนแถบบนอ่านเป็น "สถานะ"
+         * (เขียวคือดี แดงคือเตือน) ทั้งที่บทบาทไม่มีดีหรือแย่ ส่วนฟ้าอ่อนเป็นสีกลาง
+         * ชุดเดียวกับ badge อื่นในระบบ จึงไม่แย่งความเด่นกับปุ่มแจ้งเตือนข้าง ๆ
+         *
+         * class บอกบทบาทยังอยู่ใน markup เพราะเป็นตัวระบุที่ SidebarNavigationTest ตรวจ
+         */
         .role-chip {
             height: 36px;
             display: inline-flex;
             align-items: center;
             gap: .45rem;
             border-radius: 999px;
-            padding: 0 .85rem;
+            padding: 0 .75rem;
             font-size: .78rem;
-            font-weight: 700;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text);
-            white-space: nowrap;
-        }
-
-        /* ชุดสีเดียวกับ .employee-role บนการ์ดหน้าจัดการพนักงาน
-           เดิมมีแค่ .admin กับ .user ทำให้หัวหน้าแผนก พนักงาน และผู้เข้าชม
-           ใช้สีเขียวเหมือนกันหมดจนแยกบทบาทจากมุมขวาบนไม่ได้ */
-        .role-chip.admin,
-        .role-chip.department-head {
-            background: var(--accent-dim);
-            color: var(--accent-strong);
-            border-color: var(--accent-dim);
-        }
-
-        .role-chip.user {
-            background: var(--surface-2);
-            color: var(--text-muted);
-            border-color: var(--surface-2);
-        }
-
-        .role-chip.viewer {
+            font-weight: 600;
+            border: 1px solid var(--blue-dim);
             background: var(--blue-dim);
-            color: var(--blue);
-            border-color: var(--blue-dim);
+            color: #1D4ED8;
+            white-space: nowrap;
         }
 
         /* ชื่อแผนกต่อท้ายทำให้ป้ายยาวขึ้น จอแคบต้องตัดคำแทนที่จะดันปุ่มแจ้งเตือนตก */
@@ -187,8 +177,11 @@
             text-overflow: ellipsis;
         }
 
+        /* ไอคอนคือสิ่งที่แยกบทบาท จึงต้องเข้มพอให้เห็นรูปทรงชัด ไม่ใช่จาง ๆ */
         .role-chip i {
             flex: 0 0 auto;
+            color: inherit;
+            font-size: .9rem;
         }
 
         .notification-menu {

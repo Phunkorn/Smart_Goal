@@ -339,6 +339,65 @@ class TaskReviewWorkflowTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('job_status');
     }
 
+    /**
+     * ขั้น "รอตรวจสอบ" ต้องหายไปจากหน้าจอ ไม่ใช่แค่กดไม่ได้
+     *
+     * งานที่ผู้ใช้เปิดเอง รับผิดชอบเอง และอนุมัติเองไม่มีผู้ตรวจ การโชว์สถานะนี้ไว้
+     * ทำให้เข้าใจผิดว่าต้องส่งงานของตัวเองไปให้ใครสักคนตรวจก่อนปิดงาน
+     */
+    public function test_a_self_owned_workspace_never_shows_the_review_status_on_board_or_table(): void
+    {
+        $owner = $this->user();
+        $this->task($owner, $owner, 2, ['job_topic' => 'งานของตัวเอง']);
+
+        $response = $this->actingAs($owner)->get(route('mytasks.index'));
+
+        $response->assertOk()
+            ->assertSee('งานของตัวเอง')
+            ->assertSee('"shows_review_stage":false', false)
+            ->assertDontSee('data-board-status-value="3"', false)
+            ->assertDontSee('data-table-status-value="3"', false)
+            ->assertDontSee('data-kanban-column="3"', false)
+            ->assertDontSee('data-kanban-status-tab="3"', false);
+    }
+
+    /**
+     * งานที่ทำร่วมกับผู้อื่นคือกรณีเดียวที่ขั้นตรวจสอบมีอยู่จริง สถานะจึงต้องแสดงครบ
+     */
+    public function test_a_delegated_workspace_still_offers_the_review_status(): void
+    {
+        $creator = $this->user();
+        $assignee = $this->user();
+        $this->task($assignee, $creator, 2, ['job_topic' => 'งานที่ทำร่วมกับผู้อื่น']);
+
+        $response = $this->actingAs($assignee)->get(route('mytasks.index'));
+
+        $response->assertOk()
+            ->assertSee('งานที่ทำร่วมกับผู้อื่น')
+            ->assertSee('"shows_review_stage":true', false)
+            ->assertSee('data-board-status-value="3"', false)
+            ->assertSee('data-table-status-value="3"', false)
+            ->assertSee('data-kanban-column="3"', false);
+    }
+
+    /**
+     * งานที่อยู่ในสถานะ 3 อยู่แล้วต้องแสดงป้ายของตัวเองได้เสมอ
+     * ไม่เช่นนั้นสถานะปัจจุบันจะหายไปจากรายการตัวเลือกของตัวมันเอง
+     */
+    public function test_a_task_already_in_review_keeps_its_own_status_visible(): void
+    {
+        $owner = $this->user();
+        $task = $this->task($owner, $owner, 3, [
+            'submitted_for_review_by' => $owner->id,
+            'submitted_for_review_at' => now(),
+        ]);
+
+        $capabilities = app(TaskStatusTransitionService::class)->capabilities($task, $owner);
+
+        $this->assertTrue($capabilities['shows_review_stage']);
+        $this->assertTrue($capabilities['is_self_task']);
+    }
+
     private function user(string $role = 'user'): User
     {
         return User::factory()->create(['role' => $role, 'must_change_password' => false, 'is_active' => true]);

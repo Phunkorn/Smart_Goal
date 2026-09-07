@@ -173,10 +173,52 @@
     color: var(--ink);
     font: inherit;
     font-size: 15px;
+    /*
+     * ภาษาไทยวางสระบนซ้อนวรรณยุกต์ได้สองชั้น เช่น "ที่" "น้ำ" ค่า normal ที่
+     * เบราว์เซอร์ให้มากับ Prompt แคบเกินไป ส่วนบนของตัวอักษรจึงถูกตัด
+     *
+     * หน้า auth ไม่ได้ import foundations/typography.css (ใช้ชุดสไตล์ของตัวเอง
+     * ทั้งหมด) จึงต้องประกาศค่าเดียวกันซ้ำที่นี่ ไม่ใช่พึ่งค่ากลาง
+     */
+    line-height: 1.6;
 }
 
 .control input::placeholder {
     color: #a9b8d2;
+}
+
+/*
+ * ช่องที่เบราว์เซอร์กรอกให้อัตโนมัติต้องหน้าตาเหมือนช่องที่พิมพ์เอง
+ *
+ * .control input ตั้ง background เป็น transparent แล้วปล่อยให้กรอบ .control
+ * เป็นคนวาดพื้นขาวมนโค้ง แต่ Chrome/Edge วาดพื้นหลังของ autofill ทับที่ตัว
+ * <input> เองด้วย user-agent style ที่ override ไม่ได้ตรง ๆ ผลคือมีแถบสีฟ้า
+ * เหลี่ยมโผล่คร่อมอยู่ในกรอบมน ทั้งช่องชื่อผู้ใช้และช่องรหัสผ่าน
+ *
+ * -webkit-background-clip: text บังคับให้พื้นหลังนั้นถูกตัดเหลือเฉพาะรูปตัวอักษร
+ * จึงมองไม่เห็นเป็นแถบอีก และต้องคู่กับ -webkit-text-fill-color เพราะการ clip
+ * แบบนี้ทำให้สีข้อความเดิมหายไปด้วย
+ *
+ * transition ที่หน่วงยาวเป็นตัวกัน engine รุ่นที่ยังวาดสีพื้นตอน :focus/:hover
+ * ให้ค่าที่เปลี่ยนไปไม่ทันแสดงผลภายในอายุของหน้า
+ *
+ * แยกกฎมาตรฐาน :autofill ออกเป็นอีกบล็อกโดยตั้งใจ เบราว์เซอร์ที่ไม่รู้จัก
+ * selector ตัวใดตัวหนึ่งจะทิ้งเฉพาะบล็อกนั้น ไม่ลากอีกบล็อกตกไปด้วย
+ */
+.control input:-webkit-autofill,
+.control input:-webkit-autofill:hover,
+.control input:-webkit-autofill:focus,
+.control input:-webkit-autofill:active {
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: var(--ink);
+    caret-color: var(--ink);
+    transition: background-color 0s 86400s, color 0s 86400s;
+}
+
+.control input:autofill {
+    background-image: none;
+    -webkit-text-fill-color: var(--ink);
 }
 
 .icon-button {

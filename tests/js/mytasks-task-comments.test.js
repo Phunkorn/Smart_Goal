@@ -212,7 +212,12 @@ test('Enter ในกล่องคอมเมนต์ส่งข้อค�
     await flush();
 
     assert.equal(fetches.commentPosts().length, 1);
-    assert.equal(JSON.parse(fetches.commentPosts()[0].options.body).message, 'ความคืบหน้าวันนี้');
+
+    // ส่งเป็น FormData ไม่ใช่ JSON แล้ว เพราะคอมเมนต์แนบรูปได้
+    // และห้ามตั้ง Content-Type เอง เบราว์เซอร์ต้องเป็นผู้ใส่ boundary ของ multipart
+    const {options} = fetches.commentPosts()[0];
+    assert.equal(options.body.get('message'), 'ความคืบหน้าวันนี้');
+    assert.equal(options.headers['Content-Type'], undefined, 'ห้ามตั้ง Content-Type ทับ multipart');
     assert.equal(ui.compose().value, '');
 });
 
@@ -340,4 +345,83 @@ test('ปุ่มส่งเดิมยังทำงานได้ตา�
 
     assert.equal(fetches.commentPosts().length, 1);
     assert.equal(ui.compose().value, '');
+});
+
+/*
+ * แนบรูปในความคิดเห็น
+ *
+ * เก็บรูปที่เลือกไว้เป็นอาเรย์ของตัวเอง ไม่อ่านจาก input.files ตรง ๆ เพราะ FileList
+ * แก้ไขไม่ได้ ผู้ใช้จึงเอารูปทีละใบออกไม่ได้เลยถ้าพึ่ง input อย่างเดียว
+ */
+const fakeImage = (window, name) => new window.File([new Uint8Array([1, 2, 3])], name, {type: 'image/png'});
+
+const chooseImages = (ui, names) => {
+    const input = ui.imageInput();
+    // jsdom ไม่ให้เขียน input.files จึงต้องนิยาม property ทับเพื่อจำลองการเลือกไฟล์
+    Object.defineProperty(input, 'files', {
+        configurable: true,
+        value: names.map((name) => fakeImage(ui.window, name)),
+    });
+    input.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+};
+
+test('รูปที่เลือกแสดงพรีวิวและเอาออกทีละใบได้', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    chooseImages(ui, ['หนึ่ง.png', 'สอง.png']);
+
+    assert.equal(ui.previews().hidden, false);
+    assert.equal(ui.previews().querySelectorAll('.task-timeline__preview').length, 2);
+
+    click(ui.previews().querySelector('[data-remove-comment-image="0"]'));
+
+    assert.equal(ui.previews().querySelectorAll('.task-timeline__preview').length, 1);
+    assert.match(ui.previews().querySelector('img').alt, /สอง\.png/);
+});
+
+test('ส่งคอมเมนต์พร้อมรูปด้วย FormData และล้างพรีวิวหลังส่งสำเร็จ', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    const fetches = captureFetch();
+
+    chooseImages(ui, ['หน้าจอ.png']);
+    ui.compose().value = 'ตามภาพครับ';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    assert.equal(fetches.commentPosts().length, 1);
+    const body = fetches.commentPosts()[0].options.body;
+    assert.equal(body.get('message'), 'ตามภาพครับ');
+    assert.equal(body.getAll('images[]').length, 1);
+
+    assert.equal(ui.compose().value, '');
+    assert.equal(ui.previews().hidden, true, 'พรีวิวต้องถูกล้างหลังส่งสำเร็จ');
+});
+
+/*
+ * ภาพหน้าจอเปล่า ๆ เป็นการสื่อสารที่สมบูรณ์ในตัวเอง ไม่ควรบังคับให้พิมพ์อะไรกำกับ
+ */
+test('ส่งได้แม้ไม่มีข้อความ ถ้ามีรูปแนบอยู่', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    const fetches = captureFetch();
+
+    chooseImages(ui, ['เฉย.png']);
+    ui.compose().value = '';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    assert.equal(fetches.commentPosts().length, 1);
+    assert.equal(fetches.commentPosts()[0].options.body.get('message'), '');
+});
+
+test('เกินสี่รูปต้องถูกตัดออก ไม่ใช่ส่งไปให้เซิร์ฟเวอร์ปฏิเสธ', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    ui.window.Swal = {fire: () => Promise.resolve({isConfirmed: true})};
+
+    chooseImages(ui, ['1.png', '2.png', '3.png', '4.png', '5.png']);
+
+    assert.equal(ui.previews().querySelectorAll('.task-timeline__preview').length, 4);
 });

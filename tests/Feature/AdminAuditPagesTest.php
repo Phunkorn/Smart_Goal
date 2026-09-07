@@ -91,11 +91,14 @@ class AdminAuditPagesTest extends TestCase
             ->get(route('admin.audit.index', ['tab' => 'trash']))
             ->assertOk()
             ->assertViewHas('stats', function (array $stats): bool {
+                // files นับไฟล์แนบและรูปที่กู้คืนได้ เพิ่มมาพร้อมการ์ด "ไฟล์และรูป"
+                // ในแท็บถังขยะ ชุดนี้ไม่มีไฟล์เลย จำนวนจึงเป็นศูนย์
                 return $stats === [
                     'total' => 4,
                     'work_items' => 2,
                     'users' => 1,
                     'near_expiry' => 2,
+                    'files' => 0,
                 ];
             });
     }

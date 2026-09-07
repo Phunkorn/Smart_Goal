@@ -1,0 +1,1071 @@
+/*
+ * กระดานไอเดีย (Workspace)
+ *
+ * เฟสนี้ครอบคลุมหน้ารายการและโครงหน้าวาด ส่วนผืนผ้าใบ แถบเครื่องมือ และ
+ * overlay ของกระดาษโน้ตจะเพิ่มในเฟสถัดไป
+ *
+ * ใช้ตัวแปรสีของระบบที่ประกาศไว้ใน resources/css/components/layout.css
+ * ไม่ประกาศจานสีใหม่ เพื่อให้หน้านี้เปลี่ยนตามธีมเดียวกับหน้าอื่น
+ */
+
+.ws-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+    padding: 1.5rem;
+}
+
+.ws-page__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.ws-page__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ws-page__subtitle {
+    margin: 0.35rem 0 0;
+    max-width: 46rem;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: #64748b;
+}
+
+.ws-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.ws-breadcrumb a {
+    color: #64748b;
+    text-decoration: none;
+}
+
+.ws-breadcrumb a:hover,
+.ws-breadcrumb a:focus-visible {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+/* ── ส่วนย่อยของหน้า ─────────────────────────────────────────── */
+
+.ws-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.ws-section__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.ws-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 1rem;
+}
+
+.ws-empty {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 2.5rem 1rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 0.85rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #94a3b8;
+}
+
+/* ── การ์ดแผนก ───────────────────────────────────────────────── */
+
+.ws-dept-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1.1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    background: #ffffff;
+    text-decoration: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.ws-dept-card:hover,
+.ws-dept-card:focus-visible {
+    border-color: #bfdbfe;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
+}
+
+.ws-dept-card--own {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+}
+
+.ws-dept-card__icon {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: 0 0 auto;
+    border-radius: 0.65rem;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 1.1rem;
+}
+
+.ws-dept-card__body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.ws-dept-card__name {
+    overflow: hidden;
+    font-weight: 600;
+    color: #0f172a;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-dept-card__count {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+/* ── รายการแก้ไขล่าสุด ───────────────────────────────────────── */
+
+.ws-recent {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.ws-recent__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.7rem;
+    background: #ffffff;
+    text-decoration: none;
+}
+
+.ws-recent__item:hover,
+.ws-recent__item:focus-visible {
+    border-color: #bfdbfe;
+}
+
+.ws-recent__name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ws-recent__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+/* ── การ์ดกระดาน ─────────────────────────────────────────────── */
+
+.ws-grid--boards {
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+}
+
+.ws-board-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    background: #ffffff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ws-board-card:hover,
+.ws-board-card:focus-within {
+    border-color: #bfdbfe;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.ws-board-card__link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    /* เว้นที่ด้านขวาให้ปุ่มจัดการ ไม่ให้ชื่อกระดานยาว ๆ วิ่งไปอยู่ใต้ปุ่ม */
+    padding: 1.1rem 4.5rem 1.1rem 1.1rem;
+    text-decoration: none;
+}
+
+.ws-board-card__title {
+    font-weight: 600;
+    color: #0f172a;
+    /* ชื่อกระดานเป็นข้อความไทยที่ไม่มีเว้นวรรคระหว่างคำ ต้องบังคับให้ตัดกลางคำได้
+       ไม่งั้นชื่อยาวคำเดียวจะดันการ์ดจนล้นกริด */
+    overflow-wrap: anywhere;
+}
+
+.ws-board-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.ws-board-card__footer {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    overflow-wrap: anywhere;
+}
+
+.ws-board-card__actions {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+    display: flex;
+    gap: 0.25rem;
+}
+
+/* ── ชิ้นส่วนที่ใช้ซ้ำ ────────────────────────────────────────── */
+
+.ws-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.ws-chip--blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.ws-chip--amber {
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.ws-chip--gray {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.ws-badge--own {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.ws-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.95rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.6rem;
+    background: #ffffff;
+    color: #334155;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.ws-btn:hover:not(:disabled) {
+    border-color: #94a3b8;
+}
+
+.ws-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.ws-btn--primary {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.ws-btn--primary:hover:not(:disabled) {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+}
+
+.ws-icon-btn {
+    display: grid;
+    place-items: center;
+    /* 2.25rem = 36px ยังต่ำกว่าเป้าหมาย 44px ของการแตะบนมือถือ จึงขยายใน
+       media query ด้านล่าง แทนการทำให้การ์ดบนจอใหญ่ดูหนา */
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.ws-icon-btn:hover {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.ws-icon-btn--danger:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+/* ── กล่องสร้าง/แก้ไขกระดาน ──────────────────────────────────── */
+
+.ws-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1080;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+}
+
+/* ล็อกการเลื่อนหน้าเบื้องหลังขณะกล่องเปิด — เป็นพฤติกรรมของ modal ไม่ใช่ popover
+   คลาสนี้ถูกเพิ่ม/ถอดโดย board-list.js ซึ่งเป็นเจ้าของสถานะเปิดปิดเพียงตัวเดียว */
+body.ws-modal-open {
+    overflow: hidden;
+}
+
+.ws-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.ws-modal__dialog {
+    position: relative;
+    width: min(30rem, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    border-radius: 0.9rem;
+    background: #ffffff;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+}
+
+.ws-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.1rem 1.25rem 0.6rem;
+}
+
+.ws-modal__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ws-modal__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    padding: 0.6rem 1.25rem 1.1rem;
+}
+
+.ws-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.ws-modal__error {
+    margin: 0;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.5rem;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.83rem;
+}
+
+.ws-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.ws-field__label {
+    padding: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.ws-field__input {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.55rem;
+    font-size: 0.9rem;
+    color: #0f172a;
+}
+
+.ws-field__input:focus {
+    border-color: #2563eb;
+    outline: 2px solid rgba(37, 99, 235, 0.18);
+    outline-offset: 1px;
+}
+
+.ws-radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.6rem;
+    cursor: pointer;
+}
+
+.ws-radio:has(input:checked) {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+}
+
+.ws-radio input {
+    margin-top: 0.2rem;
+}
+
+.ws-radio__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.ws-radio__label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #0f172a;
+}
+
+.ws-radio__hint {
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+/* ── หน้าวาด (โครงของเฟสนี้) ─────────────────────────────────── */
+
+/*
+ * หน้าวาดต้องสูงเต็มพื้นที่ที่เหลือจากแถบบน
+ *
+ * height: 100% ใช้ไม่ได้ เพราะ .main ซึ่งเป็นแม่ไม่ได้กำหนดความสูงไว้ ผลคือ
+ * กล่องยุบลงมาเท่าเนื้อหา แล้วผืนผ้าใบเหลือแค่ min-height ของตัวเอง (24rem)
+ * จึงคำนวณจากความสูงจอโดยตรง หักแถบบน 64px กับ padding ของ .main บนล่าง
+ * อย่างละ 1.75rem
+ *
+ * 100dvh ทำให้บนมือถือไม่โดนแถบที่อยู่ของเบราว์เซอร์กินพื้นที่ไปตอนเลื่อน
+ * โดยมี 100vh เป็นค่าสำรองสำหรับเบราว์เซอร์รุ่นเก่า
+ */
+.ws-board {
+    display: flex;
+    flex-direction: column;
+    min-height: 30rem;
+    height: calc(100vh - 64px - 3.5rem);
+    height: calc(100dvh - 64px - 3.5rem);
+}
+
+/*
+ * โหมดเต็มจอ กล่องหลุดออกจาก .main แล้ว จึงต้องกำหนดความสูงและพื้นหลังเอง
+ * ไม่งั้นจะได้พื้นหลังดำของเบราว์เซอร์รอบผืนผ้าใบ
+ */
+.ws-board:fullscreen {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    background: #ffffff;
+}
+
+/* หัวเรื่องกินที่ไปเปล่า ๆ ตอนเต็มจอ ซึ่งเป็นโหมดที่ผู้ใช้ต้องการพื้นที่วาดมากที่สุด */
+.ws-board:fullscreen .ws-board__header {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+}
+
+.ws-board:fullscreen .ws-breadcrumb {
+    display: none;
+}
+
+.ws-board__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.ws-board__title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+}
+
+.ws-board__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* ── จอเล็ก ──────────────────────────────────────────────────── */
+
+/*
+ * ที่ความกว้าง 991px ลงมา แถบบนของระบบเตี้ยลงเหลือ 58px (ดู
+ * resources/css/components/layout/responsive.css) สูตรความสูงจึงต้องเปลี่ยนตาม
+ * ไม่งั้นผืนผ้าใบจะสูงเกินไป 6px แล้วมีแถบเลื่อนโผล่มาทั้งที่ไม่มีอะไรให้เลื่อน
+ */
+@media (max-width: 991px) {
+    .ws-board {
+        height: calc(100vh - 58px - 3.5rem);
+        height: calc(100dvh - 58px - 3.5rem);
+    }
+}
+
+@media (max-width: 768px) {
+    .ws-page {
+        padding: 1rem;
+        gap: 1.25rem;
+    }
+
+    .ws-grid,
+    .ws-grid--boards {
+        grid-template-columns: 1fr;
+    }
+
+    .ws-board__header {
+        padding: 0.9rem 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .ws-page__header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ws-page__header .ws-btn {
+        justify-content: center;
+    }
+
+    /* เป้าหมายการแตะขั้นต่ำ 44px บนอุปกรณ์สัมผัส */
+    .ws-icon-btn {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    .ws-board-card__link {
+        padding-right: 1.1rem;
+    }
+
+    .ws-board-card__actions {
+        position: static;
+        justify-content: flex-end;
+        padding: 0 0.7rem 0.7rem;
+    }
+}
+
+/* ── ผืนผ้าใบและแถบเครื่องมือ ─────────────────────────────────── */
+
+.wsb-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.wsb-toolbar__group {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding-right: 0.75rem;
+    border-right: 1px solid #e2e8f0;
+}
+
+.wsb-toolbar__group:last-child {
+    padding-right: 0;
+    border-right: 0;
+}
+
+.wsb-tool,
+.wsb-swatch,
+.wsb-width,
+.wsb-fontsize,
+.wsb-zoom {
+    display: grid;
+    place-items: center;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0 0.4rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: #475569;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.wsb-tool:hover:not(:disabled),
+.wsb-swatch:hover:not(:disabled),
+.wsb-width:hover:not(:disabled),
+.wsb-fontsize:hover:not(:disabled),
+.wsb-zoom:hover:not(:disabled) {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
+
+.wsb-tool:disabled,
+.wsb-swatch:disabled,
+.wsb-width:disabled,
+.wsb-fontsize:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.wsb-tool.is-active,
+.wsb-width.is-active {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.wsb-zoom {
+    min-width: 3.5rem;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.wsb-swatch__dot {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 1px solid rgba(15, 23, 42, 0.15);
+    border-radius: 999px;
+    background: var(--wsb-swatch, #1f2937);
+}
+
+/* วงแหวนรอบสีที่เลือก แทนการเปลี่ยนพื้นหลังของปุ่ม ซึ่งจะกลืนกับตัวสีเอง */
+.wsb-swatch.is-active .wsb-swatch__dot {
+    box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #2563eb;
+}
+
+/*
+ * จานสีเป็นกริดสองแถว ไม่ใช่แถวเดียวยาว
+ *
+ * ชุดสีมี 32 ค่า ถ้าเรียงแถวเดียวแถบเครื่องมือจะกว้างจนกลุ่มอื่นตกขอบไปหมด
+ * จำนวนคอลัมน์มาจาก WorkspaceDesign::PALETTE_COLUMNS ผ่านตัวแปร CSS
+ * ทั้งสองจานจึงกว้างเท่ากันเสมอโดยไม่ต้องกำหนดตัวเลขซ้ำในไฟล์นี้
+ */
+.wsb-palette {
+    display: grid;
+    grid-template-columns: repeat(var(--wsb-palette-cols, 8), auto);
+    gap: 2px;
+}
+
+/* ในกริด ปุ่มสีไม่ต้องสูงเท่าปุ่มเครื่องมือ เพราะสองแถวรวมกันสูงพอ ๆ กันแล้ว */
+.wsb-palette .wsb-swatch {
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding: 0;
+}
+
+.wsb-palette .wsb-swatch__dot {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+/*
+ * ช่องเลือกสีของเบราว์เซอร์
+ *
+ * ตัว input ถูกซ่อนทับด้วยไอคอนหลอดดูดสี เพราะหน้าตาของ input[type=color]
+ * ต่างกันมากในแต่ละเบราว์เซอร์และคุมสไตล์ไม่ได้ แต่ยังต้องคลิกโดนได้จริง
+ * จึงวางซ้อนแบบโปร่งใสแทนการซ่อนด้วย display: none ซึ่งจะกดไม่ได้เลย
+ */
+.wsb-custom-color {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    color: #475569;
+    cursor: pointer;
+}
+
+.wsb-custom-color:hover {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.wsb-custom-color input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.wsb-custom-color input:disabled {
+    cursor: not-allowed;
+}
+
+.wsb-custom-color:has(input:disabled) {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* ── ช่องกรอกขนาดตัวอักษร ────────────────────────────────────── */
+
+.wsb-fontfield {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    height: 2.25rem;
+    padding: 0 0.4rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    background: #ffffff;
+}
+
+.wsb-fontfield__input {
+    width: 2.6rem;
+    border: 0;
+    background: transparent;
+    color: #0f172a;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.wsb-fontfield__input:focus {
+    outline: none;
+}
+
+.wsb-fontfield:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+
+.wsb-fontfield__unit {
+    color: #94a3b8;
+    font-size: 0.72rem;
+}
+
+.wsb-fontfield:has(input:disabled) {
+    opacity: 0.45;
+}
+
+.ws-btn--danger {
+    color: #b91c1c;
+}
+
+.ws-btn--danger:hover:not(:disabled) {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+/*
+ * ปุ่มขนาดตัวอักษรแสดงตัว "ก" ตามขนาดจริงของมันเอง ผู้ใช้จึงเห็นผลก่อนกด
+ * ขนาดที่ใหญ่กว่า 26px ถูกหนีบไว้ที่ 26px ในเทมเพลต เพื่อไม่ให้ปุ่มดันแถบสูงขึ้น
+ */
+.wsb-fontsize__sample {
+    display: block;
+    font-size: var(--wsb-fontsize, 16px);
+    font-weight: 600;
+    line-height: 1;
+}
+
+.wsb-fontsize.is-active {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.wsb-width__bar {
+    width: 1.25rem;
+    height: var(--wsb-width, 4px);
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.wsb-stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 24rem;
+    overflow: hidden;
+    background:
+        radial-gradient(circle, #e2e8f0 1px, transparent 1px) 0 0 / 24px 24px,
+        #f8fafc;
+    /* ผืนผ้าใบต้องกินทุก gesture เอง ไม่งั้นเบราว์เซอร์บนมือถือจะเลื่อนหน้า
+       แทนการวาด และการหุบนิ้วจะไปซูมทั้งหน้าเว็บแทนที่จะซูมกระดาน */
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.wsb-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* ของที่กำลังลากยังไม่ใช่เนื้อหาจริง จึงต้องไม่ดักการคลิก */
+.wsb-preview,
+.wsb-selection {
+    pointer-events: none;
+}
+
+.wsb-marquee {
+    fill: rgba(37, 99, 235, 0.08);
+    stroke: #2563eb;
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+}
+
+.wsb-selection__frame {
+    fill: none;
+    stroke: #2563eb;
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+}
+
+.wsb-selection__handle {
+    fill: #ffffff;
+    stroke: #2563eb;
+    stroke-width: 1.5;
+}
+
+.wsb-hint {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    margin: 0;
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.4rem;
+    background: rgba(255, 255, 255, 0.9);
+    color: #94a3b8;
+    font-size: 0.72rem;
+    pointer-events: none;
+}
+
+@media (max-width: 768px) {
+    /* แถบเครื่องมือย้ายลงล่างเป็นแถบเลื่อนแนวนอน เพราะบนจอแคบมันจะกิน
+       ความสูงไปสามแถวจนเหลือที่วาดนิดเดียว */
+    .ws-board {
+        position: relative;
+    }
+
+    .wsb-toolbar {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        order: 2;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding: 0.5rem 0.75rem;
+        border-top: 1px solid #e2e8f0;
+        border-bottom: 0;
+        box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
+        scrollbar-width: thin;
+    }
+
+    .wsb-toolbar__group {
+        flex: 0 0 auto;
+    }
+
+    .wsb-stage {
+        order: 1;
+    }
+
+    /* เป้าหมายการแตะขั้นต่ำ 44px */
+    .wsb-tool,
+    .wsb-swatch,
+    .wsb-width,
+    .wsb-fontsize,
+    .wsb-zoom {
+        min-width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    .wsb-hint {
+        display: none;
+    }
+}
+
+/* ── ชั้นข้อความ (กระดาษโน้ตและกล่องข้อความ) ─────────────────── */
+
+.wsb-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    /* ขนาดเป็นศูนย์โดยตั้งใจ ตัวชั้นเป็นเพียงจุดอ้างอิงของระบบพิกัด ลูกทุกตัว
+       วางแบบ absolute ด้วยพิกัดโลก แล้วทั้งชั้นถูก transform ตามกล้อง
+       ถ้าให้ชั้นมีขนาด มันจะบังผืนผ้าใบข้างใต้ */
+    width: 0;
+    height: 0;
+    transform-origin: 0 0;
+    /* คลิกทะลุลงไปที่ผืนผ้าใบเสมอ ยกเว้นกล่องที่กำลังถูกแก้ไขอยู่
+       ถ้าไม่ทำแบบนี้ กระดาษโน้ตจะดูดการคลิกไปหมดจนลากย้ายและเลือกไม่ได้ */
+    pointer-events: none;
+}
+
+.wsb-note,
+.wsb-textbox {
+    position: absolute;
+    overflow-y: auto;
+    padding: 0.6rem 0.7rem;
+    line-height: 1.55;
+    /* ภาษาไทยไม่มีเว้นวรรคระหว่างคำ ต้องอนุญาตให้ตัดกลางคำได้ ไม่งั้นข้อความ
+       ยาว ๆ จะล้นกล่องออกไปทางขวาเป็นบรรทัดเดียว */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+    pointer-events: none;
+}
+
+.wsb-note {
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+    color: #1f2937;
+}
+
+.wsb-textbox {
+    background: transparent;
+}
+
+.wsb-note.is-editing,
+.wsb-textbox.is-editing {
+    pointer-events: auto;
+    outline: 2px solid #2563eb;
+    outline-offset: 1px;
+    cursor: text;
+}
+
+/* ชิ้นงานในชั้นนี้ถูกซูมด้วย CSS transform ซึ่งบางเอนจินเรนเดอร์ฟอนต์เล็ก ๆ
+   ได้เบลอ บอกเบราว์เซอร์ให้เตรียมการแปลงไว้ล่วงหน้าเพื่อให้คมขึ้น
+   (ต้องตรวจด้วยตาจริง jsdom กับการอ่าน CSS พิสูจน์เรื่องนี้ไม่ได้) */
+.wsb-overlay {
+    will-change: transform;
+}
+
+.wsb-swatch--sticky .wsb-swatch__dot {
+    border-radius: 0.2rem;
+}
+
+/* ── ตัวบอกสถานะการบันทึก ────────────────────────────────────── */
+
+.wsb-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    /* ความยาวข้อความต่างกันมากระหว่างสถานะ ล็อกความกว้างขั้นต่ำไว้เพื่อไม่ให้
+       ปุ่มข้าง ๆ กระโดดไปมาทุกครั้งที่บันทึก */
+    min-width: 7rem;
+}
+
+.wsb-save--teal {
+    background: #f0fdfa;
+    color: #0f766e;
+}
+
+.wsb-save--gray {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.wsb-save--blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.wsb-save--amber {
+    background: #fffbeb;
+    color: #b45309;
+}
+
+/* หมุนไอคอนเฉพาะตอนกำลังบันทึก และเคารพการตั้งค่าลดการเคลื่อนไหวของผู้ใช้ */
+.wsb-save[data-state="saving"] i {
+    animation: wsb-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wsb-save[data-state="saving"] i {
+        animation: none;
+    }
+}
+
+@keyframes wsb-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ws-btn--ghost {
+    border-color: transparent;
+    background: transparent;
+    color: #475569;
+}
+
+.ws-btn--ghost:hover:not(:disabled) {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
