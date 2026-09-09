@@ -108,7 +108,11 @@ class MyTaskController extends Controller
                 'leader.department',
                 'collaborators.department',
                 'images',
-                'subtasks',
+                'children.user.department',
+                'children.taskList',
+                'children.collaborators.department',
+                'children.images',
+                'children.updates',
                 'updates.user.department',
                 'updates.attachments',
                 'activityLogs.user.department',
@@ -120,20 +124,37 @@ class MyTaskController extends Controller
             ->latest('job_id')
             ->get();
 
+        $allTaskLists = $this->taskListsForCurrentUser();
+        $archivedTaskLists = $allTaskLists->whereNotNull('archived_at')->values();
+        $taskLists = $allTaskLists->whereNull('archived_at')->values();
+        $archivedListIds = $archivedTaskLists->pluck('id');
+
+        // โปรเจกต์ที่จัดเก็บยังเก็บงานและความสัมพันธ์ทุกอย่างไว้ แต่ไม่ปะปนกับพื้นที่ทำงานปัจจุบัน
+        $workOrders = $workOrders
+            ->reject(fn (WorkOrder $workOrder) => $archivedListIds->contains($workOrder->work_order_list_id))
+            ->values();
+
+        /*
+         * งานย่อยคืองานจริงที่มี parent_job_id มันจึงถูกคิวรีกลับมาพร้อมงานแม่
+         * แต่ต้องไม่ถูกนับหรือวาดเป็นแถวของตัวเองในบอร์ด ตาราง ปฏิทิน หรือแถบสรุป
+         * เพราะมันแสดงอยู่ใต้งานแม่แล้ว ที่นี่จึงแยกออกมาก่อนทุกการคำนวณ
+         */
+        $childWorkOrders = $workOrders->filter(fn (WorkOrder $workOrder) => $workOrder->parent_job_id !== null)->values();
+        $workOrders = $workOrders->filter(fn (WorkOrder $workOrder) => $workOrder->parent_job_id === null)->values();
+
         $workspaceWorkOrders = $workOrders;
         if (TaskScopeOptions::isBusinessDayScope($taskScope)) {
             // "งานของวันนี้" ตัดสินด้วยวันทำงานไทย จึงกรองในหน่วยความจำด้วยนิยามเดียวกับ TodayWorkspace
             $workspaceWorkOrders = TodayWorkspace::tasks($workOrders);
         } elseif ($taskScope !== 'all') {
             // ตัวกรองทำได้แค่ "แคบลง" จากสิ่งที่หน้านี้แสดงอยู่ จึงต้องตั้งต้นจากชุดเดียวกัน
-            $workspaceTaskIds = $this->applyTaskScope(WorkOrder::query()->visibleInProjectsFor($user), $user, $taskScope)
+            $workspaceTaskIds = $this->applyTaskScope(WorkOrder::query()->topLevel()->visibleInProjectsFor($user), $user, $taskScope)
                 ->pluck('job_id');
             $workspaceWorkOrders = $workOrders
                 ->whereIn('job_id', $workspaceTaskIds)
                 ->values();
         }
 
-        $taskLists = $this->taskListsForCurrentUser();
         $manageableTaskLists = $taskLists->where('user_id', $user->id)->values();
 
         $visibleLists = $taskLists->where('is_visible', true)->values();
@@ -158,6 +179,12 @@ class MyTaskController extends Controller
         // ปฏิทินต้องเคารพตัวกรองเดียวกับตารางและบอร์ด
         // เดิมใช้ $workOrders ที่ยังไม่กรอง ผู้ใช้จึงกรองแล้วสลับไปปฏิทินแล้วเห็นงานทุกคนโผล่กลับมา
         $calendarTasks = $workspaceWorkOrders;
+        // โมดัลรายละเอียดงานอ่านข้อมูลจากแถวต้นทางและ JSON ที่ฝังไว้ในหน้า
+        // งานย่อยของงานที่มองเห็นจึงต้องถูกส่งไปด้วย ไม่งั้นกดเปิดงานย่อยแล้วจะไม่มีอะไรเกิดขึ้น
+        $visibleTaskIds = $workspaceWorkOrders->pluck('job_id')->map(fn ($id) => (int) $id)->all();
+        $childTasks = $childWorkOrders
+            ->filter(fn (WorkOrder $workOrder) => in_array((int) $workOrder->parent_job_id, $visibleTaskIds, true))
+            ->values();
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($workOrders->pluck('job_id'), $user);
         $availableCollaborators = TaskCollaboratorOptions::forActor($user);
         $projectCreatorMeta = ProjectCreatorSummary::forListIds($taskLists->pluck('id'));
@@ -187,12 +214,14 @@ class MyTaskController extends Controller
             'calendarMeetings',
             'calendarMeetingRange',
             'taskLists',
+            'archivedTaskLists',
             'manageableTaskLists',
             'visibleLists',
             'workspaceTaskLists',
             'activeTasks',
             'completedTasks',
             'calendarTasks',
+            'childTasks',
             'availableCollaborators',
             'projectCreatorMeta',
             'todayTasks',
@@ -310,10 +339,22 @@ class MyTaskController extends Controller
         }
 
         $remembered = $request->session()->get(self::WORKSPACE_VIEW_SESSION_KEY);
-
-        return is_string($remembered) && in_array($remembered, $allowed, true)
+        $view = is_string($remembered) && in_array($remembered, $allowed, true)
             ? $remembered
             : self::DEFAULT_WORKSPACE_VIEW;
+
+        /*
+         * ลิงก์ "เปิดงาน" (?open_task=) ต้องพาไปยังมุมมองที่มีรายการงานให้เห็นจริง
+         *
+         * มุมมอง "ประชุม" แทนที่พื้นที่ทำงานทั้งหมดด้วยรายการประชุม ผู้ใช้ที่ค้างมุมมองนี้ไว้
+         * จึงเคยกดงานจากหน้ารายงานแล้วไปโผล่หน้าประชุมโดยไม่มีงานใบนั้นให้ดู
+         * การสลับตรงนี้เป็นเฉพาะครั้งนั้น ไม่เขียนทับมุมมองที่ผู้ใช้จำไว้
+         */
+        if ($view === 'meeting' && $request->filled('open_task')) {
+            return in_array('board', $allowed, true) ? 'board' : self::DEFAULT_WORKSPACE_VIEW;
+        }
+
+        return $view;
     }
 
     /**
@@ -345,6 +386,7 @@ class MyTaskController extends Controller
 
         $taskLists = $this->taskListsForCurrentUser()
             ->where('user_id', $user->id)
+            ->whereNull('archived_at')
             ->values();
 
         $validated = $request->validate([
@@ -488,7 +530,7 @@ class MyTaskController extends Controller
 
             $requestedListId = (int) ($validated['work_order_list_id'] ?? 0);
             $list = $requestedListId
-                ? WorkOrderList::query()->whereKey($requestedListId)->where('user_id', $actor->id)->first()
+                ? WorkOrderList::query()->whereKey($requestedListId)->where('user_id', $actor->id)->whereNull('archived_at')->first()
                 : null;
 
             abort_if($requestedListId && ! $list, 403, 'คุณไม่มีสิทธิ์เพิ่มงานในโปรเจกต์นี้');
@@ -523,13 +565,26 @@ class MyTaskController extends Controller
                 ]);
 
                 if ($itemIndex === 0 && $subtaskTitles->isNotEmpty()) {
-                    $job->subtasks()->createMany($subtaskTitles
-                        ->map(fn (string $title, int $index) => [
-                            'created_by' => $actor->id,
-                            'title' => $title,
-                            'sort_order' => $index,
-                        ])
-                        ->all());
+                    // งานย่อยเป็น WorkOrder ลูก จึงรับบริบทของงานแม่มาทั้งหมดตั้งแต่แรก
+                    // แล้วผู้ใช้ค่อยเปลี่ยนสถานะ ผู้รับผิดชอบ หรือวันที่ของแต่ละใบทีหลัง
+                    $subtaskTitles->each(fn (string $title, int $index) => WorkOrder::create([
+                        'user_id' => $assignee->id,
+                        'created_by' => $actor->id,
+                        'assigned_by' => $actor->id,
+                        'leader_user_id' => $leaderId,
+                        'department_id' => $assignee->department_id ?? $actor->department_id,
+                        'work_order_list_id' => $list->id,
+                        'parent_job_id' => $job->job_id,
+                        'parent_sort_order' => $index,
+                        'job_topic' => $title,
+                        'job_priority' => $validated['job_priority'] ?? 2,
+                        'job_status' => 2,
+                        'approval_status' => $approval['approval_status'],
+                        'approved_by' => $approval['approved_by'],
+                        'approved_at' => $approval['approved_at'],
+                        'job_start_at' => Carbon::parse($validated['job_start_at']),
+                        'job_due_at' => Carbon::parse($validated['job_due_at']),
+                    ]));
                 }
 
                 AuditTrail::log('project_leader_assigned', $job, 'กำหนดหัวหน้าโปรเจกต์สำหรับงาน: '.$job->job_topic, [
@@ -551,7 +606,7 @@ class MyTaskController extends Controller
                     }
                 }
 
-                AuditTrail::log('created', $job, ($sameDepartment ? 'สร้างโปรเจกต์: ' : 'ส่งคำขอเปิดงานข้ามแผนก: ').$job->job_topic, [
+                AuditTrail::log('created', $job, ($approval['approval_status'] === 'approved' ? 'สร้างโปรเจกต์: ' : 'ส่งคำขอเปิดงานข้ามแผนก: ').$job->job_topic, [
                     'after' => $job->attributesToArray(),
                 ]);
 
@@ -585,7 +640,7 @@ class MyTaskController extends Controller
             $sameDepartment
         );
 
-        if ($sameDepartment) {
+        if ($approval['approval_status'] === 'approved') {
             $message = isset($validated['work_order_list_id'])
                 ? 'สร้างงานในโปรเจกต์สำเร็จ'
                 : 'สร้างโปรเจกต์และงานสำเร็จ';
@@ -598,7 +653,7 @@ class MyTaskController extends Controller
             'message' => $message,
             'job_id' => $job->job_id,
             'list_id' => $job->work_order_list_id,
-            'requires_admin_review' => ! $sameDepartment,
+            'requires_admin_review' => $approval['approval_status'] !== 'approved',
         ], 201);
     }
 
@@ -716,6 +771,49 @@ class MyTaskController extends Controller
             'list_id' => $list->id,
             'name' => $list->name,
             'priority' => (int) $list->priority,
+        ]);
+    }
+
+    public function archiveList(WorkOrderList $list): JsonResponse
+    {
+        $this->authorize('manage', $list);
+        abort_if($list->archived_at !== null, 422, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว');
+        abort_unless($this->listIsCompleted($list), 422, 'ต้องทำงานและงานย่อยทั้งหมดให้เสร็จก่อนจัดเก็บโปรเจกต์');
+        abort_if($list->taskRequests()->where('status', 'pending')->exists(), 422, 'ยังมีคำขอเพิ่มงานที่รอพิจารณา จึงยังจัดเก็บโปรเจกต์ไม่ได้');
+
+        $before = $list->attributesToArray();
+        $list->update(['archived_at' => now()]);
+
+        AuditTrail::log('archived', $list, 'จัดเก็บโปรเจกต์ที่เสร็จแล้ว: '.$list->name, [
+            'before' => $before,
+            'after' => $list->fresh()->attributesToArray(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'จัดเก็บโปรเจกต์ที่เสร็จแล้วเรียบร้อย',
+            'list_id' => $list->id,
+            'archived_at' => $list->archived_at?->toIso8601String(),
+        ]);
+    }
+
+    public function restoreList(WorkOrderList $list): JsonResponse
+    {
+        $this->authorize('manage', $list);
+        abort_if($list->archived_at === null, 422, 'โปรเจกต์นี้เปิดใช้งานอยู่แล้ว');
+
+        $before = $list->attributesToArray();
+        $list->update(['archived_at' => null]);
+
+        AuditTrail::log('restored', $list, 'เปิดโปรเจกต์อีกครั้ง: '.$list->name, [
+            'before' => $before,
+            'after' => $list->fresh()->attributesToArray(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'นำโปรเจกต์กลับมาเปิดอีกครั้งแล้ว',
+            'list_id' => $list->id,
         ]);
     }
 
@@ -1067,6 +1165,10 @@ class MyTaskController extends Controller
                 ->with('requester')
                 ->oldest(),
         ])
+            ->withCount(['workOrders', 'attachments'])
+            ->withExists([
+                'workOrders as has_incomplete_work_orders' => fn ($query) => $query->where('job_status', '!=', 4),
+            ])
             ->where(function ($query) use ($user, $accessibleListIds) {
                 $query->where('user_id', $user->id)
                     ->orWhereIn('id', $accessibleListIds);

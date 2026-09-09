@@ -200,6 +200,58 @@ class TaskCollaboratorNotificationTest extends TestCase
         ]);
     }
 
+    public function test_destination_department_head_receives_and_can_open_cross_department_approval_notification(): void
+    {
+        $ownerDepartment = Department::create(['department_name' => 'IT']);
+        $otherDepartment = Department::create(['department_name' => 'Marketing']);
+        $owner = $this->user('user', $ownerDepartment);
+        $candidate = $this->user('user', $otherDepartment);
+        $head = $this->user('user', $otherDepartment);
+        $head->update(['is_department_head' => true]);
+        $task = $this->taskFor($owner, $ownerDepartment);
+
+        $this->assertFalse($head->can('view', $task));
+
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
+            ->assertOk();
+
+        $notification = SystemNotification::where('user_id', $head->id)
+            ->where('work_order_id', $task->job_id)
+            ->where('type', 'collaborator_approval_request')
+            ->firstOrFail();
+
+        $this->assertSame($candidate->id, (int) data_get($notification->data, 'candidate_user_id'));
+        $this->actingAs($head)
+            ->get(route('notifications.open', $notification))
+            ->assertRedirect(route('admin.approvals.index', ['approval_queue' => 'collaborator']));
+    }
+
+    public function test_cross_department_head_collaborator_joins_immediately(): void
+    {
+        $ownerDepartment = Department::create(['department_name' => 'IT']);
+        $otherDepartment = Department::create(['department_name' => 'Marketing']);
+        $owner = $this->user('user', $ownerDepartment);
+        $head = $this->user('user', $otherDepartment);
+        $head->update(['is_department_head' => true]);
+        $task = $this->taskFor($owner, $ownerDepartment);
+
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$head->id]])
+            ->assertOk();
+
+        $this->assertSame('accepted', $task->collaborators()->findOrFail($head->id)->pivot->status);
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $head->id,
+            'work_order_id' => $task->job_id,
+            'type' => 'collaborator_added',
+        ]);
+        $this->assertDatabaseMissing('system_notifications', [
+            'work_order_id' => $task->job_id,
+            'type' => 'collaborator_approval_request',
+        ]);
+    }
+
     public function test_cross_department_retry_does_not_duplicate_but_remove_and_reinvite_creates_a_new_request_notice(): void
     {
         $ownerDepartment = Department::create(['department_name' => 'IT']);

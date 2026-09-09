@@ -18,7 +18,32 @@ final class WorkLogPresenter
     public static function forClient(WorkLog $log): array
     {
         $kind = WorkLogDesign::kind($log->kind);
-        $status = WorkLogDesign::status($log->status);
+        $now = TodayWorkspace::businessNow()->utc();
+        $isRoutine = $log->work_log_template_id !== null;
+
+        // วันของรายการผ่านไปแล้วหรือยัง เทียบด้วยวันตามเวลาทำการเสมอ
+        // เพราะ 23:00 ที่กรุงเทพยังเป็นวันเดิม แต่เป็นวันถัดไปแล้วตามเวลา UTC
+        $isPastDay = $log->work_date !== null
+            && $log->work_date->format('Y-m-d') < TodayWorkspace::businessNow()->format('Y-m-d');
+
+        // งานประจำที่วันนั้นผ่านไปแล้วและยังไม่ถูกปิดรายการ กดเริ่มงานไม่ได้อีกแล้ว
+        // เหลือทางเดียวคือระบุเหตุผลว่าทำไมวันนั้นไม่ได้ทำ ดู WorkLogService::startRoutine()
+        $isMissed = $isRoutine
+            && $isPastDay
+            && in_array($log->status, ['open', 'in_progress'], true);
+
+        $isOverdue = $isRoutine
+            && ! $isMissed
+            && in_array($log->status, ['open', 'in_progress'], true)
+            && $log->planned_end_at !== null
+            && $now->greaterThan($log->planned_end_at);
+
+        $displayStatus = match (true) {
+            $isMissed => 'missed',
+            $isOverdue => 'overdue',
+            default => $log->status,
+        };
+        $status = WorkLogDesign::status($displayStatus);
 
         return [
             'id' => $log->id,
@@ -33,6 +58,7 @@ final class WorkLogPresenter
             'kind_icon' => $kind['icon'],
 
             'status' => $log->status,
+            'display_status' => $displayStatus,
             'status_label' => $status['label'],
             'status_tone' => $status['tone'],
 
@@ -43,6 +69,10 @@ final class WorkLogPresenter
             // แปลงเป็นเวลากรุงเทพแล้ว (ให้แสดงผลได้ทันทีโดยไม่ต้องแปลงซ้ำฝั่ง client)
             'started_at' => $log->started_at?->toIso8601String(),
             'ended_at' => $log->ended_at?->toIso8601String(),
+            'planned_start_at' => $log->planned_start_at?->toIso8601String(),
+            'planned_end_at' => $log->planned_end_at?->toIso8601String(),
+            'planned_start_time' => self::clockLabel($log, 'planned_start_at'),
+            'planned_end_time' => self::clockLabel($log, 'planned_end_at'),
             'started_time' => self::clockLabel($log, 'started_at'),
             'ended_time' => self::clockLabel($log, 'ended_at'),
             'time_range_label' => self::timeRangeLabel($log),
@@ -50,8 +80,28 @@ final class WorkLogPresenter
             'duration_minutes' => $log->duration_minutes,
             'duration_label' => WorkLogDesign::durationLabel($log->duration_minutes),
 
-            'is_running' => $log->open_timer_owner_id !== null,
+            'is_done' => $log->status === 'done',
+            'is_skipped' => $log->status === 'skipped',
+            'is_in_progress' => $log->status === 'in_progress',
+            'is_overdue' => $isOverdue,
+            'is_past_day' => $isPastDay,
+            // งานของวันที่ผ่านไปแล้วต้องระบุเหตุผล ไม่ใช่กดเริ่มงานย้อนหลัง
+            'is_missed' => $isMissed,
+            'requires_missed_reason' => $isMissed,
+            'can_start' => $isRoutine && ! $isPastDay && $log->status === 'open'
+                && ($log->planned_start_at === null || ! $now->lessThan($log->planned_start_at)),
+            'requires_late_start_reason' => $isRoutine && ! $isPastDay && $log->status === 'open'
+                && $log->planned_start_at !== null && $now->greaterThan($log->planned_start_at),
+            'requires_late_completion_reason' => $isRoutine && ! $isPastDay && $log->status === 'in_progress'
+                && $log->planned_end_at !== null && $now->greaterThan($log->planned_end_at),
+            'late_start_reason' => $log->late_start_reason,
+            'late_completion_reason' => $log->late_completion_reason,
+            'skip_reason' => $log->skip_reason,
             'auto_closed' => $log->auto_closed_at !== null,
+
+            // งานประจำที่มาจากแม่แบบ — ต้องบอกช่วงเวลาที่ "ตั้งไว้ว่าต้องเข้าไปทำ"
+            // ไม่ใช่เวลาที่ทำจริง เพราะตอนที่รายการยังค้างอยู่ ยังไม่มีเวลาจริงเลย
+            'routine' => self::routine($log),
 
             'owner' => [
                 'id' => $log->user_id,
@@ -80,6 +130,36 @@ final class WorkLogPresenter
                 ->map(fn (WorkLogAttachment $attachment): array => self::attachment($attachment))
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * ข้อมูลของงานประจำที่รายการนี้ถูกสร้างมาจาก
+     *
+     * คืน null สำหรับงานที่ผู้ใช้พิมพ์เอง เพื่อให้ฝั่งแสดงผลแยกสองกรณีนี้ได้ตรง ๆ
+     * โดยไม่ต้องเดาจาก source หรือ kind ซึ่งเป็นคนละความหมายกัน
+     */
+    private static function routine(WorkLog $log): ?array
+    {
+        if ($log->work_log_template_id === null) {
+            return null;
+        }
+
+        $template = $log->template;
+
+        if ($template === null) {
+            return null;
+        }
+
+        $isShared = (int) $template->user_id !== (int) $log->user_id;
+
+        return [
+            'id' => $template->id,
+            // ช่วงเวลาที่ต้องเข้าไปทำ เช่น "08:30 - 08:50"
+            'window' => $template->plannedWindowLabel(),
+            'is_shared' => $isShared,
+            // ชื่อคนที่ตั้งงานประจำนี้ไว้ แสดงเฉพาะตอนที่ไม่ใช่ของตัวเอง
+            'owner_name' => $isShared ? $template->user?->name : null,
         ];
     }
 
@@ -135,10 +215,6 @@ final class WorkLogPresenter
 
         if ($start === null) {
             return 'ไม่ระบุเวลา';
-        }
-
-        if ($log->open_timer_owner_id !== null) {
-            return $start.' - กำลังทำ';
         }
 
         $end = self::clockLabel($log, 'ended_at');

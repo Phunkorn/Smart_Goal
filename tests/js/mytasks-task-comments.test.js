@@ -365,6 +365,83 @@ const chooseImages = (ui, names) => {
     input.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
 };
 
+test('รูปในคอมเมนต์เปิดเป็นกล่องดูรูปใน Workspace ไม่ใช่พาออกไปเปิด URL ของไฟล์', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 601,
+        category: 'comment',
+        task_id: 7,
+        comment: {
+            id: 951,
+            author: 'เพื่อนร่วมงาน',
+            note: 'ตามภาพครับ',
+            at: 'ตอนนี้',
+            images: [{url: '/media/comment-attachments/12', name: 'ภาพหน้าจอ.png'}],
+        },
+    }}));
+
+    const thumbnail = ui.taskModal.querySelector('[data-open-comment-image]');
+    assert.ok(thumbnail, 'รูปในฟองแชทต้องเป็นปุ่มเปิดกล่องดูรูป');
+    assert.equal(thumbnail.tagName, 'BUTTON', 'ต้องไม่ใช่ลิงก์ที่พาผู้ใช้ออกจากบทสนทนา');
+
+    click(thumbnail);
+
+    const modal = ui.imageModal();
+    assert.equal(modal.hidden, false);
+    assert.equal(modal.querySelector('[data-comment-image-view]').getAttribute('src'), '/media/comment-attachments/12');
+    assert.equal(modal.querySelector('[data-comment-image-name]').textContent, 'ภาพหน้าจอ.png');
+    // ทางเปิดไฟล์จริงยังอยู่ สำหรับคนที่ต้องการโหลดหรือดูเต็มจอ
+    assert.equal(modal.querySelector('[data-comment-image-source]').getAttribute('href'), '/media/comment-attachments/12');
+
+    click(modal.querySelector('[data-close-comment-image]'));
+
+    assert.equal(modal.hidden, true);
+    // ปิดแล้วต้องไม่เหลือรูปเดิมค้างไว้ให้เห็นแวบหนึ่งตอนเปิดรูปใบถัดไป
+    assert.equal(modal.querySelector('[data-comment-image-view]').getAttribute('src'), '');
+    // Task Workspace ต้องยังเปิดอยู่ ผู้ใช้กลับไปอ่านบทสนทนาต่อได้ทันที
+    assert.equal(ui.taskModal.hidden, false);
+});
+
+/** จำลองการวางจากคลิปบอร์ด — jsdom ไม่มี ClipboardEvent ที่ตั้ง files ได้ */
+const pasteInto = (ui, target, files) => {
+    const event = new ui.window.Event('paste', {bubbles: true, cancelable: true});
+    Object.defineProperty(event, 'clipboardData', {configurable: true, value: {files}});
+    target.dispatchEvent(event);
+
+    return event;
+};
+
+test('วางรูปจากคลิปบอร์ดลงช่องคอมเมนต์ได้ โดยยังเลือกจากไอคอนไฟล์ได้เหมือนเดิม', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    const pasted = pasteInto(ui, ui.compose(), [fakeImage(ui.window, 'ภาพหน้าจอ.png')]);
+
+    assert.equal(pasted.defaultPrevented, true, 'การวางรูปต้องไม่ถูกแปะเป็นข้อความในช่องพิมพ์ด้วย');
+    assert.equal(ui.previews().hidden, false);
+    assert.equal(ui.previews().querySelectorAll('.task-timeline__preview').length, 1);
+
+    // ทางเดิมต้องยังใช้ได้ และรูปจากทั้งสองทางต้องสะสมรวมกัน
+    chooseImages(ui, ['จากไอคอน.png']);
+    assert.equal(ui.previews().querySelectorAll('.task-timeline__preview').length, 2);
+});
+
+test('วางข้อความธรรมดายังทำงานปกติ และไฟล์ที่ไม่ใช่รูปถูกปฏิเสธ', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    const text = pasteInto(ui, ui.compose(), []);
+    assert.equal(text.defaultPrevented, false, 'การวางข้อความต้องปล่อยให้เบราว์เซอร์จัดการตามปกติ');
+
+    const pdf = new ui.window.File([new Uint8Array([1])], 'เอกสาร.pdf', {type: 'application/pdf'});
+    const rejected = pasteInto(ui, ui.compose(), [pdf]);
+
+    assert.equal(rejected.defaultPrevented, false);
+    assert.equal(ui.previews().querySelectorAll('.task-timeline__preview').length, 0);
+});
+
 test('รูปที่เลือกแสดงพรีวิวและเอาออกทีละใบได้', async (t) => {
     const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
     click(ui.boardTitle());

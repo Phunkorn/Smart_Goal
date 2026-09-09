@@ -35,7 +35,9 @@ class SidebarNavigationTest extends TestCase
         // กระดานไอเดียเป็นงานร่วมของทั้งแผนก จึงอยู่ต่อจากบอร์ดงานซึ่งเป็นงานของทีม
         // เหมือนกัน และมาก่อนรายงานซึ่งเป็นการสรุปผลย้อนหลัง
         $workspacePosition = strpos($content, 'href="'.route('workspace.index').'"');
-        $reportPosition = strpos($content, 'href="'.route('reports.my').'"');
+        // พนักงานเข้าหน้าเลือกรายงานเหมือนหัวหน้าแล้ว (มีสองรายงานให้เลือก
+        // คือรายงานตัวเองกับรายงานปฏิบัติงาน) ไม่ได้ถูกส่งตรงไป reports.my อีก
+        $reportPosition = strpos($content, 'href="'.route('reports.index').'"');
 
         $this->assertNotFalse($myTasksPosition);
         $this->assertNotFalse($dailyLogPosition);
@@ -46,7 +48,7 @@ class SidebarNavigationTest extends TestCase
         // บันทึกงานประจำวันเป็นงานส่วนตัวเช่นเดียวกับ "งานของฉัน" จึงอยู่ก่อนบอร์ดของทีม
         $this->assertLessThan($workBoardPosition, $dailyLogPosition, '"บันทึกงานประจำวัน" ต้องอยู่ก่อน "บอร์ดงาน"');
         $this->assertLessThan($workspacePosition, $workBoardPosition, '"บอร์ดงาน" ต้องอยู่ก่อน "กระดานไอเดีย"');
-        $this->assertLessThan($reportPosition, $workspacePosition, '"กระดานไอเดีย" ต้องอยู่ก่อน "รายงานของฉัน"');
+        $this->assertLessThan($reportPosition, $workspacePosition, '"กระดานไอเดีย" ต้องอยู่ก่อน "รายงาน"');
     }
 
     public function test_admin_sidebar_is_split_into_clear_operational_sections(): void
@@ -120,7 +122,13 @@ class SidebarNavigationTest extends TestCase
      * เครื่องหมายประจำแอปเป็นโลโก้บริษัทจริง ไม่ใช่ไอคอนอาคารทั่วไปของ Bootstrap Icons
      * และต้องเป็นชุดเดียวกันทุกบทบาท เพราะเป็นตัวตนของระบบ ไม่ใช่ของผู้ใช้คนใดคนหนึ่ง
      */
-    public function test_sidebar_brand_uses_the_company_logo_and_separate_subtitle_for_every_role(): void
+    /**
+     * โลโก้อยู่ในหัว Sidebar ส่วนชื่อระบบอยู่บนแถบบน
+     *
+     * ชื่อระบบต้องอ่านได้แม้ Sidebar ถูกย่อหรือปิดอยู่ จึงย้ายมาไว้ข้างปุ่มเมนูบน Topbar
+     * และต้องมีที่เดียวเท่านั้น ไม่ใช่ประกาศซ้ำทั้งสองที่จนกลายเป็นสองแหล่งความจริง
+     */
+    public function test_sidebar_shows_only_the_logo_while_the_topbar_carries_the_product_name(): void
     {
         $logo = asset('images/premiuum-care-logo.png');
 
@@ -133,8 +141,12 @@ class SidebarNavigationTest extends TestCase
                 ->get(route($routeName))
                 ->assertOk()
                 ->assertSee('<span class="brand-mark" aria-hidden="true"><img src="'.$logo.'" alt=""></span>', false)
-                ->assertSee('<div class="brand-name">Smart Goals</div>', false)
-                ->assertSee('<div class="brand-subtitle">ระบบจัดการองค์กร</div>', false)
+                ->assertSee('class="topbar-brand"', false)
+                ->assertSee('<span class="topbar-brand__name">Smart Goals</span>', false)
+                ->assertSee('<span class="topbar-brand__subtitle">ระบบจัดการองค์กร</span>', false)
+                // ชื่อระบบต้องไม่เหลือค้างอยู่ในหัว Sidebar อีก
+                ->assertDontSee('<div class="brand-name">', false)
+                ->assertDontSee('<div class="brand-subtitle">', false)
                 ->assertDontSee('bi-buildings', false)
                 ->assertDontSee('bi-bullseye', false);
         }
@@ -270,6 +282,57 @@ class SidebarNavigationTest extends TestCase
         $this->assertGreaterThan($sidebarEnd, $logout, 'ปุ่มออกจากระบบต้องไม่อยู่ใน Sidebar');
         $this->assertGreaterThan($notificationBell, $logout, 'ปุ่มออกจากระบบต้องอยู่หลังไอคอนแจ้งเตือน');
         $this->assertLessThan($topbarEnd, $logout, 'ปุ่มออกจากระบบต้องอยู่ใน Topbar');
+    }
+
+    /**
+     * เมนูของพนักงานและหัวหน้าแผนกถูกแยกหมวดตามคำถามที่ผู้ใช้ถามตอนกดเมนู
+     *
+     * เดิมทั้งห้าเมนูกองอยู่ใต้ "งานของฉัน" หัวข้อเดียว ทั้งที่ครึ่งหนึ่งเป็นงานของทีม
+     * และรายงาน หัวข้อจึงไม่ได้ช่วยหาเมนูเลย
+     */
+    public function test_member_and_head_menus_are_split_into_meaningful_sections(): void
+    {
+        $member = $this->userWithRole('user');
+
+        $content = $this->actingAs($member)
+            ->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee('<div class="nav-section-label">งานของฉัน</div>', false)
+            ->assertSee('<div class="nav-section-label">งานของทีม</div>', false)
+            ->assertSee('<div class="nav-section-label">รายงาน</div>', false)
+            ->getContent();
+
+        // หัวข้อต้องมาก่อนเมนูที่มันครอบ ไม่ใช่ลอยอยู่ผิดที่
+        $teamLabel = strpos($content, '<div class="nav-section-label">งานของทีม</div>');
+        $reportLabel = strpos($content, '<div class="nav-section-label">รายงาน</div>');
+
+        $this->assertGreaterThan(
+            strpos($content, 'href="'.route('daily-logs.index').'"'),
+            $teamLabel,
+            '"งานของทีม" ต้องอยู่หลังเมนูงานส่วนตัว'
+        );
+        $this->assertLessThan(
+            strpos($content, 'href="'.route('work-board.index').'"'),
+            $teamLabel,
+            '"งานของทีม" ต้องอยู่ก่อน "บอร์ดงาน"'
+        );
+        $this->assertLessThan(
+            strpos($content, 'href="'.route('reports.index').'"'),
+            $reportLabel,
+            '"รายงาน" ต้องอยู่ก่อนเมนูรายงาน'
+        );
+
+        // หัวหน้าแผนกเห็นหัวข้อเดียวกัน แต่กลุ่มของทีมพูดในนามแผนกที่ตัวเองดูแล
+        $head = $this->userWithRole('user');
+        $head->forceFill(['is_department_head' => true])->save();
+
+        $this->actingAs($head)
+            ->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee('<div class="nav-section-label">งานของฉัน</div>', false)
+            ->assertSee('<div class="nav-section-label">แผนกของฉัน</div>', false)
+            ->assertSee('<div class="nav-section-label">รายงาน</div>', false)
+            ->assertDontSee('<div class="nav-section-label">งานของทีม</div>', false);
     }
 
     private function userWithRole(string $role): User

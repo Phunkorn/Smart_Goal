@@ -120,7 +120,7 @@
                     @include('tasks.partials.table-kanban', ['allTasks' => $workspaceTasks, 'taskLists' => $taskLists, 'manageableTaskLists' => $manageableTaskLists, 'projectCreatorMeta' => $projectCreatorMeta, 'showCreateActions' => $showCreateActions, 'showQuickAdd' => $showQuickAdd, 'taskLinkMode' => $taskLinkMode, 'workspaceContext' => $workspaceContext])
                 </div>
                 @include('tasks.partials.calendar')
-                @include('tasks.partials.workspace-task-source', compact('allTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
+                @include('tasks.partials.workspace-task-source', compact('allTasks', 'childTasks', 'taskLists', 'manageableTaskLists', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
             </div>
 
             @if($workspaceView === 'meeting')
@@ -145,8 +145,10 @@
         <div class="notion-toast" data-toast></div>
     </div>
     @include('tasks.partials.workspace-interactions', array_merge(
-        compact('allTasks', 'availableCollaborators', 'showCreateActions', 'workspaceContext'),
+        compact('availableCollaborators', 'showCreateActions', 'workspaceContext'),
         [
+            // โมดัลของงานย่อยอ่านสิทธิ์และข้อมูลจาก JSON ก้อนเดียวกับงานแม่
+            'allTasks' => $allTasks->merge($childTasks),
             'workspaceRootLabel' => $member->name,
             'workspaceRootUrl' => route($memberWorkspaceRoute, $memberWorkspaceParameters),
             'forceReadOnly' => $isReadOnlyWorkspace,

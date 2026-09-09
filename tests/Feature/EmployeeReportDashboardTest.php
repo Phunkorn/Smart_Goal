@@ -62,6 +62,44 @@ class EmployeeReportDashboardTest extends TestCase
         $this->actingAs($normal)->get(route('reports.employeeExportCsv', $this->employee))->assertForbidden();
     }
 
+    public function test_department_head_sees_an_own_report_action_but_is_not_listed_with_the_team(): void
+    {
+        $head = $this->user('user', true, $this->department, [
+            'name' => 'หัวหน้า เทคโนโลยี',
+            'is_department_head' => true,
+        ]);
+        $teamMember = $this->user('user', true, $this->department, ['name' => 'สมาชิกในทีม']);
+
+        $selection = $this->actingAs($head)->get(route('reports.employees.index'));
+
+        $selection->assertOk()
+            ->assertSee('ดูรายงานของฉัน')
+            ->assertSee(route('reports.my'), false)
+            ->assertSee($teamMember->name)
+            ->assertSee('ไม่รวมตัวคุณ');
+        $this->assertEqualsCanonicalizing(
+            [$this->employee->id, $teamMember->id],
+            $selection->viewData('employees')->pluck('id')->all()
+        );
+        $this->assertSame(2, $selection->viewData('departments')->first()->active_users_count);
+        $grid = substr($selection->getContent(), strpos($selection->getContent(), 'employee-picker__grid'));
+        $this->assertStringNotContainsString($head->name, $grid);
+
+        $this->actingAs($head)->get(route('reports.employee', $head))
+            ->assertRedirect(route('reports.my'));
+
+        $this->actingAs($head)->get(route('reports.my'))
+            ->assertOk()
+            ->assertSee('ดูรายงานลูกทีม')
+            ->assertSee(route('reports.employees.index'), false)
+            ->assertDontSee('employee-operational', false);
+
+        $this->actingAs($head)->get(route('reports.employee', $teamMember))
+            ->assertOk()
+            ->assertSee('ดูรายงานของฉัน')
+            ->assertSee(route('reports.my'), false);
+    }
+
     public function test_viewer_keeps_read_only_access_to_selection_employee_report_and_export(): void
     {
         $viewer = $this->user('viewer');

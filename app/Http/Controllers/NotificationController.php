@@ -16,7 +16,7 @@ class NotificationController extends Controller
     {
         $filters = $request->validate([
             'status' => ['nullable', 'string', 'in:all,unread'],
-            'category' => ['nullable', 'string', 'in:all,task,review,comment,deadline,system'],
+            'category' => ['nullable', 'string', 'in:all,task,review,comment,deadline,meeting,worklog,system'],
             'project' => ['nullable', 'integer'],
         ]);
         $items = $notifications->paginate($request->user(), $filters);

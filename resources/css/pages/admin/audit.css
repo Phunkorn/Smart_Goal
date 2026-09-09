@@ -520,13 +520,31 @@
 .audit-page .audit-table--activity th:nth-child(4) { width: 25%; }
 .audit-page .audit-table--activity th:nth-child(5) { width: 12%; }
 
-.audit-page .audit-table--trash { min-width: 1120px; }
-.audit-page .audit-table--trash th:nth-child(1) { width: 25%; }
-.audit-page .audit-table--trash th:nth-child(2) { width: 12%; }
-.audit-page .audit-table--trash th:nth-child(3) { width: 18%; }
-.audit-page .audit-table--trash th:nth-child(4) { width: 13%; }
-.audit-page .audit-table--trash th:nth-child(5) { width: 14%; }
-.audit-page .audit-table--trash th:nth-child(6) { width: 18%; }
+/* คอลัมน์แรกคือช่องติ๊กสำหรับเลือกหลายรายการ ลำดับที่เหลือจึงเลื่อนไปหนึ่งช่อง */
+.audit-page .audit-table--trash { min-width: 1164px; }
+.audit-page .audit-table--trash th:nth-child(1) { width: 44px; }
+.audit-page .audit-table--trash th:nth-child(2) { width: 25%; }
+.audit-page .audit-table--trash th:nth-child(3) { width: 12%; }
+.audit-page .audit-table--trash th:nth-child(4) { width: 18%; }
+.audit-page .audit-table--trash th:nth-child(5) { width: 13%; }
+.audit-page .audit-table--trash th:nth-child(6) { width: 14%; }
+.audit-page .audit-table--trash th:nth-child(7) { width: 18%; }
+
+.audit-page .audit-col-select {
+    width: 44px;
+    padding-right: 0;
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* ช่องติ๊กเล็กเกินไปคือเป้าที่กดพลาดง่าย ขยายให้ถึงขนาดนิ้วสัมผัสขั้นต่ำ */
+.audit-page .audit-col-select input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
 
 .audit-page .audit-table tbody tr:last-child td {
     border-bottom: 0;
@@ -1040,5 +1058,137 @@
     .audit-modal .audit-change-row {
         grid-template-columns: minmax(0, 1fr);
         gap: 4px;
+    }
+}
+
+
+/* ── แถบสถานะงานตามเวลา ──────────────────────────────────── */
+
+/*
+ * งานล้างข้อมูลอัตโนมัติทั้งหมดขึ้นกับ cron ของเซิร์ฟเวอร์ ซึ่งมองไม่เห็นจากหน้าเว็บ
+ * แถบนี้จึงต้องอ่านออกตั้งแต่กวาดตาครั้งแรก ไม่ใช่ข้อความเล็ก ๆ ที่กลืนไปกับหน้า
+ */
+.audit-page .audit-scheduler {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+    padding: 11px 14px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.65;
+}
+
+.audit-page .audit-scheduler > i {
+    flex: none;
+    margin-top: 2px;
+    font-size: 15px;
+}
+
+.audit-page .audit-scheduler--ok {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.audit-page .audit-scheduler--warn {
+    border-color: #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+}
+
+.audit-page .audit-scheduler code {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(154, 52, 18, .1);
+    font-size: 12.5px;
+}
+
+/* ── นโยบายการเก็บบันทึกกิจกรรม ──────────────────────────── */
+
+.audit-page .audit-retention-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--text-muted, #64748b);
+    font-size: 13px;
+}
+
+/* ── แถบจัดการหลายรายการ ─────────────────────────────────── */
+
+/*
+ * ลอยติดขอบล่างจอ เพราะตารางถังขยะยาวกว่าหน้าจอเสมอ ผู้ใช้ที่เลื่อนลงไปติ๊กแถวท้าย ๆ
+ * ต้องไม่ต้องเลื่อนกลับขึ้นไปหาปุ่ม
+ *
+ * ซ่อนด้วยแอตทริบิวต์ hidden ไม่ใช่คลาส เพื่อให้มีเจ้าของสถานะเดียวคือ audit.js
+ */
+.audit-page .audit-bulkbar {
+    position: sticky;
+    bottom: 14px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-bottom: 14px;
+    padding: 11px 16px;
+    border: 1px solid #93b4f5;
+    border-radius: 12px;
+    background: var(--surface, #fff);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, .14);
+}
+
+.audit-page .audit-bulkbar__count {
+    margin: 0;
+    color: var(--text, #0f172a);
+    font-size: 13.5px;
+}
+
+.audit-page .audit-bulkbar__count > strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.audit-page .audit-bulkbar__scope {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #1d4ed8;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.audit-page .audit-bulkbar__scope input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.audit-page .audit-bulkbar__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* จอแคบ: ปุ่มต้องเต็มความกว้างแทนที่จะบีบจนกดพลาด และแถบต้องไม่กินพื้นที่เกินครึ่งจอ */
+@media (max-width: 640px) {
+    .audit-page .audit-bulkbar {
+        bottom: 10px;
+        padding: 10px 12px;
+    }
+
+    .audit-page .audit-bulkbar__actions {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .audit-page .audit-bulkbar__actions .audit-btn {
+        flex: 1 1 auto;
+        justify-content: center;
     }
 }

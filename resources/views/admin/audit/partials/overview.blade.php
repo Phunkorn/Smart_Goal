@@ -1,5 +1,6 @@
 @php
     use App\Support\AuditSnapshot;
+    use App\Support\TodayWorkspace;
 
     // ตัวเลขลอย ๆ ตีความได้หลายแบบ จึงต้องมีคำขยายบอกว่านับอะไรและนับถึงเมื่อไร
     $cards = [
@@ -40,6 +41,35 @@
         ],
     ];
 @endphp
+
+{{--
+    สถานะงานตามเวลา
+
+    งานล้างข้อมูลอัตโนมัติทั้งหมดทำงานได้ก็ต่อเมื่อเซิร์ฟเวอร์ตั้ง cron ให้เรียก
+    schedule:run ซึ่งเป็นสิ่งที่อยู่นอกโค้ดและมองไม่เห็นจากหน้าเว็บมาก่อน แถบนี้ทำให้
+    ผู้ดูแลระบบรู้ได้ทันทีว่าต้องกดล้างเองหรือไม่ แทนที่จะเข้าใจว่าระบบล้างให้อยู่แล้ว
+--}}
+@if ($scheduler['is_healthy'])
+    <p class="audit-scheduler audit-scheduler--ok">
+        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+        <span>งานอัตโนมัติทำงานปกติ — ล้างถังขยะและบันทึกเก่าให้เองทุกคืน
+            (ทำงานล่าสุด {{ $scheduler['last_run']->timezone(TodayWorkspace::BUSINESS_TIMEZONE)->format('H:i น.') }})</span>
+    </p>
+@else
+    <p class="audit-scheduler audit-scheduler--warn">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <span>
+            <strong>งานอัตโนมัติไม่ทำงาน</strong> —
+            @if ($scheduler['last_run'])
+                ทำงานล่าสุดเมื่อ {{ $scheduler['last_run']->timezone(TodayWorkspace::BUSINESS_TIMEZONE)->format('d/m/Y H:i น.') }}
+            @else
+                ยังไม่เคยทำงานเลย
+            @endif
+            ข้อมูลเก่าจะไม่ถูกล้างเอง ให้ใช้ปุ่มล้างในแท็บกิจกรรมและถังขยะแทน
+            หรือให้ผู้ดูแลเซิร์ฟเวอร์ตั้ง cron ให้ <code>php artisan schedule:run</code> ทุกนาที
+        </span>
+    </p>
+@endif
 
 <section class="audit-stats audit-stats--overview">
     @foreach ($cards as $card)

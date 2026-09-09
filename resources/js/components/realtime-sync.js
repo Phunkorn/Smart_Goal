@@ -183,3 +183,4 @@ export function initializeRealtimeSync(
 }
 
 if (typeof document !== 'undefined') initializeRealtimeSync(document);
+import './routine-topbar.js';

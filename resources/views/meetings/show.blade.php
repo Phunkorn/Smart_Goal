@@ -11,6 +11,12 @@
     $isOngoing = $start->lte($nowBangkok) && $end->gte($nowBangkok);
     $status = $isOngoing ? ['กำลังประชุม', 'green'] : ($isPast ? ['ที่ผ่านมา', 'gray'] : ['กำลังจะมาถึง', 'blue']);
     $inspectedRole = $inspectedEmployee ? ((int) $meeting->created_by === (int) $inspectedEmployee->id ? 'ผู้สร้าง' : 'ผู้เข้าร่วม') : null;
+    // มาจากแท็บ "ประชุม" ใน Workspace ต้องกลับเข้า Workspace ไม่ใช่ถูกทิ้งไว้ที่หน้า /meetings เดี่ยว ๆ
+    $fromWorkspace = request('from') === 'workspace' && auth()->user()->role === 'user';
+    $meetingBackUrl = $fromWorkspace
+        ? route('mytasks.index', ['view' => 'meeting'])
+        : route('meetings.index', request()->only(['employee']));
+    $meetingBackLabel = $fromWorkspace ? 'กลับไปหน้างานของฉัน' : 'กลับไปรายการประชุม';
     $meetingFeedback = [
         'success' => session('meeting_success'),
         'error' => session('meeting_error') ?: $errors->first(),
@@ -21,7 +27,7 @@
 @endphp
 <div class="meetings-page meetings-page--detail">
     <header class="meetings-page__header">
-        <div><a class="meetings-page__back" href="{{ route('meetings.index', request()->only(['employee'])) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> กลับไปรายการประชุม</a><h1>{{ $meeting->title }}</h1><div class="meetings-page__detail-badges"><span class="meetings-page__status meetings-page__status--{{ $status[1] }}">{{ $status[0] }}</span>@if($inspectedRole)<span class="meetings-page__role">{{ $inspectedEmployee->name }} · {{ $inspectedRole }}</span>@endif</div></div>
+        <div><a class="meetings-page__back" href="{{ $meetingBackUrl }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> {{ $meetingBackLabel }}</a><h1>{{ $meeting->title }}</h1><div class="meetings-page__detail-badges"><span class="meetings-page__status meetings-page__status--{{ $status[1] }}">{{ $status[0] }}</span>@if($inspectedRole)<span class="meetings-page__role">{{ $inspectedEmployee->name }} · {{ $inspectedRole }}</span>@endif</div></div>
         <div class="meetings-page__actions">@can('update', $meeting)<button class="meetings-page__button" type="button" data-meeting-modal-trigger="editMeetingModal" aria-controls="editMeetingModal" aria-haspopup="dialog" data-meeting-edit><i class="bi bi-pencil" aria-hidden="true"></i> แก้ไข</button>@endcan @can('delete', $meeting)<form method="POST" action="{{ route('meetings.destroy', $meeting) }}" data-meeting-delete data-meeting-title="{{ $meeting->title }}">@csrf @method('DELETE')<button class="meetings-page__button meetings-page__button--danger" type="submit"><i class="bi bi-trash3" aria-hidden="true"></i> ลบ</button></form>@endcan</div>
     </header>
 
@@ -38,7 +44,7 @@
         <aside class="meetings-page__panel meetings-page__detail-people"><div class="meetings-page__panel-head"><div><h2>ผู้เข้าร่วม</h2><p>รายชื่อทั้งหมดในการประชุมนี้</p></div><span>{{ $meeting->attendees->count() }} คน</span></div>@include('meetings.components.attendee-list', ['meeting' => $meeting])</aside>
     </div>
 
-    @can('update', $meeting) @include('meetings.components.form-modal', ['formMeeting' => $meeting, 'attendeeOptions' => $attendeeOptions, 'attendeeDepartments' => $attendeeDepartments]) @endcan
+    @can('update', $meeting) @include('meetings.components.form-modal', ['formMeeting' => $meeting, 'attendeeOptions' => $attendeeOptions, 'attendeeDepartments' => $attendeeDepartments, 'meetingContextQuery' => array_filter(['employee' => request('employee'), 'from' => $fromWorkspace ? 'workspace' : null])]) @endcan
     <script type="application/json" data-meeting-feedback>@json($meetingFeedback)</script>
 </div>
 @endsection

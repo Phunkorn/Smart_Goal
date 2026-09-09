@@ -317,6 +317,8 @@
 .notification-center__icon.category-comment { color: #286acb; }
 .notification-center__icon.category-deadline { color: #9a5a08; }
 .notification-center__icon.category-task { color: #08765a; }
+.notification-center__icon.category-meeting { color: #b0347c; }
+.notification-center__icon.category-worklog { color: #1f5f9e; }
 
 .notification-center__title-line {
     display: flex;
@@ -471,12 +473,24 @@
 .notification-center__pagination {
     min-width: 0;
     margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--notification-border);
 }
 
-.notification-center__pagination nav,
-.notification-center__pagination .pagination {
-    max-width: 100%;
-    flex-wrap: wrap;
+.notification-center__pagination-summary {
+    color: var(--notification-muted);
+}
+
+.notification-center__pagination .page-link {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    margin-left: 0;
+    padding: 6px 10px;
+    border-radius: var(--bs-border-radius);
+    font-size: .85rem;
+    line-height: 1.4;
 }
 
 .swal2-popup.notification-confirm {
@@ -636,49 +650,4 @@
 .notification-center__item.is-unread .notification-center__title {
     color: var(--accent-strong, #16389E);
     font-weight: 700;
-}
-
-/* ============================================================================
- * ตัวแบ่งหน้า
- *
- * AppServiceProvider ตั้งให้ทั้งระบบใช้ markup ของ Bootstrap 5 แทนของ Tailwind
- * ที่ฝัง <svg> ลูกศรมาเอง (ซึ่งถูกวาดใหญ่เต็มหน้าจอเพราะไม่มี CSS ของ Tailwind มาคุมขนาด)
- * ที่นี่คุมแค่ขนาดและระยะให้เข้ากับความหนาแน่นของรายการแจ้งเตือน
- * ========================================================================== */
-
-.notification-center__pagination {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.notification-center__pagination .pagination {
-    margin: 0;
-    gap: 4px;
-}
-
-.notification-center__pagination .page-link {
-    min-width: 36px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-size: .85rem;
-    line-height: 1.4;
-    text-align: center;
-}
-
-.notification-center__pagination .page-link svg,
-.notification-center__pagination .page-link i {
-    width: 14px;
-    height: 14px;
-    font-size: 14px;
-    vertical-align: -2px;
-}
-
-/* บรรทัด "Showing x to y of z" ของ Bootstrap 5 อยู่ในบล็อกที่ซ่อนไว้บนจอเล็กอยู่แล้ว
- * ทำให้เหลือแต่ปุ่มตัวเลขหน้า ซึ่งเป็นสิ่งเดียวที่ต้องกดจริงบนมือถือ */
-@media (max-width: 575.98px) {
-    .notification-center__pagination .pagination {
-        flex-wrap: wrap;
-        justify-content: center;
-    }
 }

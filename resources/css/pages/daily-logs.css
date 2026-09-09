@@ -5,8 +5,7 @@
  * ส่วนย่อยแยกตามบล็อกของหน้าเพื่อให้แก้เฉพาะจุดได้โดยไม่ต้องเลื่อนหาในไฟล์ยาว
  */
 @import './daily-logs/layout.css';
-@import './daily-logs/composer.css';
-@import './daily-logs/timer.css';
+@import './daily-logs/launcher.css';
 @import './daily-logs/participants.css';
 @import './daily-logs/timeline.css';
 @import './daily-logs/summary.css';

@@ -12,8 +12,8 @@
 
 @section('content')
 @php
-    $categories = ['task' => 'เกี่ยวกับงาน', 'review' => 'รอตรวจหรืออนุมัติ', 'comment' => 'ความคิดเห็น', 'deadline' => 'กำหนดเวลา', 'system' => 'จากระบบ'];
-    $icons = ['task' => 'bi-briefcase', 'review' => 'bi-check2-circle', 'comment' => 'bi-chat-dots', 'deadline' => 'bi-alarm', 'system' => 'bi-gear'];
+    $categories = ['task' => 'เกี่ยวกับงาน', 'review' => 'รอตรวจหรืออนุมัติ', 'comment' => 'ความคิดเห็น', 'deadline' => 'กำหนดเวลา', 'meeting' => 'การประชุม', 'worklog' => 'งานประจำวัน', 'system' => 'จากระบบ'];
+    $icons = ['task' => 'bi-briefcase', 'review' => 'bi-check2-circle', 'comment' => 'bi-chat-dots', 'deadline' => 'bi-alarm', 'meeting' => 'bi-calendar-event-fill', 'worklog' => 'bi-journal-check', 'system' => 'bi-gear'];
     $status = $filters['status'] ?? 'all';
     $category = $filters['category'] ?? 'all';
     $projectId = $filters['project'] ?? null;
@@ -161,6 +161,6 @@
         @endforelse
     </div>
 
-    <div class="notification-center__pagination">{{ $items->links() }}</div>
+    {{ $items->onEachSide(1)->links('notifications.components.pagination') }}
 </div>
 @endsection

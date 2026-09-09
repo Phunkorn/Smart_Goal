@@ -15,6 +15,53 @@
             transition: margin-left .22s ease;
         }
 
+        /*
+         * ชื่อระบบบนแถบบน — ย้ายมาจากหัว Sidebar
+         *
+         * ที่นี่อ่านได้ตลอดเวลา ไม่ว่าผู้ใช้จะย่อ Sidebar หรืออยู่บนจอเล็กที่ Sidebar
+         * ถูกปิดเป็น off-canvas ส่วนหัว Sidebar เหลือไว้ให้โลโก้เต็มความกว้าง
+         */
+        .topbar-brand {
+            display: grid;
+            min-width: 0;
+            row-gap: 0;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        /*
+         * ชื่อระบบเป็นอักษรละตินล้วน จึงบีบความสูงบรรทัดได้โดยไม่ตัดสระหรือวรรณยุกต์
+         * สองบรรทัดนี้เป็นชื่อเดียวกัน จึงควรอยู่ชิดกันมากกว่าระยะบรรทัดปกติของเนื้อความ
+         */
+        .topbar-brand__name {
+            overflow: hidden;
+            color: var(--accent-strong);
+            font-size: .96rem;
+            font-weight: 700;
+            letter-spacing: .2px;
+            line-height: 1.1;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /*
+         * บรรทัดคำอธิบายเป็นภาษาไทย ความสูงบรรทัดจึงต้องพอสำหรับสระบนและวรรณยุกต์
+         * ดึงให้ชิดขึ้นด้วยการหักขอบบนของกล่อง ไม่ใช่ด้วยการบีบ line-height จนตัวอักษรถูกตัด
+         */
+        .topbar-brand__subtitle {
+            overflow: hidden;
+            margin-top: -2px;
+            color: var(--text-muted);
+            font-size: .72rem;
+            line-height: 1.35;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .topbar-brand:hover .topbar-brand__name {
+            text-decoration: underline;
+        }
+
         .topbar .search {
             flex: 1;
             max-width: 380px;
@@ -86,10 +133,38 @@
             background: var(--red);
             color: #fff;
             border: 2px solid var(--surface);
-            font-size: .68rem;
+            /*
+             * ตัวเลขแจ้งเตือนอ่านยากเพราะ "หนา" ไม่ใช่เพราะใหญ่
+             * เส้นตัวเลขที่หนามากบนป้ายกลมเล็ก ๆ จะเชื่อมติดกันจนแยกไม่ออกว่าเลขอะไร
+             * จึงลดเฉพาะน้ำหนัก และขยายขนาดขึ้นเล็กน้อยเพื่อให้อ่านออกชัดกว่าเดิม
+             */
+            font-size: .72rem;
             line-height: 1;
-            font-weight: 850;
+            font-weight: 500;
+            letter-spacing: .02em;
+            font-variant-numeric: tabular-nums;
         }
+
+        .routine-topbar__button { color:#2563eb; }
+        .routine-topbar__count { background:#2563eb !important; font-size:.72rem; font-weight:500; letter-spacing:.02em; font-variant-numeric:tabular-nums; }
+        .routine-topbar__menu { width:min(360px,calc(100vw - 20px)); padding:0; overflow:hidden; border:1px solid #dce5f1; border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,.16); }
+        .routine-topbar__head { display:flex; align-items:center; justify-content:space-between; padding:13px 14px 9px; }
+        .routine-topbar__head strong { color:#1e293b; font-size:.9rem; }
+        .routine-topbar__head span { color:#64748b; font-size:.72rem; }
+        .routine-topbar__summary { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; padding:0 10px 10px; }
+        .routine-topbar__summary span { padding:7px 4px; border-radius:8px; background:#f1f5f9; color:#64748b; font-size:.7rem; text-align:center; }
+        .routine-topbar__summary b { color:#334155; }
+        .routine-topbar__summary .is-overdue { background:#fff0f0; color:#c62828; }
+        .routine-topbar__summary .is-overdue b { color:#c62828; }
+        .routine-topbar__item { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:center; gap:8px; padding:9px 13px; border-top:1px solid #edf1f6; color:#475569; text-decoration:none; }
+        .routine-topbar__item:hover { background:#f6f9fd; color:#1d4ed8; }
+        .routine-topbar__item > i { display:grid; width:28px; height:28px; place-items:center; border-radius:8px; background:#eaf2ff; color:#2563eb; }
+        .routine-topbar__item > span { display:grid; min-width:0; }
+        .routine-topbar__item strong { overflow:hidden; color:#24324a; font-size:.78rem; text-overflow:ellipsis; white-space:nowrap; }
+        .routine-topbar__item small { color:#7b8a9f; font-size:.68rem; }
+        .routine-topbar__item.is-overdue > i { background:#feecec; color:#dc2626; }
+        .routine-topbar__empty { margin:0; padding:22px 14px; border-top:1px solid #edf1f6; color:#7b8a9f; font-size:.78rem; text-align:center; }
+        .routine-topbar__all { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border-top:1px solid #e3eaf3; background:#f8fafc; color:#2563eb; font-size:.76rem; font-weight:700; text-decoration:none; }
 
         /* ---------- ออกจากระบบ ----------
          *
@@ -125,6 +200,11 @@
 
         /* จอแคบเหลือแค่ไอคอน เพื่อไม่ให้แถบบนล้นจนป้ายบทบาทถูกบีบหาย */
         @media (max-width: 767.98px) {
+            /* จอเล็กมีที่ให้ชื่อระบบบรรทัดเดียว คำอธิบายจึงถูกตัดออกก่อนที่แถวจะแน่น */
+            .topbar-brand__subtitle {
+                display: none;
+            }
+
             .topbar-logout__label {
                 position: absolute;
                 width: 1px;
@@ -150,9 +230,14 @@
          * จอเล็กที่ Sidebar เป็น off-canvas ปิดอยู่ ป้ายนี้คือที่เดียวที่บอกว่ากำลังใช้งานในบทบาทใด
          *
          * ใช้ display:none ไม่ใช่ visibility หรือ opacity เพื่อไม่ให้เหลือกล่องว่างค้างในแถว
+         *
+         * ต้องเจาะจงด้วย .topbar นำหน้า (0,2,0) ไม่ใช่ .role-chip--mobile-only เปล่า ๆ
+         * เพราะ shared-ui.css ถูก import ทีหลังไฟล์นี้ และประกาศ .role-chip { display:inline-flex }
+         * ด้วย specificity เท่ากัน (0,1,0) กฎที่มาทีหลังจึงชนะ — media query ไม่เพิ่ม
+         * specificity ให้ ป้ายจึงเคยโผล่บนเดสก์ท็อปทั้งที่ตั้งใจซ่อนไว้
          */
         @media (min-width: 992px) {
-            .role-chip--mobile-only {
+            .topbar .role-chip--mobile-only {
                 display: none;
             }
         }

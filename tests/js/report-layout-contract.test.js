@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 const organizationCss = readFileSync(new URL('../../resources/css/pages/reports/organization.css', import.meta.url), 'utf8');
 const employeeCss = readFileSync(new URL('../../resources/css/pages/reports/employee.css', import.meta.url), 'utf8');
 const sharedCss = readFileSync(new URL('../../resources/css/pages/reports/shared.css', import.meta.url), 'utf8');
+const operationalCss = readFileSync(new URL('../../resources/css/pages/reports/operational.css', import.meta.url), 'utf8');
 
 const mediaBlock = (css, query) => {
     const start = css.indexOf(`@media (${query})`);
@@ -81,4 +82,26 @@ test('ready-state skeleton handoff shares the chart stagger and reduced motion d
     assert.match(sharedCss, /data-chart-state="ready"[^}]*visibility:hidden[^}]*opacity:0/);
     assert.doesNotMatch(sharedCss, /data-chart-state="ready"[^}]*display:none/);
     assert.match(mediaBlock(sharedCss, 'prefers-reduced-motion:reduce'), /report-chart-skeleton,.report-chart-wrap[^}]*transition:none/);
+});
+
+/*
+ * รายงานปฏิบัติงานของหัวหน้าแผนกมีกราฟสามใบบนกริด 12 คอลัมน์
+ *
+ * แนวโน้ม (8) + หมวดงาน (4) เต็มแถวแรกพอดี กราฟรายคนจึงอยู่แถวสองตามลำพัง
+ * ถ้ามันยังกว้าง 3 คอลัมน์ตามค่าที่สืบทอดมาจากรายงานองค์กร จะเหลือช่องว่างเปล่า
+ * อีก 9 คอลัมน์กลางหน้า ซึ่งเป็นบั๊กที่ผู้ใช้เห็นก่อนตัวเลขใด ๆ ในหน้า
+ */
+test('the operational member chart fills the row instead of leaving a gap', () => {
+    assert.match(
+        operationalCss,
+        /\.report-operational \.report-dashboard-card--priority\s*\{[^}]*grid-column:\s*1\/-1/s,
+    );
+});
+
+/* การ์ดสรุปงานประจำอยู่นอกกริด จึงต้องมีระยะขอบในและระยะห่างของตัวเองเท่ากับการ์ดอื่น */
+test('the routine summary panel carries its own padding and spacing', () => {
+    const rule = operationalCss.match(/\.report-routine\s*\{([^}]*)\}/s)?.[1] ?? '';
+
+    assert.match(rule, /padding:\s*17px/);
+    assert.match(rule, /margin-bottom:\s*16px/);
 });

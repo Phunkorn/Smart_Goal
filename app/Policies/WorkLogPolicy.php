@@ -97,25 +97,25 @@ class WorkLogPolicy
     }
 
     /**
-     * เริ่ม/หยุดจับเวลา — ต้องเป็นเจ้าของและรายการต้องยังไม่ปิด
-     */
-    public function manageTimer(User $user, WorkLog $log): bool
-    {
-        return $user->role !== 'viewer'
-            && $user->id === $log->user_id
-            && $log->status === 'open';
-    }
-
-    /**
-     * ดูรายงานภาระงานปฏิบัติการ
+     * เปิดรายงานปฏิบัติงานได้หรือไม่
+     *
+     * ทุก role ยกเว้น viewer เปิดได้ แต่ "เห็นข้อมูลของใคร" เป็นคนละเรื่องกัน:
+     *
+     *   - พนักงาน — เห็นเฉพาะของตัวเอง
+     *   - หัวหน้าแผนก — เห็นทั้งแผนกของตัวเอง
+     *   - admin — เห็นทุกแผนก
+     *
+     * ขอบเขตนั้นถูกบังคับที่ ReportController::forcedOwnerId() และ
+     * forcedDepartmentId() ซึ่งส่งเป็นตัวกรองที่ผู้ใช้แก้ผ่าน query string ไม่ได้
+     * ability นี้จึงตอบแค่ว่า "เข้าหน้านี้ได้ไหม" ไม่ใช่ "เห็นได้ถึงไหน"
      *
      * จงใจไม่รวม viewer ต่างจาก ReportController::authorizeAdminReports() ของ
-     * รายงานโครงการที่เปิดให้ viewer ดูได้ เพราะบันทึกงานประจำวันเป็นข้อมูล
-     * รายบุคคลที่ละเอียดกว่า ไม่ใช่ภาพรวมผลงานขององค์กร
+     * รายงานโครงการที่เปิดให้ viewer ดูได้ เพราะ viewer ไม่มีบันทึกงานประจำวัน
+     * เป็นของตัวเอง และข้อมูลนี้ละเอียดกว่าภาพรวมผลงานขององค์กร
      */
     public function viewReport(User $user): bool
     {
-        return $user->role === 'admin' || $user->isDepartmentHead();
+        return $user->role !== 'viewer';
     }
 
     /**

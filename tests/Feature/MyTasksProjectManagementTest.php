@@ -6,7 +6,6 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
-use App\Models\WorkOrderSubtask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -33,11 +32,19 @@ class MyTasksProjectManagementTest extends TestCase
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
-        WorkOrderSubtask::create([
-            'work_order_id' => $workOrder->job_id,
+        // งานย่อยคือ WorkOrder ที่มี parent_job_id ไม่ใช่แถวใน work_order_subtasks อีกต่อไป
+        WorkOrder::create([
+            'user_id' => $owner->id,
             'created_by' => $owner->id,
-            'title' => 'Detail item',
-            'sort_order' => 0,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'parent_job_id' => $workOrder->job_id,
+            'parent_sort_order' => 0,
+            'job_topic' => 'Detail item',
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
         ]);
 
         $queries = [];
@@ -53,7 +60,8 @@ class MyTasksProjectManagementTest extends TestCase
             ->assertSee('data-task-details', false)
             ->assertSee('Detail item');
 
-        $this->assertTrue(collect($queries)->contains(fn (string $sql) => str_contains($sql, 'work_order_subtasks')));
+        // ตารางเดิมต้องไม่ถูกแตะอีก งานย่อยมาจาก work_orders ผ่านความสัมพันธ์ children
+        $this->assertFalse(collect($queries)->contains(fn (string $sql) => str_contains($sql, 'work_order_subtasks')));
         $this->assertFalse(Route::has('tasks.progress.store'));
         $this->assertTrue(Route::has('mytasks.details.store'));
         $this->assertTrue(Route::has('mytasks.details.update'));
@@ -551,5 +559,103 @@ class MyTasksProjectManagementTest extends TestCase
         $this->assertSame(0, $ownList->workOrders()->count());
         $response->assertSee('งานทั่วไป');
         $response->assertSee('Ungrouped own task');
+    }
+
+    public function test_completed_project_can_be_archived_with_all_data_and_restored(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $list = WorkOrderList::create([
+            'user_id' => $owner->id,
+            'name' => 'Finished launch',
+            'is_visible' => true,
+        ]);
+        $task = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'job_topic' => 'Launch campaign',
+            'job_status' => 4,
+            'approval_status' => 'approved',
+            'job_start_at' => now()->subDay(),
+            'job_due_at' => now(),
+        ]);
+        $child = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'parent_job_id' => $task->job_id,
+            'parent_sort_order' => 0,
+            'job_topic' => 'Publish assets',
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_start_at' => now()->subDay(),
+            'job_due_at' => now(),
+        ]);
+
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.lists.archive', $list))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'ต้องทำงานและงานย่อยทั้งหมดให้เสร็จก่อนจัดเก็บโปรเจกต์');
+
+        $child->update(['job_status' => 4]);
+
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.lists.archive', $list))
+            ->assertOk();
+
+        $this->assertNotNull($list->fresh()->archived_at);
+        $this->assertDatabaseHas('work_orders', ['job_id' => $task->job_id, 'work_order_list_id' => $list->id]);
+        $this->assertDatabaseHas('work_orders', ['job_id' => $child->job_id, 'parent_job_id' => $task->job_id]);
+
+        $archivedPage = $this->actingAs($owner)
+            ->get(route('mytasks.index', ['view' => 'board']))
+            ->assertOk()
+            ->assertSee('data-completed-project="'.$list->id.'"', false)
+            ->assertSee('Finished launch')
+            ->assertSee('เปิดอีกครั้ง')
+            ->getContent();
+        $this->assertStringNotContainsString('data-project-name="Finished launch"', $archivedPage);
+
+        // ปุ่มเปิดคลังโปรเจกต์อยู่ข้างปุ่ม "สร้างงาน" ไม่ใช่ในแถวหัวคอลัมน์ของบอร์ด
+        $this->assertStringContainsString('mytasks-view-controls__archive', $archivedPage);
+        $this->assertStringNotContainsString('board-project-archive-entry', $archivedPage);
+
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.lists.restore', $list))
+            ->assertOk();
+
+        $this->assertNull($list->fresh()->archived_at);
+        $this->actingAs($owner)
+            ->get(route('mytasks.index', ['view' => 'board']))
+            ->assertOk()
+            ->assertSee('data-project-name="Finished launch"', false)
+            ->assertSee('Launch campaign')
+            ->assertSee('Publish assets');
+    }
+
+    public function test_user_cannot_archive_another_users_completed_project(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $otherUser = User::factory()->create(['role' => 'user']);
+        $list = WorkOrderList::create(['user_id' => $owner->id, 'name' => 'Owner only']);
+        WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'job_topic' => 'Done',
+            'job_status' => 4,
+            'approval_status' => 'approved',
+            'job_start_at' => now(),
+            'job_due_at' => now(),
+        ]);
+
+        $this->actingAs($otherUser)
+            ->patchJson(route('mytasks.lists.archive', $list))
+            ->assertForbidden();
+
+        $this->assertNull($list->fresh()->archived_at);
     }
 }

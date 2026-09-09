@@ -78,7 +78,7 @@ import {attachmentLimits} from './pages/mytasks/attachment-store.js';
         const deleteProject = event.target.closest('[data-delete-project]');
         if (deleteProject) {
             const section = deleteProject.closest('[data-group-section], [data-project-card]');
-            const count = Number(deleteProject.dataset.totalCount) || section.querySelectorAll('[data-row], [data-board-task]').length;
+            const count = Number(deleteProject.dataset.totalCount) || section.querySelectorAll('[data-row], [data-board-task]:not([data-board-subtask])').length;
             const result = await Swal.fire({icon: 'warning', title: 'ลบโปรเจกต์นี้หรือไม่?', text: `โปรเจกต์ “${deleteProject.dataset.name}” พร้อมงาน ${count} รายการจะถูกลบ และไม่สามารถย้อนกลับได้`, showCancelButton: true, confirmButtonText: 'ลบโปรเจกต์', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true});
             if (!result.isConfirmed) return;
             deleteProject.disabled = true;

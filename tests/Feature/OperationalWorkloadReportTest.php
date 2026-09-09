@@ -6,12 +6,16 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogCategory;
+use App\Models\WorkLogTemplate;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Services\OperationalWorkloadReportService;
 use App\Services\WorkLogParticipantService;
+use App\Services\WorkLogRoutineMaterializer;
 use App\Support\TodayWorkspace;
+use App\Support\WorkLogWeekdays;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\TestCase;
 
 /**
@@ -83,24 +87,223 @@ class OperationalWorkloadReportTest extends TestCase
             ->assertDontSee('ดูภาระงานปฏิบัติการ');
     }
 
-    public function test_a_plain_member_cannot_open_the_report(): void
+    /**
+     * พนักงานเปิดรายงานปฏิบัติงานได้ แต่ต้องเห็นเฉพาะบันทึกของตัวเอง
+     *
+     * ขอบเขตถูกบังคับที่ ReportController::forcedOwnerId() ซึ่งไม่ได้อ่านค่าจาก
+     * request เลย การแก้ URL จึงไม่ทำให้เห็นของเพื่อนร่วมแผนก
+     */
+    public function test_a_member_sees_only_their_own_rows(): void
     {
-        $member = $this->user(Department::create(['department_name' => 'IT']));
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+        $colleague = $this->user($department);
 
-        $this->actingAs($member)->get(route('reports.operational'))->assertForbidden();
+        $this->log($member, $department, ['title' => 'งานของฉันเอง']);
+        $this->log($colleague, $department, ['title' => 'งานของเพื่อนร่วมแผนก']);
+
+        $this->actingAs($member)
+            ->get(route('reports.operational', ['department' => $department->id]))
+            ->assertOk()
+            ->assertSee('งานของฉันเอง')
+            ->assertDontSee('งานของเพื่อนร่วมแผนก');
     }
 
-    public function test_the_entry_card_appears_for_admin_and_department_head(): void
+    public function test_viewer_still_cannot_open_the_report(): void
+    {
+        $viewer = $this->user(Department::create(['department_name' => 'IT']), false, 'viewer');
+
+        $this->actingAs($viewer)->get(route('reports.operational'))->assertForbidden();
+    }
+
+    /**
+     * ทุกคนที่เปิดรายงานนี้ได้ต้องมีทางไปถึงจากหน้าเลือกรายงาน ไม่ใช่ต้องรู้ URL เอง
+     */
+    public function test_the_entry_card_appears_for_everyone_who_can_open_it(): void
     {
         $department = Department::create(['department_name' => 'IT']);
 
-        foreach ([$this->user(null, false, 'admin'), $this->user($department, true)] as $actor) {
+        $actors = [
+            $this->user(null, false, 'admin'),
+            $this->user($department, true),
+            $this->user($department),
+        ];
+
+        foreach ($actors as $actor) {
             $this->actingAs($actor)
                 ->get(route('reports.index'))
                 ->assertOk()
-                ->assertSee('ดูภาระงานปฏิบัติการ')
+                ->assertSee('รายงานปฏิบัติงาน')
                 ->assertSee(route('reports.operational'), false);
         }
+    }
+
+    /**
+     * พนักงานเห็นสองรายงานเท่านั้น — รายงานตัวเอง และรายงานปฏิบัติงาน
+     * ต้องไม่มีทางเข้ารายงานภาพรวมองค์กรหรือรายงานของคนอื่น
+     */
+    public function test_a_member_landing_offers_exactly_two_reports(): void
+    {
+        $member = $this->user(Department::create(['department_name' => 'IT']));
+
+        $response = $this->actingAs($member)->get(route('reports.index'))->assertOk();
+
+        $response->assertSee('รายงานตัวเอง')
+            ->assertSee('รายงานปฏิบัติงาน')
+            ->assertSee(route('reports.my'), false)
+            ->assertSee(route('reports.operational'), false)
+            ->assertDontSee(route('reports.organization'), false)
+            ->assertDontSee(route('reports.employees.index'), false);
+
+        $this->assertSame(2, substr_count($response->getContent(), 'report-choice report-choice--'));
+
+        $this->actingAs($member)->get(route('reports.organization'))->assertForbidden();
+        $this->actingAs($member)->get(route('reports.employees.index'))->assertForbidden();
+
+        // หัวหน้าแผนกยังได้ชุดเดิมสามใบ ไม่ถูกเพิ่ม "รายงานตัวเอง" ให้ซ้ำกับ
+        // รายงานรายบุคคลที่ครอบคลุมตัวเองอยู่แล้ว
+        $head = $this->user($member->department, true);
+
+        $headResponse = $this->actingAs($head)->get(route('reports.index'))->assertOk();
+
+        $this->assertSame(3, substr_count($headResponse->getContent(), 'report-choice report-choice--'));
+        $headResponse->assertSee(route('reports.operational'), false)
+            ->assertDontSee(route('reports.my'), false);
+    }
+
+    /**
+     * พนักงานได้หน้าที่ตอบคำถามของตัวเอง ไม่ใช่แดชบอร์ดแบบที่หัวหน้าเห็น
+     *
+     * ทั้งตัวกรองแผนก ตารางรายคน และกราฟเทียบคนในทีม ไม่มีความหมายเมื่อดูของ
+     * คนเดียว การแสดงไว้จึงเป็นภาระในการอ่านเปล่า ๆ
+     */
+    public function test_a_member_gets_a_slimmer_page_than_a_department_head(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+        $head = $this->user($department, true);
+
+        $this->log($member, $department, ['title' => 'งานของฉันเอง']);
+
+        $memberPage = $this->actingAs($member)->get(route('reports.operational'))->assertOk();
+
+        $memberPage->assertSee('รายงานปฏิบัติงานของฉัน')
+            // ไม่มีตัวกรองแผนก เพราะขอบเขตถูกล็อกไว้ที่ตัวเองแล้ว
+            ->assertDontSee('id="reportDepartment"', false)
+            // ไม่มีตารางรายคนและกราฟเทียบคน
+            ->assertDontSee('data-operational-member-table', false)
+            ->assertDontSee('operationalMemberChart', false)
+            ->assertDontSee('operationalInterruptChart', false)
+            // ตัวเลขที่ไว้บริหารภาระงานของทีมเป็นของหัวหน้า
+            ->assertDontSee('เวลาที่ไม่ได้ลงโปรเจกต์')
+            ->assertDontSee('จากผู้บันทึก')
+            // สิ่งที่ต้องเหลือ: ตารางการตรวจ ตัวเลขของตัวเอง และกราฟเดียว
+            ->assertSee('การตรวจงานประจำ')
+            ->assertSee('ชั่วโมงงานของฉัน')
+            ->assertSee('operationalDailyChart', false);
+
+        // หัวหน้าแผนกยังได้หน้าเต็มเหมือนเดิมทุกส่วน
+        $headPage = $this->actingAs($head)->get(route('reports.operational'))->assertOk();
+
+        $headPage->assertSee('id="reportDepartment"', false)
+            ->assertSee('data-operational-member-table', false)
+            ->assertSee('operationalMemberChart', false)
+            ->assertSee('เวลาที่ไม่ได้ลงโปรเจกต์')
+            ->assertSee('การตรวจงานประจำ');
+    }
+
+    /**
+     * ตารางการตรวจต้องบอกได้ทั้ง "วันนี้เหลืออะไร" และ "ที่ผ่านมาตรวจอะไรไปแล้ว"
+     */
+    public function test_routine_checks_are_listed_with_date_and_status(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+
+        $template = WorkLogTemplate::create([
+            'user_id' => $member->id,
+            'title' => 'เช็คคอมพิวเตอร์ห้องบัญชี',
+            'kind' => 'routine',
+            'weekday_mask' => WorkLogWeekdays::EVERYDAY,
+            'default_start_time' => '08:30',
+            'default_duration_minutes' => 20,
+            'is_active' => true,
+        ]);
+
+        app(WorkLogRoutineMaterializer::class)->materializeToday($member);
+
+        $log = WorkLog::query()->where('work_log_template_id', $template->id)->firstOrFail();
+
+        $this->actingAs($member)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->assertSee('การตรวจงานประจำ')
+            ->assertSee('เช็คคอมพิวเตอร์ห้องบัญชี')
+            ->assertSee('08:30 - 08:50')
+            ->assertSee('เกินเวลา')
+            // คอลัมน์วันที่คือสิ่งที่ทำให้ตารางใช้เป็นหลักฐานย้อนหลังได้
+            ->assertSee('<th scope="col">วันที่</th>', false)
+            ->assertSee('report-checklist__today', false);
+
+        $this->actingAs($member)->post(route('daily-logs.complete', $log))->assertRedirect();
+
+        $this->actingAs($member)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->assertSee('ตรวจแล้ว')
+            ->assertDontSee('ยังไม่ตรวจ');
+    }
+
+    /**
+     * ตารางแบ่งหน้าครั้งละ 10 แถว ด้วยตัวแบ่งหน้าตัวเดียวกับตารางภาระงานรายคน
+     *
+     * แถวถูก render มาครบทุกแถว แล้วให้ table-pager.js ซ่อน/แสดง จึงตรวจได้จาก
+     * จำนวนแถวใน HTML กับการมีอยู่ของปุ่มเปลี่ยนหน้า
+     */
+    public function test_the_checklist_table_pages_ten_rows_at_a_time(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+
+        // สิบสองรายการของวันนี้ — มากกว่าหนึ่งหน้า
+        foreach (range(1, 12) as $index) {
+            $this->log($member, $department, [
+                'title' => 'งานประจำที่ '.$index,
+                'source' => 'template',
+            ]);
+        }
+
+        $response = $this->actingAs($member)->get(route('reports.operational'))->assertOk();
+
+        $response->assertSee('data-checklist-table', false)
+            ->assertSee('data-page-size="10"', false)
+            ->assertSee('data-checklist-pager', false)
+            ->assertSee('data-checklist-previous', false)
+            ->assertSee('data-checklist-next', false);
+
+        $this->assertSame(12, substr_count($response->getContent(), 'data-checklist-row'));
+    }
+
+    /**
+     * ตารางเป็นรายละเอียดที่เปิดดูเมื่อถูกถาม จึงอยู่ท้ายหน้า ไม่ใช่บนสุด
+     */
+    public function test_the_checklist_table_closes_the_page(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+
+        $this->log($member, $department, ['title' => 'งานประจำหนึ่ง', 'source' => 'template']);
+
+        $content = $this->actingAs($member)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertGreaterThan(
+            strpos($content, 'report-kpi-band'),
+            strpos($content, 'report-checklist'),
+            'ตารางการตรวจต้องอยู่ใต้แถบตัวเลขและกราฟ'
+        );
     }
 
     /**
@@ -463,6 +666,121 @@ class OperationalWorkloadReportTest extends TestCase
      *
      * @return array<int, string>
      */
+    public function test_routine_summary_counts_late_start_late_completion_skipped_and_unclosed(): void
+    {
+        $department = Department::create(['department_name' => 'ปฏิบัติการ']);
+        $head = $this->user($department, head: true);
+        $member = $this->user($department);
+        $template = WorkLogTemplate::create([
+            'user_id' => $member->id,
+            'title' => 'ตรวจระบบเช้า',
+            'kind' => 'routine',
+            'weekday_mask' => WorkLogWeekdays::EVERYDAY,
+            'default_start_time' => '08:30',
+            'default_duration_minutes' => 50,
+            'is_active' => true,
+        ]);
+
+        // งานประจำมีได้วันละหนึ่งรายการต่อคนต่อแม่แบบ (unique index ของ work_logs)
+        // ตัวอย่างจึงเป็นแม่แบบเดียวกันของห้าวันทำการล่าสุดในเดือนนี้
+        $today = TodayWorkspace::businessNow();
+        $planned = function (int $daysAgo) use ($template, $today): array {
+            $day = $today->copy()->subDays($daysAgo);
+            $start = $day->copy()->setTime(8, 30);
+
+            return [
+                'work_log_template_id' => $template->id,
+                'source' => 'routine',
+                'work_date' => $day->format('Y-m-d'),
+                'planned_start_at' => $start->utc(),
+                'planned_end_at' => $start->copy()->addMinutes(50)->utc(),
+            ];
+        };
+
+        // เสร็จตรงเวลา — ไม่มีเหตุผลใดถูกบันทึกไว้
+        $this->log($member, $department, array_merge($planned(0), [
+            'title' => 'ตรงเวลา', 'status' => 'done', 'duration_minutes' => 40,
+        ]));
+        // เริ่มช้า แต่ปิดงานแล้ว
+        $this->log($member, $department, array_merge($planned(1), [
+            'title' => 'เริ่มช้า', 'status' => 'done', 'duration_minutes' => 60,
+            'late_start_reason' => 'ประชุม',
+        ]));
+        // เสร็จเกินเวลา
+        $this->log($member, $department, array_merge($planned(2), [
+            'title' => 'เกินเวลา', 'status' => 'done', 'duration_minutes' => 90,
+            'late_completion_reason' => 'งานมากกว่าที่ประเมิน',
+        ]));
+        // ไม่ได้ทำวันนี้
+        $this->log($member, $department, array_merge($planned(3), [
+            'title' => 'ไม่ได้ทำ', 'status' => 'skipped', 'skip_reason' => 'ลางาน',
+        ]));
+        // ค้าง — เลยเวลาตามแผนแล้วแต่ยังไม่มีใครตอบว่าเกิดอะไรขึ้น
+        $this->log($member, $department, array_merge($planned(4), [
+            'title' => 'ค้างไว้', 'status' => 'open',
+        ]));
+        // งานที่ผู้ใช้บันทึกเอง ต้องไม่ถูกนับรวมในสรุปงานประจำ
+        $this->log($member, $department, ['title' => 'งานที่บันทึกเอง', 'status' => 'done', 'duration_minutes' => 30]);
+
+        $response = $this->actingAs($head)->get(route('reports.operational'))->assertOk();
+        $summary = $response->viewData('routineSummary');
+
+        $this->assertSame(5, $summary['total']);
+        $this->assertSame(1, $summary['on_time']);
+        $this->assertSame(1, $summary['late_start']);
+        $this->assertSame(1, $summary['late_completion']);
+        $this->assertSame(1, $summary['skipped']);
+        $this->assertSame(1, $summary['unclosed']);
+        // เฉลี่ยจากรายการที่ทำเสร็จเท่านั้น (40 + 60 + 90) / 3
+        $this->assertSame(63, $summary['average_minutes']);
+        // ปิดรายการแล้ว 4 จาก 5 (เสร็จ 3 + ไม่ได้ทำ 1)
+        $this->assertSame(80, $summary['completion_rate']);
+
+        $response->assertSee('อัตราการทำครบ')->assertSee('ยังไม่ปิดรายการ');
+    }
+
+    public function test_routine_focus_filter_narrows_the_report_to_one_question(): void
+    {
+        $department = Department::create(['department_name' => 'ปฏิบัติการ']);
+        $head = $this->user($department, head: true);
+        $member = $this->user($department);
+        $template = WorkLogTemplate::create([
+            'user_id' => $member->id,
+            'title' => 'ตรวจเอกสาร',
+            'kind' => 'routine',
+            'weekday_mask' => WorkLogWeekdays::EVERYDAY,
+            'default_start_time' => '09:00',
+            'default_duration_minutes' => 30,
+            'is_active' => true,
+        ]);
+
+        $today = TodayWorkspace::businessNow();
+        $planned = fn (int $daysAgo): array => [
+            'work_log_template_id' => $template->id,
+            'source' => 'routine',
+            'work_date' => $today->copy()->subDays($daysAgo)->format('Y-m-d'),
+        ];
+        $this->log($member, $department, array_merge($planned(0), ['title' => 'ตรงเวลา', 'status' => 'done', 'duration_minutes' => 20]));
+        $this->log($member, $department, array_merge($planned(1), [
+            'title' => 'เริ่มสาย', 'status' => 'done', 'duration_minutes' => 25, 'late_start_reason' => 'ติดงานอื่น',
+        ]));
+
+        $filtered = $this->actingAs($head)
+            ->get(route('reports.operational', ['routine_focus' => 'late_start']))
+            ->assertOk();
+
+        $this->assertSame(1, $filtered->viewData('totalCount'));
+        $this->assertSame(1, $filtered->viewData('routineSummary')['total']);
+
+        // ตัวกรองต้องมีผลกับ CSV ชุดเดียวกับหน้าจอ ไม่ใช่ส่งออกทั้งช่วงเวลา
+        $rows = app(OperationalWorkloadReportService::class)->exportRows(
+            new Request(['routine_focus' => 'late_start']),
+            $department->id
+        );
+
+        $this->assertSame(['เริ่มสาย'], $rows->pluck('title')->all());
+    }
+
     private function projectKpiSnapshot(string $html): array
     {
         preg_match_all('/report-kpi__value">([^<]*)</u', $html, $matches);

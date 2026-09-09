@@ -35,6 +35,14 @@ class SystemNotification extends Model
         'delete_request' => 'task',
         'delete_request_rejected' => 'task',
         'task_deleted' => 'task',
+        'meeting_scheduled' => 'meeting',
+        // บันทึกงานประจำวัน — แยกหมวดของตัวเองเพราะไม่ผูกกับ WorkOrder เลย
+        // การยัดไว้ในหมวด task จะทำให้ตัวกรอง "เกี่ยวกับงาน" ปนงานสองระบบเข้าด้วยกัน
+        'work_log_participant_added' => 'worklog',
+        'work_log_routine_assigned' => 'worklog',
+        'work_log_routine_start_late' => 'worklog',
+        'work_log_routine_overdue' => 'worklog',
+        'work_log_routine_day_pending' => 'worklog',
         'system' => 'system',
     ];
 

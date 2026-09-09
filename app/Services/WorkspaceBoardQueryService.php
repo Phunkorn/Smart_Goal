@@ -102,23 +102,4 @@ class WorkspaceBoardQueryService
             ])
             ->values();
     }
-
-    /**
-     * กระดานที่ถูกแก้ล่าสุดที่ผู้ใช้คนนี้เห็นได้ ใช้เป็นทางลัดบนหน้ารวม
-     *
-     * กรองกระดานที่ยังไม่เคยถูกแก้ออก เพราะรายการนี้ตอบคำถามว่า "ตอนนี้ใคร
-     * กำลังคิดอะไรกันอยู่" กระดานเปล่าที่เพิ่งสร้างยังไม่มีคำตอบนั้น
-     *
-     * @return Collection<int, WorkspaceBoard>
-     */
-    public function recentFor(User $viewer, int $limit = 8): Collection
-    {
-        return $this->visibleQuery($viewer)
-            ->with(['department:id,department_name', 'lastEditor:id,name,profile_image'])
-            ->whereNotNull('last_edited_at')
-            ->orderByDesc('last_edited_at')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get();
-    }
 }

@@ -247,6 +247,32 @@
     color: #64748b;
     font-size: 11px;
 }
+/*
+ * ชิปงานย่อยบนการ์ด — มุมมองนี้ไม่แสดงงานย่อยเป็นการ์ดของตัวเอง
+ * ชิปจึงเป็นที่เดียวที่บอกว่ายังเหลืองานย่อยอยู่ ก่อนผู้ใช้จะลากการ์ดไปคอลัมน์ "เสร็จแล้ว"
+ */
+.my-tasks-page .mytasks-kanban__subtasks {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 7px;
+    border: 0;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.my-tasks-page .mytasks-kanban__subtasks.is-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.my-tasks-page .mytasks-kanban__subtasks.is-complete {
+    background: #dcfce7;
+    color: #166534;
+}
+
 /* =========================================================
    KANBAN ACTION BUTTONS
 ========================================================= */

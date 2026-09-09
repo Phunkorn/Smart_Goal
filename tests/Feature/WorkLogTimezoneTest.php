@@ -86,16 +86,16 @@ class WorkLogTimezoneTest extends TestCase
     }
 
     /**
-     * งานที่เริ่มก่อนเที่ยงคืนและจบหลังเที่ยงคืน ต้องยังนับเป็นงานของวันที่เริ่ม
-     * ไม่งั้นวันที่ทำงานจริงจะดูเหมือนไม่มีงาน แล้วไปโผล่ในวันถัดไปแทน
+     * งานที่บันทึกก่อนเที่ยงคืนแล้วมากดยืนยันหลังเที่ยงคืน ต้องยังนับเป็นงานของ
+     * วันที่บันทึก ไม่งั้นวันที่ทำงานจริงจะดูเหมือนไม่มีงาน แล้วไปโผล่ในวันถัดไปแทน
      */
-    public function test_a_timer_across_bangkok_midnight_stays_on_the_start_day(): void
+    public function test_confirming_after_bangkok_midnight_keeps_the_original_day(): void
     {
         $owner = $this->user();
 
         // 23:50 ที่กรุงเทพ ของวันจันทร์ที่ 7
         $this->travelTo(CarbonImmutable::parse('2026-09-07 16:50:00', 'UTC'));
-        $this->actingAs($owner)->post(route('daily-logs.timer.start'), [
+        $this->actingAs($owner)->post(route('daily-logs.store'), [
             'title' => 'เฝ้าระบบข้ามคืน',
             'kind' => 'field',
         ])->assertRedirect();
@@ -105,66 +105,55 @@ class WorkLogTimezoneTest extends TestCase
 
         // 00:10 ที่กรุงเทพ ของวันอังคารที่ 8
         $this->travelTo(CarbonImmutable::parse('2026-09-07 17:10:00', 'UTC'));
-        $this->actingAs($owner)->post(route('daily-logs.timer.stop', $log))->assertRedirect();
+        $this->actingAs($owner)->post(route('daily-logs.complete', $log))->assertRedirect();
 
         $log->refresh();
 
-        $this->assertSame(20, $log->duration_minutes);
-        $this->assertSame('2026-09-07', $log->work_date->format('Y-m-d'), 'ต้องยังเป็นงานของวันที่เริ่ม');
+        $this->assertSame('done', $log->status);
+        $this->assertSame('2026-09-07', $log->work_date->format('Y-m-d'), 'ต้องยังเป็นงานของวันที่บันทึก');
     }
 
     /**
-     * ตัวจับเวลาที่ลืมค้างต้องถูกปิดเมื่อข้ามวันของกรุงเทพ ไม่ใช่รอถึงเที่ยงคืน UTC
-     * (ซึ่งจะช้าไปอีก 7 ชั่วโมง และผู้ใช้จะเห็นเวลาเดินค้างตลอดเช้า)
+     * ตัวจับเวลาที่ค้างมาจากรุ่นก่อนหน้าต้องถูกปิดด้วยขอบวันของกรุงเทพ
+     *
+     * ระบบจับเวลาถูกถอดออกไปแล้ว จึงไม่มีทางสร้างแถวแบบนี้ผ่านหน้าจอได้อีก
+     * แถวในเทสต์นี้จึงถูกสร้างตรง ๆ เหมือนข้อมูลที่ค้างอยู่ในฐานข้อมูลจริง
+     * ถ้าไม่ปิดให้ รายการนั้นจะค้างตลอดไปโดยไม่มีปุ่มไหนปิดมันได้อีก
      */
-    public function test_stale_timers_close_at_the_bangkok_day_boundary(): void
+    public function test_leftover_timers_close_at_the_bangkok_day_boundary(): void
     {
         $owner = $this->user();
 
-        // 22:00 ที่กรุงเทพ ของวันจันทร์
-        $this->travelTo(CarbonImmutable::parse('2026-09-07 15:00:00', 'UTC'));
-        $this->actingAs($owner)->post(route('daily-logs.timer.start'), [
-            'title' => 'ลืมกดจบงาน',
+        // 22:00 ที่กรุงเทพ ของวันจันทร์ (= 15:00 UTC)
+        $startedAt = CarbonImmutable::parse('2026-09-07 15:00:00', 'UTC');
+
+        $log = WorkLog::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'department_id' => $owner->department_id,
             'kind' => 'routine',
+            'status' => 'open',
+            'source' => 'manual',
+            'title' => 'ลืมกดจบงาน',
+            'work_date' => '2026-09-07',
+            'started_at' => $startedAt,
+            'open_timer_owner_id' => $owner->id,
         ]);
 
         // 08:00 ที่กรุงเทพ ของวันอังคาร — ยังไม่ถึงเที่ยงคืน UTC ด้วยซ้ำ
         $this->travelTo(CarbonImmutable::parse('2026-09-08 01:00:00', 'UTC'));
 
-        app(WorkLogService::class)->closeStaleTimers($owner->refresh());
+        $closed = app(WorkLogService::class)->closeLeftoverTimers($owner->refresh());
 
-        $log = WorkLog::query()->where('title', 'ลืมกดจบงาน')->firstOrFail();
+        $log->refresh();
 
+        $this->assertSame(1, $closed);
         $this->assertNull($log->open_timer_owner_id);
         $this->assertSame('done', $log->status);
         $this->assertNotNull($log->auto_closed_at);
+        // เวลาสิ้นสุดถูกตรึงไว้ที่สิ้นวันทำการของวันที่เริ่ม ไม่ใช่ปล่อยให้เดินข้ามคืน
         $this->assertLessThanOrEqual(WorkLogDesign::MAX_TIMER_MINUTES, $log->duration_minutes);
-    }
-
-    /**
-     * ตัวจับเวลาที่ยังอยู่ในวันเดียวกันของกรุงเทพต้องไม่ถูกปิด
-     * แม้เวลา UTC จะข้ามวันไปแล้วก็ตาม
-     */
-    public function test_a_timer_started_earlier_the_same_bangkok_day_is_not_closed(): void
-    {
-        $owner = $this->user();
-
-        // 09:00 ที่กรุงเทพ ของวันอังคาร (= 02:00 UTC วันอังคาร)
-        $this->travelTo(CarbonImmutable::parse('2026-09-08 02:00:00', 'UTC'));
-        $this->actingAs($owner)->post(route('daily-logs.timer.start'), [
-            'title' => 'งานที่ยังทำอยู่',
-            'kind' => 'routine',
-        ]);
-
-        // 11:00 ที่กรุงเทพ ของวันเดียวกัน
-        $this->travelTo(CarbonImmutable::parse('2026-09-08 04:00:00', 'UTC'));
-
-        $closed = app(WorkLogService::class)->closeStaleTimers($owner->refresh());
-
-        $this->assertSame(0, $closed);
-        $this->assertNotNull(
-            WorkLog::query()->where('title', 'งานที่ยังทำอยู่')->firstOrFail()->open_timer_owner_id
-        );
+        $this->assertSame('2026-09-07', TodayWorkspace::businessNow($log->ended_at)->format('Y-m-d'));
     }
 
     /**

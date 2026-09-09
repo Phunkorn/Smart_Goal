@@ -113,9 +113,10 @@ test('mobile role chip keeps a compact visible label with an accessible name', a
     assert.match(shared, /\.role-chip i\s*\{[^}]*flex:\s*0 0 auto/s);
     // ป้ายบทบาทถูกจำกัดให้เห็นเฉพาะจอเล็ก เพราะบนเดสก์ท็อปท้าย Sidebar บอกบทบาทอยู่แล้ว
     assert.match(blade, /class="role-chip role-chip--mobile-only \{\{ \$roleChipClass \}\}" aria-label="\{\{ \$roleChipText \}\}" title="\{\{ \$roleChipText \}\}"/);
+    // ตัวเลือกต้องเจาะจงกว่ากฎฐาน .role-chip ที่ import ทีหลัง (ดูเทสต์ของกฎซ่อนด้านล่าง)
     assert.match(
         await css('resources/css/components/layout/topbar.css'),
-        /@media \(min-width: 992px\) \{\s*\.role-chip--mobile-only \{\s*display: none/s,
+        /@media \(min-width: 992px\) \{\s*\.topbar \.role-chip--mobile-only \{\s*display: none/s,
     );
     assert.match(blade, /<span class="role-chip__label">\{\{ \$roleChipText \}\}<\/span>/);
 });
@@ -126,13 +127,40 @@ test('mobile role chip keeps a compact visible label with an accessible name', a
  * สีที่ต่างกันสี่ชุดบนแถบบนอ่านเป็น "สถานะ" (เขียวคือดี แดงคือเตือน) ทั้งที่บทบาท
  * ไม่มีดีหรือแย่ ส่วนฟ้าอ่อนเป็นสีกลางชุดเดียวกับ badge อื่นในระบบ
  */
-test('the role chip shares one soft blue and tells roles apart by icon', async () => {
+/*
+ * ป้ายบทบาทต้องหายไปจริงบนเดสก์ท็อป ไม่ใช่แค่ "มีกฎซ่อนไว้"
+ *
+ * shared-ui.css ถูก import ทีหลัง topbar.css และประกาศ .role-chip { display:inline-flex }
+ * ด้วย specificity เท่ากับ .role-chip--mobile-only (0,1,0) กฎที่มาทีหลังจึงชนะ
+ * และ media query ก็ไม่เพิ่ม specificity ให้ ผลคือป้ายเคยโผล่บนเดสก์ท็อปทั้งที่
+ * ตั้งใจซ่อนไว้ กฎซ่อนจึงต้องเจาะจงกว่ากฎฐานเสมอ
+ */
+test('the role chip is actually hidden on desktop, not just declared hidden', async () => {
+    const topbar = await css('resources/css/components/layout/topbar.css');
+    const shared = await css('resources/css/components/layout/shared-ui.css');
+
+    const desktop = topbar.slice(topbar.indexOf('@media (min-width: 992px)'));
+    const hideRule = desktop.match(/([^{}]*\.role-chip--mobile-only)\s*\{([^}]*)\}/);
+
+    assert.ok(hideRule, 'ต้องมีกฎซ่อนป้ายบทบาทในช่วงเดสก์ท็อป');
+    assert.match(hideRule[2], /display:\s*none/);
+
+    // กฎฐานที่ประกาศ display มาทีหลัง จึงต้องถูกกฎซ่อนที่เจาะจงกว่าเอาชนะ
+    assert.match(shared.match(/\.role-chip \{([^}]*)\}/)?.[1] ?? '', /display:\s*inline-flex/);
+    assert.match(
+        hideRule[1],
+        /\.\w[\w-]*\s+\.role-chip--mobile-only/,
+        'ตัวเลือกของกฎซ่อนต้องเจาะจงกว่า .role-chip เปล่า ๆ ไม่งั้นกฎที่ import ทีหลังจะชนะ',
+    );
+});
+
+test('the role chip shares one theme blue and tells roles apart by icon', async () => {
     const shared = await css('resources/css/components/layout/shared-ui.css');
     const blade = await css('resources/views/layouts/app.blade.php');
 
     const chip = shared.match(/\.role-chip \{([^}]*)\}/)?.[1] ?? '';
 
-    assert.match(chip, /background:\s*var\(--blue-dim\)/, 'ป้ายบทบาทต้องใช้พื้นฟ้าอ่อนของระบบ');
+    assert.match(chip, /background:\s*var\(--accent-strong\)/, 'ป้ายบทบาทต้องใช้สีน้ำเงินเข้มของธีม');
     assert.match(chip, /border-radius:\s*999px/, 'ต้องเป็นแคปซูลเหมือน badge อื่น');
 
     // สีไม่ใช่ตัวแยกบทบาท จึงต้องไม่มีกฎที่ผูกสีกลับเข้ากับ class บทบาท

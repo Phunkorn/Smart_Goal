@@ -261,11 +261,21 @@
     margin-top: 6px;
 }
 
+/* รูปในฟองแชทเป็นปุ่มเปิดกล่องดูรูป จึงต้องล้างหน้าตาปุ่มของเบราว์เซอร์ทิ้ง */
 .my-tasks-page ~ .task-edit-modal .task-timeline-entry__image {
     display: inline-flex;
     max-width: 160px;
+    padding: 0;
+    border: 0;
     border-radius: 8px;
     overflow: hidden;
+    background: transparent;
+    cursor: zoom-in;
+}
+
+.my-tasks-page ~ .task-edit-modal .task-timeline-entry__image:hover img,
+.my-tasks-page ~ .task-edit-modal .task-timeline-entry__image:focus-visible img {
+    opacity: .88;
 }
 
 .my-tasks-page ~ .task-edit-modal .task-timeline-entry__image img {

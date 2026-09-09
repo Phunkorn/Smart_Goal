@@ -6,6 +6,7 @@ use App\Models\TrashLog;
 use App\Services\AuditLogQuery;
 use App\Support\TrashRetention;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -61,6 +62,74 @@ class TrashController extends Controller
         return back()->with('success', $count > 0
             ? 'ลบรายการที่หมดเวลากู้คืนแล้ว '.$count.' รายการ'
             : 'ไม่มีรายการที่หมดเวลากู้คืน');
+    }
+
+    /**
+     * กู้คืนหลายรายการที่เลือกไว้
+     *
+     * รายการที่กู้ไม่ได้จะถูกข้าม แล้วรายงานจำนวนกลับ ไม่ใช่ทำให้ทั้งชุดล้มเหลว
+     */
+    public function bulkRestore(Request $request)
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $selected = $this->selected($request);
+
+        if ($selected->isEmpty()) {
+            return back()->with('success', 'ไม่มีรายการที่เลือก');
+        }
+
+        ['restored' => $restored, 'skipped' => $skipped] = TrashRetention::restoreMany($selected);
+
+        return back()->with('success', $skipped > 0
+            ? 'กู้คืนแล้ว '.$restored.' รายการ ข้าม '.$skipped.' รายการที่กู้คืนไม่ได้'
+            : 'กู้คืนแล้ว '.$restored.' รายการ');
+    }
+
+    /**
+     * ลบถาวรหลายรายการที่เลือกไว้
+     *
+     * ทำลายข้อมูลและไฟล์อย่างถาวรเช่นเดียวกับ purge() ฝั่งหน้าจอจึงบังคับให้พิมพ์
+     * "จำนวนรายการ" ให้ตรงก่อนยืนยัน เพราะการลบเป็นชุดไม่มีชื่อรายการเดียวให้พิมพ์
+     */
+    public function bulkPurge(Request $request)
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $selected = $this->selected($request);
+
+        if ($selected->isEmpty()) {
+            return back()->with('success', 'ไม่มีรายการที่เลือก');
+        }
+
+        $purged = TrashRetention::purgeMany($selected, Auth::user());
+
+        return back()->with('success', 'ลบข้อมูลออกจากระบบถาวรแล้ว '.$purged.' รายการ');
+    }
+
+    /**
+     * รายการที่คำสั่งแบบชุดจะทำงานด้วย
+     *
+     * รองรับสองแบบ: รายการ id ที่ติ๊กไว้ กับ scope=filtered ซึ่งหมายถึง "ทุกแถวตาม
+     * ตัวกรองที่เปิดอยู่ตอนนี้" ไม่ใช่เฉพาะหน้าที่เห็น แบบหลังจำเป็นเพราะผู้ใช้ที่มีของค้าง
+     * 300 รายการไม่มีทางติ๊กครบทีละหน้า และต้องอ่านตัวกรองจาก AuditLogQuery ตัวเดียวกับ
+     * ที่หน้าจอใช้แสดงผล มิฉะนั้นสิ่งที่ถูกลบจะไม่ตรงกับสิ่งที่ผู้ใช้เห็น
+     *
+     * @return Collection<int, TrashLog>
+     */
+    private function selected(Request $request): Collection
+    {
+        $request->validate([
+            'scope' => ['nullable', 'in:filtered'],
+            'ids' => ['required_without:scope', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        if ($request->string('scope')->toString() === 'filtered') {
+            return $this->audit->trash($request)->get();
+        }
+
+        return TrashLog::whereIn('id', $request->collect('ids')->map(fn ($id) => (int) $id))->get();
     }
 
     public function export(Request $request): StreamedResponse

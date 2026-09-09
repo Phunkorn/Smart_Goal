@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\WorkLog;
+use App\Models\WorkLogTemplate;
 use App\Support\AuditTrail;
+use App\Support\WorkLogWeekdays;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +28,8 @@ use Illuminate\Support\Facades\DB;
  */
 class WorkLogParticipantService
 {
+    public function __construct(private readonly NotificationService $notifications) {}
+
     /**
      * ตั้งรายชื่อผู้ร่วมงานของบันทึกหนึ่งให้ตรงกับที่ส่งมา
      *
@@ -58,7 +62,138 @@ class WorkLogParticipantService
             );
         }
 
+        // แจ้งเฉพาะคนที่เพิ่งถูกเพิ่มเข้ามา การแก้ไขบันทึกเดิมซ้ำ ๆ จึงไม่ยิง
+        // แจ้งเตือนเดิมซ้ำให้คนที่อยู่ในรายชื่อมาตั้งแต่แรก
+        $this->notifyAddedToLog($log, $actor, array_values(array_diff($after, $before)));
+
         return count($after);
+    }
+
+    /**
+     * ตั้งรายชื่อผู้ร่วมงานของแม่แบบงานประจำ
+     *
+     * คนที่ถูกเพิ่มจะได้รายการของงานประจำนี้ในไทม์ไลน์ของตัวเองทุกวันที่ถึงกำหนด
+     * และต้องยืนยันว่าทำแล้วด้วยตัวเอง ต่างจากผู้ร่วมงานของบันทึกรายวันที่เป็น
+     * เพียงการบอกว่างานชิ้นนั้นทำด้วยกันในรายการของเจ้าของคนเดียว
+     *
+     * @param  array<int, mixed>  $userIds
+     * @return array<int, int> id ของคนที่เพิ่งถูกเพิ่มเข้ามาในรอบนี้
+     */
+    public function syncTemplate(WorkLogTemplate $template, User $actor, array $userIds): array
+    {
+        $eligible = $this->eligibleTemplateIds($template, $userIds);
+        $before = $template->participants()->pluck('users.id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
+
+        DB::transaction(function () use ($template, $actor, $eligible): void {
+            $template->participants()->sync(
+                collect($eligible)->mapWithKeys(fn (int $id): array => [$id => ['added_by' => $actor->id]])->all()
+            );
+        });
+
+        $after = collect($eligible)->sort()->values()->all();
+
+        if ($before !== $after) {
+            AuditTrail::log(
+                'work_log_template_participants_synced',
+                $template,
+                sprintf('ปรับผู้ร่วมงานของแม่แบบ "%s" เป็น %d คน', $template->title, count($after)),
+                ['before' => $before, 'after' => $after]
+            );
+        }
+
+        $added = array_values(array_diff($after, $before));
+
+        $this->notifyAddedToTemplate($template, $actor, $added);
+
+        return $added;
+    }
+
+    /**
+     * กรอง id ที่ส่งมาให้เหลือเฉพาะคนที่เพิ่มเข้าแม่แบบได้จริง
+     *
+     * ใช้เงื่อนไขเดียวกับผู้ร่วมงานของบันทึกรายวัน (แผนกเดียวกับเจ้าของแม่แบบ
+     * บัญชีเปิดใช้งาน role = user) เพื่อไม่ให้มีกติกาสองชุด
+     *
+     * @param  array<int, mixed>  $userIds
+     * @return array<int, int>
+     */
+    public function eligibleTemplateIds(WorkLogTemplate $template, array $userIds): array
+    {
+        $owner = $template->user ?: User::find($template->user_id);
+
+        if (! $owner instanceof User) {
+            return [];
+        }
+
+        $allowed = $this->candidatesForOwner($owner)->pluck('id')->map(fn ($id): int => (int) $id);
+
+        return collect($userIds)
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $allowed->contains($id))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * แจ้งเตือนคนที่เพิ่งถูกเพิ่มเข้าแม่แบบงานประจำ
+     *
+     * ข้อความบอกช่วงเวลาที่ตั้งไว้ด้วย เพราะสิ่งที่ผู้รับต้องรู้จริง ๆ คือ
+     * "ต้องเข้าไปทำตอนไหน" ไม่ใช่แค่ว่ามีชื่อตัวเองเพิ่มเข้ามา
+     *
+     * @param  array<int, int>  $userIds
+     */
+    private function notifyAddedToTemplate(WorkLogTemplate $template, User $actor, array $userIds): void
+    {
+        if ($userIds === []) {
+            return;
+        }
+
+        $window = $template->plannedWindowLabel();
+
+        $this->notifications->notifyDetached(
+            $userIds,
+            'work_log_routine_assigned',
+            'มีงานประจำที่ต้องทำเพิ่ม',
+            sprintf(
+                '%s เพิ่มคุณเข้างาน "%s" (%s%s)',
+                $actor->name,
+                $template->title,
+                WorkLogWeekdays::label((int) $template->weekday_mask),
+                $window === null ? '' : ' เวลา '.$window
+            ),
+            $actor,
+            [
+                'work_log_template_id' => $template->id,
+            ]
+        );
+    }
+
+    /**
+     * แจ้งเตือนคนที่เพิ่งถูกเพิ่มเป็นผู้ร่วมงานของบันทึกหนึ่ง
+     *
+     * เดิมการเพิ่มคนไม่ส่งอะไรเลย คนที่ถูกเลือกจึงไม่มีทางรู้ว่าชื่อตัวเองไปอยู่ใน
+     * บันทึกของใคร นอกจากบังเอิญเปิดไปเจอ
+     *
+     * @param  array<int, int>  $userIds
+     */
+    private function notifyAddedToLog(WorkLog $log, User $actor, array $userIds): void
+    {
+        if ($userIds === []) {
+            return;
+        }
+
+        $this->notifications->notifyDetached(
+            $userIds,
+            'work_log_participant_added',
+            'ถูกเพิ่มเป็นผู้ร่วมงาน',
+            sprintf('%s บันทึกว่าคุณทำงาน "%s" ด้วยกัน', $actor->name, $log->title),
+            $actor,
+            [
+                'work_log_id' => $log->id,
+                'work_date' => $log->work_date?->format('Y-m-d'),
+            ]
+        );
     }
 
     /**
@@ -116,6 +251,7 @@ class WorkLogParticipantService
 
         return User::query()
             ->where('role', 'user')
+            ->where('is_department_head', false)
             ->where('is_active', true)
             ->where('department_id', $owner->department_id)
             ->whereKeyNot($owner->id)
@@ -136,6 +272,7 @@ class WorkLogParticipantService
 
         return User::query()
             ->where('role', 'user')
+            ->where('is_department_head', false)
             ->where('is_active', true)
             ->when(
                 $departmentId !== null,

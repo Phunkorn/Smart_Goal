@@ -27,6 +27,10 @@ class User extends Authenticatable
         'must_change_password',
         'is_active',
         'profile_image',
+        'telegram_chat_id',
+        'telegram_username',
+        'telegram_linked_at',
+        'telegram_notifications_enabled',
     ];
 
     protected $hidden = [
@@ -42,7 +46,25 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'is_active' => 'boolean',
             'is_department_head' => 'boolean',
+            'telegram_chat_id' => 'integer',
+            'telegram_linked_at' => 'datetime',
+            'telegram_notifications_enabled' => 'boolean',
         ];
+    }
+
+    /**
+     * รับแจ้งเตือนทาง Telegram ได้จริงหรือไม่
+     *
+     * viewer เป็นสิทธิ์อ่านอย่างเดียวและไม่เคยเป็นผู้รับการแจ้งเตือนในระบบอยู่แล้ว
+     * (ดู NotificationService::notify) จึงกันไว้ที่นี่ด้วยเพื่อให้ช่องทางใหม่
+     * ไม่กลายเป็นทางลัดข้ามกติกาเดิม
+     */
+    public function receivesTelegramNotifications(): bool
+    {
+        return $this->is_active
+            && $this->role !== 'viewer'
+            && $this->telegram_chat_id !== null
+            && $this->telegram_notifications_enabled;
     }
 
     public function isDepartmentHead(): bool

@@ -26,7 +26,7 @@ class WorkLogDesignTest extends TestCase
 
     public function test_every_kind_and_status_has_complete_presentation_metadata(): void
     {
-        $this->assertSame(['routine', 'interrupt', 'field'], WorkLogDesign::kindKeys());
+        $this->assertSame(['routine', 'field'], WorkLogDesign::kindKeys());
 
         foreach (WorkLogDesign::KINDS as $key => $meta) {
             $this->assertArrayHasKey('label', $meta, $key);
@@ -49,7 +49,6 @@ class WorkLogDesignTest extends TestCase
     public function test_kind_labels_are_thai_to_avoid_clashing_with_project_priority_wording(): void
     {
         $this->assertSame('งานประจำ', WorkLogDesign::kind('routine')['label']);
-        $this->assertSame('งานแทรก', WorkLogDesign::kind('interrupt')['label']);
         $this->assertSame('งานนอกสถานที่', WorkLogDesign::kind('field')['label']);
     }
 
@@ -146,18 +145,16 @@ class WorkLogDesignTest extends TestCase
         $logs = $this->logs([
             ['kind' => 'routine', 'duration_minutes' => 40],
             ['kind' => 'field', 'duration_minutes' => 165],
-            ['kind' => 'interrupt', 'duration_minutes' => 80],
-            ['kind' => 'interrupt', 'duration_minutes' => 20],
+            ['kind' => 'routine', 'duration_minutes' => 80],
+            ['kind' => 'routine', 'duration_minutes' => 20],
         ]);
 
         $summary = WorkLogSummary::fromLogs($logs);
 
         $this->assertSame(305, $summary['total_minutes']);
         $this->assertSame(4, $summary['total_count']);
-        $this->assertSame(40, $summary['by_kind']['routine']['minutes']);
-        $this->assertSame(1, $summary['by_kind']['routine']['count']);
-        $this->assertSame(100, $summary['by_kind']['interrupt']['minutes']);
-        $this->assertSame(2, $summary['by_kind']['interrupt']['count']);
+        $this->assertSame(140, $summary['by_kind']['routine']['minutes']);
+        $this->assertSame(3, $summary['by_kind']['routine']['count']);
         $this->assertSame(165, $summary['by_kind']['field']['minutes']);
     }
 
@@ -171,7 +168,7 @@ class WorkLogDesignTest extends TestCase
         ]));
 
         $this->assertSame(
-            ['routine', 'interrupt', 'field'],
+            ['routine', 'field'],
             array_keys($summary['by_kind'])
         );
         $this->assertSame(0, $summary['by_kind']['field']['minutes']);
@@ -190,7 +187,7 @@ class WorkLogDesignTest extends TestCase
         $logs = $this->logs([
             ['kind' => 'routine', 'duration_minutes' => 60],
             ['kind' => 'field', 'duration_minutes' => 240],
-            ['kind' => 'interrupt', 'duration_minutes' => 80, 'work_order_list_id' => $project->id],
+            ['kind' => 'routine', 'duration_minutes' => 80, 'work_order_list_id' => $project->id],
         ], $owner, $department);
 
         $summary = WorkLogSummary::fromLogs($logs);

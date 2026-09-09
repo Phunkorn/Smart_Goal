@@ -42,25 +42,13 @@
         @endif
     </header>
 
-    @if ($recentBoards->isNotEmpty())
-        <section class="ws-section" aria-labelledby="wsRecentHeading">
-            <h2 class="ws-section__title" id="wsRecentHeading">แก้ไขล่าสุด</h2>
+    {{--
+        ไม่มีส่วน "แก้ไขล่าสุด" อีกแล้ว
 
-            <div class="ws-recent">
-                @foreach ($recentBoards as $board)
-                    @php($visibility = \App\Support\WorkspaceDesign::visibility($board->visibility))
-                    <a class="ws-recent__item" href="{{ route('workspace.boards.show', $board) }}">
-                        <span class="ws-recent__name">{{ $board->title }}</span>
-                        <span class="ws-recent__meta">
-                            <i class="bi {{ $visibility['icon'] }}" aria-hidden="true"></i>
-                            {{ $board->department?->department_name ?? 'ไม่ระบุแผนก' }}
-                        </span>
-                    </a>
-                @endforeach
-            </div>
-        </section>
-    @endif
-
+        หน้านี้ตอบคำถามเดียวคือ "จะเข้ากระดานของแผนกไหน" การเอากระดานล่าสุด
+        มาวางไว้ข้างบนทำให้มีทางเข้าสองทางไปที่เดียวกัน ทั้งที่กระดานทุกใบ
+        แสดงอยู่ในหน้าของแผนกนั้นเรียงตามเวลาแก้ไขล่าสุดอยู่แล้ว
+    --}}
     <section class="ws-section" aria-labelledby="wsDepartmentHeading">
         <h2 class="ws-section__title" id="wsDepartmentHeading">กระดานตามแผนก</h2>
 

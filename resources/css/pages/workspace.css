@@ -73,10 +73,17 @@
     color: #334155;
 }
 
+/*
+ * การ์ดแผนกเรียงสี่คอลัมน์เต็มความกว้าง
+ *
+ * ของเดิมเป็น auto-fill minmax(15rem, 1fr) บนจอกว้างจึงได้หกถึงเจ็ดคอลัมน์
+ * การ์ดแต่ละใบเล็กจนชื่อแผนกกับจำนวนกระดานดูจมหายไปในหน้าที่ว่างทั้งหน้า
+ * ตรึงไว้สี่คอลัมน์แล้วลดจำนวนลงตามความกว้างจริงในบล็อก responsive ด้านล่าง
+ */
 .ws-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.15rem;
 }
 
 .ws-empty {
@@ -96,10 +103,11 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    padding: 1.1rem;
+    gap: 1.15rem;
+    min-height: 7.5rem;
+    padding: 1.6rem 1.5rem;
     border: 1px solid #e2e8f0;
-    border-radius: 0.85rem;
+    border-radius: 1.05rem;
     background: #ffffff;
     text-decoration: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
@@ -120,13 +128,13 @@
 .ws-dept-card__icon {
     display: grid;
     place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 3.4rem;
+    height: 3.4rem;
     flex: 0 0 auto;
-    border-radius: 0.65rem;
+    border-radius: 0.85rem;
     background: #eff6ff;
     color: #2563eb;
-    font-size: 1.1rem;
+    font-size: 1.5rem;
 }
 
 .ws-dept-card__body {
@@ -138,52 +146,15 @@
 
 .ws-dept-card__name {
     overflow: hidden;
-    font-weight: 600;
+    font-size: 1.05rem;
+    font-weight: 700;
     color: #0f172a;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .ws-dept-card__count {
-    font-size: 0.8rem;
-    color: #64748b;
-}
-
-/* ── รายการแก้ไขล่าสุด ───────────────────────────────────────── */
-
-.ws-recent {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-}
-
-.ws-recent__item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    padding: 0.6rem 0.9rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.7rem;
-    background: #ffffff;
-    text-decoration: none;
-}
-
-.ws-recent__item:hover,
-.ws-recent__item:focus-visible {
-    border-color: #bfdbfe;
-}
-
-.ws-recent__name {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #0f172a;
-}
-
-.ws-recent__meta {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.78rem;
+    font-size: 0.88rem;
     color: #64748b;
 }
 
@@ -569,6 +540,19 @@ body.ws-modal-open {
     .ws-board {
         height: calc(100vh - 58px - 3.5rem);
         height: calc(100dvh - 58px - 3.5rem);
+    }
+}
+
+/* ลดจำนวนคอลัมน์ทีละขั้น ไม่ให้การ์ดถูกบีบจนชื่อแผนกถูกตัดด้วย ellipsis */
+@media (max-width: 1280px) {
+    .ws-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 992px) {
+    .ws-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

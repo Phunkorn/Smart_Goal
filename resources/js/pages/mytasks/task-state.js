@@ -50,6 +50,18 @@ const createCompletedGroup = (cardGrid, task) => {
 export const synchronizeCompletedTaskGroup = (cardGrid, task, status) => {
     if (!cardGrid || !task?.dataset?.projectKey) return null;
 
+    /*
+     * งานย่อยไม่เคยย้ายเข้ากลุ่ม "งานที่เสร็จแล้ว" ของโปรเจกต์
+     *
+     * งานย่อยเป็น [data-board-task] ของตัวเองเหมือนงานแม่ แต่มันเป็น <li> ที่อยู่ใน
+     * แผงงานย่อยของแถวงานแม่ การย้ายมันออกไปไว้ในกลุ่มงานที่เสร็จแล้วจึงดึงมันหลุด
+     * ออกจาก <ol> ต้นทาง ผู้ใช้เห็นเป็น "ปิดงานย่อยแล้วมันหายไปเลย"
+     *
+     * กลุ่มงานที่เสร็จแล้วเก็บเป็น "งาน" ทั้งใบ งานย่อยที่ปิดแล้วจึงตามงานแม่เข้าไป
+     * พร้อมแถวของมันเองอยู่แล้ว เพราะแผงงานย่อยเป็นลูกของ .board-reference-row
+     */
+    if (task.matches?.('[data-board-subtask]')) return null;
+
     let group = completedGroupFor(cardGrid, task.dataset.projectKey);
     if (Number(status) === 4) {
         group ||= createCompletedGroup(cardGrid, task);
@@ -60,7 +72,7 @@ export const synchronizeCompletedTaskGroup = (cardGrid, task, status) => {
 
     if (!group) return null;
     const rows = group.querySelector('.board-completed-group__rows');
-    const count = rows?.querySelectorAll('[data-board-task]').length || 0;
+    const count = rows?.querySelectorAll('[data-board-task]:not([data-board-subtask])').length || 0;
     if (count === 0) {
         group.remove();
         return null;

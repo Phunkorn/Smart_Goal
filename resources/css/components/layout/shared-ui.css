@@ -150,8 +150,8 @@
          * พนักงานและหัวหน้าแผนก และรูปตาสำหรับผู้เข้าชม
          *
          * เลือกแยกด้วยไอคอนแทนสี เพราะสีที่ต่างกันสี่ชุดบนแถบบนอ่านเป็น "สถานะ"
-         * (เขียวคือดี แดงคือเตือน) ทั้งที่บทบาทไม่มีดีหรือแย่ ส่วนฟ้าอ่อนเป็นสีกลาง
-         * ชุดเดียวกับ badge อื่นในระบบ จึงไม่แย่งความเด่นกับปุ่มแจ้งเตือนข้าง ๆ
+         * (เขียวคือดี แดงคือเตือน) ทั้งที่บทบาทไม่มีดีหรือแย่ ทุกบทบาทจึงใช้สีน้ำเงิน
+         * เข้มของธีม (--accent-strong) ชุดเดียวกับชื่อระบบและบรรทัดลิขสิทธิ์
          *
          * class บอกบทบาทยังอยู่ใน markup เพราะเป็นตัวระบุที่ SidebarNavigationTest ตรวจ
          */
@@ -164,9 +164,9 @@
             padding: 0 .75rem;
             font-size: .78rem;
             font-weight: 600;
-            border: 1px solid var(--blue-dim);
-            background: var(--blue-dim);
-            color: #1D4ED8;
+            border: 1px solid var(--accent-strong);
+            background: var(--accent-strong);
+            color: #fff;
             white-space: nowrap;
         }
 
@@ -191,6 +191,13 @@
             border-radius: 14px;
             border: 1px solid var(--border);
             box-shadow: var(--shadow-md);
+            font-size: .8rem;
+        }
+
+        /* หัวข้อในดรอปดาวน์เดิมหนาและใหญ่เกินจนอ่านยาก จึงลดขนาดและน้ำหนักลง */
+        .notification-menu strong {
+            font-size: .84rem;
+            font-weight: 600;
         }
 
         .notification-item {
@@ -219,8 +226,8 @@
             padding: .12rem .45rem;
             background: var(--red);
             color: #fff;
-            font-size: .68rem;
-            font-weight: 850;
+            font-size: .62rem;
+            font-weight: 700;
             margin-left: .35rem;
         }
 
@@ -243,23 +250,25 @@
             color: var(--text-muted);
             border-radius: 10px;
             padding: .55rem .75rem;
-            font-size: .78rem;
-            font-weight: 700;
+            font-size: .72rem;
+            font-weight: 600;
             text-align: center;
         }
 
         .notification-section-title {
-            font-size: .72rem;
-            font-weight: 700;
+            font-size: .68rem;
+            font-weight: 600;
         }
 
         .notification-title {
-            font-weight: 700;
-            font-size: .86rem;
+            font-weight: 600;
+            font-size: .8rem;
+            line-height: 1.45;
         }
 
         .notification-meta {
-            font-size: .75rem;
+            font-size: .72rem;
+            line-height: 1.5;
             color: var(--text-muted);
         }
 
@@ -280,7 +289,7 @@
         }
 
         .notification-dropdown-empty {
-            font-size: .85rem;
+            font-size: .78rem;
         }
 
         .table-clean {

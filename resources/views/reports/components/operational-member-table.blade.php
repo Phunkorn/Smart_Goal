@@ -40,7 +40,6 @@
                         <th scope="col" class="report-operational-table__number">ชั่วโมงรวม</th>
                         <th scope="col" class="report-operational-table__number">รายการ</th>
                         <th scope="col" class="report-operational-table__number">งานประจำ</th>
-                        <th scope="col" class="report-operational-table__number">งานแทรก</th>
                         <th scope="col" class="report-operational-table__number">นอกสถานที่</th>
                         <th scope="col" class="report-operational-table__number">ไม่ลงโปรเจกต์</th>
                     </tr>
@@ -48,12 +47,11 @@
                 <tbody>
                     @foreach($memberSummary as $member)
                         <tr data-operational-member-row>
-                            <th scope="row">{{ $member['name'] }}</th>
+                            <th scope="row"><a href="{{ route('reports.operational', array_merge(request()->except('owner'), ['owner' => $member['id']])) }}">{{ $member['name'] }}</a></th>
                             <td>{{ $member['department'] }}</td>
                             <td class="report-operational-table__number"><strong>{{ $member['hours_label'] }}</strong></td>
                             <td class="report-operational-table__number">{{ $member['count'] }}</td>
                             <td class="report-operational-table__number">{{ $member['routine'] }}</td>
-                            <td class="report-operational-table__number">{{ $member['interrupt'] }}</td>
                             <td class="report-operational-table__number">{{ $member['field'] }}</td>
                             <td class="report-operational-table__number">
                                 {{ \App\Support\WorkLogDesign::durationLabel($member['unlinked_minutes']) }}

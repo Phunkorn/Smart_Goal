@@ -16,7 +16,8 @@ use Illuminate\Support\Carbon;
  * - admin สร้างงานให้ใคร = approved ทันที (leader = ผู้รับมอบหมาย)
  * - user มอบหมายงานให้ตัวเอง หรือให้ user แผนกเดียวกัน = approved ทันที
  *   (leader = ผู้รับมอบหมาย ถ้าไม่ใช่ตัวเอง มิฉะนั้น leader = ผู้มอบหมายเอง)
- * - user มอบหมายงานให้ user ต่างแผนก = approval_status ต้องเป็น 'pending'
+ * - user มอบหมายงานให้หัวหน้าแผนก = approved ทันที แม้เป็นงานข้ามแผนก
+ * - user มอบหมายงานให้ user ทั่วไปต่างแผนก = approval_status ต้องเป็น 'pending'
  *   (leader ยังไม่ถูกกำหนดเป็นผู้รับมอบหมาย จนกว่าจะอนุมัติ จึงใช้ผู้มอบหมายเป็น leader ชั่วคราว)
  */
 class WorkOrderApprovalResolver
@@ -34,13 +35,12 @@ class WorkOrderApprovalResolver
     {
         $isAdmin = $actor->role === 'admin';
         $sameDepartment = self::isSameDepartment($actor, $assignee);
-        $approved = $isAdmin || $sameDepartment;
+        $assigneeCanJoinImmediately = $assignee->isDepartmentHead();
+        $approved = $isAdmin || $sameDepartment || $assigneeCanJoinImmediately;
 
-        $leaderUserId = $isAdmin
+        $leaderUserId = $approved && (int) $assignee->id !== (int) $actor->id
             ? (int) $assignee->id
-            : (($sameDepartment && (int) $assignee->id !== (int) $actor->id)
-                ? (int) $assignee->id
-                : (int) $actor->id);
+            : (int) $actor->id;
 
         return [
             'same_department' => $sameDepartment,

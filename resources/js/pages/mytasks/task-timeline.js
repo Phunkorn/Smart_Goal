@@ -1,4 +1,5 @@
 import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
+import {modalStack} from '../../components/modal-stack.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
 
 (() => {
@@ -36,7 +37,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const images = Array.isArray(item.images) ? item.images : [];
         if (!images.length) return '';
 
-        return `<div class="task-timeline-entry__images" data-comment-images>${images.map((image) => `<a class="task-timeline-entry__image" href="${escapeHtml(image.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name)}" loading="lazy"></a>`).join('')}</div>`;
+        return `<div class="task-timeline-entry__images" data-comment-images>${images.map((image) => `<button type="button" class="task-timeline-entry__image" data-open-comment-image="${escapeHtml(image.url)}" data-image-name="${escapeHtml(image.name)}" title="ดูรูป ${escapeHtml(image.name)}"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name)}" loading="lazy"></button>`).join('')}</div>`;
     };
 
     // ฟองที่มีแต่รูปไม่ต้องมีย่อหน้าข้อความว่างมาดันความสูง
@@ -213,10 +214,13 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         renderPreviews();
     };
 
-    panel.addEventListener('change', (event) => {
-        if (!event.target.matches('[data-comment-image-input]')) return;
+    /*
+     * รูปเข้ามาได้สองทาง คือเลือกจากไอคอนไฟล์ และวางด้วย Ctrl + V
+     * ทั้งสองทางต้องผ่านเพดานจำนวนและการแจ้งเตือนชุดเดียวกัน จึงรวมไว้ที่ฟังก์ชันนี้ที่เดียว
+     */
+    const addImages = (incoming) => {
+        if (!incoming.length) return false;
 
-        const incoming = [...event.target.files];
         const room = MAX_IMAGES - pendingImages.length;
 
         if (incoming.length > room) {
@@ -224,9 +228,34 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         }
 
         pendingImages = [...pendingImages, ...incoming.slice(0, Math.max(0, room))];
+        renderPreviews();
+
+        return true;
+    };
+
+    panel.addEventListener('change', (event) => {
+        if (!event.target.matches('[data-comment-image-input]')) return;
+
+        addImages([...event.target.files]);
         // ล้างค่า input เสมอ เพื่อให้เลือกไฟล์เดิมซ้ำแล้วยัง fire change อีกครั้ง
         event.target.value = '';
-        renderPreviews();
+    });
+
+    /*
+     * วางรูปจากคลิปบอร์ดลงในช่องพิมพ์ได้เลย (Ctrl + V) เช่นภาพหน้าจอที่เพิ่งกดมา
+     *
+     * รับเฉพาะชนิดที่ฟองแชทเรนเดอร์ได้จริงและ TaskCommentController ยอมรับ
+     * ส่วนการวางข้อความต้องทำงานตามปกติ จึงกัน default เฉพาะตอนที่มีรูปติดมาด้วยเท่านั้น
+     */
+    const PASTEABLE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+    panel.addEventListener('paste', (event) => {
+        if (!event.target.matches('[data-task-update-note]')) return;
+
+        const files = [...(event.clipboardData?.files || [])]
+            .filter((file) => PASTEABLE_IMAGE_TYPES.includes(file.type));
+
+        if (addImages(files)) event.preventDefault();
     });
 
     panel.addEventListener('click', (event) => {
@@ -236,6 +265,53 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         pendingImages.splice(Number(remove.dataset.removeCommentImage), 1);
         renderPreviews();
     });
+
+    /*
+     * ดูรูปในคอมเมนต์เป็นชั้นทับ ไม่ใช่การพาออกไปเปิด URL ของไฟล์ในแท็บใหม่
+     *
+     * ใช้ modalStack ตัวเดียวกับกล่องอื่นใน Workspace เพื่อให้การนับชั้น การล็อก body
+     * ปุ่ม Escape และการคืนโฟกัสกลับไปที่รูปที่กด เป็นของเจ้าของเดียวกันทั้งหน้า
+     */
+    const imageModal = () => panel.ownerDocument.querySelector('[data-comment-image-modal]');
+    const layers = () => modalStack(panel.ownerDocument);
+
+    const closeImageModal = () => {
+        const modal = imageModal();
+        if (!modal) return;
+
+        layers().close(modal);
+        // ปล่อยรูปทิ้งเมื่อปิด ไม่ให้รูปเดิมค้างอยู่ตอนเปิดรูปใบถัดไป
+        modal.querySelector('[data-comment-image-view]')?.setAttribute('src', '');
+    };
+
+    panel.ownerDocument.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-open-comment-image]');
+        const modal = imageModal();
+        if (!modal) return;
+
+        if (trigger) {
+            event.preventDefault();
+            const url = trigger.dataset.openCommentImage;
+            const name = trigger.dataset.imageName || 'รูปในคอมเมนต์';
+            const view = modal.querySelector('[data-comment-image-view]');
+            if (view) {
+                view.src = url;
+                view.alt = name;
+            }
+            modal.querySelector('[data-comment-image-name]').textContent = name;
+            modal.querySelector('[data-comment-image-source]')?.setAttribute('href', url);
+            layers().open(modal, trigger);
+
+            return;
+        }
+
+        // คลิกพื้นหลังของกล่อง (ไม่ใช่ตัวการ์ด) ถือเป็นการปิด เหมือนกล่องอื่นในหน้านี้
+        if ((event.target === modal && layers().isTop(modal)) || event.target.closest('[data-close-comment-image]')) {
+            closeImageModal();
+        }
+    });
+
+    imageModal()?.addEventListener('modalstack:dismiss', closeImageModal);
 
     const sendUpdate = async () => {
         const input = panel.querySelector('[data-task-update-note]');

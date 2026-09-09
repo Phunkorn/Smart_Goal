@@ -54,28 +54,3 @@ export const minutesBetween = (start, end) => {
 
     return diff > 0 ? diff : diff + (24 * 60);
 };
-
-/** จำนวนวินาทีที่ผ่านไปตั้งแต่เวลาที่กำหนด ใช้กับตัวจับเวลาที่กำลังเดิน */
-export const elapsedSeconds = (startedAtIso, now) => {
-    const started = Date.parse(startedAtIso);
-
-    if (Number.isNaN(started)) return 0;
-
-    const current = now instanceof Date ? now.getTime() : Number(now);
-    const seconds = Math.floor((current - started) / 1000);
-
-    return seconds > 0 ? seconds : 0;
-};
-
-/** วินาที → "1:05:09" หรือ "05:09" สำหรับแถบตัวจับเวลา */
-export const stopwatchLabel = (totalSeconds) => {
-    const safe = Math.max(0, Math.trunc(Number(totalSeconds) || 0));
-    const hours = Math.floor(safe / 3600);
-    const minutes = Math.floor((safe % 3600) / 60);
-    const seconds = safe % 60;
-    const pad = (value) => String(value).padStart(2, '0');
-
-    return hours > 0
-        ? `${hours}:${pad(minutes)}:${pad(seconds)}`
-        : `${pad(minutes)}:${pad(seconds)}`;
-};

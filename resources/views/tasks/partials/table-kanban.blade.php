@@ -300,6 +300,34 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                         @if(($unreadCommentCounts[$task->job_id] ?? 0) > 0)
                                             <span class="mytasks-kanban__comments" data-unread-comments="{{ $task->job_id }}"><i class="bi bi-chat-left-text"></i><b>{{ $unreadCommentCounts[$task->job_id] }}</b></span>
                                         @endif
+
+                                        {{--
+                                            ชิปงานย่อย — มุมมองนี้ไม่ยกงานย่อยขึ้นมาเป็นการ์ดของตัวเอง
+                                            เพราะการ์ดจะรกจนหางานจริงไม่เจอ แสดงแค่ความคืบหน้าให้เห็นก่อนกด
+                                            ว่าทำไมลากไปคอลัมน์ "เสร็จแล้ว" ไม่ได้ กดแล้วเปิดโมดัลไปจัดการต่อ
+
+                                            children ถูก eager-load มาแล้วทั้งใน MyTaskController::index()
+                                            และ WorkBoardController::adminMember() การนับจึงอยู่ในหน่วยความจำ
+                                            ไม่เพิ่มคิวรี แต่ต้องเช็ก relationLoaded() ก่อนเสมอเหมือน partial อื่น
+                                        --}}
+                                        @php
+                                            $kanbanChildren = $task->relationLoaded('children') ? $task->children : collect();
+                                            $kanbanChildrenDone = $kanbanChildren->where('job_status', 4)->count();
+                                            $kanbanChildrenLabel = 'งานย่อยเสร็จแล้ว '.$kanbanChildrenDone.' จาก '.$kanbanChildren->count().' งาน';
+                                        @endphp
+                                        @if($kanbanChildren->isNotEmpty())
+                                            <button
+                                                type="button"
+                                                class="mytasks-kanban__subtasks {{ $kanbanChildrenDone === $kanbanChildren->count() ? 'is-complete' : 'is-pending' }}"
+                                                data-kanban-subtasks="{{ $task->job_id }}"
+                                                data-open-kanban-task="{{ $task->job_id }}"
+                                                title="{{ $kanbanChildrenLabel }}"
+                                                aria-label="{{ $kanbanChildrenLabel }}"
+                                            >
+                                                <i class="bi bi-check2-square" aria-hidden="true"></i>
+                                                <b data-kanban-subtask-done>{{ $kanbanChildrenDone }}</b>/<span data-kanban-subtask-total>{{ $kanbanChildren->count() }}</span>
+                                            </button>
+                                        @endif
                                         </div>
 
                                     </footer>

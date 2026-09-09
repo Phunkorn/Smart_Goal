@@ -42,7 +42,6 @@ class WorkspaceBoardController extends Controller
 
         return view('workspace.index', [
             'summaries' => $this->query->departmentSummaries($viewer),
-            'recentBoards' => $this->query->recentFor($viewer),
             'ownDepartment' => $viewer->department,
             'canCreate' => Gate::allows('create', WorkspaceBoard::class),
         ]);

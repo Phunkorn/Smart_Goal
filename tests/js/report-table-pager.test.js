@@ -110,6 +110,22 @@ test('the pager markup ships from Blade, not from the module', async () => {
     assert.doesNotMatch(module, /createElement|innerHTML/, 'โมดูลต้องไม่สร้าง DOM ของปุ่มเอง');
 });
 
+test('the personal attention table reuses the ten-row pager', async () => {
+    const blade = await read('resources/views/reports/components/personal-attention-table.blade.php');
+    const module = await read('resources/js/pages/reports/my.js');
+    const css = await read('resources/css/pages/reports/personal.css');
+
+    assert.match(blade, /data-personal-attention-table data-page-size="10"/);
+    assert.match(blade, /data-personal-attention-row/);
+    assert.match(blade, /data-personal-attention-(?:previous|next)/);
+    assert.match(module, /initTablePager/);
+    assert.match(module, /rowSelector: '\[data-personal-attention-row\]'/);
+    assert.doesNotMatch(blade, /table-responsive/, 'ตารางนี้ต้องไม่สร้างแถบเลื่อนแนวนอน');
+    assert.match(css, /\.personal-report__table\s*\{[^}]*width:\s*100%[^}]*table-layout:\s*fixed/);
+    assert.doesNotMatch(css, /\.personal-report__table\s*\{[^}]*min-width/, 'ตารางต้องย่อตามการ์ดได้');
+    assert.match(css, /\.personal-report__table tbody tr\s*\{[^}]*display:\s*grid/, 'จอแคบต้องเปลี่ยนแถวเป็นบล็อกข้อมูล');
+});
+
 /*
  * วันที่บนแกนของกราฟต้องเป็นภาษาไทย
  *
@@ -176,18 +192,17 @@ test('avatars fall back to initials when the profile image is gone', async () =>
     const picker = await read('resources/views/reports/employees/index.blade.php');
     const module = await read('resources/js/components/avatar-fallback.js');
 
-    for (const [name, blade] of [['avatar partial', shared], ['employee picker', picker]]) {
-        // ตัวย่อชื่อต้องถูกเรนเดอร์เสมอ ไม่ใช่อยู่ในสาขา @else ของ @if
-        assert.match(blade, /WorkBoardDesign::initials/, `${name} ต้องมีตัวย่อชื่อ`);
-        assert.doesNotMatch(blade, /@else<span aria-hidden/, `${name} ยังผูกตัวย่อชื่อไว้กับสาขา else`);
-        assert.match(blade, /data-avatar-image/, `${name} ต้องติดป้ายให้ตัวสำรองรู้จัก`);
-    }
+    // ตัวย่อชื่อต้องถูกเรนเดอร์เสมอ ไม่ใช่อยู่ในสาขา @else ของ @if
+    assert.match(shared, /WorkBoardDesign::initials/, 'avatar partial ต้องมีตัวย่อชื่อ');
+    assert.doesNotMatch(shared, /@else<span aria-hidden/, 'avatar partial ยังผูกตัวย่อชื่อไว้กับสาขา else');
+    assert.match(shared, /data-avatar-image/, 'avatar partial ต้องติดป้ายให้ตัวสำรองรู้จัก');
+
+    // หน้าเลือกพนักงานต้องใช้ partial ตัวเดียวกัน ไม่ใช่เขียนรูปโปรไฟล์ของตัวเองคู่ขนาน
+    assert.match(picker, /@include\('work-board\.partials\.avatar'/, 'employee picker ต้องใช้ avatar partial ร่วมกัน');
 
     // ต้องซ้อนช่องเดียวกัน ไม่งั้นตัวย่อชื่อจะโผล่ใต้รูปตลอดเวลา
-    const workBoard = await read('resources/css/pages/work-board.css');
-    const selection = await read('resources/css/pages/reports/employee-selection.css');
-    assert.match(workBoard, /\.wb-avatar > \* \{ grid-area: 1 \/ 1/);
-    assert.match(selection, /\.employee-card__avatar > \*\{grid-area:1 \/ 1\}/);
+    const memberCard = await read('resources/css/components/member-card.css');
+    assert.match(memberCard, /\.wb-avatar > \* \{ grid-area: 1 \/ 1/);
 
     // ต้องดักในเฟส capture เพราะ error ของ <img> ไม่ bubble
     assert.match(module, /addEventListener\(\s*'error'[\s\S]*?true\s*\)/);
@@ -196,12 +211,16 @@ test('avatars fall back to initials when the profile image is gone', async () =>
 /*
  * การ์ดพนักงานกว้างตามเนื้อหา ไม่ใช่ยืดเต็มหนึ่งในสามของหน้าจอ
  */
-test('employee picker cards stop stretching on wide screens', async () => {
+test('employee picker cards fill the row instead of leaving the right side empty', async () => {
     const css = await read('resources/css/pages/reports/employee-selection.css');
 
     const grid = css.match(/\.employee-picker__grid\{([^}]*)\}/)?.[1] ?? '';
 
-    assert.match(grid, /repeat\(auto-fill,minmax\(240px,360px\)\)/);
+    // เพดาน 1fr คือสิ่งที่ทำให้คอลัมน์แบ่งที่ว่างจนเต็มแถว ไม่ใช่หยุดโตแล้วกองไปทางซ้าย
+    assert.match(grid, /repeat\(auto-fill,minmax\(240px,1fr\)\)/);
+    assert.doesNotMatch(grid, /360px/, 'เพดานความกว้างคอลัมน์ทำให้เหลือที่ว่างทางขวา');
+    assert.doesNotMatch(grid, /justify-content:start/, 'ไม่ต้องดันการ์ดไปชิดซ้ายเมื่อคอลัมน์เต็มแถวแล้ว');
+    // auto-fill ยังต้องอยู่ ไม่งั้นการ์ดจะยักษ์เหมือนตอนตรึงจำนวนคอลัมน์ไว้ตายตัว
     assert.doesNotMatch(grid, /repeat\(3,/, 'ห้ามตรึงจำนวนคอลัมน์ไว้ตายตัว');
 });
 
@@ -238,20 +257,37 @@ test('the member table keeps a gap from the chart card above it', async () => {
 });
 
 /*
- * การ์ดพนักงานต้องไม่โล่ง
+ * การ์ดพนักงานใช้คอมโพเนนต์เดียวกับไดเรกทอรีสมาชิกของแผนก
  *
- * justify-content:space-between ดันคำว่า "ดูรายงาน" กับลูกศรไปคนละฝั่งของการ์ด
- * ยิ่งการ์ดกว้าง ที่ว่างตรงกลางยิ่งมาก ทั้งที่ทั้งสองชิ้นควรอ่านต่อเนื่องกัน
+ * หน้าเลือกพนักงานเคยมีการ์ดของตัวเองที่หน้าตาไม่เหมือนใคร ตอนนี้ทั้งสองหน้าอ่านสไตล์
+ * จาก components/member-card.css ที่เดียว และหน้ารายงานเรนเดอร์เฉพาะรูป ชื่อ แผนก
  */
-test('the employee card action reads as one link, not two far-apart pieces', async () => {
-    const css = await read('resources/css/pages/reports/employee-selection.css');
+test('the employee picker reuses the shared member card', async () => {
+    const blade = await read('resources/views/reports/employees/index.blade.php');
+    const selection = await read('resources/css/pages/reports/employee-selection.css');
+    const memberCard = await read('resources/css/components/member-card.css');
 
-    const action = css.match(/\.employee-card__action\{([^}]*)\}/)?.[1] ?? '';
-    assert.doesNotMatch(action, /justify-content:space-between/, 'ห้ามดันข้อความกับลูกศรไปคนละฝั่ง');
-    assert.match(action, /justify-self:start/);
+    assert.match(blade, /class="wb-member-card"/);
+    assert.match(blade, /wb-member-card__portrait/);
+    assert.match(blade, /wb-member-card__identity/);
+    assert.match(blade, /wb-member-card__action/);
+
+    // หน้านี้ถามแค่ว่าจะดูรายงานของใคร จึงต้องไม่มีบล็อกภาระงานหรือเวลาอัปเดตล่าสุด
+    assert.doesNotMatch(blade, /wb-member-card__summary/, 'ห้ามแสดงสรุปภาระงานในหน้าเลือกพนักงาน');
+    assert.doesNotMatch(blade, /wb-member-card__activity/, 'ห้ามแสดงเวลาอัปเดตล่าสุดในหน้าเลือกพนักงาน');
+    assert.doesNotMatch(blade, /employee-card/, 'การ์ดชุดเดิมต้องถูกลบทิ้ง ไม่ใช่ทิ้งไว้คู่ขนาน');
+
+    // สไตล์ต้องมาจากคอมโพเนนต์ร่วม ไม่ใช่คัดลอกมาไว้ในไฟล์ของหน้า
+    assert.match(selection, /@import '\.\.\/\.\.\/components\/member-card\.css';/);
+    assert.doesNotMatch(selection, /\.employee-card/, 'CSS ของการ์ดชุดเดิมต้องถูกลบทิ้ง');
+
+    // ข้อความกับลูกศรอ่านต่อเนื่องกัน ไม่ถูกดันไปคนละฝั่งของการ์ด
+    const action = memberCard.match(/\.wb-member-card__action \{([^}]*)\}/)?.[1] ?? '';
+    assert.doesNotMatch(action, /justify-content: space-between/, 'ห้ามดันข้อความกับลูกศรไปคนละฝั่ง');
+    assert.match(action, /justify-content: center/);
 
     // ช่องค้นหาไม่ต้องยาวเต็มจอ เคอร์เซอร์จะได้อยู่ใกล้ปุ่มค้นหา
-    const filters = css.match(/\.employee-picker__filters\{([^}]*)\}/)?.[1] ?? '';
-    assert.match(filters, /minmax\(220px,520px\)/);
-    assert.match(filters, /justify-content:start/);
+    assert.match(selection, /\.employee-picker__filters\s*\{[^}]*width:\s*fit-content/);
+    assert.match(selection, /grid-template-columns:\s*minmax\(260px, 400px\) auto auto/);
+    assert.match(selection, /justify-content:\s*start/);
 });

@@ -16,13 +16,15 @@ test('every report landing card tone ships in the stylesheet the landing page lo
     const entry = await read('resources/css/pages/reports.css');
     const landing = await read('resources/css/pages/reports/landing.css');
     const operational = await read('resources/css/pages/reports/operational.css');
-    const blade = await read('resources/views/reports/index.blade.php');
+    // รายการการ์ดถูกประกอบใน ReportController::landingCards() ไม่ใช่ใน Blade แล้ว
+    // เพราะ "ใครเห็นการ์ดไหน" เป็นเรื่องสิทธิ์ที่ต้องตัดสินฝั่งเซิร์ฟเวอร์
+    const cardSource = await read('app/Http/Controllers/ReportController.php');
 
     assert.match(entry, /\.\/reports\/landing\.css/);
     assert.doesNotMatch(entry, /operational\.css/, 'หน้ารวมรายงานไม่ได้โหลดสไตล์ของหน้ารายงานปฏิบัติการ');
 
     // ทุก tone ที่ Blade ส่งเข้ามาต้องมีกฎรองรับใน landing.css
-    const tones = [...blade.matchAll(/'tone'\s*=>\s*'([a-z-]+)'/g)].map((match) => match[1]);
+    const tones = [...cardSource.matchAll(/'tone'\s*=>\s*'([a-z-]+)'/g)].map((match) => match[1]);
     assert.ok(tones.length >= 3, 'ต้องมีการ์ดอย่างน้อยสามใบให้ตรวจ');
 
     for (const tone of tones.filter((name) => name !== 'organization')) {

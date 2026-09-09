@@ -28,6 +28,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PROTO
         );
 
+        /*
+         * Telegram ยิง webhook เข้ามาจากเซิร์ฟเวอร์ของตัวเอง ไม่มี session และไม่มี CSRF token
+         * เส้นทางนี้ยืนยันตัวตนด้วย secret token ในเฮดเดอร์แทน (ดู TelegramWebhookController)
+         */
+        $middleware->validateCsrfTokens(except: [
+            'telegram/webhook',
+        ]);
+
         $middleware->alias([
             'admin' => AdminOnly::class,
             'active' => EnsureUserIsActive::class,

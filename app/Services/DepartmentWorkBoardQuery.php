@@ -158,6 +158,8 @@ final class DepartmentWorkBoardQuery
         TodayWorkspace::synchronizeLate($memberTasks);
 
         $tasks = $memberTasks
+            // Preview แสดงงานระดับบนสุด งานย่อยถูกดูจากในงานแม่เท่านั้น
+            ->topLevel()
             ->where('approval_status', 'approved')
             ->select([
                 'job_id',

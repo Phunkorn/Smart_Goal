@@ -22,6 +22,9 @@ use Illuminate\Support\Str;
  */
 class TrashRetention
 {
+    /** จำนวนรายการสูงสุดที่บันทึกชื่อไว้ในบันทึกสรุปของการลบเป็นชุด */
+    private const BULK_AUDIT_ITEM_LIMIT = 200;
+
     public static function summary(TrashLog $trash): array
     {
         $payload = $trash->payload_json ?? [];
@@ -96,6 +99,85 @@ class TrashRetention
 
             $trash->delete();
         });
+    }
+
+    /**
+     * ลบถาวรหลายรายการในคำสั่งเดียว
+     *
+     * ผู้ดูแลระบบที่มีของค้างเป็นร้อยรายการไม่มีทางกดปุ่มลบทีละแถวพร้อมพิมพ์ชื่อยืนยัน
+     * ทีละครั้งจนครบ เมื่อไม่มีทางทำได้จริง ข้อมูลก็ค้างอยู่ต่อไป
+     *
+     * ต่างจาก purge() ตรงที่เขียนบันทึกสรุป "แถวเดียว" ต่อการกดหนึ่งครั้ง ไม่ใช่แถวต่อ
+     * รายการที่ลบ มิฉะนั้นการล้างของค้างหนึ่งครั้งจะสร้างแถวใหม่ในบันทึกกิจกรรมเท่ากับ
+     * จำนวนที่ลบไป ซึ่งคือการย้ายขยะจากตารางหนึ่งไปอีกตารางหนึ่ง
+     *
+     * @param  Collection<int, TrashLog>  $logs
+     */
+    public static function purgeMany(Collection $logs, ?User $actor = null): int
+    {
+        if ($logs->isEmpty()) {
+            return 0;
+        }
+
+        // เก็บรายละเอียดไว้ก่อนลบ เพราะหลังลบแล้วอ่านชื่อจากของที่ไม่มีอยู่ไม่ได้
+        $items = $logs->map(fn (TrashLog $trash) => [
+            'entity_type' => $trash->entity_type,
+            'entity_id' => $trash->entity_id,
+            'name' => self::summary($trash)['name'],
+        ])->values();
+
+        $purged = 0;
+
+        DB::transaction(function () use ($logs, &$purged) {
+            foreach ($logs as $trash) {
+                self::forceDeleteEntity($trash);
+                $trash->delete();
+                $purged++;
+            }
+        });
+
+        AuditTrail::log('bulk_purged', null, 'ลบถาวรหลายรายการ: '.$purged.' รายการ', [
+            'purged' => $purged,
+            'purged_by' => $actor?->id,
+            // จำกัดรายการที่บันทึกไว้ เพราะการลบหมื่นรายการต้องไม่กลายเป็น JSON ก้อนมหึมา
+            'items' => $items->take(self::BULK_AUDIT_ITEM_LIMIT)->all(),
+            'items_truncated' => max(0, $items->count() - self::BULK_AUDIT_ITEM_LIMIT),
+        ]);
+
+        return $purged;
+    }
+
+    /**
+     * กู้คืนหลายรายการในคำสั่งเดียว
+     *
+     * รายการที่กู้ไม่ได้ (พ้นกำหนดแล้ว หรือชนิดข้อมูลไม่รองรับ) ต้องถูกข้าม ไม่ใช่ทำให้
+     * ทั้งชุดล้มเหลว ผู้ใช้ที่เลือกทั้งหน้าแล้วมีรายการเสียปนมาหนึ่งตัว ควรได้ที่เหลือคืน
+     *
+     * @param  Collection<int, TrashLog>  $logs
+     * @return array{restored: int, skipped: int}
+     */
+    public static function restoreMany(Collection $logs): array
+    {
+        $restored = 0;
+        $skipped = 0;
+
+        foreach ($logs as $trash) {
+            if (! self::canRestore($trash)) {
+                $skipped++;
+
+                continue;
+            }
+
+            try {
+                self::restore($trash);
+                $restored++;
+            } catch (\Throwable) {
+                // ต้นฉบับหายหรือข้อมูลสำรองไม่พอ — ข้ามไปทำรายการถัดไป
+                $skipped++;
+            }
+        }
+
+        return ['restored' => $restored, 'skipped' => $skipped];
     }
 
     public static function purgeExpired(): int

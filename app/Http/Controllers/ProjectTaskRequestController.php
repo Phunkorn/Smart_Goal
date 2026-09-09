@@ -20,6 +20,7 @@ class ProjectTaskRequestController extends Controller
     public function store(Request $request, WorkOrderList $list, NotificationService $notifications): JsonResponse|RedirectResponse
     {
         $this->authorize('requestTask', $list);
+        abort_if($list->archived_at !== null, 422, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว กรุณาเปิดโปรเจกต์อีกครั้งก่อนเพิ่มงาน');
         $request->session()->flash('project_task_request_list_id', $list->id);
 
         $validated = $request->validateWithBag('projectTaskRequest', [
@@ -34,6 +35,7 @@ class ProjectTaskRequestController extends Controller
         $taskRequest = DB::transaction(function () use ($list, $actor, $topic, $validated, $notifications): WorkOrderListTaskRequest {
             $lockedList = WorkOrderList::query()->lockForUpdate()->findOrFail($list->id);
             Gate::forUser($actor)->authorize('requestTask', $lockedList);
+            abort_if($lockedList->archived_at !== null, 422, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว กรุณาเปิดโปรเจกต์อีกครั้งก่อนเพิ่มงาน');
             $pendingCount = $lockedList->taskRequests()
                 ->where('requester_id', $actor->id)
                 ->where('status', 'pending')

@@ -19,7 +19,6 @@ const sampleData = {
     daily: {
         labels: ['1 Sep', '2 Sep'],
         routine: [1.5, 2],
-        interrupt: [0.5, 3],
         field: [0, 4],
     },
     categories: {
@@ -28,16 +27,14 @@ const sampleData = {
         tones: ['blue', 'amber'],
     },
     members: {labels: ['สมชาย', 'สมหญิง'], values: [8, 3]},
-    interrupts: {labels: ['1 Sep', '2 Sep'], values: [1, 4]},
 };
 
 test('normalize คืนโครงสร้างครบทุกชุดข้อมูลแม้ข้อมูลว่าง', () => {
     const normalized = normalizeOperationalChartData({});
 
-    assert.deepEqual(normalized.daily, {labels: [], routine: [], interrupt: [], field: []});
+    assert.deepEqual(normalized.daily, {labels: [], routine: [], field: []});
     assert.deepEqual(normalized.categories, {labels: [], values: [], colors: []});
     assert.deepEqual(normalized.members, {labels: [], values: []});
-    assert.deepEqual(normalized.interrupts, {labels: [], values: []});
 });
 
 /*
@@ -71,7 +68,7 @@ test('tone ที่ไม่รู้จักถอยไปใช้สีเ
     assert.deepEqual(normalized.categories.colors, [reportChartColors.gray]);
 });
 
-test('กราฟรายวันเป็นแท่งซ้อนสามประเภทงาน', () => {
+test('กราฟรายวันเป็นแท่งซ้อนสองประเภทงาน', () => {
     const configs = buildOperationalChartConfigs(sampleData);
 
     assert.equal(configs.daily.type, 'bar');
@@ -79,7 +76,7 @@ test('กราฟรายวันเป็นแท่งซ้อนสา�
     assert.equal(configs.daily.options.scales.y.stacked, true);
     assert.deepEqual(
         configs.daily.data.datasets.map((dataset) => dataset.label),
-        ['งานประจำ', 'งานแทรก', 'งานนอกสถานที่']
+        ['งานประจำ', 'งานนอกสถานที่']
     );
 });
 
@@ -89,7 +86,6 @@ test('กราฟที่เหลือใช้ชนิดที่ตร�
     assert.equal(configs.categories.type, 'doughnut');
     assert.equal(configs.members.type, 'bar');
     assert.equal(configs.members.options.indexAxis, 'y', 'ชั่วโมงรายคนเป็นแท่งแนวนอน');
-    assert.equal(configs.interrupts.type, 'line');
 });
 
 /*
@@ -101,9 +97,9 @@ test('ทูลทิปและแกนบอกหน่วยเป็น�
 
     const dailyLabel = configs.daily.options.plugins.tooltip.callbacks.label({
         raw: 2.5,
-        dataset: {label: 'งานแทรก'},
+        dataset: {label: 'งานประจำ'},
     });
-    assert.equal(dailyLabel, 'งานแทรก: 2.5 ชม.');
+    assert.equal(dailyLabel, 'งานประจำ: 2.5 ชม.');
 
     const categoryLabel = configs.categories.options.plugins.tooltip.callbacks.label({
         raw: 6,
@@ -142,7 +138,6 @@ test('id ของ canvas ตรงกันระหว่าง Blade กั�
         ['operationalDailyChart', 'daily'],
         ['operationalCategoryChart', 'categories'],
         ['operationalMemberChart', 'members'],
-        ['operationalInterruptChart', 'interrupts'],
     ];
 
     pairs.forEach(([id, key]) => {

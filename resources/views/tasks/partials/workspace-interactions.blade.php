@@ -100,6 +100,11 @@
         'shows_review_stage' => (int) $task->job_status === 3,
         'approver_id' => null,
         'allowed_statuses' => [(int) $task->job_status],
+        // shape ต้องตรงกับ TaskStatusTransitionService::capabilities() ทุกคีย์
+        // ไม่งั้น subtask gate ฝั่ง JS จะอ่านค่าไม่เจอใน workspace แบบอ่านอย่างเดียว
+        'task_id' => (int) $task->job_id,
+        'child_count' => 0,
+        'open_child_count' => 0,
     ];
     $taskManagementData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
         'transitions' => $forceReadOnly
@@ -195,6 +200,28 @@
         <button type="button" class="task-modal-close owner-modal-close" data-close-owner aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
         <div class="owner-modal-avatar" data-owner-avatar></div>
         <strong id="owner-modal-title" data-owner-name></strong>
+    </section>
+</div>
+
+{{--
+    กล่องดูรูปในคอมเมนต์
+
+    เดิมรูปในฟองแชทเป็นลิงก์ที่พาออกไปเปิด URL ของไฟล์ในแท็บใหม่ ผู้ใช้จึงหลุดจากบทสนทนา
+    ที่กำลังอ่านอยู่ทุกครั้งที่อยากดูรูปให้ชัด ที่นี่จึงเปิดเป็นชั้นทับใน Workspace แทน
+    และยังมีทางเปิดไฟล์จริงไว้ให้สำหรับคนที่ต้องการโหลดหรือเปิดเต็มจอ
+--}}
+<div class="notion-modal comment-image-modal" data-comment-image-modal hidden>
+    <section class="comment-image-modal__card" role="dialog" aria-modal="true" aria-labelledby="comment-image-modal-title">
+        <header>
+            <strong id="comment-image-modal-title" data-comment-image-name></strong>
+            <div class="comment-image-modal__actions">
+                <a class="comment-image-modal__open" data-comment-image-source target="_blank" rel="noopener" title="เปิดไฟล์จริงในแท็บใหม่"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span>เปิดไฟล์</span></a>
+                <button type="button" class="task-modal-close" data-close-comment-image aria-label="ปิด"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+            </div>
+        </header>
+        <div class="comment-image-modal__stage">
+            <img data-comment-image-view src="" alt="">
+        </div>
     </section>
 </div>
 

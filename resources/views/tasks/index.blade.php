@@ -66,6 +66,15 @@
         --}}
         @include('tasks.partials.scope-menu')
 
+        {{--
+            คลังโปรเจกต์ที่จัดเก็บแล้ว — อยู่ข้างปุ่มสร้างงาน ไม่ใช่ในแถวหัวคอลัมน์ของบอร์ด
+            แถวหัวคอลัมน์เป็นป้ายชื่อคอลัมน์ล้วน ๆ การแทรกปุ่มลงไปทำให้แถวนั้นรกและสูงขึ้นเปล่า ๆ
+            อีกทั้งปุ่มนี้ใช้ได้กับทุกมุมมอง ไม่ใช่เฉพาะมุมมองบอร์ด
+        --}}
+        <button type="button" class="mytasks-kanban__button mytasks-kanban__button--project mytasks-view-controls__archive" data-open-completed-projects>
+            <i class="bi bi-archive" aria-hidden="true"></i> โปรเจกต์ที่เสร็จแล้ว <b>{{ $archivedTaskLists->count() }}</b>
+        </button>
+
         {{-- ปุ่มเดียวที่เปิด modal สร้างโปรเจกต์ ต้องอยู่นอก <nav role="tablist"> เพื่อไม่ให้ปน role="tab" --}}
         @if($showCreateActions)
             <button type="button" class="mytasks-kanban__button mytasks-kanban__button--project mytasks-view-controls__create" data-open-user-task-create>
@@ -104,6 +113,7 @@
 
             @include('tasks.partials.workspace-task-source', [
                 'allTasks' => $calendarTasks,
+                'childTasks' => $childTasks,
                 'taskLists' => $taskLists,
                 'manageableTaskLists' => $manageableTaskLists,
                 'statusLabels' => $statusLabels,
@@ -128,7 +138,7 @@
 </div>
 
 @include('tasks.partials.workspace-interactions', [
-    'allTasks' => $calendarTasks,
+    'allTasks' => $calendarTasks->merge($childTasks),
     'availableCollaborators' => $availableCollaborators,
     'showCreateActions' => $showCreateActions,
     'workspaceContext' => $workspaceContext,
@@ -137,5 +147,6 @@
 ])
 @include('tasks.components.project-task-request-modal')
 @include('tasks.components.user-task-create-modal', ['projectOptions' => $manageableTaskLists])
+@include('tasks.components.completed-projects-modal', ['archivedTaskLists' => $archivedTaskLists])
 <div class="notion-toast" data-toast></div>
 @endsection

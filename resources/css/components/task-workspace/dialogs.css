@@ -1104,3 +1104,96 @@
         grid-template-columns: 1fr;
     }
 }
+
+/*
+ * กล่องดูรูปในคอมเมนต์
+ *
+ * ซ้อนอยู่เหนือ Task Workspace จึงต้องมี z-index สูงกว่ากล่องอื่นในหน้าเดียวกัน
+ * และรูปต้องไม่ล้นจอไม่ว่าไฟล์ต้นฉบับจะใหญ่แค่ไหน จึงจำกัดด้วยขนาดของ viewport
+ */
+.comment-image-modal {
+    z-index: 1400;
+    background: rgba(15, 23, 42, .62);
+    backdrop-filter: blur(3px);
+}
+
+.comment-image-modal__card {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+    width: min(920px, 100%);
+    max-height: min(88vh, 100%);
+    padding: 14px 16px 16px;
+    border: 1px solid #d9e2ed;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .3);
+}
+
+.comment-image-modal__card > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* ตัดชื่อไฟล์ยาวด้วย ellipsis ได้ แต่ต้องไม่ตัดหัวสระ/วรรณยุกต์ไทยทิ้ง */
+.comment-image-modal__card > header > strong {
+    overflow: hidden;
+    color: #1f2937;
+    font-size: 14px;
+    line-height: var(--thai-line-height);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.comment-image-modal__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.comment-image-modal__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid #d7e1ee;
+    border-radius: 8px;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.comment-image-modal__open:hover {
+    border-color: #a9c3ed;
+    background: #f4f8ff;
+}
+
+.comment-image-modal__stage {
+    display: grid;
+    overflow: auto;
+    place-items: center;
+    min-height: 0;
+    border-radius: 12px;
+    background: #0f172a;
+}
+
+.comment-image-modal__stage img {
+    max-width: 100%;
+    max-height: 78vh;
+    object-fit: contain;
+}
+
+@media (max-width: 760px) {
+    .comment-image-modal__card {
+        width: 100%;
+        max-height: 92vh;
+        padding: 12px;
+    }
+
+    .comment-image-modal__open span {
+        display: none;
+    }
+}

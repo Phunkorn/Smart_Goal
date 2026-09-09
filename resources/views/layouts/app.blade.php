@@ -43,6 +43,7 @@
         $isDepartmentHead = $currentUser?->isDepartmentHead() ?? false;
         // ชื่อบทบาทมาจาก Support ตัวเดียวเสมอ เพื่อไม่ให้หน้าไหนลืมธง is_department_head
         $roleLabel = \App\Support\RoleLabel::for($currentUser);
+        $routineAttention = app(\App\Services\RoutineAttentionService::class)->summary($currentUser);
         $notificationService = app(\App\Services\NotificationService::class);
         $systemNotifications = $notificationService->dropdown($currentUser);
         $notificationCount = $notificationService->unreadCount($currentUser);
@@ -51,12 +52,10 @@
 
     <aside class="sidebar" id="appSidebar">
         <div class="sidebar-brand">
-            {{-- โลโก้บริษัทอยู่ใน public/images จึงเสิร์ฟตรงได้ ไม่ต้องผ่าน MediaController ที่มีไว้สำหรับไฟล์ส่วนตัว --}}
+            {{-- โลโก้บริษัทอยู่ใน public/images จึงเสิร์ฟตรงได้ ไม่ต้องผ่าน MediaController ที่มีไว้สำหรับไฟล์ส่วนตัว
+                 หัว Sidebar เหลือเฉพาะโลโก้ที่กินความกว้างเต็มแถบ ส่วนชื่อระบบย้ายไปอยู่บน Topbar
+                 ข้างปุ่มเมนู เพื่อให้ชื่อระบบยังอ่านได้แม้ Sidebar ถูกย่อหรือปิดอยู่ --}}
             <span class="brand-mark" aria-hidden="true"><img src="{{ asset('images/premiuum-care-logo.png') }}" alt=""></span>
-            <div class="brand-text">
-                <div class="brand-name">Smart Goals</div>
-                <div class="brand-subtitle">ระบบจัดการองค์กร</div>
-            </div>
             <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -101,7 +100,18 @@
                     <span class="nav-item__label">รายงาน</span>
                 </a>
             @else
-                {{-- พนักงาน: "งานของฉัน" เป็นศูนย์กลางงานและการประชุม --}}
+                {{--
+                    พนักงานและหัวหน้าแผนก
+
+                    เดิมทั้งห้าเมนูกองอยู่ใต้หัวข้อ "งานของฉัน" หัวข้อเดียว ทั้งที่
+                    ครึ่งหนึ่งไม่ใช่งานของตัวเอง (บอร์ดของทีม กระดานของแผนก และ
+                    รายงานที่เป็นการสรุปย้อนหลัง) หัวข้อจึงไม่ได้ช่วยหาเมนู
+                    และกลายเป็นรายการยาวที่ต้องไล่อ่านทีละบรรทัด
+
+                    ตอนนี้แยกตามคำถามที่ผู้ใช้ถามตอนกดเมนู: งานของฉันวันนี้คืออะไร /
+                    ทีมกำลังทำอะไร / ผลที่ผ่านมาเป็นอย่างไร ลำดับภายในยังเหมือนเดิม
+                    ทุกประการ (SidebarNavigationTest ตรวจลำดับนี้อยู่)
+                --}}
                 <div class="nav-section-label">งานของฉัน</div>
 
                 <a href="{{ route('mytasks.index') }}"
@@ -115,6 +125,10 @@
                     <i class="bi bi-journal-check"></i>
                     <span class="nav-item__label">บันทึกงานประจำวัน</span>
                 </a>
+
+                {{-- งานที่ทำร่วมกับคนอื่น — หัวหน้าเห็นในบริบทของแผนกตัวเอง --}}
+                <div class="nav-section-label">{{ $isDepartmentHead ? 'แผนกของฉัน' : 'งานของทีม' }}</div>
+
                 <a href="{{ $isDepartmentHead ? route('work-board.department', $currentUser->department_id) : route('work-board.index') }}"
                     class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
                     <i class="bi bi-kanban"></i>
@@ -125,15 +139,21 @@
                     <i class="bi bi-easel"></i>
                     <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
+
                 {{--
-                    หัวหน้าแผนกต้องเข้าหน้าเลือกประเภทรายงานก่อน (ภาพรวม / รายบุคคล)
-                    เดิมชี้ตรงไป reports.organization ทำให้ข้ามหน้าเลือกไปเลย
-                    และเมนูไม่ขึ้น active เมื่ออยู่หน้ารายงานอื่นในกลุ่มเดียวกัน
+                    รายงานเป็นการสรุปย้อนหลัง คนละจังหวะกับการลงมือทำงาน จึงแยกหัวข้อ
+
+                    ทั้งหัวหน้าแผนกและพนักงานเข้าหน้าเลือกประเภทรายงานก่อน
+                    เดิมพนักงานถูกส่งตรงไป reports.my ทำให้ไม่มีทางไปถึงรายงาน
+                    ปฏิบัติงานของตัวเองได้เลย ส่วนรายการการ์ดในหน้านั้นมาจาก
+                    ReportController::landingCards() ซึ่งเป็นผู้ตัดสินสิทธิ์
                 --}}
-                <a href="{{ $isDepartmentHead ? route('reports.index') : route('reports.my') }}"
-                    class="nav-item {{ request()->routeIs($isDepartmentHead ? 'reports.*' : 'reports.my') ? 'active' : '' }}">
+                <div class="nav-section-label">รายงาน</div>
+
+                <a href="{{ route('reports.index') }}"
+                    class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-clipboard-data"></i>
-                    <span class="nav-item__label">{{ $isDepartmentHead ? 'รายงานแผนก' : 'รายงานของฉัน' }}</span>
+                    <span class="nav-item__label">{{ $isDepartmentHead ? 'รายงานแผนก' : 'รายงาน' }}</span>
                 </a>
             @endif
 
@@ -232,6 +252,7 @@
                 และเมื่อ Sidebar ถูกย่อหรือปิดบนจอเล็ก ปุ่มออกจากระบบต้องยังกดได้อยู่
             --}}
         </div>
+
     </aside>
     <div class="sidebar-backdrop" data-sidebar-close></div>
 
@@ -240,6 +261,11 @@
         <button type="button" class="mobile-menu-btn" aria-label="ย่อหรือขยายเมนู" title="ย่อหรือขยายเมนู" aria-controls="appSidebar" aria-expanded="false" data-sidebar-open>
             <i class="bi bi-list"></i>
         </button>
+        {{-- ชื่อระบบอยู่ที่นี่ที่เดียว ไม่ซ้ำกับหัว Sidebar --}}
+        <a class="topbar-brand" href="{{ route('dashboard') }}">
+            <span class="topbar-brand__name">Smart Goals</span>
+            <span class="topbar-brand__subtitle">ระบบจัดการองค์กร</span>
+        </a>
         <div class="ms-auto d-flex align-items-center gap-2">
             @php
                 // ป้ายบทบาทมุมขวาบนเคยมีแค่สองสี (admin เป็นม่วง ที่เหลือเขียวหมด)
@@ -278,6 +304,39 @@
                 <i class="bi {{ $roleChipIcon }}"></i>
                 <span class="role-chip__label">{{ $roleChipText }}</span>
             </span>
+            @unless($isViewer)
+                <div class="dropdown routine-topbar" data-routine-topbar data-routine-status-url="{{ route('daily-logs.routine-status') }}">
+                    <button class="icon-btn routine-topbar__button" data-bs-toggle="dropdown" aria-expanded="false"
+                        title="งานประจำวันนี้" aria-label="งานประจำที่ต้องจัดการ {{ $routineAttention['total'] }} รายการ">
+                        <i class="bi bi-alarm-fill" aria-hidden="true"></i>
+                        <span class="notification-count routine-topbar__count" data-routine-count @if($routineAttention['total'] === 0) hidden @endif>{{ $routineAttention['total'] }}</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end routine-topbar__menu">
+                        <div class="routine-topbar__head">
+                            <strong>งานประจำวันนี้</strong>
+                            <span data-routine-total>{{ $routineAttention['total'] }} รายการ</span>
+                        </div>
+                        <div class="routine-topbar__summary">
+                            <span><b data-routine-waiting>{{ $routineAttention['waiting'] }}</b> รอเริ่ม</span>
+                            <span><b data-routine-running>{{ $routineAttention['running'] }}</b> กำลังทำ</span>
+                            <span class="is-overdue"><b data-routine-overdue>{{ $routineAttention['overdue'] }}</b> เกินเวลา</span>
+                        </div>
+                        @forelse($routineAttention['items'] as $routineLog)
+                            @php
+                                $routineIsOverdue = $routineLog->planned_end_at && now()->greaterThan($routineLog->planned_end_at);
+                            @endphp
+                            <a class="routine-topbar__item {{ $routineIsOverdue ? 'is-overdue' : '' }}"
+                                href="{{ route('daily-logs.index', ['date' => $routineLog->work_date?->format('Y-m-d')]).'#work-log-'.$routineLog->id }}">
+                                <i class="bi {{ $routineIsOverdue ? 'bi-exclamation-circle-fill' : ($routineLog->status === 'in_progress' ? 'bi-play-circle-fill' : 'bi-clock') }}" aria-hidden="true"></i>
+                                <span><strong>{{ $routineLog->title }}</strong><small>{{ $routineLog->planned_start_at ? \App\Support\TodayWorkspace::businessNow($routineLog->planned_start_at)->format('H:i') : 'ไม่กำหนดเวลา' }} · {{ $routineLog->status === 'in_progress' ? 'กำลังทำ' : 'รอเริ่ม' }}</small></span>
+                            </a>
+                        @empty
+                            <p class="routine-topbar__empty">ไม่มีงานประจำที่ต้องจัดการ</p>
+                        @endforelse
+                        <a class="routine-topbar__all" href="{{ route('daily-logs.index') }}">ไปจัดการงานประจำ <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                </div>
+            @endunless
             <div class="dropdown">
                 <button class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false" title="แจ้งเตือน">
                     <i class="bi bi-bell-fill"></i>

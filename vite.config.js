@@ -37,7 +37,6 @@ export default defineConfig({
                 'resources/js/components/realtime-sync.js',
                 'resources/js/pages/board/admin-assignment.js',
                 'resources/js/pages/daily-logs/index.js',
-                'resources/js/pages/daily-logs/routines.js',
                 'resources/js/pages/daily-logs/categories.js',
                 'resources/js/pages/employees/index.js',
                 'resources/js/pages/admin/approvals.js',

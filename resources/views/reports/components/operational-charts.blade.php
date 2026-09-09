@@ -11,16 +11,28 @@
     ทั้งสองอ่านยากขึ้นโดยไม่ได้อะไรกลับมา
 --}}
 @php
+    /*
+     * $chartKeys เลือกได้ว่าหน้านั้นแสดงกราฟไหนบ้าง (ค่าเริ่มต้น = ทั้งหมด)
+     *
+     * รายงานของพนักงานคนเดียวไม่ต้องการกราฟ "รายคน" และกราฟที่ไว้ใช้อธิบายภาพรวม
+     * ของทีม การแสดงทุกกราฟให้ทุกคนทำให้หน้าที่ควรตอบคำถามเดียวกลายเป็นแดชบอร์ด
+     * ที่ต้องไล่อ่าน chart-lifecycle.js ข้าม canvas ที่ไม่มีอยู่ให้เองอยู่แล้ว
+     * จึงไม่ต้องแก้ฝั่ง JavaScript
+     */
+    $chartKeys = $chartKeys ?? ['daily', 'categories', 'members'];
+
     $charts = [
         [
+            'key' => 'daily',
             'id' => 'operationalDailyChart',
             'kind' => 'stacked-bar',
             'class' => 'report-dashboard-card--trend',
             'title' => 'ชั่วโมงงานตามประเภท ต่อช่วงเวลา',
-            'description' => 'ถ้าแท่งงานแทรกและงานนอกสถานที่สูงต่อเนื่อง แปลว่าเวลาถูกดึงออกจากงานโครงการ',
-            'label' => 'กราฟแท่งซ้อนชั่วโมงงานประจำ งานแทรก และงานนอกสถานที่',
+            'description' => 'เปรียบเทียบเวลางานประจำกับงานนอกสถานที่ในช่วงที่เลือก',
+            'label' => 'กราฟแท่งซ้อนชั่วโมงงานประจำและงานนอกสถานที่',
         ],
         [
+            'key' => 'categories',
             'id' => 'operationalCategoryChart',
             'kind' => 'doughnut',
             'class' => 'report-dashboard-card--status',
@@ -29,6 +41,7 @@
             'label' => 'กราฟวงกลมสัดส่วนชั่วโมงตามหมวดงาน',
         ],
         [
+            'key' => 'members',
             'id' => 'operationalMemberChart',
             'kind' => 'bar',
             'class' => 'report-dashboard-card--priority',
@@ -36,15 +49,12 @@
             'description' => 'เรียงจากมากไปน้อย แสดงสูงสุด 8 คนแรก',
             'label' => 'กราฟแท่งแนวนอนชั่วโมงงานปฏิบัติการรายคน',
         ],
-        [
-            'id' => 'operationalInterruptChart',
-            'kind' => 'line',
-            'class' => 'report-dashboard-card--completed',
-            'title' => 'งานแทรกพุ่งช่วงไหน',
-            'description' => 'จำนวนงานแทรกต่อช่วงเวลา — ใช้อธิบายวันที่โครงการไม่ขยับ',
-            'label' => 'กราฟเส้นจำนวนงานแทรกต่อช่วงเวลา',
-        ],
     ];
+
+    $charts = array_values(array_filter(
+        $charts,
+        fn (array $chart): bool => in_array($chart['key'], $chartKeys, true)
+    ));
 @endphp
 
 @foreach($charts as $chart)

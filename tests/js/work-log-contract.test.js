@@ -36,27 +36,85 @@ test('vite ลงทะเบียนไฟล์ entry ของบันท�
         viteConfig.includes("'resources/js/pages/daily-logs/index.js'"),
         'ต้องมี JS entry ของหน้าไทม์ไลน์ใน vite.config.js'
     );
-    assert.ok(
-        viteConfig.includes("'resources/js/pages/daily-logs/routines.js'"),
-        'ต้องมี JS entry ของหน้างานประจำใน vite.config.js'
-    );
-});
-
-test('หน้างานประจำเรียกใช้ entry ที่ลงทะเบียนไว้', () => {
-    const routinesView = read('resources/views/daily-logs/routines.blade.php');
-
-    assert.ok(routinesView.includes("@vite('resources/css/pages/daily-logs.css')"));
-    assert.ok(routinesView.includes("@vite('resources/js/pages/daily-logs/routines.js')"));
 });
 
 /*
- * การลบแม่แบบต้องยืนยันผ่าน Swal ไม่ใช่ confirm() ของเบราว์เซอร์
+ * งานประจำถูกยุบเข้ามาเป็น "โหมด" หนึ่งของกล่องเพิ่มงาน ไม่มีหน้าแยก ไม่มี entry
+ * ของตัวเอง และไม่มีกล่องของตัวเองอีกแล้ว โมดูลนี้ถูก import จาก index.js
+ * เพื่อให้ฟอร์มงานประจำมีชุดเดียวในระบบ
  */
-test('หน้างานประจำยืนยันการลบผ่าน Swal', () => {
+test('งานประจำไม่มี entry และไม่มีกล่องแยกอีกต่อไป', () => {
+    assert.ok(
+        ! viteConfig.includes("'resources/js/pages/daily-logs/routines.js'"),
+        'หน้างานประจำถูกยุบเข้ามาแล้ว จึงต้องไม่มี entry ค้างใน vite.config.js'
+    );
+
+    const entry = read('resources/js/pages/daily-logs/index.js');
+
+    assert.ok(entry.includes("from './routines.js'"));
+    assert.ok(entry.includes('initRoutinePanel('));
+    assert.ok(
+        ! indexView.includes('daily-logs.components.routine-modal'),
+        'กล่องงานประจำถูกยุบเข้ากล่องเพิ่มงานแล้ว จึงต้องไม่ include กล่องเดิมอีก'
+    );
+
+    const entryModal = read('resources/views/daily-logs/components/entry-modal.blade.php');
+
+    assert.ok(entryModal.includes('data-entry-panel="routine"'), 'งานประจำต้องเป็นโหมดในกล่องเพิ่มงาน');
+    assert.ok(entryModal.includes('data-routine-form'));
+});
+
+/*
+ * ทั้งหน้ามีทางเข้าเดียวคือปุ่มเพิ่มงาน — ไม่มีแถบพิมพ์เร็วและไม่มีปุ่มงานประจำ
+ * แยกบนหัวหน้าจออีกแล้ว เพราะถ้อยคำบนปุ่มทั้งสองฝั่งซ้ำกันจนแยกไม่ออก
+ */
+test('หน้าบันทึกงานมีปุ่มเพิ่มงานปุ่มเดียวเป็นทางเข้า', () => {
+    const launcher = read('resources/views/daily-logs/components/launcher.blade.php');
+    const header = read('resources/views/daily-logs/components/day-header.blade.php');
+
+    assert.ok(indexView.includes('daily-logs.components.launcher'));
+    assert.ok(launcher.includes('data-open-entry-modal'));
+
+    const openers = (launcher + header + indexView).split('data-open-entry-modal').length - 1;
+    assert.equal(openers, 1, 'ต้องมีปุ่มเปิดกล่องเพิ่มงานเพียงปุ่มเดียว');
+
+    assert.ok(! header.includes('data-open-routine-modal'), 'ปุ่มงานประจำแยกต้องถูกเอาออก');
+});
+
+/*
+ * การลบงานประจำต้องยืนยันผ่าน Swal ไม่ใช่ confirm() ของเบราว์เซอร์ และโมดูลนี้
+ * ต้องไม่แตะการเปิด/ปิดกล่องเอง เพราะเจ้าของสถานะนั้นมีรายเดียวคือ modal-stack
+ * ที่ถูกเรียกผ่าน entry-form.js
+ */
+test('โหมดงานประจำยืนยันการลบผ่าน Swal และไม่เป็นเจ้าของ overlay เอง', () => {
     const routines = codeOf('resources/js/pages/daily-logs/routines.js');
 
     assert.ok(routines.includes('swal?.fire'));
     assert.ok(! /\bwindow\.confirm\b|\bconfirm\(/.test(routines));
+    assert.ok(! routines.includes('modal-stack.js'), 'ห้ามมีเจ้าของ overlay รายที่สอง');
+});
+
+/*
+ * ระบบจับเวลาถูกถอดออกจากหน้านี้แล้ว — งานถูกปิดด้วยการกดยืนยันครั้งเดียว
+ * ต้องไม่เหลือซากไว้ในหน้าจอ สไตล์ หรือโมดูล ตามกติกาใน CLAUDE.md ที่ห้าม
+ * ทิ้ง UI เก่าไว้แบบซ่อน ปิดการทำงาน หรือรันคู่ขนาน
+ */
+test('ไม่มีซากของตัวจับเวลาเหลืออยู่ในหน้าบันทึกงาน', () => {
+    const cssEntryFile = read('resources/css/pages/daily-logs.css');
+
+    assert.ok(! cssEntryFile.includes('timer.css'), 'ต้องไม่ import สไตล์ของตัวจับเวลาอีก');
+
+    const entry = codeOf('resources/js/pages/daily-logs/index.js');
+
+    ['timer.js', 'timerStart', 'timerResume', 'timerStop', 'data-row-timer'].forEach((needle) => {
+        assert.ok(! entry.includes(needle), `index.js ต้องไม่อ้างถึง ${needle}`);
+    });
+
+    const card = read('resources/views/daily-logs/components/log-card.blade.php');
+
+    assert.ok(! card.includes('data-row-timer-start'));
+    assert.ok(! card.includes('data-row-timer-stop'));
+    assert.ok(! card.includes('data-timer-banner'));
 });
 
 test('หน้าบันทึกงานเรียกใช้ entry ที่ลงทะเบียนไว้จริง', () => {
@@ -69,7 +127,7 @@ test('หน้าบันทึกงานเรียกใช้ entry ท�
  * ถ้าลืม import สไตล์ของบล็อกนั้นจะหายไปเงียบ ๆ โดยไม่มี error
  */
 test('CSS entry import ไฟล์ย่อยครบทุกบล็อกของหน้า', () => {
-    ['layout', 'composer', 'timer', 'participants', 'timeline', 'summary', 'routines', 'modal', 'responsive'].forEach((partial) => {
+    ['layout', 'launcher', 'participants', 'timeline', 'summary', 'routines', 'modal', 'responsive'].forEach((partial) => {
         assert.ok(
             cssEntry.includes(`./daily-logs/${partial}.css`),
             `daily-logs.css ต้อง import ${partial}.css`
@@ -80,8 +138,9 @@ test('CSS entry import ไฟล์ย่อยครบทุกบล็อก
 test('เมนูข้างมีบันทึกงานประจำวันทั้งฝั่งพนักงานและ admin', () => {
     const occurrences = layout.split("route('daily-logs.index')").length - 1;
 
-    // หนึ่งครั้งในสาขา admin และอีกหนึ่งครั้งในสาขาพนักงาน
-    assert.equal(occurrences, 2, 'ต้องมีเมนูทั้งสาขา admin และสาขาพนักงาน');
+    // อย่างน้อยหนึ่งครั้งในสาขา admin และอีกหนึ่งครั้งในสาขาพนักงาน
+    // ลิงก์จากตัวแจ้งเตือนงานประจำบน topbar อาจใช้ route เดียวกันเพิ่มเติมได้
+    assert.ok(occurrences >= 2, 'ต้องมีเมนูทั้งสาขา admin และสาขาพนักงาน');
     assert.ok(layout.includes('บันทึกงานประจำวัน'));
     assert.ok(
         layout.includes("request()->routeIs('daily-logs.*')"),
@@ -95,10 +154,11 @@ test('เมนูข้างมีบันทึกงานประจำ�
  * เทสต์นี้กันแค่ไม่ให้ผู้ใช้เห็นเมนูที่กดแล้วเจอ 403)
  */
 test('สาขา viewer ในเมนูข้างไม่มีบันทึกงานประจำวัน', () => {
-    const viewerBranch = layout.slice(
-        layout.indexOf('@elseif ($isViewer)'),
-        layout.indexOf('{{-- พนักงาน:')
-    );
+    // ยึดจุดตัดที่โครงสร้างของ Blade เอง ไม่ใช่ข้อความคอมเมนต์ซึ่งแก้ถ้อยคำได้ตลอด
+    const marker = '@elseif ($isViewer)';
+    const viewerStart = layout.indexOf(marker);
+    // ค้นหา @else ถัดจากตัว @elseif เอง ไม่งั้นจะเจอตัวมันเองแล้วได้ช่วงว่าง
+    const viewerBranch = layout.slice(viewerStart, layout.indexOf('@else', viewerStart + marker.length));
 
     assert.ok(viewerBranch.length > 0, 'ต้องหาสาขา viewer ในเลย์เอาต์เจอ');
     assert.ok(! viewerBranch.includes('daily-logs.index'));
@@ -120,7 +180,7 @@ test('ป้ายชื่อประเภทงานไม่ถูกเ�
     modules.forEach((path) => {
         const code = codeOf(path);
 
-        ['งานประจำ', 'งานแทรก', 'งานนอกสถานที่'].forEach((label) => {
+        ['งานประจำ', 'งานนอกสถานที่'].forEach((label) => {
             assert.ok(
                 ! code.includes(label),
                 `${path} ต้องไม่มีป้ายชื่อ "${label}" เขียนไว้เอง — ให้อ่านจาก work-log-design`
@@ -150,7 +210,7 @@ test('โมดูลของหน้านี้ไม่ใช้ alert conf
         'resources/js/pages/daily-logs/client.js',
         'resources/js/pages/daily-logs/summary.js',
         'resources/js/pages/daily-logs/attachments.js',
-        'resources/js/pages/daily-logs/timer.js',
+        'resources/js/pages/daily-logs/routines.js',
         'resources/js/pages/daily-logs/participants.js',
     ];
 
@@ -186,6 +246,37 @@ test('โมดูลไฟล์แนบใช้ URL จากเซิร์
     assert.ok(
         attachments.includes('createTextNode(attachment.name)'),
         'ชื่อไฟล์ต้องใส่ผ่าน text node ไม่ใช่ innerHTML'
+    );
+});
+
+/*
+ * กล่องยืนยันที่เปิดจากในกล่องเพิ่มงานต้องอยู่ "เหนือ" กล่องนั้น
+ *
+ * SweetAlert2 ต่อ container เข้ากับ body ที่ z-index 1060 ซึ่งต่ำกว่าชั้นของ
+ * modal-stack (เริ่มที่ 1200) ถ้าลืมส่งคลาสนี้ กล่องยืนยันจะไปโผล่ข้างหลังแล้ว
+ * ผู้ใช้กดอะไรไม่ได้เลย — เป็นบั๊กที่เกิดขึ้นมาแล้วกับปุ่มลบงานประจำ
+ */
+test('กล่องยืนยันที่เปิดจากในกล่องเพิ่มงานอยู่เหนือกล่องเสมอ', () => {
+    const modalCss = read('resources/css/pages/daily-logs/modal.css');
+    const rule = modalCss.match(/\.swal2-container\.daily-log-dialog \{([^}]*)\}/)?.[1] ?? '';
+    const layer = Number(rule.match(/z-index:\s*(\d+)/)?.[1] ?? 0);
+
+    assert.ok(layer > 1200, `กล่องยืนยันต้องอยู่เหนือชั้นของ modal-stack แต่ได้ ${layer}`);
+
+    // ทุกที่ที่เรียก Swal จากในกล่องต้องส่งคลาสนี้ ไม่งั้นอาการจะกลับมา
+    ['routines.js', 'attachments.js'].forEach((file) => {
+        const code = codeOf(`resources/js/pages/daily-logs/${file}`);
+
+        assert.ok(
+            code.includes('customClass: DAILY_LOG_DIALOG_CLASS'),
+            `${file} ต้องส่ง customClass ให้กล่องยืนยันที่เปิดจากในกล่อง`
+        );
+    });
+
+    // ค่าคงที่มีที่อยู่เดียวในโมดูลร่วม ไม่ใช่สตริงที่พิมพ์ซ้ำในแต่ละไฟล์
+    assert.ok(
+        codeOf('resources/js/pages/daily-logs/client.js').includes("container: 'daily-log-dialog'"),
+        'ชื่อคลาสต้องประกาศไว้ที่เดียวใน client.js'
     );
 });
 

@@ -9,7 +9,6 @@ use App\Support\TodayWorkspace;
 use App\Support\WorkLogDesign;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -89,7 +88,11 @@ class WorkLogService
                 'started_at' => $startedAt,
                 'ended_at' => $endedAt,
                 'duration_minutes' => $minutes,
-                'status' => $minutes === null ? 'open' : 'done',
+                // รายการที่เจ้าของกด "ยืนยันว่าทำแล้ว" ไว้ ต้องไม่กลับไปเป็นค้าง
+                // เพียงเพราะมาแก้ชื่อหรือรายละเอียดทีหลังโดยไม่ได้กรอกเวลา
+                'status' => $minutes === null
+                    ? ($log->status === 'done' ? 'done' : 'open')
+                    : 'done',
                 // การแก้เวลาด้วยมือถือว่าผู้ใช้ยืนยันตัวเลขเองแล้ว ป้ายเตือน
                 // "ระบบปิดให้อัตโนมัติ" จึงต้องหายไป
                 'auto_closed_at' => null,
@@ -126,115 +129,199 @@ class WorkLogService
     }
 
     /**
-     * เริ่มจับเวลางานใหม่
+     * ยืนยันว่าทำงานรายการนี้เสร็จแล้ว โดยไม่ต้องจับเวลา
      *
-     * @param  array<string, mixed>  $data
+     * นี่คือเส้นทางหลักของงานประจำ: ระบบวางรายการของวันนี้ไว้ให้ตามที่ตั้งค่า
+     * เจ้าของเข้าไปทำจริง แล้วกลับมากดยืนยันหนึ่งครั้ง การบังคับให้กดเริ่ม/หยุด
+     * ตัวจับเวลาเพื่อปิดงานที่ใช้เวลา 20 นาทีทุกเช้า เป็นภาระที่ไม่ได้ข้อมูล
+     * เพิ่มขึ้นจริง เพราะช่วงเวลาถูกกำหนดไว้ในแม่แบบอยู่แล้ว
+     *
+     * เมื่อยังไม่มีเวลาบันทึกไว้เลย ระบบเติมช่วงเวลาที่ "ตั้งไว้" ของแม่แบบให้
+     * เพื่อให้เวลารวมของวันไม่กลายเป็นศูนย์ทั้งที่ทำงานไปแล้วจริง
      */
-    public function startTimer(User $owner, User $actor, array $data): WorkLog
+    public function startRoutine(WorkLog $log, User $actor, ?string $lateReason = null): WorkLog
     {
-        $now = TodayWorkspace::businessNow();
+        if ($log->work_log_template_id === null) {
+            throw ValidationException::withMessages(['routine' => 'ปุ่มเริ่มงานใช้กับงานประจำเท่านั้น']);
+        }
 
-        return $this->guardSingleTimer(function () use ($owner, $actor, $data, $now): WorkLog {
-            return DB::transaction(function () use ($owner, $actor, $data, $now): WorkLog {
-                $log = WorkLog::create([
-                    'user_id' => $owner->id,
-                    'created_by' => $actor->id,
-                    'department_id' => $owner->department_id,
-                    'work_log_category_id' => $data['work_log_category_id'] ?? null,
-                    'work_order_list_id' => $data['work_order_list_id'] ?? null,
-                    'job_id' => $data['job_id'] ?? null,
-                    'kind' => $data['kind'] ?? WorkLogDesign::DEFAULT_KIND,
-                    'status' => 'open',
-                    'source' => 'manual',
-                    'title' => $data['title'],
-                    'details' => $data['details'] ?? null,
-                    'location' => $data['location'] ?? null,
-                    'requester_name' => $data['requester_name'] ?? null,
-                    'work_date' => $now->format('Y-m-d'),
-                    'started_at' => $now->copy()->utc(),
-                    'open_timer_owner_id' => $owner->id,
-                ]);
-
-                AuditTrail::log(
-                    'work_log_timer_started',
-                    $log,
-                    sprintf('เริ่มจับเวลางาน "%s"', $log->title),
-                    ['after' => $this->auditSnapshot($log)]
-                );
-
-                return $log;
-            });
-        });
-    }
-
-    /**
-     * เริ่มจับเวลาบนรายการที่มีอยู่แล้ว เช่น งานประจำที่ระบบสร้างให้ตอนเช้า
-     */
-    public function resumeTimer(WorkLog $log, User $actor): WorkLog
-    {
         if ($log->status !== 'open') {
+            return $log;
+        }
+
+        // งานประจำของวันที่ผ่านไปแล้ว เริ่มย้อนหลังไม่ได้เด็ดขาด
+        //
+        // การกดเริ่มงานคือการบันทึกว่า "ตอนนี้กำลังทำอยู่" ถ้าปล่อยให้กดในวัน
+        // ย้อนหลังได้ เวลาที่บันทึกจะเป็นเวลาของวันนี้ทั้งที่ผูกอยู่กับวันเมื่อวาน
+        // ซึ่งทำให้เวลารวมของทั้งสองวันผิดพร้อมกัน ทางเดียวที่เหลือของวันที่ผ่านไป
+        // แล้วคือระบุเหตุผลว่าทำไมไม่ได้ทำ (skipRoutine)
+        if ($this->isPastDay($log)) {
             throw ValidationException::withMessages([
-                'status' => 'งานนี้ปิดไปแล้ว เริ่มจับเวลาใหม่ไม่ได้',
+                'routine' => 'งานประจำของวันที่ผ่านมาเริ่มย้อนหลังไม่ได้ กรุณาระบุเหตุผลที่ไม่ได้ทำวันนั้นแทน',
             ]);
         }
 
-        $now = TodayWorkspace::businessNow();
+        $now = TodayWorkspace::businessNow()->utc();
 
-        return $this->guardSingleTimer(function () use ($log, $now): WorkLog {
-            return DB::transaction(function () use ($log, $now): WorkLog {
-                $log->update([
-                    'started_at' => $now->copy()->utc(),
-                    'ended_at' => null,
-                    'duration_minutes' => null,
-                    'auto_closed_at' => null,
-                    'open_timer_owner_id' => $log->user_id,
-                ]);
+        if ($log->planned_start_at !== null && $now->lessThan($log->planned_start_at)) {
+            throw ValidationException::withMessages(['routine' => 'ยังไม่ถึงเวลาเริ่มงานประจำ']);
+        }
 
-                AuditTrail::log(
-                    'work_log_timer_started',
-                    $log,
-                    sprintf('เริ่มจับเวลางาน "%s"', $log->title),
-                    ['after' => $this->auditSnapshot($log->refresh())]
-                );
-
-                return $log;
-            });
-        });
-    }
-
-    /**
-     * หยุดจับเวลาและปิดงาน
-     *
-     * จำนวนนาทีคำนวณจากเวลาของเซิร์ฟเวอร์เสมอ ไม่รับค่าจากฝั่ง client เพราะ
-     * นาฬิกาของเครื่องผู้ใช้ตั้งเองได้ และตัวเลขนี้ถูกใช้ในรายงานภาระงาน
-     *
-     * งานที่สั้นกว่าหนึ่งนาทีถูกปัดขึ้นเป็น 1 นาที เพื่อไม่ให้ได้รายการที่ปิดแล้ว
-     * แต่มีเวลาเป็นศูนย์ ซึ่งอ่านแล้วเหมือนระบบทำงานผิด
-     */
-    public function stopTimer(WorkLog $log, User $actor, ?CarbonInterface $now = null): WorkLog
-    {
-        if ($log->open_timer_owner_id === null) {
-            throw ValidationException::withMessages([
-                'status' => 'งานนี้ไม่ได้กำลังจับเวลาอยู่',
-            ]);
+        if ($log->planned_start_at !== null && $now->greaterThan($log->planned_start_at) && blank($lateReason)) {
+            throw ValidationException::withMessages(['late_start_reason' => 'กรุณาระบุเหตุผลที่เริ่มงานช้า']);
         }
 
         $before = $this->auditSnapshot($log);
-        $endedAt = ($now ?? TodayWorkspace::businessNow())->copy();
-        $minutes = $this->minutesBetween($log->started_at, $endedAt);
+        $log->update([
+            'status' => 'in_progress',
+            'started_at' => $now,
+            'ended_at' => null,
+            'duration_minutes' => null,
+            'late_start_reason' => filled($lateReason) ? trim((string) $lateReason) : null,
+            'skip_reason' => null,
+            'skipped_at' => null,
+        ]);
 
-        return DB::transaction(function () use ($log, $endedAt, $minutes, $before): WorkLog {
+        AuditTrail::log('work_log_started', $log, sprintf('เริ่มงานประจำ "%s"', $log->title), [
+            'before' => $before,
+            'after' => $this->auditSnapshot($log->refresh()),
+        ]);
+
+        return $log;
+    }
+
+    public function markDone(WorkLog $log, User $actor, ?string $lateReason = null): WorkLog
+    {
+        if ($log->status === 'done') {
+            return $log;
+        }
+
+        if ($log->work_log_template_id !== null) {
+            if ($this->isPastDay($log) && $log->status !== 'in_progress') {
+                throw ValidationException::withMessages([
+                    'routine' => 'งานประจำของวันที่ผ่านมาปิดย้อนหลังไม่ได้ กรุณาระบุเหตุผลที่ไม่ได้ทำวันนั้นแทน',
+                ]);
+            }
+
+            if ($log->status !== 'in_progress' || $log->started_at === null) {
+                throw ValidationException::withMessages(['routine' => 'กรุณากดเริ่มงานก่อนกดเสร็จงาน']);
+            }
+
+            $now = TodayWorkspace::businessNow()->utc();
+
+            if ($log->planned_end_at !== null && $now->greaterThan($log->planned_end_at) && blank($lateReason)) {
+                throw ValidationException::withMessages(['late_completion_reason' => 'กรุณาระบุเหตุผลที่งานเสร็จเกินเวลา']);
+            }
+
+            $before = $this->auditSnapshot($log);
+            $minutes = max(1, min(
+                WorkLogDesign::MAX_DURATION_MINUTES,
+                (int) $log->started_at->diffInMinutes($now)
+            ));
+
             $log->update([
-                'ended_at' => $endedAt->utc(),
-                'duration_minutes' => $minutes,
                 'status' => 'done',
-                'open_timer_owner_id' => null,
+                'ended_at' => $now,
+                'duration_minutes' => $minutes,
+                'late_completion_reason' => filled($lateReason) ? trim((string) $lateReason) : null,
+            ]);
+
+            AuditTrail::log('work_log_completed', $log, sprintf('ทำงานประจำ "%s" เสร็จแล้ว', $log->title), [
+                'before' => $before,
+                'after' => $this->auditSnapshot($log->refresh()),
+            ]);
+
+            return $log;
+        }
+
+        $before = $this->auditSnapshot($log);
+        [$startedAt, $endedAt, $minutes] = $this->plannedCompletion($log);
+
+        return DB::transaction(function () use ($log, $startedAt, $endedAt, $minutes, $before): WorkLog {
+            $log->update([
+                'status' => 'done',
+                'started_at' => $startedAt,
+                'ended_at' => $endedAt,
+                'duration_minutes' => $minutes,
             ]);
 
             AuditTrail::log(
-                'work_log_timer_stopped',
+                'work_log_completed',
                 $log,
-                sprintf('หยุดจับเวลางาน "%s" (%s)', $log->title, WorkLogDesign::durationLabel($minutes)),
+                sprintf('ยืนยันว่าทำงาน "%s" เสร็จแล้ว', $log->title),
+                ['before' => $before, 'after' => $this->auditSnapshot($log->refresh())]
+            );
+
+            return $log;
+        });
+    }
+
+    public function skipRoutine(WorkLog $log, User $actor, string $reason): WorkLog
+    {
+        if ($log->work_log_template_id === null) {
+            throw ValidationException::withMessages(['routine' => 'ระบุว่าไม่ได้ทำวันนี้ได้เฉพาะงานประจำ']);
+        }
+
+        if (in_array($log->status, ['done', 'skipped'], true)) {
+            return $log;
+        }
+
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw ValidationException::withMessages(['skip_reason' => 'กรุณาระบุเหตุผลที่ไม่ได้ทำงานวันนี้']);
+        }
+
+        $before = $this->auditSnapshot($log);
+        $now = TodayWorkspace::businessNow()->utc();
+        $minutes = $log->started_at === null ? null : max(1, (int) $log->started_at->diffInMinutes($now));
+
+        $log->update([
+            'status' => 'skipped',
+            'ended_at' => $log->started_at === null ? null : $now,
+            'duration_minutes' => $minutes,
+            'skip_reason' => $reason,
+            'skipped_at' => $now,
+        ]);
+
+        AuditTrail::log('work_log_skipped', $log, sprintf('ระบุว่าไม่ได้ทำงานประจำ "%s" วันนี้', $log->title), [
+            'before' => $before,
+            'after' => $this->auditSnapshot($log->refresh()),
+        ]);
+
+        return $log;
+    }
+
+    /**
+     * ยกเลิกการยืนยัน — กดผิดรายการแล้วต้องแก้กลับได้
+     *
+     * เวลาที่ระบบเติมให้ตอนยืนยันถูกถอนออกด้วย ไม่งั้นรายการที่ "ยังไม่เสร็จ"
+     * จะยังกินเวลาอยู่ในสรุปของวัน ซึ่งเป็นตัวเลขที่อ่านแล้วเข้าใจผิด
+     */
+    public function reopen(WorkLog $log, User $actor): WorkLog
+    {
+        if (! in_array($log->status, ['done', 'skipped'], true)) {
+            return $log;
+        }
+
+        $before = $this->auditSnapshot($log);
+
+        return DB::transaction(function () use ($log, $before): WorkLog {
+            $log->update([
+                'status' => 'open',
+                'started_at' => null,
+                'ended_at' => null,
+                'duration_minutes' => null,
+                'auto_closed_at' => null,
+                'late_start_reason' => null,
+                'late_completion_reason' => null,
+                'skip_reason' => null,
+                'skipped_at' => null,
+            ]);
+
+            AuditTrail::log(
+                'work_log_reopened',
+                $log,
+                sprintf('ยกเลิกการยืนยันงาน "%s"', $log->title),
                 ['before' => $before, 'after' => $this->auditSnapshot($log->refresh())]
             );
 
@@ -243,33 +330,80 @@ class WorkLogService
     }
 
     /**
-     * ปิดตัวจับเวลาที่ถูกลืมเปิดค้างข้ามวัน
+     * วันของรายการผ่านไปแล้วหรือยัง เทียบด้วยวันตามเวลาทำการ (Asia/Bangkok)
      *
-     * เรียกได้ทั้งจากหน้าเว็บตอนเปิดหน้า และจาก artisan command ที่ตั้งเวลาไว้
-     * เพราะระบบไม่ได้รับประกันว่า cron จะถูกตั้งไว้บนเครื่อง production จริง
-     * (ดู deploy/README.md ที่ไม่มีขั้นตอนตั้ง schedule:run)
+     * ห้ามเทียบกับ now() ตรง ๆ เพราะ 23:00 ที่กรุงเทพยังเป็นวันเดิมของธุรกิจ
+     * แต่เป็นวันถัดไปแล้วตามเวลา UTC ที่เก็บอยู่ในฐานข้อมูล
+     */
+    private function isPastDay(WorkLog $log): bool
+    {
+        return $log->work_date !== null
+            && $log->work_date->format('Y-m-d') < TodayWorkspace::businessNow()->format('Y-m-d');
+    }
+
+    /**
+     * ช่วงเวลาที่จะบันทึกเมื่อยืนยันงานที่ไม่ได้จับเวลา
      *
-     * เวลาสิ้นสุดถูกจำกัดไว้ที่สิ้นวันทำการของวันนั้น หรือ MAX_TIMER_MINUTES
+     * ใช้ค่าที่มีอยู่ก่อนเสมอถ้าเจ้าของเคยกรอกไว้เอง ระบบไม่ทับข้อมูลที่คนกรอก
+     *
+     * @return array{0: ?CarbonInterface, 1: ?CarbonInterface, 2: ?int}
+     */
+    private function plannedCompletion(WorkLog $log): array
+    {
+        if ($log->duration_minutes !== null) {
+            return [$log->started_at, $log->ended_at, $log->duration_minutes];
+        }
+
+        $minutes = $log->template?->default_duration_minutes;
+        $startedAt = $this->plannedStartAt($log) ?? $log->started_at;
+
+        if ($minutes === null || $startedAt === null) {
+            return [$startedAt, $log->ended_at, null];
+        }
+
+        return [$startedAt, $startedAt->copy()->addMinutes($minutes), (int) $minutes];
+    }
+
+    /**
+     * เวลาเริ่มที่ตั้งไว้ในแม่แบบของรายการนี้ (ถ้ามี) ในหน่วย UTC
+     */
+    private function plannedStartAt(WorkLog $log): ?CarbonInterface
+    {
+        if ($log->started_at !== null) {
+            return $log->started_at;
+        }
+
+        $template = $log->template;
+
+        if ($template?->default_start_time === null) {
+            return null;
+        }
+
+        return $this->businessDay($log->work_date?->format('Y-m-d'))
+            ->copy()
+            ->setTimeFromTimeString($template->normalizedStartTime())
+            ->utc();
+    }
+
+    /**
+     * ปิดตัวจับเวลาที่ยังค้างอยู่จากรุ่นก่อนหน้า
+     *
+     * ระบบจับเวลาถูกถอดออกจากฟีเจอร์นี้แล้ว — งานถูกปิดด้วยการกดยืนยันครั้งเดียว
+     * แทน แต่ฐานข้อมูลของเครื่องที่ใช้งานมาก่อนยังมีแถวที่ open_timer_owner_id
+     * ค้างอยู่ได้ ถ้าไม่ปิดให้ รายการนั้นจะค้างตลอดไปโดยไม่มีปุ่มไหนปิดมันได้อีก
+     *
+     * เวลาสิ้นสุดถูกจำกัดไว้ที่สิ้นวันทำการของวันที่เริ่ม หรือ MAX_TIMER_MINUTES
      * แล้วแต่ว่าอันไหนมาก่อน เพื่อไม่ให้ได้รายการ 30 ชั่วโมงที่ทำให้รายงานเพี้ยน
      * รายการที่ถูกปิดแบบนี้จะมี auto_closed_at ให้หน้าจอขึ้นป้ายเตือนเจ้าของ
      *
      * @return int จำนวนรายการที่ถูกปิด
      */
-    public function closeStaleTimers(User $owner, ?CarbonInterface $now = null): int
+    public function closeLeftoverTimers(User $owner, ?CarbonInterface $now = null): int
     {
-        $businessNow = ($now ?? TodayWorkspace::businessNow())->copy();
-
         $stale = WorkLog::query()
             ->where('open_timer_owner_id', $owner->id)
             ->whereNotNull('started_at')
-            ->get()
-            ->filter(function (WorkLog $log) use ($businessNow): bool {
-                // ค้างข้ามวันทำการ หรือเดินเกินเพดานที่ยอมรับได้
-                $startedBusinessDay = TodayWorkspace::businessNow($log->started_at)->startOfDay();
-
-                return ! $startedBusinessDay->isSameDay($businessNow)
-                    || $this->minutesBetween($log->started_at, $businessNow) >= WorkLogDesign::MAX_TIMER_MINUTES;
-            });
+            ->get();
 
         foreach ($stale as $log) {
             $endOfStartDay = TodayWorkspace::businessNow($log->started_at)->endOfDay();
@@ -297,36 +431,6 @@ class WorkLogService
         }
 
         return $stale->count();
-    }
-
-    /**
-     * แปลง unique index ที่ฐานข้อมูลปฏิเสธ ให้เป็นข้อความที่ผู้ใช้เข้าใจ
-     *
-     * กติกา "หนึ่งคนจับเวลาได้ทีละงานเดียว" ถูกบังคับที่ฐานข้อมูล ไม่ใช่ที่โค้ด
-     * เพราะการเช็คก่อนเขียนถูก race ได้เมื่อผู้ใช้กดจากสองแท็บพร้อมกัน
-     * ที่นี่จึงไม่ตรวจซ้ำ แต่ดักผลลัพธ์ที่ฐานข้อมูลตัดสินแล้วมาแปลงเป็นข้อความ
-     */
-    private function guardSingleTimer(callable $operation): WorkLog
-    {
-        try {
-            return $operation();
-        } catch (QueryException $exception) {
-            if (! $this->isDuplicateKey($exception)) {
-                throw $exception;
-            }
-
-            throw ValidationException::withMessages([
-                'timer' => 'คุณมีงานที่กำลังจับเวลาอยู่แล้ว กรุณากดเสร็จสิ้นงานนั้นก่อน',
-            ]);
-        }
-    }
-
-    private function isDuplicateKey(QueryException $exception): bool
-    {
-        // 23000/23505 คือกลุ่ม integrity constraint violation ของ MySQL และ SQLite
-        // ส่วนการเทียบข้อความไว้รองรับไดรเวอร์ที่ไม่ตั้ง SQLSTATE ให้ครบ
-        return in_array($exception->getCode(), ['23000', '23505'], true)
-            || str_contains(mb_strtolower($exception->getMessage()), 'unique');
     }
 
     /**
@@ -503,6 +607,11 @@ class WorkLogService
             'started_at' => $log->started_at?->toIso8601String(),
             'ended_at' => $log->ended_at?->toIso8601String(),
             'duration_minutes' => $log->duration_minutes,
+            'planned_start_at' => $log->planned_start_at?->toIso8601String(),
+            'planned_end_at' => $log->planned_end_at?->toIso8601String(),
+            'late_start_reason' => $log->late_start_reason,
+            'late_completion_reason' => $log->late_completion_reason,
+            'skip_reason' => $log->skip_reason,
             'work_order_list_id' => $log->work_order_list_id,
             'job_id' => $log->job_id,
         ];

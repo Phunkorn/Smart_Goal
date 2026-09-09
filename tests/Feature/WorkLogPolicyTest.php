@@ -30,7 +30,6 @@ class WorkLogPolicyTest extends TestCase
         $this->assertTrue(Gate::forUser($owner)->allows('view', $log));
         $this->assertTrue(Gate::forUser($owner)->allows('update', $log));
         $this->assertTrue(Gate::forUser($owner)->allows('delete', $log));
-        $this->assertTrue(Gate::forUser($owner)->allows('manageTimer', $log));
     }
 
     public function test_department_head_can_view_but_cannot_edit_or_delete_member_log(): void
@@ -45,7 +44,6 @@ class WorkLogPolicyTest extends TestCase
 
         $this->assertFalse(Gate::forUser($head)->allows('update', $log));
         $this->assertFalse(Gate::forUser($head)->allows('delete', $log));
-        $this->assertFalse(Gate::forUser($head)->allows('manageTimer', $log));
     }
 
     public function test_department_head_of_another_department_cannot_view(): void
@@ -103,16 +101,21 @@ class WorkLogPolicyTest extends TestCase
     }
 
     /**
-     * viewer ดูรายงานโครงการได้ แต่ต้องไม่เห็นรายงานภาระงานปฏิบัติการ
-     * ซึ่งเป็นข้อมูลรายบุคคลที่ละเอียดกว่า
+     * ทุก role ยกเว้น viewer เปิดรายงานปฏิบัติงานได้
+     *
+     * พนักงานเปิดได้เพื่อดูงานประจำของตัวเองว่าวันนี้ตรวจไปแล้วหรือยัง ส่วนขอบเขต
+     * ว่าเห็นข้อมูลของใครถูกบังคับที่ ReportController::forcedOwnerId() ไม่ใช่ที่
+     * ability นี้ (มีเทสต์แยกใน OperationalWorkloadReportTest)
+     *
+     * viewer ยังต้องไม่เห็น เพราะไม่มีบันทึกงานประจำวันเป็นของตัวเองเลย
      */
-    public function test_only_admin_and_department_head_can_view_operational_report(): void
+    public function test_every_role_except_viewer_can_open_the_operational_report(): void
     {
         $department = Department::create(['department_name' => 'IT']);
 
         $this->assertTrue(Gate::forUser($this->user(null, false, 'admin'))->allows('viewReport', WorkLog::class));
         $this->assertTrue(Gate::forUser($this->user($department, true))->allows('viewReport', WorkLog::class));
-        $this->assertFalse(Gate::forUser($this->user($department))->allows('viewReport', WorkLog::class));
+        $this->assertTrue(Gate::forUser($this->user($department))->allows('viewReport', WorkLog::class));
         $this->assertFalse(Gate::forUser($this->user($department, false, 'viewer'))->allows('viewReport', WorkLog::class));
     }
 
@@ -175,15 +178,6 @@ class WorkLogPolicyTest extends TestCase
 
         $this->assertFalse(Gate::forUser($owner)->allows('update', $log));
         $this->assertTrue(Gate::forUser($owner)->allows('delete', $log));
-    }
-
-    public function test_timer_cannot_be_managed_on_a_closed_log(): void
-    {
-        $department = Department::create(['department_name' => 'IT']);
-        $owner = $this->user($department);
-        $log = $this->log($owner, $department, ['status' => 'done']);
-
-        $this->assertFalse(Gate::forUser($owner)->allows('manageTimer', $log));
     }
 
     public function test_routine_template_is_private_to_its_owner(): void

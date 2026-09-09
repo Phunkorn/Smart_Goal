@@ -2,25 +2,32 @@
 
 namespace App\Services;
 
+use App\Models\Meeting;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderListTaskRequest;
 use App\Models\WorkOrderUpdate;
+use App\Services\Telegram\TelegramOutbox;
 use App\Support\ApprovalPresenter;
 use App\Support\TaskCommentPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 class NotificationService
 {
     /** จำนวนการแจ้งเตือนต่อหนึ่งหน้าของศูนย์การแจ้งเตือน */
     public const CENTER_PAGE_SIZE = 10;
 
-    public function __construct(private readonly TaskCommentPresenter $commentPresenter) {}
+    public function __construct(
+        private readonly TaskCommentPresenter $commentPresenter,
+        private readonly TelegramOutbox $telegram,
+    ) {}
 
     private function create(User|int $recipient, string $type, string $title, ?string $message = null, ?WorkOrder $task = null, ?User $actor = null, array $data = [], ?string $dedupeKey = null, array $metadata = []): SystemNotification
     {
@@ -37,9 +44,47 @@ class NotificationService
             'dedupe_key' => $dedupeKey,
         ];
 
-        return $dedupeKey
+        $notification = $dedupeKey
             ? SystemNotification::firstOrCreate(['user_id' => $attributes['user_id'], 'dedupe_key' => $dedupeKey], $attributes)
             : SystemNotification::create($attributes);
+
+        $this->queueTelegram($notification, $recipient);
+
+        return $notification;
+    }
+
+    /**
+     * ส่งต่อการแจ้งเตือนฉบับเดียวกันออกทาง Telegram
+     *
+     * เสียบไว้ที่ create() ซึ่งเป็นคอขวดที่การแจ้งเตือนทุกชนิดผ่าน จึงไม่ต้องแก้จุดเรียก
+     * กว่าสามสิบแห่งใน controllers และ services และตัวกรองผู้รับเดิม (ผู้ใช้ที่ยังใช้งานอยู่,
+     * ไม่ใช่ viewer, ไม่ใช่ตัวผู้ทำรายการเอง และต้องมีสิทธิ์ดูงาน) ยังบังคับใช้เหมือนเดิมทั้งหมด
+     *
+     * ต้องเช็ค wasRecentlyCreated เสมอ เพราะเส้นทางที่มี dedupe_key ใช้ firstOrCreate()
+     * ซึ่งคืนแถวเดิมเมื่อเคยแจ้งไปแล้ว ถ้าไม่เช็คจะยิงซ้ำทุกครั้งที่งานเลยกำหนดถูกสแกนใหม่
+     *
+     * ห้ามให้ข้อผิดพลาดของช่องทางเสริมทำให้การแจ้งเตือนในระบบล้มเหลว จึงกลืน exception ทิ้ง
+     */
+    private function queueTelegram(SystemNotification $notification, User|int $recipient): void
+    {
+        if (! $notification->wasRecentlyCreated) {
+            return;
+        }
+
+        try {
+            $user = $recipient instanceof User ? $recipient : User::find($recipient);
+
+            if (! $user || ! $user->receivesTelegramNotifications()) {
+                return;
+            }
+
+            $this->telegram->enqueue($notification, $user, $this->target($notification, $user));
+        } catch (Throwable $exception) {
+            Log::warning('Telegram enqueue failed', [
+                'system_notification_id' => $notification->id,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
     }
 
     public function notify(Collection|array $recipients, string $type, string $title, ?string $message = null, ?WorkOrder $task = null, ?User $actor = null, array $data = [], ?string $dedupePrefix = null): Collection
@@ -50,6 +95,31 @@ class NotificationService
             ->reject(fn (User $user) => $actor && (int) $user->id === (int) $actor->id)
             ->filter(fn (User $user) => ! $task || Gate::forUser($user)->allows('view', $task))
             ->map(fn (User $user) => $this->create($user, $type, $title, $message, $task, $actor, $data, $dedupePrefix ? $dedupePrefix.':'.$user->id : null));
+    }
+
+    /**
+     * คำขออนุมัติต้องตรวจสิทธิ์อนุมัติของผู้รับโดยตรง เพราะหัวหน้าแผนกปลายทาง
+     * อาจยังไม่มีสิทธิ์ดูงานของแผนกต้นทางก่อนตัดสินคำขอ
+     */
+    public function notifyApprovalRequest(Collection|array $recipients, string $type, string $title, string $message, WorkOrder $task, User $actor, ?User $candidate = null, ?string $dedupePrefix = null): Collection
+    {
+        $ability = $type === 'collaborator_approval_request' ? 'approveCollaborator' : 'approve';
+
+        return User::whereIn('id', collect($recipients)->map(fn ($recipient) => $recipient instanceof User ? $recipient->id : $recipient)->filter()->unique())
+            ->where('is_active', true)->get()
+            ->reject(fn (User $user) => $user->role === 'viewer')
+            ->reject(fn (User $user) => (int) $user->id === (int) $actor->id)
+            ->filter(fn (User $user) => Gate::forUser($user)->allows($ability, $candidate ? [$task, $candidate] : $task))
+            ->map(fn (User $user) => $this->create(
+                $user,
+                $type,
+                $title,
+                $message,
+                $task,
+                $actor,
+                $candidate ? ['candidate_user_id' => $candidate->id] : [],
+                $dedupePrefix ? $dedupePrefix.':'.$user->id : null
+            ));
     }
 
     public function notifyRemovedParticipant(User $recipient, string $type, string $title, ?string $message, WorkOrder $task, User $actor, array $data = []): ?SystemNotification
@@ -192,7 +262,7 @@ class NotificationService
             return;
         }
 
-        if ($sameDepartment) {
+        if ($sameDepartment || $assignee->isDepartmentHead()) {
             $this->notify(
                 [$assignee->id],
                 'task_assigned',
@@ -204,28 +274,30 @@ class NotificationService
                 'assignment-created:'.$task->job_id.':recipient'
             );
 
-            // ผู้รับงานได้ฉบับ "มีงานใหม่" ไปแล้วด้านบน ไม่ต้องได้ฉบับสรุปของฝ่ายดูแลซ้ำอีก
-            $this->notifyTaskAdmins(
-                $task,
-                'same_department_assignment',
-                'มีการมอบหมายงานภายในแผนก',
-                $actor->name.' มอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name,
-                $actor,
-                'assignment-created:'.$task->job_id.':admins',
-                [$assignee->id]
-            );
+            if ($sameDepartment) {
+                // ผู้รับงานได้ฉบับ "มีงานใหม่" ไปแล้วด้านบน ไม่ต้องได้ฉบับสรุปของฝ่ายดูแลซ้ำอีก
+                $this->notifyTaskAdmins(
+                    $task,
+                    'same_department_assignment',
+                    'มีการมอบหมายงานภายในแผนก',
+                    $actor->name.' มอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name,
+                    $actor,
+                    'assignment-created:'.$task->job_id.':admins',
+                    [$assignee->id]
+                );
+            }
 
             return;
         }
 
-        $this->notify(
+        $this->notifyApprovalRequest(
             $this->departmentApprovalRecipientIds($assignee->department_id),
             'cross_department_pending',
             'มีคำขอมอบหมายงานข้ามแผนกรอตรวจสอบ',
             $actor->name.' ต้องการมอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name.' (ต่างแผนก) กรุณาตรวจสอบและอนุมัติหรือปฏิเสธ',
             $task,
             $actor,
-            [],
+            null,
             'assignment-created:'.$task->job_id.':admins'
         );
     }
@@ -373,7 +445,7 @@ class NotificationService
         return SystemNotification::with(['actor', 'workOrder.user.department', 'project'])
             ->forUser($user)->centerEligible()
             ->when(($filters['status'] ?? 'all') === 'unread', fn ($query) => $query->unread())
-            ->when(in_array($filters['category'] ?? '', ['task', 'review', 'comment', 'deadline', 'system'], true), fn ($query) => $query->where('category', $filters['category']))
+            ->when(in_array($filters['category'] ?? '', ['task', 'review', 'comment', 'deadline', 'meeting', 'system'], true), fn ($query) => $query->where('category', $filters['category']))
             ->when(! empty($filters['project']), fn ($query) => $query->where('work_order_list_id', $filters['project']))
             ->latest()->paginate(self::CENTER_PAGE_SIZE)->withQueryString();
     }
@@ -425,6 +497,27 @@ class NotificationService
         }
 
         if (! $task) {
+            // การประชุมไม่ผูกกับ WorkOrder เลย work_order_id จึงเป็น null เสมอ
+            // ถ้าไม่ดักตรงนี้จะตกไป fallback ท้ายบล็อกแล้ววนกลับหน้าศูนย์การแจ้งเตือน
+            if ($notification->type === 'meeting_scheduled' && ($meeting = $this->notificationMeeting($notification))) {
+                if (Gate::forUser($viewer)->allows('view', $meeting)) {
+                    return route('meetings.show', $meeting);
+                }
+            }
+
+            // บันทึกงานประจำวันไม่ผูกกับ WorkOrder เช่นกัน และผู้รับต้องไปที่
+            // ไทม์ไลน์ "ของตัวเอง" ในวันนั้น ไม่ใช่ของผู้แจ้ง เพราะแต่ละคนได้
+            // รายการของตัวเองแยกแถวกัน (ดู WorkLogTemplate::participants())
+            if ($notification->category === 'worklog') {
+                if ($viewer->role === 'viewer') {
+                    return route('notifications.index');
+                }
+
+                return route('daily-logs.index', array_filter([
+                    'date' => $notification->data['work_date'] ?? null,
+                ]));
+            }
+
             if (str_starts_with($notification->type, 'project_task_request_')
                 && $notification->project
                 && Gate::forUser($viewer)->allows('view', $notification->project)) {
@@ -473,6 +566,28 @@ class NotificationService
 
     public function targetUnavailable(SystemNotification $notification, User $viewer): bool
     {
+        if ($notification->type === 'cross_department_pending') {
+            return ! $notification->workOrder
+                || ! Gate::forUser($viewer)->allows('approve', $notification->workOrder);
+        }
+
+        if ($notification->type === 'collaborator_approval_request') {
+            $candidateId = (int) data_get($notification->data, 'candidate_user_id');
+            $candidate = $candidateId ? User::find($candidateId) : null;
+
+            if (! $candidate && $notification->workOrder) {
+                $candidate = $notification->workOrder->collaborators()
+                    ->wherePivot('status', 'pending')
+                    ->get()
+                    ->first(fn (User $pendingCandidate) => Gate::forUser($viewer)
+                        ->allows('approveCollaborator', [$notification->workOrder, $pendingCandidate]));
+            }
+
+            return ! $notification->workOrder
+                || ! $candidate
+                || ! Gate::forUser($viewer)->allows('approveCollaborator', [$notification->workOrder, $candidate]);
+        }
+
         if (str_starts_with($notification->type, 'project_task_request_')) {
             $requestId = $notification->data['task_request_id'] ?? null;
 
@@ -485,11 +600,28 @@ class NotificationService
                     ->exists();
         }
 
+        if ($notification->type === 'meeting_scheduled') {
+            $meeting = $this->notificationMeeting($notification);
+
+            return ! $meeting || ! Gate::forUser($viewer)->allows('view', $meeting);
+        }
+
         if (! $notification->work_order_id) {
             return false;
         }
 
         return ! $notification->workOrder
             || ! Gate::forUser($viewer)->allows('view', $notification->workOrder);
+    }
+
+    /**
+     * ตาราง system_notifications ไม่มีคอลัมน์ meeting_id รหัสประชุมจึงอยู่ใน data (JSON)
+     * Meeting ไม่ใช้ SoftDeletes ประชุมที่ถูกลบแล้วจะคืน null ตามที่ต้องการ
+     */
+    private function notificationMeeting(SystemNotification $notification): ?Meeting
+    {
+        $meetingId = $notification->data['meeting_id'] ?? null;
+
+        return $meetingId ? Meeting::find($meetingId) : null;
     }
 }

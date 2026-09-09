@@ -62,6 +62,37 @@
 }
 
 /*
+ * คลังโปรเจกต์ที่จัดเก็บแล้ว — ปุ่มรองที่ยืนคู่กับปุ่มสร้างงาน
+ *
+ * เมื่อปุ่มนี้อยู่ในแถว มันคือตัวที่รับ margin อัตโนมัติแทน ไม่งั้น auto margin สองตัว
+ * จะแบ่งที่ว่างกันคนละครึ่งจนปุ่มทั้งคู่ลอยห่างกันกลางแถว
+ */
+.my-tasks-page .mytasks-view-controls__archive {
+    margin-inline-start: auto;
+    color: #45617f;
+    font-size: 13px;
+}
+
+.my-tasks-page .mytasks-view-controls__archive:hover {
+    color: #1d5fbd;
+}
+
+.my-tasks-page .mytasks-view-controls__archive b {
+    display: grid;
+    min-width: 20px;
+    height: 20px;
+    place-items: center;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #e7eef8;
+    font-size: 11px;
+}
+
+.my-tasks-page .mytasks-view-controls__archive + .mytasks-view-controls__create {
+    margin-inline-start: 0;
+}
+
+/*
  * ตัวกรองขอบเขตงาน — popover ไม่ใช่ native select
  *
  * ของเดิมเป็น <select> ที่ไม่ได้รีเซ็ต appearance เบราว์เซอร์จึงวาดลูกศรของตัวเองซ้อน
@@ -251,7 +282,8 @@
     }
 
     /* แถวเรียงเป็นคอลัมน์แล้ว auto margin จะกลายเป็นแกนขวาง ทำให้ปุ่มไม่ยืดเต็มความกว้าง */
-    .my-tasks-page .mytasks-view-controls__create {
+    .my-tasks-page .mytasks-view-controls__create,
+    .my-tasks-page .mytasks-view-controls__archive {
         margin-inline-start: 0;
     }
 

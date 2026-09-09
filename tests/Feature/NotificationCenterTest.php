@@ -253,7 +253,7 @@ class NotificationCenterTest extends TestCase
 
     public function test_all_declared_notification_types_have_an_explicit_category_and_unknown_is_tested(): void
     {
-        $allowed = ['task', 'review', 'comment', 'deadline', 'system'];
+        $allowed = ['task', 'review', 'comment', 'deadline', 'meeting', 'worklog', 'system'];
 
         foreach (SystemNotification::TYPE_CATEGORIES as $type => $category) {
             $this->assertContains($category, $allowed, "Unexpected category for {$type}");

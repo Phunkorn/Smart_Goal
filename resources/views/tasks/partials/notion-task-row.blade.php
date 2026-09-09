@@ -27,7 +27,7 @@
         : route('mytasks.destroy', $task->job_id);
 @endphp
 @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => false])
-<div class="notion-row" data-row data-id="{{ $task->job_id }}"
+<div class="notion-row" data-row data-id="{{ $task->job_id }}" @if($task->parent_job_id) data-child-task="1" data-parent-id="{{ $task->parent_job_id }}" @endif
     @if($task->taskList && auth()->user()->can('manage', $task->taskList))
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"
         data-list-delete-url="{{ route('mytasks.lists.destroy', $task->taskList) }}"

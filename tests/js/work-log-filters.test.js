@@ -24,22 +24,19 @@ test('normalizeKind ปัดค่าที่ไม่รู้จักกล
 
 test('ตัวกรองทั้งหมดแสดงทุกแถว', () => {
     assert.equal(matchesFilter(ALL_KINDS, 'routine'), true);
-    assert.equal(matchesFilter(ALL_KINDS, 'interrupt'), true);
     assert.equal(matchesFilter(ALL_KINDS, 'field'), true);
 });
 
 test('ตัวกรองประเภทเดียวแสดงเฉพาะแถวประเภทนั้น', () => {
-    assert.equal(matchesFilter('interrupt', 'interrupt'), true);
-    assert.equal(matchesFilter('interrupt', 'routine'), false);
-    assert.equal(matchesFilter('field', 'interrupt'), false);
+    assert.equal(matchesFilter('routine', 'routine'), true);
+    assert.equal(matchesFilter('routine', 'field'), false);
 });
 
 test('visibleCount บอกจำนวนแถวที่จะเหลืออยู่หลังกรอง', () => {
-    const rows = ['routine', 'routine', 'interrupt', 'field'];
+    const rows = ['routine', 'routine', 'field'];
 
-    assert.equal(visibleCount(ALL_KINDS, rows), 4);
+    assert.equal(visibleCount(ALL_KINDS, rows), 3);
     assert.equal(visibleCount('routine', rows), 2);
-    assert.equal(visibleCount('interrupt', rows), 1);
     assert.equal(visibleCount('field', rows), 1);
     assert.equal(visibleCount('routine', []), 0);
 });

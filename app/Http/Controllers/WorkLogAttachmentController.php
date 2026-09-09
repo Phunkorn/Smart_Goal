@@ -110,7 +110,7 @@ class WorkLogAttachmentController extends Controller
             'html' => view('daily-logs.components.log-card', [
                 'log' => $fresh,
                 'presented' => $presented,
-                'capabilities' => ['canEdit' => true, 'canUseTimer' => true, 'isReadOnly' => false],
+                'capabilities' => ['canEdit' => true, 'isReadOnly' => false],
             ])->render(),
         ];
     }

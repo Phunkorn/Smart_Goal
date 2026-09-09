@@ -47,7 +47,9 @@
         <a href="#collaborator-approval-queue">ผู้ร่วมงานข้ามแผนก <span>{{ $approvalCounts['collaborators'] }}</span></a>
     </nav>
 
-    @include('admin.approvals.components.assignment-queue')
-    @include('admin.approvals.components.collaborator-queue')
+    <div class="admin-approvals-queues">
+        @include('admin.approvals.components.assignment-queue')
+        @include('admin.approvals.components.collaborator-queue')
+    </div>
 </div>
 @endsection

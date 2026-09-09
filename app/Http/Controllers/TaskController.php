@@ -164,6 +164,7 @@ class TaskController extends Controller
         if (isset($validated['work_order_list_id'])) {
             $targetProjectList = WorkOrderList::findOrFail((int) $validated['work_order_list_id']);
             $this->authorize('manage', $targetProjectList);
+            abort_if($targetProjectList->archived_at !== null, 422, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว กรุณาเปิดโปรเจกต์อีกครั้งก่อนเพิ่มงาน');
         }
 
         $assignee = isset($validated['user_id'])
@@ -241,7 +242,7 @@ class TaskController extends Controller
 
         $message = Auth::user()->role === 'admin'
             ? 'เพิ่มงานสำเร็จ'
-            : ($approval['same_department']
+            : ($approval['approval_status'] === 'approved'
                 ? 'เพิ่มงานสำเร็จ'
                 : 'ส่งคำขอเปิดงานแล้ว รอผู้ดูแลระบบอนุมัติ');
 
@@ -271,6 +272,7 @@ class TaskController extends Controller
 
         $this->authorize('create', WorkOrder::class);
         $this->authorize('manage', $list);
+        abort_if($list->archived_at !== null, 422, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว กรุณาเปิดโปรเจกต์อีกครั้งก่อนเพิ่มงาน');
 
         $belongsToWorkspace = WorkOrder::query()
             ->where('work_order_list_id', $list->id)
@@ -509,12 +511,23 @@ class TaskController extends Controller
         }
     }
 
+    /**
+     * ทางเข้ากลางของลิงก์ "เปิดงาน" ทุกที่ (รายงาน การแจ้งเตือน บอร์ดแผนก)
+     *
+     * ของเดิม redirect ไป mytasks.index เปล่า ๆ มุมมองจึงถูกตัดสินด้วยค่าที่จำไว้ใน session
+     * ผู้ใช้ที่เปิดมุมมอง "ประชุม" หรือ "ปฏิทิน" ค้างไว้ จึงถูกพาไปหน้านั้นโดยที่งานที่กดมา
+     * ไม่ถูกเปิดเลย ที่นี่จึงส่ง open_task ไปด้วยเพื่อให้ Task Workspace เปิดงานใบนั้นให้จริง
+     */
     public function show($id)
     {
         $job = WorkOrder::findOrFail($id);
         $this->authorize('view', $job);
 
-        return redirect()->route(Auth::user()?->role === 'viewer' ? 'board.index' : 'mytasks.index');
+        if (Auth::user()?->role === 'viewer') {
+            return redirect()->route('board.index');
+        }
+
+        return redirect()->route('mytasks.index', ['open_task' => $job->job_id]);
     }
 
     public function updateDetails(Request $request, $id)

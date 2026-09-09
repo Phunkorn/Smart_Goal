@@ -9,7 +9,8 @@
 
 /* แถบตัวเลขสรุป ใช้ร่วมกันทั้งสามหน้ารายงาน
  * ตัวเลขต้องอ่านได้ก่อนกราฟเสมอ จึงวางไว้บนสุดและใช้ขนาดใหญ่กว่าทุกอย่างในการ์ด */
-.report-kpi-band { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:13px; margin-bottom:18px; }
+/* gap ต้องกว้างพอให้อ่านการ์ดเป็นใบ ๆ ไม่ใช่แถบเดียวยาว ๆ ที่มีเส้นคั่น */
+.report-kpi-band { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; margin-bottom:20px; }
 .report-kpi { display:grid; align-content:start; gap:3px; min-width:0; padding:15px 17px; border:1px solid #e4eaf3; border-radius:14px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .report-kpi__label { display:flex; align-items:center; gap:6px; color:#64748b; font-size:.8rem; font-weight:650; }
 .report-kpi__label i { color:#94a3b8; font-size:.9rem; }
@@ -103,6 +104,6 @@
 .report-tone-red { --report-tone:#dc2626; }
 .report-tag { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; background:color-mix(in srgb,var(--report-tone) 10%,white); color:var(--report-tone); font-size:.75rem; font-weight:700; white-space:nowrap; }
 @keyframes report-shimmer { to { transform:translateX(100%); } }
-@media (max-width:760px) { .report-chart-shell { height:var(--report-chart-height-mobile,255px); } .report-kpi-band { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; } .report-kpi { padding:13px 14px; } .report-kpi__value { font-size:1.6rem; } }
+@media (max-width:760px) { .report-chart-shell { height:var(--report-chart-height-mobile,255px); } .report-kpi-band { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } .report-kpi { padding:13px 14px; } .report-kpi__value { font-size:1.6rem; } }
 @media (max-width:430px) { .report-kpi-band { grid-template-columns:minmax(0,1fr); } }
 @media (prefers-reduced-motion:reduce) { .report-kpi--linked { transition:none; } .report-kpi--linked:hover { transform:none; } .report-chart-skeleton::after { animation:none; } .report-chart-skeleton,.report-chart-wrap { transition:none; transform:none; } }

@@ -1,3 +1,4 @@
+@import '../components/member-card.css';
 @import './work-board/department.css';
 
 .work-board-page {
@@ -127,12 +128,7 @@
 .wb-cell-number { font-size: 17px; }.wb-cell-number small { color: var(--wb-muted); font-size: 10px; font-weight: 400; }
 .wb-due { color: #51617b; font-size: 12px; }
 
-.wb-avatar { display: inline-grid; place-items: center; overflow: hidden; flex: 0 0 auto; border: 2px solid #fff; border-radius: 50%; color: #235dc6; background: #e6efff; font-size: 10px; font-weight: 800; }
-/* ตัวย่อชื่อกับรูปอยู่ช่องเดียวกัน รูปทับอยู่ด้านบน ถ้ารูปถูกถอดออกตัวย่อจึงโผล่แทน */
-.wb-avatar > * { grid-area: 1 / 1; }
-.wb-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.wb-avatar--sm { width: 28px; height: 28px; }.wb-avatar--md { width: 36px; height: 36px; }.wb-avatar--lg { width: 48px; height: 48px; }.wb-avatar--xl { width: 76px; height: 76px; font-size: 17px; }
-.wb-avatar-stack { display: flex; align-items: center; padding-left: 6px; }.wb-avatar-stack .wb-avatar { margin-left: -6px; }
+/* .wb-avatar ทั้งชุดอยู่ที่ resources/css/components/member-card.css เพราะหน้ารายงานก็ใช้ด้วย */
 
 .wb-back-link { display: inline-flex; gap: 8px; margin-bottom: 16px; color: var(--wb-blue); font-size: 13px; font-weight: 650; }
 .wb-profile-card { align-items: center; }

@@ -9,15 +9,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * บันทึกงานประจำวันหนึ่งรายการ (งานประจำ / งานแทรก / งานนอกสถานที่)
+ * บันทึกงานประจำวันหนึ่งรายการ (งานประจำ / งานนอกสถานที่)
  *
  * ตั้งใจไม่มี scope สำหรับสิทธิ์การมองเห็นอยู่ในโมเดล เพื่อให้กติกาว่าใครเห็นอะไร
  * มีแหล่งเดียวคือ App\Policies\WorkLogPolicy (สำหรับรายการเดี่ยว) และ
  * App\Services\WorkLogQueryService (สำหรับ query ระดับ SQL) การใส่ scope ไว้ที่นี่
  * ด้วยจะกลายเป็นแหล่งความจริงที่สอง ซึ่งจะเพี้ยนออกจากกันเมื่อกติกาเปลี่ยน
  *
- * duration_minutes, started_at, ended_at, open_timer_owner_id และ auto_closed_at
- * ต้องเขียนผ่าน App\Services\WorkLogService เท่านั้น ไม่ผูกค่าจาก request โดยตรง
+ * duration_minutes, started_at, ended_at และ auto_closed_at ต้องเขียนผ่าน
+ * App\Services\WorkLogService เท่านั้น ไม่ผูกค่าจาก request โดยตรง
+ *
+ * open_timer_owner_id เป็นคอลัมน์ที่เหลือจากระบบจับเวลาที่ถูกถอดออกไปแล้ว
+ * คอลัมน์ยังอยู่เพื่อไม่ให้ข้อมูลเดิมหาย และถูกเคลียร์โดย
+ * WorkLogService::closeLeftoverTimers() เท่านั้น ห้ามเขียนค่าใหม่ลงไปอีก
  */
 class WorkLog extends Model
 {
@@ -38,9 +42,15 @@ class WorkLog extends Model
         'location',
         'requester_name',
         'work_date',
+        'planned_start_at',
+        'planned_end_at',
         'started_at',
         'ended_at',
         'duration_minutes',
+        'late_start_reason',
+        'late_completion_reason',
+        'skip_reason',
+        'skipped_at',
         'open_timer_owner_id',
         'auto_closed_at',
         'created_by',
@@ -50,8 +60,11 @@ class WorkLog extends Model
     {
         return [
             'work_date' => 'date',
+            'planned_start_at' => 'datetime',
+            'planned_end_at' => 'datetime',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
+            'skipped_at' => 'datetime',
             'auto_closed_at' => 'datetime',
             'duration_minutes' => 'integer',
         ];
@@ -117,10 +130,5 @@ class WorkLog extends Model
         return $this->belongsToMany(User::class, 'work_log_participants', 'work_log_id', 'user_id')
             ->withPivot(['added_by'])
             ->withTimestamps();
-    }
-
-    public function isRunning(): bool
-    {
-        return $this->open_timer_owner_id !== null;
     }
 }

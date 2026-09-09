@@ -7,6 +7,8 @@ use App\Models\TrashLog;
 use App\Services\AuditLogQuery;
 use App\Services\AuditRevertService;
 use App\Support\AuditSnapshot;
+use App\Support\LogRetention;
+use App\Support\SchedulerHeartbeat;
 use App\Support\TrashRetention;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -70,6 +72,26 @@ class AuditController extends Controller
     }
 
     /**
+     * ล้างบันทึกกิจกรรมที่พ้นอายุตามนโยบาย
+     *
+     * ตารางบันทึกกิจกรรมไม่เคยมีวันหมดอายุมาก่อน ทุก login และทุกการแก้ฟิลด์ถูกเก็บ
+     * ถาวร บนเครื่องคลาวด์ที่พื้นที่ฐานข้อมูลมีจำกัด นี่คือของค้างที่โตเร็วที่สุด
+     *
+     * คำสั่งตามเวลา audit:prune-activity ทำสิ่งเดียวกันทุกคืน ปุ่มนี้มีไว้สำหรับเครื่อง
+     * ที่ไม่ได้ตั้ง cron ให้ schedule:run ซึ่งเป็นสถานะปัจจุบันของระบบนี้
+     */
+    public function pruneActivity()
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $count = LogRetention::pruneActivity(Auth::user());
+
+        return back()->with('success', $count > 0
+            ? 'ล้างบันทึกกิจกรรมที่พ้นอายุแล้ว '.$count.' รายการ'
+            : 'ไม่มีบันทึกที่พ้นอายุ');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function overviewData(Request $request): array
@@ -80,6 +102,8 @@ class AuditController extends Controller
 
         return [
             'stats' => $this->audit->overview($request),
+            // สถานะงานตามเวลา — หน้าเว็บต้องบอกเองได้ว่า cron ทำงานอยู่หรือไม่
+            'scheduler' => SchedulerHeartbeat::status(),
             'recentActivity' => $recentActivity,
             'recentTrash' => $recentTrash,
             'resolvableProfileImages' => AuditSnapshot::resolvableProfileImages($recentActivity),
@@ -102,6 +126,9 @@ class AuditController extends Controller
 
         return [
             'logs' => $logs,
+            // ปุ่ม "ล้างบันทึกเก่า" ทำงานกับทั้งระบบ ไม่ใช่เฉพาะที่ตัวกรองแสดงอยู่
+            // ตัวเลขบนปุ่มจึงต้องนับทั้งระบบเหมือน expiredTrashCount() ของถังขยะ
+            'prunableCount' => LogRetention::prunableCount(),
             'revertableFields' => collect($logs->items())
                 ->mapWithKeys(fn (ActivityLog $log) => [$log->id => $reverts->revertableFields($log)])
                 ->filter(fn (array $rows) => $rows !== [])

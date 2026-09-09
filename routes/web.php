@@ -17,6 +17,8 @@ use App\Http\Controllers\TaskCollaboratorController;
 use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskStatusController;
+use App\Http\Controllers\TelegramSettingsController;
+use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
@@ -24,7 +26,6 @@ use App\Http\Controllers\WorkLogAttachmentController;
 use App\Http\Controllers\WorkLogCategoryController;
 use App\Http\Controllers\WorkLogController;
 use App\Http\Controllers\WorkLogTemplateController;
-use App\Http\Controllers\WorkLogTimerController;
 use App\Http\Controllers\WorkOrderSubtaskController;
 use App\Http\Controllers\WorkspaceBoardAttachmentController;
 use App\Http\Controllers\WorkspaceBoardController;
@@ -55,6 +56,19 @@ Route::post('/login', [AuthController::class, 'login'])
 
 Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout');
+
+/*
+|--------------------------------------------------------------------------
+| Webhook ของบอท Telegram
+|--------------------------------------------------------------------------
+|
+| Telegram ยิงเข้ามาโดยไม่มี session และไม่มี CSRF token เส้นทางนี้จึงอยู่นอกกลุ่ม auth
+| และถูกยกเว้น CSRF ใน bootstrap/app.php การพิสูจน์ตัวตนใช้ secret token ในเฮดเดอร์
+| ที่เรากำหนดเองตอน setWebhook แทน
+*/
+
+Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle'])
+    ->name('telegram.webhook');
 
 /*
 |--------------------------------------------------------------------------
@@ -174,6 +188,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('admin.audit.revert');
 
+    // ล้างบันทึกกิจกรรมที่พ้นอายุ — ทำลายข้อมูลถาวร จึงจำกัดที่ admin เช่นเดียวกับถังขยะ
+    Route::delete('/admin/audit/activity/prune', [AuditController::class, 'pruneActivity'])
+        ->middleware('admin')
+        ->name('admin.audit.activity.prune');
+
     // เส้นทางเดิมยังใช้ได้ เพื่อไม่ให้ bookmark และลิงก์ในบันทึกเก่าพัง
     // ต้องพา query string เดิมไปด้วย มิฉะนั้นลิงก์ที่มีตัวกรองจะกลายเป็นหน้าเปล่า
     Route::get('/admin/activity-logs', fn (Request $request) => redirect()->route(
@@ -199,6 +218,15 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->middleware('admin')
         ->name('admin.trash.purge-expired');
 
+    // เช่นเดียวกับ expired ด้านบน ต้องมาก่อน /admin/trash/{trash}
+    Route::patch('/admin/trash/bulk-restore', [TrashController::class, 'bulkRestore'])
+        ->middleware('admin')
+        ->name('admin.trash.bulk-restore');
+
+    Route::delete('/admin/trash/bulk-purge', [TrashController::class, 'bulkPurge'])
+        ->middleware('admin')
+        ->name('admin.trash.bulk-purge');
+
     // ลบถาวร กู้กลับไม่ได้ — หน้าจอบังคับให้พิมพ์ชื่อรายการยืนยันก่อน
     Route::delete('/admin/trash/{trash}', [TrashController::class, 'purge'])
         ->middleware('admin')
@@ -216,6 +244,22 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
         ->name('settings.password.update');
+
+    // การเชื่อมต่อ Telegram ของบัญชีตัวเอง (viewer ถูกกันไว้ในคอนโทรลเลอร์)
+    Route::post('/settings/telegram/link', [TelegramSettingsController::class, 'link'])
+        ->name('settings.telegram.link');
+
+    Route::get('/settings/telegram/status', [TelegramSettingsController::class, 'status'])
+        ->name('settings.telegram.status');
+
+    Route::patch('/settings/telegram', [TelegramSettingsController::class, 'update'])
+        ->name('settings.telegram.update');
+
+    Route::post('/settings/telegram/test', [TelegramSettingsController::class, 'test'])
+        ->name('settings.telegram.test');
+
+    Route::delete('/settings/telegram', [TelegramSettingsController::class, 'destroy'])
+        ->name('settings.telegram.destroy');
 
     // รายงานของผู้ใช้ปัจจุบัน
     Route::get('/my-reports', [ReportController::class, 'myReport'])
@@ -335,6 +379,12 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/my-tasks/lists/{list}/name', [MyTaskController::class, 'updateList'])
         ->name('mytasks.lists.update');
 
+    Route::patch('/my-tasks/lists/{list}/archive', [MyTaskController::class, 'archiveList'])
+        ->name('mytasks.lists.archive');
+
+    Route::patch('/my-tasks/lists/{list}/restore', [MyTaskController::class, 'restoreList'])
+        ->name('mytasks.lists.restore');
+
     Route::delete('/my-tasks/lists/{list}', [MyTaskController::class, 'destroyList'])
         ->name('mytasks.lists.destroy');
 
@@ -375,18 +425,21 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/my-tasks', [MyTaskController::class, 'index'])
         ->name('mytasks.index');
 
-    // บันทึกงานประจำวัน — งานปฏิบัติการรายวัน (งานประจำ / งานแทรก / งานนอกสถานที่)
+    // บันทึกงานประจำวัน — งานปฏิบัติการรายวัน (งานประจำ / งานนอกสถานที่)
     // แยกจากบอร์ดโปรเจกต์โดยตั้งใจ เพื่อไม่ให้ตัวเลข KPI ของโปรเจกต์เพี้ยน
     // viewer ถูกกันสองชั้น: ที่ route นี้ และในทุก ability ของ WorkLogPolicy
     Route::prefix('daily-logs')->name('daily-logs.')->middleware('role:admin,user')->group(function (): void {
         Route::get('/', [WorkLogController::class, 'index'])->name('index');
+        Route::get('/routine-status', [WorkLogController::class, 'routineStatus'])->name('routine-status');
         Route::post('/', [WorkLogController::class, 'store'])->name('store');
         Route::patch('/{workLog}', [WorkLogController::class, 'update'])->name('update');
         Route::delete('/{workLog}', [WorkLogController::class, 'destroy'])->name('destroy');
 
-        Route::post('/timer/start', [WorkLogTimerController::class, 'start'])->name('timer.start');
-        Route::post('/{workLog}/timer/start', [WorkLogTimerController::class, 'resume'])->name('timer.resume');
-        Route::post('/{workLog}/timer/stop', [WorkLogTimerController::class, 'stop'])->name('timer.stop');
+        // ยืนยันว่าทำเสร็จแล้ว / ย้ายกลับไปค้าง — เส้นทางปิดงานที่ไม่ต้องจับเวลา
+        Route::post('/{workLog}/complete', [WorkLogController::class, 'complete'])->name('complete');
+        Route::post('/{workLog}/start', [WorkLogController::class, 'start'])->name('start');
+        Route::post('/{workLog}/skip', [WorkLogController::class, 'skip'])->name('skip');
+        Route::post('/{workLog}/reopen', [WorkLogController::class, 'reopen'])->name('reopen');
 
         Route::post('/{workLog}/attachments', [WorkLogAttachmentController::class, 'store'])
             ->name('attachments.store');
@@ -396,7 +449,12 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         // แม่แบบงานประจำ — เป็นการตั้งค่าส่วนตัว ไม่ใช่ข้อมูลผลงานที่หัวหน้าต้องเห็น
         Route::get('/routines', [WorkLogTemplateController::class, 'index'])->name('routines.index');
         Route::post('/routines', [WorkLogTemplateController::class, 'store'])->name('routines.store');
-        Route::post('/routines/materialize', [WorkLogTemplateController::class, 'materialize'])->name('routines.materialize');
+
+        // ระบุเหตุผลที่ไม่ได้ทำงานประจำของวันที่ผ่านมา — ทางเดียวที่วันย้อนหลัง
+        // จะมีรายการเกิดขึ้นได้ และเกิดในสถานะ "ไม่ได้ทำ" เสมอ ไม่ใช่ "รอเริ่ม"
+        // จึงอยู่ที่ WorkLogController เพราะสิ่งที่สร้างคือบันทึกงาน ไม่ใช่แม่แบบ
+        Route::post('/routines/{template}/missed', [WorkLogController::class, 'missRoutine'])
+            ->name('routines.missed');
         Route::patch('/routines/{template}', [WorkLogTemplateController::class, 'update'])->name('routines.update');
         Route::delete('/routines/{template}', [WorkLogTemplateController::class, 'destroy'])->name('routines.destroy');
     });

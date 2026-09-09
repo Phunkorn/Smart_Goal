@@ -3,10 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
     durationLabel,
-    elapsedSeconds,
     minutesBetween,
     parseClock,
-    stopwatchLabel,
 } from '../../resources/js/pages/daily-logs/duration.js';
 
 /*
@@ -59,22 +57,4 @@ test('minutesBetween คืน null เมื่อเวลาไม่คร�
     assert.equal(minutesBetween('09:00', ''), null);
     assert.equal(minutesBetween('', '10:00'), null);
     assert.equal(minutesBetween('9am', '10am'), null);
-});
-
-test('elapsedSeconds นับจากเวลาที่เริ่มโดยไม่ติดลบ', () => {
-    const started = '2026-09-04T02:00:00Z';
-    const now = Date.parse('2026-09-04T02:01:30Z');
-
-    assert.equal(elapsedSeconds(started, now), 90);
-    // นาฬิกาเครื่องผู้ใช้อาจเดินช้ากว่าเซิร์ฟเวอร์ ต้องไม่แสดงเวลาติดลบ
-    assert.equal(elapsedSeconds(started, Date.parse('2026-09-04T01:59:00Z')), 0);
-    assert.equal(elapsedSeconds('ไม่ใช่เวลา', now), 0);
-});
-
-test('stopwatchLabel ตัดชั่วโมงออกเมื่อยังไม่ถึงหนึ่งชั่วโมง', () => {
-    assert.equal(stopwatchLabel(0), '00:00');
-    assert.equal(stopwatchLabel(9), '00:09');
-    assert.equal(stopwatchLabel(309), '05:09');
-    assert.equal(stopwatchLabel(3909), '1:05:09');
-    assert.equal(stopwatchLabel(-5), '00:00');
 });

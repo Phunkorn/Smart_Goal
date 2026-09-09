@@ -156,16 +156,16 @@ class WorkLogParticipantTest extends TestCase
     }
 
     /**
-     * เคสหลักของฟีเจอร์: กดเริ่มงานพร้อมติ๊กเพื่อนในครั้งเดียว
-     * ไม่ต้องเปิดฟอร์มเต็มแล้วบันทึกอีกรอบ
+     * เคสหลักของฟีเจอร์: บันทึกงานพร้อมติ๊กเพื่อนได้ในครั้งเดียว
+     * ไม่ต้องบันทึกก่อนแล้วเปิดกลับมาเพิ่มคนอีกรอบ
      */
-    public function test_starting_a_timer_can_add_participants_in_one_step(): void
+    public function test_saving_a_log_can_add_participants_in_one_step(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
         $colleague = $this->user($department);
 
-        $this->actingAs($owner)->post(route('daily-logs.timer.start'), [
+        $this->actingAs($owner)->post(route('daily-logs.store'), [
             'title' => 'ตรวจสอบคอมพิวเตอร์ประจำวัน',
             'kind' => 'routine',
             'participants' => [$colleague->id],

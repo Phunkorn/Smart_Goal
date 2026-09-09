@@ -14,6 +14,10 @@
 @endphp
 
 <div class="board-reference-list" data-board-list-body>
+    {{--
+        ปุ่ม "โปรเจกต์ที่เสร็จแล้ว" ไม่ได้อยู่ในแถวหัวตารางแล้ว มันอยู่ข้างปุ่ม "สร้างงาน"
+        ในแถบควบคุมมุมมอง (tasks/index.blade.php) แถวนี้จึงเป็นหัวคอลัมน์ล้วน ๆ อีกครั้ง
+    --}}
     <div class="board-reference-columns" aria-hidden="true">
         <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>คอมเมนต์</span><span></span>
     </div>
@@ -31,6 +35,10 @@
             $creatorSummary = $project ? ($projectCreatorMeta->get($project->id) ?? []) : [];
             $uniformAdminName = $creatorSummary['uniform_admin_name'] ?? null;
             $hasDetailDropTarget = $projectTasks->contains(fn ($task) => auth()->user()->can('work', $task));
+            $projectIsCompleted = $project
+                && (int) ($project->work_orders_count ?? 0) > 0
+                && ! (bool) ($project->has_incomplete_work_orders ?? true)
+                && $project->taskRequests->isEmpty();
         @endphp
             <header class="board-project-group__header project-tone-{{ $project ? $projectPriority[1] : 'neutral' }}" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}" data-detail-project-target="{{ $hasDetailDropTarget ? 1 : 0 }}">
                 <button type="button" class="board-project-collapse" data-board-collapse aria-label="ย่อหรือขยายโปรเจกต์"><i class="bi bi-caret-down-fill"></i></button>
@@ -57,6 +65,7 @@
                         <button type="button" class="board-project-add board-project-request" data-open-project-task-request data-list-id="{{ $project->id }}" data-action="{{ route('mytasks.lists.task-requests.store', $project) }}" data-project-name="{{ $projectName }}"><i class="bi bi-send-plus"></i><span>ขอเพิ่มงาน</span></button>
                     @endif
                     @if($project && auth()->user()->can('manage', $project))
+                        <button type="button" class="board-project-add board-project-archive" data-archive-project data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.archive', $project) }}" @if(!$projectIsCompleted) hidden @endif><i class="bi bi-archive" aria-hidden="true"></i><span>จัดเก็บโปรเจกต์</span></button>
                         <button type="button" class="board-project-icon" data-board-edit-project data-name="{{ $projectName }}" data-url="{{ route('mytasks.lists.update', $project) }}" title="แก้ไขชื่อโปรเจกต์"><i class="bi bi-pencil"></i></button>
                         <button type="button" class="board-project-icon is-danger" data-board-delete-project data-name="{{ $projectName }}" data-total-count="{{ $project->work_orders_count ?? $projectTasks->count() }}" data-url="{{ route('mytasks.lists.destroy', $project) }}" title="ลบโปรเจกต์"><i class="bi bi-trash3"></i></button>
                     @endif
@@ -173,6 +182,12 @@
                         @else
                             <span aria-hidden="true"></span>
                         @endif
+                        {{--
+                            รายการงานย่อยเป็นลูกโดยตรงของแถว เพื่อให้กินความกว้างทั้งแถว
+                            แล้วเรียงคอลัมน์ตรงกับหัวตาราง ถ้าวางไว้ในคอลัมน์ "ชื่องาน"
+                            ชิปทุกตัวจะถูกบีบจนอ่านไม่ออกเหมือนที่เคยเป็น
+                        --}}
+                        @include('tasks.components.task-details-panel', ['task' => $task, 'projectKey' => $projectKey])
                     </article>
                 @endforeach
                 @if($completedProjectTasks->isNotEmpty())</div></details>@endif

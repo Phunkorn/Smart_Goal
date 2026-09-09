@@ -21,7 +21,6 @@ final class WorkLogDesign
      */
     public const KINDS = [
         'routine' => ['label' => 'งานประจำ', 'tone' => 'blue', 'icon' => 'bi-arrow-repeat'],
-        'interrupt' => ['label' => 'งานแทรก', 'tone' => 'amber', 'icon' => 'bi-lightning-charge'],
         'field' => ['label' => 'งานนอกสถานที่', 'tone' => 'teal', 'icon' => 'bi-geo-alt'],
     ];
 
@@ -31,8 +30,15 @@ final class WorkLogDesign
      * ต่างจาก blue ของงานประจำอย่างชัดเจนโดยไม่ต้องพึ่งเขียว
      */
     public const STATUSES = [
-        'open' => ['label' => 'ยังไม่เสร็จ', 'tone' => 'amber', 'icon' => 'bi-circle'],
+        'open' => ['label' => 'รอเริ่ม', 'tone' => 'amber', 'icon' => 'bi-clock'],
+        'in_progress' => ['label' => 'กำลังทำ', 'tone' => 'blue', 'icon' => 'bi-play-circle'],
+        'overdue' => ['label' => 'เกินเวลา', 'tone' => 'red', 'icon' => 'bi-exclamation-circle'],
         'done' => ['label' => 'เสร็จแล้ว', 'tone' => 'teal', 'icon' => 'bi-check-circle'],
+        'skipped' => ['label' => 'ไม่ได้ทำวันนี้', 'tone' => 'gray', 'icon' => 'bi-calendar-x'],
+        // สถานะเพื่อการแสดงผลเท่านั้น ไม่เคยถูกเขียนลงคอลัมน์ status
+        // ใช้กับงานประจำของวันที่ผ่านไปแล้วซึ่งยังไม่ถูกปิดรายการ เจ้าของทำได้
+        // อย่างเดียวคือระบุเหตุผลที่ไม่ได้ทำ ย้อนกลับไปกดเริ่มงานไม่ได้อีกแล้ว
+        'missed' => ['label' => 'ต้องระบุเหตุผล', 'tone' => 'red', 'icon' => 'bi-exclamation-octagon'],
         'cancelled' => ['label' => 'ยกเลิก', 'tone' => 'gray', 'icon' => 'bi-slash-circle'],
     ];
 
@@ -60,6 +66,22 @@ final class WorkLogDesign
     public const MAX_BACKFILL_DAYS = 90;
 
     public const DEFAULT_KIND = 'routine';
+
+    /**
+     * เหตุผลสำเร็จรูปของแต่ละปุ่ม — แหล่งเดียวของข้อความไทยชุดนี้
+     *
+     * ฝั่ง JavaScript อ่านผ่าน forClient() ไม่เขียนรายการซ้ำในไฟล์ .js ด้วย
+     * เหตุผลเดียวกับป้ายสถานะ คือรายการสองชุดจะเพี้ยนออกจากกันทันทีที่แก้ข้างเดียว
+     *
+     * 'missed' คือกรณีที่วันนั้นผ่านไปแล้ว จึงไม่มีตัวเลือกแบบ "ยังทำอยู่"
+     * เหลือเฉพาะเหตุผลที่อธิบายว่าทำไมวันนั้นไม่ได้เริ่มงาน
+     */
+    public const REASONS = [
+        'start' => ['ติดงานอื่น', 'ประชุม', 'รอข้อมูลหรืออุปกรณ์', 'ระบบขัดข้อง'],
+        'complete' => ['งานมากกว่าที่ประเมิน', 'มีงานอื่นเข้ามาระหว่างทำ', 'รอข้อมูลหรือการตอบกลับ', 'ระบบขัดข้อง'],
+        'skip' => ['ลางาน', 'วันหยุด', 'ไม่มีความจำเป็นต้องทำวันนี้', 'มอบหมายให้ผู้อื่น', 'เหตุฉุกเฉิน'],
+        'missed' => ['ลืมทำ', 'ลางาน', 'ขาดงาน', 'วันหยุด', 'ติดงานด่วนอื่น', 'มอบหมายให้ผู้อื่น'],
+    ];
 
     public static function kindKeys(): array
     {
@@ -128,6 +150,7 @@ final class WorkLogDesign
         return [
             'kinds' => self::KINDS,
             'statuses' => self::STATUSES,
+            'reasons' => self::REASONS,
             'maxAttachments' => self::MAX_ATTACHMENTS,
             'maxBackfillDays' => self::MAX_BACKFILL_DAYS,
             'maxDurationMinutes' => self::MAX_DURATION_MINUTES,

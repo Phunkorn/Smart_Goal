@@ -77,9 +77,17 @@
 .admin-approvals-tabs a:focus-visible { background: #fff; color: var(--approvals-accent); }
 .admin-approvals-tabs span { min-width: 24px; padding: 1px 7px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; text-align: center; }
 
+.admin-approvals-queues {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+
 .admin-approvals-queue {
-    margin-bottom: 24px;
+    min-width: 0;
     scroll-margin-top: 20px;
+    overflow: hidden;
     border: 1px solid var(--approvals-line);
     border-radius: var(--approvals-radius);
     background: var(--approvals-surface);
@@ -144,6 +152,54 @@
 .admin-approvals-empty { padding: 22px 20px; color: var(--approvals-muted); text-align: center; }
 .admin-approvals-empty i { display: block; margin-bottom: 6px; color: #22c55e; font-size: 1.6rem; }
 .admin-approvals-empty p { margin: 0; }
+
+/* เมื่อวางสองคิวคู่กัน แต่ละคำขอใช้รูปแบบการ์ดเพื่ออ่านตามลำดับจากบนลงล่าง */
+@media (min-width: 1200px) {
+    .admin-approvals-queues .admin-approvals-list__header { display: none; }
+
+    .admin-approvals-queues .admin-approvals-list {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        background: var(--approvals-background);
+    }
+
+    .admin-approvals-queues .admin-approvals-request {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 18px;
+        padding: 16px;
+        border: 1px solid var(--approvals-line);
+        border-radius: 12px;
+        background: var(--approvals-surface);
+        box-shadow: 0 3px 12px rgb(15 23 42 / 4%);
+    }
+
+    .admin-approvals-queues .admin-approvals-request__cell::before {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--approvals-muted);
+        content: attr(data-label);
+        font-size: .7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .admin-approvals-queues .admin-approvals-request__topic,
+    .admin-approvals-queues .admin-approvals-request__actions {
+        grid-column: 1 / -1;
+    }
+
+    .admin-approvals-queues .admin-approvals-request__actions {
+        justify-content: flex-start;
+        padding-top: 12px;
+        border-top: 1px solid var(--approvals-line);
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .admin-approvals-queues { grid-template-columns: 1fr; }
+    .admin-approvals-queue { margin-bottom: 4px; }
+}
 
 @media (max-width: 991.98px) {
     .admin-approvals-list__header { display: none; }

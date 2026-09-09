@@ -7,6 +7,16 @@
 @endpush
 
 @section('content')
+{{--
+    หน้าเลือกประเภทรายงาน — ใช้ร่วมกันทุก role
+
+    รายการการ์ดมาจาก ReportController::landingCards() ที่เดียว ไม่ใช่การเช็ค role
+    ใน Blade เพราะ "ใครเห็นรายงานไหน" เป็นเรื่องสิทธิ์ที่ต้องตัดสินฝั่งเซิร์ฟเวอร์
+    การซ่อนการ์ดในหน้าจอไม่ใช่การบังคับสิทธิ์ (ปลายทางแต่ละหน้าตรวจซ้ำอีกชั้น)
+
+    พนักงานทั่วไปเห็นสองการ์ด: รายงานตัวเอง และรายงานปฏิบัติงานของตัวเอง
+    หัวหน้าแผนกและ admin เห็นภาพรวมองค์กรและรายบุคคลเพิ่มขึ้นมา
+--}}
 <div class="report-landing" aria-labelledby="report-landing-title">
     <header class="report-landing__header">
         <span class="report-landing__eyebrow">Smart Goal Analytics</span>
@@ -15,47 +25,17 @@
     </header>
 
     <section class="report-landing__grid" aria-label="ประเภทรายงาน">
-        @include('reports.components.landing-card', [
-            'tone' => 'organization',
-            'icon' => 'bi-bar-chart-line',
-            'title' => 'ดูภาพรวมองค์กร',
-            'description' => 'ติดตามแนวโน้มและภาพรวมการทำงานของทุกแผนกในช่วงเวลาที่เลือก',
-            'features' => ['แนวโน้มงานและสถิติองค์กร', 'ประสิทธิภาพแต่ละแผนก', 'สถานะและความสำคัญของงาน', 'งานที่ต้องติดตาม'],
-            'cta' => 'เข้าสู่รายงานภาพรวมองค์กร',
-            'route' => route('reports.organization'),
-        ])
-
-        @include('reports.components.landing-card', [
-            'tone' => 'employee',
-            'icon' => 'bi-person-lines-fill',
-            'title' => 'ดูรายงานรายบุคคล',
-            'description' => 'เลือกพนักงานเพื่อดูผลงานจากงานที่รับผิดชอบจริงและตรวจสอบรายละเอียดได้',
-            'features' => ['สถิติการทำงานของพนักงาน', 'อัตราส่งงานตรงเวลา', 'งานที่รับผิดชอบ', 'รายละเอียดงานสำหรับตรวจสอบ'],
-            'cta' => 'เลือกพนักงานเพื่อดูรายงาน',
-            'route' => route('reports.employees.index'),
-        ])
-
-        {{--
-            รายงานภาระงานปฏิบัติการเป็นข้อมูลรายบุคคลที่ละเอียดกว่าภาพรวมองค์กร
-            จึงแสดงเฉพาะผู้ที่มีสิทธิ์ตาม WorkLogPolicy::viewReport() (admin และ
-            หัวหน้าแผนก) ต่างจากสองการ์ดด้านบนที่ viewer ก็เข้าได้
-        --}}
-        @can('viewReport', \App\Models\WorkLog::class)
-            @include('reports.components.landing-card', [
-                'tone' => 'operational',
-                'icon' => 'bi-journal-check',
-                'title' => 'ดูภาระงานปฏิบัติการ',
-                'description' => 'ชั่วโมงงานประจำ งานแทรก และงานนอกสถานที่ ที่ไม่ปรากฏบนบอร์ดโปรเจกต์',
-                'features' => ['ชั่วโมงงานตามประเภทและหมวดงาน', 'ภาระงานรายคน', 'ช่วงที่งานแทรกพุ่ง', 'เวลาที่ไม่ได้ลงโปรเจกต์'],
-                'cta' => 'เข้าสู่รายงานภาระงานปฏิบัติการ',
-                'route' => route('reports.operational'),
-            ])
-        @endcan
+        @foreach($cards as $card)
+            @include('reports.components.landing-card', $card)
+        @endforeach
     </section>
 
     <aside class="report-landing__note" aria-label="คำแนะนำการใช้งาน">
         <i class="bi bi-lightbulb" aria-hidden="true"></i>
-        <div><strong>คำแนะนำ</strong><p>ใช้รายงานภาพรวมเพื่อติดตามทั้งองค์กร หรือเลือกรายงานรายบุคคลเพื่อดูงานของพนักงานแต่ละคน</p></div>
+        <div>
+            <strong>คำแนะนำ</strong>
+            <p>รายงานปฏิบัติงานตอบคำถามว่างานประจำของวันนี้ตรวจไปแล้วหรือยัง ส่วนรายงานอื่นใช้ดูผลงานย้อนหลัง</p>
+        </div>
     </aside>
 </div>
 @endsection

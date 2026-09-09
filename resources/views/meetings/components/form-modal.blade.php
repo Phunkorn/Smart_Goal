@@ -14,6 +14,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
             </div>
             <form method="POST" action="{{ $isEdit ? route('meetings.update', $formMeeting) : route('meetings.store') }}" data-meeting-form>
+                @foreach(($meetingContextQuery ?? []) as $contextKey => $contextValue)
+                    <input type="hidden" name="{{ $contextKey }}" value="{{ $contextValue }}">
+                @endforeach
                 @csrf
                 @if($isEdit) @method('PATCH') @endif
                 <div class="modal-body">

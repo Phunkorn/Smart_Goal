@@ -27,6 +27,8 @@ class WorkOrder extends Model
         'leader_user_id',
         'department_id',
         'work_order_list_id',
+        'parent_job_id',
+        'parent_sort_order',
         'job_topic',
         'job_details',
         'job_priority',
@@ -71,6 +73,36 @@ class WorkOrder extends Model
             if ((int) $workOrder->job_status === 4) {
                 $workOrder->job_completed_at ??= now();
             }
+        });
+
+        /*
+         * งานย่อยต้องหายไปพร้อมงานแม่ ไม่งั้นมันจะค้างอยู่ในฐานข้อมูลโดยไม่มีที่แสดง
+         * เพราะทุกมุมมองแสดงงานย่อยใต้งานแม่เท่านั้น
+         */
+        static::deleting(function (WorkOrder $workOrder): void {
+            if ($workOrder->isForceDeleting()) {
+                return;
+            }
+
+            $workOrder->children()->each(fn (WorkOrder $child) => $child->delete());
+        });
+
+        /*
+         * กู้คืนเฉพาะงานย่อยที่ถูกลบไปพร้อมงานแม่ (deleted_at ตรงกัน)
+         * งานย่อยที่ผู้ใช้ตั้งใจลบทิ้งก่อนหน้านั้นต้องอยู่ในถังขยะต่อไปตามที่เขาสั่ง
+         */
+        static::restoring(function (WorkOrder $workOrder): void {
+            $deletedAt = $workOrder->getOriginal('deleted_at');
+
+            if (! $deletedAt) {
+                return;
+            }
+
+            WorkOrder::onlyTrashed()
+                ->where('parent_job_id', $workOrder->job_id)
+                ->where('deleted_at', $deletedAt)
+                ->get()
+                ->each(fn (WorkOrder $child) => $child->restore());
         });
     }
 
@@ -139,6 +171,34 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderSubtask::class, 'work_order_id', 'job_id')
             ->orderBy('sort_order')
             ->orderBy('id');
+    }
+
+    /** งานแม่ของงานย่อยใบนี้ — งานระดับบนสุดจะเป็น null */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(WorkOrder::class, 'parent_job_id', 'job_id');
+    }
+
+    /**
+     * งานย่อยคืองานจริงที่ผูกกับงานแม่ จึงมีสถานะ ความสำคัญ วันที่ ผู้รับผิดชอบ
+     * ผู้ร่วมงาน ไฟล์แนบ และคอมเมนต์ชุดเดียวกับงานปกติทุกประการ
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class, 'parent_job_id', 'job_id')
+            ->orderBy('parent_sort_order')
+            ->orderBy('job_id');
+    }
+
+    /**
+     * งานระดับบนสุดเท่านั้น
+     *
+     * ทุกมุมมองที่ "ไล่รายการงาน" ต้องใช้ scope นี้ ไม่งั้นงานย่อยจะไปโผล่เป็นงานเดี่ยว
+     * ซ้ำกับที่มันแสดงอยู่ใต้งานแม่แล้ว
+     */
+    public function scopeTopLevel(Builder $query): Builder
+    {
+        return $query->whereNull('parent_job_id');
     }
 
     public function activityLogs(): MorphMany

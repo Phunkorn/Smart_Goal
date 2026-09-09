@@ -3,6 +3,9 @@
 
     ปุ่ม "วันถัดไป" หายไปเมื่ออยู่ที่วันนี้แล้ว เพราะระบบไม่ให้บันทึกงานล่วงหน้า
     การแสดงปุ่มที่กดแล้วไม่เกิดอะไรขึ้นสร้างความสับสนมากกว่าไม่มีปุ่ม
+
+    ป้ายวันที่กดได้ เปิดปฏิทินของเบราว์เซอร์เพื่อกระโดดไปวันไหนก็ได้ในช่วงที่
+    ระบบยอมให้ย้อนหลัง โดยไม่ต้องกดลูกศรทีละวัน
 --}}
 <header class="daily-log__header">
     <div class="daily-log__heading">
@@ -18,18 +21,11 @@
             @endif
         </h1>
         <p class="daily-log__subtitle">
-            งานประจำ งานแทรก และงานนอกสถานที่ ที่ไม่ได้อยู่ในบอร์ดโปรเจกต์
+            งานประจำและงานนอกสถานที่ที่ไม่ได้อยู่ในบอร์ดโปรเจกต์
         </p>
     </div>
 
     <div class="daily-log__controls">
-        @if($capabilities['canCreate'])
-            <a href="{{ route('daily-logs.routines.index') }}" class="btn btn-outline-secondary daily-log__routines-link">
-                <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
-                <span>งานประจำ</span>
-            </a>
-        @endif
-
         @if($capabilities['canViewOthers'])
             <form method="GET" action="{{ route('daily-logs.index') }}" class="daily-log__member-form" data-member-form>
                 <input type="hidden" name="date" value="{{ $dateValue }}">
@@ -47,21 +43,49 @@
             </form>
         @endif
 
-        <nav class="daily-log__date-nav" aria-label="เลือกวันที่">
+        {{--
+            ปฏิทินเลือกวัน — ป้ายวันที่เป็นตัวเปิดปฏิทินในตัว
+
+            ใช้ปฏิทินตัวเดียวกับทั้งระบบ (resources/js/components/date-picker.js)
+            ผ่าน data-date-picker บนช่องวันที่จริง จึงได้ปฏิทินแบบ พ.ศ. หน้าตา
+            เดียวกับหน้างานอื่น ไม่ใช่ปฏิทินของเบราว์เซอร์ที่เปลี่ยนไปตามเครื่อง
+            ช่องวันที่ยังเป็นแหล่งความจริงของค่าและกติกา min/max และยังใช้ได้
+            เมื่อ JavaScript ไม่ทำงาน (กดปุ่ม "ไป")
+
+            ส่ง user ไปด้วยเฉพาะตอนดูของคนอื่น เพื่อให้ URL ของงานตัวเองสั้น
+            เหลือแค่ ?date= ตามเดิมที่ผู้ใช้อ่านแล้วเข้าใจได้
+        --}}
+        <form method="GET" action="{{ route('daily-logs.index') }}" class="daily-log__date-nav" data-date-form>
+            @unless($isOwnDay)
+                <input type="hidden" name="user" value="{{ $owner->id }}">
+            @endunless
+
             <a class="daily-log__date-step"
-                href="{{ route('daily-logs.index', ['date' => $previousDate, 'user' => $owner->id]) }}"
+                href="{{ route('daily-logs.index', array_filter(['date' => $previousDate, 'user' => $isOwnDay ? null : $owner->id])) }}"
                 aria-label="วันก่อนหน้า">
                 <i class="bi bi-chevron-left" aria-hidden="true"></i>
             </a>
 
-            <span class="daily-log__date-label" data-date-label>
-                {{ $dateLabel }}
-                @if($isToday)<span class="daily-log__today-chip">วันนี้</span>@endif
-            </span>
+            <label class="daily-log__date-picker">
+                <span class="daily-log__date-label" data-date-label>
+                    {{ $dateLabel }}
+                    @if($isToday)<span class="daily-log__today-chip">วันนี้</span>@endif
+                    <i class="bi bi-calendar3 daily-log__date-icon" aria-hidden="true"></i>
+                </span>
+                <input type="date"
+                    class="daily-log__date-input"
+                    name="date"
+                    value="{{ $dateValue }}"
+                    min="{{ $minDate }}"
+                    max="{{ $maxDate }}"
+                    aria-label="เลือกวันที่"
+                    data-date-picker
+                    data-date-input>
+            </label>
 
             @if($nextDate !== null)
                 <a class="daily-log__date-step"
-                    href="{{ route('daily-logs.index', ['date' => $nextDate, 'user' => $owner->id]) }}"
+                    href="{{ route('daily-logs.index', array_filter(['date' => $nextDate, 'user' => $isOwnDay ? null : $owner->id])) }}"
                     aria-label="วันถัดไป">
                     <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 </a>
@@ -70,7 +94,9 @@
                     <i class="bi bi-chevron-right"></i>
                 </span>
             @endif
-        </nav>
+
+            <noscript><button type="submit" class="btn btn-outline-secondary btn-sm">ไป</button></noscript>
+        </form>
     </div>
 </header>
 

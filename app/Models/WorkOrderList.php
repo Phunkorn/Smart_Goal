@@ -13,6 +13,7 @@ class WorkOrderList extends Model
         'name',
         'priority',
         'is_visible',
+        'archived_at',
         'sort_order',
     ];
 
@@ -21,6 +22,7 @@ class WorkOrderList extends Model
         return [
             'is_visible' => 'boolean',
             'priority' => 'integer',
+            'archived_at' => 'datetime',
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogTemplate;
+use App\Support\AuditTrail;
 use App\Support\TodayWorkspace;
 use App\Support\WorkLogDesign;
 use App\Support\WorkLogWeekdays;
@@ -12,6 +13,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * สร้างรายการงานประจำของแต่ละวันจากแม่แบบ
@@ -42,6 +44,15 @@ class WorkLogRoutineMaterializer
      */
     public function materializeDay(User $owner, CarbonInterface $businessDay): int
     {
+        // สร้างได้เฉพาะ "วันนี้" เท่านั้น
+        //
+        // การสร้างรายการของวันย้อนหลังเท่ากับเปิดให้กดเริ่มงานย้อนหลังได้ ซึ่งเป็น
+        // สิ่งที่กติกาของงานประจำห้ามไว้ วันที่ผ่านไปแล้วมีทางเดียวคือระบุเหตุผล
+        // ที่ไม่ได้ทำ ผ่าน recordMissed()
+        if (! $businessDay->isSameDay(TodayWorkspace::businessNow())) {
+            return 0;
+        }
+
         if (! $this->isMaterializable($businessDay)) {
             return 0;
         }
@@ -99,7 +110,86 @@ class WorkLogRoutineMaterializer
     }
 
     /**
-     * แม่แบบที่ถึงกำหนดในวันนั้น
+     * บันทึกว่าวันที่ผ่านไปแล้ววันนั้น "ไม่ได้ทำ" งานประจำรายการนี้ พร้อมเหตุผล
+     *
+     * เป็นทางเดียวที่รายการของวันย้อนหลังจะเกิดขึ้นได้ และเกิดในสถานะ skipped
+     * เสมอ ไม่ใช่ open — เพื่อไม่ให้กลายเป็นช่องทางอ้อมสำหรับกดเริ่ม/ปิดงาน
+     * ย้อนหลัง ตัวเลขเวลาทำงานของวันนั้นจึงยังเป็นศูนย์ ตรงกับความจริงที่ว่า
+     * วันนั้นไม่ได้ทำ ส่วนเหตุผล (ลา ขาด ลืม) เป็นสิ่งที่หัวหน้าต้องเห็น
+     *
+     * @throws ValidationException เมื่อวันนั้นไม่ใช่วันย้อนหลังที่รับได้ หรือแม่แบบ
+     *                             ไม่ได้ถึงกำหนดในวันนั้น หรือมีรายการอยู่แล้ว
+     */
+    public function recordMissed(
+        User $owner,
+        WorkLogTemplate $template,
+        CarbonInterface $businessDay,
+        string $reason
+    ): WorkLog {
+        $reason = trim($reason);
+
+        if ($reason === '') {
+            throw ValidationException::withMessages(['reason' => 'กรุณาระบุเหตุผลที่ไม่ได้ทำงานประจำวันนั้น']);
+        }
+
+        if ($businessDay->isSameDay(TodayWorkspace::businessNow()) || ! $this->isMaterializable($businessDay)) {
+            throw ValidationException::withMessages([
+                'date' => 'ระบุเหตุผลย้อนหลังได้เฉพาะวันที่ผ่านมาไม่เกิน '.WorkLogDesign::MAX_BACKFILL_DAYS.' วัน',
+            ]);
+        }
+
+        $due = $this->dueTemplates($owner, $businessDay);
+
+        if (! $due->contains(fn (WorkLogTemplate $candidate): bool => $candidate->is($template))) {
+            throw ValidationException::withMessages([
+                'template' => 'งานประจำรายการนี้ไม่ได้ถึงกำหนดในวันนั้น',
+            ]);
+        }
+
+        if ($this->existingTemplateIds($owner, $businessDay, collect([$template])) !== []) {
+            throw ValidationException::withMessages([
+                'template' => 'วันนั้นมีรายการของงานประจำนี้อยู่แล้ว',
+            ]);
+        }
+
+        $now = TodayWorkspace::businessNow()->utc();
+
+        $log = WorkLog::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'department_id' => $owner->department_id,
+            'work_log_category_id' => $template->work_log_category_id,
+            'work_log_template_id' => $template->id,
+            'work_order_list_id' => $template->work_order_list_id,
+            'job_id' => $template->job_id,
+            'kind' => $template->kind ?: WorkLogDesign::DEFAULT_KIND,
+            'status' => 'skipped',
+            'source' => 'template',
+            'title' => $template->title,
+            'details' => $template->details,
+            'work_date' => $businessDay->format('Y-m-d'),
+            'planned_start_at' => $this->plannedStartAt($template, $businessDay),
+            'planned_end_at' => $this->plannedEndAt($template, $businessDay),
+            'skip_reason' => $reason,
+            'skipped_at' => $now,
+        ]);
+
+        AuditTrail::log(
+            'work_log_skipped',
+            $log,
+            sprintf('ระบุว่าไม่ได้ทำงานประจำ "%s" เมื่อวันที่ %s', $log->title, $businessDay->format('Y-m-d')),
+            ['after' => ['status' => 'skipped', 'skip_reason' => $reason, 'work_date' => $businessDay->format('Y-m-d')]]
+        );
+
+        return $log;
+    }
+
+    /**
+     * แม่แบบที่ถึงกำหนดในวันนั้น สำหรับคนคนหนึ่ง
+     *
+     * นับทั้งแม่แบบที่เขาเป็นเจ้าของ และแม่แบบของเพื่อนร่วมแผนกที่ใส่ชื่อเขาไว้
+     * เป็นผู้ร่วมงาน เพราะงานที่ต้องเข้าไปทำทุกเช้าหลายอย่างเป็นหน้าที่ของทีม
+     * ไม่ใช่ของคนตั้งค่าเพียงคนเดียว
      *
      * การเทียบวันในสัปดาห์ต้องใช้วันตามเวลากรุงเทพเสมอ เพราะเช้าวันจันทร์ 06:00
      * ที่กรุงเทพยังเป็นวันอาทิตย์ 23:00 ตามเวลา UTC ถ้าเทียบด้วย UTC ระบบจะสร้าง
@@ -112,7 +202,12 @@ class WorkLogRoutineMaterializer
         $day = $businessDay->format('Y-m-d');
 
         return WorkLogTemplate::query()
-            ->where('user_id', $owner->id)
+            ->with(['category', 'user'])
+            // แม่แบบของตัวเอง หรือแม่แบบของคนอื่นที่ใส่ชื่อเราเป็นผู้ร่วมงานไว้
+            // ทั้งสองแบบต้องกลายเป็นรายการในไทม์ไลน์ของคนคนนี้เหมือนกัน
+            ->where(fn ($scoped) => $scoped
+                ->where('user_id', $owner->id)
+                ->orWhereHas('participants', fn ($person) => $person->where('users.id', $owner->id)))
             ->active()
             ->where(fn ($query) => $query->whereNull('starts_on')->orWhereDate('starts_on', '<=', $day))
             ->where(fn ($query) => $query->whereNull('ends_on')->orWhereDate('ends_on', '>=', $day))
@@ -160,27 +255,27 @@ class WorkLogRoutineMaterializer
     {
         // เวลาเริ่มที่ตั้งไว้ในแม่แบบมีไว้ให้ไทม์ไลน์เรียงลำดับได้ถูกตั้งแต่แรก
         // ไม่ได้แปลว่างานเริ่มไปแล้ว (duration ยังเป็น null และสถานะยังเป็น open)
-        $startedAt = $template->default_start_time === null
-            ? null
-            : $businessDay->copy()
-                ->setTimeFromTimeString((string) $template->default_start_time)
-                ->utc();
+        $plannedStartAt = $this->plannedStartAt($template, $businessDay);
+        $plannedEndAt = $this->plannedEndAt($template, $businessDay);
 
         try {
-            DB::transaction(function () use ($owner, $template, $businessDay, $startedAt): void {
+            DB::transaction(function () use ($owner, $template, $businessDay, $plannedStartAt, $plannedEndAt): void {
                 WorkLog::create([
                     'user_id' => $owner->id,
                     'created_by' => $owner->id,
                     'department_id' => $owner->department_id,
                     'work_log_category_id' => $template->work_log_category_id,
                     'work_log_template_id' => $template->id,
+                    'work_order_list_id' => $template->work_order_list_id,
+                    'job_id' => $template->job_id,
                     'kind' => $template->kind ?: WorkLogDesign::DEFAULT_KIND,
                     'status' => 'open',
                     'source' => 'template',
                     'title' => $template->title,
                     'details' => $template->details,
                     'work_date' => $businessDay->format('Y-m-d'),
-                    'started_at' => $startedAt,
+                    'planned_start_at' => $plannedStartAt,
+                    'planned_end_at' => $plannedEndAt,
                 ]);
             });
 
@@ -215,6 +310,33 @@ class WorkLogRoutineMaterializer
         WorkLogTemplate::query()
             ->whereIn('id', $stale->pluck('id'))
             ->update(['last_materialized_on' => $businessDay->format('Y-m-d')]);
+    }
+
+    /**
+     * เวลาเริ่มที่ตั้งไว้ในแม่แบบ แปลงเป็นเวลาของวันนั้นในหน่วย UTC
+     *
+     * มีไว้ให้ไทม์ไลน์เรียงลำดับได้ถูกตั้งแต่แรก ไม่ได้แปลว่างานเริ่มไปแล้ว
+     */
+    private function plannedStartAt(WorkLogTemplate $template, CarbonInterface $businessDay): ?CarbonInterface
+    {
+        if ($template->default_start_time === null) {
+            return null;
+        }
+
+        return $businessDay->copy()
+            ->setTimeFromTimeString((string) $template->default_start_time)
+            ->utc();
+    }
+
+    private function plannedEndAt(WorkLogTemplate $template, CarbonInterface $businessDay): ?CarbonInterface
+    {
+        $start = $this->plannedStartAt($template, $businessDay);
+
+        if ($start === null || $template->default_duration_minutes === null) {
+            return null;
+        }
+
+        return $start->copy()->addMinutes((int) $template->default_duration_minutes);
     }
 
     private function isMaterializable(CarbonInterface $businessDay): bool

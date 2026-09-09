@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderListTaskRequest;
 use App\Services\AdminApprovalQuery;
+use App\Services\Telegram\TelegramOutbox;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -21,6 +22,13 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(AdminApprovalQuery::class);
+
+        /*
+         * TelegramOutbox ต้องเป็นตัวเดียวกันทั้ง request เพราะเก็บธงว่าผูก callback
+         * ตอนปิดท้าย request ไปแล้วหรือยัง ถ้าปล่อยให้สร้างใหม่ทุกครั้งที่ inject
+         * request ที่สร้างการแจ้งเตือนหลายฉบับจะผูก callback ซ้ำเท่าจำนวนฉบับ
+         */
+        $this->app->scoped(TelegramOutbox::class);
     }
 
     /**

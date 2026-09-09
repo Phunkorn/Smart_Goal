@@ -69,3 +69,56 @@ test('reopening refreshes the modal edit permission without a page reload', () =
     assert.equal(meta.transitions.is_final, false);
     assert.equal(management[10], meta);
 });
+
+test('closed subtasks stay inside their parent row instead of moving to the completed group', (t) => {
+    const dom = mountDom(`
+        <div data-board-list-body>
+            <header data-project-header data-project-key="project-1"></header>
+            <article data-board-task data-task-id="10" data-project-key="project-1">
+                <div data-task-details-panel>
+                    <ol data-task-details-list>
+                        <li data-board-task data-board-subtask="1" data-task-detail data-task-id="99" data-work-order-id="10" data-project-key="project-1"></li>
+                    </ol>
+                </div>
+            </article>
+        </div>
+    `);
+    t.after(() => dom.cleanup());
+
+    const cardGrid = dom.document.querySelector('[data-board-list-body]');
+    const subtask = cardGrid.querySelector('[data-board-subtask]');
+
+    assert.equal(synchronizeCompletedTaskGroup(cardGrid, subtask, 4), null);
+    assert.equal(cardGrid.querySelector('[data-completed-group]'), null);
+    assert.equal(subtask.closest('[data-task-details-list]')?.dataset.taskDetailsList !== undefined, true);
+    assert.equal(subtask.closest('[data-board-task]:not([data-board-subtask])').dataset.taskId, '10');
+});
+
+test('a parent moving into the completed group carries its finished subtasks along', (t) => {
+    const dom = mountDom(`
+        <div data-board-list-body>
+            <header data-project-header data-project-key="project-1"></header>
+            <article data-board-task data-task-id="10" data-project-key="project-1">
+                <div data-task-details-panel>
+                    <ol data-task-details-list>
+                        <li data-board-task data-board-subtask="1" data-task-detail data-task-id="99" data-work-order-id="10" data-project-key="project-1" data-status="4"></li>
+                    </ol>
+                </div>
+            </article>
+        </div>
+    `);
+    t.after(() => dom.cleanup());
+
+    const cardGrid = dom.document.querySelector('[data-board-list-body]');
+    const parent = cardGrid.querySelector('[data-task-id="10"]');
+
+    const group = synchronizeCompletedTaskGroup(cardGrid, parent, 4);
+    assert.ok(group);
+    // ตัวนับกลุ่มนับเฉพาะงานระดับบนสุด งานย่อยที่ตามมาต้องไม่ถูกนับซ้ำ
+    assert.equal(group.querySelector('summary span').textContent, '1 งาน');
+    assert.equal(group.querySelectorAll('[data-board-subtask]').length, 1);
+    assert.equal(
+        group.querySelector('[data-board-subtask]').closest('[data-board-task]:not([data-board-subtask])'),
+        parent,
+    );
+});

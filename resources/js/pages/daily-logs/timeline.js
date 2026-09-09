@@ -28,7 +28,32 @@ export function initTimeline({
     root.dataset.timelineReady = 'on';
 
     const doc = root.ownerDocument;
-    const list = root.querySelector('[data-timeline-list]');
+    const lists = {
+        open: root.querySelector('[data-timeline-list]'),
+        done: root.querySelector('[data-timeline-done]'),
+    };
+    const list = lists.open;
+
+    /**
+     * ปรับหัวกลุ่มให้ตรงกับจำนวนแถวที่อยู่ในกลุ่มนั้นจริง
+     *
+     * นับจาก DOM ไม่ใช่จากตัวเลขที่ส่งมาพร้อม payload เพราะแถวถูกย้ายข้ามกลุ่ม
+     * ได้ทันทีที่กดยืนยัน การมีตัวนับสองแหล่งจะทำให้หัวข้อกับรายการไม่ตรงกัน
+     */
+    const refreshGroups = () => {
+        Object.values(lists).forEach((node) => {
+            const group = node?.closest('[data-log-group]');
+
+            if (! group) return;
+
+            const count = node.querySelectorAll('[data-log-card]').length;
+            const badge = group.querySelector('[data-group-count]');
+            const empty = group.querySelector('[data-group-empty]');
+
+            if (badge) badge.textContent = String(count);
+            if (empty) empty.hidden = count > 0;
+        });
+    };
     let menu = null;
     let menuTrigger = null;
 
@@ -136,9 +161,16 @@ export function initTimeline({
 
     return {
         closeMenu,
-        /** เพิ่มหรือแทนที่แถวหนึ่งจาก HTML ที่เซิร์ฟเวอร์ render มาให้ */
+        refreshGroups,
+        /**
+         * เพิ่มหรือแทนที่แถวหนึ่งจาก HTML ที่เซิร์ฟเวอร์ render มาให้
+         *
+         * กลุ่มปลายทางมาจาก data-log-status ของการ์ดที่เซิร์ฟเวอร์ส่งมา ไม่ใช่การ
+         * เดาฝั่ง client แถวที่เพิ่งถูกยืนยันจึงย้ายจาก "ที่ต้องทำ" ไป "ทำแล้ว"
+         * ได้เองโดยไม่ต้องโหลดหน้าใหม่
+         */
         upsertCard(html, logId) {
-            if (! list || ! html) return;
+            if (! html) return;
 
             const holder = doc.createElement('div');
             holder.innerHTML = html.trim();
@@ -146,15 +178,20 @@ export function initTimeline({
 
             if (! card) return;
 
-            const existing = list.querySelector(`[data-log-card][data-log-id="${logId}"]`);
+            const target = (['done', 'skipped'].includes(card.dataset.logStatus) ? lists.done : lists.open) || list;
 
-            if (existing) existing.replaceWith(card);
-            else list.appendChild(card);
+            if (! target) return;
 
-            list.querySelector('[data-timeline-empty]')?.remove();
+            // แถวเดิมอาจอยู่คนละกลุ่มกับปลายทาง จึงค้นทั้งหน้าไม่ใช่แค่ในกลุ่มเดียว
+            const existing = root.querySelector(`[data-log-card][data-log-id="${logId}"]`);
+
+            existing?.remove();
+            target.appendChild(card);
+            refreshGroups();
         },
         removeCard(logId) {
-            list?.querySelector(`[data-log-card][data-log-id="${logId}"]`)?.remove();
+            root.querySelector(`[data-log-card][data-log-id="${logId}"]`)?.remove();
+            refreshGroups();
         },
         destroy() {
             doc.removeEventListener('click', handleClick);

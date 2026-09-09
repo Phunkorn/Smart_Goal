@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\MyTaskController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -75,8 +76,28 @@ class PersonalReportDashboardTest extends TestCase
             ->assertViewHas('inProgressJobs', 3)
             ->assertViewHas('dueSoonJobs', 1)
             ->assertViewHas('overdueJobs', 1)
+            ->assertSeeInOrder(['personalPriorityChart', 'personal-report__table', 'Overdue action', 'Seven day boundary'], false)
             ->assertSee(route('tasks.show', $overdue->job_id), false)
             ->assertSee(route('tasks.show', $dueSoon->job_id), false);
+
+        /*
+         * กดงานจากรายงานแล้วต้องได้งานใบนั้นเปิดขึ้นมาจริง
+         *
+         * ของเดิม redirect ไปหน้างานของฉันเปล่า ๆ มุมมองจึงถูกตัดสินด้วยค่าที่จำไว้ใน session
+         * พนักงานที่ค้างมุมมอง "ประชุม" ไว้จึงถูกพาไปหน้าประชุมโดยไม่มีงานใบนั้นให้ดูเลย
+         */
+        $this->actingAs($person)
+            ->withSession([MyTaskController::WORKSPACE_VIEW_SESSION_KEY => 'meeting'])
+            ->get(route('tasks.show', $overdue->job_id))
+            ->assertRedirect(route('mytasks.index', ['open_task' => $overdue->job_id]));
+
+        $this->actingAs($person)
+            ->withSession([MyTaskController::WORKSPACE_VIEW_SESSION_KEY => 'meeting'])
+            ->get(route('mytasks.index', ['open_task' => $overdue->job_id]))
+            ->assertOk()
+            ->assertSee('data-view="board"', false)
+            // มุมมองที่ผู้ใช้จำไว้ต้องไม่ถูกเขียนทับจากการกดลิงก์เปิดงานครั้งเดียว
+            ->assertSessionHas(MyTaskController::WORKSPACE_VIEW_SESSION_KEY, 'meeting');
         $this->assertSame([2, 1, 0], $response->viewData('workloadSummary')->pluck('value')->all());
     }
 
@@ -123,13 +144,7 @@ class PersonalReportDashboardTest extends TestCase
         $this->assertNull($retired->viewData('filters')['status']);
     }
 
-    /**
-     * รายงานของพนักงานเหลือ 3 บล็อก: ตัวเลขที่ลงมือต่อได้ สิ่งที่ต้องรีบ และกราฟภาระงานเดียว
-     *
-     * สัดส่วนความสำคัญและรายการงานที่กำลังจะถึงถูกถอดออก เพราะซ้ำกับหน้างานของฉัน
-     * และพนักงานไม่ได้ใช้ข้อมูลสองอย่างนั้นตัดสินใจอะไร รายงานที่ยาวเกินจะไม่ถูกเปิดอ่าน
-     */
-    public function test_personal_report_keeps_only_the_blocks_a_worker_acts_on(): void
+    public function test_personal_report_shows_two_charts_before_the_attention_table(): void
     {
         $response = $this->actingAs($this->user())->get(route('reports.my', ['period' => 'this_month']));
 
@@ -138,13 +153,38 @@ class PersonalReportDashboardTest extends TestCase
             ->assertSee('ไม่มีงานที่ต้องรีบจัดการ')
             ->assertDontSee('NaN');
 
-        // กราฟเดียวเท่านั้น และไม่มีบล็อกที่ถูกถอดออกหลงเหลือ
-        $this->assertSame(1, substr_count($response->getContent(), 'data-report-chart'));
-        $response->assertDontSee('personalPriorityChart', false);
+        $this->assertSame(2, substr_count($response->getContent(), 'data-report-chart'));
+        $response->assertSeeInOrder(['personalWorkloadChart', 'personalPriorityChart', 'personal-attention-title'], false);
         $response->assertDontSee('personal-report__upcoming', false);
         $response->assertDontSee('งานที่กำลังจะถึง');
 
         $this->assertSame([0, 0, 0], $response->viewData('chartData')['workload']['values']);
+    }
+
+    public function test_attention_table_renders_all_rows_and_pages_ten_at_a_time(): void
+    {
+        $person = $this->user();
+
+        foreach (range(1, 12) as $index) {
+            $this->task([
+                'user_id' => $person->id,
+                'job_topic' => "Attention task {$index}",
+                'job_priority' => 3,
+            ]);
+        }
+
+        $response = $this->actingAs($person)->get(route('reports.my', ['period' => 'this_month']));
+
+        $response->assertOk()
+            ->assertSee('data-page-size="10"', false)
+            ->assertSee('data-personal-attention-pager', false)
+            ->assertSee('ย้อนกลับ')
+            ->assertSee('ถัดไป')
+            ->assertSee('Attention task 1')
+            ->assertSee('Attention task 12');
+
+        $this->assertCount(12, $response->viewData('attentionJobs'));
+        $this->assertSame(12, substr_count($response->getContent(), 'data-personal-attention-row'));
     }
 
     public function test_csv_export_keeps_the_same_personal_scope(): void

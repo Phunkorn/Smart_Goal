@@ -1,7 +1,7 @@
 @php
     $projectOptions = collect($projectOptions ?? [])->unique('id')->values();
-    $initialStart = now()->format('Y-m-d\TH:i');
-    $initialDue = now()->addDay()->format('Y-m-d\TH:i');
+    $initialStart = now()->format('Y-m-d');
+    $initialDue = now()->addDay()->format('Y-m-d');
 @endphp
 
 <div class='notion-modal user-task-create' data-user-task-create-modal hidden>
@@ -75,8 +75,23 @@
                     </template>
                 </div>
                 <div class='user-task-create__grid'>
-                    <label><span>วันที่เริ่ม <b aria-hidden='true'>*</b></span><input type='datetime-local' name='job_start_at' value='{{ $initialStart }}' required></label>
-                    <label><span>กำหนดส่ง <b aria-hidden='true'>*</b></span><input type='datetime-local' name='job_due_at' value='{{ $initialDue }}' required></label>
+                    <label class='user-task-create__date-field'>
+                        <span>วันที่เริ่ม <b aria-hidden='true'>*</b></span>
+                        <span class='user-task-create__date-control'>
+                            <i class='bi bi-calendar-plus' aria-hidden='true'></i>
+                            <input type='date' data-date-picker data-user-task-start name='job_start_at' value='{{ $initialStart }}' required>
+                            <i class='bi bi-chevron-down' aria-hidden='true'></i>
+                        </span>
+                    </label>
+                    <label class='user-task-create__date-field'>
+                        <span>วันที่สิ้นสุด <b aria-hidden='true'>*</b></span>
+                        <span class='user-task-create__date-control'>
+                            <i class='bi bi-calendar-check' aria-hidden='true'></i>
+                            <input type='date' data-date-picker data-user-task-due name='job_due_at' value='{{ $initialDue }}' min='{{ $initialStart }}' required>
+                            <i class='bi bi-chevron-down' aria-hidden='true'></i>
+                        </span>
+                    </label>
+                    <p class='user-task-create__date-note'><i class='bi bi-info-circle' aria-hidden='true'></i> เลือกช่วงงานแบบรายวัน โดยไม่ต้องระบุเวลา</p>
                     <label>
                         <span>ความสำคัญของงาน</span>
                         <select name='job_priority'>

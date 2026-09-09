@@ -56,7 +56,7 @@ class WorkLogQueryService
     }
 
     /**
-     * บันทึกงานของคนหนึ่งในหนึ่งวันทำการ เรียงตามเวลาที่เริ่มทำ
+     * บันทึกงานของคนหนึ่งในหนึ่งวันทำการ เรียงตามเวลาเริ่มจริงหรือเวลาที่วางแผนไว้
      *
      * รายการที่ไม่ระบุเวลาไปอยู่ท้ายสุด เพราะไทม์ไลน์อ่านจากบนลงล่างตามเวลาจริง
      * การจัดเรียงทำในหน่วยความจำหลัง query เพื่อเลี่ยงไวยากรณ์ NULLS LAST
@@ -67,27 +67,17 @@ class WorkLogQueryService
     public function dayFor(User $owner, CarbonInterface $businessDay): Collection
     {
         return WorkLog::query()
-            ->with(['category', 'project', 'task', 'attachments', 'user', 'participants'])
+            // template.user ใช้บอกว่ารายการงานประจำนี้เป็นของแม่แบบที่คนอื่นตั้งไว้
+            ->with(['category', 'project', 'task', 'attachments', 'user', 'participants', 'template.user'])
             ->where('user_id', $owner->id)
             ->whereDate('work_date', $businessDay->format('Y-m-d'))
             ->get()
             ->sortBy([
-                fn (WorkLog $log): int => $log->started_at === null ? 1 : 0,
-                fn (WorkLog $log): int => $log->started_at?->getTimestamp() ?? 0,
+                fn (WorkLog $log): int => ($log->started_at ?? $log->planned_start_at) === null ? 1 : 0,
+                fn (WorkLog $log): int => ($log->started_at ?? $log->planned_start_at)?->getTimestamp() ?? 0,
                 fn (WorkLog $log): int => $log->id,
             ])
             ->values();
-    }
-
-    /**
-     * งานที่กำลังจับเวลาอยู่ของผู้ใช้คนหนึ่ง (มีได้ไม่เกินหนึ่งรายการ ตาม unique index)
-     */
-    public function runningFor(User $owner): ?WorkLog
-    {
-        return WorkLog::query()
-            ->with(['category'])
-            ->where('open_timer_owner_id', $owner->id)
-            ->first();
     }
 
     /**

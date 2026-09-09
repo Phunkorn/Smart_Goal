@@ -139,6 +139,41 @@ class MyTasksMeetingViewTest extends TestCase
             ->assertDontSee('mytasks-meeting-view', false);
     }
 
+    public function test_meeting_links_from_the_workspace_carry_their_origin_back_to_the_workspace(): void
+    {
+        $member = $this->user();
+        $meeting = $this->meeting($member, 'ประชุมของฉัน');
+
+        $this->actingAs($member)
+            ->get(route('mytasks.index', ['view' => 'meeting', 'period' => 'all']))
+            ->assertOk()
+            ->assertSee(route('meetings.show', ['meeting' => $meeting->id, 'from' => 'workspace']), false);
+
+        // เข้าจาก Workspace ปุ่มกลับต้องพากลับ Workspace ไม่ใช่ทิ้งไว้ที่ /meetings
+        $this->actingAs($member)
+            ->get(route('meetings.show', ['meeting' => $meeting->id, 'from' => 'workspace']))
+            ->assertOk()
+            ->assertSee('class="meetings-page__back" href="'.route('mytasks.index', ['view' => 'meeting']).'"', false);
+
+        // เข้าจาก /meetings ตรง ๆ ปุ่มกลับต้องยังทำงานเหมือนเดิม
+        $this->actingAs($member)
+            ->get(route('meetings.show', $meeting))
+            ->assertOk()
+            ->assertSee('class="meetings-page__back" href="'.route('meetings.index').'"', false);
+    }
+
+    public function test_standalone_meeting_page_links_do_not_claim_a_workspace_origin(): void
+    {
+        $member = $this->user();
+        $meeting = $this->meeting($member, 'ประชุมของฉัน');
+
+        $this->actingAs($member)
+            ->get(route('meetings.index', ['period' => 'all']))
+            ->assertOk()
+            ->assertDontSee('from=workspace', false)
+            ->assertSee(route('meetings.show', ['meeting' => $meeting->id]), false);
+    }
+
     private function meetingListSection(string $content): string
     {
         $start = strpos($content, 'meetings-page__list');

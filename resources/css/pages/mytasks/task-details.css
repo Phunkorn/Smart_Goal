@@ -66,6 +66,22 @@
     font-size: 9px;
 }
 
+/*
+ * ตัวนับ "เสร็จแล้ว/ทั้งหมด" ของงานย่อย
+ *
+ * สีบอกสถานะเดียวกับที่ TaskStatusTransitionService ใช้ตัดสิน — ส้มคือยังปิดงานแม่ไม่ได้
+ * เขียวคือเคลียร์ครบแล้ว ผู้ใช้จึงเห็นเหตุผลตั้งแต่ก่อนกดปุ่ม ไม่ใช่หลังโดนปฏิเสธ
+ */
+.my-tasks-page .board-task-details__progress.is-pending b {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.my-tasks-page .board-task-details__progress.is-complete b {
+    background: #dcfce7;
+    color: #166534;
+}
+
 .my-tasks-page .board-task-details__heading > .board-reference-task__open {
     display: grid;
     width: 28px;
@@ -80,10 +96,21 @@
     color: #2563eb;
 }
 
-.my-tasks-page .board-task-details__panel {
+/*
+ * แผงงานย่อยเป็นลูกของ .board-reference-row จึงต้องกินทั้งแถว
+ * มิฉะนั้นมันจะถูกวางเป็นคอลัมน์ที่ 11 หรือถูกบีบอยู่ในคอลัมน์ "ชื่องาน"
+ */
+/*
+ * แผงงานย่อยกว้างเท่าแถวงานแม่พอดี ห้ามมี padding ซ้าย-ขวา
+ * เพราะคอลัมน์แรกของบอร์ดคิดเป็นเปอร์เซ็นต์ ถ้าความกว้างต่างกันแม้เล็กน้อย
+ * คอลัมน์ของงานย่อยจะเลื่อนจากงานแม่ทันที (ตัวเลือกที่ชนะ .board-reference-row > *)
+ */
+.my-tasks-page .board-reference-row > .board-task-details__panel {
+    grid-column: 1 / -1;
     display: grid;
     gap: 6px;
-    padding: 7px 0 2px 20px;
+    margin-top: 0;
+    padding: 2px 0 8px;
 }
 
 .my-tasks-page .board-task-details__panel[hidden] {
@@ -101,38 +128,150 @@
 .my-tasks-page .board-task-detail {
     position: relative;
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
+    /* คอลัมน์ชุดเดียวกับแถวงานแม่ ค่ามาจาก --board-columns ใน project-board.css ที่เดียว */
+    grid-template-columns: var(--board-columns);
     align-items: center;
-    gap: 4px;
+    gap: 0;
     min-height: 30px;
-    padding: 3px 4px 3px 0;
+    /* กล่องกริดต้องกว้างเท่าแถวงานแม่เป๊ะ ๆ padding ซ้าย-ขวาจึงต้องเป็นศูนย์ */
+    padding: 3px 0;
     border-radius: 6px;
     color: #44546b;
     font-size: 11px;
 }
 
-.my-tasks-page .board-task-detail::before {
-    position: absolute;
-    top: -7px;
-    left: -12px;
-    width: 10px;
-    height: 22px;
-    border-bottom: 1px solid #cbd7e6;
-    border-left: 1px solid #cbd7e6;
-    border-radius: 0 0 0 6px;
-    content: "";
-}
+
 
 .my-tasks-page .board-task-detail:hover {
     background: #f5f8fc;
 }
 
-.my-tasks-page .board-task-detail > [data-task-detail-title] {
+.my-tasks-page .board-task-detail > * {
+    min-width: 0;
+    padding: 0 8px;
+}
+
+/*
+ * แถวงานย่อยใช้ปุ่มควบคุมชุดเดียวกับแถวงานแม่ และต้องมีขนาดตัวอักษรกับกล่องเท่ากันด้วย
+ *
+ * คอลัมน์ของบอร์ดจัดเนื้อหาแบบ justify-self: center กล่องที่เล็กกว่าจึงถูกวางกึ่งกลาง
+ * คนละตำแหน่งกับงานแม่ ทำให้ดูเหมือนคอลัมน์ไม่ตรงกันทั้งที่ track ตรงกันอยู่แล้ว
+ * งานย่อยจึงถูกทำให้ดูเป็นระดับรองด้วยการย่อหน้าและเส้นโยง ไม่ใช่ด้วยการย่อขนาด
+ *
+ * ส่วนการจัดตำแหน่งของแต่ละช่อง (รวมช่องไฟล์แนบและคอมเมนต์ที่ถูกล็อกกับหมายเลข
+ * คอลัมน์ไว้) อยู่ใน project-board.css ที่เดียวกับของแถวงานแม่ ห้ามประกาศซ้ำที่นี่
+ */
+
+/* กันรูปใด ๆ ในแถวงานย่อยดันความสูงของแถวจนผังทั้งบอร์ดพัง */
+.my-tasks-page .board-task-detail img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/*
+ * ชื่องานย่อยอยู่ในคอลัมน์ "ชื่องาน" เดียวกับงานแม่ แต่ย่อหน้าเข้ามาและมีเส้นโยง
+ * รูปตัว L กลับขึ้นไปหาชื่องานแม่ เพื่อให้อ่านออกทันทีว่างานย่อยใบนี้เป็นของงานใด
+ * (ทั้งสองส่วนวาดจาก ::before/::after ของเซลล์ชื่อ ไม่ต้องเพิ่ม element ในมาร์กอัป)
+ */
+.my-tasks-page .board-task-detail > .board-task-detail__name {
+    position: relative;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: center;
+    gap: 2px;
+    /* ย่อหน้าเข้ามาเล็กน้อยจากชื่องานแม่ พอให้เห็นว่าเป็นลูก แต่ยังอยู่ในคอลัมน์เดียวกัน */
+    padding-left: 24px;
+}
+
+/* เส้นตั้ง: กิ่งหลักที่ลากลงมาจากชื่องานแม่ ผ่านงานย่อยทุกใบ */
+.my-tasks-page .board-task-detail > .board-task-detail__name::before {
+    position: absolute;
+    top: -10px;
+    bottom: 0;
+    left: 12px;
+    width: 1px;
+    background: #cbd7e6;
+    content: "";
+}
+
+/* ใบสุดท้ายให้เส้นตั้งจบที่กึ่งกลางแถว กิ่งจึงไม่ห้อยเลยงานย่อยใบสุดท้าย */
+.my-tasks-page .board-task-detail:last-child > .board-task-detail__name::before {
+    bottom: 50%;
+}
+
+/* เส้นนอน: กิ่งย่อยที่แตกออกไปหาชื่องานย่อยแต่ละใบ */
+.my-tasks-page .board-task-detail > .board-task-detail__name::after {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    width: 10px;
+    height: 1px;
+    background: #cbd7e6;
+    content: "";
+}
+
+.my-tasks-page .board-task-detail [data-task-detail-title] {
     overflow-wrap: anywhere;
 }
 
-.my-tasks-page .board-task-detail__drag,
-.my-tasks-page .board-task-detail__actions button {
+/* ชื่องานย่อยคือปุ่มเปิดโมดัล จึงต้องดูเป็นข้อความปกติแต่กดได้จริง */
+.my-tasks-page .board-task-detail__title {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.my-tasks-page .board-task-detail__title:hover,
+.my-tasks-page .board-task-detail__title:focus-visible {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+/* แถวชั่วคราวของงานย่อยที่เพิ่งสร้าง ระหว่างรอหน้าโหลดใหม่พร้อมปุ่มควบคุมจริง */
+.my-tasks-page .board-task-detail__pending {
+    grid-column: 2 / -1;
+    color: #94a3b8;
+    font-size: 10px;
+}
+
+.my-tasks-page .board-task-detail.is-pending {
+    opacity: .65;
+}
+
+/* งานย่อยที่เลยกำหนดส่งต้องเห็นได้จากแถวโดยไม่ต้องเปิดโมดัล */
+.my-tasks-page .board-task-detail.is-late [data-task-detail-title] {
+    color: #dc2626;
+}
+
+/* จอเล็ก: บอร์ดเลิกใช้คอลัมน์ งานย่อยจึงเรียงเป็นการ์ดสองคอลัมน์เหมือนแถวงานแม่ */
+@media (max-width: 760px) {
+    /* เจาะจงกว่ากฎ var() ด้านบน เพื่อให้เลย์เอาต์การ์ดของมือถือชนะเสมอ */
+    .my-tasks-page .board-task-details__list > .board-task-detail {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 10px 6px;
+    }
+
+    .my-tasks-page .board-task-detail > * {
+        padding: 0;
+    }
+
+    .my-tasks-page .board-task-detail > .board-task-detail__name {
+        grid-column: 1 / -1;
+        padding-left: 22px;
+    }
+
+    .my-tasks-page .board-task-detail > .board-task-detail__name::before,
+    .my-tasks-page .board-task-detail > .board-task-detail__name::after {
+        left: 10px;
+    }
+}
+
+.my-tasks-page .board-task-detail__drag {
     display: grid;
     width: 22px;
     height: 22px;
@@ -151,27 +290,6 @@
 
 .my-tasks-page .board-task-detail__drag:active {
     cursor: grabbing;
-}
-
-.my-tasks-page .board-task-detail__actions {
-    display: inline-flex;
-    opacity: 0;
-    transition: opacity .12s ease;
-}
-
-.my-tasks-page .board-task-detail:hover .board-task-detail__actions,
-.my-tasks-page .board-task-detail:focus-within .board-task-detail__actions {
-    opacity: 1;
-}
-
-.my-tasks-page .board-task-detail__actions button:hover {
-    background: #e8f0fc;
-    color: #2563eb;
-}
-
-.my-tasks-page .board-task-detail__actions [data-task-detail-delete]:hover {
-    background: #feecec;
-    color: #dc2626;
 }
 
 .my-tasks-page .board-task-details__empty {
@@ -249,9 +367,7 @@
         opacity: 1;
     }
 
-    .my-tasks-page .board-task-details__panel {
-        padding-left: 17px;
-    }
+
 }
 
 /*
@@ -261,12 +377,29 @@
  * ซึ่งบนจอกว้างยาวเกือบ 700px กลายเป็นแถบว่างยาวพาดกลางบอร์ดและกินสายตามากกว่าตัวงานเอง
  * ความกว้างจึงถูกจำกัดไว้ แต่ยังหดลงได้เองเมื่อคอลัมน์แคบกว่านั้น
  */
+/*
+ * ช่องเพิ่มงานย่อยเรียงตัวตามชื่องานย่อยด้านบน ไม่ใช่ชิดขอบซ้ายของแถว
+ *
+ * แผงงานย่อยไม่มี padding ซ้าย-ขวา (เพื่อให้คอลัมน์ตรงกับงานแม่) ฟอร์มจึงเคยติดขอบพอดี
+ * ระยะเยื้องจึงต้องใส่ที่ตัวฟอร์มเอง ให้เท่ากับระยะที่ชื่องานย่อยถูกเยื้องเข้ามา
+ */
+.my-tasks-page .board-task-details__create,
+.my-tasks-page .board-task-details__empty {
+    margin-left: 46px;
+}
+
 .my-tasks-page .board-task-details__create {
     grid-template-columns: minmax(0, 320px) auto;
     justify-content: start;
+    margin-top: 4px;
 }
 
 @media (max-width: 760px) {
+    .my-tasks-page .board-task-details__create,
+    .my-tasks-page .board-task-details__empty {
+        margin-left: 22px;
+    }
+
     .my-tasks-page .board-task-details__create {
         grid-template-columns: minmax(0, 1fr) auto;
     }

@@ -4,6 +4,8 @@
  * ทั้งหมดคำนวณจาก allowed_statuses ที่ TaskStatusTransitionService ส่งมา
  * จึงเป็นความจริงชุดเดียวกับที่ server บังคับ ไม่มีการ hardcode สิทธิ์ซ้ำในฝั่งนี้
  */
+import {openSubtasksFor, subtaskGateMessage} from './subtask-gate.js';
+
 export const STATUS_STEP_LABELS = {
     2: 'กลับมาทำ',
     3: 'ส่งตรวจสอบ',
@@ -113,6 +115,27 @@ export function isModalStatusOptionDisabled(currentStatus, optionStatus, capabil
 }
 
 export async function confirmTaskTransition(currentStatus, targetStatus, capabilities = {}) {
+    /*
+     * ด่านงานย่อย — ต้องอยู่ก่อนทุกอย่าง
+     *
+     * ทางเข้าที่เปลี่ยนสถานะมีห้าทาง (เมนูบอร์ด เมนูงานย่อย ตาราง ลากการ์ด และโมดัล)
+     * แต่ทุกทางผ่านฟังก์ชันนี้ ด่านจึงอยู่ที่เดียวและครอบคลุมทั้งหมด
+     * server ปฏิเสธซ้ำอยู่แล้ว ตรงนี้มีไว้บอกเหตุผลก่อนที่ผู้ใช้จะเสียเวลายิง request
+     */
+    const blocked = subtaskGateMessage(Number(targetStatus), openSubtasksFor(capabilities));
+    if (blocked) {
+        await window.Swal.fire({
+            icon: 'warning',
+            title: 'ยังเคลียร์งานย่อยไม่ครบ',
+            text: blocked,
+            confirmButtonText: 'เข้าใจแล้ว',
+            // ต้องมี ไม่งั้นกล่องจะไปอยู่หลังโมดัลรายละเอียดงานจนผู้ใช้มองไม่เห็น
+            customClass: {container: 'task-transition-dialog'},
+        });
+
+        return null;
+    }
+
     const kind = transitionKind(Number(currentStatus), Number(targetStatus), capabilities);
     if (kind === 'none') return {job_status: Number(targetStatus)};
     if (kind === 'standard') return {job_status: Number(targetStatus)};

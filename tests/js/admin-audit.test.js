@@ -270,3 +270,242 @@ test('ช่องค้นหาส่งฟอร์มเองหลัง�
     filters.querySelector('select').dispatchEvent(new ui.window.Event('change', {bubbles: true}));
     assert.equal(ui.submitted.length, 2, 'เปลี่ยนตัวเลือกแล้วส่งทันที ไม่ต้องรอ');
 });
+
+/**
+ * ติดตั้งแท็บถังขยะแบบที่มีแถบจัดการหลายรายการ
+ *
+ * ช่องติ๊กอยู่ในตารางแต่เป็นของฟอร์ม auditBulkForm ผ่าน form= จึงต้อง render ให้ตรง
+ * กับที่ Blade ทำจริง ไม่งั้นเทสต์จะผ่านบนโครงสร้างที่ไม่มีอยู่จริง
+ */
+async function mountBulkPage(t, {rows = 2, filteredTotal = 0} = {}) {
+    const env = mountDom();
+    t.after(env.cleanup);
+
+    const scopeToggle = filteredTotal > rows
+        ? `<label class="audit-bulkbar__scope">
+               <input type="checkbox" data-audit-scope-toggle data-count="${filteredTotal}">
+               เลือกทั้งหมดที่กรองอยู่ (${filteredTotal} รายการ)
+           </label>`
+        : '';
+
+    const body = Array.from({length: rows}, (unused, index) => `
+        <tr>
+            <td class="audit-col-select">
+                <input type="checkbox" form="auditBulkForm" name="ids[]" value="${index + 1}" data-audit-select>
+            </td>
+            <td>รายการที่ ${index + 1}</td>
+        </tr>`).join('');
+
+    env.document.body.innerHTML = `
+        <div class="audit-page">
+            <form id="auditBulkForm" method="POST" class="audit-bulkbar" data-audit-bulk hidden>
+                <input type="hidden" name="scope" value="" data-audit-scope>
+                <p class="audit-bulkbar__count">เลือกแล้ว <strong data-audit-selected-count>0</strong> รายการ</p>
+                ${scopeToggle}
+                <div class="audit-bulkbar__actions">
+                    <button type="submit" formaction="/admin/trash/bulk-restore"
+                            name="_method" value="PATCH" data-audit-bulk-restore>กู้คืนที่เลือก</button>
+                    <button type="submit" formaction="/admin/trash/bulk-purge"
+                            name="_method" value="DELETE" data-audit-bulk-purge>ลบถาวรที่เลือก</button>
+                </div>
+            </form>
+            <table class="audit-table audit-table--trash">
+                <thead><tr><th class="audit-col-select"><input type="checkbox" data-audit-select-all></th><th>ข้อมูล</th></tr></thead>
+                <tbody>${body}</tbody>
+            </table>
+        </div>`;
+
+    const submitted = [];
+    env.window.HTMLFormElement.prototype.requestSubmit = function requestSubmit(submitter) {
+        submitted.push({form: this, submitter});
+        this.dispatchEvent(new env.window.Event('submit', {bubbles: true, cancelable: true}));
+    };
+
+    const swalCalls = [];
+    let answer = {isConfirmed: true};
+    env.window.Swal = {
+        fire: (options) => {
+            swalCalls.push(options);
+
+            return Promise.resolve(answer);
+        },
+    };
+    globalThis.window = env.window;
+
+    fixture += 1;
+    await import(`../../resources/js/pages/admin/audit.js?fixture=${fixture}`);
+
+    const bulkForm = () => env.document.getElementById('auditBulkForm');
+
+    return {
+        ...env,
+        submitted,
+        swalCalls,
+        setAnswer: (value) => { answer = value; },
+        bulkForm,
+        boxes: () => [...env.document.querySelectorAll('[data-audit-select]')],
+        selectAll: () => env.document.querySelector('[data-audit-select-all]'),
+        scopeToggle: () => env.document.querySelector('[data-audit-scope-toggle]'),
+        check: (element, value = true) => {
+            element.checked = value;
+            element.dispatchEvent(new env.window.Event('change', {bubbles: true}));
+        },
+        // ปุ่มที่กดคือสิ่งที่บอกว่าจะกู้คืนหรือลบถาวร จึงต้องส่ง submitter ไปกับ event
+        press: (button) => bulkForm().dispatchEvent(
+            new env.window.SubmitEvent('submit', {bubbles: true, cancelable: true, submitter: button})
+        ),
+    };
+}
+
+test('ติ๊กหัวตารางหนึ่งครั้งเลือกครบทุกแถว และแถบจัดการโผล่ขึ้นมา', async (t) => {
+    const page = await mountBulkPage(t, {rows: 3});
+
+    assert.equal(page.bulkForm().hidden, true, 'ยังไม่ได้เลือกอะไร แถบต้องไม่กินที่');
+
+    page.check(page.selectAll());
+
+    assert.deepEqual(page.boxes().map((box) => box.checked), [true, true, true]);
+    assert.equal(page.bulkForm().hidden, false);
+    assert.equal(page.document.querySelector('[data-audit-selected-count]').textContent, '3');
+});
+
+test('ยกเลิกการติ๊กหนึ่งแถวแล้วตัวนับลด และแถบหายเมื่อไม่เหลือรายการ', async (t) => {
+    const page = await mountBulkPage(t, {rows: 2});
+
+    page.check(page.selectAll());
+    page.check(page.boxes()[0], false);
+
+    assert.equal(page.document.querySelector('[data-audit-selected-count]').textContent, '1');
+    assert.equal(page.selectAll().indeterminate, true, 'เลือกบางส่วนต้องแสดงสถานะกลาง');
+
+    page.check(page.boxes()[1], false);
+
+    assert.equal(page.bulkForm().hidden, true);
+});
+
+test('เลือกทั้งหมดที่กรองอยู่ส่ง scope=filtered และนับตามตัวกรอง ไม่ใช่ตามหน้า', async (t) => {
+    const page = await mountBulkPage(t, {rows: 2, filteredTotal: 57});
+
+    page.check(page.scopeToggle());
+
+    assert.equal(page.bulkForm().querySelector('[data-audit-scope]').value, 'filtered');
+    assert.equal(page.document.querySelector('[data-audit-selected-count]').textContent, '57');
+
+    // ยกเลิกการติ๊กรายแถว = ไม่ได้หมายถึงทั้งหมดตามตัวกรองอีกต่อไป
+    page.check(page.boxes()[0], false);
+
+    assert.equal(page.scopeToggle().checked, false);
+    assert.equal(page.bulkForm().querySelector('[data-audit-scope]').value, '');
+});
+
+test('ลบถาวรหลายรายการบังคับให้พิมพ์จำนวนให้ตรงก่อนยืนยัน', async (t) => {
+    const page = await mountBulkPage(t, {rows: 3});
+
+    page.check(page.selectAll());
+    page.press(page.document.querySelector('[data-audit-bulk-purge]'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const dialog = page.swalCalls.at(-1);
+
+    assert.equal(dialog.input, 'text');
+    assert.equal(dialog.inputPlaceholder, '3');
+    assert.equal(dialog.inputValidator('2'), 'จำนวนไม่ตรงกับรายการที่จะลบ');
+    assert.equal(dialog.inputValidator(' 3 '), undefined);
+});
+
+test('ปุ่มที่กดถูกส่งกลับเข้า requestSubmit เพื่อไม่ให้ formaction และ _method หาย', async (t) => {
+    const page = await mountBulkPage(t, {rows: 1});
+
+    page.check(page.boxes()[0]);
+
+    const purgeButton = page.document.querySelector('[data-audit-bulk-purge]');
+    page.press(purgeButton);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(page.submitted.length, 1);
+    assert.equal(page.submitted[0].submitter, purgeButton);
+});
+
+test('กู้คืนหลายรายการถามยืนยันธรรมดา ไม่ต้องพิมพ์อะไร', async (t) => {
+    const page = await mountBulkPage(t, {rows: 2});
+
+    page.check(page.selectAll());
+    page.press(page.document.querySelector('[data-audit-bulk-restore]'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const dialog = page.swalCalls.at(-1);
+
+    assert.equal(dialog.input, undefined);
+    assert.match(dialog.text, /2 รายการ/);
+    assert.equal(page.submitted.length, 1);
+});
+
+test('สั่งงานโดยไม่เลือกอะไรเลยต้องเตือน ไม่ใช่ส่งฟอร์มเปล่า', async (t) => {
+    const page = await mountBulkPage(t, {rows: 2});
+
+    page.bulkForm().hidden = false;
+    page.press(page.document.querySelector('[data-audit-bulk-purge]'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(page.submitted.length, 0);
+    assert.equal(page.swalCalls.at(-1).title, 'ยังไม่ได้เลือกรายการ');
+});
+
+test('ปุ่มล้างบันทึกกิจกรรมเก่าบอกจำนวนและบอกว่าอะไรจะไม่ถูกแตะ', async (t) => {
+    const env = mountDom();
+    t.after(env.cleanup);
+
+    env.document.body.innerHTML = `
+        <div class="audit-page">
+            <form method="POST" action="/admin/audit/activity/prune" data-audit-prune-activity data-count="128">
+                <input type="hidden" name="_method" value="DELETE">
+                <button class="audit-btn audit-btn--danger" type="submit">ล้างบันทึกเก่า (128)</button>
+            </form>
+        </div>`;
+
+    const submitted = [];
+    env.window.HTMLFormElement.prototype.requestSubmit = function requestSubmit() {
+        submitted.push(this);
+        this.dispatchEvent(new env.window.Event('submit', {bubbles: true, cancelable: true}));
+    };
+
+    const swalCalls = [];
+    env.window.Swal = {
+        fire: (options) => {
+            swalCalls.push(options);
+
+            if (options.didOpen) {
+                const popup = env.document.createElement('div');
+                popup.innerHTML = options.html;
+                options.didOpen(popup);
+                options.renderedHtml = popup.innerHTML;
+            }
+
+            return Promise.resolve({isConfirmed: true});
+        },
+    };
+    globalThis.window = env.window;
+
+    fixture += 1;
+    await import(`../../resources/js/pages/admin/audit.js?fixture=${fixture}`);
+
+    env.document.querySelector('[data-audit-prune-activity]')
+        .dispatchEvent(new env.window.Event('submit', {bubbles: true, cancelable: true}));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(swalCalls.length, 1);
+    assert.match(swalCalls[0].renderedHtml, /128/);
+    assert.match(swalCalls[0].html, /365 วัน/);
+    assert.equal(submitted.length, 1);
+});
+
+test('บันทึกกิจกรรมมีนโยบายอายุจริงในโค้ด ไม่ใช่แค่ข้อความบนหน้าจอ', async () => {
+    const retention = await read('app/Support/LogRetention.php');
+    const blade = await read('resources/views/admin/audit/partials/activity.blade.php');
+
+    assert.match(retention, /CRITICAL_DAYS = 365/);
+    assert.match(retention, /ROUTINE_DAYS = 90/);
+    // หน้าจอต้องอ่านค่าจากคลาสเดียวกัน ไม่ใช่พิมพ์ตัวเลขซ้ำที่หลุดจากกันได้
+    assert.match(blade, /LogRetention::CRITICAL_DAYS/);
+    assert.match(blade, /LogRetention::ROUTINE_DAYS/);
+});

@@ -62,8 +62,11 @@ test('the collaborator column is wide enough that avatars never cover the paperc
      */
     const required = 7 + 20 * 3 + (2 + 27) + 16;
 
+    // ความกว้างถูกประกาศเป็นตัวแปร --board-columns เพื่อให้แถวงานย่อยใช้ค่าชุดเดียวกัน
     const boardRules = [...css.matchAll(/\[data-view="board"\][^{]*\{([^}]*)\}/g)]
-        .flatMap(([, body]) => [...body.matchAll(/grid-template-columns:([^;]+)/g)].map(([, value]) => tracksOf(value)));
+        .flatMap(([, body]) => [...body.matchAll(/(?:grid-template-columns|--board-columns):([^;]+)/g)]
+            .filter(([, value]) => !value.includes('var('))
+            .map(([, value]) => tracksOf(value)));
 
     // กฎของจอแคบยุบเหลือสองคอลัมน์แบบการ์ด จึงดูเฉพาะกฎที่ยังเป็นตารางสิบคอลัมน์
     const tenColumnRules = boardRules.filter((tracks) => tracks.length === 10);
@@ -89,6 +92,10 @@ test('the detail input stays a one-line field instead of stretching the whole co
     const cap = Number(css.match(/grid-template-columns: minmax\(0, (\d+)px\) auto/)?.[1]);
     assert.ok(Number.isFinite(cap), 'ช่องเพิ่มรายละเอียดต้องมีเพดานความกว้าง ไม่ใช่ยืดเต็มคอลัมน์');
     assert.ok(cap > 0 && cap <= 420, 'ช่องเพิ่มรายละเอียดกว้างได้ถึง ' + cap + 'px ซึ่งยังยาวเกินไป');
+
+    // แผงงานย่อยไม่มี padding ซ้าย-ขวา ช่องเพิ่มงานย่อยจึงต้องเยื้องด้วยตัวเอง
+    // ไม่งั้นมันจะไปติดขอบซ้ายของแถวแทนที่จะเรียงตัวตามชื่องานย่อยด้านบน
+    assert.match(css, /\.board-task-details__create,[^{}]*\.board-task-details__empty \{[^}]*margin-left:\s*\d+px/s);
 
     // จอแคบไม่มีคอลัมน์ให้ยืดอยู่แล้ว จึงกลับไปใช้เต็มความกว้างของการ์ด
     const mobile = css.slice(css.lastIndexOf('@media (max-width: 760px)'));

@@ -15,6 +15,8 @@
     $meetingEmbedded = $meetingEmbedded ?? false;
     $meetingCanCreate = ($meetingCanCreate ?? true) && auth()->user()->can('create', App\Models\Meeting::class);
     $meetingClearUrl = $meetingFormAction.($meetingBaseQuery ? '?'.http_build_query($meetingBaseQuery) : '');
+    // ลิงก์เข้าหน้ารายละเอียดเป็นผู้บอกที่มา ปุ่ม "กลับ" จึงพากลับ Workspace ได้โดยไม่ต้องเดาจาก referrer
+    $meetingFrom = ($meetingBaseQuery['view'] ?? null) === 'meeting' ? 'workspace' : null;
     $meetingFeedback = [
         'success' => session('meeting_success'),
         'error' => session('meeting_error') ?: $errors->first(),
@@ -53,7 +55,7 @@
 
     <section class="meetings-page__list" aria-label="รายการการประชุม">
         @forelse($meetings as $meeting)
-            @include('meetings.components.meeting-card', compact('meeting', 'nowBangkok', 'inspectedEmployee'))
+            @include('meetings.components.meeting-card', compact('meeting', 'nowBangkok', 'inspectedEmployee', 'meetingFrom'))
         @empty
             <div class="meetings-page__empty"><i class="bi bi-calendar2-x" aria-hidden="true"></i><h2>{{ $inspectedEmployee ? $inspectedEmployee->name.' ไม่มีการประชุมในช่วงเวลานี้' : 'ไม่พบการประชุมในช่วงเวลานี้' }}</h2><p>ลองเปลี่ยนคำค้นหาหรือช่วงเวลา@if($meetingCanCreate) หรือสร้างนัดหมายใหม่จากปุ่ม “นัดประชุม” ด้านบน@endif</p></div>
         @endforelse

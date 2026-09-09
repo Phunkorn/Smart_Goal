@@ -60,9 +60,10 @@ class TaskAuthorizationTest extends TestCase
         $admin = $this->user('admin');
         $task = $this->taskFor($owner);
 
+        // ลิงก์เปิดงานพาไปที่ Task Workspace พร้อมสั่งให้เปิดงานใบนั้น ไม่ใช่หน้าเปล่า ๆ
         $this->actingAs($admin)
             ->get(route('tasks.show', $task))
-            ->assertRedirect(route('mytasks.index'));
+            ->assertRedirect(route('mytasks.index', ['open_task' => $task->job_id]));
 
         $this->actingAs($admin)
             ->patch(route('tasks.updateStatus', $task), ['job_status' => 2])

@@ -164,6 +164,10 @@ class WorkBoardController extends Controller
         $workspaceView = $this->resolveMemberWorkspaceView($request);
 
         $memberJobsQuery = $this->memberWorkloads->forMember($user);
+        $memberJobsQuery->where(function ($query) {
+            $query->whereNull('work_order_list_id')
+                ->orWhereHas('taskList', fn ($listQuery) => $listQuery->whereNull('archived_at'));
+        });
 
         if ($isReadOnlyWorkspace) {
             $memberJobsQuery->where('approval_status', 'approved');
@@ -179,7 +183,11 @@ class WorkBoardController extends Controller
                 'leader.department',
                 'collaborators.department',
                 'images',
-                'subtasks',
+                'children.user.department',
+                'children.taskList',
+                'children.collaborators.department',
+                'children.images',
+                'children.updates',
                 'updates.user.department',
                 'updates.attachments',
                 'activityLogs.user.department',
@@ -187,6 +195,10 @@ class WorkBoardController extends Controller
             ])
             ->withCount('images')
             ->get();
+
+        // งานย่อยแสดงใต้งานแม่ ไม่ใช่แถวของตัวเอง — กติกาเดียวกับ MyTaskController::index()
+        $childJobs = $allJobs->filter(fn (WorkOrder $job) => $job->parent_job_id !== null)->values();
+        $allJobs = $allJobs->filter(fn (WorkOrder $job) => $job->parent_job_id === null)->values();
         /*
          * ตัวกรองขอบเขตงานชุดเดียวกับหน้า "งานของฉัน" แต่ผูกกับสมาชิกที่กำลังถูกดู
          *
@@ -205,7 +217,7 @@ class WorkBoardController extends Controller
             // "งานของวันนี้" ใช้กติกาวันทำงานไทยชุดเดียวกับหน้า "งานของฉัน"
             $scopedJobs = TodayWorkspace::tasks($allJobs);
         } elseif ($taskScope !== 'all') {
-            $scopedIds = TaskScopeOptions::apply($this->memberWorkloads->forMember($user), $user, $taskScope)
+            $scopedIds = TaskScopeOptions::apply($this->memberWorkloads->forMember($user)->topLevel(), $user, $taskScope)
                 ->pluck('job_id');
             $scopedJobs = $allJobs->whereIn('job_id', $scopedIds)->values();
         }
@@ -219,6 +231,7 @@ class WorkBoardController extends Controller
         $taskLists = WorkOrderList::query()
             ->with('attachments')
             ->withCount('workOrders')
+            ->whereNull('archived_at')
             ->where(function ($query) use ($user, $allJobs) {
                 $query->where('user_id', $user->id)
                     ->orWhereIn('id', $allJobs->pluck('work_order_list_id')->filter()->unique());
@@ -281,6 +294,10 @@ class WorkBoardController extends Controller
             'manageableTaskLists' => $manageableTaskLists,
             'activeTasks' => $activeTasks,
             'completedTasks' => $completedTasks,
+            // งานย่อยของงานที่แสดงอยู่ ต้องถูกส่งไปด้วยเพื่อให้โมดัลรายละเอียดงานเปิดมันได้
+            'childTasks' => $childJobs
+                ->filter(fn (WorkOrder $job) => $jobs->contains('job_id', $job->parent_job_id))
+                ->values(),
             'todayTasks' => $todayTasks,
             'workspaceTasks' => $workspaceTasks,
             'taskScope' => $taskScope,

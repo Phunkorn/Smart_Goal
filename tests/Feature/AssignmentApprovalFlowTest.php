@@ -212,6 +212,28 @@ class AssignmentApprovalFlowTest extends TestCase
         $this->actingAs($assignee)->get(route('mytasks.index'))->assertOk()->assertSee('Admin immediate assignment');
     }
 
+    public function test_department_head_accepts_cross_department_assignment_immediately(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $marketing = Department::create(['department_name' => 'Marketing']);
+        $actor = $this->user($marketing);
+        $head = $this->user($it);
+        $head->update(['is_department_head' => true]);
+
+        $this->actingAs($actor)
+            ->postJson(route('mytasks.create'), $this->payload($head, 'Head joins immediately'))
+            ->assertCreated()
+            ->assertJsonPath('requires_admin_review', false);
+
+        $job = WorkOrder::where('job_topic', 'Head joins immediately')->firstOrFail();
+        $this->assertSame('approved', $job->approval_status);
+        $this->assertSame($actor->id, $job->approved_by);
+        $this->assertSame($head->id, $job->leader_user_id);
+        $this->assertNotificationCount($head, $job, 'task_assigned', 1);
+        $this->assertSame(0, SystemNotification::where('work_order_id', $job->job_id)
+            ->where('type', 'cross_department_pending')->count());
+    }
+
     public function test_task_creation_entry_points_share_collaborator_approval_and_notification_rules(): void
     {
         $it = Department::create(['department_name' => 'IT']);
@@ -281,6 +303,34 @@ class AssignmentApprovalFlowTest extends TestCase
         $this->assertNotificationCount($admin, $job, 'collaborator_approval_request', 1);
         $this->actingAs($sameAsTask)->get(route('mytasks.quickview.task', $job))->assertOk();
         $this->actingAs($crossDepartment)->get(route('mytasks.quickview.task', $job))->assertForbidden();
+    }
+
+    public function test_department_head_collaborator_joins_when_pending_assignment_is_approved(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $marketing = Department::create(['department_name' => 'Marketing']);
+        $finance = Department::create(['department_name' => 'Finance']);
+        $actor = $this->user($it);
+        $assignee = $this->user($marketing);
+        $head = $this->user($finance);
+        $head->update(['is_department_head' => true]);
+        $admin = $this->admin();
+
+        $this->actingAs($actor)
+            ->post(route('tasks.store'), $this->payload($assignee, 'Deferred head collaborator') + [
+                'collaborators' => [$head->id],
+            ]);
+
+        $job = WorkOrder::where('job_topic', 'Deferred head collaborator')->firstOrFail();
+        $this->assertSame('pending', $job->collaborators()->findOrFail($head->id)->pivot->status);
+
+        $this->actingAs($admin)
+            ->patchJson(route('admin.tasks.approval', $job), ['approval_status' => 'approved'])
+            ->assertOk();
+
+        $this->assertSame('accepted', $job->fresh()->collaborators()->findOrFail($head->id)->pivot->status);
+        $this->assertNotificationCount($head, $job, 'collaborator_added', 1);
+        $this->assertNotificationCount($admin, $job, 'collaborator_approval_request', 0);
     }
 
     public function test_rejected_assignment_rejects_deferred_collaborators_without_notifications(): void

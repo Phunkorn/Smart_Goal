@@ -1,0 +1,44 @@
+.settings-telegram__header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.settings-telegram__summary { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.settings-telegram__icon { display: grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border-radius: 13px; background: var(--accent-dim); color: var(--accent-strong); font-size: 1.2rem; }
+.settings-telegram__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
+.settings-telegram__actions .btn { display: inline-flex; min-height: 42px; align-items: center; gap: 8px; border-radius: var(--radius-sm); font-weight: 700; }
+
+.settings-telegram__state { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.settings-telegram__badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .74rem; font-weight: 700; }
+.settings-telegram__badge--on { background: var(--accent-dim); color: var(--accent-strong); }
+.settings-telegram__badge--off { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); }
+.settings-telegram__account { min-width: 0; color: var(--text-muted); font-size: .8rem; }
+.settings-telegram__account strong { color: var(--text); }
+.settings-telegram__toggle { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.settings-telegram__toggle .form-check-input { margin: 0; cursor: pointer; }
+.settings-telegram__toggle .form-check-label { color: var(--text-muted); font-size: .8rem; font-weight: 600; cursor: pointer; }
+
+.settings-telegram-modal .modal-content { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.settings-telegram-modal__header { align-items: center; gap: 14px; border-bottom-color: var(--border); }
+.settings-telegram-modal__heading { min-width: 0; flex: 1; }
+.settings-telegram-modal__header h2 { margin: 0; color: var(--text); font-size: 1.1rem; font-weight: 800; }
+.settings-telegram-modal__header p { margin: 3px 0 0; color: var(--text-muted); font-size: .8rem; }
+.settings-telegram-modal .modal-body { display: grid; gap: 16px; padding: 20px 24px; }
+.settings-telegram-modal .modal-footer { border-top-color: var(--border); padding: 14px 24px; }
+
+.settings-telegram-steps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: telegram-step; }
+.settings-telegram-steps li { display: flex; align-items: flex-start; gap: 10px; color: var(--text-muted); font-size: .84rem; line-height: 1.6; counter-increment: telegram-step; }
+.settings-telegram-steps li::before { content: counter(telegram-step); display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--accent-dim); color: var(--accent-strong); font-size: .74rem; font-weight: 800; }
+.settings-telegram-steps strong { color: var(--text); }
+
+.settings-telegram-link { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: var(--radius-sm); background: var(--accent-strong); color: #fff; font-weight: 700; text-decoration: none; }
+.settings-telegram-link:hover { color: #fff; filter: brightness(1.05); }
+.settings-telegram-waiting { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-muted); font-size: .8rem; }
+
+@media (max-width: 700px) {
+    .settings-telegram__header { align-items: stretch; flex-direction: column; }
+    .settings-telegram__actions { flex-direction: column; }
+    .settings-telegram__actions .btn { width: 100%; justify-content: center; }
+    .settings-telegram__toggle { margin-left: 0; width: 100%; }
+    .settings-telegram-modal .modal-dialog { margin: 12px; }
+    .settings-telegram-modal__header { align-items: flex-start; padding: 18px; }
+    .settings-telegram-modal .modal-body { padding: 18px; }
+    .settings-telegram-modal .modal-footer { padding: 14px 18px; }
+    .settings-telegram-modal .modal-footer .btn { flex: 1; }
+}

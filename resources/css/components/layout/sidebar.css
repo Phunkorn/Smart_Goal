@@ -17,6 +17,12 @@
             transition: width .22s ease, transform .22s ease;
         }
 
+        /*
+         * หัว Sidebar เหลือเฉพาะโลโก้ ซึ่งกินความกว้างของแถบทั้งหมด
+         *
+         * ชื่อระบบถูกย้ายไปไว้บน Topbar ข้างปุ่มเมนู เพราะที่นั่นอ่านได้ตลอดเวลา
+         * ไม่ว่า Sidebar จะถูกย่อหรือปิดอยู่ ที่นี่จึงไม่มี .brand-text อีกต่อไป
+         */
         .sidebar-brand {
             display: flex;
             align-items: center;
@@ -49,45 +55,14 @@
             background: var(--surface-2);
         }
 
-        /* เครื่องหมายประจำแอป: อาคารหลายหลังสื่อถึงการจัดการระดับองค์กร
-           และใช้ Bootstrap Icons ชุดเดิมโดยไม่เพิ่มไฟล์ภาพหรือ dependency */
+        /* เครื่องหมายประจำแอปคือไฟล์โลโก้ล้วน ๆ ไม่มีกรอบหรือพื้นรองใด ๆ มาครอบ */
         .brand-mark {
-            width: 34px;
-            height: 34px;
-            flex: 0 0 34px;
-            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-            color: #fff;
-            font-size: 1.05rem;
             line-height: 1;
-            box-shadow: 0 2px 6px rgba(30, 79, 214, .26);
         }
 
-        .brand-text {
-            min-width: 0;
-            margin-right: auto;
-        }
-
-        .sidebar-brand .brand-name {
-            font-weight: 700;
-            font-size: .96rem;
-            letter-spacing: .2px;
-            color: var(--text);
-            line-height: 1.15;
-            white-space: nowrap;
-        }
-
-        .sidebar-brand .brand-subtitle {
-            margin-top: .15rem;
-            color: var(--text-muted);
-            font-size: .72rem;
-            font-weight: 400;
-            line-height: 1.15;
-            white-space: nowrap;
-        }
 
         .nav-section-label {
             font-size: .66rem;
@@ -257,8 +232,11 @@
                 padding-right: .5rem;
             }
 
-            body.sidebar-collapsed .brand-text {
-                display: none;
+            /* ย่อแล้วโลโก้ต้องหดกลับเป็นสี่เหลี่ยมจัตุรัส ไม่งั้นมันจะกว้างเกินแถบที่ย่อไว้ */
+            body.sidebar-collapsed .brand-mark {
+                width: 40px;
+                height: 40px;
+                flex: 0 0 40px;
             }
 
             body.sidebar-collapsed .sidebar-nav {
@@ -330,18 +308,21 @@
         }
 
         /*
-         * เครื่องหมายประจำแอปเป็นโลโก้จริงของบริษัท ไม่ใช่ไอคอนอาคารของ Bootstrap Icons อีกต่อไป
+         * แสดงไฟล์โลโก้ตรง ๆ ไม่มีกรอบ พื้นรอง หรือเงา
          *
-         * โลโก้เป็นภาพสี่เหลี่ยมพื้นขาว จึงไม่ใช้พื้นไล่สีน้ำเงินเดิมมารองอีกชั้น
-         * (ตัวอักษรบนโลโก้จะจมหายไปกับพื้นเข้ม) ใช้พื้นขาวกับกรอบบางแทน
-         * และ object-fit:contain เพื่อไม่ให้สัดส่วนโลโก้ถูกยืด ไม่ว่ากล่องจะเป็นขนาดใด
+         * ตัวโลโก้มีพื้นของตัวเองอยู่แล้ว การเติมกล่องอีกชั้นทำให้เห็นเป็นกรอบซ้อนรูป
+         * เหลือไว้แค่ความสูงกับ object-fit:contain เพื่อไม่ให้สัดส่วนภาพถูกยืด
          */
         .brand-mark {
             overflow: hidden;
-            padding: 3px;
-            border: 1px solid var(--border);
-            background: #fff;
-            box-shadow: 0 1px 3px rgba(22, 35, 61, .08);
+            /* กินความกว้างที่เหลือทั้งหมดของหัว Sidebar โดยรักษาสัดส่วนภาพด้วย object-fit */
+            width: auto;
+            height: 46px;
+            flex: 1 1 auto;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
         }
 
         .brand-mark img {

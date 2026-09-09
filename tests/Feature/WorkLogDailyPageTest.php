@@ -69,10 +69,13 @@ class WorkLogDailyPageTest extends TestCase
     {
         $owner = $this->user(Department::create(['department_name' => 'IT']));
 
+        // สถานะว่างต้องชี้ทางต่อให้ด้วย ไม่ใช่บอกแค่ว่าไม่มีข้อมูล —
+        // งานที่ทำซ้ำทุกวันควรถูกตั้งไว้ล่วงหน้า ไม่ใช่พิมพ์ใหม่ทุกเช้า
         $this->actingAs($owner)
             ->get(route('daily-logs.index'))
             ->assertOk()
-            ->assertSee('ยังไม่มีบันทึกงานของวันนี้');
+            ->assertSee('ยังไม่มีรายการของวันนี้', false)
+            ->assertSee('ตั้งงานประจำไว้ล่วงหน้า', false);
     }
 
     public function test_member_can_store_a_log_with_a_time_range(): void
@@ -84,7 +87,7 @@ class WorkLogDailyPageTest extends TestCase
         $this->actingAs($owner)
             ->post(route('daily-logs.store'), [
                 'title' => 'Support เครื่องพิมพ์บัญชี',
-                'kind' => 'interrupt',
+                'kind' => 'routine',
                 'work_log_category_id' => $category->id,
                 'work_date' => $this->today(),
                 'start_time' => '10:45',
@@ -97,7 +100,7 @@ class WorkLogDailyPageTest extends TestCase
         $this->assertDatabaseHas('work_logs', [
             'user_id' => $owner->id,
             'title' => 'Support เครื่องพิมพ์บัญชี',
-            'kind' => 'interrupt',
+            'kind' => 'routine',
             // 10:45 ถึง 13:30 = 165 นาที
             'duration_minutes' => 165,
             'status' => 'done',
@@ -365,7 +368,7 @@ class WorkLogDailyPageTest extends TestCase
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest'])
             ->postJson(route('daily-logs.store'), [
                 'title' => 'งานเพิ่ม',
-                'kind' => 'interrupt',
+                'kind' => 'routine',
                 'duration_minutes' => 30,
             ])->assertOk();
 

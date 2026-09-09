@@ -91,13 +91,11 @@ export function normalizeOperationalChartData(data = {}) {
     const daily = data.daily || {};
     const categories = data.categories || {};
     const members = data.members || {};
-    const interrupts = data.interrupts || {};
 
     return {
         daily: {
             labels: safeLabels(daily.labels),
             routine: safeSeries(daily.routine),
-            interrupt: safeSeries(daily.interrupt),
             field: safeSeries(daily.field),
         },
         categories: {
@@ -108,10 +106,6 @@ export function normalizeOperationalChartData(data = {}) {
         members: {
             labels: safeLabels(members.labels),
             values: safeSeries(members.values),
-        },
-        interrupts: {
-            labels: safeLabels(interrupts.labels),
-            values: safeSeries(interrupts.values),
         },
     };
 }
@@ -126,7 +120,6 @@ export function buildOperationalChartConfigs(data = {}) {
                 labels: normalized.daily.labels,
                 datasets: [
                     {label: 'งานประจำ', data: normalized.daily.routine, backgroundColor: reportChartColors.blue, borderRadius: 3, maxBarThickness: 26},
-                    {label: 'งานแทรก', data: normalized.daily.interrupt, backgroundColor: reportChartColors.amber, borderRadius: 3, maxBarThickness: 26},
                     {label: 'งานนอกสถานที่', data: normalized.daily.field, backgroundColor: operationalToneColors.teal, borderRadius: 3, maxBarThickness: 26},
                 ],
             },
@@ -187,37 +180,6 @@ export function buildOperationalChartConfigs(data = {}) {
                         ticks: {color: '#64748b', callback: (value) => `${value} ชม.`},
                     },
                     y: {grid: {display: false}, border: {display: false}, ticks: {color: '#334155'}},
-                },
-            },
-        },
-        interrupts: {
-            type: 'line',
-            data: {
-                labels: normalized.interrupts.labels,
-                datasets: [{
-                    label: 'งานแทรก',
-                    data: normalized.interrupts.values,
-                    borderColor: reportChartColors.red,
-                    backgroundColor: 'rgba(225,29,72,.12)',
-                    fill: true,
-                    tension: .3,
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: reportChartAnimation,
-                plugins: {legend: {display: false}, tooltip: tooltipBase},
-                scales: {
-                    x: {grid: {display: false}, border: {display: false}, ticks: {color: '#64748b'}},
-                    y: {
-                        beginAtZero: true,
-                        border: {display: false},
-                        grid: {color: 'rgba(148,163,184,.13)'},
-                        ticks: {precision: 0, color: '#64748b'},
-                    },
                 },
             },
         },

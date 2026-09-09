@@ -72,6 +72,54 @@
     @endif
 </div>
 
+{{--
+    แถบจัดการหลายรายการ
+
+    ปุ่มลบรายแถวมีอยู่แล้ว แต่ผู้ดูแลระบบที่มีของค้างเป็นร้อยรายการไม่มีทางกดทีละแถว
+    พร้อมพิมพ์ชื่อยืนยันจนครบ เมื่อไม่มีทางทำได้จริง ข้อมูลก็ค้างต่อไปเรื่อย ๆ
+
+    ฟอร์มนี้อยู่ "นอก" ตาราง เพราะในตารางมีฟอร์มกู้คืนและลบรายแถวอยู่แล้ว การซ้อนฟอร์ม
+    ในฟอร์มไม่ถูกต้องตาม HTML ช่องติ๊กในตารางจึงผูกกับฟอร์มนี้ด้วยแอตทริบิวต์ form
+    แทนการอยู่ข้างใน
+
+    ปุ่มทั้งสองใช้ formaction กับ name="_method" ของตัวปุ่มเอง ฟอร์มเดียวจึงยิงได้สอง
+    ปลายทางโดยไม่ต้องพึ่ง JavaScript ตั้งค่าให้ก่อนส่ง
+
+    formaction ต้องพาตัวกรองปัจจุบันไปด้วยเสมอ เพราะ "เลือกทั้งหมดที่กรองอยู่" อ่าน
+    เงื่อนไขจาก query string ถ้าตกหล่นไป การลบจะกวาดทั้งถังขยะแทนที่จะเป็นเฉพาะที่กรอง
+--}}
+@if ($trashLogs->isNotEmpty())
+    <form id="auditBulkForm" method="POST" class="audit-bulkbar" data-audit-bulk hidden>
+        @csrf
+        <input type="hidden" name="scope" value="" data-audit-scope>
+
+        <p class="audit-bulkbar__count">
+            เลือกแล้ว <strong data-audit-selected-count>0</strong> รายการ
+        </p>
+
+        @if ($stats['total'] > $trashLogs->count())
+            <label class="audit-bulkbar__scope">
+                <input type="checkbox" data-audit-scope-toggle data-count="{{ $stats['total'] }}">
+                เลือกทั้งหมดที่กรองอยู่ ({{ $stats['total'] }} รายการ)
+            </label>
+        @endif
+
+        <div class="audit-bulkbar__actions">
+            <button class="audit-btn audit-btn--primary" type="submit"
+                    formaction="{{ route('admin.trash.bulk-restore', request()->query()) }}"
+                    name="_method" value="PATCH" data-audit-bulk-restore>
+                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> กู้คืนที่เลือก
+            </button>
+
+            <button class="audit-btn audit-btn--danger" type="submit"
+                    formaction="{{ route('admin.trash.bulk-purge', request()->query()) }}"
+                    name="_method" value="DELETE" data-audit-bulk-purge>
+                <i class="bi bi-trash3-fill" aria-hidden="true"></i> ลบถาวรที่เลือก
+            </button>
+        </div>
+    </form>
+@endif
+
 <section class="audit-card">
     @if ($trashLogs->isEmpty())
         <div class="audit-empty">
@@ -84,6 +132,10 @@
             <table class="audit-table audit-table--trash">
                 <thead>
                     <tr>
+                        <th class="audit-col-select">
+                            <input type="checkbox" data-audit-select-all
+                                   aria-label="เลือกทุกรายการในหน้านี้">
+                        </th>
                         <th>ข้อมูลที่ถูกลบ</th>
                         <th>แผนก</th>
                         <th>ใครเป็นคนลบ</th>
@@ -96,6 +148,12 @@
                     @foreach ($trashLogs as $trash)
                         @php($summary = $trash->summary)
                         <tr>
+                            <td class="audit-col-select">
+                                {{-- ผูกกับฟอร์มด้านบนด้วย form= เพราะช่องนี้อยู่ในตารางที่มีฟอร์มอื่นอยู่แล้ว --}}
+                                <input type="checkbox" form="auditBulkForm" name="ids[]"
+                                       value="{{ $trash->id }}" data-audit-select
+                                       aria-label="เลือก {{ $summary['name'] }}">
+                            </td>
                             <td>
                                 <div class="audit-item">
                                     {{--

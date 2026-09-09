@@ -1,3 +1,5 @@
+import {initializeTelegramSettings} from './telegram.js';
+
 export function openPasswordModal(root = document, bootstrapApi = globalThis.window?.bootstrap) {
     const modalElement = root.querySelector('[data-password-modal][data-open-on-load="true"]');
     if (! modalElement || typeof bootstrapApi?.Modal?.getOrCreateInstance !== 'function') return false;
@@ -8,6 +10,7 @@ export function openPasswordModal(root = document, bootstrapApi = globalThis.win
 export function initializeSettingsPage(root = document, bootstrapApi = globalThis.window?.bootstrap) {
     if (! root.querySelector('[data-settings-page]')) return false;
     openPasswordModal(root, bootstrapApi);
+    initializeTelegramSettings(root, {bootstrapApi});
     return true;
 }
 

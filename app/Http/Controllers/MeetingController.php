@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Meeting;
+use App\Models\User;
 use App\Services\MeetingQueryService;
+use App\Services\NotificationService;
 use App\Support\AuditTrail;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -25,13 +27,13 @@ class MeetingController extends Controller
         return view('meetings.index', $meetings->indexData($request, $request->user()));
     }
 
-    public function store(Request $request, MeetingQueryService $meetings): RedirectResponse
+    public function store(Request $request, MeetingQueryService $meetings, NotificationService $notifications): RedirectResponse
     {
         Gate::authorize('create', Meeting::class);
 
         try {
             $data = $this->validatedMeeting($request, $meetings);
-            $meeting = DB::transaction(function () use ($data, $request, $meetings): Meeting {
+            [$meeting, $attendeeIds] = DB::transaction(function () use ($data, $request, $meetings): array {
                 $attendeeIds = $this->eligibleAttendeeIdsOrFail($data['attendees'] ?? [], $meetings);
                 $meeting = Meeting::create([
                     ...$this->meetingAttributes($data),
@@ -42,7 +44,7 @@ class MeetingController extends Controller
                     'after' => $this->auditPayload($meeting, $attendeeIds),
                 ]);
 
-                return $meeting;
+                return [$meeting, $attendeeIds];
             });
         } catch (PDOException $exception) {
             return $this->persistenceFailure(
@@ -53,7 +55,11 @@ class MeetingController extends Controller
             );
         }
 
-        return redirect()->route('meetings.show', $meeting)->with('meeting_success', 'นัดประชุมเรียบร้อยแล้ว');
+        // แจ้งเตือนหลัง commit เท่านั้น ถ้าอยู่ในทรานแซกชันแล้ว rollback จะเหลือแจ้งเตือนของประชุมที่ไม่มีอยู่จริง
+        $this->notifyScheduled($notifications, $meeting, $attendeeIds, $request->user());
+
+        return redirect()->route('meetings.show', $this->showRouteParameters($request, $meeting))
+            ->with('meeting_success', 'นัดประชุมเรียบร้อยแล้ว');
     }
 
     public function show(Request $request, Meeting $meeting, MeetingQueryService $meetings): View
@@ -89,7 +95,8 @@ class MeetingController extends Controller
             );
         }
 
-        return redirect()->route('meetings.show', $meeting)->with('meeting_success', 'บันทึกการประชุมเรียบร้อยแล้ว');
+        return redirect()->route('meetings.show', $this->showRouteParameters($request, $meeting))
+            ->with('meeting_success', 'บันทึกการประชุมเรียบร้อยแล้ว');
     }
 
     public function destroy(Meeting $meeting): RedirectResponse
@@ -122,6 +129,44 @@ class MeetingController extends Controller
         }
 
         return redirect()->route('meetings.index')->with('meeting_success', 'ลบการประชุมเรียบร้อยแล้ว');
+    }
+
+    /**
+     * ผู้เข้าร่วมต้องรู้ตัวทันทีที่ถูกนัด ก่อนหน้านี้ฝั่งประชุมไม่เคยเรียก NotificationService เลย
+     * ใช้ notifyDetached() เพราะการประชุมไม่มี WorkOrder ให้ผูก ส่วน notify() จะกรองด้วย WorkOrderPolicy
+     * notifyDetached() คัด viewer บัญชีที่ปิดใช้งาน และตัวผู้สร้างเองออกให้แล้ว
+     *
+     * @param  array<int>  $attendeeIds
+     */
+    private function notifyScheduled(NotificationService $notifications, Meeting $meeting, array $attendeeIds, User $actor): void
+    {
+        if ($attendeeIds === []) {
+            return;
+        }
+
+        $start = $meeting->starts_at->copy()->timezone(MeetingQueryService::BUSINESS_TIMEZONE);
+
+        $notifications->notifyDetached(
+            $attendeeIds,
+            'meeting_scheduled',
+            'มีการนัดประชุมใหม่',
+            $meeting->title.' · '.$start->locale('th')->isoFormat('D MMM YYYY เวลา HH:mm').' น.',
+            $actor,
+            ['meeting_id' => $meeting->id],
+            dedupePrefix: 'meeting_scheduled:'.$meeting->id,
+        );
+    }
+
+    /**
+     * ผู้ใช้ที่มาจากแท็บ "ประชุม" ใน Workspace ต้องกลับเข้า Workspace ได้ ไม่ใช่ถูกทิ้งไว้ที่หน้า /meetings
+     */
+    private function showRouteParameters(Request $request, Meeting $meeting): array
+    {
+        return array_filter([
+            'meeting' => $meeting->id,
+            'employee' => $request->input('employee'),
+            'from' => $request->input('from') === 'workspace' ? 'workspace' : null,
+        ]);
     }
 
     private function validatedMeeting(Request $request, MeetingQueryService $meetings): array

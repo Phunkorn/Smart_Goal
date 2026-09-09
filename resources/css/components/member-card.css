@@ -1,0 +1,180 @@
+/* ============================================================================
+ * การ์ดสมาชิก (.wb-member-card) — คอมโพเนนต์เดียวที่ใช้ร่วมกันหลายหน้า
+ *
+ * ใช้อยู่ที่:
+ *   - ไดเรกทอรีสมาชิกของแผนก (work-board/components/member-card.blade.php)
+ *   - หน้าเลือกพนักงานเพื่อดูรายงาน (reports/employees/index.blade.php)
+ *
+ * ทั้งสองหน้าต้องเห็นการ์ดหน้าตาเดียวกัน สไตล์จึงอยู่ที่นี่ที่เดียว ไม่ผูกกับ
+ * .work-board-department-page เหมือนเดิม (ของเดิมทำให้หน้ารายงานลอกสไตล์ไปใช้ไม่ได้
+ * ต้องเขียนการ์ดของตัวเองขึ้นมาคู่ขนาน แล้วสองหน้าก็เพี้ยนจากกันทีละนิด)
+ *
+ * ชิ้นส่วนภายในการ์ดเป็นตัวเลือกทั้งหมด หน้าไหนไม่มีข้อมูลก็ไม่ต้องเรนเดอร์ออกมา
+ *   __portrait  รูปโปรไฟล์      (จำเป็น)
+ *   __identity  ชื่อและแผนก     (จำเป็น)
+ *   __summary   สรุปภาระงาน     (เฉพาะไดเรกทอรีของแผนก)
+ *   __activity  เวลาอัปเดตล่าสุด (เฉพาะไดเรกทอรีของแผนก)
+ *   __action    ปุ่ม/ลิงก์ท้ายการ์ด
+ *
+ * ค่าสีอ่านจากตัวแปรของ work-board แต่ต้องมีค่าสำรองเสมอ เพราะหน้ารายงาน
+ * ไม่ได้อยู่ใน .work-board-page จึงไม่มีตัวแปรชุดนั้นประกาศไว้
+ * ========================================================================== */
+
+/* รูปโปรไฟล์ — ใช้กับ work-board/partials/avatar.blade.php ทุกหน้า */
+.wb-avatar {
+    display: inline-grid;
+    place-items: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    color: #235dc6;
+    background: #e6efff;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+/* ตัวย่อชื่อกับรูปซ้อนช่องเดียวกัน รูปโหลดไม่ขึ้นแล้วตัวย่อชื่อจึงโผล่แทนที่ ไม่ใช่โผล่ใต้รูป */
+.wb-avatar > * { grid-area: 1 / 1; }
+.wb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.wb-avatar--sm { width: 28px; height: 28px; }
+.wb-avatar--md { width: 36px; height: 36px; }
+.wb-avatar--lg { width: 48px; height: 48px; }
+.wb-avatar--xl { width: 76px; height: 76px; font-size: 17px; }
+.wb-avatar-stack { display: flex; align-items: center; padding-left: 6px; }
+.wb-avatar-stack .wb-avatar { margin-left: -6px; }
+
+.wb-member-card {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    border: 1px solid var(--wb-line, #dfe7f2);
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 7px 24px rgba(31, 57, 92, .045);
+    text-align: center;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.wb-member-card:hover {
+    border-color: #c7d5e7;
+    box-shadow: 0 11px 30px rgba(31, 57, 92, .075);
+    transform: translateY(-2px);
+}
+
+.wb-member-card__portrait {
+    margin-bottom: 12px;
+}
+
+.wb-member-card__portrait .wb-avatar {
+    box-shadow: 0 0 0 4px #f3f6fb;
+}
+
+.wb-member-card__identity {
+    min-width: 0;
+    width: 100%;
+}
+
+.wb-member-card__identity h3 {
+    overflow: hidden;
+    margin: 0;
+    color: var(--wb-ink, #0f1f3d);
+    font-size: 16px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wb-member-card__identity p {
+    overflow: hidden;
+    margin: 4px 0 0;
+    color: var(--wb-muted, #66758f);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wb-member-card__summary {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin-top: 15px;
+    padding: 8px 10px;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.wb-member-card__summary.has-work {
+    color: #177569;
+    background: #eaf8f5;
+}
+
+.wb-member-card__summary.is-empty {
+    color: #758198;
+    background: #f3f5f8;
+}
+
+.wb-member-card__activity {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 10px 0 16px;
+    color: #7a879b;
+    font-size: 10.5px;
+}
+
+/*
+ * ปุ่มท้ายการ์ด — เป็นได้ทั้ง <button> (เปิดแผงงาน) และ <a> (ไปหน้ารายงาน)
+ * ข้อความกับลูกศรอ่านต่อเนื่องกันตรงกลาง ไม่ถูกดันไปคนละฝั่งของการ์ด
+ * margin-top:auto ดันปุ่มลงล่างสุดเสมอ การ์ดที่มีเนื้อหาไม่เท่ากันจึงยังลงท้ายตรงแนวเดียวกัน
+ */
+.wb-member-card__action {
+    width: 100%;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: auto;
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    background: var(--wb-blue, #2563eb);
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+/* การ์ดที่ไม่มีบล็อกสรุป/อัปเดตล่าสุด ปุ่มจะติดกับชื่อเกินไปถ้าไม่เว้นระยะให้ */
+.wb-member-card__identity + .wb-member-card__action {
+    margin-top: 16px;
+}
+
+.wb-member-card__action:hover {
+    background: #1d55cf;
+    color: #fff;
+}
+
+.wb-member-card__action:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, .25);
+    outline-offset: 2px;
+}
+
+@media (max-width: 540px) {
+    .wb-member-card {
+        padding: 18px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wb-member-card {
+        transition: none;
+    }
+}

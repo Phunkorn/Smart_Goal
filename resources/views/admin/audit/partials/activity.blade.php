@@ -1,6 +1,35 @@
 @php
     use App\Support\AuditSnapshot;
+    use App\Support\LogRetention;
 @endphp
+
+{{--
+    แถบนโยบายการเก็บบันทึก
+
+    ตารางบันทึกกิจกรรมไม่เคยมีวันหมดอายุ ผู้ดูแลระบบจึงไม่มีทางรู้ว่าข้อมูลจะโตไปถึงไหน
+    และไม่มีทางล้าง ข้อความบอกนโยบายไว้ตรงนี้เพื่อให้เห็นว่าอะไรจะหายและอะไรจะอยู่ต่อ
+    ก่อนกดปุ่ม ไม่ใช่ให้ไปอ่านเอาในเอกสาร
+--}}
+<div class="audit-trashbar">
+    <p class="audit-retention-note">
+        <i class="bi bi-clock-history" aria-hidden="true"></i>
+        เก็บหลักฐานสำคัญ (เข้าออกระบบ รหัสผ่าน การลบ การกู้คืน) {{ LogRetention::CRITICAL_DAYS }} วัน
+        · บันทึกการแก้ไขทั่วไป {{ LogRetention::ROUTINE_DAYS }} วัน
+    </p>
+
+    @if ($prunableCount > 0)
+        {{-- การยืนยันเป็นหน้าที่ของ audit.js ผ่าน SweetAlert ไม่ใช่ native confirm --}}
+        <form method="POST" action="{{ route('admin.audit.activity.prune') }}"
+              data-audit-prune-activity data-count="{{ $prunableCount }}">
+            @csrf
+            @method('DELETE')
+            <button class="audit-btn audit-btn--danger" type="submit">
+                <i class="bi bi-eraser-fill" aria-hidden="true"></i>
+                ล้างบันทึกเก่า ({{ $prunableCount }})
+            </button>
+        </form>
+    @endif
+</div>
 
 <section class="audit-card">
     @if ($logs->isEmpty())

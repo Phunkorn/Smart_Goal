@@ -72,6 +72,19 @@ export function taskWorkspaceMarkup({
     <div class="notion-toast" data-toast></div>
 </div>
 
+<div class="notion-modal comment-image-modal" data-comment-image-modal hidden>
+    <section class="comment-image-modal__card" role="dialog" aria-modal="true">
+        <header>
+            <strong data-comment-image-name></strong>
+            <div class="comment-image-modal__actions">
+                <a class="comment-image-modal__open" data-comment-image-source target="_blank" rel="noopener">เปิดไฟล์</a>
+                <button type="button" class="task-modal-close" data-close-comment-image aria-label="ปิด"></button>
+            </div>
+        </header>
+        <div class="comment-image-modal__stage"><img data-comment-image-view src="" alt=""></div>
+    </section>
+</div>
+
 <script type="application/json" data-team-data>${JSON.stringify(teamData)}</script>
 <script type="application/json" data-owner-data>{}</script>
 <script type="application/json" data-attachment-data>{}</script>
@@ -213,6 +226,7 @@ export async function mountTaskWorkspace(options = {}, {url = 'http://localhost/
         compose: () => env.document.querySelector('[data-task-update-note]'),
         imageInput: () => env.document.querySelector('[data-comment-image-input]'),
         previews: () => env.document.querySelector('[data-comment-image-preview]'),
+        imageModal: () => env.document.querySelector('[data-comment-image-modal]'),
         sendUpdate: () => env.document.querySelector('[data-submit-task-update]'),
         manageTeam: () => env.document.querySelector('.task-workspace__cell-action[data-manage-team]'),
     };

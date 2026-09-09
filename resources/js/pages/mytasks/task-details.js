@@ -1,3 +1,5 @@
+import {syncSubtaskGate} from './subtask-gate.js';
+
 const board = document.querySelector('[data-project-board]');
 const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 const toast = document.querySelector('[data-toast]');
@@ -24,36 +26,61 @@ const request = async (url, method, payload = null) => {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'บันทึกรายละเอียดงานไม่สำเร็จ');
+        throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'บันทึกงานย่อยไม่สำเร็จ');
     }
     return data;
 };
 
-const taskFor = (element) => element?.closest('[data-board-task]');
-const shellFor = (task) => task?.querySelector('[data-task-details]');
+/*
+ * แถวงานย่อยเองก็เป็น [data-board-task] (เพื่อให้ปุ่มสถานะ ความสำคัญ วันที่ ไฟล์แนบ
+ * และคอมเมนต์ยิงไปที่งานย่อยใบนั้น) การหา "งานแม่" จึงต้องข้ามแถวงานย่อยเสมอ
+ */
+const taskFor = (element) => element?.closest('[data-board-task]:not([data-board-subtask])');
 
-const updateShell = (shell) => {
-    if (!shell) return;
-    const count = shell.querySelectorAll('[data-task-detail]').length;
-    const countNode = shell.querySelector('[data-task-details-count]');
-    const empty = shell.querySelector('[data-task-details-empty]');
-    if (countNode) countNode.textContent = String(count);
+/*
+ * หัวข้องานอยู่ในคอลัมน์ "ชื่องาน" ส่วนรายการงานย่อยเป็นลูกของแถวบอร์ดโดยตรง
+ * เพื่อให้กินความกว้างทั้งแถว ทั้งสองส่วนจึงไม่ได้อยู่ใน element เดียวกันอีกต่อไป
+ * การค้นหาทุกครั้งต้องเริ่มจากแถว ไม่ใช่จากหัวข้อ
+ */
+const scopeFor = (node) => taskFor(node) || node?.closest('[data-task-details]');
+
+/*
+ * ตัวนับงานย่อยเป็น "เสร็จแล้ว/ทั้งหมด" และมีอยู่สองที่ (หัวแถวบอร์ด กับชิปบนการ์ดในมุมมองตาราง)
+ * ทั้งคู่เขียนจาก syncSubtaskGate() ที่เดียว ที่นี่จึงเหลือแค่ป้าย "ยังไม่มีงานย่อย"
+ * ซึ่งเป็นของ panel นี้โดยเฉพาะ
+ */
+const updateShell = (node) => {
+    const scope = scopeFor(node);
+    if (!scope) return;
+    const count = scope.querySelectorAll('[data-task-detail]').length;
+    const empty = scope.querySelector('[data-task-details-empty]');
     if (empty) empty.hidden = count > 0;
+
+    const workOrderId = scope.querySelector('[data-task-details]')?.dataset.workOrderId
+        ?? scope.dataset.workOrderId;
+    if (workOrderId) syncSubtaskGate(workOrderId);
 };
 
-const setExpanded = (shell, expanded) => {
-    const toggle = shell?.querySelector('[data-task-details-toggle]');
-    const panel = shell?.querySelector('[data-task-details-panel]');
+const setExpanded = (node, expanded) => {
+    const scope = scopeFor(node);
+    const toggle = scope?.querySelector('[data-task-details-toggle]');
+    const panel = scope?.querySelector('[data-task-details-panel]');
     if (!toggle || !panel) return;
     toggle.setAttribute('aria-expanded', String(expanded));
     panel.hidden = !expanded;
-    shell.classList.toggle('is-expanded', expanded);
+    scope.querySelector('[data-task-details]')?.classList.toggle('is-expanded', expanded);
 };
 
+/*
+ * แถวชั่วคราวของงานย่อยที่เพิ่งสร้าง
+ *
+ * แถวจริงถูกวาดโดย tasks/components/task-detail-row.blade.php ซึ่งต้องใช้สิทธิ์และข้อมูล
+ * ที่ server ฝังมากับหน้า ที่นี่จึงวาดเพียงชื่อกับสถานะ "กำลังเตรียม" ให้ผู้ใช้เห็นทันที
+ * แล้วปล่อยให้การโหลดหน้าใหม่แทนที่ด้วยแถวเต็มที่กดใช้งานได้จริง
+ */
 const detailElement = (detail) => {
     const item = document.createElement('li');
-    item.className = 'board-task-detail';
-    item.draggable = true;
+    item.className = 'board-task-detail is-pending';
     item.dataset.taskDetail = '';
     item.dataset.detailId = String(detail.id);
     item.dataset.workOrderId = String(detail.work_order_id);
@@ -61,44 +88,43 @@ const detailElement = (detail) => {
     item.dataset.deleteUrl = detail.delete_url;
     item.dataset.moveUrl = detail.move_url;
 
-    const drag = document.createElement('button');
-    drag.type = 'button';
-    drag.className = 'board-task-detail__drag';
-    drag.dataset.taskDetailDrag = '';
-    drag.title = 'ลากไปวางที่งานหรือโปรเจกต์อื่น';
-    drag.setAttribute('aria-label', `ลากเพื่อย้ายรายละเอียดงาน ${detail.title}`);
-    drag.innerHTML = '<i class="bi bi-grip-vertical" aria-hidden="true"></i>';
+    const name = document.createElement('span');
+    name.className = 'board-task-detail__name';
 
+    const bullet = document.createElement('i');
+    bullet.className = 'board-task-detail__bullet bi bi-dash';
+    bullet.setAttribute('aria-hidden', 'true');
+
+    /*
+     * งานย่อยใบใหม่ยังไม่มีแถวต้นทางในหน้า โมดัลจึงเปิดมันทันทีไม่ได้
+     * ปุ่มนี้จึงพาไปที่ deep link ?open_task= ซึ่ง server วาดหน้าใหม่แล้วเปิดโมดัลให้เอง
+     */
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'board-task-detail__title';
+    open.dataset.taskDetailOpen = String(detail.id);
+    open.title = `เปิดรายละเอียดงานย่อย ${detail.title}`;
     const title = document.createElement('span');
+    title.className = 'board-reference-task__title';
     title.dataset.taskDetailTitle = '';
     title.textContent = detail.title;
+    open.append(title);
+    name.append(bullet, open);
 
-    const actions = document.createElement('span');
-    actions.className = 'board-task-detail__actions';
-    [
-        ['taskDetailMove', 'bi-arrow-left-right', 'ย้ายรายละเอียดงาน', 'ย้ายไปงานอื่น'],
-        ['taskDetailEdit', 'bi-pencil', 'แก้ไขรายละเอียดงาน', 'แก้ไข'],
-        ['taskDetailDelete', 'bi-trash3', 'ลบรายละเอียดงาน', 'ลบ'],
-    ].forEach(([dataKey, icon, label, tooltip]) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.dataset[dataKey] = '';
-        button.title = tooltip;
-        button.setAttribute('aria-label', `${label} ${detail.title}`);
-        button.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i>`;
-        actions.append(button);
-    });
+    const pending = document.createElement('span');
+    pending.className = 'board-task-detail__pending';
+    pending.textContent = 'กำลังเตรียมงานย่อย...';
 
-    item.append(drag, title, actions);
+    item.append(name, pending);
     return item;
 };
 
-const editableTasks = (projectHeader = null) => [...board.querySelectorAll('[data-board-task][data-detail-target="1"]')]
+const editableTasks = (projectHeader = null) => [...board.querySelectorAll('[data-board-task][data-detail-target="1"]:not([data-board-subtask])')]
     .filter((task) => !projectHeader || task.dataset.projectKey === projectHeader.dataset.projectKey);
 
 const chooseTargetTask = async (tasks, currentId = '') => {
     if (!tasks.length) {
-        notify('โปรเจกต์นี้ยังไม่มีงานที่คุณย้ายรายละเอียดเข้าไปได้', false);
+        notify('โปรเจกต์นี้ยังไม่มีงานที่คุณย้ายงานย่อยเข้าไปได้', false);
         return null;
     }
     if (tasks.length === 1) return tasks[0];
@@ -109,12 +135,12 @@ const chooseTargetTask = async (tasks, currentId = '') => {
         inputOptions[task.dataset.taskId] = `${project} — ${task.dataset.topic}${task.dataset.taskId === currentId ? ' (งานปัจจุบัน)' : ''}`;
     });
     const result = await Swal.fire({
-        title: 'ย้ายรายละเอียดไปที่งาน',
+        title: 'ย้ายงานย่อยไปที่งาน',
         input: 'select',
         inputOptions,
         inputPlaceholder: 'เลือกชื่องานปลายทาง',
         showCancelButton: true,
-        confirmButtonText: 'ย้ายรายละเอียด',
+        confirmButtonText: 'ย้ายงานย่อย',
         cancelButtonText: 'ยกเลิก',
         reverseButtons: true,
         inputValidator: (value) => value ? undefined : 'กรุณาเลือกชื่องาน',
@@ -128,9 +154,7 @@ const chooseTargetTask = async (tasks, currentId = '') => {
 const moveDetail = async (item, targetTask, targetItem = null) => {
     if (!item || !targetTask || targetTask.dataset.detailTarget !== '1') return;
     const sourceTask = taskFor(item);
-    const sourceShell = shellFor(sourceTask);
-    const targetShell = shellFor(targetTask);
-    const targetList = targetShell?.querySelector('[data-task-details-list]');
+    const targetList = targetTask.querySelector('[data-task-details-list]');
     if (!targetList) return;
 
     const ordered = [...targetList.querySelectorAll('[data-task-detail]')].filter((candidate) => candidate !== item);
@@ -146,10 +170,10 @@ const moveDetail = async (item, targetTask, targetItem = null) => {
         if (targetItem && targetItem !== item) targetList.insertBefore(item, targetItem);
         else targetList.append(item);
         item.dataset.workOrderId = String(data.detail?.work_order_id || targetTask.dataset.taskId);
-        updateShell(sourceShell);
-        updateShell(targetShell);
-        setExpanded(targetShell, true);
-        notify(data.message || 'ย้ายรายละเอียดงานแล้ว');
+        updateShell(sourceTask);
+        updateShell(targetTask);
+        setExpanded(targetTask, true);
+        notify(data.message || 'ย้ายงานย่อยแล้ว');
     } catch (error) {
         notify(error.message, false);
     } finally {
@@ -165,8 +189,15 @@ if (board) {
     board.addEventListener('click', async (event) => {
         const toggle = event.target.closest('[data-task-details-toggle]');
         if (toggle) {
-            const shell = toggle.closest('[data-task-details]');
-            setExpanded(shell, toggle.getAttribute('aria-expanded') !== 'true');
+            setExpanded(toggle, toggle.getAttribute('aria-expanded') !== 'true');
+            return;
+        }
+
+        const pendingOpen = event.target.closest('[data-task-detail-open]');
+        if (pendingOpen) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('open_task', pendingOpen.dataset.taskDetailOpen);
+            window.location.assign(url.toString());
             return;
         }
 
@@ -176,7 +207,7 @@ if (board) {
         if (event.target.closest('[data-task-detail-edit]')) {
             const titleNode = item.querySelector('[data-task-detail-title]');
             const result = await Swal.fire({
-                title: 'แก้ไขรายละเอียดงาน',
+                title: 'แก้ไขชื่องานย่อย',
                 input: 'text',
                 inputValue: titleNode?.textContent || '',
                 inputAttributes: {maxlength: 255},
@@ -184,7 +215,7 @@ if (board) {
                 confirmButtonText: 'บันทึก',
                 cancelButtonText: 'ยกเลิก',
                 reverseButtons: true,
-                inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุรายละเอียดงาน',
+                inputValidator: (value) => value.trim() ? undefined : 'กรุณาระบุชื่องานย่อย',
             });
             const title = result.value?.trim();
             if (!result.isConfirmed || !title || title === titleNode?.textContent) return;
@@ -192,7 +223,7 @@ if (board) {
             try {
                 const data = await request(item.dataset.updateUrl, 'PATCH', {title});
                 titleNode.textContent = data.detail?.title || title;
-                notify(data.message || 'แก้ไขรายละเอียดงานแล้ว');
+                notify(data.message || 'แก้ไขงานย่อยแล้ว');
             } catch (error) {
                 notify(error.message, false);
             }
@@ -203,8 +234,8 @@ if (board) {
             const title = item.querySelector('[data-task-detail-title]')?.textContent || '';
             const result = await Swal.fire({
                 icon: 'warning',
-                title: 'ลบรายละเอียดงานนี้หรือไม่?',
-                text: `“${title}” จะถูกลบออกจากชื่องาน`,
+                title: 'ลบงานย่อยนี้หรือไม่?',
+                text: `“${title}” จะถูกลบออกจากงานนี้`,
                 showCancelButton: true,
                 confirmButtonText: 'ลบ',
                 cancelButtonText: 'ยกเลิก',
@@ -215,10 +246,10 @@ if (board) {
 
             try {
                 const data = await request(item.dataset.deleteUrl, 'DELETE');
-                const shell = item.closest('[data-task-details]');
+                const scope = scopeFor(item);
                 item.remove();
-                updateShell(shell);
-                notify(data.message || 'ลบรายละเอียดงานแล้ว');
+                updateShell(scope);
+                notify(data.message || 'ลบงานย่อยแล้ว');
             } catch (error) {
                 notify(error.message, false);
             }
@@ -246,12 +277,18 @@ if (board) {
         submit.disabled = true;
         try {
             const data = await request(form.dataset.url, 'POST', {title});
-            const shell = form.closest('[data-task-details]');
-            shell.querySelector('[data-task-details-list]')?.append(detailElement(data.detail));
+            const scope = scopeFor(form);
+            scope.querySelector('[data-task-details-list]')?.append(detailElement(data.detail));
             input.value = '';
-            updateShell(shell);
-            setExpanded(shell, true);
-            notify(data.message || 'เพิ่มรายละเอียดงานแล้ว');
+            updateShell(scope);
+            setExpanded(scope, true);
+            notify(data.message || 'เพิ่มงานย่อยแล้ว');
+            /*
+             * ปุ่มสถานะ ความสำคัญ วันที่ ไฟล์แนบ และคอมเมนต์ของแถวงานย่อย อ่านสิทธิ์และ
+             * ข้อมูลจาก JSON ที่ server ฝังมากับหน้า งานย่อยใบใหม่จึงยังไม่มีข้อมูลชุดนั้น
+             * โหลดหน้าใหม่หนึ่งครั้งดีกว่าปล่อยให้ผู้ใช้เจอแถวที่กดปุ่มแล้วไม่มีอะไรเกิดขึ้น
+             */
+            window.setTimeout(() => window.location.reload(), 700);
         } catch (error) {
             notify(error.message, false);
         } finally {

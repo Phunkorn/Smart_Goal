@@ -34,6 +34,16 @@ if (page) {
         next: page.querySelector('[data-operational-member-next]'),
     });
 
+    // ตารางการตรวจงานประจำใช้ตัวแบ่งหน้าตัวเดียวกัน ไม่มีโค้ดแบ่งหน้าชุดที่สอง
+    initTablePager({
+        table: page.querySelector('[data-checklist-table]'),
+        pager: page.querySelector('[data-checklist-pager]'),
+        rowSelector: '[data-checklist-row]',
+        pageLabel: page.querySelector('[data-checklist-page]'),
+        previous: page.querySelector('[data-checklist-previous]'),
+        next: page.querySelector('[data-checklist-next]'),
+    });
+
     const configs = buildOperationalChartConfigs(
         parseChartData(document.getElementById('report-chart-data'))
     );
@@ -46,7 +56,6 @@ if (page) {
             {id: 'operationalDailyChart', key: 'daily'},
             {id: 'operationalCategoryChart', key: 'categories'},
             {id: 'operationalMemberChart', key: 'members'},
-            {id: 'operationalInterruptChart', key: 'interrupts'},
         ],
     });
 }

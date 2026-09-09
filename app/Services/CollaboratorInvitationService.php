@@ -40,7 +40,7 @@ class CollaboratorInvitationService
         $sameDepartment = $taskDepartmentId
             && (int) $candidate->department_id === (int) $taskDepartmentId;
         $status = $task->approval_status === 'approved'
-            && ($actor->role === 'admin' || $sameDepartment)
+            && ($actor->role === 'admin' || $sameDepartment || $candidate->isDepartmentHead())
                 ? 'accepted'
                 : 'pending';
 
@@ -105,7 +105,7 @@ class CollaboratorInvitationService
                 && (int) $candidate->department_id === (int) $taskDepartmentId;
             $inviter = $candidate->pivot?->added_by ? User::find($candidate->pivot->added_by) : null;
 
-            if ($sameDepartment || $inviter?->role === 'admin') {
+            if ($sameDepartment || $inviter?->role === 'admin' || $candidate->isDepartmentHead()) {
                 $task->collaborators()->updateExistingPivot($candidate->id, [
                     'status' => 'accepted',
                     'decided_by' => $admin->id,
@@ -145,13 +145,14 @@ class CollaboratorInvitationService
     private function notifyApprovers(WorkOrder $task, User $candidate, User $actor): void
     {
         $candidate->loadMissing('department');
-        $this->notifications->notify(
+        $this->notifications->notifyApprovalRequest(
             $this->notifications->departmentApprovalRecipientIds($candidate->department_id),
             'collaborator_approval_request',
             'ขออนุมัติผู้ร่วมงานข้ามแผนก',
             $actor->name.' ขอเพิ่ม '.$candidate->name.' ('.($candidate->department?->department_name ?? 'ไม่ระบุแผนก').') เข้าร่วมงาน “'.$task->job_topic.'”',
             $task,
-            $actor
+            $actor,
+            $candidate
         );
     }
 }

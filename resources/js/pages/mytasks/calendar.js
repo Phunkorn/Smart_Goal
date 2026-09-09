@@ -164,6 +164,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         const unique = new Map();
         source.querySelectorAll('[data-row]').forEach((row) => {
             if (Number(row.dataset.status) === CALENDAR_HIDDEN_STATUS) return;
+            // งานย่อยมีแถวอยู่ในหน้าเพื่อให้โมดัลรายละเอียดงานเปิดได้ แต่ปฏิทินแสดงเฉพาะงานแม่
+            // ไม่งั้นงานหนึ่งใบจะกลายเป็นหลายจุดซ้อนกันในวันเดียว
+            if (row.dataset.childTask === '1') return;
             const id = `task-${row.dataset.id}`;
             unique.set(id, {
                 id,

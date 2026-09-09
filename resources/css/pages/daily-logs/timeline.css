@@ -18,6 +18,20 @@
 
 .log-timeline__hint { display:flex; align-items:center; gap:8px; margin:0; padding:9px 13px; border:1px solid #f3e2c0; border-radius:11px; background:#fffaeb; color:#8a6212; font-size:.82rem; }
 
+/*
+ * กลุ่ม "ที่ต้องทำ" และ "ทำแล้ว"
+ *
+ * กลุ่มที่ทำแล้วถูกลดน้ำหนักสายตาลง (หัวข้อจาง การ์ดพื้นเทาอ่อน) เพราะเป็น
+ * ข้อมูลยืนยัน ไม่ใช่สิ่งที่ต้องลงมือต่อ สิ่งที่ต้องเด่นคือรายการที่ยังเหลืออยู่
+ */
+.log-group { display:grid; gap:9px; }
+.log-group + .log-group { margin-top:18px; padding-top:16px; border-top:1px solid #eef2f8; }
+.log-group__heading { display:flex; align-items:center; gap:8px; margin:0; color:#33415c; font-size:.88rem; font-weight:700; }
+.log-group__heading i { color:#94a3b8; font-size:.85rem; }
+.log-group--done .log-group__heading { color:#7c8aa3; }
+.log-group--done .log-group__heading i { color:#0d9488; }
+.log-group__count { padding:1px 8px; border-radius:999px; background:#eef2f8; color:#64748b; font-size:.74rem; font-weight:700; }
+
 .log-timeline__list { display:grid; gap:9px; }
 .log-timeline__empty { display:flex; flex-direction:column; align-items:center; gap:9px; margin:0; padding:38px 24px; border:1px dashed #d9e2f0; border-radius:14px; color:#7c8aa3; font-size:.88rem; text-align:center; }
 .log-timeline__empty i { color:#a8b6cc; font-size:1.7rem; }
@@ -29,10 +43,13 @@
 .log-card--amber { border-left-color:#d97706; }
 .log-card--teal { border-left-color:#0d9488; }
 .log-card--gray { border-left-color:#94a3b8; }
+.log-card--done { background:#fbfcfe; }
+.log-card--done .log-card__title { color:#475569; }
 
 .log-card__time { display:grid; gap:2px; }
 .log-card__clock { color:#0f172a; font-size:.94rem; font-weight:700; font-variant-numeric:tabular-nums; }
 .log-card__duration { color:#7c8aa3; font-size:.75rem; font-weight:600; }
+.log-card__elapsed { color:#0f766e; font-variant-numeric:tabular-nums; }
 
 .log-card__body { display:grid; gap:6px; min-width:0; }
 .log-card__chips { display:flex; flex-wrap:wrap; gap:5px; }
@@ -46,7 +63,37 @@
 
 .log-card__details { margin:2px 0 0; color:#5c6b85; font-size:.83rem; line-height:1.55; overflow-wrap:anywhere; }
 
-.log-card__actions { display:flex; align-items:flex-start; }
+/*
+ * ปุ่มลงมือของแถว
+ *
+ * มีปุ่มเดียวต่อแถวเสมอ — "ทำเสร็จแล้ว" ตอนยังค้าง และ "ยังไม่เสร็จ" ตอนยืนยัน
+ * ไปแล้ว ไม่มีปุ่มจับเวลาแยกอีกชุดหนึ่งให้ต้องเลือกว่าจะกดอันไหน
+ */
+.log-card__actions { display:flex; align-items:flex-start; gap:6px; }
+.log-card__action { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border:1px solid #dde5f1; border-radius:999px; background:#fff; color:#526180; font-size:.8rem; font-weight:650; white-space:nowrap; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
+.log-card__action:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+.log-card__action[disabled] { opacity:.55; cursor:progress; }
+.log-card__action--done { border-color:#99e6d9; background:#effcfa; color:#0f766e; }
+.log-card__action--done:hover { border-color:#0d9488; background:#d9f7f1; }
+.log-card__action--start { border-color:#9fc2f5; background:#edf5ff; color:#1d5fbf; }
+.log-card__action--start:hover { border-color:#4d8ddd; background:#dcecff; }
+.log-card__action--skip { border-color:#d8dee8; background:#f8fafc; color:#64748b; }
+.log-card__action--skip:hover { border-color:#94a3b8; background:#f1f5f9; color:#334155; }
+.log-card__action[disabled] { cursor:not-allowed; }
+.log-card__action--undo { color:#7c8aa3; }
+.log-card__action--undo:hover { border-color:#b9cbe8; color:#33415c; }
+
+.log-card--status-overdue { border-color:#fecaca; background:#fffafa; }
+
+/* งานประจำของวันที่ผ่านไปแล้วซึ่งยังไม่ถูกปิดรายการ — ต้องสะดุดตากว่า "เกินเวลา"
+   เพราะเป็นสิ่งที่ค้างอยู่ข้ามวันและปิดได้ทางเดียวคือระบุเหตุผล */
+.log-card--status-missed { border-color:#fca5a5; background:#fff5f5; }
+.log-card__action--reason { border-color:#f7b9b9; background:#fff5f5; color:#b42318; }
+.log-card__action--reason:hover { border-color:#e35d5d; background:#ffe9e9; }
+.log-card__reason { margin:7px 0 0; color:#64748b; font-size:.76rem; line-height:1.45; }
+.log-card__reason strong { color:#475569; font-weight:700; }
+.log-chip--red { background:#feecec; color:#c62828; }
+
 .log-card__menu-trigger { display:grid; place-items:center; width:30px; height:30px; border:1px solid transparent; border-radius:8px; background:transparent; color:#8494ae; cursor:pointer; transition:background-color .15s ease, color .15s ease, border-color .15s ease; }
 .log-card__menu-trigger:hover { border-color:#dde5f1; background:#f5f8fd; color:#33415c; }
 .log-card__menu-trigger:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
@@ -62,7 +109,8 @@
 .log-chip--cyan { background:#ecfeff; color:#0e7490; }
 .log-chip--gray { background:#f1f5f9; color:#475569; }
 .log-chip--warning { background:#fef3c7; color:#92400e; }
-.log-chip--live { background:#ccfbf1; color:#0f766e; }
+/* ช่วงเวลาที่ "ตั้งไว้ว่าต้องเข้าไปทำ" ต่างจากเวลาที่ทำจริงในคอลัมน์ซ้าย */
+.log-chip--plan { background:#eef4ff; color:#3b5bab; }
 
 /* เมนูจัดการรายแถว — เป็น popover ไม่ใช่ modal จึงไม่มี backdrop และไม่ล็อกการเลื่อนหน้า */
 .log-row-menu { position:absolute; z-index:40; min-width:172px; padding:6px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 18px 40px -22px rgba(15,23,42,.6); }

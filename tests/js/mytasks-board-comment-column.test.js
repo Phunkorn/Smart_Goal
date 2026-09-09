@@ -24,11 +24,17 @@ function countTracks(value) {
     return tracks.length;
 }
 
-/** ทุกกฎที่จัดกริดของแถวบอร์ด พร้อมจำนวน track ที่ประกาศไว้ */
+/**
+ * ทุกกฎที่จัดกริดของแถวบอร์ด พร้อมจำนวน track ที่ประกาศไว้
+ *
+ * คอลัมน์ถูกประกาศผ่านตัวแปร --board-columns เพื่อให้แถวงานย่อยใช้ค่าชุดเดียวกันได้
+ * จึงต้องนับทั้งสองรูปแบบ ส่วนกฎที่อ้างตัวแปร (var(--board-columns)) ไม่ใช่การประกาศค่า
+ */
 function rowGridRules(source) {
     return [...source.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
         .filter(([, selector]) => selector.includes('board-reference-row'))
-        .flatMap(([, selector, body]) => [...body.matchAll(/grid-template-columns:([^;}]+)/g)]
+        .flatMap(([, selector, body]) => [...body.matchAll(/(?:grid-template-columns|--board-columns):([^;}]+)/g)]
+            .filter(([, value]) => !value.includes('var('))
             .map(([, value]) => ({selector: selector.trim(), tracks: countTracks(value)})));
 }
 
@@ -47,6 +53,15 @@ test('หัวตารางจัดกึ่งกลางครอบค�
     const source = await read('resources/css/pages/mytasks/project-board.css');
 
     assert.match(source, /\.board-reference-columns > span:nth-child\(10\)/);
+});
+
+test('ไฟล์แนบและคอมเมนต์ล็อกตรงกับคอลัมน์หัวตารางและใช้พื้นที่ปุ่มเท่ากัน', async () => {
+    const source = await read('resources/css/pages/mytasks/project-board.css');
+
+    // แถวงานย่อยใช้กฎเดียวกัน ตัวเลือกจึงถูกรวมเป็นกลุ่ม — ตรวจว่ายังล็อกคอลัมน์เดิมอยู่
+    assert.match(source, /\.board-reference-row > \.board-attachments[^{}]*\{[^}]*grid-column:\s*8/s);
+    assert.match(source, /\.board-reference-row > \.board-comments[^{}]*\{[^}]*grid-column:\s*9/s);
+    assert.match(source, /\.board-reference-row > \.board-attachments,[^{}]*\.board-comments[^{}]*\{[^}]*width:\s*48px;[^}]*justify-content:\s*center/s);
 });
 
 test('เลย์เอาต์การ์ดมือถือกำหนดตำแหน่งของช่องคอมเมนต์ไว้ชัดเจน', async () => {

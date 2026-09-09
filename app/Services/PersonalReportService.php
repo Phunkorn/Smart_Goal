@@ -47,7 +47,6 @@ final class PersonalReportService
                 $this->isOverdue($job, $now) ? 0 : ($this->isDueSoon($job, $now) ? 1 : 2),
                 $job->job_due_at?->timestamp ?? PHP_INT_MAX,
             ])
-            ->take(8)
             ->map(function (WorkOrder $job) use ($now): array {
                 $item = $this->presentJob($job, $now);
                 $item['reason'] = $this->isOverdue($job, $now)

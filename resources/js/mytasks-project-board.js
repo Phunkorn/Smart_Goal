@@ -9,6 +9,7 @@ import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from
 import {synchronizeCompletedTaskGroup, synchronizeTaskSource} from './pages/mytasks/task-state.js';
 import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
 import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
+import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -22,13 +23,21 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
     const toast = document.querySelector('[data-toast]');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const attachmentModal = document.querySelector('[data-board-attachment-modal]');
+    const completedProjectsModal = document.querySelector('[data-completed-projects-modal]');
     // อ็อบเจกต์เดียวกับโมดัลรายละเอียดงานและปฏิทิน การแนบไฟล์จากที่ใดก็ตามจึงเห็นตรงกัน
     const attachmentData = attachmentStore(document);
     const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
 
+    /*
+     * งานย่อยเป็น [data-board-task] ของตัวเองและซ้อนอยู่ในแถวงานแม่
+     * การค้นหาปุ่มจึงต้องตัดปุ่มของงานย่อยออก ไม่งั้นสิทธิ์ของงานแม่จะไปคุมเมนูของงานย่อย
+     */
+    const ownControls = (task, selector) => [...task.querySelectorAll(selector)]
+        .filter((node) => node.closest('[data-board-task]') === task);
+
     const refreshStatusControls = (task) => {
         const capabilities = management[String(task.dataset.taskId)]?.transitions || {};
-        task.querySelectorAll('[data-board-status-value]').forEach((button) => {
+        ownControls(task, '[data-board-status-value]').forEach((button) => {
             button.disabled = !canTransitionTo(Number(task.dataset.status), Number(button.dataset.boardStatusValue), capabilities);
         });
     };
@@ -88,7 +97,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
 
         if (Object.hasOwn(change, 'topic')) {
             task.dataset.topic = String(change.topic || '');
-            const title = task.querySelector('.board-reference-task__title');
+            const title = ownControls(task, '.board-reference-task__title')[0];
             if (title) title.textContent = task.dataset.topic;
         }
         if (Object.hasOwn(change, 'due')) task.dataset.due = String(change.due || '');
@@ -99,7 +108,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             task.dataset.priority = String(priority);
             task.classList.remove('task-priority-routine', 'task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
             task.classList.add(`task-${meta.className}`);
-            const summary = task.querySelector('[data-board-priority-menu] > summary');
+            const summary = ownControls(task, '[data-board-priority-menu] > summary')[0];
             summary?.classList.remove(...taskPriorityClasses);
             summary?.classList.add(meta.className);
             const label = summary?.querySelector('[data-board-priority-label]');
@@ -112,7 +121,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             task.dataset.status = String(status);
             task.dataset.late = status === 6 ? '1' : '0';
             synchronizeCompletedTaskGroup(cardGrid, task, status);
-            const summary = task.querySelector('[data-board-status-menu] > summary');
+            const summary = ownControls(task, '[data-board-status-menu] > summary')[0];
             summary?.classList.remove(...statusClasses);
             summary?.classList.add(meta.className);
             const label = summary?.querySelector('[data-board-status-label]');
@@ -120,6 +129,12 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         }
 
         refreshStatusControls(task);
+        // การเปลี่ยนสถานะจากที่อื่น (โมดัล ตาราง ปฏิทิน) วิ่งเข้ามาทางนี้
+        // งานย่อยที่ถูกปิดจากโมดัลจึงต้องอัปเดตตัวนับของงานแม่ด้วยเช่นกัน
+        if (task.matches('[data-board-subtask]') && task.dataset.workOrderId) {
+            syncSubtaskGate(task.dataset.workOrderId, management);
+        }
+        refreshProjectArchiveAction(task);
         filterBoard(false);
     };
 
@@ -134,21 +149,39 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
     const paintScheduleLabels = (task) => {
         [['start', '[data-board-start-label]'], ['due', '[data-board-due-label]']].forEach(([field, selector]) => {
             const value = task.dataset[field] || '';
-            const input = task.querySelector(`[data-board-field="${field}"]`);
+            const input = ownControls(task, `[data-board-field="${field}"]`)[0];
             if (input) input.value = value;
 
-            const label = task.querySelector(selector);
+            const label = ownControls(task, selector)[0];
             const date = new Date(`${value}T00:00:00`);
             if (label && value && !Number.isNaN(date.getTime())) label.textContent = thaiDate.format(date);
         });
     };
 
     const tasksForProject = (header) => header
-        ? [...cardGrid.querySelectorAll('[data-board-task]')].filter((task) => task.dataset.projectKey === header.dataset.projectKey)
+        ? [...cardGrid.querySelectorAll('[data-board-task]:not([data-board-subtask])')].filter((task) => task.dataset.projectKey === header.dataset.projectKey)
         : [];
 
     const headerForTask = (task) => [...cardGrid.querySelectorAll('[data-project-header]')]
         .find((header) => header.dataset.projectKey === task.dataset.projectKey);
+
+    const refreshProjectArchiveAction = (taskOrHeader) => {
+        const header = taskOrHeader?.matches?.('[data-project-header]')
+            ? taskOrHeader
+            : headerForTask(taskOrHeader);
+        const action = header?.querySelector('[data-archive-project]');
+        if (!action) return;
+
+        const projectTasks = tasksForProject(header);
+        const allCompleted = projectTasks.length > 0 && projectTasks.every((task) => {
+            const subtasks = [...task.querySelectorAll('[data-board-subtask]')];
+
+            return Number(task.dataset.status) === 4
+                && subtasks.every((subtask) => Number(subtask.dataset.status) === 4);
+        });
+
+        action.hidden = !allCompleted;
+    };
 
     const closeBoardMenu = (menu) => {
         if (!menu) return;
@@ -318,7 +351,8 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         const status = state.status;
         let visibleTasks = 0;
 
-        board.querySelectorAll('[data-board-task]').forEach((task) => {
+        // ตัวกรองทำงานกับงานระดับบนสุด งานย่อยติดตามงานแม่ไปเสมอ
+        board.querySelectorAll('[data-board-task]:not([data-board-subtask])').forEach((task) => {
             task.hidden = !boardTaskMatches({
                 searchable: (task.dataset.projectName || '') + ' ' + task.textContent,
                 status: task.dataset.status,
@@ -503,6 +537,14 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                 closeBoardMenu(menu);
                 synchronizeTaskSource(workspace, task.dataset.taskId, {status: actualStatus});
                 refreshStatusControls(task);
+                /*
+                 * ปิดงานย่อยใบสุดท้ายแล้วต้องปิดงานแม่ได้ทันทีโดยไม่ต้องโหลดหน้าใหม่
+                 * ตัวนับและด่านของงานแม่จึงต้องอัปเดตทุกครั้งที่งานย่อยเปลี่ยนสถานะ
+                 */
+                if (task.matches('[data-board-subtask]') && task.dataset.workOrderId) {
+                    syncSubtaskGate(task.dataset.workOrderId, management);
+                }
+                refreshProjectArchiveAction(task);
                 notify('เปลี่ยนสถานะงานแล้ว');
                 filterBoard();
             }).catch((error) => notify(error.message, false)).finally(() => refreshStatusControls(task));
@@ -583,6 +625,29 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
             return;
         }
 
+        const archiveProject = event.target.closest('[data-archive-project]');
+        if (archiveProject) {
+            const result = await Swal.fire({
+                icon: 'question',
+                title: 'จัดเก็บโปรเจกต์นี้หรือไม่?',
+                text: `โปรเจกต์ “${archiveProject.dataset.name}” จะย้ายไปอยู่ในโปรเจกต์ที่เสร็จแล้ว และนำกลับมาเปิดได้ทุกเมื่อ`,
+                showCancelButton: true,
+                confirmButtonText: 'จัดเก็บโปรเจกต์',
+                cancelButtonText: 'ไว้ก่อน',
+                confirmButtonColor: '#2563eb',
+                reverseButtons: true,
+            });
+            if (!result.isConfirmed) return;
+            archiveProject.disabled = true;
+            request(archiveProject.dataset.url, 'PATCH', {})
+                .then(() => window.location.reload())
+                .catch((error) => {
+                    archiveProject.disabled = false;
+                    notify(error.message, false);
+                });
+            return;
+        }
+
         const renameTask = event.target.closest('[data-board-rename-task]');
         if (renameTask) {
             const task = renameTask.closest('[data-board-task]');
@@ -627,6 +692,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                     count.textContent = remaining;
                     count.dataset.boardTotalCount = remaining;
                 }
+                refreshProjectArchiveAction(projectHeader);
                 notify('ลบงานแล้ว');
             }).catch((error) => {
                 deleteTask.disabled = false;
@@ -665,6 +731,7 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
                 wrapper.classList.remove(...statusClasses);
                 wrapper.classList.add(statusMeta[actualStatus]?.className || unsupportedStatusMeta.className);
                 synchronizeTaskSource(workspace, id, {status: actualStatus});
+                refreshProjectArchiveAction(task);
             } else if (field === 'priority') {
                 await request(endpoint(workspace.dataset.priorityTemplate, id), 'POST', {job_priority: Number(control.value)});
                 task.dataset.priority = control.value;
@@ -738,8 +805,42 @@ import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-trans
         if (input) await uploadAttachments(input);
     });
 
+    // ปุ่มเปิดคลังโปรเจกต์อยู่ในแถบควบคุมมุมมอง ซึ่งอยู่นอก [data-project-board]
+    workspace.querySelector('[data-open-completed-projects]')?.addEventListener('click', () => {
+        if (completedProjectsModal) completedProjectsModal.hidden = false;
+    });
+
+    completedProjectsModal?.addEventListener('click', async (event) => {
+        if (event.target === completedProjectsModal || event.target.closest('[data-close-completed-projects]')) {
+            completedProjectsModal.hidden = true;
+            return;
+        }
+
+        const restore = event.target.closest('[data-restore-project]');
+        if (!restore) return;
+        const result = await Swal.fire({
+            icon: 'question',
+            title: 'เปิดโปรเจกต์อีกครั้งหรือไม่?',
+            text: `โปรเจกต์ “${restore.dataset.name}” จะกลับไปอยู่ในบอร์ดพร้อมข้อมูลเดิมทั้งหมด`,
+            showCancelButton: true,
+            confirmButtonText: 'เปิดโปรเจกต์',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#2563eb',
+            reverseButtons: true,
+        });
+        if (!result.isConfirmed) return;
+        restore.disabled = true;
+        request(restore.dataset.url, 'PATCH', {})
+            .then(() => window.location.reload())
+            .catch((error) => {
+                restore.disabled = false;
+                notify(error.message, false);
+            });
+    });
+
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && attachmentModal && !attachmentModal.hidden) closeAttachmentModal();
+        if (event.key === 'Escape' && completedProjectsModal && !completedProjectsModal.hidden) completedProjectsModal.hidden = true;
     });
 
     document.addEventListener('keydown', (event) => {

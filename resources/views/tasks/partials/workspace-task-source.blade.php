@@ -1,6 +1,7 @@
 @php
     $showQuickAdd = $showQuickAdd ?? true;
     $workspaceContext = $workspaceContext ?? 'user';
+    $childTasks = $childTasks ?? collect();
 @endphp
 <div class="notion-table workspace-task-source" data-table data-workspace-task-source hidden aria-hidden="true">
     <div class="notion-columns"><span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>ผู้รับผิดชอบ</span><span>ระยะเวลา</span><span>ผู้ร่วมงาน</span><span>ไฟล์</span><span>Action</span></div>
@@ -43,5 +44,16 @@
             <section class="notion-group-section" data-group-section data-group-key="งานทั่วไป"><header><button type="button" data-collapse><i class="bi bi-chevron-down"></i></button><span class="project-pill neutral">งานทั่วไป</span><small>{{ $ungrouped->count() }} งาน</small></header><div data-group-rows>@foreach($ungrouped as $task) @include('tasks.partials.notion-task-row', compact('task', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext')) @endforeach</div></section>
         @endif
     </div>
+    {{--
+        งานย่อยไม่ใช่แถวของบอร์ด ตาราง หรือปฏิทิน แต่โมดัลรายละเอียดงานอ่านค่าทุกอย่าง
+        จากแถวต้นทาง จึงต้องมีแถวของงานย่อยอยู่ในหน้าเช่นกัน — วางไว้นอก [data-groups]
+        และติด data-child-task ไว้ให้มุมมองอื่นข้ามได้อย่างชัดเจน
+    --}}
+    <div data-child-task-rows>
+        @foreach($childTasks as $task)
+            @include('tasks.partials.notion-task-row', compact('task', 'statusLabels', 'priorityLabels', 'showQuickAdd', 'workspaceContext'))
+        @endforeach
+    </div>
+
     <div class="notion-empty" data-empty hidden><i class="bi bi-search"></i><strong>ไม่พบงาน</strong><span>ลองเปลี่ยนคำค้นหาหรือตัวกรอง</span></div>
 </div>

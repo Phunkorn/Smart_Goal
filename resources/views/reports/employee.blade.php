@@ -24,6 +24,9 @@
                 <div data-report-custom-dates @if($filters['period'] !== 'custom') hidden @endif><input type="date" name="start_date" value="{{ $filters['start_date'] }}" aria-label="ตั้งแต่วันที่"><input type="date" name="end_date" value="{{ $filters['end_date'] }}" aria-label="ถึงวันที่"></div>
                 <button class="btn btn-primary" type="submit">แสดงผล</button>
             </form>
+            @if(auth()->user()->isDepartmentHead())
+                <a href="{{ route('reports.my') }}" class="btn btn-primary"><i class="bi bi-person-badge" aria-hidden="true"></i> ดูรายงานของฉัน</a>
+            @endif
             <a href="{{ route('reports.employees.index') }}" class="btn btn-outline-secondary"><i class="bi bi-people" aria-hidden="true"></i> เปลี่ยนพนักงาน</a>
             <a href="{{ route('reports.employeeExportCsv', ['user' => $employee->id, ...request()->query()]) }}" class="btn btn-outline-success"><i class="bi bi-download" aria-hidden="true"></i> Export CSV</a>
         </div>

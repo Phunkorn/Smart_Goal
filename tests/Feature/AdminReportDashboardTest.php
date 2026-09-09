@@ -77,7 +77,12 @@ class AdminReportDashboardTest extends TestCase
             ->assertSee('ดูข้อมูลเท่านั้น');
 
         $this->actingAs($viewer)->get(route('reports.index'))->assertOk();
-        $this->actingAs($user)->get(route('reports.index'))->assertForbidden();
+
+        // พนักงานเข้าหน้าเลือกรายงานได้ แต่หน้านั้นต้องไม่มีทางเข้ารายงานองค์กร
+        // และการยิงตรงไปที่รายงานองค์กรยังต้องถูกปฏิเสธเหมือนเดิม
+        $this->actingAs($user)->get(route('reports.index'))
+            ->assertOk()
+            ->assertDontSee(route('reports.organization'), false);
         $this->actingAs($user)->get(route('reports.organization'))->assertForbidden();
         $this->actingAs($user)->get(route('reports.exportCsv'))->assertForbidden();
         $this->actingAs($user)->get(route('reports.my'))->assertOk();

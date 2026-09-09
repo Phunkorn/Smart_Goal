@@ -1,6 +1,7 @@
 import Chart from 'chart.js/auto';
 import {initializeChartCards, parseChartData} from './chart-lifecycle.js';
-import {workloadChartConfig} from './my-chart-config.js';
+import {priorityChartConfig, workloadChartConfig} from './my-chart-config.js';
+import {initTablePager} from './table-pager.js';
 
 /**
  * ใช้วงจรชีวิตกราฟชุดเดียวกับหน้ารายงานฝั่ง admin
@@ -13,12 +14,25 @@ const page = document.querySelector('.personal-report');
 if (page) {
     const chartData = parseChartData(document.getElementById('personalReportChartData'));
 
+    initTablePager({
+        table: page.querySelector('[data-personal-attention-table]'),
+        pager: page.querySelector('[data-personal-attention-pager]'),
+        rowSelector: '[data-personal-attention-row]',
+        pageLabel: page.querySelector('[data-personal-attention-page]'),
+        previous: page.querySelector('[data-personal-attention-previous]'),
+        next: page.querySelector('[data-personal-attention-next]'),
+    });
+
     initializeChartCards({
         root: document,
         ChartCtor: Chart,
-        // เหลือกราฟเดียว โดนัทความสำคัญถูกถอดออกจากหน้านี้
-        // พนักงานไม่ได้ใช้สัดส่วนความสำคัญตัดสินใจอะไร และมันทำให้หน้ายาวขึ้นโดยเปล่าประโยชน์
-        configs: {workload: workloadChartConfig(chartData.workload)},
-        definitions: [{id: 'personalWorkloadChart', key: 'workload'}],
+        configs: {
+            workload: workloadChartConfig(chartData.workload),
+            priority: priorityChartConfig(chartData.priority),
+        },
+        definitions: [
+            {id: 'personalWorkloadChart', key: 'workload'},
+            {id: 'personalPriorityChart', key: 'priority'},
+        ],
     });
 }

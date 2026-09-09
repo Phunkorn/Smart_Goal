@@ -21,7 +21,7 @@ test('task details expand and a new detail is added without reloading the board'
                             <button type="submit">เพิ่ม</button>
                         </form>
                     </div>
-                    <b data-task-details-count>0</b>
+                    <small data-task-details-progress class="is-pending">งานย่อย <b data-task-details-count>0</b>/<span data-task-details-total>0</span></small>
                 </div>
             </article>
         </section>
@@ -59,15 +59,24 @@ test('task details expand and a new detail is added without reloading the board'
     }));
     await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
 
-    assert.equal(document.querySelector('[data-task-details-count]').textContent, '1');
+    /*
+     * ตัวนับเป็น "เสร็จแล้ว/ทั้งหมด" เพราะงานแม่จะปิดได้ต่อเมื่องานย่อยเสร็จครบ
+     * งานย่อยที่เพิ่งเพิ่มยังไม่เสร็จ ตัวหารจึงขึ้นเป็น 1 แต่ตัวเศษต้องยังเป็น 0
+     */
+    assert.equal(document.querySelector('[data-task-details-count]').textContent, '0');
+    assert.equal(document.querySelector('[data-task-details-total]').textContent, '1');
+    assert.ok(document.querySelector('[data-task-details-progress]').classList.contains('is-pending'));
     assert.equal(document.querySelector('[data-task-detail-title]').textContent, 'ซื้ออุปกรณ์');
     assert.equal(document.querySelector('[data-task-details-empty]').hidden, true);
 });
 
 test('task detail module keeps drag, project drop, editing, deletion and keyboard move controls wired', async () => {
-    const [javascript, blade, css] = await Promise.all([
+    // หัวข้องานอยู่ใน task-details.blade.php ส่วนรายการงานย่อยอยู่ในแผงที่กินทั้งแถวบอร์ด
+    const [javascript, blade, panel, row, css] = await Promise.all([
         read('resources/js/pages/mytasks/task-details.js'),
         read('resources/views/tasks/components/task-details.blade.php'),
+        read('resources/views/tasks/components/task-details-panel.blade.php'),
+        read('resources/views/tasks/components/task-detail-row.blade.php'),
         read('resources/css/pages/mytasks/task-details.css'),
     ]);
 
@@ -77,8 +86,38 @@ test('task detail module keeps drag, project drop, editing, deletion and keyboar
     assert.match(javascript, /target_work_order_id/);
     assert.match(javascript, /data-task-detail-edit/);
     assert.match(javascript, /data-task-detail-delete/);
-    assert.match(blade, /data-task-detail-move/);
+    assert.match(row, /data-task-detail-move/);
     assert.match(blade, /aria-expanded="false"/);
     assert.match(css, /\.is-detail-drop-target/);
     assert.match(css, /@media \(max-width: 760px\)/);
+
+    // แผงงานย่อยต้องกินทั้งแถวและใช้คอลัมน์ชุดเดียวกับ .board-reference-row
+    // ไม่งั้นชิปทุกตัวจะถูกบีบอยู่ในคอลัมน์ "ชื่องาน"
+    assert.match(css, /\.board-task-details__panel\s*\{[^}]*grid-column:\s*1 \/ -1/s);
+    // งานย่อยต้องมีเส้นโยงกลับไปหาชื่องานแม่ ไม่ใช่แค่แถวที่ลอยอยู่ใต้กัน
+    assert.match(css, /board-task-detail__name::before[^{]*\{[^}]*background:\s*#cbd7e6/s);
+    assert.match(css, /board-task-detail__name::after[^{]*\{[^}]*height:\s*1px/s);
+    assert.match(css, /board-task-detail:last-child > \.board-task-detail__name::before[^{]*\{[^}]*bottom:\s*50%/s);
+
+    // คอลัมน์ของบอร์ดจัดเนื้อหากึ่งกลาง แถวงานย่อยจึงห้ามย่อขนาดตัวอักษรหรือกล่องของเซลล์
+    // ไม่งั้นกล่องที่เล็กกว่าจะถูกวางกึ่งกลางคนละตำแหน่งจนดูเหมือนคอลัมน์ไม่ตรงกัน
+    assert.doesNotMatch(css, /\.board-task-detail \.board-(status-pill|priority|start|due|attachments|comments|owner)/);
+
+    // ช่องไฟล์แนบและคอมเมนต์ถูกล็อกกับหมายเลขคอลัมน์ กฎนั้นต้องครอบแถวงานย่อยด้วย
+    const board = await read('resources/css/pages/mytasks/project-board.css');
+    assert.match(board, /\.board-task-detail > \.board-attachments\s*\{[^}]*grid-column:\s*8/s);
+    assert.match(board, /\.board-task-detail > \.board-comments\s*\{[^}]*grid-column:\s*9/s);
+
+    // คอลัมน์ต้องมาจากตัวแปรเดียวกับแถวงานแม่ ห้ามคัดลอกตัวเลขมาไว้ที่นี่อีก
+    assert.match(css, /\.board-task-detail\s*\{[^}]*grid-template-columns:\s*var\(--board-columns\)/s);
+
+    // งานย่อยต้องใช้ปุ่มควบคุมชุดเดียวกับแถวงานแม่ ไม่ใช่ชิปอ่านอย่างเดียวชุดใหม่
+    assert.match(row, /data-board-status-value/);
+    assert.match(row, /data-board-priority-value/);
+    assert.match(row, /data-board-field="due"/);
+    assert.match(row, /data-board-open-attachments/);
+    assert.match(row, /data-task-tab="updates"/);
+    // แถวงานย่อยเป็น [data-board-task] ของตัวเอง แต่ต้องถูกข้ามโดยโค้ดที่ไล่รายการงาน
+    assert.match(row, /data-board-subtask="1"/);
+    assert.match(javascript, /\[data-board-task\]:not\(\[data-board-subtask\]\)/);
 });

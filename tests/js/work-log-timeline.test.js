@@ -12,22 +12,35 @@ import {initTimeline} from '../../resources/js/pages/daily-logs/timeline.js';
  *    นอกหรือกด Escape และคืนโฟกัสให้ปุ่มที่เปิดมัน
  * 2. ทุกอย่างผูกด้วย event delegation — แถวที่แทรกหลัง init ต้องใช้งานได้ทันที
  */
-const cardMarkup = (id, kind, title) => `
-    <article class="log-card" data-log-card data-log-id="${id}" data-log-kind="${kind}">
+const cardMarkup = (id, kind, title, status = 'open') => `
+    <article class="log-card" data-log-card data-log-id="${id}" data-log-kind="${kind}" data-log-status="${status}">
         <div class="log-card__body"><h3 class="log-card__title">${title}</h3></div>
         <div class="log-card__actions">
             <button type="button" class="log-card__menu-trigger" aria-expanded="false" data-log-menu-trigger>⋯</button>
         </div>
     </article>`;
 
-const mountTimeline = (cards = '') => mountDom(`<!doctype html><html><body>
+/*
+ * โครงของหน้าจริงมีสองกลุ่ม (ที่ต้องทำ / ทำแล้ว) แถวถูกวางตาม data-log-status
+ * ที่เซิร์ฟเวอร์ใส่มากับ HTML ของแถว
+ */
+const mountTimeline = (cards = '', doneCards = '') => mountDom(`<!doctype html><html><body>
     <div data-daily-log data-date="2026-09-04" data-owner="1">
         <div class="log-timeline__filters">
             <button type="button" class="log-filter is-active" data-kind-filter="all">ทั้งหมด</button>
             <button type="button" class="log-filter" data-kind-filter="routine">งานประจำ</button>
             <button type="button" class="log-filter" data-kind-filter="field">งานนอกสถานที่</button>
         </div>
-        <div class="log-timeline__list" data-timeline-list>${cards}</div>
+        <div class="log-group" data-log-group="open">
+            <h3><span data-group-count>0</span></h3>
+            <div class="log-timeline__list" data-timeline-list>${cards}</div>
+            <p data-group-empty>ยังไม่มีบันทึกงานของวันนี้</p>
+        </div>
+        <div class="log-group" data-log-group="done">
+            <h3><span data-group-count>0</span></h3>
+            <div class="log-timeline__list" data-timeline-done>${doneCards}</div>
+            <p data-group-empty>ยังไม่มีรายการที่ยืนยันว่าทำเสร็จแล้ว</p>
+        </div>
     </div>
 </body></html>`);
 
@@ -174,7 +187,7 @@ test('แถวที่แทรกหลัง init ใช้เมนูไ�
             onDelete: (id) => deleted.push(id),
         });
 
-        timeline.upsertCard(cardMarkup(42, 'interrupt', 'งานแทรกใหม่'), 42);
+        timeline.upsertCard(cardMarkup(42, 'field', 'งานนอกสถานที่ใหม่'), 42);
 
         click(dom.document.querySelector('[data-log-menu-trigger]'));
         click(dom.document.querySelector('[data-log-action="delete"]'));
@@ -202,16 +215,49 @@ test('upsertCard แทนที่แถวเดิมแทนการเพ
     }
 });
 
-test('upsertCard ลบข้อความสถานะว่างออกเมื่อมีแถวแรก', () => {
-    const dom = mountTimeline('<p data-timeline-empty>ยังไม่มีบันทึกงานของวันนี้</p>');
+test('upsertCard ซ่อนข้อความสถานะว่างและอัปเดตตัวนับของกลุ่ม', () => {
+    const dom = mountTimeline();
+
+    try {
+        const timeline = initTimeline({root: dom.document.querySelector('[data-daily-log]')});
+        const group = dom.document.querySelector('[data-log-group="open"]');
+
+        timeline.upsertCard(cardMarkup(1, 'routine', 'งานแรก'), 1);
+
+        assert.equal(group.querySelector('[data-group-empty]').hidden, true);
+        assert.equal(group.querySelector('[data-group-count]').textContent, '1');
+        assert.equal(dom.document.querySelectorAll('[data-log-card]').length, 1);
+    } finally {
+        dom.cleanup();
+    }
+});
+
+/*
+ * เส้นทางจริงของงานประจำ: กดยืนยันแล้วแถวต้องย้ายจาก "ที่ต้องทำ" ไป "ทำแล้ว"
+ * โดยไม่โหลดหน้าใหม่ และต้องไม่เหลือแถวซ้ำค้างอยู่ในกลุ่มเดิม
+ */
+test('แถวที่ถูกยืนยันย้ายไปกลุ่มทำแล้วโดยไม่ทิ้งแถวซ้ำไว้', () => {
+    const dom = mountTimeline(cardMarkup(7, 'routine', 'เช็คคอมพิวเตอร์'));
 
     try {
         const timeline = initTimeline({root: dom.document.querySelector('[data-daily-log]')});
 
-        timeline.upsertCard(cardMarkup(1, 'routine', 'งานแรก'), 1);
+        timeline.upsertCard(cardMarkup(7, 'routine', 'เช็คคอมพิวเตอร์', 'done'), 7);
 
-        assert.equal(dom.document.querySelector('[data-timeline-empty]'), null);
-        assert.equal(dom.document.querySelectorAll('[data-log-card]').length, 1);
+        const openList = dom.document.querySelector('[data-timeline-list]');
+        const doneList = dom.document.querySelector('[data-timeline-done]');
+
+        assert.equal(openList.querySelectorAll('[data-log-card]').length, 0);
+        assert.equal(doneList.querySelectorAll('[data-log-card]').length, 1);
+        assert.equal(dom.document.querySelectorAll('[data-log-card][data-log-id="7"]').length, 1);
+        assert.equal(
+            dom.document.querySelector('[data-log-group="done"] [data-group-count]').textContent,
+            '1'
+        );
+        assert.equal(
+            dom.document.querySelector('[data-log-group="open"] [data-group-empty]').hidden,
+            false
+        );
     } finally {
         dom.cleanup();
     }

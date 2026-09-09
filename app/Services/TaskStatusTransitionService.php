@@ -43,6 +43,14 @@ class TaskStatusTransitionService
             'shows_review_stage' => TaskReviewStage::appliesTo($task, $actor),
             'approver_id' => $this->approverId($task),
             'allowed_statuses' => $this->allowedStatuses($task, $actor),
+            /*
+             * ด่านงานย่อยไม่ใช่เรื่องสิทธิ์ จึงไม่ถูกตัดออกจาก allowed_statuses
+             * (ถ้าตัด ปุ่มจะถูก disable เงียบ ๆ โดยผู้ใช้ไม่รู้สาเหตุ)
+             * UI อ่านสามค่านี้ไปเด้ง SweetAlert บอกเหตุผลก่อนยิง request
+             */
+            'task_id' => (int) $task->job_id,
+            'child_count' => $this->childCount($task),
+            'open_child_count' => $this->openChildCount($task),
         ];
     }
 
@@ -63,6 +71,25 @@ class TaskStatusTransitionService
 
         if ($from === $targetStatus) {
             return $task;
+        }
+
+        /*
+         * ปิดงานหรือส่งตรวจได้ต่อเมื่องานย่อยเสร็จครบ
+         *
+         * งานแม่ที่ปิดแล้วแต่มีงานย่อยเปิดค้างอยู่ข้างใต้ทำให้บอร์ดและรายงานไม่ตรงความจริง
+         * นี่เป็นกฎเนื้องาน ไม่ใช่เรื่องสิทธิ์ จึงบังคับกับ admin ที่ปรับสถานะข้ามขั้นด้วย
+         * ต้องอยู่ก่อน resolveAction() เพราะ admin ลัดออกไปทาง overrideStatus ตั้งแต่บรรทัดแรกของที่นั่น
+         *
+         * 4 -> 2 (เปิดงานอีกครั้ง) และ 3 -> 2 (ส่งกลับแก้ไข) ไม่ถูกกฎนี้แตะ
+         */
+        if (in_array($targetStatus, [3, 4], true) && $from !== 4) {
+            $openChildren = $this->openChildCount($task);
+
+            if ($openChildren > 0) {
+                $this->reject($targetStatus === 4
+                    ? 'ยังเคลียร์งานย่อยไม่ครบ เหลืออีก '.$openChildren.' งาน ต้องปิดงานย่อยให้ครบก่อนจึงจะปิดงานนี้ได้'
+                    : 'ยังเคลียร์งานย่อยไม่ครบ เหลืออีก '.$openChildren.' งาน ต้องปิดงานย่อยให้ครบก่อนจึงจะส่งตรวจได้');
+            }
         }
 
         $action = $this->resolveAction($task, $actor, $from, $targetStatus, $options);
@@ -313,6 +340,30 @@ class TaskStatusTransitionService
         }
 
         return $updates;
+    }
+
+    /**
+     * งานย่อยที่ยัง "ไม่เสร็จ"
+     *
+     * เคลียร์แล้วคือสถานะ 4 เท่านั้น — พักงาน (5) รอตรวจสอบ (3) และล่าช้า (6)
+     * ยังนับว่าค้าง เพราะงานเหล่านั้นยังต้องมีคนทำต่อ
+     */
+    private function openChildCount(WorkOrder $task): int
+    {
+        // หน้า Task Workspace เรียก capabilities() ให้ทุกงานบนหน้า ถ้านับด้วยคิวรีทุกครั้ง
+        // จะเพิ่มคิวรีตามจำนวนงาน ทั้งที่ children ถูก eager-load มาแล้วตั้งแต่ controller
+        if ($task->relationLoaded('children')) {
+            return $task->children->filter(fn (WorkOrder $child) => (int) $child->job_status !== 4)->count();
+        }
+
+        return $task->children()->where('job_status', '!=', 4)->count();
+    }
+
+    private function childCount(WorkOrder $task): int
+    {
+        return $task->relationLoaded('children')
+            ? $task->children->count()
+            : $task->children()->count();
     }
 
     private function isSelfTask(WorkOrder $task, User $actor): bool

@@ -5,7 +5,7 @@
  * เส้นทางไฟล์เอง เพราะไฟล์เป็นไฟล์ส่วนตัวที่ต้องผ่าน MediaController ทุกครั้ง
  * และ path จริงใน storage ต้องไม่หลุดออกมาถึงเบราว์เซอร์
  */
-import {sendAction} from './client.js';
+import {DAILY_LOG_DIALOG_CLASS, sendAction} from './client.js';
 
 /** ไอคอนตามชนิดไฟล์ พอให้แยกออกด้วยตาโดยไม่ต้องอ่านนามสกุล */
 const iconFor = (type = '') => {
@@ -132,7 +132,9 @@ export function initAttachments({
 
         event.preventDefault();
 
+        // ไฟล์แนบถูกลบจากในกล่องเพิ่มงาน กล่องยืนยันจึงต้องอยู่เหนือกล่องนั้น
         const confirmed = await swal?.fire({
+            customClass: DAILY_LOG_DIALOG_CLASS,
             icon: 'warning',
             title: 'ลบไฟล์แนบนี้?',
             showCancelButton: true,

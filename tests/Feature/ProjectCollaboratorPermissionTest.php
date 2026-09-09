@@ -41,7 +41,9 @@ class ProjectCollaboratorPermissionTest extends TestCase
         }
 
         $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $secondTask))->assertOk();
-        $this->actingAs($collaborator)->get(route('tasks.show', $thirdTask))->assertRedirect(route('mytasks.index'));
+        // ลิงก์เปิดงานต้องพาไปเปิดงานใบนั้นจริง ไม่ใช่แค่เด้งไปหน้างานของฉันเปล่า ๆ
+        $this->actingAs($collaborator)->get(route('tasks.show', $thirdTask))
+            ->assertRedirect(route('mytasks.index', ['open_task' => $thirdTask->job_id]));
         $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $hiddenTask))->assertForbidden();
         $this->actingAs($collaborator)->get(route('tasks.show', $hiddenTask))->assertForbidden();
     }

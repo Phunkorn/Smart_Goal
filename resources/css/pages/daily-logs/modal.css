@@ -16,7 +16,24 @@
 .log-modal__close:hover { background:#f2f6fd; color:#33415c; }
 .log-modal__close:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
 
-.log-modal__form { display:flex; flex-direction:column; min-height:0; }
+/*
+ * แถบเลือกโหมด — "ทำครั้งเดียว" กับ "ทำซ้ำทุกวัน"
+ *
+ * เป็นการสลับเนื้อในของกล่องเดียวกัน ไม่ใช่การเปิดกล่องชั้นใหม่ จึงทำหน้าตาเป็น
+ * แท็บที่อ่านออกทันทีว่าเลือกอันไหนอยู่ ไม่ใช่ปุ่มลงมือที่แข่งกับปุ่มบันทึกด้านล่าง
+ */
+.log-modal__modes { display:flex; gap:6px; padding:12px 22px 0; }
+.log-modal__modes[hidden] { display:none !important; }
+.log-mode { display:inline-flex; align-items:center; gap:7px; padding:8px 15px; border:1px solid #dde5f1; border-radius:999px; background:#fff; color:#526180; font-size:.84rem; font-weight:600; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
+.log-mode:hover { border-color:#b9cbe8; }
+.log-mode:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
+.log-mode.is-active { border-color:#2563eb; background:#eff5ff; color:#1d4ed8; }
+
+.log-modal__form,
+.log-modal__routine { display:flex; flex-direction:column; min-height:0; }
+.log-modal__form[hidden],
+.log-modal__routine[hidden] { display:none !important; }
+.log-modal__routine .log-modal__body + .routine-add { min-height:0; }
 .log-modal__body { display:grid; gap:14px; overflow-y:auto; padding:18px 22px; }
 .log-modal__footer { display:flex; justify-content:flex-end; gap:9px; padding:14px 22px 18px; border-top:1px solid #eef2f8; }
 .log-modal__error { margin:0; padding:10px 13px; border:1px solid #fbd5d1; border-radius:10px; background:#fef3f2; color:#b42318; font-size:.83rem; }
@@ -59,3 +76,18 @@
 .log-attachments__picker span { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px dashed #c2d4f0; border-radius:9px; background:#fff; color:#1d4ed8; font-size:.83rem; font-weight:600; }
 .log-attachments__picker:hover span { border-color:#93b4fa; background:#f4f8ff; }
 .log-attachments__hint { margin:0; color:#8494ae; font-size:.74rem; }
+
+/* ฟอร์มงานประจำอยู่ในกล่องเดียวกับฟอร์มบันทึกงาน จึงใช้ความกว้างชุดเดียวกัน */
+.routine-add { display:flex; flex-direction:column; min-height:0; }
+
+/*
+ * กล่องยืนยันที่เปิดจากในกล่องเพิ่มงาน
+ *
+ * SweetAlert2 ต่อ .swal2-container เข้ากับ <body> และตั้ง z-index ไว้ที่ 1060
+ * ซึ่งต่ำกว่าชั้นของ modal-stack (เริ่มที่ 1200) กล่องยืนยันการลบงานประจำและ
+ * การลบไฟล์แนบจึงเคยไปโผล่ข้างหลังกล่อง จนกดอะไรไม่ได้เลย
+ *
+ * ค่า 1400 เท่ากับที่ components/task-workspace/workspace-modal.css ใช้กับโมดัล
+ * ของงานโครงการ เพื่อให้กล่องยืนยันของทั้งระบบอยู่ชั้นเดียวกัน
+ */
+.swal2-container.daily-log-dialog { z-index:1400; }

@@ -80,3 +80,176 @@
     .report-operational-top__count,
     .report-operational-top__hours { grid-column:2; }
 }
+
+/*
+ * ตารางสถานะงานประจำของวันนี้
+ *
+ * ใช้โครงตารางร่วมของหน้ารายงาน (report-department-table) แล้วเติมเฉพาะสถานะ
+ * ตรวจแล้ว/ยังไม่ตรวจ ซึ่งเป็นสิ่งเดียวที่ตารางนี้มีต่างจากตารางอื่น
+ *
+ * แถวที่ยังไม่ตรวจใช้สีแดงและมีแถบซ้าย เพราะเป็นแถวเดียวที่ต้องลงมือต่อ
+ * สีไม่ใช่สัญญาณเดียว — มีทั้งไอคอนและข้อความกำกับ สำหรับผู้ที่แยกสีได้ยาก
+ */
+/*
+ * แผงต้องมีระยะขอบของตัวเอง
+ *
+ * .report-panel กำหนดแค่กรอบกับพื้นหลัง ส่วนระยะขอบเป็นของการ์ดแต่ละชนิด
+ * (.report-dashboard-card ใส่ 17px ไว้เอง) ตารางนี้เคยไม่ใส่ หัวข้อกับตารางจึง
+ * ไปชนขอบซ้ายจนดูเหมือนข้อความล้นออกนอกแผง
+ */
+.report-checklist { padding:17px; }
+
+.report-checklist__score { display:flex; align-items:baseline; gap:6px; padding:6px 14px; border-radius:999px; background:#eef2f8; color:#475569; font-size:.8rem; font-weight:600; white-space:nowrap; }
+.report-checklist__score strong { font-size:1rem; font-weight:700; }
+.report-checklist__score.is-complete { background:#effcfa; color:#0f766e; }
+.report-checklist__score.is-pending { background:#fef3f2; color:#b42318; }
+
+.report-checklist__empty { display:flex; flex-direction:column; align-items:center; gap:9px; margin:0; padding:30px 20px; border:1px dashed #d9e2f0; border-radius:14px; color:#7c8aa3; font-size:.88rem; text-align:center; }
+.report-checklist__empty i { color:#a8b6cc; font-size:1.6rem; }
+
+/*
+ * ทุกช่องเป็นน้ำหนักปกติ
+ *
+ * ตัวหนาทั้งคอลัมน์ทำให้ตาไม่รู้ว่าควรหยุดตรงไหน ทั้งที่สิ่งที่ต้องเด่นคือสถานะ
+ * ซึ่งมีป้ายสีของตัวเองอยู่แล้ว ชื่อวันและชื่องานเป็นข้อมูลที่อ่านไล่ลงมา
+ * ไม่ใช่หัวข้อ
+ */
+.report-checklist__table tbody td { color:#33415c; font-size:.83rem; font-weight:400; }
+
+/* ตารางนี้มีคอลัมน์น้อยกว่าตารางรายคน จึงไม่ต้องกว้างถึง 620px ก่อนเริ่มเลื่อน */
+.report-checklist__table { min-width:520px; }
+
+.report-checklist__date { white-space:nowrap; }
+.report-checklist__today { display:inline-block; margin-left:5px; padding:1px 7px; border-radius:999px; background:#eef4ff; color:#3b5bab; font-size:.68rem; font-weight:600; }
+.report-checklist__task { min-width:180px; }
+.report-checklist__category { display:block; margin-top:2px; color:#8494ae; font-size:.72rem; font-weight:400; }
+.report-checklist__window { font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+.report-checklist__row--pending td:first-child { box-shadow:inset 3px 0 0 #d92d20; }
+.report-checklist__row--pending { background:#fffaf9; }
+
+.report-checklist__status { display:inline-flex; align-items:center; gap:6px; padding:4px 11px; border-radius:999px; font-size:.76rem; font-weight:600; white-space:nowrap; }
+.report-checklist__status--done { background:#effcfa; color:#0f766e; }
+.report-checklist__status--pending { background:#fef3f2; color:#b42318; }
+.report-checklist__status--running { background:#eef4ff; color:#1d4ed8; }
+.report-checklist__status--skipped { background:#f1f5f9; color:#475569; }
+.report-checklist__reason { display:block; max-width:260px; margin-top:5px; color:#64748b; font-size:.72rem; line-height:1.4; }
+
+/*
+ * ตารางการตรวจงานประจำอยู่ท้ายหน้า ต่อจากกราฟหรือตารางรายคน
+ *
+ * .report-panel ไม่มี margin ของตัวเอง (การ์ดในกริดได้ระยะจาก gap ของกริดแทน)
+ * ตารางนี้อยู่นอกกริดจึงต้องเว้นระยะด้านบนเอง ไม่งั้นไปติดกับบล็อกก่อนหน้าพอดี
+ */
+.report-checklist { margin-top:16px; }
+
+/*
+ * รายงานของพนักงานคนเดียวมีกราฟใบเดียว
+ *
+ * กริด 12 คอลัมน์ที่ออกแบบไว้ให้การ์ดสี่ใบ ทำให้กราฟใบเดียวกินแค่ 8 ใน 12 คอลัมน์
+ * แล้วเหลือช่องว่างข้าง ๆ ที่ไม่มีอะไรอยู่ ในหน้านี้จึงให้กินเต็มความกว้าง
+ */
+.report-dashboard--personal .report-dashboard-card,
+.report-dashboard--personal .report-dashboard-card--trend { grid-column:1/-1; }
+
+/*
+ * กราฟรายคนของหน้านี้กินเต็มความกว้าง
+ *
+ * หัวหน้าแผนกได้กราฟสามใบ: แนวโน้ม (8 คอลัมน์) + หมวดงาน (4) เต็มแถวแรกพอดี
+ * เหลือกราฟรายคนอยู่แถวสองเพียงใบเดียวที่กว้าง 3 ใน 12 คอลัมน์ ที่เหลืออีก 9 คอลัมน์
+ * จึงเป็นพื้นที่ว่างเปล่ากลางหน้า และแท่งของแต่ละคนก็สั้นจนอ่านไม่ออก
+ * ค่า span 3 นั้นมาจากรายงานองค์กรที่มีการ์ดสี่ใบต่อแถว ซึ่งไม่ใช่ผังของหน้านี้
+ */
+.report-operational .report-dashboard-card--priority { grid-column:1/-1; --report-chart-height:280px; }
+
+/*
+ * สรุปงานประจำ
+ *
+ * เป็น .report-panel ที่อยู่นอกกริด จึงไม่ได้ทั้ง gap และ padding ของการ์ดในกริด
+ * ต้องประกาศระยะขอบในและระยะห่างจากบล็อกข้างเคียงเอง ด้วยค่าชุดเดียวกับการ์ดอื่นทั้งหน้า
+ * (padding 17px, ระยะห่าง 16px) ไม่งั้นมันจะไปติดกับแถบ KPI ด้านบนและกราฟด้านล่างพอดี
+ *
+ * แต่ละใบเป็นลิงก์ที่กรองตารางด้านล่าง ไม่ใช่การ์ดอ่านอย่างเดียว จึงต้องมีสถานะ hover
+ * และสถานะ "กำลังถูกเลือก" ให้ชัด ผู้ใช้จะได้รู้ว่าตัวเลขที่เห็นอยู่มาจากมุมมองไหน
+ */
+.report-routine { margin-bottom:16px; padding:17px; }
+
+.report-routine__rates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    color: #64748b;
+    font-size: .8rem;
+}
+
+.report-routine__rate b {
+    color: #1f2937;
+    font-size: 1.05rem;
+}
+
+.report-routine__tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.report-routine__tile {
+    display: grid;
+    gap: 3px;
+    padding: 14px 16px;
+    border: 1px solid #e3e9f1;
+    border-radius: 12px;
+    background: #fff;
+    color: #475569;
+    text-decoration: none;
+    transition: border-color .12s ease, background .12s ease, transform .12s ease;
+}
+
+.report-routine__tile:hover {
+    border-color: #b8cef0;
+    background: #f7faff;
+    transform: translateY(-1px);
+}
+
+.report-routine__tile.is-active {
+    border-color: #2563eb;
+    background: #eff6ff;
+    box-shadow: 0 0 0 1px #2563eb inset;
+}
+
+.report-routine__tile i {
+    font-size: 1rem;
+}
+
+.report-routine__tile strong {
+    color: #0f172a;
+    font-size: 1.6rem;
+    font-weight: 750;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+}
+
+.report-routine__tile span {
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: var(--thai-line-height);
+}
+
+.report-routine__tile--success i { color: #07845f; }
+.report-routine__tile--warning i { color: #b45309; }
+.report-routine__tile--danger i { color: #dc2626; }
+.report-routine__tile--muted i { color: #94a3b8; }
+.report-routine__tile--neutral i { color: #2563eb; }
+
+.report-routine__empty {
+    margin: 12px 0 0;
+    color: #8290a4;
+    font-size: .82rem;
+}
+
+@media (max-width: 640px) {
+    .report-routine__tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

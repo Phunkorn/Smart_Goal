@@ -23,7 +23,15 @@
 .daily-log__date-step:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
 .daily-log__date-step--disabled { color:#c6cede; cursor:not-allowed; }
 .daily-log__date-step--disabled:hover { background:transparent; color:#c6cede; }
-.daily-log__date-label { display:flex; align-items:center; gap:8px; padding:0 10px; color:#1e293b; font-size:.9rem; font-weight:650; white-space:nowrap; }
+.daily-log__date-label { display:flex; align-items:center; gap:8px; padding:0 10px; color:#1e293b; font-size:.9rem; font-weight:650; white-space:nowrap; cursor:pointer; }
+.daily-log__date-icon { color:#8494ae; font-size:.85rem; }
+
+/* ปฏิทินเลือกวัน — ช่องวันที่จริงวางทับป้ายไว้แบบโปร่งใส เพื่อให้ยังอ่านวันที่
+   แบบไทย (พ.ศ.) ได้ แต่กดแล้วเปิดปฏิทินของเบราว์เซอร์ */
+.daily-log__date-picker { position:relative; display:inline-flex; align-items:center; border-radius:9px; }
+.daily-log__date-picker:hover { background:#eef3fb; }
+.daily-log__date-picker:focus-within { outline:2px solid #2563eb; outline-offset:1px; }
+.daily-log__date-input { position:absolute; inset:0; width:100%; height:100%; padding:0; border:0; opacity:0; background:transparent; cursor:pointer; }
 .daily-log__today-chip { padding:2px 8px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:.7rem; font-weight:700; }
 
 /* แถบแจ้งว่ากำลังดูของคนอื่น — ต้องเห็นชัดว่าทำไมปุ่มแก้ไขหายไป */

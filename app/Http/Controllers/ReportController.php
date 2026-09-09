@@ -21,15 +21,25 @@ class ReportController extends Controller
 {
     public function __construct(private readonly PersonalReportService $personalReports) {}
 
+    /**
+     * หน้าเลือกประเภทรายงาน
+     *
+     * เดิมเป็นหน้าของ admin / หัวหน้าแผนก / viewer เท่านั้น พนักงานทั่วไปถูกส่งตรง
+     * ไปรายงานของตัวเองโดยไม่มีทางเลือก ตอนนี้พนักงานก็เข้าหน้านี้ได้ แต่เห็นเพียง
+     * สองการ์ดที่ตัวเองมีสิทธิ์จริง (รายงานตัวเอง และรายงานปฏิบัติงานของตัวเอง)
+     *
+     * รายการการ์ดถูกประกอบที่ฝั่งเซิร์ฟเวอร์ที่เดียว ไม่ใช่ให้ Blade เดาจาก role
+     * เพราะ "ใครเห็นการ์ดไหน" เป็นเรื่องสิทธิ์ ไม่ใช่เรื่องการแสดงผล
+     */
     public function index(Request $request)
     {
-        $this->authorizeAdminReports();
+        $this->authorizeAnyReports();
 
-        if ($request->query()) {
+        if ($request->query() && $this->canSeeOrganizationReports()) {
             return redirect()->route('reports.organization', $request->query());
         }
 
-        return view('reports.index');
+        return view('reports.index', ['cards' => $this->landingCards()]);
     }
 
     public function organization(Request $request, AdminReportService $reports)
@@ -50,7 +60,7 @@ class ReportController extends Controller
     }
 
     /**
-     * รายงานภาระงานปฏิบัติการ — งานประจำ งานแทรก และงานนอกสถานที่
+     * รายงานภาระงานปฏิบัติการ — งานประจำและงานนอกสถานที่
      *
      * ใช้ตัวตรวจสิทธิ์ของตัวเอง ไม่ใช่ authorizeAdminReports() เพราะรายงานนี้
      * เป็นข้อมูลรายบุคคลที่ละเอียดกว่าภาพรวมองค์กร viewer จึงต้องไม่เห็น
@@ -59,7 +69,11 @@ class ReportController extends Controller
     {
         $this->authorizeOperationalReports();
 
-        return view('reports.operational', $reports->build($request, $this->forcedDepartmentId()));
+        return view('reports.operational', $reports->build(
+            $request,
+            $this->forcedDepartmentId(),
+            $this->forcedOwnerId()
+        ));
     }
 
     public function exportOperationalCsv(
@@ -69,7 +83,7 @@ class ReportController extends Controller
         $this->authorizeOperationalReports();
 
         return $this->downloadWorkLogsCsv(
-            $reports->exportRows($request, $this->forcedDepartmentId()),
+            $reports->exportRows($request, $this->forcedDepartmentId(), $this->forcedOwnerId()),
             'smart-goals-operational-'.now()->format('Ymd-His').'.csv',
         );
     }
@@ -78,11 +92,16 @@ class ReportController extends Controller
     {
         $this->authorizeAdminReports();
 
+        $viewer = Auth::user();
+        $isDepartmentHead = (bool) $viewer?->isDepartmentHead();
+        $excludedEmployeeId = $isDepartmentHead ? (int) $viewer->id : null;
+
         $departments = Department::query()
             ->when($this->forcedDepartmentId(), fn ($query, int $id) => $query->whereKey($id))
             ->withCount(['users as active_users_count' => fn ($query) => $query
                 ->where('role', 'user')
-                ->where('is_active', true)])
+                ->where('is_active', true)
+                ->when($excludedEmployeeId, fn ($users, int $id) => $users->whereKeyNot($id))])
             ->orderBy('department_name')
             ->get();
         $departmentId = $this->forcedDepartmentId() ?: $request->integer('department');
@@ -93,6 +112,7 @@ class ReportController extends Controller
             ->with('department:id,department_name')
             ->where('role', 'user')
             ->where('is_active', true)
+            ->when($excludedEmployeeId, fn ($query, int $id) => $query->whereKeyNot($id))
             ->when($departmentId, fn ($query, int $id) => $query->where('department_id', $id))
             ->when($search !== '', fn ($query) => $query->where('name', 'like', '%'.$search.'%'))
             ->orderBy('name')
@@ -103,6 +123,7 @@ class ReportController extends Controller
             'departmentId',
             'search',
             'employees',
+            'isDepartmentHead',
         ));
     }
 
@@ -128,6 +149,10 @@ class ReportController extends Controller
     ) {
         $this->authorizeAdminReports();
         $this->ensureReportableEmployee($user);
+
+        if (Auth::user()?->isDepartmentHead() && Auth::id() === $user->id) {
+            return redirect()->route('reports.my', $request->query());
+        }
 
         $data = $reports->build($user, $request);
 
@@ -237,8 +262,99 @@ class ReportController extends Controller
 
     private function authorizeAdminReports(): void
     {
+        abort_unless($this->canSeeOrganizationReports(), 403);
+    }
+
+    /**
+     * เข้าหน้าเลือกรายงานได้หรือไม่ — ทุกคนที่มีรายงานอย่างน้อยหนึ่งชนิด
+     */
+    private function authorizeAnyReports(): void
+    {
+        abort_unless(
+            $this->canSeeOrganizationReports() || $this->landingCards() !== [],
+            403
+        );
+    }
+
+    /**
+     * รายงานระดับองค์กรและรายบุคคลของคนอื่น — admin, หัวหน้าแผนก และ viewer
+     */
+    private function canSeeOrganizationReports(): bool
+    {
         $user = Auth::user();
-        abort_unless(in_array($user?->role, ['admin', 'viewer'], true) || $user?->isDepartmentHead(), 403);
+
+        return in_array($user?->role, ['admin', 'viewer'], true) || (bool) $user?->isDepartmentHead();
+    }
+
+    /**
+     * การ์ดที่ผู้ใช้คนนี้เปิดได้จริงบนหน้าเลือกรายงาน
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function landingCards(): array
+    {
+        $user = Auth::user();
+        $cards = [];
+
+        if ($this->canSeeOrganizationReports()) {
+            $cards[] = [
+                'tone' => 'organization',
+                'icon' => 'bi-bar-chart-line',
+                'title' => 'ดูภาพรวมองค์กร',
+                'description' => 'ติดตามแนวโน้มและภาพรวมการทำงานของทุกแผนกในช่วงเวลาที่เลือก',
+                'features' => ['แนวโน้มงานและสถิติองค์กร', 'ประสิทธิภาพแต่ละแผนก', 'สถานะและความสำคัญของงาน', 'งานที่ต้องติดตาม'],
+                'cta' => 'เข้าสู่รายงานภาพรวมองค์กร',
+                'route' => route('reports.organization'),
+            ];
+
+            $cards[] = [
+                'tone' => 'employee',
+                'icon' => 'bi-person-lines-fill',
+                'title' => 'ดูรายงานรายบุคคล',
+                'description' => 'เลือกพนักงานเพื่อดูผลงานจากงานที่รับผิดชอบจริงและตรวจสอบรายละเอียดได้',
+                'features' => ['สถิติการทำงานของพนักงาน', 'อัตราส่งงานตรงเวลา', 'งานที่รับผิดชอบ', 'รายละเอียดงานสำหรับตรวจสอบ'],
+                'cta' => 'เลือกพนักงานเพื่อดูรายงาน',
+                'route' => route('reports.employees.index'),
+            ];
+        }
+
+        // รายงานของตัวเอง — สำหรับพนักงานทั่วไป
+        //
+        // หัวหน้าแผนกไม่ได้การ์ดใบนี้โดยตั้งใจ หน้าเลือกของหัวหน้ามีรายงานรายบุคคล
+        // อยู่แล้วซึ่งครอบคลุมตัวเองด้วย การเพิ่มอีกใบจะทำให้มีสองทางไปหาข้อมูล
+        // ชุดเดียวกัน ซึ่งเป็นอาการเดียวกับที่ทำให้หน้านี้อ่านยากมาตั้งแต่แรก
+        if ($user?->role === 'user' && ! $user->isDepartmentHead()) {
+            $cards[] = [
+                'tone' => 'employee',
+                'icon' => 'bi-person-badge',
+                'title' => 'รายงานตัวเอง',
+                'description' => 'ผลงานจากงานโครงการที่คุณรับผิดชอบ ทั้งงานที่ปิดแล้วและที่ยังค้างอยู่',
+                'features' => ['สถิติงานของคุณเอง', 'อัตราส่งงานตรงเวลา', 'งานที่ยังค้าง', 'ดาวน์โหลดเป็นไฟล์ CSV'],
+                'cta' => 'เข้าสู่รายงานตัวเอง',
+                'route' => route('reports.my'),
+            ];
+        }
+
+        // รายงานปฏิบัติงาน — พนักงานเห็นของตัวเอง หัวหน้าเห็นทั้งแผนก admin เห็นทุกแผนก
+        if ($user !== null && Gate::forUser($user)->allows('viewReport', WorkLog::class)) {
+            $isOwnScope = $user->role === 'user' && ! $user->isDepartmentHead();
+
+            $cards[] = [
+                'tone' => 'operational',
+                'icon' => 'bi-journal-check',
+                'title' => 'รายงานปฏิบัติงาน',
+                'description' => $isOwnScope
+                    ? 'งานประจำที่ต้องเข้าไปตรวจในแต่ละวัน พร้อมสถานะว่าวันนี้ตรวจไปแล้วหรือยัง'
+                    : 'สถานะการตรวจงานประจำของวันนี้ และชั่วโมงงานที่ไม่ปรากฏบนบอร์ดโปรเจกต์',
+                'features' => $isOwnScope
+                    ? ['ตารางงานประจำของวันนี้', 'ตรวจแล้ว / ยังไม่ตรวจ', 'ชั่วโมงงานของคุณเอง', 'ดาวน์โหลดเป็นไฟล์ CSV']
+                    : ['ตารางงานประจำของวันนี้ทั้งทีม', 'ตรวจแล้ว / ยังไม่ตรวจ', 'ชั่วโมงงานรายคน', 'เวลาที่ไม่ได้ลงโปรเจกต์'],
+                'cta' => 'เข้าสู่รายงานปฏิบัติงาน',
+                'route' => route('reports.operational'),
+            ];
+        }
+
+        return $cards;
     }
 
     /**
@@ -306,5 +422,24 @@ class ReportController extends Controller
         $user = Auth::user();
 
         return $user?->isDepartmentHead() ? (int) $user->department_id : null;
+    }
+
+    /**
+     * บังคับให้พนักงานทั่วไปเห็นเฉพาะบันทึกของตัวเองในรายงานปฏิบัติงาน
+     *
+     * คืน null สำหรับ admin และหัวหน้าแผนก ซึ่งมีขอบเขตกว้างกว่าอยู่แล้ว
+     * (หัวหน้าถูกจำกัดด้วย forcedDepartmentId() แทน)
+     *
+     * ค่านี้ไม่ได้มาจาก request จึงเปลี่ยนไปดูของคนอื่นด้วยการแก้ URL ไม่ได้
+     */
+    private function forcedOwnerId(): ?int
+    {
+        $user = Auth::user();
+
+        if ($user === null || $user->role !== 'user' || $user->isDepartmentHead()) {
+            return null;
+        }
+
+        return (int) $user->id;
     }
 }

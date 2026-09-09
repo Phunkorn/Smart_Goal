@@ -111,6 +111,11 @@
                 </button>
             </div>
         </section>
+
+        {{-- viewer เป็นสิทธิ์อ่านอย่างเดียวและไม่เคยเป็นผู้รับการแจ้งเตือน จึงไม่มีอะไรให้ตั้งค่า --}}
+        @if($user->role !== 'viewer')
+            @include('settings.components.telegram-card')
+        @endif
     </div>
 
     @include('settings.components.password-modal')

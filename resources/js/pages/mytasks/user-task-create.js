@@ -2,6 +2,112 @@ const modal = document.querySelector('[data-user-task-create-modal]');
 const form = modal?.querySelector('[data-user-task-create-form]');
 
 if (modal && form) {
+    const customSelects = [];
+
+    const closeSelects = (except = null) => {
+        customSelects.forEach(({root, button, menu}) => {
+            if (root === except) return;
+            root.classList.remove('is-open');
+            button.setAttribute('aria-expanded', 'false');
+            menu.hidden = true;
+        });
+    };
+
+    const enhanceSelect = (select, index) => {
+        const root = document.createElement('div');
+        root.className = 'user-task-create__select';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'user-task-create__select-trigger';
+        button.setAttribute('aria-haspopup', 'listbox');
+        button.setAttribute('aria-expanded', 'false');
+        button.innerHTML = '<span></span><i class="bi bi-chevron-down" aria-hidden="true"></i>';
+
+        const menu = document.createElement('div');
+        menu.className = 'user-task-create__select-menu';
+        menu.id = `userTaskCreateSelect${index}`;
+        menu.setAttribute('role', 'listbox');
+        menu.hidden = true;
+        button.setAttribute('aria-controls', menu.id);
+
+        const options = [...select.options].map((option) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'user-task-create__select-option';
+            item.dataset.value = option.value;
+            item.setAttribute('role', 'option');
+            item.innerHTML = '<i class="bi bi-check-lg" aria-hidden="true"></i><span></span>';
+            item.querySelector('span').textContent = option.textContent.trim();
+            menu.append(item);
+            return item;
+        });
+
+        const sync = () => {
+            const selected = select.selectedOptions[0] || select.options[0];
+            button.querySelector('span').textContent = selected?.textContent.trim() || 'เลือก';
+            options.forEach((item) => {
+                const active = item.dataset.value === select.value;
+                item.classList.toggle('is-selected', active);
+                item.setAttribute('aria-selected', String(active));
+            });
+        };
+
+        const open = () => {
+            const willOpen = menu.hidden;
+            closeSelects(willOpen ? root : null);
+            root.classList.toggle('is-open', willOpen);
+            button.setAttribute('aria-expanded', String(willOpen));
+            menu.hidden = !willOpen;
+            if (willOpen) options.find((item) => item.classList.contains('is-selected'))?.focus();
+        };
+
+        button.addEventListener('click', open);
+        button.addEventListener('keydown', (event) => {
+            if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+            event.preventDefault();
+            open();
+        });
+        menu.addEventListener('click', (event) => {
+            const item = event.target.closest('[data-value]');
+            if (!item) return;
+            select.value = item.dataset.value;
+            select.dispatchEvent(new Event('change', {bubbles: true}));
+            sync();
+            closeSelects();
+            button.focus();
+        });
+        menu.addEventListener('keydown', (event) => {
+            const current = event.target.closest('[data-value]');
+            if (!current) return;
+            const currentIndex = options.indexOf(current);
+            const targetIndex = event.key === 'ArrowDown'
+                ? Math.min(options.length - 1, currentIndex + 1)
+                : event.key === 'ArrowUp'
+                    ? Math.max(0, currentIndex - 1)
+                    : event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : null;
+            if (targetIndex !== null) {
+                event.preventDefault();
+                options[targetIndex]?.focus();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                closeSelects();
+                button.focus();
+            }
+        });
+
+        select.classList.add('user-task-create__native-select');
+        select.tabIndex = -1;
+        select.setAttribute('aria-hidden', 'true');
+        select.after(root);
+        root.append(button, menu);
+        customSelects.push({root, button, menu});
+        select.addEventListener('change', sync);
+        sync();
+    };
+
+    form.querySelectorAll('select').forEach(enhanceSelect);
+
     const project = form.querySelector('[data-user-task-project]');
     const newProject = form.querySelector('[data-user-task-new-project]');
     const projectName = form.elements.project_name;
@@ -11,6 +117,16 @@ if (modal && form) {
     const details = form.querySelector('[data-user-task-details]');
     const detailsList = form.querySelector('[data-user-task-details-list]');
     const detailTemplate = form.querySelector('[data-user-task-detail-template]');
+    const startDate = form.querySelector('[data-user-task-start]');
+    const dueDate = form.querySelector('[data-user-task-due]');
+
+    const syncDateRange = () => {
+        if (!startDate || !dueDate) return;
+        dueDate.min = startDate.value;
+        if (startDate.value && dueDate.value && dueDate.value < startDate.value) {
+            dueDate.value = startDate.value;
+        }
+    };
 
     const syncProjectMode = () => {
         const createsProject = !project.value;
@@ -18,6 +134,7 @@ if (modal && form) {
         projectName.required = createsProject;
     };
     const close = () => {
+        closeSelects();
         modal.hidden = true;
         errorBox.hidden = true;
     };
@@ -39,10 +156,15 @@ if (modal && form) {
     modal.addEventListener('click', (event) => {
         if (event.target === modal) close();
     });
+    document.addEventListener('pointerdown', (event) => {
+        if (!event.target.closest('.user-task-create__select')) closeSelects();
+    });
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && !modal.hidden) close();
     });
     project.addEventListener('change', syncProjectMode);
+    startDate?.addEventListener('change', syncDateRange);
+    dueDate?.addEventListener('change', syncDateRange);
     details?.addEventListener('click', (event) => {
         const add = event.target.closest('[data-add-user-task-detail]');
         if (add && detailTemplate && detailsList) {
@@ -96,4 +218,5 @@ if (modal && form) {
     });
 
     syncProjectMode();
+    syncDateRange();
 }

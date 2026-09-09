@@ -5,6 +5,18 @@
  * คือ {ok, message, ...payload} จึงรวมการอ่านผลลัพธ์ไว้ที่นี่ที่เดียว
  * แทนที่จะให้แต่ละโมดูลตีความ response เอง
  */
+/*
+ * คลาสของกล่องยืนยันที่เปิดจากในกล่องเพิ่มงาน
+ *
+ * SweetAlert2 ต่อ .swal2-container เข้ากับ <body> และตั้ง z-index ไว้ที่ 1060
+ * ซึ่งต่ำกว่าชั้นของ modal-stack (เริ่มที่ 1200) กล่องยืนยันที่เปิดจากในกล่อง
+ * จึงไปโผล่ "ข้างหลัง" กล่อง แล้วผู้ใช้กดอะไรไม่ได้เลย — อาการเดียวกับที่
+ * components/task-workspace/workspace-modal.css แก้ไว้แล้วสำหรับโมดัลของงานโครงการ
+ *
+ * ต้องส่งคลาสนี้ทุกครั้งที่เรียก Swal จากในกล่อง ไม่งั้นอาการจะกลับมา
+ */
+export const DAILY_LOG_DIALOG_CLASS = {container: 'daily-log-dialog'};
+
 const csrfToken = (doc) => doc.querySelector('meta[name="csrf-token"]')?.content || '';
 
 /**
