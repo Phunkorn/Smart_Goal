@@ -94,12 +94,34 @@
 .personal-report__attention .personal-report__section-head p { font-size: .75rem; line-height: 1.45; }
 .personal-report__attention .personal-report__section-head > span { padding: 3px 8px; font-size: .7rem; font-weight: 600; }
 .personal-report__table-wrap { width: 100%; min-width: 0; overflow: visible; }
-.personal-report__table { --bs-table-border-color: var(--report-line); width: 100%; table-layout: fixed; font-size: .78rem; line-height: 1.35; }
-.personal-report__table th:nth-child(1) { width: 34%; }
-.personal-report__table th:nth-child(2) { width: 14%; }
-.personal-report__table th:nth-child(3) { width: 17%; }
-.personal-report__table th:nth-child(4) { width: 20%; }
-.personal-report__table th:nth-child(5) { width: 15%; }
+/*
+ * hover ของ Bootstrap เป็นสีเทาทึบที่ตัดกับพื้นขาวแรงเกินไปจนอ่านข้อความยากขึ้น
+ * เปลี่ยนเป็นโทนฟ้าจาง ๆ ชุดเดียวกับสีหลักของระบบ ให้รู้ว่าชี้อยู่แถวไหนโดยไม่รบกวนการอ่าน
+ */
+.personal-report__table { --bs-table-border-color: var(--report-line); --bs-table-hover-bg: var(--accent-dim); --bs-table-hover-color: var(--text); width: 100%; table-layout: fixed; font-size: .78rem; line-height: 1.35; }
+.personal-report__table tbody tr { transition: background-color .12s ease; }
+/*
+ * สองตารางนี้ใช้คลาสฐานร่วมกันแต่คอลัมน์ท้ายต่างกัน จึงต้องกำหนดความกว้างแยกกัน
+ * มิฉะนั้น nth-child ของตารางหนึ่งจะไปบีบคอลัมน์คนละความหมายของอีกตาราง
+ */
+.personal-report__table th:nth-child(1) { width: 48px; }
+.personal-report__table--contributions th:nth-child(2) { width: 15%; }
+.personal-report__table--contributions th:nth-child(3) { width: 19%; }
+.personal-report__table--contributions th:nth-child(4) { width: 18%; }
+.personal-report__table--contributions th:nth-child(5) { width: 12%; }
+.personal-report__table--contributions th:nth-child(6) { width: 14%; }
+.personal-report__table--contributions th:nth-child(7) { width: 11%; }
+.personal-report__table--contributions th:nth-child(8) { width: 11%; }
+.personal-report__table--attention th:nth-child(2) { width: 15%; }
+.personal-report__table--attention th:nth-child(3) { width: 20%; }
+.personal-report__table--attention th:nth-child(4) { width: 17%; }
+.personal-report__table--attention th:nth-child(5) { width: 11%; }
+.personal-report__table--attention th:nth-child(6) { width: 12%; }
+.personal-report__table--attention th:nth-child(7) { width: 13%; }
+.personal-report__table--attention th:nth-child(8) { width: 12%; }
+.personal-report__project { color: var(--report-muted); font-size: .76rem; overflow-wrap: anywhere; }
+.personal-report__index-col { text-align: center; }
+.personal-report__index { color: var(--report-muted); font-variant-numeric: tabular-nums; text-align: center; }
 .personal-report__table > :not(caption) > * > * { padding: 9px 12px; }
 .personal-report__table thead th { background: var(--surface-2); color: var(--report-muted); font-size: .72rem; font-weight: 650; white-space: nowrap; }
 .personal-report__table tbody th { min-width: 220px; font-weight: 400; overflow-wrap: anywhere; }
@@ -118,6 +140,20 @@
 .personal-report .report-table-pager button:disabled { opacity: .45; cursor: not-allowed; }
 .personal-report .report-table-pager button:focus-visible { outline: 3px solid var(--accent-dim); outline-offset: 2px; }
 .personal-report .report-table-pager > span { color: var(--report-muted); font-size: .74rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+/*
+ * แถบตัวกรอง — ใช้ <select> ของเบราว์เซอร์ ไม่ใช่ dropdown ที่วาดเองแล้วสไลด์
+ * จัดเป็นกริดที่ยุบเป็นคอลัมน์เดียวบนจอแคบ แทนการบีบให้อยู่แถวเดียวจนกดยาก
+ */
+.personal-report__filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; padding: 16px; border: 1px solid var(--report-line); border-radius: var(--radius-md, 14px); background: var(--report-card); }
+.personal-report__filter { display: grid; gap: 5px; min-width: 0; }
+.personal-report__filter label { color: var(--report-muted); font-size: .72rem; font-weight: 650; }
+.personal-report__filter select,
+.personal-report__filter input { width: 100%; min-height: 38px; padding: 0 10px; border: 1px solid var(--report-line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-size: .8rem; }
+.personal-report__filter select:focus-visible,
+.personal-report__filter input:focus-visible { outline: 3px solid var(--accent-dim); outline-offset: 1px; border-color: var(--accent); }
+.personal-report__filter-actions { display: flex; gap: 8px; align-items: end; }
+.personal-report__filter-actions .personal-report__button { min-height: 38px; }
+
 .personal-report__legend, .personal-report__chart-summary { list-style: none; padding: 0; margin: 0; }
 .personal-report__legend { display: grid; gap: 11px; }
 .personal-report__legend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 9px; align-items: center; font-size: .78rem; }

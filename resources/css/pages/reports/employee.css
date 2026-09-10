@@ -45,10 +45,28 @@
 .employee-report__attention-item em { padding:4px 8px; border-radius:999px; background:#fff0f0; color:#d73b3b; font-size:.66rem; font-style:normal; font-weight:750; white-space:nowrap; }
 .employee-report__tasks { margin-top:16px; padding:17px; }
 .employee-report__table-wrap { width:100%; overflow-x:auto; }
-.employee-report__tasks table { width:100%; min-width:960px; border-collapse:collapse; }
+
+/*
+ * hover ของตารางฝั่งหัวหน้าใช้โทนเดียวกับตารางรายงานของฉัน
+ * สีเทาทึบเดิมตัดกับพื้นขาวแรงเกินไปจนอ่านชื่อคนในแถวยากขึ้น
+ */
+.employee-report__tasks tbody tr { transition:background-color .12s ease; }
+.employee-report__tasks tbody tr:hover { background:#eef3fe; }
+
+/* แถบเปลี่ยนหน้าใช้โครงเดียวกับหน้ารายงานของฉัน ปุ่มถูก render จาก Blade ชุดเดียวกัน */
+.employee-report .report-table-pager { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:11px; padding-top:11px; border-top:1px solid #e4eaf3; }
+.employee-report .report-table-pager[hidden] { display:none; }
+.employee-report .report-table-pager button { display:inline-flex; min-height:36px; align-items:center; justify-content:center; gap:5px; padding:0 10px; border:1px solid #e4eaf3; border-radius:9px; background:#fff; color:#0f172a; font-size:.74rem; font-weight:600; cursor:pointer; }
+.employee-report .report-table-pager button:hover:not(:disabled) { border-color:#1e4fd6; color:#1e4fd6; }
+.employee-report .report-table-pager button:disabled { opacity:.45; cursor:not-allowed; }
+.employee-report .report-table-pager button:focus-visible { outline:3px solid #e7edfc; outline-offset:2px; }
+.employee-report .report-table-pager > span { color:#64748b; font-size:.74rem; font-weight:600; font-variant-numeric:tabular-nums; }
+.employee-report__tasks table { width:100%; min-width:1180px; border-collapse:collapse; }
+.employee-report__project { color:#77849a; font-size:.74rem; overflow-wrap:anywhere; }
 .employee-report__tasks th,.employee-report__tasks td { padding:11px 9px; border-top:1px solid #edf1f5; color:#536078; font-size:.76rem; text-align:left; vertical-align:middle; }
 .employee-report__tasks thead th { border-top:0; color:#77849a; font-size:.7rem; font-weight:750; white-space:nowrap; }
 .employee-report__tasks tbody th { max-width:240px; }
+.employee-report__index-col,.employee-report__index { width:52px; color:#8290a3; font-variant-numeric:tabular-nums; text-align:center; }
 .employee-report__tasks tbody th a { display:block; overflow:hidden; color:#263650; font-weight:750; text-decoration:none; text-overflow:ellipsis; white-space:nowrap; }
 .employee-report__tasks tbody th a:hover { color:#1769e8; }
 
@@ -140,9 +158,4 @@
     .employee-operational__cta { width:100%; justify-content:center; }
 }
 
-/*
- * โทน teal ของประเภทงาน "งานนอกสถานที่" ยังไม่มีใน shared.css เพราะรายงาน
- * โครงการไม่ได้ใช้ เพิ่มไว้ที่นี่เพื่อให้ป้ายในตารางไม่ตกไปเป็นสีเทาจนแยกไม่ออก
- */
-.report-tone-teal { --report-tone:#0f766e; }
-.report-tone-cyan { --report-tone:#0e7490; }
+/* โทน teal และ cyan ย้ายไป shared.css แล้ว เพราะหน้ารายงานของฉันใช้ป้ายบทบาทชุดเดียวกัน */

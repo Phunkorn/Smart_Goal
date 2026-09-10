@@ -19,7 +19,7 @@
             <div><span class="employee-report__eyebrow">Individual report</span><h1 id="employee-report-title">{{ $employee->name }}</h1><p><i class="bi bi-building" aria-hidden="true"></i>{{ $employee->department?->department_name ?? 'ไม่ระบุแผนก' }}</p></div>
         </div>
         <div class="employee-report__actions">
-            <form method="GET" action="{{ route('reports.employee', $employee) }}" class="employee-report__period">
+            <form method="GET" action="{{ route('reports.employee', $employee) }}" class="employee-report__period" data-sg-select>
                 <label for="employeeReportPeriod">ช่วงเวลา</label><select id="employeeReportPeriod" name="period" data-report-period>@foreach($filterOptions['periods'] as $value => $label)<option value="{{ $value }}" @selected($filters['period'] === $value)>{{ $label }}</option>@endforeach</select>
                 <div data-report-custom-dates @if($filters['period'] !== 'custom') hidden @endif><input type="date" name="start_date" value="{{ $filters['start_date'] }}" aria-label="ตั้งแต่วันที่"><input type="date" name="end_date" value="{{ $filters['end_date'] }}" aria-label="ถึงวันที่"></div>
                 <button class="btn btn-primary" type="submit">แสดงผล</button>
@@ -35,7 +35,8 @@
 
     @php
         $kpiCards = [
-            ['label' => 'งานทั้งหมด', 'value' => number_format($totalJobs), 'note' => 'ในช่วงที่เลือก', 'icon' => 'bi-collection'],
+            ['label' => 'งานที่รับผิดชอบ', 'value' => number_format($ownedJobs), 'note' => 'เป็นผู้รับผิดชอบหลักในช่วงที่เลือก', 'icon' => 'bi-person-check'],
+            ['label' => 'งานที่ไปร่วม', 'value' => number_format($joinedJobs), 'note' => $joinedJobs > 0 ? 'ร่วมงานของทีมอื่นหรือเป็นหัวหน้า/ผู้สร้างงาน' : 'ยังไม่มีงานที่ไปร่วมในช่วงนี้', 'icon' => 'bi-people'],
             ['label' => 'ปิดงานได้', 'value' => number_format($completedJobs), 'note' => 'เสร็จจริงในช่วงนี้', 'icon' => 'bi-check2-circle', 'tone' => 'good', 'alert' => $completedJobs > 0],
             ['label' => 'ส่งตรงเวลา', 'value' => $onTimeRate, 'unit' => '%', 'note' => $onTimeEligible > 0 ? 'จาก '.number_format($onTimeEligible).' งานที่มีกำหนดส่ง' : 'ยังไม่มีงานที่มีกำหนดส่ง', 'icon' => 'bi-stopwatch'],
             ['label' => 'ล่าช้า', 'value' => number_format($overdueJobs), 'note' => $overdueJobs > 0 ? 'เลยกำหนดส่งแล้ว' : 'ไม่มีงานเลยกำหนด', 'icon' => 'bi-exclamation-triangle', 'tone' => 'danger', 'alert' => $overdueJobs > 0],
@@ -85,13 +86,20 @@
     </section>
 
     <section class="employee-report__panel employee-report__tasks" aria-labelledby="employee-task-table-title">
-        <div class="employee-report__panel-head"><div><h2 id="employee-task-table-title">รายละเอียดงาน</h2><p>ตรวจสอบที่มาของตัวเลขในรายงาน</p></div><span>{{ $taskRows->count() }} งาน</span></div>
-        <div class="employee-report__table-wrap"><table><thead><tr><th>ชื่องาน</th><th>โปรเจกต์</th><th>สถานะ</th><th>ความสำคัญ</th><th>เริ่ม</th><th>กำหนดส่ง</th><th>เสร็จ</th></tr></thead><tbody>@forelse($taskRows as $job)<tr><th><a href="{{ $job['url'] }}">{{ $job['topic'] }}</a></th><td>{{ $job['project'] }}</td><td><span class="report-tag report-tone-{{ $job['status']['tone'] }}">{{ $job['status']['label'] }}</span></td><td><span class="report-tag report-tone-{{ $job['priority']['tone'] }}">{{ $job['priority']['label'] }}</span></td><td>{{ $job['start_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td><td>{{ $job['due_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td><td>{{ $job['completed_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td></tr>@empty<tr><td colspan="7"><div class="report-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>ยังไม่มีข้อมูลในช่วงเวลานี้</strong></div></td></tr>@endforelse</tbody></table></div>
+        <div class="employee-report__panel-head"><div><h2 id="employee-task-table-title">รายละเอียดงาน</h2><p>ตรวจสอบที่มาของตัวเลขในรายงาน คอลัมน์เจ้าของงานและผู้ร่วมงานบอกว่าใครทำงานใบนั้น</p></div><span>{{ $taskRows->count() }} งาน</span></div>
+        <div class="employee-report__table-wrap"><table data-employee-task-table data-page-size="10"><thead><tr><th class="employee-report__index-col">ลำดับ</th><th>หัวข้อโปรเจกต์</th><th>ชื่องาน</th><th>งานย่อย</th><th>เจ้าของงาน</th><th>ผู้ร่วมงาน</th><th>สถานะ</th><th>ความสำคัญ</th><th>เริ่ม</th><th>กำหนดส่ง</th><th>เสร็จ</th></tr></thead><tbody>@forelse($taskRows as $job)<tr data-employee-task-row><td class="employee-report__index">{{ $loop->iteration }}</td><td class="employee-report__project">{{ $job['project'] }}</td><th><a href="{{ $job['url'] }}">{{ $job['topic'] }}</a></th><td class="report-subtask-cell">@include('reports.components.subtask-cell')</td>@include('reports.components.task-team-cell', ['team' => $job['team']])<td><span class="report-tag report-tone-{{ $job['status']['tone'] }}">{{ $job['status']['label'] }}</span></td><td><span class="report-tag report-tone-{{ $job['priority']['tone'] }}">{{ $job['priority']['label'] }}</span></td><td>{{ $job['start_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td><td>{{ $job['due_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td><td>{{ $job['completed_at']?->locale('th')->translatedFormat('j M Y') ?? '-' }}</td></tr>@empty<tr><td colspan="11"><div class="report-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>ยังไม่มีข้อมูลในช่วงเวลานี้</strong></div></td></tr>@endforelse</tbody></table></div>
+        <nav class="report-table-pager" data-employee-task-pager aria-label="เปลี่ยนหน้าตารางรายละเอียดงาน" hidden>
+            <button type="button" data-employee-task-previous aria-label="หน้าก่อนหน้า"><i class="bi bi-chevron-left" aria-hidden="true"></i><span>ย้อนกลับ</span></button>
+            <span data-employee-task-page role="status" aria-live="polite"></span>
+            <button type="button" data-employee-task-next aria-label="หน้าถัดไป"><span>ถัดไป</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+        </nav>
     </section>
 
     @if($operational !== null)
         @include('reports.components.employee-operational')
     @endif
+
+    @include('reports.components.subtask-modal')
 
     <script type="application/json" id="employee-report-chart-data">@json($chartData)</script>
 </div>

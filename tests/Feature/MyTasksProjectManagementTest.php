@@ -635,6 +635,53 @@ class MyTasksProjectManagementTest extends TestCase
             ->assertSee('Publish assets');
     }
 
+    public function test_archived_project_content_is_previewable_without_restoring(): void
+    {
+        $owner = User::factory()->create(['role' => 'user']);
+        $list = WorkOrderList::create([
+            'user_id' => $owner->id,
+            'name' => 'Archived preview',
+            'is_visible' => true,
+        ]);
+        $task = WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'job_topic' => 'Preview parent task',
+            'job_status' => 4,
+            'approval_status' => 'approved',
+            'job_start_at' => now()->subDay(),
+            'job_due_at' => now(),
+        ]);
+        WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'parent_job_id' => $task->job_id,
+            'parent_sort_order' => 0,
+            'job_topic' => 'Preview subtask',
+            'job_status' => 4,
+            'approval_status' => 'approved',
+            'job_start_at' => now()->subDay(),
+            'job_due_at' => now(),
+        ]);
+
+        $this->actingAs($owner)->patchJson(route('mytasks.lists.archive', $list))->assertOk();
+
+        // ต้องเห็นชื่องานและงานย่อยในโมดัลดูข้อมูล โดยไม่ต้องกด "เปิดอีกครั้ง" ก่อน
+        $this->actingAs($owner)
+            ->get(route('mytasks.index', ['view' => 'board']))
+            ->assertOk()
+            ->assertSee('data-preview-project="'.$list->id.'"', false)
+            ->assertSee('data-project-preview-content="'.$list->id.'"', false)
+            ->assertSee('Preview parent task')
+            ->assertSee('Preview subtask');
+
+        $this->assertNotNull($list->fresh()->archived_at);
+    }
+
     public function test_user_cannot_archive_another_users_completed_project(): void
     {
         $owner = User::factory()->create(['role' => 'user']);

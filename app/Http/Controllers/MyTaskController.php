@@ -129,6 +129,15 @@ class MyTaskController extends Controller
         $taskLists = $allTaskLists->whereNull('archived_at')->values();
         $archivedListIds = $archivedTaskLists->pluck('id');
 
+        /*
+         * โมดัลคลังโปรเจกต์ต้องเปิดดูเนื้อหาที่จัดเก็บไว้ได้โดยไม่ต้องกด "เปิดอีกครั้ง" ก่อน
+         * จึงเก็บงานของโปรเจกต์ที่จัดเก็บไว้แยกก่อนคัดออกจากพื้นที่ทำงาน (เฉพาะงานแม่ งานย่อยอ่านจาก children)
+         */
+        $archivedProjectTasks = $workOrders
+            ->filter(fn (WorkOrder $workOrder) => $archivedListIds->contains($workOrder->work_order_list_id)
+                && $workOrder->parent_job_id === null)
+            ->groupBy('work_order_list_id');
+
         // โปรเจกต์ที่จัดเก็บยังเก็บงานและความสัมพันธ์ทุกอย่างไว้ แต่ไม่ปะปนกับพื้นที่ทำงานปัจจุบัน
         $workOrders = $workOrders
             ->reject(fn (WorkOrder $workOrder) => $archivedListIds->contains($workOrder->work_order_list_id))
@@ -215,6 +224,7 @@ class MyTaskController extends Controller
             'calendarMeetingRange',
             'taskLists',
             'archivedTaskLists',
+            'archivedProjectTasks',
             'manageableTaskLists',
             'visibleLists',
             'workspaceTaskLists',

@@ -147,6 +147,6 @@
 ])
 @include('tasks.components.project-task-request-modal')
 @include('tasks.components.user-task-create-modal', ['projectOptions' => $manageableTaskLists])
-@include('tasks.components.completed-projects-modal', ['archivedTaskLists' => $archivedTaskLists])
+@include('tasks.components.completed-projects-modal', ['archivedTaskLists' => $archivedTaskLists, 'archivedProjectTasks' => $archivedProjectTasks])
 <div class="notion-toast" data-toast></div>
 @endsection

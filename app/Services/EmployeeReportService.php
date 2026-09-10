@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Support\ContributionRole;
 use App\Support\ReportMetrics;
+use App\Support\ReportTaskTree;
+use App\Support\TaskTeamSummary;
 use App\Support\WorkBoardDesign;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -65,12 +68,12 @@ final class EmployeeReportService
                 && (ReportMetrics::isOverdue($job, $now) || ReportMetrics::isDueSoon($job, $now)))
             ->sortBy(fn (WorkOrder $job) => $job->job_due_at?->timestamp ?? PHP_INT_MAX)
             ->take(8)
-            ->map(fn (WorkOrder $job) => $this->presentJob($job, $now))
+            ->map(fn (WorkOrder $job) => $this->presentJob($job, $now, $employee->id))
             ->values();
 
         $taskRows = $jobs
             ->sortByDesc(fn (WorkOrder $job) => $job->job_completed_at?->timestamp ?? $job->created_at?->timestamp ?? 0)
-            ->map(fn (WorkOrder $job) => $this->presentJob($job, $now))
+            ->map(fn (WorkOrder $job) => $this->presentJob($job, $now, $employee->id))
             ->values();
 
         return [
@@ -78,6 +81,9 @@ final class EmployeeReportService
             'filters' => $filters,
             'filterOptions' => ['periods' => self::PERIOD_LABELS],
             'totalJobs' => $jobs->count(),
+            // แยกให้เห็นว่าผลงานส่วนไหนเป็นงานที่รับผิดชอบเอง ส่วนไหนไปร่วมกับทีมอื่น
+            'ownedJobs' => $jobs->filter(fn (WorkOrder $job) => ContributionRole::isPrimary($job, $employee->id))->count(),
+            'joinedJobs' => $jobs->reject(fn (WorkOrder $job) => ContributionRole::isPrimary($job, $employee->id))->count(),
             'completedJobs' => $completedJobs->count(),
             'overdueJobs' => $jobs->filter(fn (WorkOrder $job) => ReportMetrics::isOverdue($job, $now))->count(),
             'onTimeCount' => $onTimeCount,
@@ -126,9 +132,9 @@ final class EmployeeReportService
     private function filteredJobs(User $employee, array $filters): Collection
     {
         return WorkOrder::query()
-            ->with(['user:id,name,department_id', 'department:id,department_name', 'taskList:id,name'])
-            ->where('user_id', $employee->id)
-            ->where('approval_status', 'approved')
+            ->with(['user:id,name,department_id', 'leader:id,name', 'assigner:id,name', 'creator:id,name', 'collaborators:id,name', 'children:job_id,parent_job_id,job_topic', 'department:id,department_name', 'taskList:id,name'])
+            // งานที่พนักงานไปร่วมกับคนอื่นก็เป็นผลงานของเขา จึงต้องใช้นิยามเดียวกับหน้ารายงานของฉัน
+            ->contributedBy($employee->id)
             ->where(function ($query) use ($filters): void {
                 $query->whereBetween('created_at', [$filters['start_utc'], $filters['end_utc']])
                     ->orWhere(function ($completed) use ($filters): void {
@@ -138,7 +144,9 @@ final class EmployeeReportService
                     });
             })
             ->orderBy('job_id')
-            ->get();
+            ->get()
+            // ยุบงานย่อยเข้าใต้งานแม่ก่อนนับ ให้ตัวเลขตรงกับหน้ารายงานของฉัน
+            ->pipe(fn (Collection $jobs) => ReportTaskTree::collapse($jobs));
     }
 
     private function normalizeFilters(Request $request): array
@@ -207,13 +215,16 @@ final class EmployeeReportService
         return $months;
     }
 
-    private function presentJob(WorkOrder $job, CarbonInterface $now): array
+    private function presentJob(WorkOrder $job, CarbonInterface $now, int $employeeId): array
     {
         $statusKey = ReportMetrics::statusKey($job, $now);
 
         return [
             'id' => $job->job_id,
             'topic' => $job->job_topic,
+            'team' => TaskTeamSummary::for($job, $employeeId),
+            'subtasks' => ReportTaskTree::subtaskNames($job),
+            'role' => ContributionRole::for($job, $employeeId),
             'project' => $job->taskList?->name ?? $job->department?->department_name ?? 'งานทั่วไป',
             'status' => ['key' => $statusKey, ...WorkBoardDesign::statusMeta($statusKey)],
             'priority' => ['value' => (int) $job->job_priority, ...WorkBoardDesign::taskPriority((int) $job->job_priority)],

@@ -107,6 +107,12 @@ final class AdminReportService
          */
         $workloadByMember = $filters['department_id'] !== null;
 
+        /*
+         * จงใจนับเฉพาะผู้รับผิดชอบหลัก (work_orders.user_id) ไม่ fan-out ตามผู้ร่วมงาน
+         * เพราะกราฟนี้ตอบว่า "งานค้างกองอยู่ที่ใคร" ซึ่งต้องให้หนึ่งงานมีเจ้าภาพเดียว
+         * ถ้านับผู้ร่วมงานด้วย ผลรวมทุกแท่งจะมากกว่าจำนวนงานจริงจนเทียบกันไม่ได้
+         * ต่างจากรายงานรายบุคคลที่ถามว่า "คนนี้มีผลงานอะไรบ้าง" จึงนับงานที่ไปร่วมด้วย
+         */
         $memberSummary = $jobs
             ->filter(fn (WorkOrder $job) => ReportMetrics::isIncomplete($job) && $job->user)
             ->groupBy(fn (WorkOrder $job) => (int) $job->user_id)

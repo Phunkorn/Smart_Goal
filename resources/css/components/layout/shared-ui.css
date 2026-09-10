@@ -184,15 +184,109 @@
             font-size: .9rem;
         }
 
-        .notification-menu {
+        /*
+         * ดร็อปดาวน์บนแถบบนสไลด์เปิดแทนการกระโดดโผล่ ใช้ร่วมกันทั้งกระดิ่งแจ้งเตือนและงานประจำ
+         *
+         * Bootstrap ปิดเมนูด้วย display:none ซึ่งตัด transition ทิ้ง จึงบังคับให้เป็น block
+         * เสมอแล้วคุมการมองเห็นด้วย visibility/opacity แทน
+         *
+         * ปุ่มที่เปิดเมนูเหล่านี้ต้องมี data-bs-display="static" เสมอ
+         * มิฉะนั้น Popper จะเขียน transform เป็น inline style ให้ "ตอนเปิดแล้ว" เท่านั้น
+         * เมนูที่เป็น display:block ตลอดจึงถูกวาดที่ตำแหน่งชิดซ้ายก่อนหนึ่งเฟรม
+         * แล้วค่อยกระตุกไปทางขวา ซึ่งเห็นเป็นอาการเมนูเพี้ยนไปทางซ้ายแวบหนึ่ง
+         * เมื่อเป็น static ตำแหน่งมาจาก CSS ของ .dropdown-menu-end ล้วน ๆ ไม่มี inline transform
+         * ให้ชนกัน จึงใส่ transform ของเราเพื่อทำสไลด์ได้อย่างปลอดภัย
+         */
+        /*
+         * ต้องกำหนดตำแหน่งเอง ห้ามพึ่ง [data-bs-popper]
+         *
+         * Bootstrap ให้ top/right/left ผ่านตัวเลือก .dropdown-menu-end[data-bs-popper]
+         * แต่ถอด attribute นั้นทิ้ง "ตอนปิด" เมนูที่เป็น display:block ตลอดจึงเสีย
+         * ค่าตำแหน่งทั้งหมดกลางคันแล้วดีดไปอยู่ตำแหน่ง static ชิดซ้ายขณะกำลังเฟดออก
+         * ซึ่งเห็นเป็นอาการเมนูเพี้ยนไปทางซ้ายตอนกดปิด
+         *
+         * ใช้สามคลาสเพื่อให้ specificity ชนะ .dropdown-menu-end[data-bs-popper] แน่นอน
+         * โดยไม่ต้องพึ่งลำดับการโหลดไฟล์ CSS
+         */
+        .dropdown-menu.dropdown-menu-end.topbar-slide-menu {
+            top: 100%;
+            right: 0;
+            left: auto;
+            margin-top: var(--bs-dropdown-spacer, .125rem);
+        }
+
+        .dropdown-menu.topbar-slide-menu {
+            display: block;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px) scaleY(.98);
+            transform-origin: top center;
+            transition: opacity .18s ease, transform .2s cubic-bezier(.2, .8, .3, 1), visibility 0s linear .2s;
+        }
+
+        .dropdown-menu.topbar-slide-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+            transition: opacity .18s ease, transform .2s cubic-bezier(.2, .8, .3, 1);
+        }
+
+        .dropdown-menu.notification-menu {
             width: 360px;
-            max-height: 360px;
+            max-height: 380px;
+            padding: 8px;
             overflow: auto;
             border-radius: 14px;
             border: 1px solid var(--border);
             box-shadow: var(--shadow-md);
             font-size: .8rem;
         }
+
+        /* ปิดอยู่ก็ไม่ควรกินพื้นที่เลื่อนหรือดักคลิก แม้จะยังเป็น display:block */
+        .dropdown-menu.topbar-slide-menu:not(.show) { overflow: hidden; pointer-events: none; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .dropdown-menu.topbar-slide-menu,
+            .dropdown-menu.topbar-slide-menu.show {
+                transform: none;
+                transition: opacity .01s linear, visibility 0s linear .01s;
+            }
+        }
+
+        /* หัวเมนู: ชื่อ ป้ายจำนวน และปุ่มไอคอนจัดการ อยู่บรรทัดเดียวกัน */
+        .notification-menu__head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 6px 10px;
+        }
+
+        .notification-menu__actions {
+            display: inline-flex;
+            margin-left: auto;
+            gap: 4px;
+        }
+
+        .notification-menu__action {
+            display: inline-grid;
+            width: 30px;
+            height: 30px;
+            place-items: center;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-muted);
+            font-size: .82rem;
+            cursor: pointer;
+            transition: border-color .15s ease, color .15s ease, background .15s ease;
+        }
+
+        .notification-menu__action:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+        .notification-menu__action:focus-visible { outline: 3px solid var(--accent-dim); outline-offset: 1px; }
+        .notification-menu__action:disabled { opacity: .4; cursor: not-allowed; }
+        .notification-menu__action--danger:hover:not(:disabled) { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+
+
 
         /* หัวข้อในดรอปดาวน์เดิมหนาและใหญ่เกินจนอ่านยาก จึงลดขนาดและน้ำหนักลง */
         .notification-menu strong {

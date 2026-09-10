@@ -102,8 +102,20 @@
 .report-tone-green { --report-tone:#079455; }
 .report-tone-amber { --report-tone:#d97706; }
 .report-tone-red { --report-tone:#dc2626; }
+.report-tone-teal { --report-tone:#0f766e; }
+.report-tone-cyan { --report-tone:#0e7490; }
 .report-tag { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; background:color-mix(in srgb,var(--report-tone) 10%,white); color:var(--report-tone); font-size:.75rem; font-weight:700; white-space:nowrap; }
 @keyframes report-shimmer { to { transform:translateX(100%); } }
 @media (max-width:760px) { .report-chart-shell { height:var(--report-chart-height-mobile,255px); } .report-kpi-band { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } .report-kpi { padding:13px 14px; } .report-kpi__value { font-size:1.6rem; } }
 @media (max-width:430px) { .report-kpi-band { grid-template-columns:minmax(0,1fr); } }
 @media (prefers-reduced-motion:reduce) { .report-kpi--linked { transition:none; } .report-kpi--linked:hover { transform:none; } .report-chart-skeleton::after { animation:none; } .report-chart-skeleton,.report-chart-wrap { transition:none; transform:none; } }
+
+/*
+ * ช่องชื่อคนในตารางรายงาน — "เจ้าของงาน" และ "ผู้ร่วมงาน"
+ *
+ * ข้อความล้วนโดยตั้งใจ ไม่มีไอคอนและไม่มีป้ายสี เพราะคอลัมน์นี้ตอบแค่ "ใคร"
+ * การใส่สัญลักษณ์เพิ่มทำให้ตาต้องถอดรหัสก่อนอ่านชื่อ และดันข้อความจนล้นการ์ด
+ */
+.report-people { color:#334155; font-size:.82rem; line-height:1.5; overflow-wrap:anywhere; }
+
+/* ปุ่มจำนวนงานย่อยและกล่องรายชื่อย้ายไป resources/css/components/subtask-modal.css แล้ว */

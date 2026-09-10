@@ -16,7 +16,9 @@ class EmployeeReportDashboardTest extends TestCase
     use RefreshDatabase;
 
     private Department $department;
+
     private User $admin;
+
     private User $employee;
 
     protected function setUp(): void
@@ -129,31 +131,50 @@ class EmployeeReportDashboardTest extends TestCase
         $this->actingAs($this->admin)->get(route('reports.employeeExportCsv', $inactive))->assertNotFound();
     }
 
-    public function test_employee_performance_counts_only_approved_primary_assignee_scope(): void
+    public function test_employee_performance_counts_every_approved_contribution_including_joined_work(): void
     {
         $other = $this->user('user');
         $assigned = $this->task($this->employee, ['job_topic' => 'Primary assigned']);
         $this->task($this->employee, ['job_topic' => 'Pending assigned', 'approval_status' => 'pending']);
         $this->task($this->employee, ['job_topic' => 'Rejected assigned', 'approval_status' => 'rejected']);
-        $this->task($other, ['job_topic' => 'Creator only', 'created_by' => $this->employee->id]);
-        $this->task($other, ['job_topic' => 'Leader only', 'leader_user_id' => $this->employee->id]);
+        $creatorOnly = $this->task($other, ['job_topic' => 'Creator only', 'created_by' => $this->employee->id]);
+        $leaderOnly = $this->task($other, ['job_topic' => 'Leader only', 'leader_user_id' => $this->employee->id]);
         $collaboratorOnly = $this->task($other, ['job_topic' => 'Collaborator only']);
-        DB::table('work_order_collaborators')->insert([
-            'work_order_id' => $collaboratorOnly->job_id,
-            'user_id' => $this->employee->id,
-            'added_by' => $other->id,
-            'status' => 'accepted',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-        $this->task($other, ['job_topic' => 'Sibling project task']);
+        $this->collaborate($collaboratorOnly, $other, 'accepted');
+        $pendingCollaborator = $this->task($other, ['job_topic' => 'Collaborator pending']);
+        $this->collaborate($pendingCollaborator, $other, 'pending');
         $this->task($other, ['job_topic' => 'Unrelated task']);
 
         $response = $this->actingAs($this->admin)->get($this->employeeReportUrl());
 
         $response->assertOk();
-        $this->assertSame(1, $response->viewData('totalJobs'));
-        $this->assertSame([$assigned->job_id], $response->viewData('taskRows')->pluck('id')->all());
+        // งานที่ไปร่วมกับคนอื่นเป็นผลงานของพนักงานด้วย จึงต้องนับเท่ากับหน้ารายงานของฉัน
+        $this->assertSame(4, $response->viewData('totalJobs'));
+        $this->assertSame(1, $response->viewData('ownedJobs'));
+        $this->assertSame(3, $response->viewData('joinedJobs'));
+        $this->assertEqualsCanonicalizing(
+            [$assigned->job_id, $creatorOnly->job_id, $leaderOnly->job_id, $collaboratorOnly->job_id],
+            $response->viewData('taskRows')->pluck('id')->all()
+        );
+        // คำเชิญที่ยังไม่ตอบรับยังไม่ถือเป็นผลงาน
+        $response->assertDontSee('Collaborator pending');
+    }
+
+    public function test_employee_task_table_labels_the_role_held_on_each_contribution(): void
+    {
+        $other = $this->user('user');
+        $this->task($this->employee, ['job_topic' => 'Owned task']);
+        $joined = $this->task($other, ['job_topic' => 'Joined task']);
+        $this->collaborate($joined, $other, 'accepted');
+
+        $rows = $this->actingAs($this->admin)->get($this->employeeReportUrl())
+            ->assertOk()
+            ->assertSee('ผู้ร่วมงาน')
+            ->viewData('taskRows')
+            ->keyBy('topic');
+
+        $this->assertSame('owner', $rows['Owned task']['role']['key']);
+        $this->assertSame('collaborator', $rows['Joined task']['role']['key']);
     }
 
     public function test_employee_completed_timeline_and_on_time_metrics_use_completion_date(): void
@@ -182,12 +203,13 @@ class EmployeeReportDashboardTest extends TestCase
         $this->assertSame(50, $response->viewData('onTimeRate'));
     }
 
-    public function test_employee_export_uses_assignee_approval_and_period_scope(): void
+    public function test_employee_export_covers_contributions_with_role_column_and_keeps_approval_and_period_scope(): void
     {
         $other = $this->user('user');
         $included = $this->task($this->employee, ['job_topic' => 'Employee export included']);
         $this->task($this->employee, ['job_topic' => 'Employee export pending', 'approval_status' => 'pending']);
-        $this->task($other, ['job_topic' => 'Employee export creator only', 'created_by' => $this->employee->id]);
+        $joined = $this->task($other, ['job_topic' => 'Employee export joined']);
+        $this->collaborate($joined, $other, 'accepted');
         $this->task($this->employee, ['job_topic' => 'Employee export outside period', 'created_at' => '2026-05-01 09:00:00', 'updated_at' => '2026-05-01 09:00:00']);
 
         $response = $this->actingAs($this->admin)->get(route('reports.employeeExportCsv', [
@@ -200,8 +222,10 @@ class EmployeeReportDashboardTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString($included->job_topic, $content);
+        $this->assertStringContainsString('Employee export joined', $content);
+        $this->assertStringContainsString('บทบาทของฉัน', $content);
+        $this->assertStringContainsString('ผู้ร่วมงาน', $content);
         $this->assertStringNotContainsString('Employee export pending', $content);
-        $this->assertStringNotContainsString('Employee export creator only', $content);
         $this->assertStringNotContainsString('Employee export outside period', $content);
     }
 
@@ -275,6 +299,71 @@ class EmployeeReportDashboardTest extends TestCase
         $job->forceFill($timestamps)->saveQuietly();
 
         return $job->refresh();
+    }
+
+    public function test_employee_table_and_export_name_the_assigner_and_collaborators(): void
+    {
+        $head = $this->user('user', true, $this->department, ['name' => 'หัวหน้าไอที', 'is_department_head' => true]);
+        $joiner = $this->user('user', true, $this->department, ['name' => 'เพื่อนร่วมงาน']);
+        $job = $this->task($this->employee, [
+            'job_topic' => 'Team named task',
+            'created_by' => $head->id,
+            'assigned_by' => $head->id,
+            'leader_user_id' => $this->employee->id,
+        ]);
+        $this->collaborate($job, $head, 'accepted', $joiner);
+
+        $page = $this->actingAs($this->admin)->get($this->employeeReportUrl());
+        $page->assertOk()
+            ->assertSee('เจ้าของงาน')
+            ->assertSee('ผู้ร่วมงาน')
+            ->assertSee($this->employee->name)
+            ->assertSee('เพื่อนร่วมงาน');
+
+        $team = $page->viewData('taskRows')->firstWhere('topic', 'Team named task')['team'];
+        $this->assertSame('หัวหน้าไอที', $team['assigner']['name']);
+        $this->assertSame([$joiner->name], array_column($team['collaborators'], 'name'));
+
+        $csv = $this->actingAs($this->admin)->get(route('reports.employeeExportCsv', [
+            'user' => $this->employee, 'period' => 'custom',
+            'start_date' => '2026-08-01', 'end_date' => '2026-08-31',
+        ]))->streamedContent();
+
+        $this->assertStringContainsString('มอบหมายโดย', $csv);
+        $this->assertStringContainsString('หัวหน้าไอที', $csv);
+        $this->assertStringContainsString('เพื่อนร่วมงาน', $csv);
+    }
+
+    public function test_employee_report_folds_subtasks_under_their_parent(): void
+    {
+        $parent = $this->task($this->employee, ['job_topic' => 'ติดตั้ง CRM']);
+        $this->task($this->employee, ['job_topic' => 'สำรวจความต้องการ', 'parent_job_id' => $parent->job_id]);
+        $standalone = $this->task($this->employee, ['job_topic' => 'ทำรายงาน']);
+
+        $response = $this->actingAs($this->admin)->get($this->employeeReportUrl());
+
+        // หน้าหัวหน้าใช้ชุดคอลัมน์เดียวกับหน้าพนักงาน
+        $response->assertOk()
+            ->assertSee('<th>หัวข้อโปรเจกต์</th><th>ชื่องาน</th><th>งานย่อย</th>', false)
+            ->assertSee('1 รายการ')
+            ->assertSee('สำรวจความต้องการ');
+        $this->assertSame(2, $response->viewData('totalJobs'));
+        $this->assertEqualsCanonicalizing(
+            [$parent->job_id, $standalone->job_id],
+            $response->viewData('taskRows')->pluck('id')->all()
+        );
+    }
+
+    private function collaborate(WorkOrder $job, User $invitedBy, string $status, ?User $member = null): void
+    {
+        DB::table('work_order_collaborators')->insert([
+            'work_order_id' => $job->job_id,
+            'user_id' => ($member ?? $this->employee)->id,
+            'added_by' => $invitedBy->id,
+            'status' => $status,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function employeeReportUrl(): string

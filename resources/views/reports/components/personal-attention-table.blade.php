@@ -5,13 +5,16 @@
     </div>
     @if($attentionJobs->isNotEmpty())
         <div class="personal-report__table-wrap">
-            <table class="table table-hover align-middle mb-0 personal-report__table" data-personal-attention-table data-page-size="10">
+            <table class="table table-hover align-middle mb-0 personal-report__table personal-report__table--attention" data-personal-attention-table data-page-size="10">
                 <caption class="visually-hidden">งานที่ต้องรีบจัดการในช่วง {{ $filters['period_label'] }}</caption>
-                <thead><tr><th scope="col">งาน / โครงการ</th><th scope="col">สถานะ</th><th scope="col">ความสำคัญ</th><th scope="col">สิ่งที่ต้องติดตาม</th><th scope="col">กำหนดส่ง</th></tr></thead>
+                <thead><tr><th scope="col" class="personal-report__index-col">ลำดับ</th><th scope="col">หัวข้อโปรเจกต์</th><th scope="col">ชื่องาน</th><th scope="col">งานย่อย</th><th scope="col">สถานะ</th><th scope="col">ความสำคัญ</th><th scope="col">สิ่งที่ต้องติดตาม</th><th scope="col">กำหนดส่ง</th></tr></thead>
                 <tbody>
                     @foreach($attentionJobs as $job)
                         <tr data-personal-attention-row>
-                            <th scope="row" data-label="งาน / โครงการ"><a class="personal-report__task-link" href="{{ $job['url'] }}">{{ $job['topic'] }}</a><small class="d-block text-body-secondary mt-1">{{ $job['project'] }}</small></th>
+                            <td data-label="ลำดับ" class="personal-report__index">{{ $loop->iteration }}</td>
+                            <td data-label="หัวข้อโปรเจกต์" class="personal-report__project">{{ $job['project'] }}</td>
+                            <th scope="row" data-label="ชื่องาน"><a class="personal-report__task-link" href="{{ $job['url'] }}">{{ $job['topic'] }}</a></th>
+                            <td data-label="งานย่อย" class="report-subtask-cell">@include('reports.components.subtask-cell')</td>
                             <td data-label="สถานะ"><span class="report-tag report-tone-{{ $job['status']['tone'] }}">{{ $job['status']['label'] }}</span></td>
                             <td data-label="ความสำคัญ"><span class="report-tag report-tone-{{ $job['priority']['tone'] }}">{{ $job['priority']['label'] }}</span></td>
                             <td data-label="สิ่งที่ต้องติดตาม"><span class="personal-report__tag personal-report__tag--{{ $job['reason'] === 'เกินกำหนด' ? 'red' : 'amber' }}">{{ $job['reason'] }}</span></td>

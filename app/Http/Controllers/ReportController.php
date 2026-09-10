@@ -9,6 +9,7 @@ use App\Services\AdminReportService;
 use App\Services\EmployeeReportService;
 use App\Services\OperationalWorkloadReportService;
 use App\Services\PersonalReportService;
+use App\Support\TaskTeamSummary;
 use App\Support\TodayWorkspace;
 use App\Support\WorkLogDesign;
 use Illuminate\Http\Request;
@@ -193,6 +194,7 @@ class ReportController extends Controller
         return $this->downloadJobsCsv(
             $reports->exportJobs($user, $request),
             'smart-goals-'.$user->id.'-'.$request->string('period', 'last_6_months')->toString().'.csv',
+            $user->id,
         );
     }
 
@@ -200,23 +202,35 @@ class ReportController extends Controller
     {
         return $this->downloadJobsCsv(
             $this->personalReports->queryFor($user->id)
-                ->with(['user', 'department'])
+                ->with(['user', 'leader', 'assigner', 'creator', 'collaborators', 'department'])
                 ->whereYear('created_at', $year)
                 ->orderBy('job_id'),
             'smart-goals-'.$user->id.'-'.$year.'.csv',
+            $user->id,
         );
     }
 
-    private function downloadJobsCsv($jobs, string $fileName): StreamedResponse
+    /**
+     * @param  int|null  $subjectUserId  เจ้าของรายงาน เมื่อระบุจะเพิ่มคอลัมน์บทบาท
+     *                                   เพื่อให้แยกออกว่างานใบไหนรับผิดชอบเอง ใบไหนไปร่วมกับคนอื่น
+     *                                   รายงานระดับองค์กรไม่มีเจ้าของคนเดียวจึงไม่มีคอลัมน์นี้
+     */
+    private function downloadJobsCsv($jobs, string $fileName, ?int $subjectUserId = null): StreamedResponse
     {
-        return response()->streamDownload(function () use ($jobs): void {
+        return response()->streamDownload(function () use ($jobs, $subjectUserId): void {
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($handle, ['เลขงาน', 'ชื่องาน', 'ผู้รับผิดชอบ', 'แผนก', 'สถานะอนุมัติ', 'สถานะงาน', 'วันที่เริ่ม', 'กำหนดส่ง', 'วันที่เสร็จ']);
+            $header = ['เลขงาน', 'ชื่องาน', 'ผู้รับผิดชอบ', 'แผนก', 'สถานะอนุมัติ', 'สถานะงาน', 'วันที่เริ่ม', 'กำหนดส่ง', 'วันที่เสร็จ'];
 
-            $writeRows = function ($chunk) use ($handle): void {
+            if ($subjectUserId !== null) {
+                array_splice($header, 3, 0, ['บทบาทของฉัน', 'หัวหน้าโปรเจกต์', 'มอบหมายโดย', 'ผู้ร่วมงาน']);
+            }
+
+            fputcsv($handle, $header);
+
+            $writeRows = function ($chunk) use ($handle, $subjectUserId): void {
                 foreach ($chunk as $job) {
-                    fputcsv($handle, [
+                    $row = [
                         'IT-'.$job->job_id,
                         $job->job_topic,
                         optional($job->user)->name,
@@ -226,7 +240,19 @@ class ReportController extends Controller
                         optional($job->job_start_at)->format('Y-m-d H:i'),
                         optional($job->job_due_at)->format('Y-m-d H:i'),
                         optional($job->job_completed_at)->format('Y-m-d H:i'),
-                    ]);
+                    ];
+
+                    if ($subjectUserId !== null) {
+                        $team = TaskTeamSummary::for($job, $subjectUserId);
+                        array_splice($row, 3, 0, [
+                            $team['my_role']['label'],
+                            $team['leader']['name'] ?? '',
+                            $team['assigner']['name'] ?? '',
+                            implode(', ', array_column($team['collaborators'], 'name')),
+                        ]);
+                    }
+
+                    fputcsv($handle, $row);
                 }
             };
 

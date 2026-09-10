@@ -1,0 +1,64 @@
+/*
+ * ปุ่มจำนวนงานย่อยในตาราง และกล่องรายชื่อที่มันเปิด
+ *
+ * ช่องนี้เคยพิมพ์ชื่องานย่อยทุกใบ งานที่มีเจ็ดใบจึงดันความสูงของแถวจนตารางอ่านไม่ออก
+ * เหลือเป็นปุ่มบรรทัดเดียว ทุกแถวจึงสูงเท่ากันและกวาดสายตาตามคอลัมน์ได้
+ *
+ * z-index, backdrop, การล็อก body และ inert เป็นหน้าที่ของ modal-stack ทั้งหมด
+ * ไฟล์นี้กำหนดเฉพาะรูปลักษณ์ ไม่ยุ่งกับลำดับชั้น
+ */
+.report-subtask-btn {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border: 1px solid var(--border, #e4eaf3);
+    border-radius: 999px;
+    background: var(--surface, #fff);
+    color: var(--text, #334155);
+    font-size: .73rem;
+    font-weight: 650;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+
+.report-subtask-btn i { color: var(--text-muted, #94a3b8); font-size: .78rem; }
+.report-subtask-btn:hover { border-color: var(--accent, #1e4fd6); background: var(--accent-dim, #e7edfc); color: var(--accent, #1e4fd6); }
+.report-subtask-btn:hover i { color: inherit; }
+.report-subtask-btn:focus-visible { outline: 3px solid var(--accent-dim, #e7edfc); outline-offset: 1px; border-color: var(--accent, #1e4fd6); }
+.report-subtask-none { color: #b6c0cf; }
+
+.subtask-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.subtask-modal[hidden] { display: none !important; }
+.subtask-modal[data-modal-backdrop="on"]::before { content: ''; position: absolute; inset: 0; background: rgba(15, 23, 42, .45); }
+
+.subtask-modal__panel {
+    position: relative;
+    display: flex;
+    width: min(520px, 100%);
+    max-height: calc(100vh - 40px);
+    flex-direction: column;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 30px 70px -30px rgba(15, 23, 42, .7);
+}
+
+.subtask-modal__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid #eef2f8; }
+.subtask-modal__eyebrow { margin: 0; color: #7c8aa3; font-size: .74rem; font-weight: 600; }
+.subtask-modal__title { margin: 3px 0 0; color: #0f172a; font-size: 1.02rem; font-weight: 700; overflow-wrap: anywhere; }
+.subtask-modal__close { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #8494ae; cursor: pointer; }
+.subtask-modal__close:hover { background: #f2f6fd; color: #33415c; }
+.subtask-modal__close:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+.subtask-modal__body { min-height: 0; overflow-y: auto; padding: 14px 20px 20px; }
+.subtask-modal__count { margin: 0 0 10px; color: #64748b; font-size: .78rem; font-weight: 600; }
+.subtask-modal__list { display: grid; gap: 7px; margin: 0; padding-left: 20px; }
+.subtask-modal__list li { color: #334155; font-size: .84rem; line-height: 1.5; overflow-wrap: anywhere; }
+
+@media (max-width: 480px) {
+    .subtask-modal { padding: 12px; }
+    .subtask-modal__header { padding: 15px 16px 11px; }
+    .subtask-modal__body { padding: 12px 16px 16px; }
+}

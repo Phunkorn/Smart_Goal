@@ -24,6 +24,8 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const attachmentModal = document.querySelector('[data-board-attachment-modal]');
     const completedProjectsModal = document.querySelector('[data-completed-projects-modal]');
+    const projectPreviewModal = document.querySelector('[data-project-preview-modal]');
+    let lastPreviewTrigger = null;
     // อ็อบเจกต์เดียวกับโมดัลรายละเอียดงานและปฏิทิน การแนบไฟล์จากที่ใดก็ตามจึงเห็นตรงกัน
     const attachmentData = attachmentStore(document);
     const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
@@ -810,9 +812,48 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         if (completedProjectsModal) completedProjectsModal.hidden = false;
     });
 
+    /*
+     * เปิดดูเนื้อหาโปรเจกต์ที่จัดเก็บโดยไม่ต้องกู้คืนก่อน
+     * แผงของทุกโปรเจกต์ถูกเรนเดอร์ไว้แล้ว ที่นี่จึงมีหน้าที่แค่สลับว่าอันไหนแสดง
+     */
+    const openProjectPreview = (projectId) => {
+        if (!projectPreviewModal) return;
+        let opened = null;
+        projectPreviewModal.querySelectorAll('[data-project-preview-content]').forEach((panel) => {
+            const match = panel.dataset.projectPreviewContent === String(projectId);
+            panel.hidden = !match;
+            if (match) opened = panel;
+        });
+        if (!opened) return;
+        const title = projectPreviewModal.querySelector('[data-project-preview-title]');
+        if (title) title.textContent = opened.dataset.previewProjectName || 'เนื้อหาในโปรเจกต์';
+        projectPreviewModal.hidden = false;
+        projectPreviewModal.querySelector('[data-close-project-preview]')?.focus();
+    };
+
+    const closeProjectPreview = () => {
+        if (!projectPreviewModal || projectPreviewModal.hidden) return;
+        projectPreviewModal.hidden = true;
+        // คลังโปรเจกต์ยังเปิดอยู่ข้างหลัง โฟกัสจึงกลับไปที่ปุ่มที่เรียกโมดัลนี้
+        lastPreviewTrigger?.focus();
+        lastPreviewTrigger = null;
+    };
+
+    projectPreviewModal?.addEventListener('click', (event) => {
+        if (event.target === projectPreviewModal || event.target.closest('[data-close-project-preview]')) closeProjectPreview();
+    });
+
     completedProjectsModal?.addEventListener('click', async (event) => {
         if (event.target === completedProjectsModal || event.target.closest('[data-close-completed-projects]')) {
+            closeProjectPreview();
             completedProjectsModal.hidden = true;
+            return;
+        }
+
+        const preview = event.target.closest('[data-preview-project]');
+        if (preview) {
+            lastPreviewTrigger = preview;
+            openProjectPreview(preview.dataset.previewProject);
             return;
         }
 
@@ -827,6 +868,8 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             cancelButtonText: 'ยกเลิก',
             confirmButtonColor: '#2563eb',
             reverseButtons: true,
+            // กล่องนี้เปิดจากในโมดัลคลังโปรเจกต์ ถ้าไม่ยกชั้นจะไปอยู่ข้างหลังโมดัล
+            customClass: {container: 'project-archive-dialog'},
         });
         if (!result.isConfirmed) return;
         restore.disabled = true;
@@ -840,6 +883,11 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && attachmentModal && !attachmentModal.hidden) closeAttachmentModal();
+        // โมดัลดูเนื้อหาซ้อนอยู่บนคลังโปรเจกต์ Escape จึงต้องปิดทีละชั้นจากบนลงล่าง
+        if (event.key === 'Escape' && projectPreviewModal && !projectPreviewModal.hidden) {
+            closeProjectPreview();
+            return;
+        }
         if (event.key === 'Escape' && completedProjectsModal && !completedProjectsModal.hidden) completedProjectsModal.hidden = true;
     });
 

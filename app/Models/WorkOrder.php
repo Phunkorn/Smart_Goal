@@ -121,6 +121,15 @@ class WorkOrder extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * ผู้มอบหมายงาน ต่างจาก creator() ตรงที่งานอาจถูกสร้างและมอบหมายคนละคนกันได้
+     * รายงานใช้ความสัมพันธ์นี้เพื่อยืนยันว่ามีการมอบหมายกันจริง ไม่ใช่งานที่สร้างเอง
+     */
+    public function assigner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
+    }
+
     public function leader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'leader_user_id');
@@ -216,6 +225,28 @@ class WorkOrder extends Model
         return $this->belongsToMany(User::class, 'work_order_collaborators', 'work_order_id', 'user_id')
             ->withPivot('added_by', 'decided_by', 'status', 'responded_at')
             ->withTimestamps();
+    }
+
+    /**
+     * งานที่อนุมัติแล้วซึ่ง "นับเป็นผลงานของผู้ใช้คนนี้"
+     *
+     * ใช้เป็นนิยาม attribution เดียวของรายงานทุกหน้า มิฉะนั้นงานที่ผู้ใช้ไปร่วมกับคนอื่น
+     * จะขึ้นในรายงานของตัวเองแต่หายไปจากรายงานที่หัวหน้าเปิดดู ตัวเลขสองหน้าจึงไม่ตรงกัน
+     *
+     * ต่างจาก scopeInvolving() ตรงที่ไม่รับงานยังไม่อนุมัติ และไม่ยกเว้นให้ admin
+     * เพราะรายงานถามว่า "ใครทำงานใบนี้" ไม่ใช่ "ใครมีสิทธิ์เห็นงานใบนี้"
+     */
+    public function scopeContributedBy(Builder $query, int $userId): Builder
+    {
+        return $query->where('approval_status', 'approved')
+            ->where(function (Builder $participant) use ($userId): void {
+                $participant->where('user_id', $userId)
+                    ->orWhere('created_by', $userId)
+                    ->orWhere('leader_user_id', $userId)
+                    ->orWhereHas('collaborators', fn (Builder $collaborators) => $collaborators
+                        ->where('users.id', $userId)
+                        ->where('work_order_collaborators.status', 'accepted'));
+            });
     }
 
     public function scopeInvolving(Builder $query, User $user): Builder

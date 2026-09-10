@@ -92,6 +92,16 @@ class TaskCollaboratorController extends Controller
             'responded_at' => now(),
         ]);
 
+        // เส้นทางนี้ถูกปิดอยู่ที่ WorkOrderPolicy::respondToInvitation() ซึ่งคืน false เสมอ
+        // คำเชิญทุกใบจึงต้องผ่านแอดมิน แต่เมื่อใดที่เปิดให้ตอบเองได้ การเข้าร่วมงานคือผลงานที่ถูกนับในรายงาน
+        // จึงต้องบันทึกร่องรอยเหมือนเส้นทางที่แอดมินตัดสิน
+        // มิฉะนั้นแถวใน pivot ที่ถูกถอนออกภายหลังจะไม่เหลือหลักฐานว่าเคยร่วมงานจริง
+        AuditTrail::log('collaborator_'.$validated['status'], $job, 'ตอบคำเชิญผู้ร่วมงาน: '.$job->job_topic, [
+            'user_id' => Auth::id(),
+            'status' => $validated['status'],
+            'decided_by' => Auth::id(),
+        ]);
+
         $message = $validated['status'] === 'accepted' ? 'รับเข้าร่วมงานแล้ว' : 'ปฏิเสธคำเชิญแล้ว';
 
         return back()->with('success', $message);

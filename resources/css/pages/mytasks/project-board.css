@@ -927,7 +927,10 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
     .notion-modal.completed-projects-modal { padding: 10px; align-items: flex-end; }
     .completed-projects-modal .completed-projects-modal__card { max-height: 92dvh; border-radius: 16px 16px 0 0; }
     .completed-projects-modal .completed-projects-modal__item { grid-template-columns: 40px minmax(0, 1fr); }
-    .completed-projects-modal .completed-projects-modal__item > button { grid-column: 1 / -1; justify-content: center; }
+    .completed-projects-modal .completed-projects-modal__actions { grid-column: 1 / -1; }
+    .completed-projects-modal .completed-projects-modal__actions > button { flex: 1; justify-content: center; }
+    .notion-modal.project-archive-preview { padding: 10px; align-items: flex-end; }
+    .project-archive-preview .project-archive-preview__card { max-height: 92dvh; border-radius: 16px 16px 0 0; }
 
     .my-tasks-page .notion-database[data-view="board"] .project-board {
         padding-bottom: 10px;
@@ -1209,13 +1212,50 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
 .completed-projects-modal__list { display: grid; gap: 8px; }
 .completed-projects-modal__item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 11px; padding: 12px; border: 1px solid #dce5f0; border-radius: 12px; background: #fff; }
 .completed-projects-modal__folder { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; background: #eaf7f0; color: #07845f; font-size: 17px; }
-.completed-projects-modal__item > div { display: grid; min-width: 0; gap: 3px; }
-.completed-projects-modal__item > div strong { overflow: hidden; color: #263650; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.completed-projects-modal__item > div span { color: #718096; font-size: 10px; }
-.completed-projects-modal__item > button { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 11px; border: 1px solid #bdd2ef; border-radius: 8px; background: #fff; color: #2563eb; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
-.completed-projects-modal__item > button:hover { background: #eef5ff; }
-.completed-projects-modal__item > button:disabled { opacity: .55; cursor: wait; }
+.completed-projects-modal__item > div:not(.completed-projects-modal__actions) { display: grid; min-width: 0; gap: 3px; }
+.completed-projects-modal__item > div:not(.completed-projects-modal__actions) strong { overflow: hidden; color: #263650; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.completed-projects-modal__item > div:not(.completed-projects-modal__actions) span { color: #718096; font-size: 10px; }
 .completed-projects-modal__empty { display: grid; min-height: 180px; place-items: center; align-content: center; gap: 6px; padding: 24px; border: 1px dashed #cfd9e6; border-radius: 12px; background: #fff; color: #7c8ba0; text-align: center; }
 .completed-projects-modal__empty > i { margin-bottom: 4px; color: #9aa9bc; font-size: 28px; }
 .completed-projects-modal__empty strong { color: #52647c; font-size: 13px; }
 .completed-projects-modal__empty span { font-size: 10px; }
+
+.completed-projects-modal__actions { display: inline-flex; align-items: center; gap: 8px; }
+.completed-projects-modal__actions > button { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 11px; border: 1px solid #bdd2ef; border-radius: 8px; background: #fff; color: #2563eb; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
+.completed-projects-modal__actions > button:hover { background: #eef5ff; }
+.completed-projects-modal__actions > button:disabled { opacity: .55; cursor: wait; }
+.completed-projects-modal__ghost { border-color: #d7dfea !important; color: #47586f !important; }
+.completed-projects-modal__ghost:hover { background: #f1f5fa !important; }
+
+/*
+ * โมดัลดูเนื้อหาโปรเจกต์ซ้อนอยู่บนคลังโปรเจกต์ (1250) จึงต้องสูงกว่าหนึ่งชั้น
+ * และ SweetAlert2 ที่เปิดจากในคลัง (.project-archive-dialog) ต้องสูงกว่าทั้งคู่
+ */
+.project-archive-preview { z-index: 1260; }
+.swal2-container.project-archive-dialog { z-index: 1400; }
+.project-archive-preview__card { width: min(720px, 100%); border-radius: 18px; }
+.project-archive-preview__body { display: grid; gap: 10px; padding: 18px 20px 22px; overflow-y: auto; background: #f8fafc; }
+.project-archive-preview__panel { display: grid; gap: 10px; }
+.project-archive-preview__summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.project-archive-preview__summary span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #dce5f0; border-radius: 999px; background: #fff; color: #4a5c74; font-size: 10px; font-weight: 700; }
+.project-archive-preview__task { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid #dce5f0; border-radius: 12px; background: #fff; }
+.project-archive-preview__task-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.project-archive-preview__task-head strong { min-width: 0; overflow: hidden; color: #263650; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.project-archive-preview__status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: #eef2f7; color: #4a5c74; font-size: 10px; font-style: normal; font-weight: 700; }
+.project-archive-preview__status--green { background: #e7f7ef; color: #0b7a53; }
+.project-archive-preview__status--blue { background: #e8f1ff; color: #1d4ed8; }
+.project-archive-preview__status--purple { background: #f1ecfd; color: #6d40c8; }
+.project-archive-preview__status--amber { background: #fdf3e0; color: #96620d; }
+.project-archive-preview__status--red { background: #fdeceb; color: #b42318; }
+.project-archive-preview__meta { display: flex; flex-wrap: wrap; gap: 10px; color: #718096; font-size: 10px; }
+.project-archive-preview__meta span { display: inline-flex; align-items: center; gap: 5px; }
+.project-archive-preview__subtasks,
+.project-archive-preview__files { display: grid; gap: 5px; margin: 0; padding: 8px 10px; border-radius: 9px; background: #f7f9fc; list-style: none; }
+.project-archive-preview__subtasks li,
+.project-archive-preview__files li { display: flex; align-items: center; gap: 7px; color: #46586f; font-size: 11px; }
+.project-archive-preview__subtasks li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-archive-preview__subtasks li em { margin-left: auto; }
+.project-archive-preview__empty { display: grid; min-height: 160px; place-items: center; align-content: center; gap: 6px; padding: 24px; border: 1px dashed #cfd9e6; border-radius: 12px; background: #fff; color: #7c8ba0; text-align: center; }
+.project-archive-preview__empty > i { color: #9aa9bc; font-size: 26px; }
+.project-archive-preview__empty strong { color: #52647c; font-size: 13px; }
+.project-archive-preview__empty span { font-size: 10px; }

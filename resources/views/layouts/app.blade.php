@@ -306,12 +306,12 @@
             </span>
             @unless($isViewer)
                 <div class="dropdown routine-topbar" data-routine-topbar data-routine-status-url="{{ route('daily-logs.routine-status') }}">
-                    <button class="icon-btn routine-topbar__button" data-bs-toggle="dropdown" aria-expanded="false"
+                    <button class="icon-btn routine-topbar__button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
                         title="งานประจำวันนี้" aria-label="งานประจำที่ต้องจัดการ {{ $routineAttention['total'] }} รายการ">
                         <i class="bi bi-alarm-fill" aria-hidden="true"></i>
                         <span class="notification-count routine-topbar__count" data-routine-count @if($routineAttention['total'] === 0) hidden @endif>{{ $routineAttention['total'] }}</span>
                     </button>
-                    <div class="dropdown-menu dropdown-menu-end routine-topbar__menu">
+                    <div class="dropdown-menu dropdown-menu-end topbar-slide-menu routine-topbar__menu">
                         <div class="routine-topbar__head">
                             <strong>งานประจำวันนี้</strong>
                             <span data-routine-total>{{ $routineAttention['total'] }} รายการ</span>
@@ -338,14 +338,29 @@
                 </div>
             @endunless
             <div class="dropdown">
-                <button class="icon-btn" data-bs-toggle="dropdown" aria-expanded="false" title="แจ้งเตือน">
+                <button class="icon-btn" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" title="แจ้งเตือน">
                     <i class="bi bi-bell-fill"></i>
                     <span class="notification-count" data-notification-count data-bell-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
                 </button>
-                <div class="dropdown-menu dropdown-menu-end p-2 notification-menu">
-                    <div class="d-flex align-items-center justify-content-between px-2 py-2">
+                <div class="dropdown-menu dropdown-menu-end topbar-slide-menu notification-menu" data-notification-menu>
+                    <div class="notification-menu__head">
                         <strong>การแจ้งเตือน</strong>
                         <span class="badge-soft {{ $notificationCount > 0 ? 'amber' : 'gray' }}" data-notification-summary>{{ $notificationCount }} รายการ</span>
+                        {{--
+                            ปุ่มไอคอนใช้เส้นทางเดียวกับหน้าศูนย์การแจ้งเตือน (notifications.read-all
+                            และ notifications.destroy-read) ไม่ได้สร้าง endpoint ชุดที่สอง
+                            ปุ่มลบถามยืนยันด้วย SweetAlert ก่อนเสมอเพราะลบถาวร
+                        --}}
+                        <span class="notification-menu__actions">
+                            <button type="button" class="notification-menu__action" data-notification-read-all
+                                title="อ่านทั้งหมด" aria-label="ทำเครื่องหมายว่าอ่านทั้งหมด" @disabled($notificationCount === 0)>
+                                <i class="bi bi-check2-all" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="notification-menu__action notification-menu__action--danger" data-notification-clear-read
+                                title="ล้างรายการที่อ่านแล้ว" aria-label="ล้างรายการที่อ่านแล้ว">
+                                <i class="bi bi-trash3" aria-hidden="true"></i>
+                            </button>
+                        </span>
                     </div>
                     <div data-notification-dropdown-list>
                     @if($systemNotifications->count() > 0)
