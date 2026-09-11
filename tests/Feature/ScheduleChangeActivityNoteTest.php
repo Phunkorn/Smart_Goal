@@ -25,10 +25,11 @@ class ScheduleChangeActivityNoteTest extends TestCase
     public function test_due_date_change_records_the_old_and_new_date_in_the_activity_note(): void
     {
         $user = $this->user();
-        $task = $this->task($user, '2026-09-03 09:15:00', '2026-09-03 09:15:00');
+        $task = $this->task($user, '2026-09-03 16:15:00', '2026-09-03 16:15:00');
 
+        // หน้าจอส่งเวลาไทยมาเสมอ ('Y-m-dTH:i' จากช่อง datetime-local) ไม่ใช่ UTC
         $this->actingAs($user)
-            ->postJson(route('mytasks.updateDueDate', $task), ['job_due_at' => '2026-09-10 09:15:00'])
+            ->postJson(route('mytasks.updateDueDate', $task), ['job_due_at' => '2026-09-10T16:15'])
             ->assertOk();
 
         $note = ActivityLog::where('action', 'due_date_changed')->value('description');
@@ -40,12 +41,12 @@ class ScheduleChangeActivityNoteTest extends TestCase
     public function test_schedule_change_records_both_dates_and_the_direction_of_each_move(): void
     {
         $admin = $this->user('admin');
-        $task = $this->task($admin, '2026-09-05 03:00:00', '2026-09-20 03:00:00');
+        $task = $this->task($admin, '2026-09-05 10:00:00', '2026-09-20 10:00:00');
 
         $this->actingAs($admin)
             ->patchJson(route('tasks.schedule.update', $task), [
-                'job_start_at' => '2026-09-07 03:00:00',
-                'job_due_at' => '2026-09-15 03:00:00',
+                'job_start_at' => '2026-09-07T10:00',
+                'job_due_at' => '2026-09-15T10:00',
             ])
             ->assertOk();
 
@@ -115,8 +116,12 @@ class ScheduleChangeActivityNoteTest extends TestCase
         ]);
     }
 
+    /** $start และ $due เขียนเป็นเวลาไทย ให้ตรงกับสิ่งที่ผู้ใช้กรอกและที่ข้อความกิจกรรมแสดง */
     private function task(User $owner, string $start, string $due): WorkOrder
     {
+        $start = Carbon::parse($start, TodayWorkspace::BUSINESS_TIMEZONE)->utc()->toDateTimeString();
+        $due = Carbon::parse($due, TodayWorkspace::BUSINESS_TIMEZONE)->utc()->toDateTimeString();
+
         return WorkOrder::create([
             'user_id' => $owner->id,
             'created_by' => $owner->id,

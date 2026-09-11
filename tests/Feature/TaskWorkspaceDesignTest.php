@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Support\TodayWorkspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -173,8 +174,11 @@ class TaskWorkspaceDesignTest extends TestCase
             ->assertJsonPath('job_start_at', '2030-01-10')
             ->assertJsonPath('job_due_at', '2030-01-11');
 
-        $this->assertSame('2030-01-10', $task->fresh()->job_start_at->format('Y-m-d'));
-        $this->assertSame('2030-01-11', $task->fresh()->job_due_at->format('Y-m-d'));
+        // ค่าที่เก็บเป็น UTC ส่วนวันที่ผู้ใช้กรอกและเห็นคือวันตามเวลาไทย
+        // จึงยืนยันผ่านตัวแปลงเดียวกับที่หน้าจอใช้ ไม่ใช่ format จากค่า UTC ดิบ
+        $this->assertSame('2030-01-10', TodayWorkspace::calendarDate($task->fresh()->job_start_at));
+        $this->assertSame('2030-01-11', TodayWorkspace::calendarDate($task->fresh()->job_due_at));
+        $this->assertSame(TodayWorkspace::DEFAULT_DUE_TIME, TodayWorkspace::clockTime($task->fresh()->job_due_at));
 
         $this->actingAs($member)
             ->patchJson(route('tasks.schedule.update', $task->job_id), [
@@ -184,7 +188,7 @@ class TaskWorkspaceDesignTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('job_due_at');
 
-        $this->assertSame('2030-01-10', $task->fresh()->job_start_at->format('Y-m-d'));
+        $this->assertSame('2030-01-10', TodayWorkspace::calendarDate($task->fresh()->job_start_at));
     }
 
     public function test_collaborators_can_be_added_and_removed_from_the_workspace(): void

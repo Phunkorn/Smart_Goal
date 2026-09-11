@@ -21,7 +21,7 @@ const boardRowMarkup = () => `
             <label class="board-start board-start-editable">
                 <i class="bi bi-calendar-plus"></i>
                 <span data-board-start-label>1 กันยายน 2569</span>
-                <input type="date" data-date-picker data-board-field="start" value="2026-09-01" max="2026-09-10" aria-label="เลือกวันที่เริ่ม">
+                <input type="datetime-local" data-date-picker data-default-time="00:00" data-board-field="start" value="2026-09-01T09:00" max="2026-09-10T23:59" aria-label="เลือกวันที่และเวลาเริ่ม">
             </label>
         </article>
     </div>
@@ -71,7 +71,7 @@ test('min and max on the input are the only rule for which days can be picked', 
 test('picking a day writes the input and fires one bubbling change event', async (t) => {
     const {ui} = await boot(t);
     const label = ui.document.querySelector('.board-start-editable');
-    const input = label.querySelector('input[type="date"]');
+    const input = label.querySelector('input[type="datetime-local"]');
 
     const changes = [];
     ui.document.addEventListener('change', (event) => changes.push(event.target.value));
@@ -89,21 +89,22 @@ test('picking a day writes the input and fires one bubbling change event', async
 
     click(popover.querySelector('[data-date-value="2026-09-04"]'));
 
-    assert.equal(input.value, '2026-09-04');
-    assert.deepEqual(changes, ['2026-09-04'], 'ตัวจัดการบันทึกเดิมต้องได้ change เพียงครั้งเดียว');
+    // เลือกวันใหม่ต้องไม่ล้างเวลาที่ตั้งไว้ ช่องจึงยังถือ 09:00 เดิมอยู่
+    assert.equal(input.value, '2026-09-04T09:00');
+    assert.deepEqual(changes, ['2026-09-04T09:00'], 'ตัวจัดการบันทึกเดิมต้องได้ change เพียงครั้งเดียว');
     assert.equal(popover.hidden, true, 'เลือกแล้วต้องปิดเอง');
 });
 
 test('a day outside min/max cannot be committed even if it is clicked', async (t) => {
     const {ui} = await boot(t);
     const label = ui.document.querySelector('.board-start-editable');
-    const input = label.querySelector('input[type="date"]');
+    const input = label.querySelector('input[type="datetime-local"]');
 
     click(label);
     const popover = ui.document.querySelector('.sg-date-picker');
     click(popover.querySelector('[data-date-value="2026-09-11"]'));
 
-    assert.equal(input.value, '2026-09-01', 'วันเกินขอบเขตต้องไม่ถูกเขียนลง input');
+    assert.equal(input.value, '2026-09-01T09:00', 'วันเกินขอบเขตต้องไม่ถูกเขียนลง input');
     assert.equal(popover.hidden, false, 'และ popover ต้องยังเปิดอยู่ให้เลือกใหม่');
 });
 
@@ -154,9 +155,11 @@ test('the board no longer calls the browser picker, and the date fields opt in f
 
     assert.doesNotMatch(script, /showPicker/, 'ปฏิทินของเบราว์เซอร์ต้องไม่ถูกเรียกอีก');
     assert.doesNotMatch(await read('resources/js/mytasks-management.js'), /showPicker/, 'แถวงานในตารางก็ต้องใช้ปฏิทินชุดเดียวกัน');
-    assert.match(await read('resources/views/tasks/partials/notion-task-row.blade.php'), /type="date" data-date-picker data-field="due"/);
-    assert.match(board, /<input type="date" data-date-picker data-board-field="start"/);
-    assert.match(board, /<input type="date" data-date-picker data-board-field="due"/);
+    // กำหนดการของงานมีเวลาจริงแล้ว ช่องทุกช่องจึงต้องเป็น datetime-local
+    // และต้องประกาศเวลาตั้งต้นของตัวเอง (ต้นวันทำการ / เวลาเลิกงาน) ไม่ใช่ตกไปใช้ค่าของหน้าประชุม
+    assert.match(await read('resources/views/tasks/partials/notion-task-row.blade.php'), /type="datetime-local" data-date-picker data-default-time="[^"]+" data-field="due"/);
+    assert.match(board, /<input type="datetime-local" data-date-picker data-default-time="[^"]+" data-board-field="start"/);
+    assert.match(board, /<input type="datetime-local" data-date-picker data-default-time="[^"]+" data-board-field="due"/);
     assert.match(entry, /useDatePickers\(\)/, 'หน้างานของฉันและ Member Workspace ใช้ entry เดียวกัน');
 });
 
@@ -220,12 +223,23 @@ test('changing the time saves immediately and keeps the picker open', async (t) 
     assert.equal(popover.hidden, false, 'ปรับเวลาแล้วต้องยังเลือกวันต่อได้');
 });
 
-test('a project date field has no time row at all', async (t) => {
+test('a project schedule field offers the time row too', async (t) => {
     const {ui} = await boot(t);
 
     click(ui.document.querySelector('.board-start-editable'));
 
-    assert.equal(ui.document.querySelector('.sg-date-picker__time').hidden, true);
+    // งานในโปรเจกต์กำหนดเวลาส่งได้แล้ว แถวเวลาจึงต้องมาพร้อมกับวันในกล่องเดียวกัน
+    assert.equal(ui.document.querySelector('.sg-date-picker__time').hidden, false);
+    assert.equal(ui.document.querySelector('.sg-date-picker__time-input').value, '09:00');
+});
+
+test('an empty schedule field starts at the time the field declares', async () => {
+    const {initialTimeFor, defaultMeetingTime} = await import('../../resources/js/components/date-picker.js');
+
+    // ช่องกำหนดส่งประกาศเวลาเลิกงานของตัวเอง จึงต้องไม่ตกไปใช้ "ชั่วโมงถัดไป" ของหน้าประชุม
+    assert.equal(initialTimeFor({dataset: {defaultTime: '17:00'}}), '17:00');
+    assert.equal(initialTimeFor({dataset: {defaultTime: 'ไม่ใช่เวลา'}}, new Date(2026, 8, 4, 9, 42)), '10:00');
+    assert.equal(initialTimeFor({dataset: {}}, new Date(2026, 8, 4, 9, 42)), defaultMeetingTime(new Date(2026, 8, 4, 9, 42)));
 });
 
 test('splitting and rejoining a datetime value is lossless', async () => {
@@ -239,6 +253,64 @@ test('splitting and rejoining a datetime value is lossless', async () => {
 
     // ช่องที่ยังว่างเริ่มที่ชั่วโมงถัดไปแบบเต็มชั่วโมง
     assert.equal(defaultMeetingTime(new Date(2026, 8, 4, 9, 42)), '10:00');
+});
+
+test('the picker floats above every overlay that can open it', async () => {
+    const css = await read('resources/css/components/date-picker.css');
+    const workspace = await read('resources/css/components/task-workspace/workspace-modal.css');
+
+    /*
+     * ปฏิทินเป็นของกล่องที่เปิดมันเสมอ ถ้ามันอยู่ใต้กล่องนั้น ผู้ใช้กดช่องวันที่แล้วจะเหมือน
+     * ไม่มีอะไรเกิดขึ้น เพราะปฏิทินถูกทับไว้ทั้งใบ — เคยเกิดกับ Task Workspace
+     */
+    const pickerLayers = [...css.matchAll(/\.sg-date-picker\s*\{[^}]*z-index:\s*(\d+)/gs)].map(([, value]) => Number(value));
+    assert.ok(pickerLayers.length > 0, 'ปฏิทินต้องประกาศ z-index ของตัวเอง');
+
+    const overlayLayers = [...workspace.matchAll(/z-index:\s*(\d+)/g)].map(([, value]) => Number(value));
+    const highestOverlay = Math.max(...overlayLayers);
+
+    for (const layer of pickerLayers) {
+        assert.ok(layer > highestOverlay, `ปฏิทินอยู่ที่ ${layer} ซึ่งต่ำกว่า overlay สูงสุด ${highestOverlay}`);
+    }
+});
+
+test('Escape closes only the picker, never the dialog that opened it', async () => {
+    const source = await read('resources/js/components/date-picker.js');
+    const stack = await read('resources/js/components/modal-stack.js');
+
+    // modalStack ดัก Escape ที่ document ใน capture phase เพื่อปิดโมดัลชั้นบนสุด
+    assert.match(stack, /doc\.addEventListener\('keydown'[\s\S]*?\}, true\)/);
+
+    // ปฏิทินจึงต้องฟังที่ window ซึ่งมาก่อน document ในเส้นทาง capture เสมอ
+    // ฟังที่ document จะแพ้ให้ modalStack เพราะมันผูก listener ไว้ก่อนตั้งแต่โหลดหน้า
+    assert.match(source, /window\.addEventListener\('keydown',[\s\S]*?event\.stopPropagation\(\)[\s\S]*?\}, true\)/);
+});
+
+test('the board due-time cell is editable and bound to the same due field', async () => {
+    const board = await read('resources/views/tasks/partials/project-board-card.blade.php');
+    const subtask = await read('resources/views/tasks/components/task-detail-row.blade.php');
+    const script = await read('resources/js/mytasks-project-board.js');
+    const css = await read('resources/css/pages/mytasks/project-board.css');
+
+    // ช่องวันที่และช่องเวลาเป็นมุมมองคนละด้านของ job_due_at ค่าเดียวกัน จึงใช้ field เดียวกัน
+    for (const markup of [board, subtask]) {
+        assert.match(markup, /class="board-due-time board-due-time-editable[^"]*"[\s\S]{0,600}?data-board-field="due"/);
+    }
+
+    // ทั้งสองช่องต้องถูกเขียนค่าใหม่พร้อมกัน ไม่งั้นช่องที่ไม่ถูกอัปเดตจะส่งค่าเก่ากลับไปทับ
+    assert.match(script, /ownControls\(task, `\[data-board-field="\$\{field\}"\]`\)\.forEach/);
+
+    /*
+     * แถวบอร์ดใช้ align-items:start ความสูงของกล่องแต่ละช่องจึงเป็นตัวกำหนดระดับข้อความ
+     * ช่องกำหนดส่งกับช่องเวลาต้องประกาศความสูงจากกฎ "เดียวกัน" ไม่ใช่คัดลอกตัวเลขไปคนละที่
+     * ซึ่งจะเพี้ยนทันทีที่มีคนแก้ค่าฝั่งเดียว
+     */
+    assert.match(css, /\.board-due-editable,[^{]*\.board-due-time-editable\{[^}]*min-height:\d+px/);
+    assert.match(css, /align-items: start/, 'กฎที่ทำให้ความสูงกล่องมีผลต้องยังอยู่จริง');
+
+    // และห้ามมี min-height ที่คลาสฐาน ไม่งั้นแถวแบบอ่านอย่างเดียวจะมีช่องเวลาสูงกว่าเพื่อน
+    // เพราะ .board-due ของแถวนั้นไม่มี min-height ของตัวเอง
+    assert.doesNotMatch(css, /\.board-due-time\{[^}]*min-height/);
 });
 
 test('the meeting form and the meetings page both opt into the shared picker', async () => {
@@ -261,8 +333,11 @@ test('the board no longer caps one endpoint of the range with the other', async 
      */
     // Blade แทรก {{ $task->... }} ไว้กลางแท็ก จึงต้องตัดเป็นแท็กเต็มก่อนแล้วค่อยตรวจแอตทริบิวต์
     const inputTag = (field) => {
-        const start = blade.indexOf(`<input type="date" data-date-picker data-board-field="${field}"`);
+        // Blade แทรกนิพจน์ไว้ก่อน data-board-field จึงหาแอตทริบิวต์นั้นก่อนแล้วย้อนกลับไปหาต้นแท็ก
+        const field_at = blade.indexOf(`data-board-field="${field}"`);
+        const start = field_at === -1 ? -1 : blade.lastIndexOf('<input', field_at);
         assert.notEqual(start, -1, `ไม่พบช่อง ${field} ในบอร์ด`);
+        assert.match(blade.slice(start, field_at), /type="datetime-local"/, `ช่อง ${field} ต้องเลือกเวลาได้ด้วย`);
 
         return blade.slice(start, blade.indexOf('>', blade.indexOf('aria-label', start)) + 1);
     };

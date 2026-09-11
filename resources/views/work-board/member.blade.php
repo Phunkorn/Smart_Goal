@@ -42,7 +42,7 @@
                     <div class="wb-task-name"><i class="wb-mini-dot wb-tone-{{ $status['tone'] }}"></i><strong>{{ $job->job_topic }}</strong></div>
                     <span class="wb-status wb-tone-{{ $status['tone'] }}"><i></i>{{ $status['label'] }}</span>
                     <span class="wb-priority wb-tone-{{ $priority['tone'] }}"><i class="bi bi-flag-fill"></i>{{ $priority['label'] }}</span>
-                    <time class="{{ $status['key'] === 'late' ? 'is-late' : '' }}">{{ $job->job_due_at?->locale('th')->translatedFormat('j M Y') ?? '-' }}</time>
+                    <time class="{{ $status['key'] === 'late' ? 'is-late' : '' }}">{{ $job->job_due_at ? \App\Support\TodayWorkspace::businessMoment($job->job_due_at)->locale('th')->translatedFormat('j M Y').' '.\App\Support\TodayWorkspace::timeLabel($job->job_due_at) : '-' }}</time>
                     <div class="wb-avatar-stack">
                         @forelse($job->collaborators->take(3) as $collaborator)@include('work-board.partials.avatar', ['user' => $collaborator, 'size' => 'sm'])@empty<span class="wb-muted">-</span>@endforelse
                         @if($job->collaborators->count() > 3)<span class="wb-avatar wb-avatar--sm">+{{ $job->collaborators->count() - 3 }}</span>@endif

@@ -7,6 +7,7 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Support\TodayWorkspace;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -270,8 +271,12 @@ class AdminWorkBoardTest extends TestCase
             ])
             ->assertOk();
         $manualTask->refresh();
-        $this->assertSame('2026-09-01', $manualTask->job_start_at->format('Y-m-d'));
-        $this->assertSame('2026-09-05', $manualTask->job_due_at->format('Y-m-d'));
+        // ค่าที่เก็บเป็น UTC แต่สิ่งที่ผู้ใช้กรอกและเห็นคือวันตามเวลาไทย จึงต้องยืนยันผ่านตัวแปลงเดียวกับที่หน้าจอใช้
+        $this->assertSame('2026-09-01', TodayWorkspace::calendarDate($manualTask->job_start_at));
+        $this->assertSame('2026-09-05', TodayWorkspace::calendarDate($manualTask->job_due_at));
+        // ไม่ได้ส่งเวลามาด้วย จึงต้องได้เวลาตั้งต้นของแต่ละช่อง ไม่ใช่เที่ยงคืน UTC
+        $this->assertSame(TodayWorkspace::DEFAULT_START_TIME, TodayWorkspace::clockTime($manualTask->job_start_at));
+        $this->assertSame(TodayWorkspace::DEFAULT_DUE_TIME, TodayWorkspace::clockTime($manualTask->job_due_at));
 
         $this->actingAs($admin)
             ->patchJson(route('tasks.schedule.update', $manualTask), [
@@ -444,14 +449,14 @@ class AdminWorkBoardTest extends TestCase
         $rangeTask = $this->task($project, $admin, $member, 'Aug range task');
         $rangeTask->update([
             'job_status' => 2,
-            'job_start_at' => '2026-08-16',
-            'job_due_at' => '2026-08-20',
+            'job_start_at' => self::businessInstant('2026-08-16 00:00:00'),
+            'job_due_at' => self::businessInstant('2026-08-20 23:59:59'),
         ]);
         $paused = $this->task($project, $admin, $member, 'Paused range task');
         $paused->update([
             'job_status' => 5,
-            'job_start_at' => '2026-08-16',
-            'job_due_at' => '2026-08-20',
+            'job_start_at' => self::businessInstant('2026-08-16 00:00:00'),
+            'job_due_at' => self::businessInstant('2026-08-20 23:59:59'),
             'paused_at' => '2026-08-17 09:00:00',
         ]);
 
@@ -476,8 +481,8 @@ class AdminWorkBoardTest extends TestCase
         $completed = $this->task($project, $admin, $member, 'Completed early task');
         $completed->update([
             'job_status' => 4,
-            'job_start_at' => '2026-08-16',
-            'job_due_at' => '2026-08-20',
+            'job_start_at' => self::businessInstant('2026-08-16 00:00:00'),
+            'job_due_at' => self::businessInstant('2026-08-20 23:59:59'),
             'job_completed_at' => '2026-08-18 10:00:00',
         ]);
         $sameDay = $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))->assertOk();
@@ -604,6 +609,12 @@ class AdminWorkBoardTest extends TestCase
         $viewer = $this->user('viewer', $department, 'Viewer');
         $this->assertStringNotContainsString('data-id="'.$viewer->id.'"', $response->getContent());
         $this->assertSame(1, substr_count($response->getContent(), 'data-admin-assignment-modal'));
+    }
+
+    /** ช่วงงานที่ผู้ใช้กรอกเป็นเวลาไทย เก็บลงคอลัมน์เป็น UTC เหมือนเส้นทางจริงของ controller */
+    private static function businessInstant(string $bangkokTime): Carbon
+    {
+        return Carbon::parse($bangkokTime, TodayWorkspace::BUSINESS_TIMEZONE)->utc();
     }
 
     private function user(string $role, Department $department, string $name): User

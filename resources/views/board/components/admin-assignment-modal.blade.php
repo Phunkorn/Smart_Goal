@@ -7,8 +7,14 @@
     $projectOptions = collect($projectOptions ?? [])->unique('id')->values();
     $startsWithTask = ($startWithTask ?? false) && $projectOptions->isNotEmpty();
     $initialAssigneeId = $defaultAssigneeId ?: $preselectAssigneeId;
-    $initialStart = now()->format('Y-m-d\TH:i');
-    $initialDue = now()->addDay()->format('Y-m-d\TH:i');
+    // now() เป็น UTC ถ้า format ตรง ๆ ช่อง datetime-local จะขึ้นเวลาย้อนหลังไป 7 ชั่วโมง
+    // ช่องนี้อ่านค่าเป็นเวลาท้องถิ่นล้วน จึงต้องเติมค่าเป็นเวลาไทยเสมอ
+    $initialStart = \App\Support\TodayWorkspace::calendarDateTime(now());
+    $initialDue = \App\Support\TodayWorkspace::parseBusinessInput(
+        \App\Support\TodayWorkspace::businessNow()->addDay()->format('Y-m-d'),
+        \App\Support\TodayWorkspace::DEFAULT_DUE_TIME,
+    );
+    $initialDue = \App\Support\TodayWorkspace::calendarDateTime($initialDue);
 @endphp
 
 <div class="modal fade admin-assignment-flow" id="boardCreateTaskModal" tabindex="-1"
@@ -73,8 +79,8 @@
                                 <div class="assignee-picker dropdown"><button type="button" class="assignee-picker-toggle form-control form-control-lg d-flex align-items-center justify-content-between dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"><span class="assignee-picker-label text-muted">เลือกผู้รับผิดชอบ...</span></button><div class="dropdown-menu assignee-picker-menu p-2 w-100"><input type="search" class="form-control form-control-sm mb-2" data-task-assignee-search placeholder="ค้นหาชื่อหรือแผนก" aria-label="ค้นหาผู้รับผิดชอบ" autocomplete="off"><div class="assignee-picker-list">@foreach($employees as $employee)<button type="button" class="assignee-option" data-id="{{ $employee->id }}" data-name="{{ $employee->name }}" data-dept="{{ optional($employee->department)->department_name ?? 'ไม่ระบุแผนก' }}" data-search="{{ Str::lower($employee->name.' '.optional($employee->department)->department_name) }}"><span class="avatar-mini">@include('components.user-avatar-content', ['user' => $employee, 'avatarLength' => 2])</span><strong>{{ $employee->name }}</strong><span class="assignee-option-dept">{{ optional($employee->department)->department_name ?? 'ไม่ระบุแผนก' }}</span></button>@endforeach</div><div class="text-muted small text-center py-2 d-none" data-task-assignee-empty>ไม่พบพนักงานที่ตรงกับคำค้นหา</div></div></div>
                                 <input type="hidden" name="user_id" data-task-assignee value="{{ $initialAssigneeId ?: '' }}" required>
                             </div>
-                            <div class="col-md-6"><label class="form-label" for="adminTaskStart">วันที่เริ่ม <span aria-hidden="true">*</span></label><input type="datetime-local" id="adminTaskStart" name="job_start_at" class="form-control" value="{{ $initialStart }}" required></div>
-                            <div class="col-md-6"><label class="form-label" for="adminTaskDue">กำหนดส่ง <span aria-hidden="true">*</span></label><input type="datetime-local" id="adminTaskDue" name="job_due_at" class="form-control" value="{{ $initialDue }}" required></div>
+                            <div class="col-md-6"><label class="form-label" for="adminTaskStart">วันที่เริ่ม <span aria-hidden="true">*</span></label><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}" id="adminTaskStart" name="job_start_at" class="form-control" value="{{ $initialStart }}" required></div>
+                            <div class="col-md-6"><label class="form-label" for="adminTaskDue">กำหนดส่ง <span aria-hidden="true">*</span></label><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" id="adminTaskDue" name="job_due_at" class="form-control" value="{{ $initialDue }}" required></div>
                             <div class="col-12"><label class="form-label" for="adminTaskPriority">ความสำคัญ</label><select id="adminTaskPriority" name="job_priority" class="form-select">@foreach(\App\Support\WorkBoardDesign::TASK_PRIORITIES as $value => $meta)<option value="{{ $value }}" @selected($value === 2)>{{ $meta['label'] }}</option>@endforeach</select></div>
                             <div class="col-12">
                                 <details class="admin-task-options"><summary><span><i class="bi bi-people" aria-hidden="true"></i> ผู้ร่วมงานและไฟล์แนบ</span><small>ไม่บังคับ · เพิ่มภายหลังได้</small></summary><div class="admin-task-options__body">

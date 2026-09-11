@@ -7,6 +7,7 @@ use App\Models\WorkOrderList;
 use App\Models\WorkOrderListTaskRequest;
 use App\Services\NotificationService;
 use App\Support\AuditTrail;
+use App\Support\TodayWorkspace;
 use App\Support\WorkOrderApprovalResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -64,8 +65,8 @@ class ProjectTaskRequestController extends Controller
                 'status' => 'pending',
                 'job_topic' => $topic,
                 'job_priority' => $validated['job_priority'],
-                'job_start_at' => $validated['job_start_at'],
-                'job_due_at' => $validated['job_due_at'],
+                'job_start_at' => TodayWorkspace::parseBusinessInput($validated['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
+                'job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
             ]);
 
             $notifications->notifyDetached(

@@ -10,6 +10,7 @@
     $status = WorkBoardDesign::status($task);
     $priority = WorkBoardDesign::taskPriority((int) $task->job_priority);
     $dateRange = TodayWorkspace::dateRangeLabel($task->job_start_at, $task->job_due_at);
+    $dueTimeLabel = TodayWorkspace::timeLabel($task->job_due_at);
     $progress = TodayWorkspace::timeProgress($task);
     $overdueDays = TodayWorkspace::overdueDays($task);
 
@@ -44,6 +45,17 @@
             <span class="qv-dates__badge qv-tone-{{ $status['tone'] }}">{{ $remainingText }}</span>
         @endif
     </p>
+
+    {{--
+        เวลากำหนดส่ง — ตัวปฏิทินเองยังแสดงผลระดับวันเหมือนเดิม ตรงนี้คือจุดเดียว
+        ที่ผู้ใช้เห็นเวลาจริงจากฝั่งปฏิทิน จึงต้องอยู่คู่กับช่วงวันด้านบนเสมอ
+    --}}
+    @if($dueTimeLabel)
+        <p class="qv-dates qv-dates--time">
+            <i class="bi bi-clock" aria-hidden="true"></i>
+            <span>ส่งภายใน {{ $dueTimeLabel }}</span>
+        </p>
+    @endif
 
     {{-- คนที่เกี่ยวข้อง: ผู้รับผิดชอบหลัก + ผู้ร่วมงานแบบ avatar ซ้อนกัน ไม่มี People Selector --}}
     <section class="qv-people">

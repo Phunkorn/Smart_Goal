@@ -148,16 +148,54 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
      */
     const thaiDate = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'short', year: 'numeric'});
 
+    /*
+     * ค่ากำหนดการของแถวถูกเก็บเป็นสองส่วน: data-start / data-due เป็นวัน ('Y-m-d')
+     * และ data-start-time / data-due-time เป็นเวลาไทย ('H:i')
+     *
+     * แยกกันเพราะปฏิทิน ตัวกรอง และการจัดกลุ่มทั้งหมดทำงานที่ความละเอียดระดับวัน
+     * ถ้ารวมเป็นสตริงเดียวโค้ดพวกนั้นต้องตัดสตริงเองทุกจุด ส่วนช่องกรอกต้องการค่ารวม
+     * จึงประกอบตอนใช้งานด้วยตัวช่วยคู่นี้ที่เดียว
+     */
+    const scheduleValue = (task, field) => {
+        const date = task.dataset[field] || '';
+        const time = task.dataset[field === 'start' ? 'startTime' : 'dueTime'] || '';
+
+        return date && time ? `${date}T${time}` : date;
+    };
+
+    const applyScheduleValue = (task, field, value) => {
+        const [date = '', time = ''] = String(value || '').split('T');
+        task.dataset[field] = date;
+        task.dataset[field === 'start' ? 'startTime' : 'dueTime'] = time;
+    };
+
     const paintScheduleLabels = (task) => {
         [['start', '[data-board-start-label]'], ['due', '[data-board-due-label]']].forEach(([field, selector]) => {
             const value = task.dataset[field] || '';
-            const input = ownControls(task, `[data-board-field="${field}"]`)[0];
-            if (input) input.value = value;
+
+            /*
+             * เขียนค่าลงทุกช่องของ field นั้น ไม่ใช่แค่ช่องแรก
+             *
+             * กำหนดส่งมีสองช่องที่แก้ได้ — ช่องวันที่ และช่องเวลา — ทั้งคู่ผูกกับ job_due_at
+             * ค่าเดียวกัน ถ้าอัปเดตแค่ช่องแรก อีกช่องจะยังถือค่าเก่า แล้วการกดแก้ครั้งถัดไป
+             * จะส่งค่าเก่ากลับไปทับค่าที่เพิ่งบันทึก
+             */
+            const next = scheduleValue(task, field);
+            ownControls(task, `[data-board-field="${field}"]`).forEach((input) => {
+                input.value = next;
+            });
 
             const label = ownControls(task, selector)[0];
             const date = new Date(`${value}T00:00:00`);
             if (label && value && !Number.isNaN(date.getTime())) label.textContent = thaiDate.format(date);
         });
+
+        // คอลัมน์เวลากำหนดส่งอ่านค่าจาก dataset ชุดเดียวกัน จึงตามการแก้ไขทุกครั้งโดยไม่ต้องรีโหลด
+        const dueTime = ownControls(task, '[data-board-due-time]')[0];
+        if (dueTime) {
+            const clock = task.dataset.dueTime || '';
+            dueTime.textContent = clock ? `${clock} น.` : '-';
+        }
     };
 
     const tasksForProject = (header) => header
@@ -753,49 +791,51 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                  * ตอนนี้เลือกวันไหนก็ได้ แล้วปลายทางอีกข้างขยับตามให้ พร้อมบอกผู้ใช้ว่าขยับให้แล้ว
                  * กติกา "กำหนดส่งต้องไม่ก่อนวันเริ่ม" ยังถูกบังคับที่ server เหมือนเดิม
                  */
-                const shiftedDue = task.dataset.due && control.value > task.dataset.due
-                    ? control.value
-                    : task.dataset.due;
-                const dueMoved = shiftedDue !== task.dataset.due;
+                // เทียบเป็นสตริง 'Y-m-dTH:i' ได้ตรง ๆ เพราะรูปแบบนี้เรียงตามเวลาอยู่แล้ว
+                // และตอนนี้ต้องเทียบถึงระดับเวลา ไม่ใช่แค่วัน งานที่เริ่มบ่ายแล้วส่งเช้าวันเดียวกันจึงถูกจับได้
+                const currentDue = scheduleValue(task, 'due');
+                const shiftedDue = currentDue && control.value > currentDue ? control.value : currentDue;
+                const dueMoved = shiftedDue !== currentDue;
 
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
                     job_start_at: control.value,
                     job_due_at: shiftedDue,
                 });
                 if (data.transitions) management[String(id)].transitions = data.transitions;
-                task.dataset.start = data.job_start_at ?? control.value;
-                task.dataset.due = data.job_due_at ?? task.dataset.due;
+                applyScheduleValue(task, 'start', data.job_start_at ? `${data.job_start_at}T${data.job_start_time ?? ''}` : control.value);
+                if (data.job_due_at) applyScheduleValue(task, 'due', `${data.job_due_at}T${data.job_due_time ?? ''}`);
+                else applyScheduleValue(task, 'due', shiftedDue);
                 task.dataset.status = String(data.job_status ?? task.dataset.status);
                 paintScheduleLabels(task);
                 scheduleNotice = dueMoved ? 'เลื่อนวันที่เริ่มแล้ว และเลื่อนกำหนดส่งตามไปด้วย' : '';
-                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, status: Number(task.dataset.status)});
+                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, startTime: task.dataset.startTime || '', dueTime: task.dataset.dueTime || '', status: Number(task.dataset.status)});
             } else if (field === 'due') {
                 if (!control.value) throw new Error('ต้องเลือกกำหนดส่ง');
 
                 // เหตุผลเดียวกับช่องวันเริ่ม: เลือกวันไหนก็ได้ แล้วลากปลายทางอีกข้างตามมา
-                const shiftedStart = task.dataset.start && control.value < task.dataset.start
-                    ? control.value
-                    : task.dataset.start;
-                const startMoved = shiftedStart !== task.dataset.start;
+                const currentStart = scheduleValue(task, 'start');
+                const shiftedStart = currentStart && control.value < currentStart ? control.value : currentStart;
+                const startMoved = shiftedStart !== currentStart;
 
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
                     job_start_at: shiftedStart,
                     job_due_at: control.value,
                 });
                 if (data.transitions) management[String(id)].transitions = data.transitions;
-                task.dataset.start = data.job_start_at ?? task.dataset.start;
-                task.dataset.due = data.job_due_at ?? control.value;
+                if (data.job_start_at) applyScheduleValue(task, 'start', `${data.job_start_at}T${data.job_start_time ?? ''}`);
+                else applyScheduleValue(task, 'start', shiftedStart);
+                applyScheduleValue(task, 'due', data.job_due_at ? `${data.job_due_at}T${data.job_due_time ?? ''}` : control.value);
                 task.dataset.status = String(data.job_status ?? task.dataset.status);
                 paintScheduleLabels(task);
                 scheduleNotice = startMoved ? 'เลื่อนกำหนดส่งแล้ว และเลื่อนวันที่เริ่มตามมาด้วย' : '';
-                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, status: Number(task.dataset.status)});
+                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, startTime: task.dataset.startTime || '', dueTime: task.dataset.dueTime || '', status: Number(task.dataset.status)});
             }
             notify(scheduleNotice || 'บันทึกการเปลี่ยนแปลงแล้ว');
             filterBoard();
         } catch (error) {
             notify(error.message, false);
-            if (field === 'start') control.value = task.dataset.start || '';
-            else if (field === 'due') control.value = task.dataset.due || '';
+            if (field === 'start') control.value = scheduleValue(task, 'start');
+            else if (field === 'due') control.value = scheduleValue(task, 'due');
             else window.location.reload();
         } finally {
             control.disabled = false;

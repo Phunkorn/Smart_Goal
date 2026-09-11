@@ -10,12 +10,23 @@
     $pendingCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
     $attachmentCount = (int) ($task->images_count ?? $task->images->count());
     $thaiMonths = [1=>'ม.ค.',2=>'ก.พ.',3=>'มี.ค.',4=>'เม.ย.',5=>'พ.ค.',6=>'มิ.ย.',7=>'ก.ค.',8=>'ส.ค.',9=>'ก.ย.',10=>'ต.ค.',11=>'พ.ย.',12=>'ธ.ค.'];
-    $dueLabel = $task->job_due_at
-        ? $task->job_due_at->day.' '.$thaiMonths[$task->job_due_at->month].' '.str_pad((string)(($task->job_due_at->year + 543) % 100), 2, '0', STR_PAD_LEFT)
+    // ป้ายทุกใบอ่านจากเวลาไทย ค่าที่เก็บเป็น UTC ข้ามวันได้เมื่อกำหนดการมีเวลาจริง
+    $startMoment = $task->job_start_at ? \App\Support\TodayWorkspace::businessMoment($task->job_start_at) : null;
+    $dueMoment = $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at) : null;
+    $dueLabel = $dueMoment
+        ? $dueMoment->day.' '.$thaiMonths[$dueMoment->month].' '.str_pad((string)(($dueMoment->year + 543) % 100), 2, '0', STR_PAD_LEFT)
         : 'ไม่มีกำหนด';
-    $startLabel = $task->job_start_at
-        ? $task->job_start_at->day.' '.$thaiMonths[$task->job_start_at->month]
+    $startLabel = $startMoment
+        ? $startMoment->day.' '.$thaiMonths[$startMoment->month]
         : '-';
+    $dueTimeLabel = \App\Support\TodayWorkspace::timeLabel($task->job_due_at);
+    /*
+     * ชื่องานย่อยเดินทางไปกับแถวเป็น JSON เพราะปฏิทินอ่านข้อมูลงานจากแถวเหล่านี้ที่เดียว
+     * ใช้เงื่อนไข relationLoaded เดียวกับ task-details.blade.php จะได้ไม่ยิงคิวรีเพิ่มต่อแถว
+     */
+    $subtaskNames = $task->relationLoaded('children')
+        ? $task->children->pluck('job_topic')->filter()->values()
+        : collect();
     $taskAdminSenderName = $task->creator?->role === 'admin' ? $task->creator->name : null;
     $canQuickAddToList = $showQuickAdd && $task->taskList && auth()->user()->can('manage', $task->taskList);
     $canWork = auth()->user()->can('work', $task);
@@ -31,7 +42,7 @@
     @if($task->taskList && auth()->user()->can('manage', $task->taskList))
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"
         data-list-delete-url="{{ route('mytasks.lists.destroy', $task->taskList) }}"
-    @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
+    @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}" data-subtask-names="{{ $subtaskNames->toJson(JSON_UNESCAPED_UNICODE) }}">
     <button type="button" class="row-title" data-open-task-modal><strong title="{{ $task->job_topic }}">{{ $task->job_topic }}</strong>@include('tasks.partials.approval-state-marker', ['task' => $task])</button>
     @php($taskPriorityClass = [1=>'routine',2=>'important',3=>'urgent',4=>'quick',5=>'flexible'][(int) $task->job_priority] ?? 'important')
     @if($canWork)
@@ -53,7 +64,9 @@
     </button>
     <label class="row-duration {{ $isLate ? 'is-late' : '' }} {{ $canWork ? '' : 'is-readonly' }}">
         <span class="row-duration-copy"><span>{{ $startLabel }}</span><i class="bi bi-arrow-right"></i><span data-due-label>{{ $dueLabel }}</span></span>
-        @if($canWork)<input class="cell-date" type="date" data-date-picker data-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" aria-label="แก้ไขกำหนดส่ง">@endif
+        {{-- เวลากำหนดส่งอยู่บรรทัดที่สองของเซลล์เดียวกัน ช่วงวันจึงยังอ่านได้ในบรรทัดเดียวเหมือนเดิม --}}
+        <small class="row-duration-time" data-due-time-label>{{ $dueTimeLabel ? 'ส่งภายใน '.$dueTimeLabel : 'ไม่มีเวลากำหนดส่ง' }}</small>
+        @if($canWork)<input class="cell-date" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" aria-label="แก้ไขวันที่และเวลากำหนดส่ง">@endif
     </label>
     <button type="button" class="row-collaborators" data-manage-team="{{ $task->job_id }}" title="{{ $canManageTeam ? 'จัดการผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}">
         <span class="collaborator-stack">

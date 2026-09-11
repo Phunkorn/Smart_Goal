@@ -123,9 +123,17 @@ if (modal && form) {
     const syncDateRange = () => {
         if (!startDate || !dueDate) return;
         dueDate.min = startDate.value;
-        if (startDate.value && dueDate.value && dueDate.value < startDate.value) {
-            dueDate.value = startDate.value;
-        }
+        if (!startDate.value || !dueDate.value || dueDate.value >= startDate.value) return;
+
+        /*
+         * เลื่อนวันเริ่มข้ามกำหนดส่งแล้วต้องลากกำหนดส่งตามไปด้วย แต่ต้องรักษา "เวลา" ที่ผู้ใช้
+         * ตั้งไว้ให้ได้ก่อน การคัดลอกค่าวันเริ่มมาทั้งก้อนจะทำให้เวลาเลิกงานที่ตั้งไว้หายไป
+         * กลายเป็นเวลาเริ่มงาน ซึ่งไม่ใช่สิ่งที่ผู้ใช้สั่ง
+         */
+        const [startDay] = startDate.value.split('T');
+        const [, dueClock = ''] = dueDate.value.split('T');
+        const shifted = dueClock ? `${startDay}T${dueClock}` : startDay;
+        dueDate.value = shifted >= startDate.value ? shifted : startDate.value;
     };
 
     const syncProjectMode = () => {

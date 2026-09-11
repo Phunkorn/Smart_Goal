@@ -103,7 +103,8 @@ class MyTasksCalendarMeetingsTest extends TestCase
                 ->assertSee('data-calendar-date-point="due" aria-pressed="true"', false)
                 ->assertSee('สูงสุด 4 เส้นต่อวัน')
                 ->assertSee('งานและการประชุมวันนี้')
-                ->assertSee('ผู้ร่วมงาน / ผู้เข้าร่วม')
+                // หัวคอลัมน์ถูกย่อให้สั้นลงเมื่อการ์ดมีสิบคอลัมน์ ตรวจว่าคอลัมน์ยังอยู่ ไม่ใช่ตรวจถ้อยคำเดิม
+                ->assertSee('<span role="columnheader">ผู้ร่วมงาน</span>', false)
                 ->assertSee('กำหนดส่งและนัดหมายในเดือนนี้')
                 // กล่องรายวันแทนที่ popover ของปุ่ม "+N" เดิม ต้องมีทั้งสองบริบทและของเดิมต้องหายไปจริง
                 ->assertSee('data-calendar-day-modal', false)

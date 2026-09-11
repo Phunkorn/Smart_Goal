@@ -222,6 +222,8 @@ class EmployeeReportDashboardTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString($included->job_topic, $content);
+        $this->assertStringContainsString('01/08/2026 16:00 น.', $content);
+        $this->assertStringContainsString('01/09/2026 00:00 น.', $content);
         $this->assertStringContainsString('Employee export joined', $content);
         $this->assertStringContainsString('บทบาทของฉัน', $content);
         $this->assertStringContainsString('ผู้ร่วมงาน', $content);

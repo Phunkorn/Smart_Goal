@@ -23,7 +23,6 @@ use App\Support\TaskScopeOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
-use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -433,7 +432,7 @@ class MyTaskController extends Controller
             'approved_by' => $user->id,
             'approved_at' => now(),
             'job_start_at' => now(),
-            'job_due_at' => now()->addDay(),
+            'job_due_at' => TodayWorkspace::parseBusinessInput(TodayWorkspace::businessNow()->addDay()->format('Y-m-d'), TodayWorkspace::DEFAULT_DUE_TIME),
         ]);
 
         AuditTrail::log('created', $workOrder, 'สร้างรายการงาน: '.$workOrder->job_topic, [
@@ -570,8 +569,8 @@ class MyTaskController extends Controller
                     'approval_status' => $approval['approval_status'],
                     'approved_by' => $approval['approved_by'],
                     'approved_at' => $approval['approved_at'],
-                    'job_start_at' => Carbon::parse($validated['job_start_at']),
-                    'job_due_at' => Carbon::parse($validated['job_due_at']),
+                    'job_start_at' => TodayWorkspace::parseBusinessInput($validated['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
+                    'job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
                 ]);
 
                 if ($itemIndex === 0 && $subtaskTitles->isNotEmpty()) {
@@ -592,8 +591,8 @@ class MyTaskController extends Controller
                         'approval_status' => $approval['approval_status'],
                         'approved_by' => $approval['approved_by'],
                         'approved_at' => $approval['approved_at'],
-                        'job_start_at' => Carbon::parse($validated['job_start_at']),
-                        'job_due_at' => Carbon::parse($validated['job_due_at']),
+                        'job_start_at' => TodayWorkspace::parseBusinessInput($validated['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
+                        'job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
                     ]));
                 }
 
@@ -1079,7 +1078,7 @@ class MyTaskController extends Controller
 
         $before = $workOrder->attributesToArray();
         $previousDueAt = $workOrder->job_due_at;
-        $workOrder->update(['job_due_at' => $validated['job_due_at']]);
+        $workOrder->update(['job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME)]);
         if (! TodayWorkspace::reconcileLateAfterScheduleChange($workOrder)) {
             TodayWorkspace::normalizeLateForTransition($workOrder);
         }
@@ -1102,6 +1101,7 @@ class MyTaskController extends Controller
             'ok' => true,
             'job_id' => $workOrder->job_id,
             'job_due_at' => TodayWorkspace::calendarDate($workOrder->job_due_at),
+            'job_due_time' => TodayWorkspace::clockTime($workOrder->job_due_at),
             'job_status' => (int) $workOrder->job_status,
             'transitions' => $transitions->capabilities($workOrder, $request->user()),
         ]);

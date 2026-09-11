@@ -165,8 +165,15 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         form.elements.job_priority.value = row.querySelector('[data-field="priority"]')?.value || row.dataset.priority;
         setModalStatus(Number(form.elements.job_status.value));
         setModalPriority(Number(form.elements.job_priority.value));
-        form.elements.job_due_at.value = row.querySelector('[data-field="due"]')?.value || row.dataset.due || '';
-        form.elements.job_start_at.value = row.dataset.start || '';
+        /*
+         * ช่องในฟอร์มเป็น datetime-local ค่าที่ใส่จึงต้องเป็น 'Y-m-dTH:i' เต็มรูปแบบ
+         * dataset เก็บวันกับเวลาแยกกัน (data-due / data-due-time) เพราะปฏิทินและตัวกรอง
+         * ทำงานระดับวัน ตรงนี้จึงประกอบคืนก่อนใส่ ไม่งั้นเวลาที่ผู้ใช้ตั้งไว้จะถูกล้างทุกครั้งที่เปิด
+         */
+        const joinSchedule = (date, time) => (date && time ? `${date}T${time}` : (date || ''));
+        form.elements.job_due_at.value = row.querySelector('[data-field="due"]')?.value
+            || joinSchedule(row.dataset.due, row.dataset.dueTime);
+        form.elements.job_start_at.value = joinSchedule(row.dataset.start, row.dataset.startTime);
         form.elements.assignee.value = row.dataset.assignee || '';
         if (assigneeOutput) assigneeOutput.textContent = row.dataset.assignee || 'ไม่ระบุ';
         if (staticStatus) staticStatus.textContent = statusMeta[Number(form.elements.job_status.value)]?.label || unsupportedStatusMeta.label;
@@ -324,7 +331,12 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
                 }
                 if (scheduleResult) {
                     canonicalStatus = Number(scheduleResult.job_status ?? canonicalStatus);
-                    canonicalDue = scheduleResult.job_due_at ?? canonicalDue;
+                    // server ตอบกลับวันกับเวลาแยกกัน ประกอบคืนให้ครบก่อนใช้เป็นค่าอ้างอิง
+                    canonicalDue = scheduleResult.job_due_at
+                        ? (scheduleResult.job_due_time
+                            ? `${scheduleResult.job_due_at}T${scheduleResult.job_due_time}`
+                            : scheduleResult.job_due_at)
+                        : canonicalDue;
                     canonicalTransitions = scheduleResult.transitions || canonicalTransitions;
                 }
                 mutationSucceeded = true;
@@ -348,16 +360,23 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
             activeRow.dataset.topic = values.job_topic;
             activeRow.dataset.status = values.job_status;
             activeRow.dataset.priority = values.job_priority;
-            activeRow.dataset.due = values.job_due_at;
-            activeRow.dataset.start = values.job_start_at;
+            // แยกวันกับเวลากลับเข้า dataset ตามรูปแบบที่ปฏิทิน ตัวกรอง และการจัดกลุ่มใช้อยู่
+            const [dueDay = '', dueClock = ''] = String(values.job_due_at || '').split('T');
+            const [startDay = '', startClock = ''] = String(values.job_start_at || '').split('T');
+            activeRow.dataset.due = dueDay;
+            activeRow.dataset.dueTime = dueClock;
+            activeRow.dataset.start = startDay;
+            activeRow.dataset.startTime = startClock;
             const rowTitle = activeRow.querySelector('.row-title strong');
             if (rowTitle) rowTitle.textContent = values.job_topic;
             synchronizeTaskSource(workspace, id, {
                 topic: values.job_topic,
                 status: Number(values.job_status),
                 priority: Number(values.job_priority),
-                start: values.job_start_at,
-                due: values.job_due_at,
+                start: startDay,
+                due: dueDay,
+                startTime: startClock,
+                dueTime: dueClock,
             });
             if (currentStatus) currentStatus.value = values.job_status;
             if (currentPriority) currentPriority.value = values.job_priority;

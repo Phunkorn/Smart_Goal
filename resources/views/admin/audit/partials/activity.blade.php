@@ -17,18 +17,19 @@
         · บันทึกการแก้ไขทั่วไป {{ LogRetention::ROUTINE_DAYS }} วัน
     </p>
 
-    @if ($prunableCount > 0)
         {{-- การยืนยันเป็นหน้าที่ของ audit.js ผ่าน SweetAlert ไม่ใช่ native confirm --}}
         <form method="POST" action="{{ route('admin.audit.activity.prune') }}"
-              data-audit-prune-activity data-count="{{ $prunableCount }}">
+              data-audit-prune-activity data-count="{{ $prunableCount }}"
+              data-critical-days="{{ LogRetention::CRITICAL_DAYS }}">
             @csrf
             @method('DELETE')
-            <button class="audit-btn audit-btn--danger" type="submit">
+            <button class="audit-btn audit-btn--danger" type="submit"
+                    @disabled($prunableCount === 0)
+                    @if ($prunableCount === 0) title="ยังไม่มีบันทึกที่ครบกำหนดลบ" @endif>
                 <i class="bi bi-eraser-fill" aria-hidden="true"></i>
                 ล้างบันทึกเก่า ({{ $prunableCount }})
             </button>
         </form>
-    @endif
 </div>
 
 <section class="audit-card">
@@ -43,6 +44,7 @@
             <table class="audit-table audit-table--activity">
                 <thead>
                     <tr>
+                        <th scope="col">&#xE25;&#xE33;&#xE14;&#xE31;&#xE1A;</th>
                         <th>เวลา</th>
                         <th>ผู้ทำรายการ</th>
                         <th>สิ่งที่เกิดขึ้น</th>
@@ -66,6 +68,7 @@
                                 ->reject(fn ($field) => in_array($field, AuditSnapshot::HIDDEN_FIELDS, true));
                         @endphp
                         <tr @class(['is-auth-event' => $isAuth])>
+                            <td class="audit-row-number">{{ ($logs->firstItem() ?? 1) + $loop->index }}</td>
                             <td>
                                 <time class="audit-time" datetime="{{ optional($log->created_at)->toIso8601String() }}">
                                     {{ optional($log->created_at)->format('d/m/Y H:i') }}

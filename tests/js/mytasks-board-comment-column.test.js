@@ -38,29 +38,36 @@ function rowGridRules(source) {
             .map(([, value]) => ({selector: selector.trim(), tracks: countTracks(value)})));
 }
 
-test('ทุก breakpoint ของแถวบอร์ดประกาศคอลัมน์ครบ 10 ช่อง หรือใช้เลย์เอาต์การ์ดมือถือ', async () => {
+test('ทุก breakpoint ของแถวบอร์ดประกาศคอลัมน์ครบ 11 ช่อง หรือใช้เลย์เอาต์การ์ดมือถือ', async () => {
     const rules = rowGridRules(await read('resources/css/pages/mytasks/project-board.css'));
 
-    // desktop = 10 ช่องตามหัวตาราง, มือถือ = 2 ช่อง (fallback เดิม) หรือ 4 ช่องของเลย์เอาต์การ์ด
+    // desktop = 11 ช่องตามหัวตาราง (คอลัมน์เวลากำหนดส่งเพิ่มเข้ามาหลังกำหนดส่ง)
+    // มือถือ = 2 ช่อง (fallback เดิม) หรือ 4 ช่องของเลย์เอาต์การ์ด
     assert.ok(rules.length >= 9, `พบกฎกริดของแถวบอร์ดเพียง ${rules.length} กฎ`);
     for (const rule of rules) {
-        assert.ok([10, 2, 4].includes(rule.tracks), `${rule.selector} ประกาศ ${rule.tracks} track`);
+        assert.ok([11, 2, 4].includes(rule.tracks), `${rule.selector} ประกาศ ${rule.tracks} track`);
     }
-    assert.equal(rules.filter((rule) => rule.tracks === 10).length, 9);
+    assert.equal(rules.filter((rule) => rule.tracks === 11).length, 9);
 });
 
 test('หัวตารางจัดกึ่งกลางครอบคลุมถึงคอลัมน์คอมเมนต์', async () => {
     const source = await read('resources/css/pages/mytasks/project-board.css');
 
-    assert.match(source, /\.board-reference-columns > span:nth-child\(10\)/);
+    assert.match(source, /\.board-reference-columns > span:nth-child\(11\)/);
 });
 
 test('ไฟล์แนบและคอมเมนต์ล็อกตรงกับคอลัมน์หัวตารางและใช้พื้นที่ปุ่มเท่ากัน', async () => {
     const source = await read('resources/css/pages/mytasks/project-board.css');
 
-    // แถวงานย่อยใช้กฎเดียวกัน ตัวเลือกจึงถูกรวมเป็นกลุ่ม — ตรวจว่ายังล็อกคอลัมน์เดิมอยู่
-    assert.match(source, /\.board-reference-row > \.board-attachments[^{}]*\{[^}]*grid-column:\s*8/s);
-    assert.match(source, /\.board-reference-row > \.board-comments[^{}]*\{[^}]*grid-column:\s*9/s);
+    /*
+     * ล็อกโดยนับถอยจากขอบขวาของแถว (-4, -3, -2) ไม่ใช่เลขคอลัมน์จากหัวแถว
+     *
+     * เลขจากหัวแถวเป็นความจริงชั่วคราว พอมีคอลัมน์ใหม่แทรกกลางแถว มันจะชี้ทับช่องอื่น
+     * แล้วกริดดันสองช่องนี้ตกไปแถวที่สอง ส่วนลำดับ "ท้ายแถว" ไม่เปลี่ยนตามจำนวนคอลัมน์
+     */
+    assert.match(source, /\.board-reference-row > \.board-attachments[^{}]*\{[^}]*grid-column:\s*-4/s);
+    assert.match(source, /\.board-reference-row > \.board-comments[^{}]*\{[^}]*grid-column:\s*-3/s);
+    assert.match(source, /\.board-reference-row > \.board-reference-menu[^{}]*\{[^}]*grid-column:\s*-2/s);
     assert.match(source, /\.board-reference-row > \.board-attachments,[^{}]*\.board-comments[^{}]*\{[^}]*width:\s*48px;[^}]*justify-content:\s*center/s);
 });
 

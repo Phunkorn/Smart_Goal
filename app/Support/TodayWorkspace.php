@@ -13,6 +13,17 @@ final class TodayWorkspace
     public const BUSINESS_TIMEZONE = 'Asia/Bangkok';
 
     /**
+     * เวลาตั้งต้นเมื่อผู้ใช้กรอกมาแต่วันที่ ไม่ได้เลือกเวลา
+     *
+     * งานเริ่มต้นวันทำการ และครบกำหนดตอนเลิกงาน ซึ่งตรงกับความหมายที่คนพูดกันว่า
+     * "ส่งภายในวันนั้น" มากที่สุด ค่าพวกนี้เป็นค่าตั้งต้นเท่านั้น ไม่ใช่กติกาบังคับ
+     * ผู้ใช้เลือกเวลาอื่นได้เสมอจากตัวเลือกวันที่-เวลาเดียวกัน
+     */
+    public const DEFAULT_START_TIME = '00:00';
+
+    public const DEFAULT_DUE_TIME = '17:00';
+
+    /**
      * วงจรสถานะล่าช้าอัตโนมัติต้องแตะเฉพาะงานที่ได้รับอนุมัติแล้ว
      * งานที่ยัง 'pending' (มอบหมายข้ามแผนก รอ Admin ตัดสินใจ) หรือถูก 'rejected'
      * ห้ามถูกดันเป็น "ล่าช้า" ก่อนที่ Admin จะอนุมัติ
@@ -27,13 +38,15 @@ final class TodayWorkspace
 
     public static function synchronizeLate(Builder $query): void
     {
-        $todayStartUtc = self::businessToday()->utc();
-
         // งานที่ "พักงาน" ค้างไว้จนเลยกำหนดส่ง ต้องกลายเป็นล่าช้าเหมือนงานที่กำลังทำ
         // ไม่เช่นนั้นการพักงานจะกลายเป็นช่องทางหลบสถานะล่าช้าไปได้ไม่จำกัด
+        //
+        // เทียบกับ now() ตรง ๆ ได้เพราะทั้ง job_due_at และ now() เป็น UTC ทั้งคู่
+        // การเทียบ "ขณะเวลา" ไม่ต้องแปลง timezone ก่อน — เวลาไทย 16:00 กับ UTC 09:00
+        // คือขณะเดียวกัน กำหนดส่ง 17 มิ.ย. 16:00 จึงกลายเป็นล่าช้าตอน 16:00 ตามที่ผู้ใช้ตั้งไว้จริง
         (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
             ->whereIn('job_status', self::LATE_ELIGIBLE_STATUSES)
-            ->whereNotNull('job_due_at')->where('job_due_at', '<', $todayStartUtc)
+            ->whereNotNull('job_due_at')->where('job_due_at', '<', now())
             ->update(['job_status' => 6, 'late_at' => now()]);
     }
 
@@ -42,7 +55,7 @@ final class TodayWorkspace
         if ($task->approval_status !== self::AUTOMATED_APPROVAL_STATUS
             || ! in_array((int) $task->job_status, self::LATE_ELIGIBLE_STATUSES, true)
             || ! $task->job_due_at
-            || ! self::businessDate($task->job_due_at)->endOfDay()->lt(self::businessNow())) {
+            || ! self::isLateBySchedule($task)) {
             return (int) $task->job_status === 6;
         }
 
@@ -56,8 +69,7 @@ final class TodayWorkspace
 
     public static function isLateBySchedule(WorkOrder $task): bool
     {
-        return $task->job_due_at
-            && self::businessDate($task->job_due_at)->endOfDay()->lt(self::businessNow());
+        return $task->job_due_at && $task->job_due_at->lt(now());
     }
 
     /**
@@ -189,6 +201,70 @@ final class TodayWorkspace
     public static function calendarDate(?CarbonInterface $date): string
     {
         return $date ? self::businessDate($date)->format('Y-m-d') : '';
+    }
+
+    /**
+     * 'Y-m-d\TH:i' ตามเวลาไทย สำหรับใส่เป็น value ของ <input type="datetime-local">
+     *
+     * ช่อง datetime-local ของเบราว์เซอร์อ่านค่าเป็นเวลาท้องถิ่นล้วน ไม่มีส่วนบอก timezone
+     * ถ้า format จากค่า UTC ตรง ๆ ผู้ใช้จะเห็นเวลาเพี้ยนไป 7 ชั่วโมงทุกครั้งที่เปิดฟอร์ม
+     */
+    public static function calendarDateTime(?CarbonInterface $date): string
+    {
+        return $date ? self::businessMoment($date)->format('Y-m-d\TH:i') : '';
+    }
+
+    /** 'H:i' ตามเวลาไทย สำหรับ data attribute ที่ฝั่ง client ใช้แสดงเวลากำหนดส่ง */
+    public static function clockTime(?CarbonInterface $date): string
+    {
+        return $date ? self::businessMoment($date)->format('H:i') : '';
+    }
+
+    /** ป้ายเวลาแบบที่ UI ไทยใช้ เช่น "16:00 น." คืน null เมื่อไม่มีค่า */
+    public static function timeLabel(?CarbonInterface $date): ?string
+    {
+        return $date ? self::businessMoment($date)->format('H:i').' น.' : null;
+    }
+
+    /**
+     * แปลงค่าที่ผู้ใช้กรอกให้เป็นเวลา UTC สำหรับเก็บลงคอลัมน์
+     *
+     * ช่องในหน้าจอส่งมาเป็นเวลาไทยเสมอ ('Y-m-d\TH:i' จาก datetime-local หรือ 'Y-m-d'
+     * ล้วนจากช่องเก่า/การเรียกผ่าน API) แต่ config('app.timezone') คือ UTC การ
+     * Carbon::parse() ตรง ๆ จึงตีความ "16:00" เป็น 16:00 UTC ซึ่งคือ 23:00 เวลาไทย
+     * ทุกจุดที่รับวันเวลาจากผู้ใช้ต้องผ่านเมธอดนี้ ห้าม parse เอง
+     *
+     * ค่าที่ไม่มีส่วนเวลามาด้วยจะได้เวลาตั้งต้นตาม $fallbackTime ซึ่งเป็นเหตุผลที่
+     * วันเริ่มกับกำหนดส่งต้องส่งค่าต่างกัน (ต้นวันทำการ กับ เวลาเลิกงาน)
+     */
+    public static function parseBusinessInput(mixed $value, string $fallbackTime): ?CarbonInterface
+    {
+        if ($value instanceof CarbonInterface) {
+            return $value->copy()->utc();
+        }
+
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        // 'Y-m-d' ล้วน — ไม่มีเวลามาด้วย จึงเติมเวลาตั้งต้นให้ก่อนตีความเป็นเวลาไทย
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) === 1) {
+            $text .= ' '.$fallbackTime;
+        }
+
+        return Carbon::parse(str_replace('T', ' ', $text), self::BUSINESS_TIMEZONE)->utc();
+    }
+
+    /**
+     * เวลาตามโซนธุรกิจโดย "คงเวลานาฬิกาไว้"
+     *
+     * ต่างจาก businessDate() ที่ปัดลงเป็นต้นวันเสมอ เพราะตั้งแต่ระบบมีเวลากำหนดส่ง
+     * มีจุดที่ต้องการทั้งวันและเวลา (ป้ายเวลา ช่องกรอก) ไม่ใช่แค่วัน
+     */
+    public static function businessMoment(CarbonInterface $date): CarbonInterface
+    {
+        return $date->copy()->setTimezone(self::BUSINESS_TIMEZONE);
     }
 
     /**

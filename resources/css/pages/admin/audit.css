@@ -345,6 +345,37 @@
     overflow: hidden;
 }
 
+.audit-page .audit-overview-grid .audit-card__head h2 {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.audit-page .audit-overview-grid .audit-card__head a {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.audit-page .audit-overview-grid .audit-stream time {
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.audit-page .audit-overview-grid .audit-stream time b {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.audit-page .audit-overview-grid .audit-sentence {
+    font-size: 12px;
+}
+
+.audit-page .audit-overview-grid .audit-sentence > strong,
+.audit-page .audit-overview-grid .audit-sentence > em,
+.audit-page .audit-overview-grid .audit-sentence__subject,
+.audit-page .audit-overview-grid .audit-action {
+    font-weight: 400;
+}
+
 .audit-page .audit-card__head {
     display: flex;
     align-items: flex-start;
@@ -513,22 +544,70 @@
     white-space: nowrap;
 }
 
-.audit-page .audit-table--activity { min-width: 1020px; }
-.audit-page .audit-table--activity th:nth-child(1) { width: 13%; }
-.audit-page .audit-table--activity th:nth-child(2) { width: 20%; }
-.audit-page .audit-table--activity th:nth-child(3) { width: 30%; }
-.audit-page .audit-table--activity th:nth-child(4) { width: 25%; }
-.audit-page .audit-table--activity th:nth-child(5) { width: 12%; }
+.audit-page .audit-table--activity { min-width: 1060px; }
+.audit-page .audit-table--activity th,
+.audit-page .audit-table--activity td { font-size: 13px; }
+.audit-page .audit-table--activity thead th {
+    background: #334155;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 400;
+}
+.audit-page .audit-table--activity th:nth-child(1) { width: 56px; }
+.audit-page .audit-table--activity th:nth-child(2) { width: 13%; }
+.audit-page .audit-table--activity th:nth-child(3) { width: 19%; }
+.audit-page .audit-table--activity th:nth-child(4) { width: 28%; }
+.audit-page .audit-table--activity th:nth-child(5) { width: 25%; }
+.audit-page .audit-table--activity th:nth-child(6) { width: 12%; }
+.audit-page .audit-table--activity th:first-child { text-align: center; }
+.audit-page .audit-table--activity .audit-row-number {
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+.audit-page .audit-table--activity .audit-strong,
+.audit-page .audit-table--activity .audit-time,
+.audit-page .audit-table--activity .audit-context,
+.audit-page .audit-table--activity .audit-sentence__subject,
+.audit-page .audit-table--activity .audit-action,
+.audit-page .audit-table--activity .audit-subject,
+.audit-page .audit-table--activity .audit-pill {
+    font-weight: 400;
+}
+.audit-page .audit-table--activity .audit-sentence {
+    width: 100%;
+    overflow: hidden;
+}
+.audit-page .audit-table--activity .audit-sentence > em {
+    flex: 1 1 140px;
+    min-width: 0;
+    overflow: visible;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+}
 
 /* คอลัมน์แรกคือช่องติ๊กสำหรับเลือกหลายรายการ ลำดับที่เหลือจึงเลื่อนไปหนึ่งช่อง */
-.audit-page .audit-table--trash { min-width: 1164px; }
+.audit-page .audit-table--trash { min-width: 1220px; }
+.audit-page .audit-table--trash th,
+.audit-page .audit-table--trash td { font-size: 13px; }
+.audit-page .audit-table--trash thead th {
+    background: #334155;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+}
 .audit-page .audit-table--trash th:nth-child(1) { width: 44px; }
-.audit-page .audit-table--trash th:nth-child(2) { width: 25%; }
-.audit-page .audit-table--trash th:nth-child(3) { width: 12%; }
-.audit-page .audit-table--trash th:nth-child(4) { width: 18%; }
-.audit-page .audit-table--trash th:nth-child(5) { width: 13%; }
-.audit-page .audit-table--trash th:nth-child(6) { width: 14%; }
-.audit-page .audit-table--trash th:nth-child(7) { width: 18%; }
+.audit-page .audit-table--trash th:nth-child(2) { width: 56px; }
+.audit-page .audit-table--trash th:nth-child(3) { width: 24%; }
+.audit-page .audit-table--trash th:nth-child(4) { width: 12%; }
+.audit-page .audit-table--trash th:nth-child(5) { width: 17%; }
+.audit-page .audit-table--trash th:nth-child(6) { width: 13%; }
+.audit-page .audit-table--trash th:nth-child(7) { width: 14%; }
+.audit-page .audit-table--trash th:nth-child(8) { width: 18%; }
+.audit-page .audit-table--trash th:nth-child(2),
+.audit-page .audit-table--trash .audit-row-number { text-align: center; }
 
 .audit-page .audit-col-select {
     width: 44px;

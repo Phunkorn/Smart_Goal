@@ -99,6 +99,20 @@
 .report-attention time { grid-column:2; color:#718098; font-size:.72rem; }
 .report-attention time.is-overdue { color:#d93636; font-weight:700; }
 
+/* Keep the organization overview compact and easier to scan without changing shared report pages. */
+.report-page--organization .report-page__eyebrow { font-weight:700; }
+.report-page--organization .report-page__header h1 { font-size:clamp(1.35rem,2vw,1.7rem); font-weight:700; }
+.report-page--organization .report-filter__heading h2,
+.report-page--organization .report-panel__heading h2 { font-size:.94rem; font-weight:700; }
+.report-page--organization .report-filter .form-label { font-weight:600; }
+.report-page--organization .report-kpi__label { font-size:.77rem; font-weight:600; }
+.report-page--organization .report-kpi__value { font-size:1.6rem; font-weight:700; }
+.report-page--organization .report-department-table thead th { font-weight:600; }
+.report-page--organization .report-department-table tbody th strong,
+.report-page--organization .report-department-table tbody td > strong,
+.report-page--organization .report-department-metric strong { font-weight:650; }
+.report-page--organization .report-attention__body a { font-weight:650; }
+
 @media (max-width:1279px) {
     .report-dashboard-card { grid-column:span 6; }
     .report-dashboard-card--trend { grid-column:span 8; }

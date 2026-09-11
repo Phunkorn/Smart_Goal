@@ -4,7 +4,7 @@
 .my-tasks-page .notion-database[data-view="board"] .project-board{display:block;padding:0;background:#fff}
 .my-tasks-page .notion-database[data-view="board"]>footer{display:none}
 .my-tasks-page .board-reference-list{width:100%;min-width:0;overflow:visible;border:0;border-radius:0;background:#fff;box-shadow:none}
-.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{display:grid;--board-columns:minmax(210px,2fr) 118px 82px minmax(112px,1fr) 94px 70px 96px 112px 112px 34px;align-items:center}
+.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{display:grid;--board-columns: minmax(210px,2fr) 129px 89px minmax(112px,1fr) 102px 102px 76px 105px 122px 122px 34px;align-items:center}
 .my-tasks-page .board-reference-columns{height:40px;border-bottom:1px solid #dce4ee;border-radius:0;background:#fafbfd;color:#66758c;font-size:11px;font-weight:700}.my-tasks-page .board-reference-columns>span,.my-tasks-page .board-reference-row>*{min-width:0;padding:0 8px}
 .my-tasks-page .board-project-group__header[hidden],.my-tasks-page .board-reference-row[hidden]{display:none}.my-tasks-page .board-project-group__header{--project-accent:#64748b;--project-soft:#f8fafc;display:flex;align-items:center;min-height:42px;margin:0;padding:0 10px;border:0;border-bottom:1px solid color-mix(in srgb,var(--project-accent) 18%,#e7ecf2);border-left:4px solid var(--project-accent);border-radius:0;background:linear-gradient(90deg,var(--project-soft),#fff 38%);box-shadow:none}.my-tasks-page .board-project-group__header.project-tone-low{--project-accent:#64748b;--project-soft:#f4f6f8}.my-tasks-page .board-project-group__header.project-tone-medium{--project-accent:#c17709;--project-soft:#fff8e9}.my-tasks-page .board-project-group__header.project-tone-high{--project-accent:#dc3d39;--project-soft:#fff1f0}.my-tasks-page .board-project-group__header.project-tone-neutral{--project-accent:#3972d1;--project-soft:#f1f6ff}.my-tasks-page .board-project-collapse{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;background:transparent;color:var(--project-accent);font-size:8px;cursor:pointer}.my-tasks-page .board-project-folder{display:grid;place-items:center;width:27px;height:27px;flex:0 0 27px;margin-right:7px;border-radius:7px;background:color-mix(in srgb,var(--project-accent) 13%,#fff);color:var(--project-accent);font-size:15px}.my-tasks-page .board-project-group__header>strong{overflow:hidden;max-width:360px;color:#263650;font-size:13px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}.my-tasks-page .board-project-group__header>span{margin-left:7px;color:#6f7f94;font-size:10px;white-space:nowrap}.my-tasks-page .board-project-group__header>span b{font-weight:650}.my-tasks-page .board-project-rule{width:min(34vw,440px);height:1px;flex:0 1 440px;margin:0 9px;background:color-mix(in srgb,var(--project-accent) 18%,#e3e9f1)}
 .my-tasks-page .board-project-actions{display:flex;align-items:center;gap:3px;margin-left:auto}.my-tasks-page .board-project-add{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:0 9px;border:1px solid #d7e1ee;border-radius:7px;background:#fff;color:#316bce;font-size:9px;font-weight:700;cursor:pointer}.my-tasks-page .board-project-add:hover{border-color:#a9c3ed;background:#f4f8ff}.my-tasks-page .board-project-icon{display:grid;place-items:center;width:27px;height:27px;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;color:#63738a;cursor:pointer}.my-tasks-page .board-project-icon:hover{border-color:#cbd8e8;background:#f4f7fb;color:#2765c7}.my-tasks-page .board-project-icon.is-danger:hover{border-color:#f2c3c3;background:#fff1f1;color:#dc3d39}
@@ -22,9 +22,25 @@
 /* วงกลมผู้ร่วมงานเคยแสดงแต่ตัวอักษร ตอนนี้รองรับรูปโปรไฟล์จริงแล้ว */
 .my-tasks-page .board-collaborators button > i { overflow: hidden; }
 .my-tasks-page .board-collaborators button > i img { width: 100%; height: 100%; object-fit: cover; }
-.my-tasks-page .board-due{display:inline-flex;align-items:center;gap:5px;color:#536277;font-size:11px;font-weight:550;white-space:nowrap}.my-tasks-page .board-due.is-soon{color:#bd6a00;font-weight:700}.my-tasks-page .board-due.is-late{color:#dc3d39;font-weight:700}.my-tasks-page .board-due-editable{position:relative;min-height:30px;cursor:pointer}.my-tasks-page .board-due-editable input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.my-tasks-page .board-due{display:inline-flex;align-items:center;gap:5px;color:#536277;font-size:11px;font-weight:550;white-space:nowrap}.my-tasks-page .board-due.is-soon{color:#bd6a00;font-weight:700}.my-tasks-page .board-due.is-late{color:#dc3d39;font-weight:700}.my-tasks-page .board-due-editable,.my-tasks-page .board-due-time-editable{position:relative;min-height:30px;cursor:pointer}.my-tasks-page .board-due-editable input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+/*
+ * คอลัมน์เวลากำหนดส่ง — กล่องต้องเหมือนคอลัมน์กำหนดส่ง "ทุกคุณสมบัติที่มีผลต่อความสูง"
+ *
+ * แถวบอร์ดใช้ align-items:start (ดูกฎท้ายไฟล์) ทุกช่องจึงยึดขอบบนของแถว
+ * ความสูงของกล่องแต่ละช่องเป็นตัวกำหนดว่าข้อความข้างในไปอยู่ระดับไหน
+ * ช่องที่สูงไม่เท่ากันจะเห็นเป็นข้อความเหลื่อมกันทันที ทั้งที่ตั้ง align-items:center ไว้ข้างใน
+ *
+ * min-height จึงต้องอยู่ที่คลาส -editable เท่านั้น ให้ตรงกับ .board-due-editable
+ * ถ้าย้ายไปไว้ที่คลาสฐาน แถวแบบอ่านอย่างเดียว (ซึ่ง .board-due ไม่มี min-height)
+ * จะมีช่องเวลาสูงกว่าเพื่อน แล้วข้อความตกลงไปต่ำกว่าคอลัมน์อื่น
+ */
+.my-tasks-page .board-due-time{display:inline-flex;align-items:center;gap:5px;color:#536277;font-size:11px;font-weight:550;white-space:nowrap;font-variant-numeric:tabular-nums}
+.my-tasks-page .board-due-time.is-soon{color:#bd6a00;font-weight:700}
+.my-tasks-page .board-due-time.is-late{color:#dc3d39;font-weight:700}
+/* ช่องเวลาที่แก้ได้ ซ่อน input จริงไว้ใต้ป้ายแบบเดียวกับช่องวันที่ ตัวเลือกเป็นคนเขียนค่าให้ */
+.my-tasks-page .board-due-time-editable input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .my-tasks-page .board-reference-menu{justify-self:center}.my-tasks-page .board-reference-menu summary{width:29px;height:29px;padding:0;border:1px solid transparent}.my-tasks-page .board-reference-menu[open] summary{border-color:#111827;background:#fff;color:#111827;box-shadow:0 0 0 1px #111827}.my-tasks-page .board-reference-menu>div{right:0}.my-tasks-page .board-reference-menu .board-task-menu{width:286px;padding:7px;border-radius:11px}.my-tasks-page .board-task-menu>button,.my-tasks-page .board-task-menu>a{min-height:52px;align-items:flex-start;padding:8px 10px}.my-tasks-page .board-task-menu>button>i,.my-tasks-page .board-task-menu>a>i{margin-top:2px;flex:0 0 16px}.my-tasks-page .board-task-menu>button>span,.my-tasks-page .board-task-menu>a>span{display:grid;gap:2px;min-width:0}.my-tasks-page .board-task-menu strong{font-size:12px;font-weight:650}.my-tasks-page .board-task-menu small{color:#8490a2;font-size:9px;font-weight:400;line-height:1.35}.my-tasks-page .board-task-menu .danger small{color:#d77878}.my-tasks-page .project-board-empty{display:grid;place-items:center;gap:5px;padding:48px;color:#7f8da1}.my-tasks-page .project-board-empty[hidden]{display:none}
-@media(max-width:1100px){.my-tasks-page .board-reference-list{min-width:1164px}.my-tasks-page .notion-table-scroll{overflow-x:auto}.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{--board-columns:minmax(200px,2fr) 112px 78px 110px 90px 66px 92px 104px 104px 30px}.my-tasks-page .board-reference-columns>span,.my-tasks-page .board-reference-row>*{padding-right:7px;padding-left:7px}}
+@media(max-width:1100px){.my-tasks-page .board-reference-list{min-width:1330px}.my-tasks-page .notion-table-scroll{overflow-x:auto}.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{--board-columns: minmax(200px,2fr) 122px 85px 120px 98px 98px 72px 100px 113px 113px 30px}.my-tasks-page .board-reference-columns>span,.my-tasks-page .board-reference-row>*{padding-right:7px;padding-left:7px}}
 @media(max-width:760px){.my-tasks-page .board-reference-columns{display:none}.my-tasks-page .board-reference-row{position:relative;--board-columns:1fr 1fr;gap:12px 8px;padding:14px 36px 14px 12px}.my-tasks-page .board-reference-row>*{padding:0}.my-tasks-page .board-reference-task{grid-column:1/-1}.my-tasks-page .board-reference-menu{position:absolute;top:12px;right:7px}.my-tasks-page .board-project-add span{display:none}}
 
 .board-attachment-modal{z-index:1200;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.42);backdrop-filter:blur(3px)}.board-attachment-modal:not([hidden]){display:flex}.board-attachment-modal__card{width:min(640px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;border:1px solid #d9e0eb;border-radius:14px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22)}.board-attachment-modal__card>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid #e5e9f0}.board-attachment-modal__card>header>div{display:grid;gap:2px}.board-attachment-modal__card>header span{font-size:10px;font-weight:700;letter-spacing:.12em;color:#94a3b8}.board-attachment-modal__card>header strong{font-size:21px;color:#0f172a}.board-attachment-modal__card>header small{color:#64748b}.board-attachment-modal__body{display:grid;gap:14px;padding:22px 24px}.board-attachment-modal__list{display:grid;gap:8px}.board-attachment-modal__list>a{display:grid;grid-template-columns:34px minmax(0,1fr) 20px;align-items:center;min-height:52px;padding:8px 12px;border:1px solid #e1e7ef;border-radius:10px;background:#fff;color:#334155;text-decoration:none}.board-attachment-modal__list>a:hover{border-color:#b8cef0;background:#f7faff;color:#2563eb}.board-attachment-modal__list>a>i:first-child{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#edf4ff;color:#2563eb;font-size:16px}.board-attachment-modal__list>a>span{overflow:hidden;padding:0 9px;font-size:13px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.board-attachment-modal__empty{display:grid;place-items:center;gap:5px;padding:32px 16px;border:1px dashed #d7e0eb;border-radius:10px;color:#8290a4;text-align:center}.board-attachment-modal__empty[hidden],.board-attachment-modal__upload[hidden]{display:none}.board-attachment-modal__empty>i{font-size:24px}.board-attachment-modal__empty>strong{color:#475569}.board-attachment-modal__empty>span,.board-attachment-modal__upload label small{font-size:11px}.board-attachment-modal__upload{display:grid;gap:10px}.board-attachment-modal__upload label{display:flex;align-items:center;gap:12px;padding:14px;border:1px dashed #adc5e8;border-radius:10px;background:#f7faff;color:#2563eb;cursor:pointer}.board-attachment-modal__upload label>i{font-size:24px}.board-attachment-modal__upload label>span{display:grid}.board-attachment-modal__upload label small{color:#718096;font-weight:400}.board-attachment-modal__upload input{position:absolute;width:1px;height:1px;opacity:0}.board-attachment-modal__card>footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #e5e9f0}@media(max-width:640px){.board-attachment-modal{padding:10px;align-items:flex-end}.board-attachment-modal__card{width:100%;max-height:92vh;border-radius:14px 14px 0 0}.board-attachment-modal__body{padding:18px}.board-attachment-modal__card>header,.board-attachment-modal__card>footer{padding-left:18px;padding-right:18px}}
@@ -149,19 +165,29 @@
         justify-content: center;
     }
 
+    /*
+     * นับจากท้ายแถวแทนการนับจากหัวแถว
+     *
+     * ของเดิมล็อกเป็นเลข 8/9/10 ตรง ๆ พอมีคอลัมน์ใหม่แทรกกลางแถว (เวลากำหนดส่ง)
+     * เลขพวกนี้ไปชี้ทับคอลัมน์ของช่องอื่นที่ถูกวางอัตโนมัติไปแล้ว กริดจึงดันสองช่องนี้
+     * ตกลงไปอยู่แถวที่สอง แล้วแถวก็สูงขึ้นเป็นสองเท่า
+     *
+     * สามช่องนี้อยู่ท้ายแถวเสมอไม่ว่าจะมีคอลัมน์กลางแถวกี่ช่อง การนับถอยจากขอบขวา
+     * จึงเป็นความจริงที่ไม่เปลี่ยนตามจำนวนคอลัมน์ และไม่ต้องแก้ที่นี่อีกเมื่อเพิ่มคอลัมน์
+     */
     .my-tasks-page .board-reference-row > .board-attachments,
     .my-tasks-page .board-task-detail > .board-attachments {
-        grid-column: 8;
+        grid-column: -4;
     }
 
     .my-tasks-page .board-reference-row > .board-comments,
     .my-tasks-page .board-task-detail > .board-comments {
-        grid-column: 9;
+        grid-column: -3;
     }
 
     .my-tasks-page .board-reference-row > .board-reference-menu,
     .my-tasks-page .board-task-detail > .board-reference-menu {
-        grid-column: 10;
+        grid-column: -2;
     }
 }
 
@@ -270,14 +296,15 @@
 .my-tasks-page .board-reference-row {
     --board-columns:
         minmax(320px, 31%)
-        112px
-        160px
-        112px
-        112px
-        64px
-        86px
-        66px
-        66px
+        122px
+        174px
+        122px
+        122px
+        122px
+        70px
+        94px
+        72px
+        72px
         34px;
     grid-template-columns: var(--board-columns);
     column-gap: 0;
@@ -291,12 +318,19 @@
 .my-tasks-page .board-reference-columns > span:nth-child(7),
 .my-tasks-page .board-reference-columns > span:nth-child(8),
 .my-tasks-page .board-reference-columns > span:nth-child(9),
-.my-tasks-page .board-reference-columns > span:nth-child(10) {
+.my-tasks-page .board-reference-columns > span:nth-child(10),
+.my-tasks-page .board-reference-columns > span:nth-child(11) {
     justify-self: center;
     text-align: center;
 }
 
+/* หัวคอลัมน์ "เวลากำหนดส่ง" (6) ยาวพอจะตัดบรรทัดจนหัวตารางสูงไม่เท่ากัน */
 .my-tasks-page .board-reference-columns > span:nth-child(6) {
+    white-space: nowrap;
+}
+
+/* หัวคอลัมน์ "ผู้รับผิดชอบ" (7) ด้วยเหตุผลเดียวกัน */
+.my-tasks-page .board-reference-columns > span:nth-child(7) {
     white-space: nowrap;
 }
 
@@ -330,7 +364,8 @@
     pointer-events: none;
 }
 
-.my-tasks-page .board-due {
+.my-tasks-page .board-due,
+.my-tasks-page .board-due-time {
     justify-self: center;
 }
 
@@ -345,12 +380,12 @@
 
 @media (max-width: 1100px) {
     .my-tasks-page .board-reference-list {
-        min-width: 1326px;
+        min-width: 1524px;
     }
 
     .my-tasks-page .board-reference-columns,
     .my-tasks-page .board-reference-row {
-        --board-columns: 320px 112px 160px 112px 112px 64px 86px 66px 66px 34px;
+        --board-columns: 320px 122px 174px 122px 122px 122px 70px 94px 72px 72px 34px;
     }
 }
 
@@ -551,19 +586,20 @@ body:not(.sidebar-collapsed) .my-tasks-page .board-reference-columns,
 body:not(.sidebar-collapsed) .my-tasks-page .board-reference-row {
     --board-columns:
         minmax(240px, 28%)
-        104px
-        132px
-        100px
-        100px
-        60px
-        76px
-        62px
-        62px
+        113px
+        144px
+        109px
+        109px
+        109px
+        65px
+        83px
+        68px
+        68px
         32px;
 }
 
 body:not(.sidebar-collapsed) .my-tasks-page .board-reference-list {
-    min-width: 1118px;
+    min-width: 1292px;
 }
 
 body:not(.sidebar-collapsed) .my-tasks-page .board-project-rule {
@@ -683,14 +719,15 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
 .my-tasks-page .board-reference-row {
     --board-columns:
         minmax(300px, 1fr)
-        112px
-        140px
-        112px
-        112px
-        90px
-        92px
-        72px
-        72px
+        122px
+        153px
+        122px
+        122px
+        122px
+        98px
+        100px
+        78px
+        78px
         38px;
 }
 
@@ -698,20 +735,21 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
     body:not(.sidebar-collapsed) .my-tasks-page .board-reference-columns,
     body:not(.sidebar-collapsed) .my-tasks-page .board-reference-row {
         --board-columns:
-            minmax(260px, 1fr)
-            104px
-            116px
-            104px
-            104px
-            86px
-            82px
-            68px
-            68px
-            34px;
+        minmax(260px, 1fr)
+        113px
+        126px
+        113px
+        113px
+        113px
+        94px
+        89px
+        74px
+        74px
+        34px;
     }
 
     body:not(.sidebar-collapsed) .my-tasks-page .board-reference-list {
-        min-width: 1048px;
+        min-width: 1222px;
     }
 }
 
@@ -764,14 +802,15 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
 .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
     --board-columns:
         minmax(0, 1fr)
-        minmax(0, 112px)
-        minmax(0, 132px)
-        minmax(0, 96px)
-        minmax(0, 96px)
-        minmax(0, 80px)
-        minmax(0, 118px)
-        minmax(0, 70px)
-        minmax(0, 74px)
+        minmax(0, 122px)
+        minmax(0, 144px)
+        minmax(0, 105px)
+        minmax(0, 105px)
+        minmax(0, 105px)
+        minmax(0, 87px)
+        minmax(0, 129px)
+        minmax(0, 76px)
+        minmax(0, 81px)
         38px;
 }
 
@@ -787,16 +826,17 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
     body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
 body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
         --board-columns:
-            minmax(0, 1fr)
-            minmax(0, 104px)
-            minmax(0, 124px)
-            minmax(0, 92px)
-            minmax(0, 92px)
-            minmax(0, 76px)
-            minmax(0, 114px)
-            minmax(0, 66px)
-            minmax(0, 70px)
-            34px;
+        minmax(0, 1fr)
+        minmax(0, 113px)
+        minmax(0, 135px)
+        minmax(0, 100px)
+        minmax(0, 100px)
+        minmax(0, 100px)
+        minmax(0, 83px)
+        minmax(0, 124px)
+        minmax(0, 72px)
+        minmax(0, 76px)
+        34px;
     }
 }
 
@@ -1051,10 +1091,18 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
     }
 
     .my-tasks-page .board-reference-row > .board-due {
-        grid-column: 2 / 5;
+        grid-column: 2 / 4;
         grid-row: 3;
         min-width: 0;
         justify-self: start;
+    }
+
+    /* เวลากำหนดส่งยังอยู่แถวเดียวกับวันที่ แต่ชิดขวาสุดเพื่อไม่เบียดกันในจอแคบ */
+    .my-tasks-page .board-reference-row > .board-due-time {
+        grid-column: 4 / 5;
+        grid-row: 3;
+        min-width: 0;
+        justify-self: end;
     }
 
     .my-tasks-page .board-reference-row > .board-due > i {

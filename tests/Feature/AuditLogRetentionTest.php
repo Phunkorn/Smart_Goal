@@ -46,14 +46,14 @@ class AuditLogRetentionTest extends TestCase
     {
         $actor = $this->user('user');
 
-        // เข้าสู่ระบบเมื่อ 200 วันก่อน — ยังไม่ครบ 365 วัน ต้องอยู่ต่อ
-        $login = $this->activity($actor, 'login', 200);
-        // แก้ไขข้อมูลเมื่อ 200 วันก่อน — เกิน 90 วันแล้ว ต้องถูกล้าง
+        // เข้าสู่ระบบเมื่อ 60 วันก่อน — ยังไม่ครบ 90 วัน ต้องอยู่ต่อ
+        $login = $this->activity($actor, 'login', 60);
+        // แก้ไขข้อมูลเมื่อ 200 วันก่อน — เกิน 30 วันแล้ว ต้องถูกล้าง
         $staleUpdate = $this->activity($actor, 'updated', 200);
         // แก้ไขข้อมูลเมื่อ 30 วันก่อน — ยังไม่ถึงกำหนด
         $freshUpdate = $this->activity($actor, 'updated', 30);
-        // เข้าสู่ระบบเมื่อ 400 วันก่อน — เกิน 365 วันแล้ว แม้เป็นหลักฐานสำคัญก็ต้องถูกล้าง
-        $ancientLogin = $this->activity($actor, 'login', 400);
+        // เข้าสู่ระบบเมื่อ 120 วันก่อน — เกิน 90 วันแล้ว แม้เป็นหลักฐานสำคัญก็ต้องถูกล้าง
+        $ancientLogin = $this->activity($actor, 'login', 120);
 
         $this->assertSame(2, LogRetention::prunableCount());
 

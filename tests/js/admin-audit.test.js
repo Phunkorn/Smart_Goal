@@ -424,6 +424,7 @@ test('ปุ่มที่กดถูกส่งกลับเข้า requ
 
     assert.equal(page.submitted.length, 1);
     assert.equal(page.submitted[0].submitter, purgeButton);
+    assert.equal(purgeButton.disabled, false);
 });
 
 test('กู้คืนหลายรายการถามยืนยันธรรมดา ไม่ต้องพิมพ์อะไร', async (t) => {
@@ -457,7 +458,7 @@ test('ปุ่มล้างบันทึกกิจกรรมเก่�
 
     env.document.body.innerHTML = `
         <div class="audit-page">
-            <form method="POST" action="/admin/audit/activity/prune" data-audit-prune-activity data-count="128">
+            <form method="POST" action="/admin/audit/activity/prune" data-audit-prune-activity data-count="128" data-critical-days="90">
                 <input type="hidden" name="_method" value="DELETE">
                 <button class="audit-btn audit-btn--danger" type="submit">ล้างบันทึกเก่า (128)</button>
             </form>
@@ -495,7 +496,7 @@ test('ปุ่มล้างบันทึกกิจกรรมเก่�
 
     assert.equal(swalCalls.length, 1);
     assert.match(swalCalls[0].renderedHtml, /128/);
-    assert.match(swalCalls[0].html, /365 วัน/);
+    assert.match(swalCalls[0].html, /90 วัน/);
     assert.equal(submitted.length, 1);
 });
 
@@ -503,8 +504,8 @@ test('บันทึกกิจกรรมมีนโยบายอาย�
     const retention = await read('app/Support/LogRetention.php');
     const blade = await read('resources/views/admin/audit/partials/activity.blade.php');
 
-    assert.match(retention, /CRITICAL_DAYS = 365/);
-    assert.match(retention, /ROUTINE_DAYS = 90/);
+    assert.match(retention, /CRITICAL_DAYS = 90/);
+    assert.match(retention, /ROUTINE_DAYS = 30/);
     // หน้าจอต้องอ่านค่าจากคลาสเดียวกัน ไม่ใช่พิมพ์ตัวเลขซ้ำที่หลุดจากกันได้
     assert.match(blade, /LogRetention::CRITICAL_DAYS/);
     assert.match(blade, /LogRetention::ROUTINE_DAYS/);

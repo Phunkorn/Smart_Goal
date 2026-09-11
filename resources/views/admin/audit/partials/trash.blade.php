@@ -136,6 +136,7 @@
                             <input type="checkbox" data-audit-select-all
                                    aria-label="เลือกทุกรายการในหน้านี้">
                         </th>
+                        <th scope="col">&#xE25;&#xE33;&#xE14;&#xE31;&#xE1A;</th>
                         <th>ข้อมูลที่ถูกลบ</th>
                         <th>แผนก</th>
                         <th>ใครเป็นคนลบ</th>
@@ -154,6 +155,7 @@
                                        value="{{ $trash->id }}" data-audit-select
                                        aria-label="เลือก {{ $summary['name'] }}">
                             </td>
+                            <td class="audit-row-number">{{ ($trashLogs->firstItem() ?? 1) + $loop->index }}</td>
                             <td>
                                 <div class="audit-item">
                                     {{--

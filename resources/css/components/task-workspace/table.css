@@ -1,5 +1,5 @@
 .my-tasks-page .notion-database[data-view="table"] .notion-table {
-    min-width: 1240px;
+    min-width: 1250px;
 }
 
 .my-tasks-page .notion-database[data-view="table"] .notion-columns,
@@ -9,7 +9,7 @@
         126px
         168px
         72px
-        190px
+        200px
         112px
         68px
         52px;
@@ -136,10 +136,14 @@
 
 .my-tasks-page .notion-database[data-view="table"] .row-duration {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+    gap: 2px;
     justify-self: center;
     width: calc(100% - 12px);
-    min-height: 32px;
+    min-height: 40px;
     border: 1px solid transparent;
     border-radius: 7px;
     color: #475569;
@@ -169,6 +173,19 @@
 .my-tasks-page .notion-database[data-view="table"] .row-duration-copy i {
     color: #94a3b8;
     font-size: 10px;
+}
+
+/* บรรทัดเวลากำหนดส่ง — เล็กและจางกว่าช่วงวัน เพราะเป็นข้อมูลขยายของบรรทัดบน */
+.my-tasks-page .notion-database[data-view="table"] .row-duration-time {
+    color: #8494a8;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.my-tasks-page .notion-database[data-view="table"] .row-duration.is-late .row-duration-time {
+    color: #d9363e;
 }
 
 .my-tasks-page .notion-database[data-view="table"] .row-duration .cell-date {
@@ -239,7 +256,7 @@
 
 @media (max-width: 1250px) {
     .my-tasks-page .notion-database[data-view="table"] .notion-table {
-        min-width: 1240px;
+        min-width: 1250px;
     }
 }
 

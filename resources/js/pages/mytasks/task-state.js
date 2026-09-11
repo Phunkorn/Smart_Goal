@@ -1,4 +1,8 @@
-const mutableFields = ['topic', 'status', 'priority', 'start', 'due'];
+/*
+ * ชื่อ dataset ที่มุมมองต่าง ๆ ใช้ร่วมกัน — 'startTime'/'dueTime' คือ data-start-time /
+ * data-due-time ซึ่งเก็บเวลาไทยแยกจากวัน เพราะปฏิทินและการจัดกลุ่มทำงานระดับวัน
+ */
+const mutableFields = ['topic', 'status', 'priority', 'start', 'due', 'startTime', 'dueTime'];
 
 export const synchronizeTaskManagement = (management, id, response = {}) => {
     const meta = management?.[String(id)];
@@ -101,8 +105,14 @@ export const synchronizeTaskSource = (workspace, id, changes, eventTarget = docu
         if (input) input.value = String(changes.priority);
     }
     if (Object.hasOwn(changes, 'due')) {
+        // ช่องกำหนดส่งของแถวตารางเป็น datetime-local จึงต้องได้ค่ารวมวันกับเวลา
         const input = row.querySelector('input[data-field="due"]');
-        if (input) input.value = String(changes.due ?? '');
+        const clock = Object.hasOwn(changes, 'dueTime') ? changes.dueTime : row.dataset.dueTime;
+        const due = String(changes.due ?? '');
+        if (input) input.value = due && clock ? `${due}T${clock}` : due;
+
+        const timeLabel = row.querySelector('[data-due-time-label]');
+        if (timeLabel) timeLabel.textContent = clock ? `ส่งภายใน ${clock} น.` : 'ไม่มีเวลากำหนดส่ง';
     }
     if (Object.hasOwn(changes, 'topic')) {
         const title = row.querySelector('.row-title strong');
@@ -116,6 +126,8 @@ export const synchronizeTaskSource = (workspace, id, changes, eventTarget = docu
         priority: Number(row.dataset.priority) || 2,
         start: row.dataset.start || '',
         due: row.dataset.due || '',
+        startTime: row.dataset.startTime || '',
+        dueTime: row.dataset.dueTime || '',
     };
     eventTarget.dispatchEvent(new CustomEvent('mytasks:changed', {detail}));
     return detail;

@@ -1,7 +1,13 @@
 @php
     $projectOptions = collect($projectOptions ?? [])->unique('id')->values();
-    $initialStart = now()->format('Y-m-d');
-    $initialDue = now()->addDay()->format('Y-m-d');
+    // ค่าตั้งต้นต้องเป็นเวลาไทย ไม่ใช่ now() ที่เป็น UTC ไม่งั้นช่องจะขึ้นเวลาย้อนหลัง 7 ชั่วโมง
+    $initialStart = \App\Support\TodayWorkspace::calendarDateTime(now());
+    $initialDue = \App\Support\TodayWorkspace::calendarDateTime(
+        \App\Support\TodayWorkspace::parseBusinessInput(
+            \App\Support\TodayWorkspace::businessNow()->addDay()->format('Y-m-d'),
+            \App\Support\TodayWorkspace::DEFAULT_DUE_TIME,
+        )
+    );
 @endphp
 
 <div class='notion-modal user-task-create' data-user-task-create-modal hidden>
@@ -79,7 +85,7 @@
                         <span>วันที่เริ่ม <b aria-hidden='true'>*</b></span>
                         <span class='user-task-create__date-control'>
                             <i class='bi bi-calendar-plus' aria-hidden='true'></i>
-                            <input type='date' data-date-picker data-user-task-start name='job_start_at' value='{{ $initialStart }}' required>
+                            <input type='datetime-local' data-date-picker data-default-time='{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}' data-user-task-start name='job_start_at' value='{{ $initialStart }}' required>
                             <i class='bi bi-chevron-down' aria-hidden='true'></i>
                         </span>
                     </label>
@@ -87,11 +93,11 @@
                         <span>วันที่สิ้นสุด <b aria-hidden='true'>*</b></span>
                         <span class='user-task-create__date-control'>
                             <i class='bi bi-calendar-check' aria-hidden='true'></i>
-                            <input type='date' data-date-picker data-user-task-due name='job_due_at' value='{{ $initialDue }}' min='{{ $initialStart }}' required>
+                            <input type='datetime-local' data-date-picker data-default-time='{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}' data-user-task-due name='job_due_at' value='{{ $initialDue }}' min='{{ $initialStart }}' required>
                             <i class='bi bi-chevron-down' aria-hidden='true'></i>
                         </span>
                     </label>
-                    <p class='user-task-create__date-note'><i class='bi bi-info-circle' aria-hidden='true'></i> เลือกช่วงงานแบบรายวัน โดยไม่ต้องระบุเวลา</p>
+                    <p class='user-task-create__date-note'><i class='bi bi-info-circle' aria-hidden='true'></i> เลือกวันและเวลา งานจะถือว่าล่าช้าเมื่อเลยเวลากำหนดส่ง</p>
                     <label>
                         <span>ความสำคัญของงาน</span>
                         <select name='job_priority'>

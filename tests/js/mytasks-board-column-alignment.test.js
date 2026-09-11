@@ -68,14 +68,16 @@ test('the collaborator column is wide enough that avatars never cover the paperc
             .filter(([, value]) => !value.includes('var('))
             .map(([, value]) => tracksOf(value)));
 
-    // กฎของจอแคบยุบเหลือสองคอลัมน์แบบการ์ด จึงดูเฉพาะกฎที่ยังเป็นตารางสิบคอลัมน์
-    const tenColumnRules = boardRules.filter((tracks) => tracks.length === 10);
+    // กฎของจอแคบยุบเหลือสองคอลัมน์แบบการ์ด จึงดูเฉพาะกฎที่ยังเป็นตารางเต็มสิบเอ็ดคอลัมน์
+    const tenColumnRules = boardRules.filter((tracks) => tracks.length === 11);
     assert.ok(tenColumnRules.length >= 2, 'ต้องมีกฎกริดของมุมมองบอร์ดทั้งตอน Sidebar ย่อและกาง');
 
     for (const tracks of tenColumnRules) {
 
-        const collaborators = widthOf(tracks[6]);
-        const attachments = widthOf(tracks[7]);
+        // ลำดับ track: 0 ชื่องาน, 1 สถานะ, 2 ความสำคัญ, 3 วันที่เริ่ม, 4 กำหนดส่ง,
+        // 5 เวลากำหนดส่ง, 6 ผู้รับผิดชอบ, 7 ผู้ร่วมงาน, 8 ไฟล์แนบ, 9 คอมเมนต์, 10 เมนู
+        const collaborators = widthOf(tracks[7]);
+        const attachments = widthOf(tracks[8]);
 
         assert.ok(
             collaborators >= required,

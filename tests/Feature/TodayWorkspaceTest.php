@@ -90,6 +90,48 @@ class TodayWorkspaceTest extends TestCase
         $response->assertSee('ล่าช้า 1 วัน');
     }
 
+    /**
+     * เวลากำหนดส่งเป็นตัวตัดสินความล่าช้า ไม่ใช่สิ้นวันอีกต่อไป
+     *
+     * งานที่ตั้งกำหนดส่ง 16:00 น. ต้องกลายเป็นล่าช้าตอน 16:00 น. ของวันนั้นทันที
+     * ไม่ใช่รอถึงเที่ยงคืน ซึ่งเป็นเหตุผลทั้งหมดของการเพิ่มเวลาเข้ามาในระบบ
+     */
+    public function test_due_clock_time_decides_lateness_not_end_of_day(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $job = $this->job($user, 2, '2026-08-16', '2026-08-20 16:00');
+
+        // 15:59 น. เวลาไทย — ยังไม่ถึงกำหนด
+        $this->travelTo(Carbon::parse('2026-08-20 08:59:00', 'UTC'));
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+        $this->assertSame(2, (int) $job->fresh()->job_status);
+        $this->assertFalse(TodayWorkspace::isLateBySchedule($job->fresh()));
+
+        // 16:00 น. เวลาไทย — ถึงกำหนดพอดี ต้องกลายเป็นล่าช้าโดยไม่ต้องรอสิ้นวัน
+        $this->travelTo(Carbon::parse('2026-08-20 09:00:01', 'UTC'));
+        $this->actingAs($user)->get(route('mytasks.index'))->assertOk();
+        $this->assertSame(6, (int) $job->fresh()->job_status);
+        $this->assertTrue(TodayWorkspace::isLateBySchedule($job->fresh()));
+    }
+
+    /** เวลาที่ผู้ใช้กรอกถูกตีความเป็นเวลาไทย ไม่ใช่ UTC ที่เป็นค่า config ของแอป */
+    public function test_schedule_input_is_read_as_bangkok_time(): void
+    {
+        $stored = TodayWorkspace::parseBusinessInput('2026-08-20T16:00', TodayWorkspace::DEFAULT_DUE_TIME);
+
+        $this->assertSame('2026-08-20 09:00:00', $stored->utc()->format('Y-m-d H:i:s'));
+        $this->assertSame('16:00', TodayWorkspace::clockTime($stored));
+        $this->assertSame('2026-08-20T16:00', TodayWorkspace::calendarDateTime($stored));
+
+        // กรอกมาแต่วัน ไม่มีเวลา ต้องได้เวลาตั้งต้นของช่องนั้น ไม่ใช่เที่ยงคืน UTC
+        $dueOnly = TodayWorkspace::parseBusinessInput('2026-08-20', TodayWorkspace::DEFAULT_DUE_TIME);
+        $startOnly = TodayWorkspace::parseBusinessInput('2026-08-20', TodayWorkspace::DEFAULT_START_TIME);
+
+        $this->assertSame('17:00', TodayWorkspace::clockTime($dueOnly));
+        $this->assertSame('00:00', TodayWorkspace::clockTime($startOnly));
+        $this->assertSame('2026-08-20', TodayWorkspace::calendarDate($startOnly));
+    }
+
     public function test_time_progress_formats_cross_month_and_cross_year_ranges(): void
     {
         $user = User::factory()->create(['role' => 'user']);
@@ -418,6 +460,16 @@ class TodayWorkspaceTest extends TestCase
         $this->assertNull($wasPaused->fresh()->late_at);
     }
 
+    /**
+     * งานหนึ่งใบตามที่ผู้ใช้กรอกจากหน้าจอ
+     *
+     * ผู้ใช้กรอกเป็น "วัน" ตามเวลาไทย ระบบเก็บลงคอลัมน์เป็น UTC เสมอ ตัวช่วยนี้จึงแปลงให้
+     * เหมือนเส้นทางจริงของ controller ไม่ใช่ยัดสตริงวันดิบลงไปซึ่งจะกลายเป็นเที่ยงคืน UTC
+     * (= 07:00 น. เวลาไทย) แล้วทำให้งานกลายเป็นล่าช้ากลางวันของวันครบกำหนด
+     *
+     * ค่าเริ่มต้นของกำหนดส่งคือสิ้นวันทำการ ซึ่งเป็นความหมายของ "ส่งภายในวันนั้น"
+     * ส่งเวลามาเองได้ด้วยรูปแบบ 'Y-m-d H:i' เมื่อต้องการทดสอบเวลากำหนดส่งที่เจาะจง
+     */
     private function job(User $user, int $status, $start, $due, array $extra = []): WorkOrder
     {
         return WorkOrder::create(array_merge([
@@ -428,8 +480,19 @@ class TodayWorkspaceTest extends TestCase
             'job_priority' => 2,
             'job_status' => $status,
             'approval_status' => 'approved',
-            'job_start_at' => $start,
-            'job_due_at' => $due,
+            'job_start_at' => self::businessInstant($start, '00:00:00'),
+            'job_due_at' => self::businessInstant($due, '23:59:59'),
         ], $extra));
+    }
+
+    /** แปลงวัน (หรือวัน+เวลา) ตามเวลาไทยเป็นเวลา UTC สำหรับเก็บลงคอลัมน์ */
+    private static function businessInstant(string $value, string $fallbackClock): Carbon
+    {
+        $text = trim($value);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) === 1) {
+            $text .= ' '.$fallbackClock;
+        }
+
+        return Carbon::parse($text, TodayWorkspace::BUSINESS_TIMEZONE)->utc();
     }
 }

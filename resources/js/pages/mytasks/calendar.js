@@ -2,6 +2,7 @@ import {statusMeta, taskPriorityMeta, unsupportedStatusMeta} from './priority-me
 import {modalStack} from '../../components/modal-stack.js';
 import {createCalendarQuickView} from './calendar-quick-view.js';
 import {attachmentStore} from './attachment-store.js';
+import {readSubtasks} from '../../components/subtask-modal.js';
 import {
     buddhistYear,
     buildCalendarAgenda,
@@ -182,6 +183,10 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 priority: Number(row.dataset.priority) || 2,
                 start: row.dataset.start || '',
                 due: row.dataset.due || '',
+                // ปฏิทินยังวางงานด้วยความละเอียดระดับวันเหมือนเดิม เวลากำหนดส่งเป็นข้อมูลแสดงผลล้วน
+                dueTime: row.dataset.dueTime || '',
+                // อ่านด้วยตัวช่วยตัวเดียวกับกล่องงานย่อย ข้อมูลเสียหายจึงกลายเป็นรายการว่างแทนที่จะพังทั้งปฏิทิน
+                subtasks: readSubtasks(row),
             });
         });
         meetingsById.forEach((meeting, id) => unique.set(id, meeting));
@@ -234,7 +239,12 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
         const status = statusMeta[event.status]?.label || unsupportedStatusMeta.label;
         const priority = taskPriorityMeta[event.priority]?.label || taskPriorityMeta[2].label;
-        return `งาน: ${event.title}, ${event.project}, ${status}, ${priority}, กำหนดส่ง ${eventDateLabel(event)}`;
+        // ช่องงานย่อยไม่ใช่ปุ่มของตัวเอง (ปุ่มซ้อนปุ่มไม่ได้) จำนวนจึงต้องอยู่ในป้ายของทั้งแถว
+        const subtasks = event.subtasks?.length ? `, งานย่อย ${event.subtasks.length} รายการ` : '';
+
+        const closure = (CLOSURE_META[event.status] || CLOSURE_META.open).label;
+
+        return `งาน: ${event.title}, ${event.project}${subtasks}, ${status}, ${priority}, กำหนดส่ง ${eventDateLabel(event)}, ${closure}`;
     };
 
     const rowForTask = (id) => [...source.querySelectorAll('[data-row]')].find((candidate) => String(candidate.dataset.id) === String(id));
@@ -264,7 +274,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         detail.querySelector('[data-calendar-detail-status]').textContent = (statusMeta[Number(row.dataset.status)] || unsupportedStatusMeta).label;
         detail.querySelector('[data-calendar-detail-priority]').textContent = (taskPriorityMeta[Number(row.dataset.priority)] || taskPriorityMeta[2]).label;
         detail.querySelector('[data-calendar-detail-start]').textContent = displayDate(row.dataset.start);
-        detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due);
+        // ผู้ใช้เปิดดูรายละเอียดจากปฏิทินเพื่อรู้ว่า "ต้องส่งเมื่อไหร่" เวลาจึงต้องอยู่คู่กับวัน
+        const detailDueTime = row.dataset.dueTime ? ` ${row.dataset.dueTime} น.` : '';
+        detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due) + detailDueTime;
         detail.querySelector('[data-calendar-detail-assignee]').textContent = team.assignee?.name || row.dataset.assignee || 'ไม่ระบุ';
         detail.querySelector('[data-calendar-detail-collaborators]').textContent = (team.collaborators || []).map((person) => `${person.name}${person.status === 'pending' ? ' (รอตอบรับ)' : ''}`).join(', ') || 'ไม่มีผู้ร่วมงาน';
         fillList(detail.querySelector('[data-calendar-detail-attachments]'), files.map((file) => file.name), 'ไม่มีไฟล์แนบ');
@@ -328,24 +340,100 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     const toneOf = (event) => (taskPriorityMeta[event.priority] || taskPriorityMeta[2]).className;
 
+    /*
+     * งานไม่มีจุดสีนำหน้าชื่ออีกต่อไป
+     *
+     * จุดขนาด 8px บอกได้แค่ว่า "มีสีอะไรสักสี" ผู้ใช้ต้องจำว่าสีไหนคือระดับไหนเอง
+     * ความสำคัญมีคอลัมน์ของตัวเองอยู่แล้ว การใส่สีลงบนข้อความในคอลัมน์นั้นตรงกว่า
+     * ส่วนการประชุมยังมีไอคอนปฏิทินนำหน้า เพราะมันบอก "ชนิดของรายการ" ไม่ใช่ระดับความสำคัญ
+     */
     const titleCell = (event) => {
-        const marker = element('i', event.type === 'meeting'
-            ? 'calendar-table__marker bi bi-calendar-event'
-            : `calendar-table__marker calendar-dot ${toneOf(event)}`);
+        if (event.type !== 'meeting') {
+            return cell('is-title', element('span', '', event.title));
+        }
+
+        const marker = element('i', 'calendar-table__marker bi bi-calendar-event');
         marker.setAttribute('aria-hidden', 'true');
+
         return cell('is-title', marker, element('span', '', event.title));
     };
 
     const tag = (className, label) => element('span', `calendar-tag ${className}`, label);
+
+    /**
+     * คำของคอลัมน์ "ผลการปิดงาน" — คีย์คือ job_status ส่วน open คือค่าตั้งต้นของสถานะที่เหลือ
+     *
+     * is-done / is-open เป็นตัวบอกว่าจะอ่านเป็นสีปกติหรือสีแดง งานที่ยังปิดไม่ได้เป็นสีแดงทั้งกลุ่ม
+     * รวมถึง "รอตรวจรับ" เพราะยังไม่ผ่าน แค่บอกเพิ่มว่าค้างอยู่ที่ขั้นไหน
+     */
+    const CLOSURE_META = {
+        3: {className: 'is-open', label: 'รอตรวจรับ'},
+        4: {className: 'is-done', label: 'ปิดงานแล้ว'},
+        open: {className: 'is-open', label: 'ยังไม่ปิดงาน'},
+    };
 
     const taskCellFactory = {
         title: titleCell,
         project: (event) => cell('is-muted', element('span', '', event.project)),
         owner: (event) => cell('is-people', makeAvatar(teamOf(event.taskId).assignee, 'is-owner')),
         collaborators: (event) => cell('is-people', makeAvatarStack(teamOf(event.taskId).collaborators || [], 'ไม่มี')),
+        /*
+         * ป้ายความสำคัญใช้สีของระดับตัวเอง ไม่ใช่สีเทากลาง ๆ เหมือนแท็กทั่วไป
+         * คลาส priority-* เป็นตัวพาสีมาให้ (นิยามอยู่ใน agenda.css) จึงเป็นชุดสีเดียว
+         * กับที่บอร์ดและตารางใช้ ไม่ได้ตั้งสีใหม่ที่นี่
+         */
         priority: (event) => {
             const meta = taskPriorityMeta[event.priority] || taskPriorityMeta[2];
-            return cell('', tag(meta.className, meta.label));
+            return cell('', tag(`is-priority ${meta.className}`, meta.label));
+        },
+        /*
+         * ลำดับที่นับจากทั้งรายการ ไม่ใช่จากหน้าที่กำลังเปิด
+         *
+         * การ์ดแบ่งหน้าละสิบแถว ถ้านับใหม่ทุกหน้า ผู้ใช้จะเห็นเลข 1-10 ซ้ำกันทุกหน้า
+         * จนบอกไม่ได้ว่ากำลังดูรายการที่เท่าไรของเดือน
+         */
+        index: (event, position) => cell('is-index', element('strong', '', String(position))),
+        /*
+         * ผลการปิดงาน — ตอบคำถามเดียวว่า "งานนี้จบแล้วหรือยัง"
+         *
+         * ต่างจากคอลัมน์สถานะตรงที่ไม่ได้บอกว่ากำลังอยู่ขั้นไหน แต่บอกผลลัพธ์
+         * "รอตรวจรับ" แยกออกมาเพราะเป็นคนละเรื่องกับ "ยังไม่ปิดงาน" — งานส่งถึงมือผู้ตรวจแล้ว
+         * แต่ยังไม่ผ่าน ถ้ารวมเป็นก้อนเดียวกัน คนดูจะไม่รู้ว่าต้องไปตามใครต่อ
+         */
+        closure: (event) => {
+            const meta = CLOSURE_META[event.status] || CLOSURE_META.open;
+
+            // ข้อความล้วน ไม่ใช่ป้ายหรือปุ่ม — คอลัมน์นี้อ่านผลลัพธ์จากสีของตัวอักษรอย่างเดียว
+            return cell(`is-closure ${meta.className}`, element('span', '', meta.label));
+        },
+        subtasks: (event) => {
+            const names = event.subtasks || [];
+            if (!names.length) {
+                return cell('is-muted', element('span', 'calendar-table__not-applicable', '—'));
+            }
+
+            /*
+             * ปุ่มเดียวกับที่ตารางรายงานใช้ (components/subtask-modal.js อ่าน data-subtask-*)
+             * จึงได้ modal ใบเดิม ไม่ต้องมีตัวจัดการหรือกล่องชุดที่สองสำหรับปฏิทิน
+             */
+            /*
+             * แถวของการ์ดสรุปเป็น <button> อยู่แล้ว ช่องนี้จึงเป็น <span> ธรรมดา ไม่ใส่
+             * role="button"/tabindex ซ้อนเข้าไป เพราะปุ่มซ้อนปุ่มเป็น HTML ที่ไม่ถูกต้อง
+             * และ screen reader จะอ่านสับสน จำนวนงานย่อยถูกใส่ไว้ใน aria-label ของทั้งแถว
+             * ผู้ใช้คีย์บอร์ดจึงยังรู้ว่ามีงานย่อยกี่รายการ และเปิดดูรายชื่อได้จากตัวงานเอง
+             */
+            const button = element('span', 'calendar-subtask-btn');
+            button.dataset.subtaskOpen = '';
+            button.dataset.subtaskTask = event.title;
+            button.dataset.subtaskProject = event.project || '';
+            button.dataset.subtaskNames = JSON.stringify(names);
+            button.setAttribute('aria-label', `ดูงานย่อย ${names.length} รายการของ ${event.title}`);
+
+            const icon = element('i', 'bi bi-diagram-3');
+            icon.setAttribute('aria-hidden', 'true');
+            button.append(icon, element('span', '', `${names.length} รายการ`));
+
+            return cell('is-subtasks', button);
         },
         status: (event) => {
             const meta = statusMeta[event.status] || unsupportedStatusMeta;
@@ -365,6 +453,10 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             element('strong', '', shortDateFormatter.format(new Date(event.dueStamp))),
             element('small', '', dueDistanceLabel(event)),
         ),
+        dueTime: (event) => cell(
+            'is-due',
+            element('strong', '', event.dueTime ? `${event.dueTime} น.` : '—'),
+        ),
     };
 
     const meetingCellFactory = {
@@ -375,21 +467,28 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         attendees: (event) => cell('is-people', makeAvatarStack(Array.isArray(event.attendees) ? event.attendees : [], 'ไม่มี')),
         location: (event) => cell('is-muted', element('span', '', event.location)),
         date: (event) => cell('is-due', element('strong', '', shortDateFormatter.format(new Date(event.startStamp)))),
+        dueTime: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
+        index: (event, position) => cell('is-index', element('strong', '', String(position))),
+        subtasks: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
+        closure: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
         blank: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
     };
 
     // ลำดับช่องต้องตรงกับหัวตารางใน calendar.blade.php ทุกตัว
     const TASK_LAYOUTS = {
-        today: ['title', 'project', 'owner', 'collaborators', 'priority', 'time'],
-        due: ['title', 'project', 'owner', 'collaborators', 'priority', 'time'],
+        today: ['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'],
+        due: ['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'],
         day: ['title', 'project', 'owner', 'collaborators', 'priority', 'status', 'start', 'due'],
     };
     const MEETING_LAYOUTS = {
-        today: ['title', 'project', 'organizer', 'attendees', 'blank', 'time'],
-        due: ['title', 'project', 'organizer', 'attendees', 'blank', 'time'],
+        today: ['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'],
+        due: ['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'],
         day: ['title', 'time', 'organizer', 'attendees', 'location'],
     };
     const CELL_LABELS = {
+        index: 'ลำดับที่',
+        subtasks: 'งานย่อย',
+        closure: 'ผลการปิดงาน',
         title: 'รายการ',
         project: 'โปรเจกต์ / สถานที่',
         owner: 'เจ้าของ',
@@ -399,6 +498,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         priority: 'ความสำคัญ',
         status: 'สถานะ',
         time: 'เวลา',
+        dueTime: 'เวลากำหนดส่ง',
         start: 'วันที่เริ่ม',
         due: 'กำหนดส่ง',
         date: 'วันที่',
@@ -406,24 +506,24 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         blank: 'ความสำคัญ',
     };
 
-    const makeRow = (event, layout) => {
+    const makeRow = (event, layout, position = 0) => {
         const isMeeting = event.type === 'meeting';
         const factory = isMeeting ? meetingCellFactory : taskCellFactory;
         const node = element(isMeeting ? 'a' : 'button', `calendar-table__row${isMeeting ? ' is-meeting' : ''}`);
         configureCalendarEventNode(node, event);
         node.setAttribute('role', 'row');
         node.append(...layout.map((column) => {
-            const item = factory[column](event);
+            const item = factory[column](event, position);
             item.dataset.label = CELL_LABELS[column] || '';
             return item;
         }));
         return node;
     };
 
-    const taskRow = (variant) => (event) => makeRow(event, TASK_LAYOUTS[variant]);
-    const meetingRow = (variant) => (event) => makeRow(event, MEETING_LAYOUTS[variant]);
-    const agendaRow = (variant) => (event) => (
-        event.type === 'meeting' ? meetingRow(variant)(event) : taskRow(variant)(event)
+    const taskRow = (variant) => (event, position) => makeRow(event, TASK_LAYOUTS[variant], position);
+    const meetingRow = (variant) => (event, position) => makeRow(event, MEETING_LAYOUTS[variant], position);
+    const agendaRow = (variant) => (event, position) => (
+        event.type === 'meeting' ? meetingRow(variant)(event, position) : taskRow(variant)(event, position)
     );
 
     /* ---------- modal ของวันที่ที่ถูกคลิกบนปฏิทิน ---------- */
@@ -479,7 +579,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         agendaPages[section] = page;
         const visible = items.slice(page * AGENDA_PAGE_SIZE, (page + 1) * AGENDA_PAGE_SIZE);
 
-        list.replaceChildren(...visible.map(makeItem));
+        // ลำดับที่ต้องนับต่อจากหน้าก่อนหน้า ไม่ใช่เริ่มที่ 1 ใหม่ทุกหน้า
+        list.replaceChildren(...visible.map((item, offset) => makeItem(item, page * AGENDA_PAGE_SIZE + offset + 1)));
         empty.hidden = items.length > 0;
         // ตัวนับบอกจำนวนทั้งหมดเสมอ ไม่ใช่จำนวนของหน้าที่กำลังดู
         count.textContent = `${items.length} ${unit}`;
@@ -864,6 +965,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             render();
             return;
         }
+
+        // ช่องงานย่อยมีเจ้าของเป็นกล่องงานย่อย (components/subtask-modal.js) แถวจึงต้องไม่ชิงไปเปิด quick view
+        if (event.target.closest('[data-subtask-open]')) return;
 
         const chip = event.target.closest('[data-calendar-task]');
         if (chip) {

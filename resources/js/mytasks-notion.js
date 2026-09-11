@@ -8,6 +8,14 @@
     const groupSelect = root.querySelector('[data-group]');
     const token = document.querySelector('meta[name="csrf-token"]')?.content;
     const url = (template, id) => template.replace('__ID__', id);
+    /*
+     * รูปแบบวันต้องตรงกับที่ Blade เขียนไว้ทุกตัวอักษร ("17 มิ.ย. 69")
+     * ไม่งั้นแถวที่เพิ่งแก้จะดูต่างจากแถวที่ยังไม่ถูกแตะจนเหมือนคนละคอลัมน์
+     *
+     * timeZone: 'UTC' เพราะค่าที่ป้อนเข้ามาถูกประกอบเป็นเที่ยงคืนของวันนั้นอยู่แล้ว
+     * ถ้าปล่อยให้ใช้โซนของเครื่อง วันจะขยับตามเครื่องของผู้ใช้แต่ละคน
+     */
+    const thaiShortDate = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC'});
     let ascending = true;
     let toastTimer;
 
@@ -75,6 +83,25 @@
         apply();
     };
 
+    /** ป้ายในเซลล์กำหนดส่งอ่านจาก dataset ชุดเดียว จึงตามการแก้ไขได้โดยไม่ต้องรีโหลดหน้า */
+    const paintDueCell = (row) => {
+        const dueLabel = row.querySelector('[data-due-label]');
+        const date = row.dataset.due || '';
+        if (dueLabel && date) {
+            // ต่อท้ายด้วย Z ให้ตรงกับ timeZone:'UTC' ของตัวจัดรูปแบบ ไม่งั้นเครื่องที่ +07:00 จะเลื่อนวันย้อนไปหนึ่งวัน
+            const parsed = new Date(`${date}T00:00:00Z`);
+            if (!Number.isNaN(parsed.getTime())) {
+                dueLabel.textContent = thaiShortDate.format(parsed);
+            }
+        }
+
+        const timeLabel = row.querySelector('[data-due-time-label]');
+        if (timeLabel) {
+            const clock = row.dataset.dueTime || '';
+            timeLabel.textContent = clock ? `ส่งภายใน ${clock} น.` : 'ไม่มีเวลากำหนดส่ง';
+        }
+    };
+
     root.addEventListener('change', async (event) => {
         const row = event.target.closest('[data-row]');
         const field = event.target.dataset.field;
@@ -94,8 +121,17 @@
                 await request(url(template, id), 'POST', {job_priority: +event.target.value});
                 row.dataset.priority = event.target.value;
             } else if (field === 'due') {
-                await request(url(template, id), 'POST', {job_due_at: event.target.value});
-                row.dataset.due = event.target.value;
+                const data = await request(url(template, id), 'POST', {job_due_at: event.target.value});
+
+                /*
+                 * ช่องกำหนดส่งส่งค่ามาเป็น 'Y-m-dTH:i' แต่ data-due ต้องเป็นวันล้วนต่อไป
+                 * เพราะการจัดกลุ่มและการเรียงของตารางเทียบสตริงวันตรง ๆ ถ้าเก็บเวลาไว้ด้วย
+                 * งานวันเดียวกันแต่คนละเวลาจะถูกแยกเป็นคนละกลุ่ม เวลาจึงแยกไปอยู่ data-due-time
+                 */
+                const [dueDate = '', dueTime = ''] = String(event.target.value || '').split('T');
+                row.dataset.due = data?.job_due_at ?? dueDate;
+                row.dataset.dueTime = data?.job_due_time ?? dueTime;
+                paintDueCell(row);
             }
             toast('บันทึกการเปลี่ยนแปลงแล้ว');
             if (groupSelect?.value === field) regroup();

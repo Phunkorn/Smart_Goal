@@ -206,8 +206,8 @@ class TaskController extends Controller
                 'approval_status' => $approval['approval_status'],
                 'approved_by' => $approval['approved_by'],
                 'approved_at' => $approval['approved_at'],
-                'job_start_at' => Carbon::parse($validated['job_start_at']),
-                'job_due_at' => Carbon::parse($validated['job_due_at']),
+                'job_start_at' => TodayWorkspace::parseBusinessInput($validated['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
+                'job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
                 'job_completed_at' => $initialStatus === 4 ? now() : null,
             ]);
 
@@ -305,7 +305,7 @@ class TaskController extends Controller
                 'approved_by' => $approval['approved_by'],
                 'approved_at' => $approval['approved_at'],
                 'job_start_at' => now(),
-                'job_due_at' => now()->addDay(),
+                'job_due_at' => TodayWorkspace::parseBusinessInput(TodayWorkspace::businessNow()->addDay()->format('Y-m-d'), TodayWorkspace::DEFAULT_DUE_TIME),
             ]);
 
             AuditTrail::log('created', $job, 'Admin เพิ่มงานในโปรเจกต์: '.$job->job_topic, [
@@ -409,8 +409,8 @@ class TaskController extends Controller
                         'approval_status' => $approval['approval_status'],
                         'approved_by' => $approval['approved_by'],
                         'approved_at' => $approval['approved_at'],
-                        'job_start_at' => Carbon::parse($taskData['job_start_at']),
-                        'job_due_at' => Carbon::parse($taskData['job_due_at']),
+                        'job_start_at' => TodayWorkspace::parseBusinessInput($taskData['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
+                        'job_due_at' => TodayWorkspace::parseBusinessInput($taskData['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
                     ]);
 
                     $collaboratorIds = collect($taskData['collaborators'] ?? [])
@@ -583,8 +583,8 @@ class TaskController extends Controller
         $previousStartAt = $job->job_start_at;
         $previousDueAt = $job->job_due_at;
         $job->update([
-            'job_start_at' => Carbon::parse($validated['job_start_at']),
-            'job_due_at' => Carbon::parse($validated['job_due_at']),
+            'job_start_at' => TodayWorkspace::parseBusinessInput($validated['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
+            'job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
         ]);
         if (! TodayWorkspace::reconcileLateAfterScheduleChange($job)) {
             TodayWorkspace::normalizeLateForTransition($job);
@@ -612,6 +612,8 @@ class TaskController extends Controller
                 'job_id' => $job->job_id,
                 'job_start_at' => TodayWorkspace::calendarDate($job->job_start_at),
                 'job_due_at' => TodayWorkspace::calendarDate($job->job_due_at),
+                'job_start_time' => TodayWorkspace::clockTime($job->job_start_at),
+                'job_due_time' => TodayWorkspace::clockTime($job->job_due_at),
                 'job_status' => (int) $job->job_status,
                 'transitions' => $transitions->capabilities($job, $user),
             ]);

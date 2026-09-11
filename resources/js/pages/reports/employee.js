@@ -11,6 +11,11 @@ if (page) {
     initSelectDropdowns(page);
     initSubtaskModal(document);
 
+    // Keep long task names compact in the table while exposing the complete name on hover.
+    page.querySelectorAll('.employee-report__tasks tbody th a').forEach((link) => {
+        link.title = link.textContent.trim();
+    });
+
     const period = page.querySelector('[data-report-period]');
     const customDates = page.querySelector('[data-report-custom-dates]');
     const synchronizeCustomDates = () => { if (customDates) customDates.hidden = period?.value !== 'custom'; };

@@ -152,12 +152,16 @@
             </header>
             <div class="calendar-table calendar-table--today" role="table" aria-labelledby="mytasks-calendar-today-title">
                 <div class="calendar-table__head" role="row">
+                    <span role="columnheader">ลำดับที่</span>
                     <span role="columnheader">งาน / การประชุม</span>
                     <span role="columnheader">โปรเจกต์ / สถานที่</span>
-                    <span role="columnheader">ผู้รับผิดชอบ / ผู้จัด</span>
-                    <span role="columnheader">ผู้ร่วมงาน / ผู้เข้าร่วม</span>
+                    <span role="columnheader">งานย่อย</span>
+                    <span role="columnheader">ผู้รับผิดชอบ</span>
+                    <span role="columnheader">ผู้ร่วมงาน</span>
                     <span role="columnheader">ความสำคัญ</span>
                     <span role="columnheader">เวลา</span>
+                    <span role="columnheader">เวลากำหนดส่ง</span>
+                    <span role="columnheader">ผลการปิดงาน</span>
                 </div>
                 <div class="calendar-table__body" role="rowgroup" data-calendar-today-list></div>
             </div>
@@ -188,12 +192,16 @@
             </header>
             <div class="calendar-table calendar-table--due" role="table" aria-labelledby="mytasks-calendar-month-agenda-title">
                 <div class="calendar-table__head" role="row">
+                    <span role="columnheader">ลำดับที่</span>
                     <span role="columnheader">งาน / การประชุม</span>
                     <span role="columnheader">โปรเจกต์ / สถานที่</span>
-                    <span role="columnheader">ผู้รับผิดชอบ / ผู้จัด</span>
-                    <span role="columnheader">ผู้ร่วมงาน / ผู้เข้าร่วม</span>
+                    <span role="columnheader">งานย่อย</span>
+                    <span role="columnheader">ผู้รับผิดชอบ</span>
+                    <span role="columnheader">ผู้ร่วมงาน</span>
                     <span role="columnheader">ความสำคัญ</span>
                     <span role="columnheader">เวลา</span>
+                    <span role="columnheader">เวลากำหนดส่ง</span>
+                    <span role="columnheader">ผลการปิดงาน</span>
                 </div>
                 <div class="calendar-table__body" role="rowgroup" data-calendar-month-list></div>
             </div>
@@ -231,6 +239,14 @@
     งานกับการประชุมแยกเป็นคนละ section เพราะคอลัมน์ของสองอย่างนี้ไม่เหมือนกัน
     แถวถูกวาดโดย calendar.js ด้วยตัวสร้างแถวชุดเดียวกับการ์ดใต้ปฏิทิน
 --}}
+{{--
+    กล่องรายชื่องานย่อยของช่อง "งานย่อย" ในการ์ดสรุป
+    ใช้ใบเดียวกับตารางรายงาน (resources/js/components/subtask-modal.js เป็นตัวจัดการ)
+    วางไว้ในพาร์เชียลนี้เพื่อให้ทุกหน้าที่ render การ์ดสรุปได้กล่องนี้มาด้วยเสมอ
+    ไม่ต้องไปจำใส่ทีละหน้า
+--}}
+@include('reports.components.subtask-modal')
+
 <div class="notion-modal mytasks-calendar-day" data-calendar-day-modal hidden>
     <section class="mytasks-calendar-day__card" role="dialog" aria-modal="true" aria-labelledby="calendar-day-title">
         <header>

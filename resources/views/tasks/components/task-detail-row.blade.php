@@ -25,11 +25,19 @@
     $detailThaiMonths = [1=>'ม.ค.',2=>'ก.พ.',3=>'มี.ค.',4=>'เม.ย.',5=>'พ.ค.',6=>'มิ.ย.',7=>'ก.ค.',8=>'ส.ค.',9=>'ก.ย.',10=>'ต.ค.',11=>'พ.ย.',12=>'ธ.ค.'];
     // รูปแบบวันที่ต้องเหมือนแถวงานแม่ทุกตัวอักษร คอลัมน์นี้จัดกึ่งกลาง
     // ข้อความที่สั้นกว่าจะถูกวางคนละตำแหน่งจนดูเหมือนคอลัมน์ไม่ตรงกัน
-    $detailDateLabel = fn ($value) => $value
-        ? $value->day.' '.$detailThaiMonths[$value->month].' '.($value->year + 543)
-        : null;
+    // อ่านจากเวลาไทยเสมอ ค่าที่เก็บเป็น UTC ข้ามวันได้เมื่อกำหนดการมีเวลาจริง
+    $detailDateLabel = function ($value) use ($detailThaiMonths) {
+        if (! $value) {
+            return null;
+        }
+
+        $moment = \App\Support\TodayWorkspace::businessMoment($value);
+
+        return $moment->day.' '.$detailThaiMonths[$moment->month].' '.($moment->year + 543);
+    };
     $detailStartLabel = $detailDateLabel($detail->job_start_at) ?? '-';
     $detailDueLabel = $detailDateLabel($detail->job_due_at) ?? 'ไม่มีกำหนด';
+    $detailDueTimeLabel = \App\Support\TodayWorkspace::timeLabel($detail->job_due_at) ?? '-';
 @endphp
 
 <li class="board-task-detail task-priority-{{ $detailPriority[1] }} {{ $detailIsLate ? 'is-late' : '' }}"
@@ -46,6 +54,7 @@
     data-status="{{ $detail->job_status }}"
     data-priority="{{ $detail->job_priority }}"
     data-late="{{ $detailIsLate ? 1 : 0 }}"
+    data-due-time="{{ \App\Support\TodayWorkspace::clockTime($detail->job_due_at) }}"
     data-start="{{ \App\Support\TodayWorkspace::calendarDate($detail->job_start_at) }}"
     data-due="{{ \App\Support\TodayWorkspace::calendarDate($detail->job_due_at) }}"
     data-update-url="{{ route('mytasks.details.update', $detail) }}"
@@ -84,11 +93,18 @@
     @endif
 
     @if($detailCanEditSchedule)
-        <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $detailStartLabel }}</span><input type="date" data-date-picker data-board-field="start" value="{{ optional($detail->job_start_at)->format('Y-m-d') }}" data-range-partner="due" aria-label="เลือกวันที่เริ่มของงานย่อย {{ $detail->job_topic }}"></label>
-        <label class="board-due board-due-editable {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $detailIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $detailDueLabel }}</span><input type="date" data-date-picker data-board-field="due" value="{{ optional($detail->job_due_at)->format('Y-m-d') }}" data-range-partner="start" aria-label="เลือกกำหนดส่งของงานย่อย {{ $detail->job_topic }}"></label>
+        <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $detailStartLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}" data-board-field="start" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_start_at) }}" data-range-partner="due" aria-label="เลือกวันที่และเวลาเริ่มของงานย่อย {{ $detail->job_topic }}"></label>
+        <label class="board-due board-due-editable {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $detailIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $detailDueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_due_at) }}" data-range-partner="start" aria-label="เลือกวันที่และเวลากำหนดส่งของงานย่อย {{ $detail->job_topic }}"></label>
     @else
         <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $detailStartLabel }}</span>
         <span class="board-due {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $detailIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $detailDueLabel }}</span>
+    @endif
+
+    {{-- คอลัมน์เวลากำหนดส่ง กดแก้ได้เหมือนแถวงานแม่ และผูกกับค่าเดียวกันคือ job_due_at --}}
+    @if($detailCanEditSchedule)
+        <label class="board-due-time board-due-time-editable {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $detailDueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_due_at) }}" data-range-partner="start" aria-label="เลือกเวลากำหนดส่งของงานย่อย {{ $detail->job_topic }}"></label>
+    @else
+        <span class="board-due-time {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $detailDueTimeLabel }}</span></span>
     @endif
 
     <button type="button" class="board-owner" data-open-owner="{{ $detail->job_id }}" title="ผู้รับผิดชอบ: {{ $detailAssigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $detailAssigneeName }}"><i>@include('components.user-avatar-content', ['user' => $detail->user ?? auth()->user()])</i></button>

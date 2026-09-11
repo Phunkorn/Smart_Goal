@@ -103,11 +103,14 @@
         @else
             <ol class="audit-stream">
                 @foreach ($recentActivity as $log)
-                    @php($entry = AuditSnapshot::describe($log))
+                    @php
+                        $entry = AuditSnapshot::describe($log);
+                        $localCreatedAt = $log->created_at?->copy()->timezone(TodayWorkspace::BUSINESS_TIMEZONE);
+                    @endphp
                     <li @class(['is-auth-event' => AuditSnapshot::isAuthAction($log->action)])>
                         <time datetime="{{ optional($log->created_at)->toIso8601String() }}">
-                            {{ optional($log->created_at)->format('d/m') }}
-                            <b>{{ optional($log->created_at)->format('H:i') }}</b>
+                            {{ optional($localCreatedAt)->format('d/m') }}
+                            <b>{{ optional($localCreatedAt)->format('H:i') }}</b>
                         </time>
                         <div>
                             {{-- อ่านเป็นประโยคเดียว: ใคร ทำอะไร กับอะไร --}}
@@ -151,10 +154,11 @@
         @else
             <ol class="audit-stream">
                 @foreach ($recentTrash as $trash)
+                    @php($localDeletedAt = $trash->deleted_at?->copy()->timezone(TodayWorkspace::BUSINESS_TIMEZONE))
                     <li>
                         <time datetime="{{ optional($trash->deleted_at)->toIso8601String() }}">
-                            {{ optional($trash->deleted_at)->format('d/m') }}
-                            <b>{{ optional($trash->deleted_at)->format('H:i') }}</b>
+                            {{ optional($localDeletedAt)->format('d/m') }}
+                            <b>{{ optional($localDeletedAt)->format('H:i') }}</b>
                         </time>
                         <div>
                             <p class="audit-sentence">

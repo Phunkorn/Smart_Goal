@@ -40,7 +40,7 @@
 .employee-report__attention-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; padding:11px 2px; border-bottom:1px solid #edf1f5; color:#d73b3b; text-decoration:none; }
 .employee-report__attention-item:last-child { border-bottom:0; }
 .employee-report__attention-item > span { display:grid; min-width:0; }
-.employee-report__attention-item strong { overflow:hidden; color:#263650; font-size:.84rem; text-overflow:ellipsis; white-space:nowrap; }
+.employee-report__attention-item strong { overflow:hidden; color:#17233a; font-size:.84rem; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
 .employee-report__attention-item small { overflow:hidden; margin-top:3px; color:#8290a3; font-size:.72rem; text-overflow:ellipsis; white-space:nowrap; }
 .employee-report__attention-item em { padding:4px 8px; border-radius:999px; background:#fff0f0; color:#d73b3b; font-size:.66rem; font-style:normal; font-weight:750; white-space:nowrap; }
 .employee-report__tasks { margin-top:16px; padding:17px; }
@@ -64,10 +64,14 @@
 .employee-report__tasks table { width:100%; min-width:1180px; border-collapse:collapse; }
 .employee-report__project { color:#77849a; font-size:.74rem; overflow-wrap:anywhere; }
 .employee-report__tasks th,.employee-report__tasks td { padding:11px 9px; border-top:1px solid #edf1f5; color:#536078; font-size:.76rem; text-align:left; vertical-align:middle; }
-.employee-report__tasks thead th { border-top:0; color:#77849a; font-size:.7rem; font-weight:750; white-space:nowrap; }
+.employee-report__tasks thead th { border-top:0; color:#111827; font-size:.72rem; font-weight:700; white-space:nowrap; }
 .employee-report__tasks tbody th { max-width:240px; }
 .employee-report__index-col,.employee-report__index { width:52px; color:#8290a3; font-variant-numeric:tabular-nums; text-align:center; }
-.employee-report__tasks tbody th a { display:block; overflow:hidden; color:#263650; font-weight:750; text-decoration:none; text-overflow:ellipsis; white-space:nowrap; }
+.employee-report__tasks tbody th,
+.employee-report__tasks tbody td,
+.employee-report__tasks tbody th a,
+.employee-report__tasks tbody .report-tag { font-weight:400; }
+.employee-report__tasks tbody th a { display:block; overflow:hidden; color:#263650; text-decoration:none; text-overflow:ellipsis; white-space:nowrap; }
 .employee-report__tasks tbody th a:hover { color:#1769e8; }
 
 @media (max-width:1279px) {

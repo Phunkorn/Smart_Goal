@@ -550,6 +550,9 @@ class OperationalWorkloadReportTest extends TestCase
             ->assertSee('2 ชม. 30 น.')
             ->assertSee('ดูรายงานภาระงานปฏิบัติการ');
 
+        parse_str((string) parse_url($after->viewData('operationalUrl'), PHP_URL_QUERY), $operationalQuery);
+        $this->assertSame((string) $member->id, (string) ($operationalQuery['owner'] ?? null));
+
         $this->assertSame(
             $beforeNumbers,
             $this->projectKpiSnapshot($after->getContent()),

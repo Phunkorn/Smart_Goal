@@ -103,10 +103,11 @@ test('task detail module keeps drag, project drop, editing, deletion and keyboar
     // ไม่งั้นกล่องที่เล็กกว่าจะถูกวางกึ่งกลางคนละตำแหน่งจนดูเหมือนคอลัมน์ไม่ตรงกัน
     assert.doesNotMatch(css, /\.board-task-detail \.board-(status-pill|priority|start|due|attachments|comments|owner)/);
 
-    // ช่องไฟล์แนบและคอมเมนต์ถูกล็อกกับหมายเลขคอลัมน์ กฎนั้นต้องครอบแถวงานย่อยด้วย
+    // ช่องไฟล์แนบและคอมเมนต์ถูกล็อกไว้กับ "ท้ายแถว" (-4, -3) กฎนั้นต้องครอบแถวงานย่อยด้วย
+    // นับถอยจากขอบขวาเพื่อให้การเพิ่มคอลัมน์กลางแถวไม่ดันสองช่องนี้ตกไปแถวที่สอง
     const board = await read('resources/css/pages/mytasks/project-board.css');
-    assert.match(board, /\.board-task-detail > \.board-attachments\s*\{[^}]*grid-column:\s*8/s);
-    assert.match(board, /\.board-task-detail > \.board-comments\s*\{[^}]*grid-column:\s*9/s);
+    assert.match(board, /\.board-task-detail > \.board-attachments\s*\{[^}]*grid-column:\s*-4/s);
+    assert.match(board, /\.board-task-detail > \.board-comments\s*\{[^}]*grid-column:\s*-3/s);
 
     // คอลัมน์ต้องมาจากตัวแปรเดียวกับแถวงานแม่ ห้ามคัดลอกตัวเลขมาไว้ที่นี่อีก
     assert.match(css, /\.board-task-detail\s*\{[^}]*grid-template-columns:\s*var\(--board-columns\)/s);

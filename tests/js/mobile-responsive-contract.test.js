@@ -229,7 +229,9 @@ test('shared board titles and assignee header use explicit compact contracts', a
     assert.doesNotMatch(blade, /board-reference-task__open[^>]*>\s*<strong/);
     assert.match(source, /\.board-project-group__title\s*\{[^}]*font-weight:\s*600/s);
     assert.match(source, /\.board-reference-task__title\s*\{[^}]*font-weight:\s*500/s);
+    // หัวคอลัมน์เวลากำหนดส่ง (6) และผู้รับผิดชอบ (7) ต้องไม่ตัดบรรทัด ไม่งั้นหัวตารางสูงไม่เท่ากัน
     assert.match(source, /span:nth-child\(6\)\s*\{[^}]*white-space:\s*nowrap/s);
+    assert.match(source, /span:nth-child\(7\)\s*\{[^}]*white-space:\s*nowrap/s);
     assert.match(script, /querySelector\('\.board-reference-task__title'\)/);
     assert.doesNotMatch(script, /board-reference-task__open strong/);
     assert.match(adminMember, /family=IBM\+Plex\+Sans\+Thai:wght@400;500;600;700/);
@@ -282,7 +284,84 @@ test('mobile calendar navigation has deterministic control and selector rows', a
     assert.match(mobile, /\[data-calendar-month\][^}]*\[data-calendar-year\]\s*\{[^}]*min-width:\s*0/s);
 });
 
-test('summary cards stack full width and use the same six-column table', async () => {
+test('agenda headings read as black labels and cell values are not bold', async () => {
+    const source = await css('resources/css/components/task-workspace/calendar/agenda.css');
+
+    // หยิบเฉพาะ rule ที่ selector นั้นยืนเดี่ยวหน้าปีกกา ไม่ใช่ rule ที่ถูกจัดกลุ่มรวมกับ selector อื่น
+    const block = (selector) => {
+        const at = source.indexOf(`${selector} {`);
+        assert.notEqual(at, -1, `ไม่พบกฎของ ${selector}`);
+
+        return source.slice(at, source.indexOf('}', at));
+    };
+    const weightOf = (selector) => Number(block(selector).match(/font-weight:\s*(\d+)/)?.[1] ?? 400);
+
+    /*
+     * การ์ดนี้มีเก้าคอลัมน์ ผู้ใช้ต้องหาหัวคอลัมน์ให้เจอก่อนจึงจะอ่านค่าในแถวได้
+     * หัวคอลัมน์สีเทาอ่อนบนพื้นขาวมี contrast ต่ำจนต้องเพ่ง ซึ่งสวนทางกับหน้าที่ของมันเอง
+     * ป้ายกำกับของแต่ละช่องบนจอแคบทำหน้าที่แทนหัวคอลัมน์ จึงต้องเป็นสีเดียวกัน
+     */
+    const headings = [
+        '.my-tasks-page .calendar-table__head',
+        '.my-tasks-page .mytasks-calendar-agenda__header h3',
+        '.my-tasks-page .calendar-table__cell::before',
+    ];
+    for (const selector of headings) {
+        assert.match(block(selector), /color: #0f172a/, `${selector} ต้องเป็นสีดำ`);
+    }
+
+    /*
+     * ค่าในเซลล์เป็นน้ำหนักปกติ ถ้าทุกช่องหนาหมดจะไม่มีอะไรเด่นกว่ากัน
+     * สายตาไม่รู้ว่าควรอ่านอะไรก่อน และแถวเก้าคอลัมน์ที่หนาทั้งแถวอ่านล้าเร็วกว่าที่คิด
+     */
+    const values = [
+        '.my-tasks-page .calendar-table__cell.is-title',
+        '.my-tasks-page .calendar-table__cell.is-due strong',
+        '.my-tasks-page .calendar-table__cell.is-index strong',
+        '.my-tasks-page .calendar-subtask-btn',
+        '.my-tasks-page .mytasks-calendar-agenda__header > b',
+    ];
+    for (const selector of values) {
+        assert.ok(weightOf(selector) <= 550, `${selector} หนา ${weightOf(selector)} ซึ่งอ่านเป็นตัวหนา`);
+    }
+
+    /*
+     * ป้ายความสำคัญใช้สูตรเดียวกับ .report-tag ของตารางรายงาน ซึ่งผู้ใช้ชี้เป็นตัวอย่างที่ต้องการ:
+     * พิลล์พื้นอ่อนที่ผสมโทนไว้ 10% ตัวอักษรเป็นสีของระดับเอง และไม่มีขอบ
+     */
+    const priority = '.my-tasks-page .calendar-tag.is-priority';
+    assert.match(block(priority), /border: 0/, 'ป้ายความสำคัญต้องไม่มีขอบ เหมือน .report-tag');
+    assert.match(block(priority), /border-radius: 999px/);
+    assert.match(block(priority), /background: color-mix\(in srgb, var\(--calendar-priority-tone[^)]*\) 10%, #fff\)/);
+    assert.match(block(priority), /color: var\(--calendar-priority-tone/, 'ตัวอักษรต้องเป็นสีของระดับ');
+
+    /*
+     * โทนของแต่ละระดับมาจากกฎรายระดับผ่านตัวแปรตัวเดียว ไม่ใช่ต่างคนต่างตั้ง background/color
+     * ค่าต้องตรงกับ App\Support\WorkBoardDesign::PRIORITIES ซึ่งเป็นแหล่งความจริงของทั้งระบบ
+     */
+    const tones = {
+        routine: '#64748b',
+        important: '#2563eb',
+        urgent: '#dc2626',
+        quick: '#d97706',
+        flexible: '#079455',
+    };
+    for (const [level, tone] of Object.entries(tones)) {
+        const rule = block(`.my-tasks-page .calendar-tag.priority-${level}`);
+        assert.match(rule, new RegExp(`--calendar-priority-tone: ${tone}`), `priority-${level} ต้องใช้โทน ${tone}`);
+        assert.doesNotMatch(rule, /background:/, `priority-${level} ต้องไม่ตั้งพื้นหลังเอง`);
+    }
+
+    /*
+     * ผลการปิดงานเป็นข้อความล้วน ไม่ใช่ป้าย — ป้ายที่มีพื้นและขอบอ่านเหมือนปุ่มที่กดได้
+     * ทั้งที่ช่องนี้เป็นค่าอ่านอย่างเดียว ผลลัพธ์อ่านจากสีตัวอักษรอย่างเดียว
+     */
+    assert.doesNotMatch(source, /\.calendar-tag\.is-closure/, 'ผลการปิดงานต้องไม่ถูกวาดเป็นป้าย');
+    assert.match(block('.my-tasks-page .calendar-table__cell.is-closure.is-open'), /color: #d9363e/);
+    assert.match(block('.my-tasks-page .calendar-table__cell.is-closure.is-done'), /color: #172033/);
+});
+
+test('summary cards stack full width and use the same ten-column table', async () => {
     const source = await css('resources/css/components/task-workspace/calendar/agenda.css');
     const entry = await css('resources/css/pages/mytasks.css');
     const blade = await css('resources/views/tasks/partials/calendar.blade.php');
@@ -299,15 +378,23 @@ test('summary cards stack full width and use the same six-column table', async (
     assert.doesNotMatch(desktop, /\.mytasks-calendar-agenda__section--meeting/);
     assert.doesNotMatch(desktop, /\.mytasks-calendar-agenda \.calendar-table__head\s*\{[^}]*display:\s*none/s);
     assert.match(source, /\.calendar-table--today,\s*\.my-tasks-page \.calendar-table--due\s*\{[^}]*--calendar-columns:/s);
-    assert.match(script, /today: \['title', 'project', 'owner', 'collaborators', 'priority', 'time'\]/);
-    assert.match(script, /due: \['title', 'project', 'owner', 'collaborators', 'priority', 'time'\]/);
-    assert.match(script, /today: \['title', 'project', 'organizer', 'attendees', 'blank', 'time'\]/);
-    assert.match(script, /due: \['title', 'project', 'organizer', 'attendees', 'blank', 'time'\]/);
+    /*
+     * ทั้งสองการ์ดใช้กริดชุดเดียวกัน ลำดับช่องของงานกับของประชุมจึงต้องยาวเท่ากันเสมอ
+     * 'index' นำหน้าเพราะเป็นลำดับที่ และ 'subtasks' อยู่ถัดจากโปรเจกต์ตามลำดับการอ่าน
+     */
+    assert.match(script, /today: \['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'\]/);
+    assert.match(script, /due: \['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'\]/);
+    assert.match(script, /today: \['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'\]/);
+    assert.match(script, /due: \['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'\]/);
     const agendaStart = blade.indexOf('<div class="mytasks-calendar-agenda"');
     const agendaEnd = blade.indexOf('@if($calendarShowsMeetings)', agendaStart);
     const agendaMarkup = blade.slice(agendaStart, agendaEnd);
-    assert.equal((agendaMarkup.match(/<span role="columnheader">/g) || []).length, 12);
+    assert.equal((agendaMarkup.match(/<span role="columnheader">/g) || []).length, 20);
     assert.equal((agendaMarkup.match(/<span role="columnheader">เวลา<\/span>/g) || []).length, 2);
+    assert.equal((agendaMarkup.match(/<span role="columnheader">เวลากำหนดส่ง<\/span>/g) || []).length, 2);
+    assert.equal((agendaMarkup.match(/<span role="columnheader">ลำดับที่<\/span>/g) || []).length, 2);
+    assert.equal((agendaMarkup.match(/<span role="columnheader">งานย่อย<\/span>/g) || []).length, 2);
+    assert.equal((agendaMarkup.match(/<span role="columnheader">ผลการปิดงาน<\/span>/g) || []).length, 2);
 
     // mobile ยังเปลี่ยนแต่ละแถวเป็นบล็อกอ่านง่ายแทนการเลื่อนแนวนอน
     assert.match(mobile, /\.calendar-table__head\s*\{[^}]*display:\s*none/s);

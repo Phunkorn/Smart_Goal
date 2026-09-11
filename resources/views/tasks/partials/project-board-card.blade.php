@@ -19,7 +19,7 @@
         ในแถบควบคุมมุมมอง (tasks/index.blade.php) แถวนี้จึงเป็นหัวคอลัมน์ล้วน ๆ อีกครั้ง
     --}}
     <div class="board-reference-columns" aria-hidden="true">
-        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>คอมเมนต์</span><span></span>
+        <span>ชื่องาน</span><span>สถานะ</span><span>ความสำคัญ</span><span>วันที่เริ่ม</span><span>กำหนดส่ง</span><span>เวลากำหนดส่ง</span><span>ผู้รับผิดชอบ</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>คอมเมนต์</span><span></span>
     </div>
 
     @foreach($projectGroups as $group)
@@ -80,7 +80,7 @@
                             <article @if((int) request('task_request') === (int) $pendingRequest->id) class="is-highlighted" @endif>
                                 <div>
                                     <strong>{{ $pendingRequest->job_topic }}</strong>
-                                    <span>ขอโดย {{ $pendingRequest->requester?->name ?? 'ผู้ใช้ที่ถูกลบ' }} · กำหนดส่ง {{ $pendingRequest->job_due_at?->format('d/m/Y') }}</span>
+                                    <span>ขอโดย {{ $pendingRequest->requester?->name ?? 'ผู้ใช้ที่ถูกลบ' }} · กำหนดส่ง {{ $pendingRequest->job_due_at ? \App\Support\TodayWorkspace::businessMoment($pendingRequest->job_due_at)->format('d/m/Y H:i') : '-' }}</span>
                                     @if($pendingRequest->job_details)<p>{{ $pendingRequest->job_details }}</p>@endif
                                 </div>
                                 <div class="project-task-requests__actions">
@@ -115,8 +115,13 @@
                         $pendingCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
                         $collaborators = $acceptedCollaborators->concat($pendingCollaborators);
                         $fileCount = (int) ($task->images_count ?? $task->images->count());
-                        $startLabel = $task->job_start_at ? $task->job_start_at->day.' '.$thaiMonths[$task->job_start_at->month].' '.($task->job_start_at->year + 543) : '-';
-                        $dueLabel = $task->job_due_at ? $task->job_due_at->day.' '.$thaiMonths[$task->job_due_at->month].' '.($task->job_due_at->year + 543) : 'ไม่มีกำหนด';
+                        // ตั้งแต่กำหนดการมีเวลาจริง ค่าที่เก็บเป็น UTC จึงข้ามวันได้ (00:00 น. เวลาไทย = 17:00 UTC ของวันก่อน)
+                        // ป้ายทุกใบต้องอ่านจากเวลาไทย ไม่เช่นนั้นวันที่เริ่มจะแสดงย้อนไปหนึ่งวัน
+                        $startMoment = $task->job_start_at ? \App\Support\TodayWorkspace::businessMoment($task->job_start_at) : null;
+                        $dueMoment = $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at) : null;
+                        $startLabel = $startMoment ? $startMoment->day.' '.$thaiMonths[$startMoment->month].' '.($startMoment->year + 543) : '-';
+                        $dueLabel = $dueMoment ? $dueMoment->day.' '.$thaiMonths[$dueMoment->month].' '.($dueMoment->year + 543) : 'ไม่มีกำหนด';
+                        $dueTimeLabel = \App\Support\TodayWorkspace::timeLabel($task->job_due_at) ?? '-';
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
                         $taskAdminSenderName = ! $uniformAdminName && $task->creator?->role === 'admin' ? $task->creator->name : null;
                         $taskDeleteUrl = $workspaceContext === 'admin-member' ? route('admin.tasks.destroy', $task->job_id) : route('mytasks.destroy', $task->job_id);
@@ -134,7 +139,7 @@
                         $commentLabel = $commentCount ? 'ดูคอมเมนต์ '.$commentCount.' รายการ' : 'ยังไม่มีคอมเมนต์';
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
-                    <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}">
+                    <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
                         <div class="board-reference-task">
                             @include('tasks.components.task-details', ['task' => $task])
                         </div>
@@ -158,14 +163,24 @@
                             <span class="board-priority priority-{{ $priority[1] }}">{{ $priority[0] }}</span>
                         @endcan
                         @if($canEditSchedule)
-                            <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $startLabel }}</span><input type="date" data-date-picker data-board-field="start" value="{{ optional($task->job_start_at)->format('Y-m-d') }}" data-range-partner="due" aria-label="เลือกวันที่เริ่ม"></label>
+                            <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $startLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}" data-board-field="start" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_start_at) }}" data-range-partner="due" aria-label="เลือกวันที่และเวลาเริ่ม"></label>
                         @else
                             <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
                         @endif
                         @if($canEditSchedule)
-                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="date" data-date-picker data-board-field="due" value="{{ optional($task->job_due_at)->format('Y-m-d') }}" data-range-partner="start" aria-label="เลือกกำหนดส่ง"></label>
+                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" aria-label="เลือกวันที่และเวลากำหนดส่ง"></label>
                         @else
                             <span class="board-due {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $dueLabel }}</span>
+                        @endif
+                        {{--
+                            คอลัมน์เวลากำหนดส่ง — กดแก้ได้เหมือนช่องกำหนดส่งข้าง ๆ
+                            ใช้ data-board-field="due" ตัวเดียวกัน ทั้งสองช่องจึงเป็นมุมมองคนละด้าน
+                            ของค่าเดียวกัน ไม่ใช่สองค่าที่ต้องซิงก์กันเอง
+                        --}}
+                        @if($canEditSchedule)
+                            <label class="board-due-time board-due-time-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" aria-label="เลือกเวลากำหนดส่ง"></label>
+                        @else
+                            <span class="board-due-time {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span></span>
                         @endif
                         <button type="button" class="board-owner" data-open-owner="{{ $task->job_id }}" title="ดูผู้รับผิดชอบ: {{ $assigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $assigneeName }}"><i>@include('components.user-avatar-content', ['user' => $task->user ?? auth()->user()])</i></button>
                         <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="{{ $canManageTeam ? 'จัดการ' : 'ดู' }}ผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">@include('components.user-avatar-content', ['user' => $person])</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $canManageTeam ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}"><i class="bi {{ $canManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>

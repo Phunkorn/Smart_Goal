@@ -178,6 +178,7 @@ class ReportController extends Controller
                 )
                 : null,
             'operationalUrl' => route('reports.operational', array_filter([
+                'owner' => $user->id,
                 'department' => $user->department_id,
                 'period' => $data['filters']['period'],
                 'start_date' => $data['filters']['start_date'],
@@ -237,9 +238,9 @@ class ReportController extends Controller
                         optional($job->department)->department_name,
                         $this->approvalLabel($job->approval_status),
                         $this->statusLabel((int) $job->job_status),
-                        optional($job->job_start_at)->format('Y-m-d H:i'),
-                        optional($job->job_due_at)->format('Y-m-d H:i'),
-                        optional($job->job_completed_at)->format('Y-m-d H:i'),
+                        $this->csvDateTime($job->job_start_at),
+                        $this->csvDateTime($job->job_due_at),
+                        $this->csvDateTime($job->job_completed_at),
                     ];
 
                     if ($subjectUserId !== null) {
@@ -264,6 +265,14 @@ class ReportController extends Controller
 
             fclose($handle);
         }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** Format exported dates as Thai-time text so Excel does not render narrow date columns as ######. */
+    private function csvDateTime($value): string
+    {
+        return $value
+            ? $value->copy()->timezone(TodayWorkspace::BUSINESS_TIMEZONE)->format('d/m/Y H:i').' น.'
+            : '';
     }
 
     private function statusLabel(int $status): string

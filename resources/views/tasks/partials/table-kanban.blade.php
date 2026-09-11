@@ -261,7 +261,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                                 </span>
                                             @else
                                                 กำหนดส่ง
-                                                {{ $task->job_due_at ? $task->job_due_at->translatedFormat('j M Y') : 'ไม่มีกำหนด' }}
+                                                {{ $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at)->locale('th')->translatedFormat('j M Y').' '.\App\Support\TodayWorkspace::timeLabel($task->job_due_at) : 'ไม่มีกำหนด' }}
                                             @endif
                                         </span>
 

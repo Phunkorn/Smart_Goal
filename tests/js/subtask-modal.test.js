@@ -212,3 +212,52 @@ test('the modal styling stays out of the stacking decisions', async () => {
     assert.doesNotMatch(logic, /z-index|modal-open|addEventListener\('keydown'/);
     assert.match(js, /modalstack:dismiss/);
 });
+
+test('the calendar agenda reuses the one subtask modal instead of building its own', async () => {
+    const [calendar, agendaBlade, entry, styles] = await Promise.all([
+        read('resources/js/pages/mytasks/calendar.js'),
+        read('resources/views/tasks/partials/calendar.blade.php'),
+        read('resources/js/pages/mytasks/index.js'),
+        read('resources/css/pages/mytasks.css'),
+    ]);
+
+    // ช่องงานย่อยสร้างปุ่มด้วยสัญญาเดียวกับตารางรายงาน กล่องจึงเป็นใบเดิมโดยไม่ต้องมีตัวจัดการที่สอง
+    assert.match(calendar, /dataset\.subtaskOpen = ''/);
+    assert.match(calendar, /dataset\.subtaskNames = JSON\.stringify\(names\)/);
+    assert.match(calendar, /readSubtasks\(row\)/, 'อ่านชื่องานย่อยด้วยตัวช่วยของกล่อง ไม่ใช่ JSON.parse เอง');
+    assert.doesNotMatch(calendar, /data-subtask-modal/, 'ปฏิทินต้องไม่สร้างกล่องของตัวเอง');
+
+    // กล่องมากับพาร์เชียลของการ์ดสรุป ทุกหน้าที่ render การ์ดจึงได้กล่องนี้เสมอ
+    assert.match(agendaBlade, /@include\('reports\.components\.subtask-modal'\)/);
+    assert.match(entry, /components\/subtask-modal\.js/);
+    assert.match(styles, /@import '\.\.\/components\/subtask-modal\.css'/);
+
+    // แถวของการ์ดเป็น <button> อยู่แล้ว ช่องนี้จึงห้ามเป็น interactive ซ้อน interactive
+    assert.doesNotMatch(calendar, /button\.setAttribute\('role', 'button'\)/);
+    // และแถวต้องไม่ชิงคลิกไปเปิด quick view แทนกล่องงานย่อย
+    assert.match(calendar, /closest\('\[data-subtask-open\]'\)\) return/);
+});
+
+test('agenda priority reads as a coloured badge with plain text, not a coloured dot', async () => {
+    const [calendar, css] = await Promise.all([
+        read('resources/js/pages/mytasks/calendar.js'),
+        read('resources/css/components/task-workspace/calendar/agenda.css'),
+    ]);
+
+    // จุดสีบอกได้แค่ "มีสีอะไรสักสี" ระดับความสำคัญย้ายไปอยู่บนข้อความของคอลัมน์ตัวเอง
+    assert.doesNotMatch(calendar, /calendar-table__marker calendar-dot/);
+    assert.match(calendar, /tag\(`is-priority \$\{meta\.className\}`, meta\.label\)/);
+    // สีของระดับอยู่ที่พื้นหลังและขอบ ส่วนตัวอักษรใช้สีกลางน้ำหนักปกติเหมือนช่องอื่นในแถว
+    assert.match(css, /\.calendar-tag\.is-priority \{[^}]*--calendar-priority-tone/s);
+
+    // การประชุมยังมีไอคอนนำหน้า เพราะมันบอกชนิดของรายการ ไม่ใช่ระดับความสำคัญ
+    assert.match(calendar, /calendar-table__marker bi bi-calendar-event/);
+});
+
+test('the agenda numbers rows across the whole list, not per page', async () => {
+    const calendar = await read('resources/js/pages/mytasks/calendar.js');
+
+    // แบ่งหน้าละสิบแถว ถ้านับใหม่ทุกหน้าจะเห็นเลข 1-10 ซ้ำกันทุกหน้าจนบอกไม่ได้ว่าอยู่รายการที่เท่าไร
+    assert.match(calendar, /page \* AGENDA_PAGE_SIZE \+ offset \+ 1/);
+    assert.match(calendar, /index: \(event, position\) => cell\('is-index'/);
+});

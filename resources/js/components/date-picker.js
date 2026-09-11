@@ -61,6 +61,19 @@ export const splitDateTimeValue = (value) => {
 
 export const joinDateTimeValue = (date, time) => (date && time ? `${date}T${time}` : date);
 
+/**
+ * เวลาที่กล่องควรตั้งให้เมื่อช่องยังว่าง
+ *
+ * งานในโปรเจกต์มีเวลาที่ "ถูกต้องตามธรรมเนียม" ของตัวเอง — วันเริ่มคือต้นวันทำการ
+ * กำหนดส่งคือเวลาเลิกงาน — ซึ่งต่างจากการนัดประชุมที่เดาเป็นชั่วโมงถัดไป
+ * ช่องจึงประกาศค่าของตัวเองผ่าน data-default-time ได้ ถ้าไม่ประกาศก็ใช้ของประชุมตามเดิม
+ */
+export const initialTimeFor = (input, now = new Date()) => {
+    const declared = input?.dataset?.defaultTime || '';
+
+    return /^\d{2}:\d{2}$/.test(declared) ? declared : defaultMeetingTime(now);
+};
+
 /** เวลาเริ่มต้นเมื่อช่องยังว่าง — ชั่วโมงถัดไปแบบเต็มชั่วโมง ซึ่งเป็นเวลานัดประชุมที่พบบ่อยที่สุด */
 export const defaultMeetingTime = (now = new Date()) => {
     const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0);
@@ -242,8 +255,8 @@ const build = () => {
     grid.setAttribute('role', 'group');
 
     /*
-     * แถวเวลามีเฉพาะช่องประเภท datetime-local (หน้าประชุม)
-     * งานในโปรเจกต์ใช้ความละเอียดระดับวัน จึงไม่ต้องเลือกเวลา และแถวนี้ถูกซ่อนไว้
+     * แถวเวลามีเฉพาะช่องประเภท datetime-local — ทั้งการนัดประชุมและกำหนดการของงาน
+     * ช่องที่เป็น type="date" ล้วน (ตัวกรองรายงาน บันทึกประจำวัน) ยังซ่อนแถวนี้ไว้
      *
      * ใช้ <input type="time"> ของเบราว์เซอร์ เพราะการเลือกเวลาไม่มีปัญหาเรื่องปฏิทิน พ.ศ.
      * และคีย์บอร์ดของมือถือก็เปิดแป้นตัวเลขให้เองอยู่แล้ว
@@ -292,12 +305,23 @@ const build = () => {
         if (popover.contains(event.target) || state?.anchor?.contains(event.target)) return;
         close();
     });
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !popover.hidden) {
-            event.stopPropagation();
-            close({restoreFocus: true});
-        }
-    });
+    /*
+     * Escape ต้องปิดเฉพาะปฏิทิน ไม่ใช่กล่องที่เปิดปฏิทินขึ้นมา
+     *
+     * modalStack ดัก Escape ที่ document ใน capture phase เพื่อปิดโมดัลชั้นบนสุด
+     * ถ้าเราฟังที่ document เหมือนกัน ลำดับจะขึ้นกับว่าใครผูก listener ก่อน ซึ่ง modalStack
+     * ผูกตั้งแต่โหลดหน้า ส่วนปฏิทินผูกตอนถูกเปิดครั้งแรก — modalStack จึงชนะเสมอ
+     * และผู้ใช้ที่กด Escape เพื่อปิดปฏิทินจะเสียทั้ง Task Workspace ไปด้วย
+     *
+     * window อยู่ก่อน document ในเส้นทาง capture การฟังที่นี่จึงมาก่อนแน่นอนโดยไม่ต้อง
+     * พึ่งลำดับการผูก และ stopPropagation ทำให้เหตุการณ์ไม่เดินต่อไปถึง modalStack เลย
+     */
+    window.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || popover.hidden) return;
+
+        event.stopPropagation();
+        close({restoreFocus: true});
+    }, true);
     window.addEventListener('resize', () => close());
     // เลื่อนหน้าแล้วตำแหน่งของตัวเปิดเปลี่ยน ปิดอย่างปลอดภัยแทนการคำนวณใหม่ทุกเฟรม
     window.addEventListener('scroll', () => close(), true);
@@ -353,8 +377,8 @@ export const openDatePicker = (input, anchor = input) => {
         input,
         anchor,
         withTime,
-        // ช่องที่ยังว่างเริ่มที่ชั่วโมงถัดไป ผู้ใช้จึงไม่ต้องพิมพ์เวลาจากศูนย์ทุกครั้ง
-        time: withTime ? (timePart || defaultMeetingTime()) : '',
+        // ช่องที่ยังว่างเริ่มที่เวลาตั้งต้นของช่องนั้น ผู้ใช้จึงไม่ต้องพิมพ์เวลาจากศูนย์ทุกครั้ง
+        time: withTime ? (timePart || initialTimeFor(input)) : '',
         year: current.getFullYear(),
         month: current.getMonth(),
     };

@@ -21,7 +21,11 @@
     const send = (form, submitter) => {
         confirmed.add(form);
         // กันการกดซ้ำระหว่างที่เบราว์เซอร์กำลังส่งฟอร์ม
-        form.querySelectorAll('button[type="submit"]').forEach((button) => { button.disabled = true; });
+        form.querySelectorAll('button[type="submit"]').forEach((button) => {
+            // The active bulk button carries formaction and _method. Disabling it before
+            // requestSubmit() removes those values from the submitted request.
+            if (button !== submitter) button.disabled = true;
+        });
 
         if (form.requestSubmit) {
             form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
@@ -131,7 +135,7 @@
         icon: 'warning',
         title: 'ล้างบันทึกกิจกรรมเก่า',
         html: 'บันทึกที่พ้นอายุ <strong></strong> รายการจะถูกลบถาวร'
-            + '<br>หลักฐานสำคัญ (เข้าออกระบบ การลบ การกู้คืน) ที่ยังไม่ครบ 365 วัน จะไม่ถูกแตะ',
+            + `<br>หลักฐานสำคัญ (เข้าออกระบบ การลบ การกู้คืน) ที่ยังไม่ครบ ${form.dataset.criticalDays} วัน จะไม่ถูกแตะ`,
         showCancelButton: true,
         confirmButtonText: 'ล้างบันทึกเก่า',
         cancelButtonText: 'ยกเลิก',

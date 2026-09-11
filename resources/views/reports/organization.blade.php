@@ -11,7 +11,7 @@
 @endpush
 
 @section('content')
-<div class="report-page" aria-labelledby="organization-report-title">
+<div class="report-page report-page--organization" aria-labelledby="organization-report-title">
     <nav class="report-breadcrumb" aria-label="Breadcrumb"><a href="{{ route('reports.index') }}">รายงาน</a><i class="bi bi-chevron-right" aria-hidden="true"></i><span>ภาพรวมองค์กร</span></nav>
     <header class="report-page__header">
         <div>
