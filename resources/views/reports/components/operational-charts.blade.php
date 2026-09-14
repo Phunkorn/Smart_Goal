@@ -19,9 +19,18 @@
      * ที่ต้องไล่อ่าน chart-lifecycle.js ข้าม canvas ที่ไม่มีอยู่ให้เองอยู่แล้ว
      * จึงไม่ต้องแก้ฝั่ง JavaScript
      */
-    $chartKeys = $chartKeys ?? ['daily', 'categories', 'members'];
+    $chartKeys = $chartKeys ?? ['todayMembers'];
 
     $charts = [
+        [
+            'key' => 'todayMembers',
+            'id' => 'operationalTodayMemberChart',
+            'kind' => 'stacked-bar',
+            'class' => 'report-dashboard-card--priority',
+            'title' => 'งานของวันนี้ รายคน',
+            'description' => 'ข้อมูลชุดเดียวกับการ์ดด้านล่าง — ความสูงคือภาระของวันนี้ สีคือผลการทำ',
+            'label' => 'กราฟแท่งซ้อนจำนวนงานของวันนี้รายคน แยกเป็นทำแล้วและยังไม่เสร็จ',
+        ],
         [
             'key' => 'daily',
             'id' => 'operationalDailyChart',

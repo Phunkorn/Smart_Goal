@@ -40,10 +40,17 @@ test('organization desktop grid seats the department table beside the attention 
 test('employee desktop grid keeps the on-time figure beside the charts', () => {
     assert.match(employeeCss, /employee-chart-card--trend[^}]*grid-column:span 6/);
     assert.match(employeeCss, /employee-chart-card--status[^}]*grid-column:span 3/);
-    assert.match(employeeCss, /employee-chart-card--completed[^}]*grid-column:span 3/);
     assert.match(employeeCss, /employee-chart-card--priority[^}]*grid-column:span 3/);
     assert.match(employeeCss, /employee-report__ontime[^}]*grid-column:span 3/);
-    assert.match(employeeCss, /employee-report__attention[^}]*grid-column:span 6/);
+
+    /*
+     * หน้านี้เหลือกราฟสามใบ การ์ด "ปิดงานได้เดือนละเท่าไร" ถูกตัดออกเพราะซ้ำกับ
+     * เส้น "งานที่เสร็จ" ในกราฟแนวโน้ม ช่องกว้าง 3 ที่ว่างลงจึงตกเป็นของรายการ
+     * งานที่ต้องติดตาม ไม่งั้นแถวล่างจะรวมได้แค่ 9 จาก 12 แล้วเหลือช่องว่างข้างขวา
+     */
+    assert.doesNotMatch(employeeCss, /employee-chart-card--completed/,
+        'กราฟที่ถูกตัดออกต้องไม่เหลือกฎค้างไว้');
+    assert.match(employeeCss, /employee-report__attention[^}]*grid-column:span 9/);
 });
 
 test('tablet grid cascade preserves full-width primary cards through 991px', () => {

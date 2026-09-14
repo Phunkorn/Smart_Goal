@@ -91,6 +91,9 @@ final class OperationalWorkloadReportService
         $dailySummary = $this->dailySummary($logs, $filters);
         $kindSummary = $this->kindSummary($logs);
 
+        $routineCompliance = $this->memberDailyBoard($logs, $owners, $filters);
+        $routineDays = $this->routineDays($logs, $filters['owner_id']);
+
         $totalMinutes = $this->minutesOf($logs);
         $unlinkedMinutes = $this->minutesOf($logs->filter(
             fn (WorkLog $log): bool => $log->work_order_list_id === null && $log->job_id === null
@@ -126,12 +129,44 @@ final class OperationalWorkloadReportService
             'categorySummary' => $categorySummary,
             'dailySummary' => $dailySummary,
             'topTitles' => $this->topTitles($logs),
+            /*
+             * หน้านี้ทำงานเป็นสองจังหวะ: เลือกคน แล้วค่อยดูรายวันของคนนั้น
+             *
+             * routineCompliance = รายชื่อลูกทีมพร้อมอัตราทำงานประจำ ใช้เป็นหน้าแรก
+             * routineDays       = รายวันของคนที่ถูกเลือก ว่างเสมอเมื่อยังไม่เลือกใคร
+             */
+            'routineCompliance' => $routineCompliance,
+            'routineDays' => $routineDays,
+            'selectedOwner' => $filters['owner_id']
+                ? $owners->firstWhere('id', $filters['owner_id'])
+                : null,
             // ตารางสถานะของ "วันนี้" อ่านข้อมูลของวันนี้เสมอ ไม่ขึ้นกับช่วงเวลา
             // ที่เลือกไว้ในตัวกรอง เพราะคำถามที่มันตอบคือ "วันนี้ตรวจไปหรือยัง"
             // ซึ่งเป็นคนละคำถามกับสรุปย้อนหลังของทั้งเดือน
             'todayChecklist' => $this->routineChecklist($filters),
             'routineSummary' => $this->routineSummary($logs),
             'chartData' => [
+                /*
+                 * กราฟใบเดียวของหน้านี้ — งานของ "วันนี้" รายคน แยกทำแล้ว/ยังไม่เสร็จ
+                 *
+                 * เป็นข้อมูลชุดเดียวกับที่การ์ดด้านล่างแสดง เรียงลำดับเดียวกัน และ
+                 * นับหน่วยเดียวกัน (รายการ) กราฟจึงเป็นภาพรวมของกระดานนั้นจริง ๆ
+                 * ไม่ใช่ตัวเลขคนละชุดที่บังเอิญอยู่หน้าเดียวกัน — กดจากแท่งไหนก็หา
+                 * การ์ดใบนั้นเจอโดยไม่ต้องแปลงหน่วยในหัว
+                 *
+                 * ของเดิมเป็นอัตราสะสมทั้งช่วง ซึ่งตอบคนละคำถามกับกระดานที่ถามว่า
+                 * "วันนี้ใครทำอะไรไปแล้วบ้าง" และอ่านเทียบกันไม่ได้เพราะคนละหน่วย
+                 */
+                'todayMembers' => [
+                    'labels' => $routineCompliance->pluck('name')->all(),
+                    'done' => $routineCompliance->pluck('today_done')->all(),
+                    'pending' => $routineCompliance
+                        ->map(fn (array $person): int => max(0, $person['today_total'] - $person['today_done']))
+                        ->all(),
+                    'highlight' => $routineCompliance
+                        ->map(fn (array $person): int => (int) ($person['id'] === $filters['owner_id']))
+                        ->all(),
+                ],
                 // ชั่วโมงงานตามประเภทต่อวัน เปรียบเทียบงานประจำกับงานนอกสถานที่
                 'daily' => [
                     'labels' => $dailySummary->pluck('label')->all(),
@@ -149,81 +184,6 @@ final class OperationalWorkloadReportService
                 ],
             ],
         ];
-    }
-
-    /**
-     * สรุปภาระงานปฏิบัติการของพนักงานหนึ่งคน สำหรับแสดงในรายงานรายบุคคล
-     *
-     * แยกเป็นบล็อกของตัวเองบนหน้านั้น ไม่รวมเข้ากับตัวเลขผลงานโครงการ เพราะ
-     * ชั่วโมงงานปฏิบัติการไม่ใช่ผลงานโครงการ การรวมกันจะทำให้อัตราปิดงานและ
-     * ความคืบหน้าของโครงการเพี้ยน สิ่งที่บล็อกนี้ตอบคือ "เวลาที่หายไปจาก
-     * โครงการไปอยู่ที่ไหน" ซึ่งเป็นคนละคำถามกับ "ทำโครงการได้ดีแค่ไหน"
-     *
-     * @return array<string, mixed>
-     */
-    public function forEmployee(User $employee, string $startDate, string $endDate): array
-    {
-        $logs = WorkLog::query()
-            ->with(['category', 'project:id,name', 'participants:id,name'])
-            ->where('user_id', $employee->id)
-            ->whereDate('work_date', '>=', $startDate)
-            ->whereDate('work_date', '<=', $endDate)
-            ->get();
-
-        $minutes = $this->minutesOf($logs);
-        $daily = $this->dailySummary($logs, ['start_date' => $startDate, 'end_date' => $endDate]);
-
-        return [
-            'minutes' => $minutes,
-            'hours_label' => WorkLogDesign::durationLabel($minutes),
-            'hours_value' => $this->hoursLabel($minutes),
-            'count' => $logs->count(),
-            'unlinked_minutes' => $this->minutesOf($logs->filter(
-                fn (WorkLog $log): bool => $log->work_order_list_id === null && $log->job_id === null
-            )),
-            'kinds' => $this->kindSummary($logs),
-            'chart' => [
-                'labels' => $daily->pluck('label')->all(),
-                'routine' => $daily->pluck('routine_hours')->all(),
-                'field' => $daily->pluck('field_hours')->all(),
-            ],
-            'rows' => $this->employeeRows($logs),
-            'row_limit' => self::EMPLOYEE_ROW_LIMIT,
-        ];
-    }
-
-    /**
-     * แถวล่าสุดของตารางย่อ เรียงจากวันใหม่ไปเก่า
-     *
-     * จำกัดไว้ที่ EMPLOYEE_ROW_LIMIT เพราะบล็อกนี้เป็นภาพประกอบบนหน้ารายงาน
-     * รายบุคคล ไม่ใช่รายการทั้งหมด ผู้ที่ต้องการดูครบมีปุ่มไปหน้ารายงานเต็ม
-     *
-     * @param  Collection<int, WorkLog>  $logs
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function employeeRows(Collection $logs): Collection
-    {
-        return $logs
-            ->sortByDesc([
-                fn (WorkLog $log): string => $log->work_date?->format('Y-m-d') ?? '',
-                fn (WorkLog $log): int => $log->started_at?->getTimestamp() ?? 0,
-            ])
-            ->take(self::EMPLOYEE_ROW_LIMIT)
-            ->map(fn (WorkLog $log): array => [
-                'date' => $log->work_date,
-                'kind' => $log->kind,
-                'kind_label' => WorkLogDesign::kind($log->kind)['label'],
-                'kind_tone' => WorkLogDesign::kind($log->kind)['tone'],
-                'category' => $log->category?->name,
-                'title' => $log->title,
-                'duration_label' => WorkLogDesign::durationLabel($log->duration_minutes),
-                'time_range' => $log->started_at === null
-                    ? null
-                    : TodayWorkspace::businessNow($log->started_at)->format('H:i'),
-                'project' => $log->project?->name,
-                'participants' => $log->participants->pluck('name')->all(),
-            ])
-            ->values();
     }
 
     /**
@@ -442,6 +402,150 @@ final class OperationalWorkloadReportService
      *
      * @return array<string, mixed>
      */
+    /**
+     * กระดานของหัวหน้าแผนก — "วันนี้ใครทำอะไรไปแล้วบ้าง"
+     *
+     * หัวหน้าเปิดหน้านี้ตอนเช้าเพื่อเช็คว่าลูกทีมเริ่มงานของวันนี้แล้วหรือยัง คำถามจึงเป็น
+     * เรื่อง "วันนี้" เป็นหลัก ส่วนช่วงเวลาที่เลือกไว้เป็นบริบทว่า "ที่ผ่านมาทำได้แค่ไหน"
+     *
+     * นับงานทั้งสองชนิด (งานประจำ และงานนอกสถานที่) ไม่ใช่เฉพาะงานที่มาจากแม่แบบ
+     * ของเดิมนับเฉพาะแม่แบบ คนที่ลงแต่งานนอกสถานที่จึงขึ้นศูนย์ทั้งแถวทั้งที่ทำงานอยู่จริง
+     *
+     * @param  Collection<int, WorkLog>  $logs  บันทึกในช่วงที่เลือก
+     * @param  Collection<int, User>  $owners  ทุกคนในขอบเขต ไม่ใช่เฉพาะคนที่มีบันทึก
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function memberDailyBoard(Collection $logs, Collection $owners, array $filters): Collection
+    {
+        $today = $this->todayLogs($filters)->groupBy('user_id');
+        $period = $logs->groupBy('user_id');
+
+        /*
+         * ตั้งต้นจาก "ทุกคนในขอบเขต" ไม่ใช่จากบันทึกที่มีอยู่
+         *
+         * ถ้าไล่จากบันทึก คนที่ยังไม่ได้ลงงานเลยจะหายไปจากรายชื่อทั้งคน ซึ่งเป็นคนที่
+         * หัวหน้าต้องการเห็นมากที่สุด เพราะ "ยังไม่ได้ลงอะไรเลย" คือคำตอบของคำถาม
+         */
+        return $owners
+            ->map(function (User $owner) use ($today, $period): array {
+                $todayLogs = $today->get($owner->id, collect());
+                $periodLogs = $period->get($owner->id, collect());
+                $periodDone = $periodLogs->where('status', 'done')->count();
+                $periodSkipped = $periodLogs->where('status', 'skipped')->count();
+                $periodTotal = $periodLogs->count();
+
+                return [
+                    'id' => $owner->id,
+                    'name' => $owner->name,
+                    'department' => $owner->department?->department_name ?? '—',
+                    'today_total' => $todayLogs->count(),
+                    'today_done' => $todayLogs->where('status', 'done')->count(),
+                    'today_pending' => $todayLogs
+                        ->whereIn('status', ['open', 'in_progress'])
+                        ->count(),
+                    // เวลาที่ลงแรงไปจริง ไม่ใช่แค่จำนวนรายการ — งานห้ารายการสั้น ๆ
+                    // กับงานรายการเดียวที่กินทั้งเช้า ไม่ควรอ่านว่าเท่ากัน
+                    'today_minutes_label' => WorkLogDesign::durationLabel($this->minutesOf($todayLogs)),
+                    // รายการของวันนี้ทีละตัว หัวหน้าจึงตอบได้ว่า "ค้างอยู่รายการไหน" โดยไม่ต้องกดเข้าไป
+                    'today_items' => $todayLogs
+                        ->sortBy(fn (WorkLog $log): string => $log->planned_start_at?->toDateTimeString() ?? '')
+                        ->map(fn (WorkLog $log): array => [
+                            'title' => $log->title,
+                            'minutes_label' => WorkLogDesign::durationLabel($log->duration_minutes),
+                            'kind' => $log->kind,
+                            'kind_label' => WorkLogDesign::KINDS[$log->kind]['label'] ?? $log->kind,
+                            'status' => $log->status,
+                            'status_label' => WorkLogDesign::status($log->status)['label'],
+                            'is_done' => $log->status === 'done',
+                        ])
+                        ->values()
+                        ->all(),
+                    'period_total' => $periodTotal,
+                    'period_done' => $periodDone,
+                    'period_minutes_label' => WorkLogDesign::durationLabel($this->minutesOf($periodLogs)),
+                    'period_minutes' => $this->minutesOf($periodLogs),
+                    /*
+                     * รายละเอียดเบื้องหลังตัวเลขเวลา — งานชื่อเดียวกันทำไปกี่ครั้ง รวมกี่ชั่วโมง
+                     *
+                     * ตัวเลขรวมอย่างเดียวตอบได้แค่ "เยอะหรือน้อย" แต่คำถามถัดไปของหัวหน้า
+                     * คือ "เวลาหมดไปกับอะไร" จึงต้องกางให้ดูได้ในที่เดียวกัน ไม่ใช่ต้องเปิดหน้าใหม่
+                     */
+                    'time_breakdown' => $this->timeBreakdown($periodLogs),
+                    // อัตราเดียวกับ routineSummary(): ปิดรายการแล้วถือว่าตอบแล้ว
+                    // ไม่ว่าจะทำเสร็จหรือระบุว่าไม่ได้ทำ ทั้งสองอย่างคือการรายงานผล
+                    'rate' => $periodTotal > 0
+                        ? (int) round((($periodDone + $periodSkipped) / $periodTotal) * 100)
+                        : 0,
+                ];
+            })
+            ->sortBy('name')
+            ->values();
+    }
+
+    /**
+     * บันทึกของ "วันนี้" ตามขอบเขตเดียวกับรายงาน แต่ไม่ผูกกับช่วงเวลาที่เลือก
+     *
+     * คำถาม "วันนี้ใครทำแล้วบ้าง" เป็นคนละคำถามกับสรุปย้อนหลัง ถ้าใช้ช่วงเวลาเดียวกัน
+     * การเลือกดู "เดือนที่แล้ว" จะทำให้คอลัมน์ของวันนี้กลายเป็นศูนย์ทั้งกระดาน
+     *
+     * @return Collection<int, WorkLog>
+     */
+    private function todayLogs(array $filters): Collection
+    {
+        $today = TodayWorkspace::businessNow()->format('Y-m-d');
+
+        return WorkLog::query()
+            ->with(['user:id,name,department_id'])
+            ->whereDate('work_date', $today)
+            ->when($filters['owner_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
+            ->when($filters['department_id'], fn (Builder $query, int $id) => $query
+                ->where(fn (Builder $scoped) => $scoped
+                    ->where('department_id', $id)
+                    ->orWhere(fn (Builder $fallback) => $fallback
+                        ->whereNull('department_id')
+                        ->whereHas('user', fn (Builder $owner) => $owner->where('department_id', $id)))))
+            ->get();
+    }
+
+    /**
+     * งานประจำรายวันของคนคนเดียว — หนึ่งแถวต่อหนึ่งวันที่มีงานประจำจริง
+     *
+     * ไม่เติมวันว่างให้ครบช่วงเหมือน dailySummary() เพราะตารางนี้แบ่งหน้าละสิบแถว
+     * วันหยุดที่ไม่มีงานประจำเลยจะกินโควตาหน้าไปเปล่า ๆ และไม่ได้ตอบอะไร
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function routineDays(Collection $logs, ?int $ownerId): Collection
+    {
+        return $logs
+            /*
+             * ไม่เลือกคน = รวมทั้งขอบเขต ซึ่งเป็นข้อมูลของกราฟแนวโน้มบนหน้ารายชื่อ
+             * ส่วนตารางรายวันยังแสดงเฉพาะตอนเลือกคนแล้ว (ตัดสินที่ Blade)
+             * นับงานทั้งสองชนิด ไม่ใช่เฉพาะที่มาจากแม่แบบ ให้ตรงกับกระดานของหัวหน้า
+             */
+            ->filter(fn (WorkLog $log): bool => $ownerId === null || (int) $log->user_id === $ownerId)
+            ->groupBy(fn (WorkLog $log): string => $log->work_date?->format('Y-m-d') ?? '')
+            ->reject(fn (Collection $group, string $key): bool => $key === '')
+            ->map(function (Collection $group, string $key): array {
+                $total = $group->count();
+                $done = $group->where('status', 'done')->count();
+                $skipped = $group->where('status', 'skipped')->count();
+
+                return [
+                    'date' => $key,
+                    'label' => CarbonImmutable::parse($key, self::BUSINESS_TIMEZONE)
+                        ->locale('th')->translatedFormat('j M Y'),
+                    'minutes_label' => WorkLogDesign::durationLabel($this->minutesOf($group)),
+                    'total' => $total,
+                    'done' => $done,
+                    'skipped' => $skipped,
+                    'pending' => max(0, $total - $done - $skipped),
+                ];
+            })
+            ->sortByDesc('date')
+            ->values();
+    }
+
     private function routineSummary(Collection $logs): array
     {
         $now = TodayWorkspace::businessNow();
@@ -649,7 +753,32 @@ final class OperationalWorkloadReportService
             ])
             ->sortByDesc('count')
             ->values()
-            ->take(8);
+            ->take(10);
+    }
+
+    /**
+     * เวลาที่ใช้ไปแยกตามชื่องาน เรียงจากงานที่กินเวลามากที่สุด
+     *
+     * รวมตามชื่อ ไม่ใช่ตามแม่แบบ เพราะงานนอกสถานที่ไม่มีแม่แบบให้ยึด และสิ่งที่หัวหน้า
+     * จำได้คือชื่องาน จำกัดไว้ไม่เกินสิบบรรทัดเพื่อให้ยังอ่านจบได้ในกล่องเดียว
+     *
+     * @param  Collection<int, WorkLog>  $logs
+     * @return array<int, array<string, mixed>>
+     */
+    private function timeBreakdown(Collection $logs): array
+    {
+        return $logs
+            ->groupBy(fn (WorkLog $log): string => $log->title ?? '—')
+            ->map(fn (Collection $group, string $title): array => [
+                'title' => $title,
+                'times' => $group->count(),
+                'minutes' => $this->minutesOf($group),
+                'minutes_label' => WorkLogDesign::durationLabel($this->minutesOf($group)),
+            ])
+            ->sortByDesc('minutes')
+            ->take(10)
+            ->values()
+            ->all();
     }
 
     private function minutesOf(Collection $logs): int
@@ -751,6 +880,8 @@ final class OperationalWorkloadReportService
             ->when($forcedDepartmentId, fn (Builder $query, int $id) => $query->where('department_id', $id))
             ->when($forcedOwnerId, fn (Builder $query, int $id) => $query->whereKey($id))
             ->orderBy('name')
+            // โหลดแผนกมาพร้อมกัน คอลัมน์ "แผนก" ของตารางรายชื่อจึงไม่ยิงคิวรีทีละแถว
+            ->with('department:id,department_name')
             ->get(['id', 'name', 'department_id']);
     }
 

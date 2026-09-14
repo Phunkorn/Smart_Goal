@@ -103,14 +103,14 @@
                 @foreach($projectTasks as $task)
                     @if((int) $task->job_status === 4 && (int) $task->job_id === (int) $firstCompletedId)
                         <details class="board-completed-group" data-completed-group data-project-key="{{ $projectKey }}">
-                            <summary><i class="bi bi-caret-right-fill"></i><strong>งานที่เสร็จแล้ว</strong><span>{{ $completedProjectTasks->count() }} งาน</span></summary>
+                            <summary data-completed-toggle aria-expanded="false"><i class="bi bi-caret-right-fill"></i><strong>งานที่เสร็จแล้ว</strong><span>{{ $completedProjectTasks->count() }} งาน</span></summary>
                             <div class="board-completed-group__rows">
                     @endif
                     @php
                         $taskIsLate = (int) $task->job_status !== 4 && $task->job_due_at?->isPast();
                         $taskIsSoon = ! $taskIsLate && (int) $task->job_status !== 4 && $task->job_due_at && now()->diffInDays($task->job_due_at, false) <= 3;
                         $taskStatus = [2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused'],6=>['ล่าช้า','late']][(int)$task->job_status] ?? ['สถานะไม่รองรับ','unsupported'];
-                        $priority = [1=>['routine','routine'],2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int)$task->job_priority] ?? ['สำคัญไม่ด่วน','important'];
+                        $priority = [2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int)$task->job_priority] ?? ['สำคัญไม่ด่วน','important'];
                         $acceptedCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status === 'accepted')->values();
                         $pendingCollaborators = $task->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
                         $collaborators = $acceptedCollaborators->concat($pendingCollaborators);
@@ -123,6 +123,17 @@
                         $dueLabel = $dueMoment ? $dueMoment->day.' '.$thaiMonths[$dueMoment->month].' '.($dueMoment->year + 543) : 'ไม่มีกำหนด';
                         $dueTimeLabel = \App\Support\TodayWorkspace::timeLabel($task->job_due_at) ?? '-';
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
+                        // เก็บข้อความที่ใช้ค้นหาแยกจากข้อความบนหน้าจอ เพราะชื่อคนใน avatar อยู่ใน
+                        // title/aria-label ซึ่ง textContent อ่านไม่พบ โดยเฉพาะเมื่อผู้ใช้มีรูปโปรไฟล์
+                        $taskSearchText = collect([
+                            $task->job_topic,
+                            $projectName,
+                            $assigneeName,
+                            $task->user?->department?->name,
+                        ])->merge($collaborators->pluck('name'))
+                            ->filter()
+                            ->unique()
+                            ->implode(' ');
                         $taskAdminSenderName = ! $uniformAdminName && $task->creator?->role === 'admin' ? $task->creator->name : null;
                         $taskDeleteUrl = $workspaceContext === 'admin-member' ? route('admin.tasks.destroy', $task->job_id) : route('mytasks.destroy', $task->job_id);
                         $canDeleteTask = $workspaceContext === 'admin-member'
@@ -139,7 +150,7 @@
                         $commentLabel = $commentCount ? 'ดูคอมเมนต์ '.$commentCount.' รายการ' : 'ยังไม่มีคอมเมนต์';
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
-                    <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
+                    <article class="board-reference-row task-priority-{{ $priority[1] }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-search-text="{{ $taskSearchText }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
                         <div class="board-reference-task">
                             @include('tasks.components.task-details', ['task' => $task])
                         </div>
@@ -156,7 +167,7 @@
                             </details>
                             <details class="board-status-menu board-priority-menu" data-board-priority-menu>
                                 <summary class="board-priority priority-{{ $priority[1] }}"><span data-board-priority-label>{{ $priority[0] }}</span><i class="bi bi-chevron-down"></i></summary>
-                                <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible'],1=>['routine','routine']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$task->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+                                <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$task->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
                             </details>
                         @else
                             <span class="board-status-pill status-{{ $taskIsLate ? 'late' : $taskStatus[1] }}">{{ $taskIsLate ? 'ล่าช้า' : $taskStatus[0] }}</span>
@@ -186,10 +197,11 @@
                         <span class="board-collaborators"><button type="button" data-manage-team="{{ $task->job_id }}" aria-label="{{ $canManageTeam ? 'จัดการ' : 'ดู' }}ผู้ร่วมงาน {{ $collaborators->count() }} คน">@foreach($collaborators->take(2) as $person)<i class="{{ $person->pivot?->status === 'pending' ? 'is-pending' : '' }}" title="{{ $person->name }}{{ $person->pivot?->status === 'pending' ? ' — รอตอบรับ' : '' }}">@include('components.user-avatar-content', ['user' => $person])</i>@endforeach @if($collaborators->count() > 2)<b>+{{ $collaborators->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $canManageTeam ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}"><i class="bi {{ $canManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>
                         <button type="button" class="board-attachments {{ $fileCount ? 'has-files' : '' }}" data-board-open-attachments="{{ $task->job_id }}" title="{{ $fileCount ? 'ดูไฟล์แนบ '.$fileCount.' ไฟล์' : 'ยังไม่มีไฟล์แนบ' }}"><i class="bi bi-paperclip"></i><strong>{{ $fileCount ?: '-' }}</strong></button>
                         <button type="button" class="board-comments{{ $commentCount ? ' has-comments' : '' }}{{ $unreadCommentCount > 0 ? ' has-unread' : '' }}" data-open-task-modal data-task-id="{{ $task->job_id }}" data-task-tab="updates" data-unread-comments="{{ $task->job_id }}" data-unread-persistent data-comment-label="{{ $commentLabel }}" title="{{ $commentLabel }}" aria-label="{{ $unreadCommentCount > 0 ? $commentLabel.' และมีคอมเมนต์ใหม่ที่ยังไม่ได้อ่าน' : $commentLabel }}"><i class="bi bi-chat-left-text" aria-hidden="true"></i><strong>{{ $commentCount ?: '-' }}</strong></button>
-                        @if(auth()->user()->can('work', $task) || $canDeleteTask)
+                        @if(auth()->user()->can('work', $task) || $canDeleteTask || auth()->user()->can('share', $task))
                             <details class="task-more-menu board-reference-menu">
                                 <summary aria-label="เมนูจัดการรายการงาน"><i class="bi bi-three-dots-vertical"></i></summary>
                                 <div class="board-task-menu">
+                                    @include('tasks.partials.share-task-menu-item', ['shareTask' => $task])
                                     @can('work', $task)<button type="button" data-board-rename-task data-task-id="{{ $task->job_id }}" data-name="{{ $task->job_topic }}" data-url="{{ route('tasks.details.update', $task) }}"><i class="bi bi-pencil-square"></i><span><strong>แก้ไขชื่อรายการงาน</strong><small>แก้ไขชื่อของรายการนี้</small></span></button>@endcan
                                     @if($canDeleteTask)<button type="button" class="danger" data-board-delete-task data-url="{{ $taskDeleteUrl }}"><i class="bi bi-trash3"></i><span><strong>ลบรายการงาน</strong><small>นำรายการนี้ออกจากโปรเจกต์</small></span></button>@endif
                                 </div>

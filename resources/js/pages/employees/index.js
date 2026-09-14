@@ -19,14 +19,12 @@ const randomTemporaryPassword = () => {
 const filterEmployees = (page, query) => {
     const cards = [...page.querySelectorAll('[data-employee-card]')];
     let visibleCount = 0;
-    const roleCounts = {admin: 0, viewer: 0, user: 0};
 
     cards.forEach((card) => {
         const isVisible = employeeMatchesSearch(card.dataset.search, query);
         card.hidden = ! isVisible;
         if (isVisible) {
             visibleCount += 1;
-            if (card.dataset.employeeRole in roleCounts) roleCounts[card.dataset.employeeRole] += 1;
         }
     });
 
@@ -35,11 +33,6 @@ const filterEmployees = (page, query) => {
 
     if (count) count.textContent = String(visibleCount);
     if (empty) empty.hidden = visibleCount > 0 || cards.length === 0;
-
-    page.querySelectorAll('[data-employee-summary-count]').forEach((summary) => {
-        const role = summary.dataset.employeeSummaryCount;
-        summary.textContent = String(role === 'all' ? visibleCount : (roleCounts[role] ?? 0));
-    });
 };
 
 const syncRoleFields = (form) => {

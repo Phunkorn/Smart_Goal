@@ -341,7 +341,6 @@
 }
 
 /* ระดับความสำคัญ — ค่าตรงกับ WorkBoardDesign::PRIORITIES และตารางรายงาน */
-.my-tasks-page .calendar-tag.priority-routine { --calendar-priority-tone: #64748b; }
 .my-tasks-page .calendar-tag.priority-important { --calendar-priority-tone: #2563eb; }
 .my-tasks-page .calendar-tag.priority-urgent { --calendar-priority-tone: #dc2626; }
 .my-tasks-page .calendar-tag.priority-quick { --calendar-priority-tone: #d97706; }

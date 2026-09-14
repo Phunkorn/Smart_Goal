@@ -33,6 +33,12 @@ async function boot(t) {
 
     env.document.body.innerHTML = `
         <div data-workspace data-status-template="/tasks/__ID__/status">
+            <select data-filter>
+                <option value="">ทุกสถานะ</option>
+                <option value="my_review">รอฉันตรวจ</option>
+                <option value="2">กำลังทำ</option>
+                <option value="5">พักงาน</option>
+            </select>
             <section data-kanban>
                 <div data-kanban-panel="0">
                     <nav data-kanban-status-tabs>${tabs}</nav>
@@ -102,4 +108,35 @@ test('count refresh follows existing cards without issuing a separate task query
     ui.refreshMobileKanbanStatusTabs(ui.panel);
 
     assert.deepEqual(ui.tabs.map((tab) => tab.querySelector('b').textContent), ['0', '3', '0', '0', '0']);
+});
+
+test('changing the shared status dropdown filters the visible table cards and columns', async (t) => {
+    const ui = await boot(t);
+    const filter = ui.document.querySelector('[data-filter]');
+    const pausedCard = ui.document.querySelector('[data-kanban-card][data-id="1"]');
+    const reviewableParent = ui.document.querySelector('[data-kanban-card][data-id="2"]');
+    const regularProgress = ui.document.querySelector('[data-kanban-card][data-id="3"]');
+
+    reviewableParent.dataset.reviewableSubtasks = '1';
+    filter.value = 'my_review';
+    filter.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+
+    assert.equal(ui.document.querySelector('[data-kanban]').classList.contains('is-status-filtered'), true);
+    assert.equal(reviewableParent.hidden, false);
+    assert.equal(regularProgress.hidden, true);
+    assert.equal(pausedCard.hidden, true);
+    assert.equal(ui.columns.find((column) => column.dataset.kanbanColumn === '2').hidden, false);
+    assert.equal(ui.columns.find((column) => column.dataset.kanbanColumn === '5').hidden, true);
+
+    filter.value = '5';
+    filter.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+
+    assert.equal(pausedCard.hidden, false);
+    assert.equal(reviewableParent.hidden, true);
+    assert.equal(ui.columns.find((column) => column.dataset.kanbanColumn === '5').hidden, false);
+    assert.equal(ui.columns.find((column) => column.dataset.kanbanColumn === '2').hidden, true);
+
+    filter.value = '';
+    filter.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+    assert.equal(ui.document.querySelector('[data-kanban]').classList.contains('is-status-filtered'), false);
 });

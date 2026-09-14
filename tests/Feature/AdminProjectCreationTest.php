@@ -429,8 +429,20 @@ class AdminProjectCreationTest extends TestCase
 
         $this->assertDatabaseMissing('work_orders', ['job_topic' => 'Kept task one']);
 
+        /*
+         * โมดัลมอบหมายงานอยู่ที่บอร์ดรวมเท่านั้นแล้ว
+         *
+         * Member Workspace กลายเป็นอ่านอย่างเดียวทั้งสำหรับ admin และหัวหน้าแผนก
+         * การมอบหมายงานให้สมาชิกเป็นหน้าที่ของหัวหน้าแผนก
+         */
         $this->actingAs($admin)
             ->get($workspaceUrl)
+            ->assertOk()
+            ->assertDontSee('data-admin-assignment-errors', false)
+            ->assertDontSee('data-open-admin-assignment', false);
+
+        $this->actingAs($admin)
+            ->get(route('board.index'))
             ->assertOk()
             ->assertSee('data-admin-assignment-errors', false)
             ->assertSee('data-admin-project-form', false)
@@ -462,12 +474,12 @@ class AdminProjectCreationTest extends TestCase
         $this->assertSame(3, $project->priority);
         $this->assertSame(0, $project->workOrders()->count());
 
+        // Workspace ของสมาชิกยังนับโปรเจกต์ให้เห็น แต่ไม่มีโมดัลมอบหมายงานในหน้านี้แล้ว
         $this->actingAs($admin)
             ->get(route('admin.work-board.member', [$department, $member]))
             ->assertOk()
             ->assertViewHas('totals', ['projects' => 1, 'tasks' => 0])
-            ->assertSee('data-initial-step="task"', false)
-            ->assertSee('<option value="'.$project->id.'" selected>Member launch</option>', false);
+            ->assertDontSee('data-initial-step="task"', false);
     }
 
     public function test_non_admin_cannot_choose_another_project_owner(): void

@@ -59,7 +59,19 @@ class WorkOrderPolicy
         return in_array($user->role, ['admin', 'viewer'], true)
             || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
             || $this->isTaskParticipant($workOrder, $user)
+            /*
+             * สิทธิ์ระดับโปรเจกต์ให้เฉพาะคนในแผนกเดียวกับงานใบนั้น
+             *
+             * คนต่างแผนกที่ถูกเชิญมาช่วยงานหนึ่งใบ เคยได้เห็นงานทุกใบในโปรเจกต์นั้น
+             * ตามไปด้วย ทั้งที่เขาถูกเชิญมาเพื่องานเดียว การเชิญข้ามแผนกครั้งเดียว
+             * จึงเปิดงานทั้งโปรเจกต์ของอีกแผนกให้เขาเห็นหมด
+             *
+             * ตอนนี้เขายังเห็นงานที่ตัวเองร่วม (isTaskParticipant ด้านบน) เหมือนเดิม
+             * แต่ไม่ได้สิทธิ์เหมารวมทั้งโปรเจกต์อีก ส่วนคนในแผนกเดียวกันยังเห็นทั้งโปรเจกต์
+             * เพราะงานเหล่านั้นเป็นงานของแผนกตัวเองอยู่แล้ว
+             */
             || ($workOrder->work_order_list_id
+                && $this->sharesDepartmentWith($workOrder, $user)
                 && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
     }
 
@@ -82,6 +94,22 @@ class WorkOrderPolicy
     }
 
     /**
+     * งานใบนี้เป็น "งานของผู้ใช้คนนี้" หรือไม่ — ตอบเรื่องความเป็นเจ้าของ ไม่ใช่เรื่องสิทธิ์ตอนนี้
+     *
+     * work() ตอบคนละคำถาม: "แก้สถานะได้ตอนนี้ไหม" ซึ่งเป็นเท็จเสมอเมื่องานปิดแล้ว
+     * และเป็นเท็จเมื่องานยังรออนุมัติ มุมมองตารางต้องการอีกคำถามหนึ่งคือ
+     * "งานใบนี้เป็นของฉันไหม" เพื่อตัดงานของคนอื่นในโปรเจกต์เดียวกันออกจากกระดาน
+     * โดยไม่ทำให้งานของตัวเองที่ปิดแล้วหรือที่ยังรออนุมัติหายไปด้วย
+     *
+     * ถ้าใช้ work() กรองแทน คอลัมน์ "เสร็จแล้ว" จะว่างทั้งคอลัมน์ เพราะ work() ปฏิเสธ
+     * งานสถานะ 4 ทุกใบรวมงานของเจ้าของเอง
+     */
+    public function participate(User $user, WorkOrder $workOrder): bool
+    {
+        return $this->isTaskParticipant($workOrder, $user);
+    }
+
+    /**
      * Worker-level mutations only. Direct accepted collaborators work on the
      * task, but this ability is deliberately not used by team/delete/approval
      * endpoints.
@@ -94,6 +122,31 @@ class WorkOrderPolicy
 
         return $workOrder->approval_status === 'approved'
             && $this->isTaskParticipant($workOrder, $user);
+    }
+
+    /**
+     * เพิ่ม เปลี่ยนชื่อ ย้าย หรือลบ "งานย่อย" ของงานใบนี้
+     *
+     * แคบกว่า work() โดยตั้งใจ — work() เปิดให้ผู้ร่วมงานที่ตอบรับแล้วทุกคน ซึ่งถูกต้อง
+     * สำหรับการลงมือทำงาน (เปลี่ยนสถานะ แนบไฟล์ คอมเมนต์) แต่การกำหนดว่างานใบนี้
+     * ประกอบด้วยงานย่อยอะไรบ้างคือการ "นิยามขอบเขตงาน" ไม่ใช่การลงมือทำ
+     *
+     * ของเดิมใช้ work() ผลคือคนที่ถูกเชิญมาช่วยงานหนึ่งใบ สร้างงานย่อยในงานของ
+     * เจ้าของได้เอง และเพราะผู้สร้างงานย่อยกลายเป็น created_by ของงานย่อยนั้น
+     * เขาจึงได้สิทธิ์ระดับเจ้าของบนงานย่อย รวมถึงแชร์มันออกไปให้คนนอกขอเข้าร่วมได้
+     * ทั้งที่ไม่เคยเป็นเจ้าของงานนั้นเลย
+     *
+     * ผู้รับผิดชอบ ผู้สร้าง และหัวหน้างานยังทำได้ตามเดิม เพราะทั้งสามคนคือผู้ที่
+     * รับผิดชอบเนื้องานใบนั้นจริง
+     */
+    public function manageSubtasks(User $user, WorkOrder $workOrder): bool
+    {
+        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
+            return false;
+        }
+
+        return $workOrder->approval_status === 'approved'
+            && $this->isTaskEditor($workOrder, $user);
     }
 
     /**
@@ -259,6 +312,26 @@ class WorkOrderPolicy
     }
 
     /**
+     * ประกาศแชร์งานให้คนอื่นขอเข้าร่วม (WorkOrderShareController::store)
+     *
+     * แชร์ได้เฉพาะ "งานย่อย" เท่านั้น
+     *
+     * งานแม่คือขอบเขตงานทั้งก้อนของเจ้าของ การเปิดให้คนนอกขอเข้าร่วมที่ระดับนั้น
+     * เท่ากับรับเขาเข้ามาในงานทุกใบที่อยู่ใต้มัน ทั้งที่สิ่งที่ต้องการจริง ๆ คือให้มา
+     * ช่วยงานชิ้นใดชิ้นหนึ่ง การแชร์จึงต้องเกิดที่หน่วยที่เล็กที่สุดที่ลงมือทำได้จริง
+     * คือรายการงานย่อย ผู้ที่เข้าร่วมจะได้สิทธิ์เท่าที่งานย่อยใบนั้นให้ ไม่เลยไปกว่านั้น
+     *
+     * เงื่อนไขที่เหลือใช้เกณฑ์เดียวกับ manageTeam() ทั้งดุ้น เพราะการแชร์คือการเปิดทาง
+     * ให้มีผู้ร่วมงานเพิ่ม คนที่แชร์ได้จึงต้องเป็นคนที่เพิ่มผู้ร่วมงานได้อยู่แล้ว
+     * ถ้าแยกเกณฑ์ออกมาจะเกิดช่องที่แชร์งานได้แต่อนุมัติคำขอของตัวเองไม่ได้
+     */
+    public function share(User $user, WorkOrder $workOrder): bool
+    {
+        return $workOrder->parent_job_id !== null
+            && $this->manageTeam($user, $workOrder);
+    }
+
+    /**
      * เดิมคือ TaskController::canWorkOnJob() / MyTaskController::authorizeWorkOrderAccess()
      */
     private function isTaskEditor(WorkOrder $workOrder, User $user): bool
@@ -288,12 +361,24 @@ class WorkOrderPolicy
             ->exists();
     }
 
-    /** @return array<int> */
+    /**
+     * โปรเจกต์ที่ผู้ใช้ได้สิทธิ์ระดับโปรเจกต์ — นับเฉพาะงานในแผนกของตัวเอง
+     *
+     * ต้องใช้เกณฑ์เดียวกับ WorkOrder::scopeVisibleInProjectsFor() ทุกประการ ไม่งั้น
+     * จะเกิดสภาพที่ policy บอกว่าดูได้แต่คิวรีไม่คืนงานมา (หรือกลับกัน)
+     *
+     * @return array<int>
+     */
     private function acceptedProjectIds(User $user): array
     {
+        // คนที่ยังไม่ถูกจัดเข้าแผนก ไม่มีแผนกให้เทียบ จึงไม่ได้สิทธิ์เหมาทั้งโปรเจกต์
+        if ($user->department_id === null) {
+            return $this->acceptedProjectIdsByUser[$user->id] ??= [];
+        }
+
         return $this->acceptedProjectIdsByUser[$user->id] ??= WorkOrder::query()
-            ->where('approval_status', 'approved')
             ->whereNotNull('work_order_list_id')
+            ->inDepartmentOf($user)
             ->whereHas('collaborators', fn ($query) => $query
                 ->where('users.id', $user->id)
                 ->where('work_order_collaborators.status', 'accepted'))
@@ -301,6 +386,13 @@ class WorkOrderPolicy
             ->pluck('work_order_list_id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /** งานใบนี้มีแผนกปลายทางเดียวกับผู้ใช้หรือไม่ */
+    private function sharesDepartmentWith(WorkOrder $workOrder, User $user): bool
+    {
+        return $user->department_id !== null
+            && (int) $this->destinationDepartmentId($workOrder) === (int) $user->department_id;
     }
 
     private function isAssignmentRequester(WorkOrder $workOrder, User $user): bool

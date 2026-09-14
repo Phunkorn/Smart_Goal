@@ -184,12 +184,13 @@ class AdminReportDashboardTest extends TestCase
         $firstDepartment = Department::create(['department_name' => 'Operations']);
         $secondDepartment = Department::create(['department_name' => 'Finance']);
 
-        foreach (range(1, 5) as $priority) {
+        // ระดับ 1 ("routine") ถูกเลิกใช้แล้ว ตัวกรองจึงไม่รับค่านั้นอีก
+        foreach ([2, 3, 4, 5] as $priority) {
             $this->task($firstDepartment, ['job_topic' => "Priority {$priority}", 'job_priority' => $priority]);
         }
         $this->task($secondDepartment, ['job_topic' => 'Other department', 'job_priority' => 4]);
 
-        foreach (range(1, 5) as $priority) {
+        foreach ([2, 3, 4, 5] as $priority) {
             $response = $this->actingAs($admin)->get(route('reports.organization', [
                 'period' => 'custom',
                 'start_date' => '2026-08-01',

@@ -485,9 +485,25 @@ class TodayWorkspaceTest extends TestCase
         ], $extra));
     }
 
-    /** แปลงวัน (หรือวัน+เวลา) ตามเวลาไทยเป็นเวลา UTC สำหรับเก็บลงคอลัมน์ */
-    private static function businessInstant(string $value, string $fallbackClock): Carbon
+    /**
+     * แปลงวัน (หรือวัน+เวลา) ตามเวลาไทยเป็นเวลา UTC สำหรับเก็บลงคอลัมน์
+     *
+     * รับได้ทั้งข้อความและ Carbon เพราะเทสต์ในไฟล์นี้ส่งมาทั้งสองแบบ
+     *
+     * Carbon ที่ส่งเข้ามาคือ "จุดเวลา" ตามนาฬิกา UTC ไม่ใช่ข้อความของวันตามเวลาไทย
+     * ถ้าปล่อยให้ __toString แล้วนำไปตีความเป็นเวลาไทย เวลาจะเลื่อนไปเจ็ดชั่วโมง และ
+     * เมื่อรันเทสต์หลัง 17:00 UTC (เที่ยงคืนของกรุงเทพ) วันของงานจะร่นย้อนมาหนึ่งวัน
+     * ทำให้งานของพรุ่งนี้กลายเป็นงานของวันนี้ และเทสต์ล้มตามเวลาที่รันเท่านั้น
+     * จึงต้องแปลงโซนก่อนแล้วค่อยอ่านเป็นวัน
+     */
+    private static function businessInstant(string|\DateTimeInterface $value, string $fallbackClock): Carbon
     {
+        if ($value instanceof \DateTimeInterface) {
+            $value = Carbon::instance($value)
+                ->setTimezone(TodayWorkspace::BUSINESS_TIMEZONE)
+                ->toDateString();
+        }
+
         $text = trim($value);
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) === 1) {
             $text .= ' '.$fallbackClock;

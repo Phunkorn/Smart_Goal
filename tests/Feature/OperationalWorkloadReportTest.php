@@ -10,9 +10,8 @@ use App\Models\WorkLogTemplate;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Services\OperationalWorkloadReportService;
-use App\Services\WorkLogParticipantService;
-use App\Services\WorkLogRoutineMaterializer;
 use App\Support\TodayWorkspace;
+use App\Support\WorkLogDesign;
 use App\Support\WorkLogWeekdays;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -43,9 +42,8 @@ class OperationalWorkloadReportTest extends TestCase
         $this->actingAs($admin)
             ->get(route('reports.operational'))
             ->assertOk()
-            ->assertSee('ภาระงานปฏิบัติการ')
-            // 180 นาที = 3.0 ชม.
-            ->assertSee('3.0')
+            // หน้าแรกคือรายชื่อให้เลือก ไม่ใช่ตัวเลขรวมของทั้งองค์กรอีกต่อไป
+            ->assertSee('วันนี้ใครทำอะไรไปแล้วบ้าง')
             ->assertSee($itMember->name)
             ->assertSee($salesMember->name);
     }
@@ -64,8 +62,7 @@ class OperationalWorkloadReportTest extends TestCase
         $this->actingAs($itHead)
             ->get(route('reports.operational'))
             ->assertOk()
-            ->assertSee('งานของไอที')
-            ->assertDontSee('งานของเซลส์')
+            // ชื่อคนคือสิ่งที่หน้าแรกแสดง ส่วนชื่อบันทึกงานย้ายไปอยู่หน้าของคนที่ถูกเลือก
             ->assertSee($itMember->name)
             ->assertDontSee($salesMember->name);
     }
@@ -172,138 +169,375 @@ class OperationalWorkloadReportTest extends TestCase
     }
 
     /**
-     * พนักงานได้หน้าที่ตอบคำถามของตัวเอง ไม่ใช่แดชบอร์ดแบบที่หัวหน้าเห็น
+     * พนักงานลงมาที่หน้าของตัวเองเลย ส่วนหัวหน้าลงมาที่รายชื่อก่อน
      *
-     * ทั้งตัวกรองแผนก ตารางรายคน และกราฟเทียบคนในทีม ไม่มีความหมายเมื่อดูของ
-     * คนเดียว การแสดงไว้จึงเป็นภาระในการอ่านเปล่า ๆ
+     * พนักงานถูกล็อกขอบเขตไว้ที่ตัวเองโดย ReportController::forcedOwnerId()
+     * หน้าของเขาจึงข้ามขั้น "เลือกคน" ไปที่ตารางรายวันทันที
      */
-    public function test_a_member_gets_a_slimmer_page_than_a_department_head(): void
+    public function test_a_member_lands_on_their_own_days_while_a_head_lands_on_the_people_list(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $member = $this->user($department);
         $head = $this->user($department, true);
 
-        $this->log($member, $department, ['title' => 'งานของฉันเอง']);
+        $this->routineLog($member, $department, ['title' => 'งานของฉันเอง']);
 
         $memberPage = $this->actingAs($member)->get(route('reports.operational'))->assertOk();
 
         $memberPage->assertSee('รายงานปฏิบัติงานของฉัน')
-            // ไม่มีตัวกรองแผนก เพราะขอบเขตถูกล็อกไว้ที่ตัวเองแล้ว
+            // ตัวกรองเหลือช่วงวันอย่างเดียวแล้วทั้งสองบทบาท
             ->assertDontSee('id="reportDepartment"', false)
-            // ไม่มีตารางรายคนและกราฟเทียบคน
-            ->assertDontSee('data-operational-member-table', false)
-            ->assertDontSee('operationalMemberChart', false)
-            ->assertDontSee('operationalInterruptChart', false)
-            // ตัวเลขที่ไว้บริหารภาระงานของทีมเป็นของหัวหน้า
-            ->assertDontSee('เวลาที่ไม่ได้ลงโปรเจกต์')
-            ->assertDontSee('จากผู้บันทึก')
-            // สิ่งที่ต้องเหลือ: ตารางการตรวจ ตัวเลขของตัวเอง และกราฟเดียว
-            ->assertSee('การตรวจงานประจำ')
-            ->assertSee('ชั่วโมงงานของฉัน')
-            ->assertSee('operationalDailyChart', false);
+            // ไม่ต้องเลือกคน เพราะขอบเขตถูกล็อกไว้ที่ตัวเองอยู่แล้ว
+            ->assertDontSee('data-operational-people-table', false)
+            ->assertSee('data-operational-days-table', false)
+            ->assertSee('งานประจำรายวัน');
 
-        // หัวหน้าแผนกยังได้หน้าเต็มเหมือนเดิมทุกส่วน
         $headPage = $this->actingAs($head)->get(route('reports.operational'))->assertOk();
 
-        $headPage->assertSee('id="reportDepartment"', false)
-            ->assertSee('data-operational-member-table', false)
-            ->assertSee('operationalMemberChart', false)
-            ->assertSee('เวลาที่ไม่ได้ลงโปรเจกต์')
-            ->assertSee('การตรวจงานประจำ');
+        $headPage->assertSee('data-operational-people-table', false)
+            ->assertSee('วันนี้ใครทำอะไรไปแล้วบ้าง')
+            // ยังไม่เลือกใคร จึงยังไม่มีตารางรายวัน
+            ->assertDontSee('data-operational-days-table', false);
+
+        // กดเลือกคนแล้วจึงสลับไปหน้ารายวันของคนนั้น
+        $this->actingAs($head)
+            ->get(route('reports.operational', ['owner' => $member->id]))
+            ->assertOk()
+            ->assertSee('data-operational-days-table', false)
+            ->assertSee($member->name)
+            ->assertDontSee('data-operational-people-table', false);
     }
 
     /**
-     * ตารางการตรวจต้องบอกได้ทั้ง "วันนี้เหลืออะไร" และ "ที่ผ่านมาตรวจอะไรไปแล้ว"
+     * ตารางรายวันต้องตอบได้ในบรรทัดเดียวว่าวันนั้นทำงานประจำครบไหม
      */
-    public function test_routine_checks_are_listed_with_date_and_status(): void
+    public function test_the_day_table_counts_done_skipped_and_pending_per_day(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $member = $this->user($department);
 
-        $template = WorkLogTemplate::create([
-            'user_id' => $member->id,
-            'title' => 'เช็คคอมพิวเตอร์ห้องบัญชี',
-            'kind' => 'routine',
-            'weekday_mask' => WorkLogWeekdays::EVERYDAY,
-            'default_start_time' => '08:30',
-            'default_duration_minutes' => 20,
-            'is_active' => true,
-        ]);
+        $this->routineLog($member, $department, ['title' => 'เช็คคอมพิวเตอร์', 'status' => 'done']);
+        $this->routineLog($member, $department, ['title' => 'เช็คปริ้นเตอร์', 'status' => 'skipped']);
+        $this->routineLog($member, $department, ['title' => 'เช็คเครือข่าย', 'status' => 'open']);
 
-        app(WorkLogRoutineMaterializer::class)->materializeToday($member);
-
-        $log = WorkLog::query()->where('work_log_template_id', $template->id)->firstOrFail();
-
-        $this->actingAs($member)
+        $response = $this->actingAs($member)
             ->get(route('reports.operational'))
             ->assertOk()
-            ->assertSee('การตรวจงานประจำ')
-            ->assertSee('เช็คคอมพิวเตอร์ห้องบัญชี')
-            ->assertSee('08:30 - 08:50')
-            ->assertSee('เกินเวลา')
-            // คอลัมน์วันที่คือสิ่งที่ทำให้ตารางใช้เป็นหลักฐานย้อนหลังได้
-            ->assertSee('<th scope="col">วันที่</th>', false)
-            ->assertSee('report-checklist__today', false);
+            ->assertSee('งานประจำรายวัน')
+            ->assertSee('<th scope="col">วัน</th>', false);
 
-        $this->actingAs($member)->post(route('daily-logs.complete', $log))->assertRedirect();
+        $days = $response->viewData('routineDays');
 
-        $this->actingAs($member)
-            ->get(route('reports.operational'))
-            ->assertOk()
-            ->assertSee('ตรวจแล้ว')
-            ->assertDontSee('ยังไม่ตรวจ');
+        $this->assertCount(1, $days, 'ทั้งสามรายการเป็นของวันเดียวกัน จึงต้องยุบเป็นแถวเดียว');
+        $this->assertSame(3, $days[0]['total']);
+        $this->assertSame(1, $days[0]['done']);
+        $this->assertSame(1, $days[0]['skipped']);
+        $this->assertSame(1, $days[0]['pending']);
     }
 
     /**
-     * ตารางแบ่งหน้าครั้งละ 10 แถว ด้วยตัวแบ่งหน้าตัวเดียวกับตารางภาระงานรายคน
+     * หน้าของคนที่ถูกเลือกต้องบอกได้ว่า "งานประจำคืออะไรบ้าง และทำหรือยัง"
+     *
+     * ตารางรายวันบอกแค่ตัวเลข ซึ่งตอบได้ว่าครบไหม แต่ตอบไม่ได้ว่าค้างรายการไหน
+     * หัวหน้าที่เห็นเลข "ค้าง 2" ต้องรู้ต่อได้ทันทีว่าสองรายการนั้นคืออะไร
+     */
+    public function test_the_person_page_lists_each_routine_item_and_its_status(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+        $head = $this->user($department, true);
+
+        $this->routineLog($member, $department, ['title' => 'เช็คคอมพิวเตอร์ห้องบัญชี', 'status' => 'done']);
+        $this->routineLog($member, $department, ['title' => 'เช็คเครื่องสำรองไฟ', 'status' => 'open']);
+
+        $this->actingAs($head)
+            ->get(route('reports.operational', ['owner' => $member->id]))
+            ->assertOk()
+            ->assertSee('การตรวจงานประจำ')
+            ->assertSee('เช็คคอมพิวเตอร์ห้องบัญชี')
+            ->assertSee('เช็คเครื่องสำรองไฟ')
+            // ทั้งตารางเป็นของคนเดียว คอลัมน์ผู้รับผิดชอบจึงไม่ต้องมี
+            ->assertDontSee('<th scope="col">ผู้รับผิดชอบ</th>', false);
+
+        /*
+         * หน้ารายชื่อก็แสดงชื่อรายการของ "วันนี้" เหมือนกัน ต่างกันที่หน้าคนมีตาราง
+         * ย้อนหลังพร้อมคอลัมน์วันที่ ซึ่งเป็นสิ่งที่หน้ารายชื่อไม่มี
+         */
+        $this->actingAs($head)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->assertDontSee('data-checklist-table', false);
+    }
+
+    /**
+     * กราฟใบเดียว และต้องเป็นข้อมูลชุดเดียวกับการ์ดรายคน
+     *
+     * กราฟที่อ่านคนละชุดกับตารางใต้มันทำให้คนอ่านต้องแปลงหน่วยในหัวเองว่าแท่งนี้
+     * คือการ์ดใบไหน จึงต้องยึดว่า labels/ตัวเลขของกราฟมาจาก routineCompliance ตัวเดียวกัน
+     */
+    public function test_the_chart_mirrors_the_people_board(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+        $colleague = $this->user($department);
+        $head = $this->user($department, true);
+
+        $this->routineLog($member, $department, ['title' => 'งานประจำ ก', 'status' => 'done']);
+        $this->routineLog($member, $department, ['title' => 'งานประจำ ข', 'status' => 'open']);
+        $this->routineLog($colleague, $department, ['title' => 'งานประจำ ค', 'status' => 'done']);
+
+        $response = $this->actingAs($head)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->assertSee('operationalTodayMemberChart', false)
+            // กราฟชุดเดิมตอบคนละคำถามกับกระดาน จึงต้องไม่เหลือ canvas ไว้
+            ->assertDontSee('operationalRoutineMemberChart', false)
+            ->assertDontSee('operationalRoutineDailyChart', false)
+            ->assertDontSee('operationalCategoryChart', false)
+            ->assertDontSee('operationalMemberChart', false);
+
+        $board = $response->viewData('routineCompliance');
+        $chart = $response->viewData('chartData')['todayMembers'];
+
+        // ลำดับและชื่อต้องตรงกับการ์ดทีละตัว ไม่ใช่แค่มีครบ
+        $this->assertSame($board->pluck('name')->all(), $chart['labels']);
+        $this->assertSame($board->pluck('today_done')->all(), $chart['done']);
+        $this->assertSame(
+            $board->map(fn (array $person): int => $person['today_total'] - $person['today_done'])->all(),
+            $chart['pending']
+        );
+
+        // ไม่ได้เลือกใคร จึงไม่มีแท่งไหนถูกไฮไลต์
+        $this->assertSame(0, array_sum($chart['highlight']));
+
+        // เลือกคนแล้ว กราฟยังเป็นของทั้งแผนกเหมือนเดิม แต่ทำเครื่องหมายคนที่กำลังดูอยู่
+        $selected = $this->actingAs($head)
+            ->get(route('reports.operational', ['owner' => $member->id]))
+            ->assertOk()
+            ->assertSee('operationalTodayMemberChart', false)
+            ->viewData('chartData')['todayMembers'];
+
+        $this->assertContains($colleague->name, $selected['labels']);
+        $this->assertSame(1, array_sum($selected['highlight']));
+    }
+
+    /**
+     * รายละเอียดของการ์ดต้องถูก render มาพร้อมหน้า ไม่ใช่ไปขอเพิ่มตอนกด
+     *
+     * กล่องรายละเอียดย้าย DOM จาก template ในการ์ดมาวาง ถ้า Blade ไม่ได้ส่ง template
+     * หรือส่งมาแค่รายการที่ตัดแล้ว กล่องจะเปิดมาว่างหรือแสดงไม่ครบโดยไม่มี error ให้เห็น
+     */
+    public function test_each_card_ships_its_full_detail_for_the_modal(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+        $head = $this->user($department, true);
+
+        // หกรายการ มากกว่าสี่บรรทัดที่การ์ดแสดง กล่องจึงต้องมีครบทั้งหก
+        foreach (range(1, 6) as $index) {
+            $this->routineLog($member, $department, [
+                'title' => 'งานประจำที่ '.$index,
+                'status' => $index === 1 ? 'done' : 'open',
+                'duration_minutes' => 15,
+            ]);
+        }
+
+        $response = $this->actingAs($head)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->assertSee('data-people-modal', false)
+            ->assertSee('data-people-detail', false)
+            ->assertSee('data-people-open', false);
+
+        /*
+         * ต้องชี้การ์ดของคนที่ตั้งใจตรวจ ไม่ใช่ template ตัวแรกในหน้า
+         *
+         * การ์ดเรียงตามชื่อ และชื่อมาจาก factory แบบสุ่ม การ์ดใบแรกจึงเป็นของหัวหน้า
+         * (ที่ไม่มีงาน) ได้ ทำให้เทสต์ผ่านหรือล้มตามลำดับชื่อที่สุ่มได้ในรอบนั้น
+         */
+        $html = $response->getContent();
+        $card = strpos($html, 'data-people-name="'.$member->name.'"');
+        $this->assertNotFalse($card, 'ต้องมีการ์ดของพนักงานคนนี้');
+
+        $start = strpos($html, 'data-people-detail', $card);
+        $this->assertNotFalse($start, 'การ์ดต้องมี template ของรายละเอียด');
+
+        $detail = substr($html, $start, strpos($html, '</template>', $start) - $start);
+
+        foreach (range(1, 6) as $index) {
+            $this->assertStringContainsString('งานประจำที่ '.$index, $detail);
+        }
+
+        // เวลาที่ใช้แยกตามงานต้องอยู่ในกล่องด้วย ไม่ใช่มีแต่รายการงาน
+        $this->assertStringContainsString('ครั้ง', $detail);
+    }
+
+    /**
+     * เวลาที่ใช้ทำงาน — ทั้งของวันนี้ ของทั้งช่วง และกางดูได้ว่าหมดไปกับงานอะไร
+     *
+     * จำนวนรายการอย่างเดียวตอบไม่ได้ว่างานหนักแค่ไหน งานห้ารายการสั้น ๆ กับงาน
+     * รายการเดียวที่กินทั้งเช้าต้องไม่อ่านว่าเท่ากัน
+     */
+    public function test_the_people_board_reports_time_spent_and_its_breakdown(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+        $head = $this->user($department, true);
+
+        $this->routineLog($member, $department, [
+            'title' => 'ตรวจเครื่อง',
+            'status' => 'done',
+            'duration_minutes' => 90,
+        ]);
+        $this->routineLog($member, $department, [
+            'title' => 'ตรวจเครื่อง',
+            'status' => 'done',
+            'duration_minutes' => 30,
+        ]);
+        $this->routineLog($member, $department, [
+            'title' => 'ส่งรายงาน',
+            'status' => 'open',
+            'duration_minutes' => 15,
+        ]);
+
+        $board = $this->actingAs($head)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            // เวลารวมของช่วงต้องอ่านได้จากหน้าจริง ไม่ใช่มีแต่ใน view data
+            ->assertSee(WorkLogDesign::durationLabel(135))
+            ->viewData('routineCompliance');
+
+        $person = $board->firstWhere('id', $member->id);
+
+        $this->assertSame(135, $person['period_minutes']);
+        $this->assertSame(
+            WorkLogDesign::durationLabel(135),
+            $person['period_minutes_label']
+        );
+        $this->assertSame(
+            WorkLogDesign::durationLabel(135),
+            $person['today_minutes_label']
+        );
+
+        // งานชื่อเดียวกันถูกยุบเป็นบรรทัดเดียว พร้อมจำนวนครั้งและเวลารวม
+        $this->assertSame(
+            [['title' => 'ตรวจเครื่อง', 'times' => 2, 'minutes' => 120], ['title' => 'ส่งรายงาน', 'times' => 1, 'minutes' => 15]],
+            collect($person['time_breakdown'])
+                ->map(fn (array $entry): array => [
+                    'title' => $entry['title'],
+                    'times' => $entry['times'],
+                    'minutes' => $entry['minutes'],
+                ])
+                ->all()
+        );
+
+        // รายการของวันนี้แต่ละตัวบอกเวลาที่ใช้ของตัวเองด้วย
+        $this->assertSame(
+            WorkLogDesign::durationLabel(15),
+            collect($person['today_items'])->firstWhere('title', 'ส่งรายงาน')['minutes_label']
+        );
+    }
+
+    /**
+     * ต้องนับงานทั้งสองชนิด ไม่ใช่เฉพาะงานประจำที่มาจากแม่แบบ
+     *
+     * หัวหน้าถามว่า "วันนี้ทำอะไรไปบ้าง" ซึ่งรวมงานนอกสถานที่และงานที่บันทึกเองด้วย
+     * ของเดิมนับเฉพาะแม่แบบ คนที่ลงแต่งานนอกสถานที่จึงขึ้นศูนย์ทั้งแถวทั้งที่ทำงานอยู่จริง
+     */
+    public function test_the_board_counts_field_work_and_manual_logs_too(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $member = $this->user($department);
+
+        $this->routineLog($member, $department, ['title' => 'งานประจำจริง', 'status' => 'done']);
+        $this->log($member, $department, ['title' => 'ไปส่งของนอกสถานที่', 'kind' => 'field', 'status' => 'done']);
+
+        $days = $this->actingAs($member)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->viewData('routineDays');
+
+        $this->assertSame(2, $days[0]['total'], 'งานนอกสถานที่ต้องถูกนับด้วย');
+        $this->assertSame(2, $days[0]['done']);
+    }
+
+    /**
+     * กระดานหน้าแรกต้องบอกได้ว่า "วันนี้ใครทำอะไรไปแล้วบ้าง" โดยไม่ต้องกดเข้าไปทีละคน
+     */
+    public function test_the_board_lists_todays_items_per_person_without_drilling_in(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $head = $this->user($department, true);
+        $worker = $this->user($department);
+        $idle = $this->user($department);
+
+        $this->routineLog($worker, $department, ['title' => 'เช็คคอมพิวเตอร์', 'status' => 'done']);
+        $this->log($worker, $department, ['title' => 'ไปส่งเครื่องที่สาขา', 'kind' => 'field', 'status' => 'open']);
+
+        $response = $this->actingAs($head)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            // ชื่อรายการของวันนี้อยู่ในแถวเลย ไม่ได้ซ่อนไว้หลังปุ่ม
+            ->assertSee('เช็คคอมพิวเตอร์')
+            ->assertSee('ไปส่งเครื่องที่สาขา')
+            // คนที่ยังไม่ได้ลงอะไรเลยต้องยังอยู่ในกระดาน เพราะนั่นคือคำตอบที่หัวหน้าต้องการ
+            ->assertSee($idle->name)
+            ->assertSee('ยังไม่มีงานของวันนี้');
+
+        $board = collect($response->viewData('routineCompliance'));
+        $row = $board->firstWhere('id', $worker->id);
+
+        $this->assertSame(2, $row['today_total']);
+        $this->assertSame(1, $row['today_done'], 'ทำไปแล้วหนึ่ง เหลือค้างอีกหนึ่ง');
+        $this->assertSame(1, $row['today_pending']);
+        $this->assertSame(0, $board->firstWhere('id', $idle->id)['today_total']);
+    }
+
+    /**
+     * ตารางแบ่งหน้าครั้งละ 10 แถว ด้วยตัวแบ่งหน้าตัวเดียวกับรายงานอื่น
      *
      * แถวถูก render มาครบทุกแถว แล้วให้ table-pager.js ซ่อน/แสดง จึงตรวจได้จาก
      * จำนวนแถวใน HTML กับการมีอยู่ของปุ่มเปลี่ยนหน้า
      */
-    public function test_the_checklist_table_pages_ten_rows_at_a_time(): void
+    public function test_both_tables_page_ten_rows_at_a_time(): void
     {
         $department = Department::create(['department_name' => 'IT']);
-        $member = $this->user($department);
+        $head = $this->user($department, true);
 
-        // สิบสองรายการของวันนี้ — มากกว่าหนึ่งหน้า
+        // สิบสองคนในแผนก — มากกว่าหนึ่งหน้า
         foreach (range(1, 12) as $index) {
-            $this->log($member, $department, [
+            $this->user($department);
+        }
+
+        $peoplePage = $this->actingAs($head)->get(route('reports.operational'))->assertOk();
+
+        $peoplePage->assertSee('data-operational-people-table', false)
+            ->assertSee('data-page-size="10"', false)
+            ->assertSee('data-operational-people-previous', false)
+            ->assertSee('data-operational-people-next', false);
+
+        // สิบสองคน บวกหัวหน้าที่เป็นพนักงานในแผนกเดียวกันหรือไม่ก็ได้ จึงตรวจว่าอย่างน้อยสิบสอง
+        $this->assertGreaterThanOrEqual(
+            12,
+            substr_count($peoplePage->getContent(), 'data-operational-people-row'),
+        );
+
+        // ตารางรายวันใช้ตัวแบ่งหน้าชุดเดียวกัน ไม่มีโค้ดแบ่งหน้าชุดที่สอง
+        $member = $this->user($department);
+        foreach (range(1, 12) as $index) {
+            $this->routineLog($member, $department, [
                 'title' => 'งานประจำที่ '.$index,
-                'source' => 'template',
+                'work_date' => TodayWorkspace::businessNow()->subDays($index)->format('Y-m-d'),
             ]);
         }
 
-        $response = $this->actingAs($member)->get(route('reports.operational'))->assertOk();
+        $daysPage = $this->actingAs($head)
+            ->get(route('reports.operational', ['owner' => $member->id, 'period' => 'this_month']))
+            ->assertOk();
 
-        $response->assertSee('data-checklist-table', false)
-            ->assertSee('data-page-size="10"', false)
-            ->assertSee('data-checklist-pager', false)
-            ->assertSee('data-checklist-previous', false)
-            ->assertSee('data-checklist-next', false);
-
-        $this->assertSame(12, substr_count($response->getContent(), 'data-checklist-row'));
-    }
-
-    /**
-     * ตารางเป็นรายละเอียดที่เปิดดูเมื่อถูกถาม จึงอยู่ท้ายหน้า ไม่ใช่บนสุด
-     */
-    public function test_the_checklist_table_closes_the_page(): void
-    {
-        $department = Department::create(['department_name' => 'IT']);
-        $member = $this->user($department);
-
-        $this->log($member, $department, ['title' => 'งานประจำหนึ่ง', 'source' => 'template']);
-
-        $content = $this->actingAs($member)
-            ->get(route('reports.operational'))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertGreaterThan(
-            strpos($content, 'report-kpi-band'),
-            strpos($content, 'report-checklist'),
-            'ตารางการตรวจต้องอยู่ใต้แถบตัวเลขและกราฟ'
-        );
+        $daysPage->assertSee('data-operational-days-table', false)
+            ->assertSee('data-operational-days-previous', false)
+            ->assertSee('data-operational-days-next', false);
     }
 
     /**
@@ -349,13 +583,15 @@ class OperationalWorkloadReportTest extends TestCase
         $this->log($member, $department, ['duration_minutes' => 240]);
         $this->log($member, $department, ['duration_minutes' => 60, 'work_order_list_id' => $project->id]);
 
-        $this->actingAs($admin)
+        // การ์ด KPI ถูกถอดออกจากหน้าจอแล้ว แต่การคำนวณยังต้องถูกต้องเหมือนเดิม
+        // เพราะเป็นตัวเลขที่รายงานอื่นและไฟล์ CSV ใช้ร่วมกัน
+        $response = $this->actingAs($admin)
             ->get(route('reports.operational'))
-            ->assertOk()
-            ->assertSee('เวลาที่ไม่ได้ลงโปรเจกต์')
-            // 240 นาที = 4.0 ชม. คิดเป็น 80% ของ 5 ชั่วโมง
-            ->assertSee('4.0')
-            ->assertSee('80%');
+            ->assertOk();
+
+        // 240 นาที = 4.0 ชม. คิดเป็น 80% ของ 5 ชั่วโมง
+        $this->assertSame('4.0', $response->viewData('unlinkedHoursLabel'));
+        $this->assertSame(80, $response->viewData('unlinkedShare'));
     }
 
     public function test_the_kind_filter_narrows_the_report(): void
@@ -367,8 +603,9 @@ class OperationalWorkloadReportTest extends TestCase
         $this->log($member, $department, ['kind' => 'routine', 'title' => 'งานประจำเช้า', 'duration_minutes' => 60]);
         $this->log($member, $department, ['kind' => 'field', 'title' => 'ไปส่งรถ', 'duration_minutes' => 180]);
 
+        // ชื่อบันทึกงานปรากฏบนหน้าของคนที่ถูกเลือกเท่านั้น (ตาราง "งานที่ทำบ่อยที่สุด")
         $this->actingAs($admin)
-            ->get(route('reports.operational', ['kind' => 'field']))
+            ->get(route('reports.operational', ['kind' => 'field', 'owner' => $member->id]))
             ->assertOk()
             ->assertSee('ไปส่งรถ')
             ->assertDontSee('งานประจำเช้า');
@@ -394,7 +631,7 @@ class OperationalWorkloadReportTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('reports.operational', ['category' => $category->id]))
+            ->get(route('reports.operational', ['category' => $category->id, 'owner' => $member->id]))
             ->assertOk()
             ->assertSee('งานในหมวดที่เลือก')
             ->assertDontSee('งานในหมวดอื่น');
@@ -422,10 +659,11 @@ class OperationalWorkloadReportTest extends TestCase
     {
         $admin = $this->user(null, false, 'admin');
 
+        // ไม่มีพนักงานเลยในระบบ รายชื่อจึงว่าง และหน้าต้องบอกเหตุผลแทนที่จะเป็นตารางเปล่า
         $this->actingAs($admin)
             ->get(route('reports.operational', ['period' => 'last_month']))
             ->assertOk()
-            ->assertSee('ยังไม่มีบันทึกงานในช่วงเวลานี้');
+            ->assertSee('ยังไม่มีพนักงานในขอบเขตนี้');
     }
 
     public function test_the_most_frequent_titles_are_listed(): void
@@ -439,12 +677,19 @@ class OperationalWorkloadReportTest extends TestCase
         }
         $this->log($member, $department, ['title' => 'ติดตั้ง Software', 'duration_minutes' => 45]);
 
+        // ตารางนี้ผูกกับคนคนเดียว จึงอยู่บนหน้าของคนที่ถูกเลือก ไม่ใช่หน้ารายชื่อ
         $this->actingAs($admin)
-            ->get(route('reports.operational'))
+            ->get(route('reports.operational', ['owner' => $member->id]))
             ->assertOk()
             ->assertSee('งานที่ทำบ่อยที่สุด')
             ->assertSee('ตรวจสอบเครื่องคอม')
             ->assertSee('3 ครั้ง');
+
+        // และต้องไม่โผล่บนหน้ารายชื่อ ซึ่งตอบคนละคำถาม
+        $this->actingAs($admin)
+            ->get(route('reports.operational'))
+            ->assertOk()
+            ->assertDontSee('งานที่ทำบ่อยที่สุด');
     }
 
     public function test_the_csv_export_streams_with_a_bom_and_thai_headers(): void
@@ -511,9 +756,22 @@ class OperationalWorkloadReportTest extends TestCase
         $this->actingAs($admin)
             ->get(route('reports.operational'))
             ->assertOk()
-            ->assertSee('ประเภทงาน')
-            ->assertSee('หมวดงาน')
-            ->assertDontSee('reportPriority', false)
+            /*
+             * เหลือตัวกรองช่วงวันอย่างเดียว มิติที่เหลือถูกถอดออกทั้งหมด
+             *
+             * ตรวจด้วย id ของตัวควบคุม ไม่ใช่คำภาษาไทย เพราะคำอย่าง "หมวดงาน"
+             * ปรากฏในเมนูข้างและหน้าอื่นด้วย การตรวจด้วยคำจึงจับผิดตัว
+             */
+            ->assertDontSee('id="reportKind"', false)
+            ->assertDontSee('id="reportCategory"', false)
+            ->assertDontSee('id="reportOwner"', false)
+            ->assertDontSee('id="reportRoutine"', false)
+            ->assertDontSee('id="reportProject"', false)
+            ->assertDontSee('id="reportRoutineFocus"', false)
+            ->assertDontSee('id="reportPriority"', false)
+            ->assertDontSee('id="reportDepartment"', false)
+            // สิ่งที่ต้องเหลือ: ช่วงวัน และปุ่มดาวน์โหลดของหน้านี้
+            ->assertSee('id="reportPeriod"', false)
             ->assertSee(route('reports.operationalExportCsv'), false);
 
         // หน้ารายงานโครงการต้องยังมีตัวกรองความสำคัญและปุ่ม export ของตัวเอง
@@ -526,149 +784,34 @@ class OperationalWorkloadReportTest extends TestCase
     }
 
     /**
-     * บรรทัดอ้างอิงบนรายงานรายบุคคล
+     * รายงานรายบุคคลต้องไม่มีบล็อกงานปฏิบัติการอีกแล้ว
      *
-     * ต้องเป็นข้อมูลอ่านอย่างเดียวที่ไม่แตะตัวเลขผลงานโครงการในหน้าเดียวกัน
+     * บล็อกนั้นถูกถอดออกทั้งก้อนตามที่เจ้าของระบบสั่ง เพราะหน้ารายงานรายบุคคลตอบเรื่อง
+     * ผลงานโครงการ ส่วนชั่วโมงงานประจำมีหน้ารายงานภาระงานปฏิบัติการของตัวเองอยู่แล้ว
+     * เทสต์นี้กันไม่ให้มันหลุดกลับเข้ามาพร้อมกับตัวเลขที่ต้องดูแลอีกชุด
      */
-    public function test_the_employee_report_links_to_operational_hours_without_changing_its_own_numbers(): void
+    public function test_the_employee_report_no_longer_carries_the_operational_block(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $member = $this->user($department);
         $admin = $this->user(null, false, 'admin');
 
         $this->task($member, $department, 4);
-
-        $before = $this->actingAs($admin)->get(route('reports.employee', $member))->assertOk();
-        $beforeNumbers = $this->projectKpiSnapshot($before->getContent());
-
         $this->log($member, $department, ['duration_minutes' => 150]);
-
-        $after = $this->actingAs($admin)
-            ->get(route('reports.employee', $member))
-            ->assertOk()
-            ->assertSee('งานปฏิบัติการของ '.$member->name)
-            ->assertSee('2 ชม. 30 น.')
-            ->assertSee('ดูรายงานภาระงานปฏิบัติการ');
-
-        parse_str((string) parse_url($after->viewData('operationalUrl'), PHP_URL_QUERY), $operationalQuery);
-        $this->assertSame((string) $member->id, (string) ($operationalQuery['owner'] ?? null));
-
-        $this->assertSame(
-            $beforeNumbers,
-            $this->projectKpiSnapshot($after->getContent()),
-            'ตัวเลขผลงานของพนักงานต้องไม่เปลี่ยนเพราะบันทึกงานประจำวัน'
-        );
-    }
-
-    /**
-     * viewer ดูรายงานรายบุคคลได้ แต่ต้องไม่เห็นบรรทัดที่ลิงก์ไปรายงานที่เข้าไม่ได้
-     */
-    public function test_the_employee_report_hides_the_operational_line_from_viewer(): void
-    {
-        $department = Department::create(['department_name' => 'IT']);
-        $member = $this->user($department);
-        $viewer = $this->user($department, false, 'viewer');
-
-        $this->log($member, $department, ['duration_minutes' => 150]);
-
-        $this->actingAs($viewer)
-            ->get(route('reports.employee', $member))
-            ->assertOk()
-            ->assertDontSee('ดูรายงานภาระงานปฏิบัติการ');
-    }
-
-    /**
-     * ตารางย่อในรายงานรายบุคคลไล่เรียงตามวัน และจำกัดจำนวนแถวไว้
-     */
-    public function test_the_employee_block_lists_recent_days_up_to_the_row_limit(): void
-    {
-        $department = Department::create(['department_name' => 'IT']);
-        $member = $this->user($department);
-        $admin = $this->user(null, false, 'admin');
-        $limit = OperationalWorkloadReportService::EMPLOYEE_ROW_LIMIT;
-
-        // สร้างมากกว่าเพดานหนึ่งวัน เพื่อพิสูจน์ว่าแถวถูกตัดและวันเก่าสุดหลุดออก
-        for ($daysAgo = 0; $daysAgo <= $limit; $daysAgo++) {
-            $this->log($member, $department, [
-                'title' => 'งานวันที่ '.$daysAgo,
-                'duration_minutes' => 30,
-                'work_date' => TodayWorkspace::businessNow()->subDays($daysAgo)->format('Y-m-d'),
-            ]);
-        }
 
         $response = $this->actingAs($admin)
             ->get(route('reports.employee', $member))
             ->assertOk()
-            ->assertSee('บันทึกล่าสุด')
-            // วันล่าสุดต้องอยู่ในตาราง
-            ->assertSee('งานวันที่ 0')
-            // วันที่เก่ากว่าเพดานต้องถูกตัดออก
-            ->assertDontSee('งานวันที่ '.$limit);
+            ->assertDontSee('งานปฏิบัติการของ '.$member->name)
+            ->assertDontSee('ดูรายงานภาระงานปฏิบัติการ')
+            ->assertDontSee('employee-operational', false)
+            ->assertDontSee('employeeOperationalChart', false)
+            ->assertDontSee('employee-operational-chart-data', false);
 
-        // นับเฉพาะแถวในตารางของบล็อกงานปฏิบัติการ
-        $table = $response->getContent();
-        $section = substr($table, strpos($table, 'employee-operational__table'));
-        $this->assertSame($limit, substr_count(substr($section, 0, strpos($section, '</table>')), '<tr>') - 1);
+        // ตัวเลขผลงานโครงการยังอยู่ครบ การถอดบล็อกไม่ได้แตะข้อมูลฝั่งโครงการ
+        $this->assertNotEmpty($response->viewData('chartData'));
     }
 
-    /**
-     * กราฟของบล็อกนี้ใช้ island แยกจากกราฟงานโครงการ เพื่อไม่ให้ข้อมูลสองโดเมนปนกัน
-     */
-    public function test_the_employee_block_ships_its_own_chart_island(): void
-    {
-        $department = Department::create(['department_name' => 'IT']);
-        $member = $this->user($department);
-        $admin = $this->user(null, false, 'admin');
-
-        $this->log($member, $department, ['duration_minutes' => 60]);
-
-        $this->actingAs($admin)
-            ->get(route('reports.employee', $member))
-            ->assertOk()
-            ->assertSee('id="employee-operational-chart-data"', false)
-            ->assertSee('id="employee-report-chart-data"', false)
-            ->assertSee('employeeOperationalChart', false);
-    }
-
-    public function test_the_employee_block_shows_an_empty_state_without_logs(): void
-    {
-        $department = Department::create(['department_name' => 'IT']);
-        $member = $this->user($department);
-        $admin = $this->user(null, false, 'admin');
-
-        $this->actingAs($admin)
-            ->get(route('reports.employee', $member))
-            ->assertOk()
-            ->assertSee('ยังไม่มีบันทึกงานปฏิบัติการในช่วงนี้')
-            // ปุ่มไปรายงานเต็มต้องยังอยู่แม้ยังไม่มีข้อมูล
-            ->assertSee('ดูรายงานภาระงานปฏิบัติการ');
-    }
-
-    /**
-     * ผู้ร่วมงานต้องปรากฏในตารางย่อด้วย ไม่งั้นจะดูเหมือนคนเดียวทำ
-     */
-    public function test_the_employee_table_names_participants(): void
-    {
-        $department = Department::create(['department_name' => 'IT']);
-        $member = $this->user($department);
-        $colleague = $this->user($department);
-        $colleague->update(['name' => 'สมหญิง รักงาน']);
-        $admin = $this->user(null, false, 'admin');
-
-        $log = $this->log($member, $department, ['duration_minutes' => 40]);
-        app(WorkLogParticipantService::class)->sync($log, $member, [$colleague->id]);
-
-        $this->actingAs($admin)
-            ->get(route('reports.employee', $member))
-            ->assertOk()
-            ->assertSee('ทำด้วยกันกับ สมหญิง รักงาน');
-    }
-
-    /**
-     * ดึงเฉพาะตัวเลขในแถบ KPI ของรายงานโครงการมาเทียบ
-     *
-     * @return array<int, string>
-     */
     public function test_routine_summary_counts_late_start_late_completion_skipped_and_unclosed(): void
     {
         $department = Department::create(['department_name' => 'ปฏิบัติการ']);
@@ -739,7 +882,8 @@ class OperationalWorkloadReportTest extends TestCase
         // ปิดรายการแล้ว 4 จาก 5 (เสร็จ 3 + ไม่ได้ทำ 1)
         $this->assertSame(80, $summary['completion_rate']);
 
-        $response->assertSee('อัตราการทำครบ')->assertSee('ยังไม่ปิดรายการ');
+        // แผงสรุปถูกถอดออกจากหน้าจอแล้ว การคำนวณข้างบนคือสิ่งที่ต้องคงไว้
+        $response->assertDontSee('อัตราการทำครบ');
     }
 
     public function test_routine_focus_filter_narrows_the_report_to_one_question(): void
@@ -800,6 +944,30 @@ class OperationalWorkloadReportTest extends TestCase
             'is_active' => true,
             'must_change_password' => false,
         ]);
+    }
+
+    /**
+     * งานประจำจริง — บันทึกที่ผูกกับแม่แบบ ไม่ใช่บันทึกที่ผู้ใช้พิมพ์เอง
+     *
+     * รายงานนี้นับ "งานประจำ" จาก work_log_template_id ตรงกับ routineSummary()
+     * บันทึกแบบ manual จึงไม่ถูกนับเป็นตัวหาร และไม่ขึ้นในตารางรายวัน
+     */
+    private function routineLog(User $owner, ?Department $department, array $overrides = []): WorkLog
+    {
+        $template = WorkLogTemplate::create([
+            'user_id' => $owner->id,
+            'title' => $overrides['title'] ?? 'งานประจำประจำวัน',
+            'kind' => 'routine',
+            'weekday_mask' => WorkLogWeekdays::EVERYDAY,
+            'default_start_time' => '08:30',
+            'default_duration_minutes' => 20,
+            'is_active' => true,
+        ]);
+
+        return $this->log($owner, $department, array_merge([
+            'source' => 'template',
+            'work_log_template_id' => $template->id,
+        ], $overrides));
     }
 
     private function log(User $owner, ?Department $department, array $overrides = []): WorkLog

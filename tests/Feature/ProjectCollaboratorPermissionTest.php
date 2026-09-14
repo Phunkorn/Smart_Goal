@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -16,6 +17,8 @@ use Tests\TestCase;
 class ProjectCollaboratorPermissionTest extends TestCase
 {
     use RefreshDatabase;
+
+    private ?Department $sharedDepartment = null;
 
     public function test_accepted_collaborator_sees_every_task_in_the_project_but_not_other_projects(): void
     {
@@ -46,6 +49,34 @@ class ProjectCollaboratorPermissionTest extends TestCase
             ->assertRedirect(route('mytasks.index', ['open_task' => $thirdTask->job_id]));
         $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $hiddenTask))->assertForbidden();
         $this->actingAs($collaborator)->get(route('tasks.show', $hiddenTask))->assertForbidden();
+    }
+
+    /**
+     * ผู้ร่วมงานข้ามแผนกเห็นเฉพาะงานที่ตัวเองถูกเชิญ ไม่ใช่ทั้งโปรเจกต์
+     *
+     * ของเดิมสิทธิ์ระดับโปรเจกต์ไม่ดูแผนกเลย การเชิญคนต่างแผนกมาช่วยงานหนึ่งใบ
+     * จึงเปิดงานทุกใบของโปรเจกต์นั้นให้เขาเห็นตามไปด้วย ซึ่งไม่ใช่สิ่งที่ผู้เชิญตั้งใจ
+     */
+    public function test_collaborator_from_another_department_only_sees_the_task_they_joined(): void
+    {
+        $owner = $this->user();
+        $outsider = $this->user(Department::create(['department_name' => 'แผนกอื่น']));
+        $project = $this->project($owner, 'อบรม');
+        $joined = $this->task($owner, $project, 'ออกแบบโลโก้');
+        $sibling = $this->task($owner, $project, 'ติดต่อลูกค้า');
+        $joined->collaborators()->attach($outsider->id, ['status' => 'accepted']);
+
+        $this->actingAs($outsider)->get(route('mytasks.index', ['view' => 'board']))
+            ->assertOk()
+            // งานที่ถูกเชิญยังเห็นได้ พร้อมชื่อโปรเจกต์ที่งานนั้นสังกัด
+            ->assertSee($joined->job_topic)
+            ->assertSee($project->name)
+            // งานพี่น้องในโปรเจกต์เดียวกันต้องไม่หลุดมาให้เห็น
+            ->assertDontSee($sibling->job_topic);
+
+        $this->actingAs($outsider)->get(route('mytasks.quickview.task', $joined))->assertOk();
+        $this->actingAs($outsider)->get(route('mytasks.quickview.task', $sibling))->assertForbidden();
+        $this->actingAs($outsider)->get(route('tasks.show', $sibling))->assertForbidden();
     }
 
     public function test_unrelated_user_cannot_see_project_or_tasks(): void
@@ -347,9 +378,26 @@ class ProjectCollaboratorPermissionTest extends TestCase
         $this->actingAs($candidate)->get(route('mytasks.quickview.task', $task))->assertForbidden();
     }
 
-    private function user(): User
+    /**
+     * ผู้ใช้ในแผนกเดียวกันเป็นค่าเริ่มต้น
+     *
+     * สิทธิ์ระดับโปรเจกต์ผูกกับแผนกแล้ว การไม่ระบุแผนกจะทำให้ทุกเทสต์ในไฟล์นี้
+     * กลายเป็นกรณี "ข้ามแผนก" โดยไม่ได้ตั้งใจ ซึ่งไม่ใช่สถานการณ์ที่ไฟล์นี้ตรวจ
+     */
+    private function user(?Department $department = null): User
     {
-        return User::factory()->create(['role' => 'user', 'must_change_password' => false, 'is_active' => true]);
+        return User::factory()->create([
+            'role' => 'user',
+            'must_change_password' => false,
+            'is_active' => true,
+            'department_id' => ($department ?? $this->department())->id,
+        ]);
+    }
+
+    /** แผนกร่วมของไฟล์นี้ สร้างครั้งเดียวแล้วใช้ซ้ำ */
+    private function department(): Department
+    {
+        return $this->sharedDepartment ??= Department::create(['department_name' => 'แผนกร่วม']);
     }
 
     private function project(User $owner, string $name = 'Permission project'): WorkOrderList

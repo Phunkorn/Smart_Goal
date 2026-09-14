@@ -105,10 +105,6 @@ final class EmployeeReportService
                     'values' => $statusSummary->pluck('value')->all(),
                     'tones' => $statusSummary->pluck('tone')->all(),
                 ],
-                'completed' => [
-                    'labels' => $monthlySummary->pluck('label')->all(),
-                    'values' => $monthlySummary->pluck('completed')->all(),
-                ],
                 'onTime' => [
                     'rate' => $onTimeRate,
                     'onTime' => $onTimeCount,

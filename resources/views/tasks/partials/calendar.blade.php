@@ -21,7 +21,6 @@
         'quick' => 'ด่วนไม่ค่อยสำคัญ',
         'important' => 'สำคัญไม่ด่วน',
         'flexible' => 'ไม่รีบ ไม่มีกำหนด',
-        'routine' => 'routine',
     ];
 @endphp
 

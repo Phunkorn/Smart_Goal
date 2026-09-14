@@ -47,10 +47,22 @@ class SidebarNavigationTest extends TestCase
         $this->assertLessThan($dailyLogPosition, $myTasksPosition, '"งานของฉัน" ต้องอยู่ก่อน "บันทึกงานประจำวัน"');
         // บันทึกงานประจำวันเป็นงานส่วนตัวเช่นเดียวกับ "งานของฉัน" จึงอยู่ก่อนบอร์ดของทีม
         $this->assertLessThan($workBoardPosition, $dailyLogPosition, '"บันทึกงานประจำวัน" ต้องอยู่ก่อน "บอร์ดงาน"');
+        // แชร์งานเป็นการทำงานร่วมกับคนอื่น จึงอยู่ในกลุ่มเดียวกับบอร์ดของทีม
+        $sharesPosition = strpos($content, 'href="'.route('shares.index').'"');
+        $this->assertNotFalse($sharesPosition, 'พนักงานต้องเห็นเมนู "แชร์งาน"');
+        $this->assertLessThan($sharesPosition, $workBoardPosition, '"บอร์ดงาน" ต้องอยู่ก่อน "แชร์งาน"');
+        $this->assertLessThan($workspacePosition, $sharesPosition, '"แชร์งาน" ต้องอยู่ก่อน "กระดานไอเดีย"');
         $this->assertLessThan($workspacePosition, $workBoardPosition, '"บอร์ดงาน" ต้องอยู่ก่อน "กระดานไอเดีย"');
         $this->assertLessThan($reportPosition, $workspacePosition, '"กระดานไอเดีย" ต้องอยู่ก่อน "รายงาน"');
     }
 
+    /**
+     * admin เป็นผู้ดูแลระบบ ไม่ใช่ผู้อนุมัติงาน
+     *
+     * เมนู "คำขออนุมัติ" จึงไม่อยู่ในแถบข้างของ admin เมื่อไม่มีคำขอค้าง — คิวของ admin
+     * ถูกจำกัดเหลือเฉพาะคำขอที่ไม่มีหัวหน้าแผนกรับผิดชอบแล้ว (AdminRoleScopeTest
+     * ตรวจเงื่อนไขการแสดง/ซ่อนเมนูนี้ครบทั้งสองทาง)
+     */
     public function test_admin_sidebar_is_split_into_clear_operational_sections(): void
     {
         $admin = $this->userWithRole('admin');
@@ -60,22 +72,32 @@ class SidebarNavigationTest extends TestCase
             ->assertOk()
             ->assertDontSee('href="'.route('meetings.index').'"', false)
             ->assertDontSee('<span class="nav-item__label">การประชุม</span>', false)
-            ->assertSee('<div class="nav-section-label">ภาพรวม</div>', false)
-            ->assertSee('<div class="nav-section-label">งานและคำขอ</div>', false)
-            ->assertSee('<div class="nav-section-label">องค์กร</div>', false)
-            ->assertSee('<div class="nav-section-label">ระบบ</div>', false)
+            // สามหัวข้อตามบทบาทจริง: ดูภาพรวม / ลงมือทำเอง / งานที่มีแต่ admin ทำได้
+            ->assertSee('<div class="nav-section-label">ภาพรวมองค์กร</div>', false)
+            ->assertSee('<div class="nav-section-label">งานและการสื่อสาร</div>', false)
+            ->assertSee('<div class="nav-section-label">ดูแลระบบ</div>', false)
+            // หัวข้อเดิมที่ถูกยุบรวมต้องไม่เหลืออยู่ ไม่ใช่ว่างเปล่าแต่ยังขึ้นหัวข้อ
+            ->assertDontSee('<div class="nav-section-label">ภาพรวม</div>', false)
+            ->assertDontSee('<div class="nav-section-label">งานและคำขอ</div>', false)
+            ->assertDontSee('<div class="nav-section-label">องค์กร</div>', false)
+            ->assertDontSee('<div class="nav-section-label">ระบบ</div>', false)
             ->assertDontSee('<div class="nav-section-label">การสื่อสาร</div>', false)
             ->getContent();
 
         $positions = [
+            // ภาพรวมองค์กร
             strpos($content, 'href="'.route('board.index').'"'),
+            strpos($content, 'href="'.route('reports.index').'"'),
+            // งานและการสื่อสาร
+            strpos($content, 'href="'.route('notifications.index').'"'),
+            strpos($content, 'href="'.route('shares.index').'"'),
             strpos($content, 'href="'.route('daily-logs.index').'"'),
             strpos($content, 'href="'.route('workspace.index').'"'),
-            strpos($content, 'href="'.route('reports.index').'"'),
-            strpos($content, 'href="'.route('notifications.index').'"'),
-            strpos($content, 'href="'.route('admin.approvals.index').'"'),
+            // ดูแลระบบ
             strpos($content, 'href="'.route('employees.index').'"'),
             strpos($content, 'href="'.route('admin.departments.index').'"'),
+            strpos($content, 'href="'.route('admin.accounts.index').'"'),
+            strpos($content, 'href="'.route('admin.work-log-categories.index').'"'),
             strpos($content, 'href="'.route('admin.audit.index').'"'),
             strpos($content, 'href="'.route('settings.index').'"'),
         ];
@@ -100,6 +122,9 @@ class SidebarNavigationTest extends TestCase
             // viewer เป็น read-only จึงไม่มีบันทึกงานประจำวันของตัวเอง
             // และต้องไม่เห็นเมนูที่กดแล้วเจอ 403
             ->assertDontSee('href="'.route('daily-logs.index').'"', false)
+            // viewer เป็นผู้ร่วมงานไม่ได้ จึงไม่มีอะไรทำในหน้าแชร์งาน และ route
+            // ถูกกันด้วย middleware role:admin,user อยู่แล้ว
+            ->assertDontSee('href="'.route('shares.index').'"', false)
             ->getContent();
 
         $positions = [
@@ -155,7 +180,7 @@ class SidebarNavigationTest extends TestCase
         $this->assertFileExists(public_path('images/premiuum-care-logo.png'));
     }
 
-    public function test_role_chip_shows_its_role_label_and_keeps_an_accessible_name(): void
+    public function test_role_chip_keeps_an_accessible_name_after_the_visible_label_was_removed(): void
     {
         // admin และ viewer ไม่ผูกกับแผนก ป้ายจึงมีแต่ชื่อบทบาท
         foreach ([
@@ -169,7 +194,8 @@ class SidebarNavigationTest extends TestCase
                     '<span class="role-chip role-chip--mobile-only '.$chipClass.'" aria-label="'.$label.'" title="'.$label.'">',
                     false
                 )
-                ->assertSee('<span class="role-chip__label">'.$label.'</span>', false);
+                // ป้ายข้อความถูกถอดออกแล้ว บทบาทจึงเหลืออยู่ใน aria-label กับ title เท่านั้น
+                ->assertDontSee('role-chip__label', false);
         }
     }
 
@@ -218,12 +244,12 @@ class SidebarNavigationTest extends TestCase
         $this->actingAs($staff)->get(route('mytasks.index'))
             ->assertOk()
             ->assertSee('<span class="role-chip role-chip--mobile-only user" aria-label="พนักงาน IT" title="พนักงาน IT">', false)
-            ->assertSee('<span class="role-chip__label">พนักงาน IT</span>', false);
+            ->assertDontSee('role-chip__label', false);
 
         $this->actingAs($head)->get(route('mytasks.index'))
             ->assertOk()
             ->assertSee('<span class="role-chip role-chip--mobile-only department-head" aria-label="หัวหน้าแผนก IT" title="หัวหน้าแผนก IT">', false)
-            ->assertSee('<span class="role-chip__label">หัวหน้าแผนก IT</span>', false);
+            ->assertDontSee('role-chip__label', false);
     }
 
     /**

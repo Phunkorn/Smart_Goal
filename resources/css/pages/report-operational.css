@@ -4,6 +4,8 @@
  * ใช้สไตล์ร่วมของหน้ารายงาน (แถบ KPI, การ์ดกราฟ, ตาราง) แล้วเติมเฉพาะส่วน
  * ที่เป็นของรายงานนี้เอง เพื่อไม่ให้กลายเป็นชุดสไตล์ที่สองที่ต้องดูแลแยก
  */
+/* โครงของ modal (แผง ฉากหลัง ปุ่มปิด) ใช้ร่วมกับกล่องงานย่อยของรายงานอื่น */
+@import '../components/subtask-modal.css';
 @import './reports/shared.css';
 @import './reports/organization.css';
 @import './reports/operational.css';

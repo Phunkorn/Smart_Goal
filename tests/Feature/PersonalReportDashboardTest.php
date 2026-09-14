@@ -333,28 +333,29 @@ class PersonalReportDashboardTest extends TestCase
     public function test_status_priority_search_and_invalid_filters_normalize_safely(): void
     {
         $person = $this->user();
-        $statuses = [2, 3, 4, 5, 6];
+        // ระดับ 1 ("routine") ถูกเลิกใช้แล้ว จับคู่ระดับกับสถานะไว้ตรง ๆ จะได้ไม่ต้องอ้าง index จากเลขระดับ
+        $statusOfPriority = [2 => 2, 3 => 3, 4 => 4, 5 => 5];
 
-        foreach (range(1, 5) as $priority) {
+        foreach ($statusOfPriority as $priority => $status) {
             $this->task([
                 'user_id' => $person->id,
                 'job_topic' => "Matching priority {$priority}",
                 'job_priority' => $priority,
-                'job_status' => $statuses[$priority - 1],
+                'job_status' => $status,
             ]);
         }
 
-        foreach (range(1, 5) as $priority) {
+        foreach ($statusOfPriority as $priority => $status) {
             $response = $this->actingAs($person)->get(route('reports.my', [
                 'period' => 'this_month',
                 'priority' => $priority,
-                'status' => $statuses[$priority - 1],
+                'status' => $status,
                 'search' => 'Matching',
             ]));
             $response->assertOk();
             $this->assertSame(1, $response->viewData('totalJobs'));
             $this->assertSame($priority, $response->viewData('filters')['priority']);
-            $this->assertSame($statuses[$priority - 1], $response->viewData('filters')['status']);
+            $this->assertSame($status, $response->viewData('filters')['status']);
         }
 
         $invalid = $this->actingAs($person)->get(route('reports.my', [

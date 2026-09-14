@@ -229,7 +229,8 @@ export const buildMonthGrid = (year, month) => {
  * ต้องตรงกับลำดับใน legend ของ toolbar เพื่อให้กวาดตาหาสีเจอทันที
  * ค่าเหล่านี้คือ job_priority ของ WorkOrder ไม่ใช่ความสำคัญของโปรเจกต์
  */
-export const CALENDAR_PRIORITY_ORDER = [3, 4, 2, 5, 1];
+// ระดับ 1 ("routine") ถูกเลิกใช้แล้ว ค่าที่ไม่อยู่ในลำดับนี้ตกไปอยู่อันดับของระดับ 2 ตามเดิม
+export const CALENDAR_PRIORITY_ORDER = [3, 4, 2, 5];
 
 const priorityRank = (event) => {
     const rank = CALENDAR_PRIORITY_ORDER.indexOf(event.priority);

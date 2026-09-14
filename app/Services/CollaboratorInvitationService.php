@@ -14,8 +14,17 @@ class CollaboratorInvitationService
     /**
      * Attach one eligible user using the collaborator approval contract shared
      * by task creation and the task workspace.
+     *
+     * $actorHasFinalSay: ผู้เรียกยืนยันแล้วว่าผู้กระทำมีอำนาจชี้ขาดการรับคนเข้างานใบนี้
+     * เอง จึงไม่ต้องส่งคำขอต่อให้ใครอีก ใช้กับเส้นทางที่ตรวจอำนาจมาแล้วจากภายนอก เช่น
+     * หัวหน้าแผนกที่ดูแลแผนกปลายทางของงานอนุมัติคำขอเข้าร่วมงานที่ตัวเองแชร์
+     * (App\Services\WorkOrderShareService::decidesAlone())
+     *
+     * ค่าเริ่มต้นเป็น false เพื่อให้ผู้เรียกเดิมทุกจุดได้พฤติกรรมเดิมทุกประการ — กติกา
+     * ของการเชิญผู้ร่วมงานแบบเดิมคือ "หัวหน้าแผนกของคนที่ถูกยืมตัวเป็นผู้อนุมัติ"
+     * ซึ่งตั้งใจให้เป็นแบบนั้น ห้ามเปลี่ยนโดยไม่ตั้งใจ
      */
-    public function invite(WorkOrder $task, User $candidate, User $actor): ?string
+    public function invite(WorkOrder $task, User $candidate, User $actor, bool $actorHasFinalSay = false): ?string
     {
         if (! $candidate->is_active || $candidate->role !== 'user') {
             return null;
@@ -39,8 +48,26 @@ class CollaboratorInvitationService
         $taskDepartmentId = $task->department_id ?: $task->user?->department_id;
         $sameDepartment = $taskDepartmentId
             && (int) $candidate->department_id === (int) $taskDepartmentId;
+        /*
+         * ผู้เชิญที่เป็นผู้อนุมัติของคนคนนี้อยู่แล้ว ไม่ต้องขออนุมัติจากตัวเอง
+         *
+         * โมเดลของการเชิญคือ "ยืมตัวคน" ผู้อนุมัติจึงเป็นหัวหน้าแผนกของ candidate
+         * เสมอ (ดู notifyApprovers) ซึ่งถูกต้อง แต่มีช่องที่ตรรกะนี้วนกลับมาที่ตัวเอง:
+         * หัวหน้าแผนกเชิญลูกน้องของตัวเองเข้างานที่ปลายทางเป็นแผนกอื่น $sameDepartment
+         * เป็น false สถานะจึงเป็น pending แล้วผู้อนุมัติที่ถูกเลือกคือผู้เชิญคนเดิม
+         *
+         * ผลคือคำขอค้างเงียบ — notifyApprovalRequest() ตัดผู้รับที่เป็นคนลงมือออก
+         * แจ้งเตือนฉบับเดียวที่จะออกจึงหายไป ไม่มีใครรู้ว่ามีอะไรรออยู่ และคนที่ถูกเชิญ
+         * ไม่เคยเข้ามาในงาน
+         *
+         * การรับเข้าเลยไม่ได้เพิ่มอำนาจให้ใคร ผู้เชิญกดอนุมัติเองได้อยู่แล้ว แค่ตัดพิธี
+         * ที่ไม่มีปลายทางออก
+         */
+        $actorDecidesAlone = $actor->overseesDepartment($candidate->department_id);
+
         $status = $task->approval_status === 'approved'
-            && ($actor->role === 'admin' || $sameDepartment || $candidate->isDepartmentHead())
+            && ($actorHasFinalSay || $actor->role === 'admin' || $sameDepartment
+                || $actorDecidesAlone || $candidate->isDepartmentHead())
                 ? 'accepted'
                 : 'pending';
 
@@ -105,7 +132,11 @@ class CollaboratorInvitationService
                 && (int) $candidate->department_id === (int) $taskDepartmentId;
             $inviter = $candidate->pivot?->added_by ? User::find($candidate->pivot->added_by) : null;
 
-            if ($sameDepartment || $inviter?->role === 'admin' || $candidate->isDepartmentHead()) {
+            // เกณฑ์ชุดเดียวกับ invite() — ผู้เชิญที่เป็นผู้อนุมัติของ candidate อยู่แล้ว
+            // ไม่ต้องรอใครอีก ถ้าไม่ตรงกันสองที่นี้ คำขอจะค้างในคิวที่ไม่มีใครไปกดได้
+            $inviterDecidesAlone = $inviter?->overseesDepartment($candidate->department_id) ?? false;
+
+            if ($sameDepartment || $inviter?->role === 'admin' || $inviterDecidesAlone || $candidate->isDepartmentHead()) {
                 $task->collaborators()->updateExistingPivot($candidate->id, [
                     'status' => 'accepted',
                     'decided_by' => $admin->id,
@@ -145,7 +176,7 @@ class CollaboratorInvitationService
     private function notifyApprovers(WorkOrder $task, User $candidate, User $actor): void
     {
         $candidate->loadMissing('department');
-        $this->notifications->notifyApprovalRequest(
+        $notified = $this->notifications->notifyApprovalRequest(
             $this->notifications->departmentApprovalRecipientIds($candidate->department_id),
             'collaborator_approval_request',
             'ขออนุมัติผู้ร่วมงานข้ามแผนก',
@@ -154,5 +185,20 @@ class CollaboratorInvitationService
             $actor,
             $candidate
         );
+
+        /*
+         * คำขอที่ไม่มีผู้รับเลยคือคำขอที่ไม่มีวันถูกตัดสิน
+         *
+         * หลังจากกันกรณีผู้เชิญเป็นผู้อนุมัติของตัวเองแล้ว กรณีนี้ไม่ควรเกิดอีก แต่ถ้า
+         * เกิดขึ้นจริง (เช่นหัวหน้าแผนกถูกปิดบัญชีระหว่างทาง) ต้องเหลือร่องรอยไว้
+         * ไม่ใช่เงียบหายไปพร้อมกับผู้ร่วมงานที่ค้างอยู่ pending ตลอดกาล
+         */
+        if ($notified->isEmpty()) {
+            AuditTrail::log('collaborator_approval_unrouted', $task,
+                'คำขอผู้ร่วมงานไม่มีผู้อนุมัติที่รับเรื่องได้: '.$task->job_topic, [
+                    'user_id' => $candidate->id,
+                    'department_id' => $candidate->department_id,
+                ]);
+        }
     }
 }

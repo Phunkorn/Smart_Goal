@@ -28,9 +28,16 @@ test('temporary password keeps policy-compatible word and five digits', () => {
 test('employee actions use SweetAlert2 without native browser dialogs', () => {
     assert.match(source, /window\.Swal\.fire/);
     assert.doesNotMatch(source, /window\.(?:alert|confirm|prompt)\s*\(/);
-    assert.match(employeeCss, /\.employee-action--delete\s*\{[^}]*border-color:\s*var\(--red\);[^}]*background:\s*var\(--red-dim\)/s);
-    assert.match(employeeCss, /\.employee-action--delete:hover\s*\{/);
-    assert.match(employeeCss, /\.employee-action--delete:focus-visible\s*\{/);
+    /*
+     * ปุ่มลบต้องเงียบก่อน แล้วค่อยเป็นสีแดงตอนชี้หรือโฟกัส
+     *
+     * เดิมเป็นปุ่มแดงทึบตลอดเวลา จึงเป็นสิ่งที่เด่นที่สุดในการ์ดทั้งที่ควรกดน้อยที่สุด
+     * สีแดงยังต้องมีอยู่ เพราะเป็นสัญญาณว่าทำแล้วย้อนไม่ได้ แค่ย้ายไปอยู่ที่ hover/focus
+     */
+    assert.match(employeeCss, /\.employee-action--delete\s*\{[^}]*color:\s*var\(--text-muted\)/s);
+    assert.doesNotMatch(employeeCss, /\.employee-action--delete\s*\{[^}]*background:\s*var\(--red-dim\)/s);
+    assert.match(employeeCss, /\.employee-action--delete:hover\s*\{[^}]*color:\s*var\(--red\)/s);
+    assert.match(employeeCss, /\.employee-action--delete:focus-visible\s*\{[^}]*outline-color:\s*var\(--red\)/s);
 });
 
 test('employee form modal uses compact natural page scrolling', () => {
@@ -65,6 +72,51 @@ test('employee cards use compact neutral roles and plain account names', () => {
     assert.match(employeeCss, /employee-page\[data-account-context='employee'\]\s*\{[^}]*max-width:\s*1180px/s);
     assert.match(employeeCss, /\.employee-role--user\s*\{[^}]*background:\s*var\(--surface-2\)/s);
     assert.match(employeeCss, /employee-action--delete\s*\{[^}]*margin-left:\s*0/s);
+});
+
+/*
+ * การจัดวางของการ์ดพนักงาน
+ *
+ * สามเรื่องที่เคยทำให้หน้านี้ดูกระจาย และต้องไม่ย้อนกลับไป
+ */
+test('employee card actions keep a fixed position and a real priority order', () => {
+    // 1. แถวปุ่มเป็นกริดคอลัมน์ตายตัว ไม่ใช่ flex-wrap ที่ทำให้ปุ่มลบไปอยู่คนละที่ในแต่ละการ์ด
+    assert.match(employeeCss, /\.employee-card__actions\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\) auto/s);
+    assert.doesNotMatch(employeeCss, /\.employee-card__actions\s*\{[^}]*flex-wrap/s);
+    assert.doesNotMatch(employeeCss, /\.employee-action--delete\s*\{[^}]*margin-left:\s*auto/s);
+
+    // 2. แก้ไขคือปุ่มหลักใบเดียวที่มีพื้นสี ส่วนรีเซ็ตรหัสผ่านเป็นปุ่มรองแบบเส้นขอบ
+    assert.match(employeeCss, /\.employee-action--edit\s*\{[^}]*background:\s*var\(--accent-dim\)/s);
+    assert.match(employeeCss, /\.employee-action--reset\s*\{[^}]*color:\s*var\(--text-muted\)/s);
+
+    // 3. ปุ่มลบเป็นไอคอนล้วน จึงต้องมีชื่อให้ screen reader อ่านได้
+    assert.match(pageSource, /employee-action--delete"[\s\S]*?aria-label="ลบบัญชีของ/);
+});
+
+test('colour in an employee card carries status only', () => {
+    // สถานะปกติไม่ใช่ป้ายทึบ เหลือแต่ "ปิดใช้งาน" ที่ยังต้องสะดุดตา
+    assert.match(employeeCss, /\.employee-status\.is-active\s*\{[^}]*background:\s*transparent/s);
+    assert.match(employeeCss, /\.employee-status\.is-inactive\s*\{[^}]*background:\s*var\(--red-dim\)/s);
+
+    // admin กับหัวหน้าแผนกเคยใช้ accent ชุดเดียวกันจนแยกจากกันไม่ออก
+    const admin = employeeCss.match(/\.employee-role--admin\s*\{([^}]*)\}/s)[1];
+    const head = employeeCss.match(/\.employee-role--department-head\s*\{([^}]*)\}/s)[1];
+    assert.notEqual(admin.trim(), head.trim(), 'สองบทบาทนี้ต้องไม่ใช้สีชุดเดียวกัน');
+
+    // ป้ายกำกับในรายละเอียดบัญชีไม่มีไอคอนแล้ว
+    assert.match(pageSource, /<dt>บัญชีผู้ใช้งาน<\/dt>/);
+    assert.doesNotMatch(pageSource, /<dt><i class="bi bi-person-badge"/);
+});
+
+test('the visible-account count sits in the toolbar instead of its own band', () => {
+    assert.match(pageSource, /class="employee-count"/);
+    assert.doesNotMatch(pageSource, /employee-results-meta/);
+    // มองเฉพาะ selector จริง คอมเมนต์ที่อธิบายว่าของเดิมเป็นอย่างไรยังอยู่ได้
+    assert.doesNotMatch(employeeCss, /\.employee-results-meta\s*\{/);
+
+    // CSS ที่ไม่มี markup รองรับต้องถูกลบทิ้ง ไม่ใช่ปล่อยค้างไว้
+    assert.doesNotMatch(employeeCss, /\.employee-summary/);
+    assert.doesNotMatch(source, /employee-summary-count/);
 });
 
 test('invalid form modal reopens only after resolving a real modal element', () => {

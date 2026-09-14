@@ -142,12 +142,8 @@ class ReportController extends Controller
         return $this->downloadEmployeeCsv(Auth::user(), (int) $request->query('year', now()->year));
     }
 
-    public function employeeReport(
-        Request $request,
-        User $user,
-        EmployeeReportService $reports,
-        OperationalWorkloadReportService $operational
-    ) {
+    public function employeeReport(Request $request, User $user, EmployeeReportService $reports)
+    {
         $this->authorizeAdminReports();
         $this->ensureReportableEmployee($user);
 
@@ -157,34 +153,7 @@ class ReportController extends Controller
 
         $data = $reports->build($user, $request);
 
-        return view('reports.employee', [
-            ...$data,
-            /*
-             * บล็อกภาระงานปฏิบัติการบนหน้ารายงานรายบุคคล
-             *
-             * ตั้งใจแยกจากตัวเลขผลงานโครงการด้านบน ไม่รวมเป็นก้อนเดียวกัน เพราะ
-             * ชั่วโมงงานปฏิบัติการไม่ใช่ผลงานโครงการ การรวมกันจะทำให้อัตราปิดงาน
-             * และความคืบหน้าของโครงการเพี้ยน สองบล็อกนี้ตอบคนละคำถาม:
-             * ด้านบนคือ "ทำโครงการได้ดีแค่ไหน" ด้านล่างคือ "เวลาที่เหลือไปอยู่ไหน"
-             *
-             * แสดงเฉพาะผู้ที่มีสิทธิ์ดูรายงานภาระงานปฏิบัติการ (admin และหัวหน้าแผนก)
-             * เพื่อไม่ให้ viewer เห็นปุ่มที่กดแล้วเจอ 403
-             */
-            'operational' => Gate::allows('viewReport', WorkLog::class)
-                ? $operational->forEmployee(
-                    $user,
-                    $data['filters']['start_date'],
-                    $data['filters']['end_date']
-                )
-                : null,
-            'operationalUrl' => route('reports.operational', array_filter([
-                'owner' => $user->id,
-                'department' => $user->department_id,
-                'period' => $data['filters']['period'],
-                'start_date' => $data['filters']['start_date'],
-                'end_date' => $data['filters']['end_date'],
-            ])),
-        ]);
+        return view('reports.employee', [...$data]);
     }
 
     public function exportEmployeeCsv(Request $request, User $user, EmployeeReportService $reports): StreamedResponse

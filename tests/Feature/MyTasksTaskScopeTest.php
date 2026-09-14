@@ -13,6 +13,8 @@ class MyTasksTaskScopeTest extends TestCase
 {
     use RefreshDatabase;
 
+    private ?Department $sharedDepartment = null;
+
     public function test_user_task_scopes_only_narrow_the_accessible_workspace(): void
     {
         $actor = $this->user();
@@ -214,7 +216,54 @@ class MyTasksTaskScopeTest extends TestCase
      * พนักงานทั่วไปเห็นเฉพาะงานที่ตนเกี่ยวข้อง ตัวเลือกนี้จึงไม่มีความหมายสำหรับเขา
      * และค่าที่ยัดมาเองทาง URL ต้องตกกลับเป็น all ไม่ใช่เปิดทางให้เห็นงานทั้งแผนก
      */
-    public function test_department_scope_belongs_to_heads_and_cannot_be_forced_by_a_member(): void
+    /**
+     * "ฉันสั่งให้คนอื่นทำ" ต้องรวมงานที่เราชวนคนอื่นเข้ามาร่วมด้วย
+     *
+     * ของเดิมนิยามไว้แค่ assigned_by = ฉัน และ user_id != ฉัน งานที่เราเปิดเอง รับผิดชอบหลักเอง
+     * แล้วชวนเพื่อนเข้ามาช่วยจึงถูกตัดทิ้ง ตัวเลือกนี้เลยว่างเปล่าทั้งที่ผู้ใช้เห็นงานนั้น
+     * อยู่ใน "งานทั้งหมด" — ซึ่งเป็นอาการที่ผู้ใช้รายงานเข้ามา
+     */
+    public function test_assigned_by_me_covers_both_delegating_a_task_and_inviting_others_to_help(): void
+    {
+        $actor = $this->user();
+        $teammate = $this->user();
+        $list = $this->list($actor);
+
+        // ทางที่หนึ่ง: มอบหมายทั้งใบให้คนอื่นรับผิดชอบ
+        $delegated = $this->task($teammate, $actor, $list, 'มอบหมายให้เพื่อนทำ');
+
+        // ทางที่สอง: เรารับผิดชอบหลักเอง แต่ชวนเพื่อนเข้ามาร่วม
+        $invitedOthers = $this->task($actor, $actor, $list, 'เราทำเองแต่ชวนเพื่อนมาช่วย');
+        $invitedOthers->collaborators()->attach($teammate->id, [
+            'added_by' => $actor->id,
+            'status' => 'accepted',
+            'responded_at' => now(),
+        ]);
+
+        // งานที่เราทำคนเดียว ต้องไม่หลุดเข้ามา ไม่งั้นตัวเลือกนี้จะกลายเป็น "งานทั้งหมด"
+        $soloWork = $this->task($actor, $actor, $list, 'งานที่ทำคนเดียว');
+
+        $ids = $this->actingAs($actor)
+            ->get(route('mytasks.index', ['task_scope' => 'assigned_by_me']))
+            ->assertOk()
+            ->assertViewHas('taskScope', 'assigned_by_me')
+            ->viewData('calendarTasks')
+            ->pluck('job_id')
+            ->all();
+
+        $this->assertContains($delegated->job_id, $ids);
+        $this->assertContains($invitedOthers->job_id, $ids, 'งานที่เราชวนคนอื่นมาร่วมต้องนับเป็นงานที่เราสั่งออกไป');
+        $this->assertNotContains($soloWork->job_id, $ids, 'งานที่ทำคนเดียวต้องไม่อยู่ในขอบเขตนี้');
+    }
+
+    /**
+     * ตัวเลือก "งานทั้งแผนก" ถูกถอดออกจากตัวกรองแล้ว
+     *
+     * หัวหน้าแผนกยังเห็นงานของทั้งแผนกได้เหมือนเดิมผ่าน "งานทั้งหมด" ซึ่งเป็นสิทธิ์การมองเห็น
+     * ที่ WorkOrder::scopeVisibleInProjectsFor() กำหนดไว้ การถอดตัวเลือกจึงไม่ได้ลดสิ่งที่เขาเห็น
+     * แค่ลดจำนวนบรรทัดในดรอปดาวน์ที่ให้ผลซ้ำกับ "งานทั้งหมด" อยู่แล้ว
+     */
+    public function test_the_department_scope_option_is_gone_for_everyone_including_heads(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $head = $this->user();
@@ -226,28 +275,30 @@ class MyTasksTaskScopeTest extends TestCase
 
         $teamTask = $this->task($teammate, $teammate, $this->list($teammate), 'Team task');
         $teamTask->update(['department_id' => $department->id]);
-        $ownTask = $this->task($member->fresh(), $member->fresh(), $this->list($member), 'Own task');
 
-        // พนักงานทั่วไป: ไม่มีตัวเลือกนี้ และยัดค่ามาเองก็ต้องตกกลับเป็น all
-        $memberResponse = $this->actingAs($member->fresh())
-            ->get(route('mytasks.index', ['task_scope' => 'department']))
+        foreach ([$member, $head] as $viewer) {
+            $response = $this->actingAs($viewer->fresh())
+                ->get(route('mytasks.index', ['task_scope' => 'department']))
+                ->assertOk()
+                // ค่าที่ไม่มีในรายการต้องตกกลับเป็น all ไม่ใช่ทำให้หน้าพังหรือกรองเงียบ ๆ
+                ->assertViewHas('taskScope', 'all');
+
+            $this->assertNotContains(
+                'department',
+                collect($response->viewData('taskScopeOptions'))->pluck('value')->all(),
+            );
+            $response->assertDontSee('งานทั้งแผนก');
+        }
+
+        // หัวหน้ายังเห็นงานของลูกทีมใน "งานทั้งหมด" เท่าเดิม การถอดตัวเลือกไม่ได้ตัดการมองเห็น
+        $headIds = $this->actingAs($head->fresh())
+            ->get(route('mytasks.index'))
             ->assertOk()
-            ->assertViewHas('taskScope', 'all');
+            ->viewData('calendarTasks')
+            ->pluck('job_id')
+            ->all();
 
-        $this->assertNotContains('department', collect($memberResponse->viewData('taskScopeOptions'))->pluck('value')->all());
-        $memberIds = $memberResponse->viewData('calendarTasks')->pluck('job_id')->all();
-        $this->assertNotContains($teamTask->job_id, $memberIds, 'พนักงานทั่วไปต้องไม่เห็นงานของเพื่อนร่วมแผนก');
-        $this->assertContains($ownTask->job_id, $memberIds);
-
-        // หัวหน้าแผนก: มีตัวเลือกนี้ และกดแล้วได้งานของทั้งแผนกจริง
-        $headResponse = $this->actingAs($head->fresh())
-            ->get(route('mytasks.index', ['task_scope' => 'department']))
-            ->assertOk()
-            ->assertViewHas('taskScope', 'department')
-            ->assertSee('งานทั้งแผนก');
-
-        $this->assertContains('department', collect($headResponse->viewData('taskScopeOptions'))->pluck('value')->all());
-        $this->assertContains($teamTask->job_id, $headResponse->viewData('calendarTasks')->pluck('job_id')->all());
+        $this->assertContains($teamTask->job_id, $headIds);
     }
 
     /**
@@ -364,13 +415,27 @@ class MyTasksTaskScopeTest extends TestCase
             ->all();
     }
 
+    /**
+     * ผู้ใช้ในแผนกเดียวกันเป็นค่าเริ่มต้น
+     *
+     * สิทธิ์ระดับโปรเจกต์ผูกกับแผนกแล้ว (คนต่างแผนกที่ถูกเชิญมาช่วยงานหนึ่งใบ
+     * จะไม่เห็นงานพี่น้องในโปรเจกต์นั้น) การไม่ระบุแผนกจะทำให้ทุกคนในไฟล์นี้
+     * กลายเป็นคนละแผนกกันโดยไม่ได้ตั้งใจ ซึ่งไม่ใช่สถานการณ์ที่ไฟล์นี้ตรวจ
+     */
     private function user(string $role = 'user'): User
     {
         return User::factory()->create([
             'role' => $role,
             'must_change_password' => false,
             'is_active' => true,
+            'department_id' => $this->sharedDepartment()->id,
         ]);
+    }
+
+    /** แผนกร่วมของไฟล์นี้ สร้างครั้งเดียวแล้วใช้ซ้ำ */
+    private function sharedDepartment(): Department
+    {
+        return $this->sharedDepartment ??= Department::create(['department_name' => 'แผนกร่วม']);
     }
 
     private function list(User $owner): WorkOrderList

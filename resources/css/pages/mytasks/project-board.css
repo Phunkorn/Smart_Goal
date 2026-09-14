@@ -194,7 +194,6 @@
 /* User board cleanup: task rows stay neutral. Priority color belongs to the
  * badges only, not to a relationship/accent stripe on each row. */
 .my-tasks-page .board-reference-row,
-.my-tasks-page .board-reference-row.task-priority-routine,
 .my-tasks-page .board-reference-row.task-priority-important,
 .my-tasks-page .board-reference-row.task-priority-urgent,
 .my-tasks-page .board-reference-row.task-priority-quick,
@@ -241,10 +240,6 @@
     border-left: 2px solid var(--task-priority-accent);
 }
 
-.my-tasks-page .board-reference-row.task-priority-routine {
-    --task-priority-accent: #b9d1f5;
-}
-
 .my-tasks-page .board-reference-row.task-priority-important {
     --task-priority-accent: #edd89b;
 }
@@ -283,6 +278,16 @@
     width: 29px;
     height: 29px;
     flex: 0 0 29px;
+}
+
+.my-tasks-page .board-task-detail.is-review-match {
+    position: relative;
+    background: #fff8e8;
+    box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.my-tasks-page .board-task-detail.is-review-match .board-task-detail__title {
+    color: #92400e;
 }
 
 /*
@@ -557,13 +562,6 @@
     color: #07845f;
 }
 
-:is(.my-tasks-page,.sg-task-theme) .board-priority-menu .priority-routine,
-:is(.my-tasks-page,.sg-task-theme) .board-priority.priority-routine {
-    border-color: #b9d1f5;
-    background: #e8f1fe;
-    color: #286acb;
-}
-
 :is(.my-tasks-page,.sg-task-theme) .board-priority-menu .board-priority {
     border: 1px solid transparent;
 }
@@ -646,7 +644,6 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
  * fixes/menu import boundary. Their final position now provides the same
  * precedence without a forced-importance flag. */
 .my-tasks-page .board-reference-row,
-.my-tasks-page .board-reference-row.task-priority-routine,
 .my-tasks-page .board-reference-row.task-priority-important,
 .my-tasks-page .board-reference-row.task-priority-urgent,
 .my-tasks-page .board-reference-row.task-priority-quick,
@@ -856,8 +853,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
         grid-column: 1 / -1;
     }
 
-    .my-tasks-page [data-board-toolbar] .notion-group,
-    .my-tasks-page [data-board-toolbar] .notion-filter {
+    .my-tasks-page [data-board-toolbar] .notion-group {
         min-width: 0;
         width: 100%;
         justify-content: center;
@@ -1307,3 +1303,93 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
 .project-archive-preview__empty > i { color: #9aa9bc; font-size: 26px; }
 .project-archive-preview__empty strong { color: #52647c; font-size: 13px; }
 .project-archive-preview__empty span { font-size: 10px; }
+.my-tasks-page .notion-filter {
+    position: relative;
+    min-width: 168px;
+    padding: 0 11px;
+    border: 1px solid #d7e1ee;
+    border-radius: 9px;
+    background: #fff;
+    color: #607089;
+}
+
+.my-tasks-page .notion-filter:hover {
+    border-color: #a9c3ed;
+    background: #f8fbff;
+}
+
+.my-tasks-page .notion-filter:focus-within {
+    border-color: #7ca6ec;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+}
+
+.my-tasks-page .notion-filter select {
+    width: 100%;
+    min-width: 0;
+    padding: 0 24px 0 0;
+    border: 0;
+    outline: 0;
+    appearance: none;
+    background: transparent;
+    color: #263650;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.my-tasks-page .notion-filter::after {
+    position: absolute;
+    right: 10px;
+    content: "\F282";
+    color: #71829a;
+    font-family: "bootstrap-icons";
+    font-size: 11px;
+    pointer-events: none;
+}
+
+.my-tasks-page .notion-filter[data-sg-select] {
+    padding: 0 4px 0 10px;
+}
+
+.my-tasks-page .notion-filter[data-sg-select]::after {
+    content: none;
+}
+
+.my-tasks-page .notion-filter .sg-select {
+    width: 158px;
+}
+
+.my-tasks-page .notion-filter .sg-select__trigger {
+    min-height: 34px;
+    padding-inline: 7px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.my-tasks-page .notion-filter .sg-select__panel {
+    right: -5px;
+    left: auto;
+    width: 280px;
+    max-height: min(420px, 70vh);
+    padding: 7px;
+    border-color: #d7e1ee;
+    border-radius: 12px;
+    box-shadow: 0 18px 42px -18px rgba(15, 23, 42, .42);
+}
+
+.my-tasks-page .notion-filter .sg-select__option {
+    min-height: 48px;
+    padding: 8px 9px;
+}
+
+.my-tasks-page .notion-filter .sg-select__option-copy strong {
+    font-weight: 600;
+}
+
+.my-tasks-page .notion-filter .sg-select__option[aria-selected="true"] {
+    font-weight: 600;
+}

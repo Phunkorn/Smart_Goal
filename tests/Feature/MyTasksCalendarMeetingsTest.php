@@ -158,7 +158,7 @@ class MyTasksCalendarMeetingsTest extends TestCase
         foreach ($workspaces as [$actor, $url]) {
             $response = $this->actingAs($actor)->get($url)->assertOk();
 
-            foreach (['priority-urgent', 'priority-quick', 'priority-important', 'priority-flexible', 'priority-routine'] as $tone) {
+            foreach (['priority-urgent', 'priority-quick', 'priority-important', 'priority-flexible'] as $tone) {
                 $response->assertSee('mytasks-calendar__legend-item '.$tone, false);
             }
 

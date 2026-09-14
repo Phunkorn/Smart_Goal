@@ -241,7 +241,8 @@ class EmployeeReportDashboardTest extends TestCase
             ->assertDontSee('NaN');
         $this->assertSame(0, $response->viewData('totalJobs'));
         $this->assertSame(0, $response->viewData('onTimeRate'));
-        $this->assertSame([0, 0, 0, 0, 0], $response->viewData('chartData')['priority']['values']);
+        // ระดับ 1 ("routine") ถูกเลิกใช้แล้ว กราฟความสำคัญจึงเหลือสี่แท่ง
+        $this->assertSame([0, 0, 0, 0], $response->viewData('chartData')['priority']['values']);
     }
 
     public function test_employee_report_owns_balanced_chart_kinds_and_keeps_task_table_outside_dashboard(): void
@@ -250,7 +251,9 @@ class EmployeeReportDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('employee-chart-card--trend', false)
             ->assertSee('employee-chart-card--status', false)
-            ->assertSee('employee-chart-card--completed', false)
+            // เหลือสามใบ ใบที่ซ้ำกับเส้น "งานที่เสร็จ" ในกราฟแนวโน้มถูกตัดออก
+            ->assertDontSee('employee-chart-card--completed', false)
+            ->assertDontSee('employeeCompletedChart', false)
             ->assertSee('employee-chart-card--priority', false)
             ->assertSee('employee-report__attention', false)
             ->assertSee('data-chart-kind="line"', false)

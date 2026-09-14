@@ -119,9 +119,37 @@ export function enhanceSelect(select, index = 0) {
             const item = document.createElement('div');
             item.id = panel.id + '-option-' + position;
             item.className = 'sg-select__option';
+            if (option.dataset.divider === 'true') {
+                item.classList.add('sg-select__option--divider');
+            }
             item.setAttribute('role', 'option');
             item.dataset.value = option.value;
-            item.textContent = option.text;
+
+            if (option.dataset.icon || option.dataset.description) {
+                item.classList.add('sg-select__option--rich');
+                if (option.dataset.icon) {
+                    const icon = document.createElement('i');
+                    icon.className = 'bi ' + option.dataset.icon + ' sg-select__option-icon';
+                    icon.setAttribute('aria-hidden', 'true');
+                    item.append(icon);
+                }
+
+                const copy = document.createElement('span');
+                copy.className = 'sg-select__option-copy';
+                const title = document.createElement('strong');
+                title.textContent = option.text;
+                copy.append(title);
+
+                if (option.dataset.description) {
+                    const description = document.createElement('small');
+                    description.textContent = option.dataset.description;
+                    copy.append(description);
+                }
+
+                item.append(copy);
+            } else {
+                item.textContent = option.text;
+            }
             item.setAttribute('aria-selected', String(option.selected));
             panel.append(item);
 

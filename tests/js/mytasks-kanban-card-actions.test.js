@@ -127,6 +127,16 @@ test('a card with no available move stays a plain label so it cannot be clicked'
     assert.equal(ui.card('12').classList.contains('is-locked'), true);
 });
 
+test('a closed task still explains itself, because that is about the work and not about permission', async (t) => {
+    const ui = await boot(t, {
+        cards: [{id: '22', status: '4'}],
+        management: {22: {transitions: {can_edit: false, is_final: true, can_reopen: false, allowed_statuses: []}}},
+    });
+
+    assert.notEqual(ui.badge('22'), null, 'งานที่ปิดแล้วยังต้องมีป้ายอธิบาย');
+    assert.match(ui.badge('22').textContent, /ปิดแล้ว/);
+});
+
 test('dropping a card where it cannot go explains why instead of silently bouncing back', async (t) => {
     const ui = await boot(t, {
         cards: [{id: '13', status: '2'}],

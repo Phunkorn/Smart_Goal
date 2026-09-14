@@ -67,7 +67,6 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         3: {className: 'priority-high', tone: 'project-tone-high', label: 'สูง', projectLabel: 'สำคัญ/สูง'},
     };
     const taskPriorityMeta = {
-        1: {className: 'priority-routine', label: 'routine'},
         2: {className: 'priority-important', label: 'สำคัญไม่ด่วน'},
         3: {className: 'priority-urgent', label: 'สำคัญด่วน'},
         4: {className: 'priority-quick', label: 'ด่วนไม่ค่อยสำคัญ'},
@@ -108,7 +107,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             const priority = Number(change.priority);
             const meta = taskPriorityMeta[priority];
             task.dataset.priority = String(priority);
-            task.classList.remove('task-priority-routine', 'task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
+            task.classList.remove('task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
             task.classList.add(`task-${meta.className}`);
             const summary = ownControls(task, '[data-board-priority-menu] > summary')[0];
             summary?.classList.remove(...taskPriorityClasses);
@@ -393,11 +392,45 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 
         // ตัวกรองทำงานกับงานระดับบนสุด งานย่อยติดตามงานแม่ไปเสมอ
         board.querySelectorAll('[data-board-task]:not([data-board-subtask])').forEach((task) => {
-            task.hidden = !boardTaskMatches({
-                searchable: (task.dataset.projectName || '') + ' ' + task.textContent,
+            const taskMatches = boardTaskMatches({
+                searchable: task.dataset.searchText || ((task.dataset.projectName || '') + ' ' + task.textContent),
                 status: task.dataset.status,
+                canReview: task.dataset.canReview,
                 late: task.dataset.late,
             }, state);
+            const subtasks = [...task.querySelectorAll('[data-board-subtask]')];
+            const parentSearchable = String(task.dataset.searchText || ((task.dataset.projectName || '') + ' ' + task.textContent)).toLowerCase();
+            const reviewSubtasks = status === 'my_review'
+                ? subtasks.filter((subtask) => {
+                    const subtaskSearchable = String(subtask.dataset.searchText || ((subtask.dataset.projectName || '') + ' ' + subtask.textContent)).toLowerCase();
+                    const isPendingReview = boardTaskMatches({
+                        searchable: subtaskSearchable,
+                        status: subtask.dataset.status,
+                        canReview: subtask.dataset.canReview,
+                        late: subtask.dataset.late,
+                    }, {...state, search: ''});
+
+                    return isPendingReview && (!query || parentSearchable.includes(query) || subtaskSearchable.includes(query));
+                })
+                : [];
+
+            subtasks.forEach((subtask) => subtask.classList.toggle('is-review-match', reviewSubtasks.includes(subtask)));
+            task.hidden = !taskMatches && reviewSubtasks.length === 0;
+
+            const panel = task.querySelector('[data-task-details-panel]');
+            const toggle = task.querySelector('[data-task-details-toggle]');
+            const details = task.querySelector('[data-task-details]');
+            if (reviewSubtasks.length > 0 && panel && toggle) {
+                if (panel.hidden) panel.dataset.reviewAutoExpanded = '1';
+                panel.hidden = false;
+                toggle.setAttribute('aria-expanded', 'true');
+                details?.classList.add('is-expanded');
+            } else if (panel?.dataset.reviewAutoExpanded === '1') {
+                panel.hidden = true;
+                delete panel.dataset.reviewAutoExpanded;
+                toggle?.setAttribute('aria-expanded', 'false');
+                details?.classList.remove('is-expanded');
+            }
             if (!task.hidden) visibleTasks++;
         });
 
@@ -408,6 +441,14 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             header.hidden = visibleInProject === 0 && !emptyProjectMatch;
             const count = header.querySelector('[data-board-visible-count]');
             if (count) count.textContent = visibleInProject;
+        });
+
+        // กลุ่มงานเสร็จแล้วต้องหายไปพร้อมแถวข้างในเมื่อกำลังดูคิวตรวจหรือสถานะอื่น
+        // มิฉะนั้นจะเหลือหัวกลุ่มว่างจำนวนมากและผู้ใช้ยังต้องเลื่อนผ่านเหมือนเดิม
+        board.querySelectorAll('[data-completed-group]').forEach((group) => {
+            const visibleCompleted = [...group.querySelectorAll('[data-board-task]:not([data-board-subtask])')]
+                .some((task) => !task.hidden);
+            group.hidden = Boolean(status || query) && !visibleCompleted;
         });
 
         const empty = board.querySelector('[data-board-empty]');
@@ -464,6 +505,18 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
     });
 
     document.addEventListener('click', async (event) => {
+        const completedToggle = event.target.closest('[data-completed-toggle]');
+        if (completedToggle && board.contains(completedToggle)) {
+            event.preventDefault();
+            const completedGroup = completedToggle.closest('[data-completed-group]');
+            if (completedGroup) {
+                completedGroup.open = !completedGroup.open;
+                completedToggle.setAttribute('aria-expanded', String(completedGroup.open));
+            }
+            closeBoardMenus();
+            return;
+        }
+
         const nativeSummary = event.target.closest('summary');
         if (nativeSummary && board.contains(nativeSummary) && !nativeSummary.matches(boardFloatingMenuSummarySelector)) {
             closeBoardMenus();
@@ -535,7 +588,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             if (!menu || !task || !meta) return;
             taskPriorityOption.disabled = true;
             request(endpoint(workspace.dataset.priorityTemplate, task.dataset.taskId), 'POST', {job_priority: value}).then(() => {
-                task.classList.remove('task-priority-routine', 'task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
+                task.classList.remove('task-priority-important', 'task-priority-urgent', 'task-priority-quick', 'task-priority-flexible');
                 task.classList.add(`task-${meta.className}`);
                 const summary = menu.querySelector('summary');
                 summary.classList.remove(...taskPriorityClasses);

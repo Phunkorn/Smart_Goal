@@ -127,9 +127,4 @@
             .role-chip i {
                 margin: 0;
             }
-
-            .role-chip__label {
-                display: inline;
-                font-size: .72rem;
-            }
         }

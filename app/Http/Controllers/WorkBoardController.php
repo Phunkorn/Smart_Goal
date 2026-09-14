@@ -153,13 +153,30 @@ class WorkBoardController extends Controller
         ]);
     }
 
-    public function adminMember(Request $request, Department $department, User $user, bool $isReadOnlyWorkspace = false)
+    /**
+     * Workspace ของสมาชิกหนึ่งคน — อ่านอย่างเดียวเสมอ
+     *
+     * $viaDepartmentHead บอกว่าเข้ามาทางเส้นของหัวหน้าแผนก (work-board.member) ไม่ใช่ทาง
+     * admin (admin.work-board.member) ซึ่งต่างกันสองเรื่อง:
+     *
+     *   1. สิทธิ์เข้าถึง — หัวหน้าต้องดูแลแผนกนั้นจริง ส่วน admin เข้าได้ทุกแผนกอยู่แล้ว
+     *   2. ขอบเขตข้อมูล — หัวหน้าเห็นเฉพาะงานที่อนุมัติแล้ว ส่วน admin เห็นงานที่ยังรอ
+     *      อนุมัติด้วย เพราะการมองเห็นทั้งระบบเป็นหน้าที่ของผู้ดูแลระบบ
+     *
+     * เดิม admin เข้ามาในโหมดเขียนเต็ม สร้างงาน มอบหมาย และจัดทีมให้สมาชิกได้ ซึ่งทับ
+     * หน้าที่ของหัวหน้าแผนกโดยตรง ตอนนี้เหลือแค่ดู — การมอบหมายงานเป็นของหัวหน้าแผนก
+     * (โมดัลมอบหมายงานหน้าบอร์ดรวมยังอยู่ สำหรับงานตั้งระบบและการนำเข้าข้อมูล)
+     */
+    public function adminMember(Request $request, Department $department, User $user, bool $viaDepartmentHead = false)
     {
         abort_unless((int) $user->department_id === (int) $department->id && $user->role === 'user', 404);
 
-        if ($isReadOnlyWorkspace) {
+        if ($viaDepartmentHead) {
             abort_unless($request->user()->overseesDepartment($department->id), 403);
         }
+
+        // ไม่มีใครเขียนในหน้านี้ได้อีกแล้ว ทั้ง admin และหัวหน้าแผนก
+        $isReadOnlyWorkspace = true;
 
         $workspaceView = $this->resolveMemberWorkspaceView($request);
 
@@ -169,7 +186,9 @@ class WorkBoardController extends Controller
                 ->orWhereHas('taskList', fn ($listQuery) => $listQuery->whereNull('archived_at'));
         });
 
-        if ($isReadOnlyWorkspace) {
+        // ขอบเขตข้อมูลผูกกับ "ใครเข้ามาดู" ไม่ใช่ "เขียนได้ไหม" — admin ยังเห็นงานที่รอ
+        // อนุมัติเพื่อการดูแลระบบ ส่วนหัวหน้าแผนกเห็นเฉพาะงานที่อนุมัติแล้วเหมือนเดิม
+        if ($viaDepartmentHead) {
             $memberJobsQuery->where('approval_status', 'approved');
         } else {
             TodayWorkspace::synchronizeLate($memberJobsQuery);
@@ -182,10 +201,14 @@ class WorkBoardController extends Controller
                 'creator',
                 'leader.department',
                 'collaborators.department',
+                // เมนู "แชร์งาน" ในแถวงานถามว่างานใบนี้กำลังถูกแชร์อยู่หรือเปล่า
+                // ถ้าไม่โหลดมาพร้อมกัน แต่ละแถวจะยิง query ของตัวเอง
+                'openShare',
                 'images',
                 'children.user.department',
                 'children.taskList',
                 'children.collaborators.department',
+                'children.openShare',
                 'children.images',
                 'children.updates',
                 'updates.user.department',
@@ -278,6 +301,10 @@ class WorkBoardController extends Controller
         return view('work-board.admin.member', [
             'workspaceView' => $workspaceView,
             'isReadOnlyWorkspace' => $isReadOnlyWorkspace,
+            // ใช้เลือกชุด route ของ breadcrumb และแถบมุมมอง — คนละเรื่องกับสิทธิ์เขียน
+            // admin ใช้ admin.work-board.* ส่วนหัวหน้าแผนกใช้ work-board.* ซึ่งเป็นคนละกลุ่ม
+            // middleware กัน (admin เข้ากลุ่ม role:user ไม่ได้)
+            'viaDepartmentHead' => $viaDepartmentHead,
             'meetingData' => $meetingData,
             'calendarMeetings' => $calendarMeetings,
             'calendarMeetingRange' => [

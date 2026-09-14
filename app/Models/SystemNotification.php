@@ -32,6 +32,11 @@ class SystemNotification extends Model
         'project_task_request_submitted' => 'task',
         'project_task_request_approved' => 'task',
         'project_task_request_rejected' => 'task',
+        // แชร์งาน — อยู่หมวด task เพราะปลายทางคือการเป็นผู้ร่วมงานใน WorkOrder เหมือนกัน
+        'share_join_requested' => 'task',
+        'share_join_awaiting_head' => 'task',
+        'share_join_approved' => 'task',
+        'share_join_rejected' => 'task',
         'delete_request' => 'task',
         'delete_request_rejected' => 'task',
         'task_deleted' => 'task',

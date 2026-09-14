@@ -1,5 +1,6 @@
 import {synchronizeTaskSource} from './task-state.js';
 import {canDragTask, canTransitionTo, confirmTaskTransition, lockReason, nextStepHint} from './task-transitions.js';
+import {boardTaskMatches} from './task-filter-state.js';
 
 export const selectMobileKanbanStatus = (panel, status, {focus = false} = {}) => {
     const value = String(status);
@@ -28,7 +29,8 @@ export const selectMobileKanbanStatus = (panel, status, {focus = false} = {}) =>
 export const refreshMobileKanbanStatusTabs = (panel) => {
     panel.querySelectorAll('[data-kanban-status-tab]').forEach((tab) => {
         const column = panel.querySelector(`[data-kanban-column="${tab.dataset.kanbanStatusTab}"]`);
-        const count = column?.querySelectorAll('[data-kanban-card]').length || 0;
+        const count = [...(column?.querySelectorAll('[data-kanban-card]') || [])]
+            .filter((card) => !card.hidden).length;
         const countNode = tab.querySelector('[data-kanban-tab-count]');
         if (countNode) countNode.textContent = String(count);
     });
@@ -68,22 +70,68 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
 (() => {
     const root = document.querySelector('[data-workspace]'); const kanban = root?.querySelector('[data-kanban]'); if (!root || !kanban) return;
     const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
+    const statusFilter = root.querySelector('[data-filter]');
 
     const priorityLabels = {
-        1: 'routine',
         2: 'สำคัญไม่ด่วน',
         3: 'สำคัญด่วน',
         4: 'ด่วนไม่ค่อยสำคัญ',
         5: 'ไม่รีบ ไม่มีกำหนด',
     };
 
-    const refresh = () => kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => { let total = 0; panel.querySelectorAll('[data-kanban-column]').forEach((column) => { const count = column.querySelectorAll('[data-kanban-card]').length; column.querySelector('[data-kanban-count]').textContent = count; total += count; }); refreshMobileKanbanStatusTabs(panel); const totalNode = kanban.querySelector('[data-kanban-project-count]'); if (!panel.hidden && totalNode) totalNode.textContent = `${total} งาน`; });
+    const applyStatusFilter = (panel) => {
+        const status = statusFilter?.value || '';
+        // ตัวกรองบางตัวไม่ใช่เลขสถานะ จึงต้องบอกว่าคอลัมน์ไหนคือ "บ้าน" ของมัน
+        // เพื่อให้คอลัมน์นั้นยังอยู่แม้ไม่มีการ์ด ไม่งั้นกรองแล้วหน้าจอว่างเปล่าโดยไม่บอกอะไรเลย
+        const columnHomeOfFilter = {late: '6', my_review: '3', awaiting_review: '3'};
+        const fallbackStatus = columnHomeOfFilter[status] ?? status;
+
+        panel.querySelectorAll('[data-kanban-card]').forEach((card) => {
+            card.hidden = !boardTaskMatches({
+                searchable: card.textContent,
+                status: card.dataset.status,
+                canReview: card.dataset.canReview,
+                reviewableSubtasks: card.dataset.reviewableSubtasks,
+                late: card.dataset.late,
+            }, {search: '', status});
+        });
+
+        panel.querySelectorAll('[data-kanban-column]').forEach((column) => {
+            const hasVisibleCard = [...column.querySelectorAll('[data-kanban-card]')]
+                .some((card) => !card.hidden);
+            column.hidden = Boolean(status) && !hasVisibleCard && column.dataset.kanbanColumn !== fallbackStatus;
+            const tab = panel.querySelector(`[data-kanban-status-tab="${column.dataset.kanbanColumn}"]`);
+            if (tab) tab.hidden = column.hidden;
+        });
+
+        const selectedColumn = panel.querySelector('[data-kanban-column].is-mobile-selected');
+        if (selectedColumn?.hidden) {
+            const firstVisible = [...panel.querySelectorAll('[data-kanban-column]')]
+                .find((column) => !column.hidden);
+            if (firstVisible) selectMobileKanbanStatus(panel, firstVisible.dataset.kanbanColumn);
+        }
+    };
+
+    const refresh = () => kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => {
+        kanban.classList.toggle('is-status-filtered', Boolean(statusFilter?.value));
+        applyStatusFilter(panel);
+        let total = 0;
+        panel.querySelectorAll('[data-kanban-column]').forEach((column) => {
+            const count = [...column.querySelectorAll('[data-kanban-card]')].filter((card) => !card.hidden).length;
+            column.querySelector('[data-kanban-count]').textContent = count;
+            total += count;
+        });
+        refreshMobileKanbanStatusTabs(panel);
+        const totalNode = kanban.querySelector('[data-kanban-project-count]');
+        if (!panel.hidden && totalNode) totalNode.textContent = `${total} งาน`;
+    });
 
     kanban.querySelector('[data-kanban-project]')?.addEventListener('change', (event) => { kanban.querySelectorAll('[data-kanban-panel]').forEach((panel) => panel.hidden = panel.dataset.kanbanPanel !== event.target.value); const addButton = kanban.querySelector('[data-add-in-group]'); const manageable = event.target.selectedOptions[0]?.dataset.manageable === '1'; if (addButton) { addButton.dataset.listId = manageable ? event.target.value : ''; addButton.disabled = !manageable; } refresh(); });
 
     document.addEventListener('click', (event) => { const trigger = event.target.closest('[data-open-kanban-task]'); if (!trigger) return; event.preventDefault(); root.querySelector(`[data-row][data-id="${trigger.dataset.openKanbanTask}"] [data-open-task-modal]`)?.click(); });
 
     kanban.querySelectorAll('[data-kanban-panel]').forEach(initializeMobileKanbanStatusTabs);
+    statusFilter?.addEventListener('change', refresh);
     refresh();
 
     document.addEventListener('mytasks:changed', (event) => {

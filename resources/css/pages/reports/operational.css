@@ -47,39 +47,34 @@
  * รายการจึงชิดขอบการ์ดทั้งสี่ด้าน ต้องประกาศระยะขอบในเอง
  */
 .report-operational-top { margin-top:16px; padding:17px; }
-.report-operational-top__list { display:grid; gap:7px; margin:0; padding:0; list-style:none; counter-reset:operational-top; }
-.report-operational-top__list li {
-    display:grid;
-    grid-template-columns:auto minmax(0,1fr) auto auto;
-    align-items:center;
-    gap:12px;
-    padding:9px 12px;
-    border:1px solid #eef2f8;
-    border-radius:10px;
-    background:#fff;
-    counter-increment:operational-top;
-}
-.report-operational-top__list li::before {
-    content:counter(operational-top);
-    display:grid;
-    place-items:center;
-    width:22px;
-    height:22px;
-    border-radius:6px;
-    background:#eff5ff;
-    color:#1d4ed8;
-    font-size:.72rem;
-    font-weight:700;
-}
-.report-operational-top__name { min-width:0; color:#16233d; font-size:.88rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.report-operational-top__count { color:#64748b; font-size:.78rem; white-space:nowrap; }
-.report-operational-top__hours { color:#1d4ed8; font-size:.82rem; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
 
-@media (max-width: 640px) {
-    .report-operational-top__list li { grid-template-columns:auto minmax(0,1fr); gap:6px 10px; }
-    .report-operational-top__count,
-    .report-operational-top__hours { grid-column:2; }
-}
+/*
+ * ตารางอันดับงานที่ทำบ่อยที่สุด
+ *
+ * เดิมเป็นรายการ <ol> ซึ่งอ่านเทียบตัวเลขข้ามบรรทัดได้ยาก เพราะจำนวนครั้งกับ
+ * เวลาลอยตามความยาวของชื่องาน เปลี่ยนเป็นตารางที่ใช้โครงร่วม
+ * (report-department-table) เหมือนตารางอื่นในหน้านี้ ตัวเลขจึงอยู่ในแนวเดียวกัน
+ * และมีหัวคอลัมน์บอกว่าแต่ละช่องคืออะไร
+ *
+ * มีแค่สี่คอลัมน์และยาวสุด 10 แถว จึงพอดีทุกความกว้างโดยไม่ต้องเลื่อนแนวนอน
+ * ล้าง min-width ที่สืบทอดมาจาก .report-department-table (620px) และปิดแถบเลื่อน
+ * ของ .report-department-scroll ทิ้ง ชื่องานยาวใช้การตัดคำแทนการดันตารางให้กว้าง
+ */
+.report-operational-top__scroll { overflow:visible; }
+.report-operational-top__table { min-width:0; table-layout:fixed; }
+.report-operational-top__rank-head { width:64px; }
+
+/*
+ * ทั้งตารางเป็นน้ำหนักปกติ
+ *
+ * ตัวหนาทั้งคอลัมน์ทำให้ตาไม่รู้ว่าควรหยุดตรงไหน เหมือนที่ตารางการตรวจงานประจำ
+ * เจอมาก่อน ที่นี่ลำดับถูกบอกด้วยตำแหน่งแถวอยู่แล้ว ไม่ต้องเน้นด้วยน้ำหนักหรือสี
+ */
+.report-operational-top__table tbody td,
+.report-operational-top__table tbody th { color:#33415c; font-size:.83rem; font-weight:400; }
+.report-operational-top__table tbody td.report-operational-top__rank { width:64px; color:#16233d; }
+.report-operational-top__table tbody th.report-operational-top__name { min-width:0; word-break:break-word; }
+.report-operational-top__hours small { color:#7c8aa3; font-weight:400; }
 
 /*
  * ตารางสถานะงานประจำของวันนี้
@@ -116,8 +111,30 @@
  */
 .report-checklist__table tbody td { color:#33415c; font-size:.83rem; font-weight:400; }
 
-/* ตารางนี้มีคอลัมน์น้อยกว่าตารางรายคน จึงไม่ต้องกว้างถึง 620px ก่อนเริ่มเลื่อน */
-.report-checklist__table { min-width:520px; }
+/*
+ * ไม่มีแถบเลื่อนแนวนอน
+ *
+ * ตารางนี้แบ่งหน้าครั้งละ 10 แถวด้วยปุ่มถัดไป/ย้อนกลับอยู่แล้ว การเลื่อนซ้ายขวา
+ * ซ้อนเข้ามาอีกชั้นทำให้คอลัมน์ขวาสุด (สถานะ) ซึ่งเป็นสิ่งที่ต้องอ่าน หายไปนอกจอ
+ * โดยไม่มีอะไรบอก ล้าง min-width ที่สืบทอดมาจาก .report-department-table แล้วให้
+ * ข้อความยาวตัดบรรทัดแทนการดันตารางให้กว้างเกินการ์ด
+ */
+.report-checklist__scroll { overflow:visible; }
+.report-checklist__table { min-width:0; }
+.report-checklist__table tbody th,
+.report-checklist__table tbody td { word-break:break-word; }
+
+/*
+ * จอแคบ: ปล่อยให้ช่องที่เคยห้ามตัดบรรทัดตัดได้
+ *
+ * วันที่และช่วงเวลาใช้ white-space:nowrap เพื่อไม่ให้ "09:41 - 09:42" ขาดกลาง
+ * ซึ่งดีบนจอกว้าง แต่บนมือถือมันคือความกว้างขั้นต่ำที่ดันตารางล้นออกนอกการ์ด
+ * ในเมื่อไม่มีแถบเลื่อนแล้ว การตัดบรรทัดคือทางเดียวที่ยังอ่านครบทุกคอลัมน์
+ */
+@media (max-width: 640px) {
+    .report-checklist__date,
+    .report-checklist__window { white-space:normal; }
+}
 
 .report-checklist__date { white-space:nowrap; }
 .report-checklist__today { display:inline-block; margin-left:5px; padding:1px 7px; border-radius:999px; background:#eef4ff; color:#3b5bab; font-size:.68rem; font-weight:600; }
@@ -253,3 +270,567 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/*
+ * ตารางรายชื่อพนักงาน และตารางรายวัน
+ *
+ * ทั้งคู่สืบทอด min-width:620px มาจาก .report-department-table ซึ่งเป็นค่าของ
+ * ตารางแผดที่มีคอลัมน์กว้างกว่านี้ ผลคือคอลัมน์ตัวเลขห้าหกช่องถูกยืดออกจนห่างกัน
+ * ผิดสัดส่วน และชื่อคนยาว ๆ ดันความกว้างจนข้อความล้นออกนอกการ์ด
+ *
+ * table-layout:fixed บวกความกว้างที่ประกาศไว้ทำให้คอลัมน์ตัวเลขคงที่ ส่วนที่เหลือ
+ * ตกเป็นของคอลัมน์ชื่อ ชื่อยาวจึงตัดคำลงบรรทัดใหม่แทนการดันตารางให้กว้างขึ้น
+ */
+.report-operational-days__table {
+    min-width: 0;
+    table-layout: fixed;
+}
+
+.report-operational-days__table th,
+.report-operational-days__table td {
+    /* ชื่อวันยาวได้ ต้องตัดคำ ไม่ใช่ล้นออกนอกช่อง */
+    overflow-wrap: anywhere;
+}
+
+.report-operational-days__table th:not(:first-child),
+.report-operational-days__table td:not(:first-child) {
+    width: 104px;
+    white-space: nowrap;
+}
+
+/*
+ * กระดานรายคน — การ์ดต่อคน ไม่ใช่แถวในตาราง
+ *
+ * ข้อมูลของคนหนึ่งคนไม่ได้เป็นแถวเดียวจริง ๆ มันคือชื่อ ความคืบหน้าของวันนี้ รายการงาน
+ * อีกหลายบรรทัด และตัวเลขสะสมของช่วง การยัดทั้งหมดลงแถวเดียวทำให้ช่องหนึ่งสูงกว่า
+ * ช่องอื่นมาก คอลัมน์ตัวเลขจึงลอยอยู่กลางอากาศ และงานของแต่ละคนถูกบีบจนอ่านเป็นก้อนเดียว
+ *
+ * auto-fill ทำให้จอกว้างได้สามคนต่อแถวโดยไม่ต้องกวาดสายตาข้ามทั้งจอ และจอแคบยุบ
+ * เหลือคอลัมน์เดียวเองโดยไม่ต้องมีกฎของมือถือแยก
+ */
+.report-people-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    gap: 12px;
+}
+
+.report-people-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 13px 14px;
+    border: 1px solid #e6ecf4;
+    border-radius: 14px;
+    background: #fff;
+}
+
+/* ตัวแบ่งหน้าซ่อนการ์ดด้วย hidden ซึ่งต้องชนะ display:flex ของการ์ด */
+.report-people-card[hidden] { display: none; }
+
+/* ยังไม่ได้เริ่มเลยทั้งที่มีงานรออยู่ คือการ์ดที่หัวหน้าต้องเห็นก่อนใคร */
+.report-people-card.is-idle {
+    border-color: #fecaca;
+    background: #fffbfb;
+}
+
+.report-people-card__head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.report-people-card__avatar {
+    display: grid;
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #eef2ff;
+    color: #4f46e5;
+    font-size: .86rem;
+    font-weight: 600;
+    place-items: center;
+}
+
+.report-people-card__identity {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.report-people-card__identity a {
+    display: block;
+    color: #0f172a;
+    font-size: .88rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    text-decoration: none;
+}
+
+.report-people-card__identity a:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
+.report-people-card__identity small {
+    display: block;
+    color: #94a3b8;
+    font-size: .72rem;
+}
+
+.report-people-card__head .report-tag { flex: 0 0 auto; }
+
+/* บรรทัดสรุปของวันนี้ อ่านก่อนรายการงานเสมอ */
+.report-people-card__today-line {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    font-size: .78rem;
+}
+
+.report-people-card__today-label { color: #64748b; }
+
+.report-people-card__today-count { font-size: .95rem; }
+.report-people-card__today-count.is-green { color: #047857; }
+.report-people-card__today-count.is-amber { color: #b45309; }
+.report-people-card__today-count.is-red { color: #b91c1c; }
+
+.report-people-card__today-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    color: #64748b;
+    font-size: .74rem;
+}
+
+.report-people-card__today-none { color: #94a3b8; font-size: .76rem; }
+
+/*
+ * แถบความคืบหน้าอ่านได้ก่อนตัวเลข จึงเทียบคนทั้งกริดได้ด้วยการกวาดสายตา
+ * ไม่ใช้ element progress เพราะสีของมันถูกกำหนดคนละแบบบนแต่ละแพลตฟอร์ม
+ */
+.report-people-card__bar {
+    overflow: hidden;
+    height: 5px;
+    margin-top: 6px;
+    border-radius: 999px;
+    background: #eef2f8;
+}
+
+.report-people-card__bar > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+}
+
+.report-people-card__bar > span.is-green { background: #10b981; }
+.report-people-card__bar > span.is-amber { background: #f59e0b; }
+.report-people-card__bar > span.is-red { background: #ef4444; }
+
+/*
+ * รายการงานของวันนี้ — หนึ่งบรรทัดต่อหนึ่งรายการ
+ *
+ * ของเดิมเป็นชิปที่ไหลต่อกันในบรรทัดเดียว พอคนหนึ่งมีงานหลายรายการ ชื่องาน ชนิดงาน
+ * และเวลาจะกองรวมกันจนแยกไม่ออกว่าอะไรเป็นของรายการไหน
+ */
+.report-people-card__items {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.report-people-card__item {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 4px 7px;
+    border-radius: 8px;
+    color: #475569;
+    font-size: .76rem;
+    line-height: 1.45;
+}
+
+/* ลายเส้นสลับ ช่วยให้สายตาไม่หลุดบรรทัดเวลามีรายการยาว ๆ */
+.report-people-card__item:nth-child(odd) { background: #f8fafc; }
+
+.report-people-card__item > i {
+    flex: 0 0 auto;
+    color: #cbd5e1;
+    font-size: .78rem;
+}
+
+.report-people-card__item-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 500;
+}
+
+/* ชนิดงานกับเวลาอยู่ท้ายบรรทัดเสมอ ตำแหน่งจึงตรงกันทุกบรรทัดและทุกการ์ด */
+.report-people-card__item-kind,
+.report-people-card__item-status,
+.report-people-card__item-time {
+    flex: 0 0 auto;
+    color: #94a3b8;
+    font-size: .69rem;
+    white-space: nowrap;
+}
+
+.report-people-card__item-status {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.report-people-card__item-time {
+    min-width: 46px;
+    color: #64748b;
+    text-align: right;
+}
+
+.report-people-card__item.is-done { color: #1d4ed8; }
+.report-people-card__item.is-done > i { color: #2563eb; }
+
+/*
+ * ปุ่มเปิดรายละเอียด — ส่วนที่เกินจากการ์ดไปอยู่ใน modal ไม่ใช่กางในที่เดิม
+ *
+ * การกางในการ์ดทำให้การ์ดใบอื่นในแถวเดียวกันขยับตามทุกครั้งที่กด ซึ่งทำลาย
+ * ข้อดีข้อเดียวของกริด คือการเทียบหลายคนพร้อมกันโดยตำแหน่งไม่เปลี่ยน
+ */
+.report-people-card__open {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid #e6ecf4;
+    border-radius: 9px;
+    background: #f8fafc;
+    color: #2563eb;
+    cursor: pointer;
+    font-size: .74rem;
+    font-weight: 600;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+
+.report-people-card__open:hover { border-color: #bfdbfe; background: #eff6ff; }
+.report-people-card__open:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+/* ทั้งการ์ดกดได้ด้วย ตัวชี้จึงต้องบอกแบบนั้นตั้งแต่ก่อนกด */
+.report-people-card { cursor: pointer; }
+.report-people-card:hover { border-color: #cfe0f7; }
+.report-people-card a,
+.report-people-card summary { cursor: pointer; }
+
+.report-people-card__empty {
+    margin: 0;
+    padding: 6px 7px;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #94a3b8;
+    font-size: .76rem;
+}
+
+/* ท้ายการ์ด: ตัวเลขสะสมของช่วง แยกจากของวันนี้ด้วยเส้นคั่น เพราะเป็นคนละคำถาม */
+.report-people-card__period {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 9px;
+    border-top: 1px solid #eef2f8;
+    color: #94a3b8;
+    font-size: .73rem;
+}
+
+.report-people-card__period > strong {
+    color: #334155;
+    font-weight: 600;
+}
+
+.report-people-card__period-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* ตารางเวลาแยกตามงาน อยู่ในกล่องรายละเอียด ไม่ได้ลอยทับการ์ดอีกแล้ว */
+.report-people-card__breakdown {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.report-people-card__breakdown li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: .72rem;
+}
+
+.report-people-card__breakdown li + li { border-top: 1px solid #eef2f8; }
+
+.report-people-card__breakdown-title {
+    flex: 1 1 auto;
+    color: #475569;
+    overflow-wrap: anywhere;
+}
+
+.report-people-card__breakdown-times { flex: 0 0 auto; color: #94a3b8; }
+
+.report-people-card__breakdown-time {
+    flex: 0 0 auto;
+    color: #334155;
+    font-weight: 500;
+}
+
+/* ตารางรายวันอ่านเป็นข้อมูล ไม่ใช่หัวข้อ จึงไม่ต้องมีคอลัมน์ไหนหนาทั้งคอลัมน์ */
+.report-operational-days__table tbody th {
+    font-weight: 500;
+}
+
+/* จำนวนคน/จำนวนวันที่มุมขวาของหัวการ์ด อ่านคู่กับหัวข้อ ไม่ใช่แข่งกับมัน */
+.report-panel__count {
+    flex: 0 0 auto;
+    color: #64748b;
+    font-size: .78rem;
+    white-space: nowrap;
+}
+
+/* ข้อความตอนไม่มีข้อมูล ต้องมีระยะขอบในของตัวเอง เพราะ .report-panel ให้แค่กรอบ */
+.report-empty {
+    margin: 0;
+    padding: 18px 2px;
+    color: #64748b;
+    font-size: .85rem;
+}
+
+/*
+ * การ์ดของกระดานต้องมีระยะขอบในของตัวเอง
+ *
+ * .report-panel ให้แค่กรอบกับพื้นหลัง ส่วน padding มาจาก .report-dashboard-card
+ * ซึ่งการ์ดพวกนี้ไม่ได้ใช้ ผลคือหัวข้อและตารางชิดขอบการ์ดทั้งสี่ด้านจนดูเหมือน
+ * ข้อความล้นออกนอกกรอบ — อาการเดียวกับที่การ์ด "งานที่ทำบ่อยที่สุด" เคยเจอ
+ */
+.report-operational-people,
+.report-operational-days {
+    margin-top: 16px;
+    padding: 17px;
+}
+
+/*
+ * ตัวกรองเหลือช่องเดียว จึงไม่ต้องกินความสูงเท่าตอนมีหกช่อง
+ *
+ * .report-filter__form เป็นกริด auto-fit ที่ยืดช่องเดียวให้เต็มแถว และแถบปุ่ม
+ * ด้านล่างมีเส้นคั่นกับระยะห่างที่ออกแบบไว้สำหรับฟอร์มหลายบรรทัด เมื่อเหลือช่องเดียว
+ * ทั้งการ์ดจึงสูงและกว้างเกินเนื้อหาไปมาก
+ */
+.report-operational .report-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+    padding: 10px 12px;
+}
+
+/* หัวข้อเป็นป้ายกำกับของแถบ ไม่ใช่หัวข้อของส่วนหนึ่งในหน้า จึงเล็กและอยู่บรรทัดเดียวกัน */
+.report-operational .report-filter__heading {
+    flex: 0 0 auto;
+    align-self: center;
+    margin: 0;
+}
+
+.report-operational .report-filter__heading h2 {
+    margin: 0;
+    font-size: .84rem;
+}
+
+/* คำอธิบายซ้ำกับ label ของช่องเดียวที่เหลืออยู่ จึงไม่ต้องกินอีกบรรทัด */
+.report-operational .report-filter__heading p { display: none; }
+
+.report-operational .report-filter__form {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px 12px;
+    margin: 0;
+}
+
+.report-operational .report-filter__custom-dates {
+    display: flex;
+    gap: 8px;
+    margin: 0;
+}
+
+.report-operational .report-filter .form-label {
+    margin-bottom: 2px;
+    font-size: .72rem;
+}
+
+.report-operational .report-filter .form-select,
+.report-operational .report-filter .form-control {
+    min-width: 150px;
+    min-height: 34px;
+    padding: 4px 10px;
+    font-size: .82rem;
+}
+
+/* ปุ่มไปชิดขวาของแถบเดียวกัน ไม่ต้องมีเส้นคั่นของฟอร์มหลายบรรทัด */
+.report-operational .report-filter__actions {
+    margin-top: 0;
+    margin-left: auto;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.report-operational .report-filter__actions .btn {
+    padding: 5px 12px;
+    font-size: .8rem;
+}
+
+/* ---------- จอแคบ ---------- */
+
+@media (max-width: 760px) {
+    /*
+     * กระดานรายคนเป็นการ์ดอยู่แล้ว กริดยุบเหลือคอลัมน์เดียวเองตาม auto-fill
+     * จึงไม่ต้องมีกฎแปลงตารางเป็นการ์ดสำหรับกระดานนี้อีก
+     *
+     * เหลือเฉพาะตารางรายวันของหน้า "คนคนเดียว" ที่ยังเป็นตารางจริง ห้าคอลัมน์ของมัน
+     * ถูกบีบจนตัวเลขซ้อนกันบนมือถือ จึงต้องกลายเป็นการ์ดต่อวัน โดยใช้ data-label
+     * ที่ Blade ใส่ไว้แล้วเป็นหัวข้อของแต่ละช่อง ไม่ใช่เพิ่ม markup ใหม่
+     */
+    .report-operational-days__table,
+    .report-operational-days__table thead,
+    .report-operational-days__table tbody,
+    .report-operational-days__table tr { display: block; }
+
+    .report-operational-days__table thead { display: none; }
+
+    .report-operational-days__table tr {
+        margin-bottom: 10px;
+        padding: 11px 12px;
+        border: 1px solid #e6ecf4;
+        border-radius: 12px;
+    }
+
+    .report-operational-days__table td,
+    .report-operational-days__table th {
+        display: flex;
+        width: auto !important;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 5px 0;
+        border-bottom: 0;
+        text-align: left !important;
+        white-space: normal !important;
+    }
+
+    /* วันเป็นหัวของการ์ด ไม่ใช่ช่องที่มีป้ายกำกับ */
+    .report-operational-days__table tbody th:first-child {
+        display: block;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #eef2f8;
+        font-size: .92rem;
+    }
+
+    .report-operational-days__table td::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: #64748b;
+        font-size: .74rem;
+        font-weight: 600;
+    }
+
+    /* จอแคบไม่มีที่ให้ตัวกรองเรียงแถวเดียว ทุกช่องจึงเต็มความกว้างและปุ่มอยู่ใต้สุด */
+    .report-operational .report-filter__form > div,
+    .report-operational .report-filter__custom-dates { flex: 1 1 100%; }
+
+    .report-operational .report-filter .form-select,
+    .report-operational .report-filter .form-control {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .report-operational .report-filter__actions { margin-left: 0; }
+
+    /*
+     * บรรทัดของงานบนจอแคบไม่มีที่พอให้สี่ส่วนเรียงกัน ชื่องานจึงได้บรรทัดของตัวเอง
+     * ส่วนสถานะ ชนิดงาน และเวลาไหลไปอยู่บรรทัดล่าง
+     */
+    .report-people-card__item { flex-wrap: wrap; }
+
+    .report-people-card__item-title { flex: 1 1 100%; }
+
+    .report-people-card__item-time { min-width: 0; margin-left: auto; }
+}
+
+/*
+ * กล่องรายละเอียดของการ์ดพนักงาน
+ *
+ * ใช้โครงและ backdrop ของ .subtask-modal ที่มีอยู่แล้ว (components/subtask-modal.css)
+ * ไฟล์นี้เติมเฉพาะส่วนที่ต่างออกไป คือความกว้างที่มากกว่าเพราะต้องแสดงรายการงาน
+ * ทั้งวันพร้อมเวลา และแถบท้ายที่ลิงก์ไปหน้ารายวันของคนนั้น
+ */
+.report-people-modal .subtask-modal__panel { width: min(560px, 100%); }
+
+.report-people-detail + .report-people-detail {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #eef2f8;
+}
+
+.report-people-detail h3 {
+    margin: 0 0 4px;
+    color: #0f172a;
+    font-size: .86rem;
+    font-weight: 700;
+}
+
+.report-people-detail__summary {
+    margin: 0 0 9px;
+    color: #64748b;
+    font-size: .76rem;
+}
+
+.report-people-detail__empty {
+    margin: 0;
+    color: #94a3b8;
+    font-size: .78rem;
+}
+
+.report-people-detail .report-people-card__breakdown li {
+    padding: 6px 0;
+    border-top: 1px solid #eef2f8;
+}
+
+.report-people-detail .report-people-card__breakdown li:first-child { border-top: 0; }
+
+.report-people-modal__footer {
+    display: flex;
+    padding: 12px 20px 16px;
+    border-top: 1px solid #eef2f8;
+}
+
+.report-people-modal__footer a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #2563eb;
+    font-size: .8rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.report-people-modal__footer a:hover { text-decoration: underline; }
+.report-people-modal__footer a[hidden] { display: none; }

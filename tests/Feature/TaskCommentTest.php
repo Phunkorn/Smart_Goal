@@ -51,7 +51,14 @@ class TaskCommentTest extends TestCase
         $this->assertDatabaseCount('work_order_updates', 0);
     }
 
-    public function test_notifications_are_deduplicated_exclude_author_and_include_all_admins(): void
+    /**
+     * ผู้รับแจ้งเตือนคอมเมนต์คือคนที่อยู่ในงานจริงเท่านั้น
+     *
+     * เดิมใส่ admin ทุกคนในระบบเป็นผู้รับด้วย ทั้งที่คอมเมนต์เป็นบทสนทนาระหว่างคนทำงาน
+     * admin ที่เป็นผู้สร้างงานยังได้รับตามปกติ เพราะนับเป็นผู้เกี่ยวข้องกับงานใบนั้น
+     * ส่วน admin ที่ไม่เกี่ยวข้องต้องไม่ได้รับ (TaskCommentService::recipients)
+     */
+    public function test_notifications_are_deduplicated_exclude_author_and_reach_only_task_members(): void
     {
         $author = $this->user();
         $creatorAdmin = $this->user('admin');
@@ -65,9 +72,9 @@ class TaskCommentTest extends TestCase
             ->assertCreated();
         $commentId = $response->json('comment.id');
 
-        $this->assertEqualsCanonicalizing([$creatorAdmin->id, $collaborator->id, $unrelatedAdmin->id], SystemNotification::pluck('user_id')->all());
+        $this->assertEqualsCanonicalizing([$creatorAdmin->id, $collaborator->id], SystemNotification::pluck('user_id')->all());
         $this->assertDatabaseMissing('system_notifications', ['user_id' => $author->id]);
-        $this->assertDatabaseHas('system_notifications', ['user_id' => $unrelatedAdmin->id]);
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $unrelatedAdmin->id]);
         $notice = SystemNotification::first();
         $this->assertSame('task_comment', $notice->type);
         $this->assertSame($commentId, data_get($notice->data, 'comment_id'));

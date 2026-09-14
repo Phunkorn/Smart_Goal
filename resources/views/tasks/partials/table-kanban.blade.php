@@ -6,6 +6,21 @@ $showQuickAdd = $showQuickAdd ?? true;
 $taskLinkMode = $taskLinkMode ?? false;
 $workspaceContext = $workspaceContext ?? 'user';
 
+/*
+ * มุมมอง "ตาราง" แสดงเฉพาะงานของผู้ใช้คนนี้ ไม่ใช่ทุกงานในโปรเจกต์
+ *
+ * โปรเจกต์ที่ทำร่วมกันทำให้ผู้ใช้มองเห็นงานของเพื่อนร่วมแผนกและของผู้มอบหมายไปด้วย
+ * ซึ่งถูกต้องสำหรับมุมมอง "บอร์ด" ที่มีหน้าที่แสดงภาพรวมของทั้งโปรเจกต์
+ * แต่ตารางคือกระดานงานของตัวเอง จัดคอลัมน์ตามสถานะเพื่อให้ลากงานของตัวเองไปต่อ
+ * งานที่ลากไม่ได้จึงเป็นแค่สิ่งกีดขวางสายตา ไม่ได้ช่วยให้ทำงานเร็วขึ้น
+ *
+ * ใช้ ability participate ไม่ใช่ work เพราะ work ปฏิเสธงานที่ปิดแล้วทุกใบ
+ * ถ้ากรองด้วย work คอลัมน์ "เสร็จแล้ว" จะว่างเปล่าทั้งที่เป็นงานของเจ้าของเอง
+ *
+ * บอร์ดไม่ถูกแตะ — มันอ่านจาก $allTasks ชุดเต็มใน project-board-card.blade.php
+ */
+$kanbanTasks = $allTasks->filter(fn ($task) => auth()->user()->can('participate', $task))->values();
+
 $workspaceLists = collect([(object) ['id' => 0, 'name' => 'วันนี้']]);
 $defaultKanbanList = $workspaceLists->first();
 $defaultKanbanListIsManageable = $defaultKanbanList
@@ -27,12 +42,11 @@ $statuses = [
  * และอนุมัติเองจึงไม่มีวันเข้าสถานะนี้ การโชว์คอลัมน์เปล่าไว้ทำให้เข้าใจผิดว่า
  * ต้องส่งงานของตัวเองไปให้ใครสักคนตรวจ จึงตัดสินจากงานที่แสดงอยู่จริงในมุมมองนี้
  */
-if (! \App\Support\TaskReviewStage::appliesToAny($allTasks, auth()->user())) {
+if (! \App\Support\TaskReviewStage::appliesToAny($kanbanTasks, auth()->user())) {
     unset($statuses[3]);
 }
 
 $priorities = [
-    1 => 'routine',
     2 => 'สำคัญไม่ด่วน',
     3 => 'สำคัญด่วน',
     4 => 'ด่วนไม่ค่อยสำคัญ',
@@ -184,7 +198,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
 
                         <div class="mytasks-kanban__cards">
 
-                            @foreach ($allTasks->filter(fn ($task) => (int) $task->job_status === $status) as $task)
+                            @foreach ($kanbanTasks->filter(fn ($task) => (int) $task->job_status === $status) as $task)
 
                                 @php
                                     $people = collect([$task->user])
@@ -193,6 +207,12 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                             $task->collaborators->where('pivot.status', 'accepted')
                                         )
                                         ->unique('id');
+
+                                    $kanbanChildren = $task->relationLoaded('children') ? $task->children : collect();
+                                    $kanbanReviewableChildren = $kanbanChildren->filter(
+                                        fn ($child) => (int) $child->job_status === 3
+                                            && auth()->user()->can('review', $child)
+                                    )->count();
 
                                     $taskAdminSenderName =
                                         ! $uniformAdminName && $task->creator?->role === 'admin'
@@ -213,6 +233,9 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                     data-id="{{ $task->job_id }}"
                                     data-status="{{ $task->job_status }}"
                                     data-priority="{{ $task->job_priority }}"
+                                    data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}"
+                                    data-reviewable-subtasks="{{ $kanbanReviewableChildren }}"
+                                    data-late="{{ (int) $task->job_status === 6 ? 1 : 0 }}"
                                 >
                                     <button
                                         type="button"
@@ -311,7 +334,6 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                             ไม่เพิ่มคิวรี แต่ต้องเช็ก relationLoaded() ก่อนเสมอเหมือน partial อื่น
                                         --}}
                                         @php
-                                            $kanbanChildren = $task->relationLoaded('children') ? $task->children : collect();
                                             $kanbanChildrenDone = $kanbanChildren->where('job_status', 4)->count();
                                             $kanbanChildrenLabel = 'งานย่อยเสร็จแล้ว '.$kanbanChildrenDone.' จาก '.$kanbanChildren->count().' งาน';
                                         @endphp

@@ -6,6 +6,7 @@ use App\Models\WorkOrderList;
 use App\Models\WorkOrderListTaskRequest;
 use App\Services\AdminApprovalQuery;
 use App\Services\Telegram\TelegramOutbox;
+use App\Services\WorkOrderShareQuery;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -46,7 +47,24 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.app', function (IlluminateView $view): void {
             $user = request()->user();
-            if (! $user || ($user->role !== 'admin' && ! $user->isDepartmentHead())) {
+            if (! $user) {
+                return;
+            }
+
+            /*
+             * ป้ายตัวเลขของเมนู "แชร์งาน" นับเฉพาะคำขอที่รอ "ฉัน" ตัดสินในฐานะผู้แชร์
+             * ไม่ใช่จำนวนประกาศในฟีด เพราะสิ่งที่ค้างอยู่ที่ตัวผู้ใช้คือคำขอ ไม่ใช่ประกาศ
+             *
+             * ประกาศไว้ที่ composer ตัวเดียวกับ approvalCounts เพื่อไม่ให้ทุก
+             * controller ที่ render layout ต้องส่งค่านี้เอง
+             */
+            if (! array_key_exists('shareRequestCount', $view->getData())) {
+                $view->with('shareRequestCount', $user->role === 'viewer'
+                    ? 0
+                    : app(WorkOrderShareQuery::class)->pendingIncomingCount($user));
+            }
+
+            if ($user->role !== 'admin' && ! $user->isDepartmentHead()) {
                 return;
             }
 

@@ -181,14 +181,16 @@
                     ],
                 ])
 
-                <p class="team-manager__notice" data-team-notice hidden></p>
             </div>
 
             <footer class="team-manager__footer">
-                <p class="team-manager__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> สมาชิกที่เลือกจะถูกเพิ่มเมื่อกดยืนยัน</p>
+                <div class="team-manager__footer-primary">
+                    <p class="team-manager__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> สมาชิกที่เลือกจะถูกเพิ่มเมื่อกดยืนยัน</p>
+                    <p class="team-manager__notice" data-team-notice hidden></p>
+                </div>
                 <div class="team-manager__actions">
-                    <button type="button" class="task-secondary" data-close-team>ปิด</button>
                     <button type="submit" class="notion-primary" data-team-submit aria-busy="false" disabled><i class="bi bi-person-plus" aria-hidden="true"></i> <span data-team-submit-label>เพิ่มผู้ร่วมงาน (0 คน)</span></button>
+                    <button type="button" class="task-secondary" data-close-team>ปิด</button>
                 </div>
             </footer>
         </form>
@@ -257,7 +259,7 @@
     $workspaceRootUrl = $workspaceRootUrl ?? route('mytasks.index');
     // ลำดับเดียวกับคอลัมน์บอร์ด: พักงาน → กำลังทำ → รอตรวจสอบ → ล่าช้า → เสร็จแล้ว
     $statusOptions = [5 => ['พักงาน', 'paused'], 2 => ['กำลังทำ', 'progress'], 3 => ['รอตรวจสอบ', 'review'], 6 => ['ล่าช้า', 'late'], 4 => ['เสร็จแล้ว', 'done']];
-    $priorityOptions = [3 => ['สำคัญด่วน', 'urgent'], 4 => ['ด่วนไม่ค่อยสำคัญ', 'quick'], 2 => ['สำคัญไม่ด่วน', 'important'], 5 => ['ไม่รีบ ไม่มีกำหนด', 'flexible'], 1 => ['routine', 'routine']];
+    $priorityOptions = [3 => ['สำคัญด่วน', 'urgent'], 4 => ['ด่วนไม่ค่อยสำคัญ', 'quick'], 2 => ['สำคัญไม่ด่วน', 'important'], 5 => ['ไม่รีบ ไม่มีกำหนด', 'flexible']];
 @endphp
 
 {{-- sg-task-theme ให้ token และสไตล์เมนูสถานะ/ความสำคัญ โดยไม่พา layout ของหน้ามาบีบ backdrop --}}

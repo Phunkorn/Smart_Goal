@@ -1,0 +1,227 @@
+/*
+ * หน้าแชร์งาน
+ *
+ * โครงหน้าเดินตามหน้าคำขออนุมัติ (admin-approvals.css) เพราะเป็นงานชนิดเดียวกัน
+ * คือรายการที่ต้องตัดสินใจทีละใบ ผู้ใช้จึงไม่ต้องเรียนรู้รูปแบบใหม่
+ *
+ * ทุกบล็อกใช้หน่วยสัมพัทธ์และ grid ที่ยุบเป็นคอลัมน์เดียวบนจอแคบ การ์ดไม่มีความ
+ * กว้างขั้นต่ำเป็นพิกเซล จึงไม่มีการเลื่อนแนวนอนที่ระดับหน้า
+ */
+
+/* รูปประจำตัวบนการ์ดใช้ .wb-avatar ชุดเดียวกับบอร์ดงานและหน้ารายงาน */
+@import '../components/member-card.css';
+
+.shares-page { display:flex; flex-direction:column; gap:16px; padding:18px; }
+
+.shares-header h1 { margin:2px 0 4px; color:#16233d; font-size:1.35rem; font-weight:700; }
+.shares-header p { margin:0; color:#64748b; font-size:.88rem; }
+.shares-eyebrow { color:#94a3b8; font-size:.68rem; font-weight:700; letter-spacing:.12em; }
+
+/* แถบแท็บ */
+.shares-tabs { display:flex; flex-wrap:wrap; gap:8px; }
+.shares-tab {
+    display:inline-flex; align-items:center; gap:7px;
+    padding:8px 15px; border:1px solid #e2e8f2; border-radius:999px;
+    background:#fff; color:#475569; font-size:.85rem; font-weight:600; cursor:pointer;
+}
+.shares-tab.is-active { border-color:#1d4ed8; background:#eff5ff; color:#1d4ed8; }
+.shares-tab__count {
+    min-width:20px; padding:1px 6px; border-radius:999px;
+    background:#1d4ed8; color:#fff; font-size:.7rem; font-weight:700; text-align:center;
+}
+
+/*
+ * การ์ดเรียงเป็นกริด ไม่ใช่แถวเดียวกว้างเต็มจอ
+ *
+ * การ์ดหนึ่งใบมีเนื้อหาไม่กี่บรรทัด (ผู้แชร์ โปรเจกต์ ชื่องาน งานย่อย) การยืดให้กว้าง
+ * เต็มจอ 1900px ทำให้แต่ละใบเป็นแถบยาวที่มีที่ว่างด้านขวาเกือบทั้งแถบ และเมื่อมี
+ * หลายคนแชร์ ต้องเลื่อนลงยาวมากกว่าจะเห็นครบทั้งที่เนื้อหาน้อย
+ *
+ * auto-fill ทำให้จอกว้างได้หลายใบต่อแถวและจอแคบยุบเหลือคอลัมน์เดียวเอง
+ * โดยไม่ต้องมีกฎของมือถือแยก — แบบเดียวกับกระดานรายคนของรายงานปฏิบัติงาน
+ *
+ * align-items:start ให้การ์ดสูงตามเนื้อหาของตัวเอง ใบที่งานย่อยเยอะจึงไม่ดึงใบอื่น
+ * ในแถวเดียวกันให้สูงตามจนเกิดที่ว่างกลางการ์ด
+ */
+.shares-panel {
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));
+    align-items:start;
+    gap:12px;
+}
+
+/*
+ * ส่วนที่ไม่ใช่การ์ด (หัวข้อ รายการประกาศของฉัน กล่องว่าง) ต้องกินเต็มแถวเสมอ
+ * ไม่งั้นมันจะไปแย่งช่องกริดกับการ์ดจนเรียงสลับกันมั่ว
+ */
+.shares-panel > .shares-subheading,
+.shares-panel > .shares-my-list,
+.shares-panel > .shares-empty,
+.shares-panel > .shares-request { grid-column:1/-1; }
+
+.shares-subheading { margin:8px 0 0; color:#475569; font-size:.88rem; font-weight:600; }
+
+.shares-empty {
+    display:flex; flex-direction:column; align-items:center; gap:9px;
+    margin:0; padding:34px 20px; border:1px dashed #d9e2f0; border-radius:14px;
+    color:#7c8aa3; font-size:.88rem; text-align:center;
+}
+.shares-empty i { color:#a8b6cc; font-size:1.7rem; }
+
+.shares-flash {
+    display:flex; align-items:center; gap:9px;
+    padding:11px 14px; border-radius:12px; font-size:.86rem; font-weight:600;
+}
+.shares-flash--ok { background:#effcfa; color:#0f766e; }
+.shares-flash--error { background:#fef3f2; color:#b42318; }
+
+/* การ์ดงานที่ถูกแชร์ */
+.shares-card {
+    display:flex; flex-direction:column; gap:9px;
+    height:100%;
+    padding:15px 16px; border:1px solid #e8edf6; border-radius:14px; background:#fff;
+}
+
+/*
+ * แถบผู้แชร์อยู่บนสุดของการ์ด
+ *
+ * คำถามแรกของคนอ่านคือ "ใครชวน" ไม่ใช่ "งานชื่ออะไร" รูปประจำตัวจึงอยู่บรรทัดบน
+ * คู่กับชื่อและแผนก ใช้ .wb-avatar ตัวเดียวกับบอร์ดงาน ไม่ได้วาดวงกลมชุดใหม่
+ */
+.shares-card__sharer { display:flex; align-items:center; gap:10px; }
+.shares-card__sharer-text { flex:1 1 auto; min-width:0; }
+.shares-card__sharer-text strong { display:block; color:#0f172a; font-size:.87rem; font-weight:600; overflow-wrap:anywhere; }
+.shares-card__sharer-text small { display:block; color:#94a3b8; font-size:.73rem; }
+
+.shares-card__body { display:flex; flex-direction:column; gap:5px; }
+.shares-card__project { display:inline-flex; align-items:center; gap:6px; color:#64748b; font-size:.78rem; font-weight:600; }
+.shares-card__title { margin:0; color:#0f172a; font-size:.97rem; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
+.shares-card__note { margin:0; color:#475569; font-size:.85rem; font-style:italic; }
+.shares-card__due { display:inline-flex; align-items:center; gap:6px; margin:0; color:#64748b; font-size:.78rem; }
+
+/*
+ * งานแม่เป็นบริบทของงานย่อยที่ถูกแชร์ จึงจางกว่าชื่อรายการและอยู่เหนือมัน
+ * ชื่องานย่อยอย่างเดียว (เช่น "เดินสาย") ไม่พอให้ตัดสินใจว่าจะกดร่วมงานหรือไม่
+ */
+.shares-card__parent { display:inline-flex; align-items:center; gap:6px; color:#94a3b8; font-size:.76rem; overflow-wrap:anywhere; }
+
+/* บอกให้ชัดว่ากดร่วมงานแล้วได้สิทธิ์แค่รายการนี้ ไม่ใช่ทั้งงานแม่ */
+.shares-card__joining {
+    display:flex; align-items:center; gap:7px;
+    margin:0; padding:8px 11px; border:1px solid #eef2f8; border-radius:11px; background:#f8fafc;
+    color:#64748b; font-size:.78rem;
+}
+.shares-card__joining i { color:#94a3b8; }
+
+/* margin-top:auto ดันปุ่มไปท้ายการ์ดเสมอ ตำแหน่งจึงตรงกันทุกใบในแถวเดียวกัน */
+.shares-card__actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:auto; }
+
+/* ป้ายสถานะ — สีไม่ใช่สัญญาณเดียว ทุกป้ายมีข้อความกำกับเสมอ */
+.shares-chip {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:4px 11px; border-radius:999px; font-size:.74rem; font-weight:600; white-space:nowrap;
+}
+.shares-chip--dept { background:#eff5ff; color:#1d4ed8; }
+.shares-chip--org { background:#fff7ed; color:#c2410c; }
+.shares-chip--muted { background:#eef2f8; color:#64748b; }
+.shares-chip--state { background:#eef2f8; color:#475569; }
+
+.shares-btn {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:8px 15px; border:1px solid transparent; border-radius:10px;
+    font-size:.84rem; font-weight:600; cursor:pointer; text-decoration:none;
+}
+.shares-btn--primary { background:#1d4ed8; color:#fff; }
+.shares-btn--ghost { border-color:#dbe3f0; background:#fff; color:#475569; }
+.shares-btn--danger { border-color:#fecaca; background:#fff; color:#b42318; }
+
+/* คำขอ */
+.shares-request {
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 16px; border:1px solid #e8edf6; border-radius:14px; background:#fff;
+}
+.shares-request__body { flex:1 1 260px; min-width:0; }
+.shares-request__body h3 { margin:0 0 3px; color:#16233d; font-size:.95rem; font-weight:700; }
+.shares-request__meta { margin:0; color:#64748b; font-size:.82rem; }
+.shares-request__reason { margin:5px 0 0; color:#b42318; font-size:.8rem; }
+.shares-request__warning {
+    display:flex; align-items:center; gap:6px;
+    margin:7px 0 0; padding:7px 10px; border-radius:9px;
+    background:#fff7ed; color:#c2410c; font-size:.78rem; font-weight:600;
+}
+.shares-request__actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.shares-request__actions form { margin:0; }
+
+.shares-request--mine.is-waiting { border-color:#fed7aa; }
+.shares-request--mine.is-approved { border-color:#a7f3d0; }
+.shares-request--mine.is-rejected { border-color:#fecaca; }
+
+/*
+ * ประกาศของฉันเรียงเป็นกริดเช่นเดียวกับการ์ดในฟีด
+ *
+ * หนึ่งรายการมีแค่ชื่องาน โปรเจกต์ และปุ่มเดียว การยืดเต็มจอทำให้ปุ่ม "ปิดประกาศ"
+ * ไปอยู่ห่างจากชื่องานเกือบทั้งจอ ต้องกวาดสายตาข้ามที่ว่างยาว ๆ เพื่อจะรู้ว่าปุ่ม
+ * ใบไหนคู่กับประกาศใบไหน การ์ดแคบทำให้ชื่อกับปุ่มอยู่ในสายตาเดียวกัน
+ */
+.shares-my-list {
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
+    /* ไม่ใช้ align-items:start เพื่อให้ทุกใบในแถวสูงเท่ากัน แม้ชื่องานจะยาวไม่เท่ากัน */
+    gap:9px;
+}
+.shares-mine {
+    display:flex; align-items:center; gap:10px;
+    height:100%;
+    padding:10px 12px; border:1px solid #eef2f8; border-radius:12px; background:#fbfcfe;
+}
+.shares-mine__text { flex:1 1 auto; min-width:0; }
+/*
+ * ชื่องานเป็นตัวหนาเต็มน้ำหนักบนพื้นอ่อนอ่านยาก โดยเฉพาะภาษาไทยที่สระบนสระล่าง
+ * ติดกันจนตัวอักษรทึบเป็นก้อน ใช้ 600 กับสีเข้มขึ้นแทน ความเด่นยังพอ แต่อ่านออก
+ */
+.shares-mine__text strong { display:block; color:#0f172a; font-size:.85rem; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
+.shares-mine__text small { display:block; color:#94a3b8; font-size:.73rem; overflow-wrap:anywhere; }
+.shares-mine form { flex:0 0 auto; margin:0; }
+
+/* ปุ่มเดียวในรายการแคบ ไม่ต้องใหญ่เท่าปุ่มหลักของการ์ด */
+.shares-mine .shares-btn { padding:5px 11px; font-size:.78rem; }
+
+/*
+ * โมดัลรายละเอียดงาน
+ *
+ * เป็น modal จริง ไม่ใช่ popover — มีฉากหลัง อยู่กลางจอ และ aria-modal
+ * ตัวเปิด/ปิด โฟกัส และ Escape มีเจ้าของเดียวคือ pages/shares/index.js
+ */
+.shares-modal { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:18px; }
+.shares-modal__backdrop { position:absolute; inset:0; background:rgba(15,23,42,.45); }
+.shares-modal__panel {
+    position:relative; width:min(520px, 100%); max-height:85vh; overflow:auto;
+    padding:20px; border-radius:16px; background:#fff;
+}
+.shares-modal__panel header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.shares-modal__panel h2 { margin:0; color:#16233d; font-size:1.05rem; font-weight:700; }
+.shares-modal__close { border:0; background:none; color:#94a3b8; font-size:1rem; cursor:pointer; }
+.shares-modal__facts { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:11px; margin:15px 0 0; }
+.shares-modal__facts dt { color:#94a3b8; font-size:.72rem; font-weight:600; }
+.shares-modal__facts dd { margin:2px 0 0; color:#33415c; font-size:.85rem; }
+.shares-modal__details { margin:14px 0 0; color:#475569; font-size:.86rem; white-space:pre-wrap; }
+.shares-modal__hint {
+    display:flex; align-items:flex-start; gap:7px;
+    margin:14px 0 0; padding:9px 12px; border-radius:10px;
+    background:#f8fafc; color:#64748b; font-size:.78rem;
+}
+
+/*
+ * กล่องแชร์งาน (SweetAlert2) ไม่ได้อยู่ที่นี่
+ *
+ * กล่องนั้นถูกเปิดจากแถวงานในหน้าบอร์ด ไม่ใช่หน้านี้ สไตล์จึงต้องอยู่ในไฟล์ที่หน้าบอร์ด
+ * โหลด คือ components/task-workspace/workspace-modal.css เคยวางไว้ที่นี่แล้วข้อความ
+ * ในกล่องซ้อนกันจนอ่านไม่ออก เพราะ shares.css ไม่ถูกโหลดบนหน้าบอร์ดเลย
+ */
+
+@media (max-width: 640px) {
+    .shares-page { padding:14px; }
+    .shares-request__actions { width:100%; }
+    .shares-request__actions .shares-btn { flex:1 1 auto; justify-content:center; }
+    .shares-card__actions .shares-btn { flex:1 1 auto; justify-content:center; }
+}

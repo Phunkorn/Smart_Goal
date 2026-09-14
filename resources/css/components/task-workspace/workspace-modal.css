@@ -1143,3 +1143,101 @@ body.modal-open {
     background: transparent;
     backdrop-filter: none;
 }
+
+/*
+ * กล่อง "แชร์งาน" (SweetAlert2)
+ *
+ * ต้องอยู่ในไฟล์นี้ ไม่ใช่ pages/shares.css เพราะกล่องถูกเปิดจากแถวงานในหน้าบอร์ด
+ * (share-task-menu-item.blade.php ใน .board-reference-menu) ส่วน shares.css โหลด
+ * เฉพาะหน้า /shared-tasks ตอนวางไว้ที่นั่นกฎทั้งหมดจึงไม่ถูกใช้เลย <strong> กับ
+ * <small> ซึ่งเป็น inline element ไหลต่อกันเป็นบรรทัดเดียวจนอ่านไม่ออก
+ *
+ * ไฟล์นี้ถูก pages/mytasks.css import และหน้าที่ render แถวงานทุกหน้าโหลด mytasks.css
+ * (ทั้ง "งานของฉัน" และ Admin Member Workspace) จึงรับประกันว่ามีอยู่จริงเสมอ
+ *
+ * ทุกกฎผูกกับ .swal2-popup.swal-share ที่ task-share.js ส่งมาทาง customClass
+ * เพื่อไม่ให้ไปทับกล่อง SweetAlert2 ใบอื่นในระบบ (แบบเดียวกับ .notification-confirm)
+ */
+.swal2-popup.swal-share {
+    width: min(30rem, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+}
+
+/* SweetAlert2 จัดกึ่งกลางทั้งกล่อง แต่รายการตัวเลือกต้องอ่านไล่จากซ้าย */
+.swal2-popup.swal-share .swal2-html-container {
+    margin: 12px 0 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.swal-share__lead {
+    margin: 0 0 12px;
+    color: #475569;
+    font-size: .86rem;
+}
+
+.swal-share__option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 11px 13px;
+    border: 1px solid #e2e8f2;
+    border-radius: 11px;
+    text-align: left;
+    cursor: pointer;
+}
+
+/*
+ * หัวข้อกับคำอธิบายต้องคนละบรรทัด
+ *
+ * ต้นเหตุเดิมของการซ้อนบรรทัด: <span> ที่ห่อ <strong> และ <small> เป็น inline
+ * ทั้งสามชั้น จึงต้องประกาศ block ให้ครบทุกชั้น ไม่ใช่เฉพาะ <strong>
+ */
+.swal-share__option > span {
+    display: block;
+    min-width: 0;
+}
+
+.swal-share__option strong {
+    display: block;
+    color: #16233d;
+    font-size: .86rem;
+    line-height: 1.45;
+}
+
+.swal-share__option small {
+    display: block;
+    margin-top: 2px;
+    color: #64748b;
+    font-size: .75rem;
+    line-height: 1.5;
+}
+
+.swal-share__option input[type="radio"] {
+    margin-top: 3px;
+    flex: 0 0 auto;
+}
+
+/* ตัวเลือกที่เลือกอยู่ต้องบอกได้ด้วยตัวอักษรด้วย ไม่ใช่พึ่งพื้นหลังอย่างเดียว
+   เพราะ :has() ไม่ได้ทำงานทุกเบราว์เซอร์ แต่ตัวเลือกพี่น้องทำงานได้ทุกที่ */
+.swal-share__option input:checked ~ span strong {
+    color: #1d4ed8;
+}
+
+.swal-share__option:has(input:checked) {
+    border-color: #1d4ed8;
+    background: #eff5ff;
+}
+
+.swal-share__note {
+    width: 100%;
+    min-height: 70px;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f2;
+    border-radius: 11px;
+    font-family: inherit;
+    font-size: .85rem;
+    resize: vertical;
+}

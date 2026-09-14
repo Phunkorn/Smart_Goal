@@ -10,7 +10,12 @@ use Illuminate\Support\Facades\DB;
 
 class AdminApprovalQuery
 {
-    /** @var array{assignments: int, collaborators: int, total: int}|null */
+    public function __construct(
+        private readonly WorkOrderShareQuery $shares,
+        private readonly NotificationService $notifications,
+    ) {}
+
+    /** @var array{assignments: int, collaborators: int, shares: int, total: int}|null */
     private ?array $resolvedCounts = null;
 
     /**
@@ -18,7 +23,7 @@ class AdminApprovalQuery
      *     pendingAssignments: Collection<int, WorkOrder>,
      *     pendingCollaboratorTasks: Collection<int, WorkOrder>,
      *     pendingCollaboratorInviters: Collection<int, User>,
-     *     approvalCounts: array{assignments: int, collaborators: int, total: int}
+     *     approvalCounts: array{assignments: int, collaborators: int, shares: int, total: int}
      * }
      */
     public function data(User $viewer): array
@@ -28,12 +33,18 @@ class AdminApprovalQuery
         $collaboratorCount = $pendingCollaboratorTasks
             ->sum(fn (WorkOrder $task): int => $task->collaborators->count());
 
-        $this->resolvedCounts = $this->formatCounts($pendingAssignments->count(), $collaboratorCount);
+        $shareRequests = $this->shares->headQueueFor($viewer);
+        $this->resolvedCounts = $this->formatCounts(
+            $pendingAssignments->count(),
+            $collaboratorCount,
+            $shareRequests->count(),
+        );
 
         return [
             'pendingAssignments' => $pendingAssignments,
             'pendingCollaboratorTasks' => $pendingCollaboratorTasks,
             'pendingCollaboratorInviters' => $this->pendingCollaboratorInviters($pendingCollaboratorTasks),
+            'shareJoinRequests' => $shareRequests,
             'approvalCounts' => $this->resolvedCounts,
         ];
     }
@@ -60,13 +71,17 @@ class AdminApprovalQuery
     /** @return Collection<int, WorkOrder> */
     public function pendingCollaboratorTasks(User $viewer): Collection
     {
+        // admin เห็นเฉพาะผู้ถูกเชิญที่แผนกไม่มีหัวหน้า ตามเหตุผลเดียวกับ scopeAssignments()
+        $covered = $viewer->role === 'admin' ? $this->notifications->departmentIdsWithActiveHead() : [];
+
         $query = WorkOrder::with([
             'taskList',
             'creator.department',
-            'collaborators' => function ($collaborators) use ($viewer): void {
+            'collaborators' => function ($collaborators) use ($viewer, $covered): void {
                 $collaborators->where('work_order_collaborators.status', 'pending')
                     ->when($viewer->role !== 'admin', fn ($query) => $query
                         ->where('users.department_id', $viewer->department_id))
+                    ->when($viewer->role === 'admin', fn ($query) => $this->scopeOrphanCandidates($query, $covered))
                     ->with('department');
             },
         ])
@@ -74,7 +89,8 @@ class AdminApprovalQuery
             ->whereHas('collaborators', fn ($collaborators) => $collaborators
                 ->where('work_order_collaborators.status', 'pending')
                 ->when($viewer->role !== 'admin', fn ($query) => $query
-                    ->where('users.department_id', $viewer->department_id)))
+                    ->where('users.department_id', $viewer->department_id))
+                ->when($viewer->role === 'admin', fn ($query) => $this->scopeOrphanCandidates($query, $covered)))
             ->latest('job_id')
             ->get();
 
@@ -97,7 +113,7 @@ class AdminApprovalQuery
             ->keyBy('id');
     }
 
-    /** @return array{assignments: int, collaborators: int, total: int} */
+    /** @return array{assignments: int, collaborators: int, shares: int, total: int} */
     public function counts(?User $viewer = null): array
     {
         if ($this->resolvedCounts !== null) {
@@ -120,25 +136,82 @@ class AdminApprovalQuery
                 ->where('collaborator_users.department_id', $viewer->department_id);
         }
 
+        if ($viewer && $viewer->role === 'admin') {
+            $collaboratorQuery
+                ->join('users as collaborator_users', 'collaborator_users.id', '=', 'work_order_collaborators.user_id');
+
+            $this->scopeOrphanCandidates(
+                $collaboratorQuery,
+                $this->notifications->departmentIdsWithActiveHead(),
+                'collaborator_users.department_id'
+            );
+        }
+
         $collaboratorCount = $collaboratorQuery->count();
 
-        return $this->resolvedCounts = $this->formatCounts($assignmentCount, $collaboratorCount);
+        // คำขอจากการแชร์งานอยู่ในตารางของตัวเอง ไม่ได้อยู่ใน pivot ผู้ร่วมงาน
+        // จึงต้องนับแยกแล้วรวมเข้า total ซึ่งเป็นตัวเลขบนป้ายแถบข้าง
+        $shareCount = $viewer ? $this->shares->headQueueCount($viewer) : 0;
+
+        return $this->resolvedCounts = $this->formatCounts($assignmentCount, $collaboratorCount, $shareCount);
     }
 
-    /** @return array{assignments: int, collaborators: int, total: int} */
-    private function formatCounts(int $assignments, int $collaborators): array
+    /** @return array{assignments: int, collaborators: int, shares: int, total: int} */
+    private function formatCounts(int $assignments, int $collaborators, int $shares): array
     {
         return [
             'assignments' => $assignments,
             'collaborators' => $collaborators,
-            'total' => $assignments + $collaborators,
+            'shares' => $shares,
+            'total' => $assignments + $collaborators + $shares,
         ];
     }
 
+    /**
+     * ขอบเขตของคิวงานข้ามแผนก
+     *
+     * หัวหน้าแผนก — เห็นเฉพาะงานที่ปลายทางเป็นแผนกตัวเอง (เหมือนเดิม)
+     *
+     * admin — เดิมไม่กรองเลย จึงเห็นคำขอทั้งระบบรวมทั้งที่หัวหน้าแผนกถืออยู่แล้ว กลายเป็น
+     * คิวซ้อนที่นับงานใบเดียวกันให้สองคน ตอนนี้เห็นเฉพาะงานที่ "ไม่มีหัวหน้าแผนกรับผิดชอบ"
+     * ซึ่งเป็นเกณฑ์เดียวกับที่ departmentApprovalRecipientIds() ใช้ส่งแจ้งเตือน คิวกับ
+     * แจ้งเตือนจึงตรงกันพอดี
+     *
+     * งานที่ department_id เป็น null ก็ไม่มีหัวหน้าเช่นกัน จึงเป็นของ admin ด้วย
+     *
+     * หมายเหตุ: นี่คือการจำกัด "สิ่งที่เห็น" ไม่ใช่ "อำนาจ" — WorkOrderPolicy::approve()
+     * ยังเปิดให้ admin อนุมัติได้ทุกใบเมื่อเปิด URL ตรง ๆ ในฐานะอำนาจสำรอง
+     */
     private function scopeAssignments(Builder $query, ?User $viewer): void
     {
-        if ($viewer && $viewer->role !== 'admin') {
-            $query->where('department_id', $viewer->department_id);
+        if (! $viewer) {
+            return;
         }
+
+        if ($viewer->role !== 'admin') {
+            $query->where('department_id', $viewer->department_id);
+
+            return;
+        }
+
+        $covered = $this->notifications->departmentIdsWithActiveHead();
+
+        $query->where(fn (Builder $orphan) => $orphan
+            ->whereNull('department_id')
+            ->when($covered !== [], fn (Builder $q) => $q->orWhereNotIn('department_id', $covered))
+            ->when($covered === [], fn (Builder $q) => $q->orWhereNotNull('department_id')));
+    }
+
+    /**
+     * เงื่อนไขว่าผู้ถูกเชิญคนนี้ "ไม่มีหัวหน้าแผนกดูแล" — ใช้ร่วมกันทุกที่ที่กรองคิวผู้ร่วมงาน
+     *
+     * @param  \Illuminate\Contracts\Database\Query\Builder|Builder  $query
+     */
+    private function scopeOrphanCandidates($query, array $covered, string $column = 'users.department_id')
+    {
+        return $query->where(fn ($orphan) => $orphan
+            ->whereNull($column)
+            ->when($covered !== [], fn ($q) => $q->orWhereNotIn($column, $covered))
+            ->when($covered === [], fn ($q) => $q->orWhereNotNull($column)));
     }
 }

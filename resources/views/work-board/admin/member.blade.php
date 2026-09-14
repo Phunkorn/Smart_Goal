@@ -7,17 +7,24 @@
         'resources/css/pages/work-board-admin.css',
         'resources/css/pages/mytasks.css',
         'resources/js/pages/mytasks/index.js',
-        'resources/js/pages/board/admin-assignment.js',
     ])
 @endpush
 
 @section('content')
 @php
     $isReadOnlyWorkspace = $isReadOnlyWorkspace ?? false;
+    /*
+     * "เข้ามาทางไหน" คนละเรื่องกับ "เขียนได้ไหม"
+     *
+     * ตอนนี้หน้านี้อ่านอย่างเดียวทั้งสองทาง แต่ชุด route ยังต่างกัน เพราะ work-board.*
+     * อยู่หลัง middleware role:user ซึ่ง admin เข้าไม่ได้ ถ้าเลือก route จาก
+     * $isReadOnlyWorkspace เหมือนเดิม breadcrumb ของ admin จะชี้ไปหน้าที่ตัวเองเปิดไม่ได้
+     */
+    $viaDepartmentHead = $viaDepartmentHead ?? $isReadOnlyWorkspace;
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
     $statusLabels = [2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน', 6 => 'ล่าช้า'];
     $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
-    $workspaceContext = $isReadOnlyWorkspace ? 'department-head-member' : 'admin-member';
+    $workspaceContext = $viaDepartmentHead ? 'department-head-member' : 'admin-member';
     $showCreateActions = false;
     $showQuickAdd = ! $isReadOnlyWorkspace;
     $taskLinkMode = false;
@@ -26,12 +33,12 @@
 
     // แถบมุมมองใช้ pattern เดียวกับ "งานของฉัน" — "ประชุม" ถูก render จาก server เท่านั้น
     // ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
-    $memberWorkspaceRoute = $isReadOnlyWorkspace ? 'work-board.member' : 'admin.work-board.member';
-    $departmentWorkspaceRoute = $isReadOnlyWorkspace ? 'work-board.department' : 'admin.work-board.department';
-    $memberWorkspaceParameters = $isReadOnlyWorkspace
+    $memberWorkspaceRoute = $viaDepartmentHead ? 'work-board.member' : 'admin.work-board.member';
+    $departmentWorkspaceRoute = $viaDepartmentHead ? 'work-board.department' : 'admin.work-board.department';
+    $memberWorkspaceParameters = $viaDepartmentHead
         ? [$department, $member, 'workspace' => 1]
         : [$department, $member];
-    $memberWorkspaceBaseQuery = $isReadOnlyWorkspace ? ['workspace' => 1] : [];
+    $memberWorkspaceBaseQuery = $viaDepartmentHead ? ['workspace' => 1] : [];
     $workspaceViews = [
         ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
         ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
@@ -61,14 +68,13 @@
                 <div class="wb-profile-kpi admin-member-profile__metric"><i class="bi bi-folder2-open"></i><strong>{{ $totals['projects'] }}</strong><span>โปรเจกต์</span></div>
                 <div class="wb-profile-kpi admin-member-profile__metric"><i class="bi bi-list-check"></i><strong>{{ $totals['tasks'] }}</strong><span>งานทั้งหมด</span></div>
             </div>
-            {{-- เปิด flow เดียวกับผู้ใช้ แต่ preselect สมาชิกและเริ่มจากขั้นเพิ่มรายการงาน --}}
-            @unless($isReadOnlyWorkspace)
-            <button type="button" class="admin-assignment-launch admin-assign-button" data-open-admin-assignment>
-                <span aria-hidden="true"><i class="bi bi-person-plus-fill"></i></span>
-                <span><strong>มอบหมายงาน</strong><small>เลือกโปรเจกต์แล้วเพิ่มรายการ</small></span>
-                <i class="bi bi-arrow-right" aria-hidden="true"></i>
-            </button>
-            @endunless
+            {{--
+                ไม่มีปุ่มมอบหมายงานที่นี่
+
+                Workspace ของสมาชิกเป็นอ่านอย่างเดียวทั้งสำหรับ admin และหัวหน้าแผนก
+                การมอบหมายงานให้สมาชิกเป็นหน้าที่ของหัวหน้าแผนกผ่านบอร์ดของแผนก
+                ส่วน admin ใช้โมดัลมอบหมายงานที่หน้าบอร์ดรวมสำหรับงานตั้งระบบ
+            --}}
         </div>
     </section>
 
@@ -82,7 +88,6 @@
         data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
         data-schedule-template="{{ route('tasks.schedule.update', ['id' => '__ID__']) }}"
         data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}"
-        data-quick-template="{{ route('admin.work-board.member.tasks.store', [$department, $member, '__LIST__']) }}"
         data-current-user-name="{{ auth()->user()->name }}"
         data-current-user-avatar="{{ auth()->user()->profile_image ? route('media.profile', auth()->user()) : '' }}">
         <div class="mytasks-view-controls">
@@ -157,20 +162,4 @@
 
 </div>
 
-{{-- โมดัลชุดเดียวกับ Admin Board Overview เพียงแต่ผูก origin ไว้กับสมาชิกคนนี้
-     วางนอก .work-board-page เพื่อไม่ให้ stacking context ของหน้าไปทับ overlay ของ Bootstrap --}}
-@unless($isReadOnlyWorkspace)
-@include('board.components.admin-assignment-modal', [
-    'assignmentOrigin' => ['department_id' => $department->id, 'member_id' => $member->id],
-    'defaultAssigneeId' => $member->id,
-    'projectOptions' => $manageableTaskLists,
-    'startWithTask' => true,
-])
-@endunless
 @endsection
-
-@push('scripts')
-@unless($isReadOnlyWorkspace)
-    @include('board.components.admin-assignment-flash')
-@endunless
-@endpush

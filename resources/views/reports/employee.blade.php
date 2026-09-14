@@ -45,11 +45,17 @@
     @include('reports.components.kpi-band', ['cards' => $kpiCards, 'ariaLabel' => 'สรุปตัวเลขของ '.$employee->name])
 
     @php
+        /*
+         * เหลือสามใบ: แนวโน้มรายเดือน สถานะปัจจุบัน และระดับความสำคัญ
+         *
+         * กราฟ "ปิดงานได้เดือนละเท่าไร" ถูกตัดออกเพราะซ้ำกับกราฟแนวโน้ม ซึ่งมีเส้น
+         * "งานที่เสร็จ" รายเดือนอยู่แล้ว — ตัวเลขชุดเดียวกัน แกนเดียวกัน ต่างกันแค่
+         * รูปทรง คนอ่านจึงเสียเวลาเทียบสองใบเพื่อได้คำตอบเดียว
+         */
         $charts = [
             ['id' => 'employeeTrendChart', 'kind' => 'line', 'class' => 'employee-chart-card--trend', 'title' => 'งานเข้าเทียบกับงานที่ปิดได้', 'description' => 'ถ้างานเข้าสูงกว่างานที่เสร็จต่อเนื่อง แปลว่างานค้างกำลังสะสม', 'label' => 'กราฟเส้นเปรียบเทียบงานที่สร้างกับงานที่เสร็จ'],
             ['id' => 'employeeStatusChart', 'kind' => 'doughnut', 'class' => 'employee-chart-card--status', 'title' => 'ตอนนี้งานค้างอยู่ที่ขั้นไหน', 'description' => 'สัดส่วนสถานะปัจจุบันของงานในรายงาน', 'label' => 'กราฟวงกลมสัดส่วนสถานะงาน'],
-            ['id' => 'employeeCompletedChart', 'kind' => 'bar', 'class' => 'employee-chart-card--completed', 'title' => 'ปิดงานได้เดือนละเท่าไร', 'description' => 'นับจากวันที่งานเสร็จจริง ไม่ใช่วันครบกำหนด', 'label' => 'กราฟแท่งจำนวนงานที่เสร็จในแต่ละเดือน'],
-            ['id' => 'employeePriorityChart', 'kind' => 'doughnut', 'class' => 'employee-chart-card--priority', 'title' => 'งานที่รับผิดชอบเป็นงานระดับไหน', 'description' => 'สัดส่วนตามระดับความสำคัญของงาน', 'label' => 'กราฟวงกลมสัดส่วนความสำคัญของงาน'],
+            ['id' => 'employeePriorityChart', 'kind' => 'bar', 'class' => 'employee-chart-card--priority', 'title' => 'งานที่รับผิดชอบเป็นงานระดับไหน', 'description' => 'สัดส่วนตามระดับความสำคัญของงาน', 'label' => 'กราฟแท่งแนวนอนจำนวนงานแยกตามระดับความสำคัญ'],
         ];
     @endphp
     <section class="employee-report__dashboard" aria-label="กราฟรายงานรายบุคคล">
@@ -94,10 +100,6 @@
             <button type="button" data-employee-task-next aria-label="หน้าถัดไป"><span>ถัดไป</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
         </nav>
     </section>
-
-    @if($operational !== null)
-        @include('reports.components.employee-operational')
-    @endif
 
     @include('reports.components.subtask-modal')
 

@@ -19,6 +19,14 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
      */
     const tabs = [...workspace.querySelectorAll('[role="tab"][data-view]')];
     const boardToolbar = workspace.querySelector('[data-board-toolbar]');
+    /*
+     * ตัวกรองสถานะมีความหมายเฉพาะมุมมองที่วาดการ์ดงานเป็นรายใบ คือตารางกับบอร์ด
+     *
+     * ปฏิทินจัดวางงานตามวัน การกรองสถานะจึงทำให้ช่องวันหายไปเฉย ๆ โดยไม่บอกอะไร
+     * ส่วนมุมมองประชุมไม่มีสถานะงานให้กรองเลย
+     */
+    const statusFilter = workspace.querySelector('[data-board-status-filter]');
+    const STATUS_FILTER_VIEWS = ['table', 'board'];
     const scopeControl = workspace.querySelector('[data-task-scope-control]');
     if (!database) return;
     if (!tabs.length) {
@@ -50,6 +58,15 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
         const view = knownViews.includes(requestedView) ? requestedView : fallbackView;
         database.dataset.view = view;
         if (boardToolbar) boardToolbar.hidden = view !== 'board';
+        /*
+         * ต้องคำนวณใหม่ทุกครั้งที่สลับมุมมอง ไม่ใช่เชื่อค่าที่ Blade ใส่มาตอนโหลดหน้า
+         *
+         * ค่า hidden ตั้งต้นมาจาก $workspaceView ของรอบที่ render เท่านั้น มุมมองประชุม
+         * เป็นการโหลดหน้าใหม่จาก server หน้านั้นจึงส่งตัวกรองมาแบบ hidden
+         * แล้วการกดกลับมาที่ตาราง/บอร์ดเป็นการสลับฝั่ง client ล้วน ๆ ซึ่งไม่เคยปลดค่านั้น
+         * ผู้ใช้จึงเสียตัวกรองไปจนกว่าจะรีโหลดหน้าเอง
+         */
+        if (statusFilter) statusFilter.hidden = ! STATUS_FILTER_VIEWS.includes(view);
         tabs.forEach((tab) => {
             const active = tab.dataset.view === view;
             tab.classList.toggle('active', active);

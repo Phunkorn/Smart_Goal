@@ -26,6 +26,8 @@ use App\Http\Controllers\WorkLogAttachmentController;
 use App\Http\Controllers\WorkLogCategoryController;
 use App\Http\Controllers\WorkLogController;
 use App\Http\Controllers\WorkLogTemplateController;
+use App\Http\Controllers\WorkOrderShareController;
+use App\Http\Controllers\WorkOrderShareRequestController;
 use App\Http\Controllers\WorkOrderSubtaskController;
 use App\Http\Controllers\WorkspaceBoardAttachmentController;
 use App\Http\Controllers\WorkspaceBoardController;
@@ -331,8 +333,8 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         Route::get('/departments/{department}', [WorkBoardController::class, 'adminDepartment'])->name('department');
         Route::get('/departments/{department}/members/{user}/preview', [WorkBoardController::class, 'adminMemberPreview'])->name('member.preview');
         Route::get('/departments/{department}/members/{user}', [WorkBoardController::class, 'adminMember'])->name('member');
-        Route::post('/departments/{department}/members/{user}/projects/{list}/tasks', [TaskController::class, 'storeForAdminMember'])
-            ->name('member.tasks.store');
+        // ไม่มี endpoint สร้างงานที่นี่ — Workspace ของสมาชิกเป็นอ่านอย่างเดียว
+        // การมอบหมายงานเป็นหน้าที่ของหัวหน้าแผนก (ดู WorkBoardController::adminMember)
     });
     // บอร์ดติดตามงานสำหรับพนักงาน
     Route::prefix('work-board')->name('work-board.')->middleware('role:user')->group(function () {
@@ -401,6 +403,23 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->name('mytasks.task-requests.approve');
     Route::patch('/my-tasks/task-requests/{taskRequest}/reject', [ProjectTaskRequestController::class, 'reject'])
         ->name('mytasks.task-requests.reject');
+
+    /*
+     * แชร์งาน
+     *
+     * viewer ถูกกันสองชั้น: middleware ที่นี่ และ WorkOrderSharePolicy อีกชั้น
+     * เพราะ viewer เป็นผู้ร่วมงานไม่ได้อยู่แล้ว จึงไม่มีอะไรให้ทำในหน้านี้
+     */
+    Route::prefix('shared-tasks')->name('shares.')->middleware('role:admin,user')->group(function () {
+        Route::get('/', [WorkOrderShareController::class, 'index'])->name('index');
+        Route::post('/tasks/{id}', [WorkOrderShareController::class, 'store'])->name('store');
+        Route::delete('/{share}', [WorkOrderShareController::class, 'destroy'])->name('destroy');
+        Route::post('/{share}/requests', [WorkOrderShareRequestController::class, 'store'])->name('requests.store');
+        Route::patch('/requests/{shareRequest}/approve', [WorkOrderShareRequestController::class, 'approve'])
+            ->name('requests.approve');
+        Route::patch('/requests/{shareRequest}/reject', [WorkOrderShareRequestController::class, 'reject'])
+            ->name('requests.reject');
+    });
 
     Route::patch('/my-tasks/{job_id}/complete', [MyTaskController::class, 'toggleComplete'])
         ->name('mytasks.complete');

@@ -259,74 +259,6 @@ class TaskController extends Controller
             ->with('success', $message);
     }
 
-    public function storeForAdminMember(
-        Request $request,
-        Department $department,
-        User $user,
-        WorkOrderList $list
-    ) {
-        abort_unless(
-            $user->role === 'user' && (int) $user->department_id === (int) $department->id,
-            404
-        );
-
-        $this->authorize('create', WorkOrder::class);
-        $this->authorize('manage', $list);
-        abort_if($list->archived_at !== null, 422, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว กรุณาเปิดโปรเจกต์อีกครั้งก่อนเพิ่มงาน');
-
-        $belongsToWorkspace = WorkOrder::query()
-            ->where('work_order_list_id', $list->id)
-            ->where('user_id', $user->id)
-            ->where('department_id', $department->id)
-            ->exists();
-
-        abort_unless($belongsToWorkspace, 404);
-
-        $validated = $request->validate([
-            'job_topic' => ['required', 'string', 'max:255'],
-        ]);
-
-        $actor = Auth::user();
-        $approval = WorkOrderApprovalResolver::resolve($actor, $user);
-
-        $job = DB::transaction(function () use ($validated, $actor, $approval, $department, $user, $list) {
-            $job = WorkOrder::create([
-                'user_id' => $user->id,
-                'created_by' => $actor->id,
-                'assigned_by' => $actor->id,
-                'leader_user_id' => $approval['leader_user_id'],
-                'department_id' => $department->id,
-                'work_order_list_id' => $list->id,
-                'job_topic' => trim($validated['job_topic']),
-                'job_details' => null,
-                'job_priority' => 2,
-                'job_status' => 2,
-                'approval_status' => $approval['approval_status'],
-                'approved_by' => $approval['approved_by'],
-                'approved_at' => $approval['approved_at'],
-                'job_start_at' => now(),
-                'job_due_at' => TodayWorkspace::parseBusinessInput(TodayWorkspace::businessNow()->addDay()->format('Y-m-d'), TodayWorkspace::DEFAULT_DUE_TIME),
-            ]);
-
-            AuditTrail::log('created', $job, 'Admin เพิ่มงานในโปรเจกต์: '.$job->job_topic, [
-                'after' => $job->attributesToArray(),
-                'work_order_list_id' => $list->id,
-                'workspace_user_id' => $user->id,
-            ]);
-
-            return $job;
-        });
-
-        app(NotificationService::class)->notifyAssignmentCreated($job, $actor, $user, true);
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'เพิ่มงานในโปรเจกต์แล้ว',
-            'job_id' => $job->job_id,
-            'list_id' => $list->id,
-        ], 201);
-    }
-
     private function storeAdminProject(Request $request, CollaboratorInvitationService $invitations)
     {
         $this->authorize('create', WorkOrder::class);
@@ -647,7 +579,16 @@ class TaskController extends Controller
             'requested_by' => $user->id,
         ]);
 
-        // หัวหน้าแผนกต้องรู้ว่ามีคนขอลบงานของแผนกตัวเอง แม้การตัดสินใจยังเป็นของผู้ดูแลระบบ
+        /*
+         * คำขอลบงานเป็นข้อยกเว้นที่ตั้งใจ — ยังส่งหา admin ทุกคน
+         *
+         * แม้ admin จะถูกตัดออกจากการแจ้งเตือนงานประจำวันทั้งหมดแล้ว (ดู
+         * NotificationService::notifyTaskOverseers) แต่คำขอลบงานต้องคงไว้ เพราะ
+         * WorkOrderPolicy::delete() เปิดให้ admin เท่านั้น ถ้าไม่แจ้ง admin คำขอนี้จะไม่มี
+         * ใครตัดสินได้เลย — ห้ามถอดออกตามหลักการ "ลดบทบาท admin" โดยไม่ย้ายอำนาจลบก่อน
+         *
+         * หัวหน้าแผนกได้รับด้วยเพื่อให้รู้ว่ามีคนขอลบงานของแผนกตัวเอง แม้ตัดสินใจไม่ได้
+         */
         $notifications = app(NotificationService::class);
         $recipientIds = User::where('role', 'admin')->pluck('id')
             ->merge($notifications->departmentHeadIdsForTask($job))
@@ -867,7 +808,7 @@ class TaskController extends Controller
             'tasks.*.job_topic' => ['required', 'string', 'max:255'],
             'tasks.*.job_details' => ['nullable', 'string', 'max:2000'],
             'tasks.*.user_id' => WorkOrderAssignee::validationRules(),
-            'tasks.*.job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
+            'tasks.*.job_priority' => ['nullable', 'integer', 'in:2,3,4,5'],
             'tasks.*.job_start_at' => ['required', 'date'],
             'tasks.*.job_due_at' => ['required', 'date', 'after_or_equal:tasks.*.job_start_at'],
             'tasks.*.collaborators' => ['nullable', 'array'],
@@ -885,7 +826,7 @@ class TaskController extends Controller
             'work_order_list_id' => ['nullable', 'integer', 'exists:work_order_lists,id'],
             'user_id' => WorkOrderAssignee::validationRules(false),
             'department_id' => ['nullable', 'exists:departments,id'],
-            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
+            'job_priority' => ['nullable', 'integer', 'in:2,3,4,5'],
             'job_start_at' => ['required', 'date'],
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
             'collaborators' => ['nullable', 'array'],

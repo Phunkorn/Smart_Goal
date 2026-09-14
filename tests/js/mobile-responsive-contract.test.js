@@ -108,17 +108,22 @@ test('mobile role chip keeps a compact visible label with an accessible name', a
     // ป้ายบทบาทมีชื่อแผนกต่อท้ายแล้ว จึงต้องยอมย่อและตัดคำแทนที่จะดันปุ่มแจ้งเตือนตกบรรทัด
     assert.match(mobile, /\.role-chip\s*\{[^}]*width:\s*auto[^}]*min-width:\s*0[^}]*max-width:\s*52vw[^}]*flex:\s*0 1 auto[^}]*justify-content:\s*center[^}]*gap:\s*\.35rem[^}]*padding:\s*0 \.65rem/s);
     assert.match(mobile, /\.role-chip i\s*\{[^}]*margin:\s*0/s);
-    assert.match(mobile, /\.role-chip__label\s*\{[^}]*display:\s*inline[^}]*font-size:\s*\.72rem/s);
-    assert.match(shared, /\.role-chip__label\s*\{[^}]*min-width:\s*0[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis/s);
     assert.match(shared, /\.role-chip i\s*\{[^}]*flex:\s*0 0 auto/s);
     // ป้ายบทบาทถูกจำกัดให้เห็นเฉพาะจอเล็ก เพราะบนเดสก์ท็อปท้าย Sidebar บอกบทบาทอยู่แล้ว
     assert.match(blade, /class="role-chip role-chip--mobile-only \{\{ \$roleChipClass \}\}" aria-label="\{\{ \$roleChipText \}\}" title="\{\{ \$roleChipText \}\}"/);
+    /*
+     * ป้ายข้อความถูกถอดออกตามที่เจ้าของระบบสั่ง เหลือไอคอนอย่างเดียว
+     * บทบาทยังถูกอ่านออกเสียงได้จาก aria-label และเห็นได้จาก title เมื่อชี้ค้าง
+     * สไตล์ของป้ายต้องถูกลบทิ้งจริงด้วย ไม่ใช่ปล่อยค้างไว้เป็นกฎที่ไม่มีอะไรมาใช้
+     */
+    assert.doesNotMatch(blade, /role-chip__label/);
+    assert.doesNotMatch(mobile, /role-chip__label/);
+    assert.doesNotMatch(shared, /role-chip__label/);
     // ตัวเลือกต้องเจาะจงกว่ากฎฐาน .role-chip ที่ import ทีหลัง (ดูเทสต์ของกฎซ่อนด้านล่าง)
     assert.match(
         await css('resources/css/components/layout/topbar.css'),
         /@media \(min-width: 992px\) \{\s*\.topbar \.role-chip--mobile-only \{\s*display: none/s,
     );
-    assert.match(blade, /<span class="role-chip__label">\{\{ \$roleChipText \}\}<\/span>/);
 });
 
 /*
@@ -248,10 +253,13 @@ test('the month grid supports a responsive four-lane timeline and the priority s
 
     assert.doesNotMatch(source, /\.mytasks-calendar__legend\s*\{[^}]*border:\s*1px/s);
     assert.match(source, /\.mytasks-calendar__legend-item\s*\{[^}]*padding:\s*5px 9px[^}]*border:\s*1px solid var\(--calendar-legend-border[^}]*border-radius:\s*999px[^}]*background:\s*var\(--calendar-legend-background/s);
-    for (const tone of ['urgent', 'quick', 'important', 'flexible', 'routine']) {
+    // ระดับ 1 ("routine") ถูกเลิกใช้แล้ว จึงเหลือสี่ระดับ
+    for (const tone of ['urgent', 'quick', 'important', 'flexible']) {
         assert.match(source, new RegExp(`\\.mytasks-calendar__legend-item\\.priority-${tone}\\s*\\{[^}]*--calendar-legend-border:[^}]*--calendar-legend-background:`, 's'));
     }
     assert.match(source, /\.mytasks-calendar__legend-item--meeting\s*\{[^}]*--calendar-legend-border:[^}]*--calendar-legend-background:/s);
+    // ระดับที่เลิกใช้แล้วต้องไม่มีสไตล์ค้างไว้ ไม่งั้นมันจะกลับมาโผล่เมื่อมีข้อมูลเก่าหลุดเข้ามา
+    assert.doesNotMatch(source, /priority-routine/, 'สไตล์ของระดับ routine ต้องถูกลบออกจริง ไม่ใช่แค่ไม่ถูกเรียก');
     assert.match(mobile, /\.mytasks-calendar__legend\s*\{[^}]*width:\s*100%/s);
     assert.match(source, /\.mytasks-calendar__canvas\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0/s);
     assert.match(source, /\.mytasks-calendar__counts\s*\{[^}]*flex-direction:\s*column/s);
@@ -340,7 +348,6 @@ test('agenda headings read as black labels and cell values are not bold', async 
      * ค่าต้องตรงกับ App\Support\WorkBoardDesign::PRIORITIES ซึ่งเป็นแหล่งความจริงของทั้งระบบ
      */
     const tones = {
-        routine: '#64748b',
         important: '#2563eb',
         urgent: '#dc2626',
         quick: '#d97706',
@@ -460,7 +467,7 @@ test('calendar view removes the outer database card and keeps only the content c
 test('every priority level tints the whole day cell, meetings included', async () => {
     const base = await css('resources/css/components/task-workspace/calendar/base.css');
 
-    for (const tone of ['urgent', 'quick', 'important', 'flexible', 'routine', 'meeting']) {
+    for (const tone of ['urgent', 'quick', 'important', 'flexible', 'meeting']) {
         assert.match(
             base,
             new RegExp(`\\.mytasks-calendar__day\\.is-tone-${tone}\\s*\\{[^}]*--calendar-tone:[^}]*background:`, 's'),

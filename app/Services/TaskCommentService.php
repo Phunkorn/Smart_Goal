@@ -80,8 +80,15 @@ class TaskCommentService
                 ->pluck('id')
         ));
 
+        /*
+         * ไม่รวม admin
+         *
+         * เดิมใส่ admin ทุกคนเป็นผู้รับแจ้งเตือนคอมเมนต์ของงานโปรเจกต์ ทั้งที่คอมเมนต์คือ
+         * บทสนทนาระหว่างคนที่ทำงานใบนั้นจริง ๆ ไม่ใช่เรื่องที่ผู้ดูแลระบบต้องลงมือ
+         * admin ที่เข้าไปอยู่ในงานจริง (เป็นเจ้าของ ผู้สร้าง หรือผู้ร่วมงาน) ยังได้รับตามปกติ
+         * เพราะจะถูกนับอยู่ใน $participantIds อยู่แล้ว
+         */
         return $participantIds
-            ->merge(User::query()->where('role', 'admin')->where('is_active', true)->pluck('id'))
             ->filter()
             ->map(fn ($id) => (int) $id)
             ->unique()

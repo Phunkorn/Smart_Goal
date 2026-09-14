@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mountDom} from './helpers/dom.js';
 
+/*
+ * ประชุมของฟิกซ์เจอร์ต้อง "ยังไม่เลิก" เสมอ ไม่ว่าเทสต์จะถูกรันตอนกี่โมง
+ *
+ * ปฏิทินตัดประชุมที่เลิกไปแล้วออก ฟิกซ์เจอร์ที่ตรึงเวลาไว้ (เช่น 10:00-11:00 ของวันนี้)
+ * จึงหายไปเองเมื่อรันหลัง 11 โมง และการบวกเวลาไปข้างหน้าก็ไม่ปลอดภัย เพราะถ้าบวกแล้ว
+ * ข้ามเที่ยงคืน เวลาที่ได้จะกลายเป็นช่วงเช้าของ "วันเดียวกัน" ซึ่งเป็นอดีตไปแล้ว
+ *
+ * จึงให้ประชุมเริ่ม ณ ตอนนี้และเลิกสิ้นวัน — อยู่ระหว่างดำเนินการเสมอ
+ */
+const nowClock = () => {
+    const at = new Date();
+
+    return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+};
+
 /**
  * Regression: หลังเปลี่ยน Calendar Quick View จาก Modal เป็น Popover ปฏิทินทั้งหน้ากดอะไรไม่ได้เลย
  *
@@ -61,8 +76,8 @@ async function bootCalendar(t, {includeQuickViewShell = true, meetingsDelayMs = 
         organizer: 'ผู้จัด',
         start: todayIso,
         due: todayIso,
-        startTime: '10:00',
-        endTime: '11:00',
+        startTime: nowClock(),
+        endTime: '23:59',
         entityId: 1,
         quickViewUrl: '/my-tasks/calendar/quick-view/meeting/1',
         detailUrl: '/meetings/1',

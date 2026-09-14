@@ -26,7 +26,7 @@ class ProjectTaskRequestController extends Controller
 
         $validated = $request->validateWithBag('projectTaskRequest', [
             'job_topic' => ['required', 'string', 'max:255'],
-            'job_priority' => ['required', 'integer', 'in:1,2,3,4,5'],
+            'job_priority' => ['required', 'integer', 'in:2,3,4,5'],
             'job_start_at' => ['required', 'date'],
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
         ]);

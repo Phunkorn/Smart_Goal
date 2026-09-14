@@ -40,7 +40,7 @@
             ยังไม่มีการตรวจงานประจำในช่วงนี้ — ตั้งงานประจำได้ที่หน้าบันทึกงานประจำวัน
         </p>
     @else
-        <div class="report-department-scroll">
+        <div class="report-department-scroll report-checklist__scroll">
             <table class="report-department-table report-checklist__table"
                 data-checklist-table
                 data-page-size="{{ $todayChecklist['page_size'] }}">

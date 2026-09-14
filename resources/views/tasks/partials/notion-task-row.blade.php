@@ -30,6 +30,10 @@
     $taskAdminSenderName = $task->creator?->role === 'admin' ? $task->creator->name : null;
     $canQuickAddToList = $showQuickAdd && $task->taskList && auth()->user()->can('manage', $task->taskList);
     $canWork = auth()->user()->can('work', $task);
+    $canReview = auth()->user()->can('review', $task);
+    $reviewableSubtaskCount = $task->relationLoaded('children')
+        ? $task->children->filter(fn ($child) => (int) $child->job_status === 3 && auth()->user()->can('review', $child))->count()
+        : 0;
     // งานของตัวเองไม่มีผู้ตรวจ จึงต้องไม่เสนอสถานะ "รอตรวจสอบ" ให้เลือก
     $showsReviewStage = \App\Support\TaskReviewStage::appliesTo($task, auth()->user());
     $canManageTeam = auth()->user()->can('manageTeam', $task);
@@ -38,13 +42,16 @@
         : route('mytasks.destroy', $task->job_id);
 @endphp
 @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => false])
-<div class="notion-row" data-row data-id="{{ $task->job_id }}" @if($task->parent_job_id) data-child-task="1" data-parent-id="{{ $task->parent_job_id }}" @endif
+<div class="notion-row" data-row data-id="{{ $task->job_id }}"
+    data-can-review="{{ $canReview ? 1 : 0 }}"
+    data-reviewable-subtasks="{{ $reviewableSubtaskCount }}"
+    @if($task->parent_job_id) data-child-task="1" data-parent-id="{{ $task->parent_job_id }}" @endif
     @if($task->taskList && auth()->user()->can('manage', $task->taskList))
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"
         data-list-delete-url="{{ route('mytasks.lists.destroy', $task->taskList) }}"
     @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}" data-subtask-names="{{ $subtaskNames->toJson(JSON_UNESCAPED_UNICODE) }}">
     <button type="button" class="row-title" data-open-task-modal><strong title="{{ $task->job_topic }}">{{ $task->job_topic }}</strong>@include('tasks.partials.approval-state-marker', ['task' => $task])</button>
-    @php($taskPriorityClass = [1=>'routine',2=>'important',3=>'urgent',4=>'quick',5=>'flexible'][(int) $task->job_priority] ?? 'important')
+    @php($taskPriorityClass = [2=>'important',3=>'urgent',4=>'quick',5=>'flexible'][(int) $task->job_priority] ?? 'important')
     @if($canWork)
         <details class="board-status-menu table-status-menu" data-table-status-menu>
             <summary class="board-status-pill status-{{ $statusClass }}"><span data-table-status-label>{{ $statusText }}</span><i class="bi bi-chevron-down"></i></summary>
@@ -53,7 +60,7 @@
         <input type="hidden" data-field="status" value="{{ $task->job_status }}">
         <details class="board-priority-menu table-priority-menu" data-table-priority-menu>
             <summary class="board-priority priority-{{ $taskPriorityClass }}"><span data-table-priority-label>{{ $priorityLabels[(int) $task->job_priority] ?? $priorityLabels[2] }}</span><i class="bi bi-chevron-down"></i></summary>
-            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible'],1=>['routine','routine']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-table-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$task->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-table-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$task->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
         <input type="hidden" data-field="priority" value="{{ $task->job_priority }}">
     @else

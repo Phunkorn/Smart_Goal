@@ -257,6 +257,41 @@ class TaskReviewWorkflowTest extends TestCase
 
     }
 
+    public function test_review_filter_marks_reviewable_subtasks_without_a_duplicate_button(): void
+    {
+        $creator = $this->user();
+        $assignee = $this->user();
+        $parent = $this->task($assignee, $creator, 2, ['job_topic' => 'งานหลัก']);
+        $this->task($assignee, $creator, 3, [
+            'job_topic' => 'งานย่อยรอตรวจ',
+            'parent_job_id' => $parent->job_id,
+            'submitted_for_review_by' => $assignee->id,
+            'submitted_for_review_at' => now(),
+        ]);
+
+        $response = $this->actingAs($creator)->get(route('mytasks.index', [
+            'view' => 'board',
+            'status' => 'my_review',
+        ]));
+
+        $response->assertOk()
+            ->assertSee('<option value="my_review"', false)
+            ->assertDontSee('notion-review-filter', false)
+            ->assertSee('งานหลัก')
+            ->assertSee('งานย่อยรอตรวจ')
+            ->assertSee('data-board-subtask="1"', false)
+            ->assertSee('data-can-review="1"', false);
+
+        $tableResponse = $this->actingAs($creator)->get(route('mytasks.index', [
+            'view' => 'table',
+            'status' => 'my_review',
+        ]));
+
+        $tableResponse->assertOk()
+            ->assertSee('class="notion-filter"', false)
+            ->assertSee('data-reviewable-subtasks="1"', false);
+    }
+
     /**
      * Regression: หัวหน้า/ผู้มอบหมายเคยถูก WorkOrderPolicy::submitForReview() กันออกด้วย
      * isAssignmentApprover() ผลคือถ้าผู้รับผิดชอบไม่กดส่งตรวจเอง งานจะตันสนิท —

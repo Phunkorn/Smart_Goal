@@ -86,6 +86,13 @@
     cursor: pointer;
 }
 
+.sg-select__option--divider { margin-top: 5px; padding-top: 12px; border-top: 1px solid var(--border, #e4eaf3); }
+.sg-select__option-icon { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border-radius: 7px; background: var(--accent-dim, #e7edfc); color: var(--accent, #1e4fd6); font-size: .82rem; }
+.sg-select__option--rich { display: flex; align-items: center; gap: 9px; }
+.sg-select__option-copy { display: grid; min-width: 0; gap: 2px; }
+.sg-select__option-copy strong { color: inherit; font-size: .8rem; font-weight: 700; }
+.sg-select__option-copy small { color: var(--text-muted, #64748b); font-size: .7rem; font-weight: 400; line-height: 1.4; }
+
 .sg-select__option.is-active { background: var(--accent-dim, #e7edfc); }
 .sg-select__option[aria-selected="true"] { color: var(--accent, #1e4fd6); font-weight: 700; }
 

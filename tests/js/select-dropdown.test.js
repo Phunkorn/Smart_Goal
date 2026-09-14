@@ -162,6 +162,27 @@ test('the panel animates instead of snapping and stays a popover, not a modal', 
     assert.doesNotMatch(css, /aria-modal/);
 });
 
+test('an option can render an icon description and visual divider', async (t) => {
+    const env = mountDom();
+    t.after(env.cleanup);
+    env.document.body.innerHTML = `
+        <div data-sg-select>
+            <select>
+                <option value="review" data-icon="bi-eye" data-description="Only work waiting for you" data-divider="true">Needs review</option>
+            </select>
+        </div>`;
+
+    const {initSelectDropdowns} = await import('../../resources/js/components/select-dropdown.js');
+    initSelectDropdowns(env.document);
+    click(env.document.querySelector('.sg-select__trigger'));
+
+    const option = env.document.querySelector('.sg-select__option');
+    assert.equal(option.classList.contains('sg-select__option--divider'), true);
+    assert.equal(option.querySelector('.sg-select__option-icon').classList.contains('bi-eye'), true);
+    assert.equal(option.querySelector('strong').textContent, 'Needs review');
+    assert.equal(option.querySelector('small').textContent, 'Only work waiting for you');
+});
+
 test('both report pages enhance their filters with the shared component', async () => {
     const [my, employee, personalFilters, employeeView] = await Promise.all([
         read('resources/js/pages/reports/my.js'),

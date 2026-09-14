@@ -108,11 +108,6 @@
     --calendar-legend-background: #f2f5f9;
 }
 
-.my-tasks-page .mytasks-calendar__legend-item.priority-routine {
-    --calendar-legend-border: #99f6e4;
-    --calendar-legend-background: #ecfaf7;
-}
-
 .my-tasks-page .mytasks-calendar__legend-item--meeting {
     --calendar-legend-border: #ddd6fe;
     --calendar-legend-background: #f6f1ff;
@@ -375,11 +370,6 @@
     background: #f2f5f9;
 }
 
-.my-tasks-page .mytasks-calendar__day.is-tone-routine {
-    --calendar-tone: #0d9488;
-    background: #ecfaf7;
-}
-
 .my-tasks-page .mytasks-calendar__day.is-tone-meeting {
     --calendar-tone: #7c3aed;
     background: #f6f1ff;
@@ -435,7 +425,6 @@
 .my-tasks-page .priority-quick { --calendar-tone: #f97316; }
 .my-tasks-page .priority-important { --calendar-tone: #eab308; }
 .my-tasks-page .priority-flexible { --calendar-tone: #64748b; }
-.my-tasks-page .priority-routine { --calendar-tone: #0d9488; }
 .my-tasks-page .mytasks-calendar__legend-item--meeting,
 .my-tasks-page .mytasks-calendar__count.is-meeting,
 .my-tasks-page .calendar-table__row.is-meeting { --calendar-tone: #7c3aed; }

@@ -68,7 +68,7 @@ class AdminApprovalPageTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.approvals.index'));
 
         $response->assertOk()
-            ->assertViewHas('approvalCounts', ['assignments' => 2, 'collaborators' => 2, 'total' => 4])
+            ->assertViewHas('approvalCounts', ['assignments' => 2, 'collaborators' => 2, 'shares' => 0, 'total' => 4])
             ->assertSee($pendingAssignment->job_topic)
             ->assertSee($candidateOne->name)
             ->assertSee($candidateTwo->name)
@@ -88,7 +88,7 @@ class AdminApprovalPageTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.approvals.index'))
             ->assertOk()
-            ->assertViewHas('approvalCounts', ['assignments' => 0, 'collaborators' => 0, 'total' => 0])
+            ->assertViewHas('approvalCounts', ['assignments' => 0, 'collaborators' => 0, 'shares' => 0, 'total' => 0])
             ->assertSee('ไม่มีงานข้ามแผนกที่รอการตัดสินใจ')
             ->assertSee('ไม่มีคำขอผู้ร่วมงานข้ามแผนกที่รอการตัดสินใจ');
 
@@ -117,7 +117,7 @@ class AdminApprovalPageTest extends TestCase
         $task->collaborators()->attach($candidate->id, ['status' => 'pending', 'added_by' => $requester->id]);
 
         DB::enableQueryLog();
-        $this->assertSame(['assignments' => 1, 'collaborators' => 1, 'total' => 2], app(AdminApprovalQuery::class)->counts());
+        $this->assertSame(['assignments' => 1, 'collaborators' => 1, 'shares' => 0, 'total' => 2], app(AdminApprovalQuery::class)->counts());
         $countQueries = DB::getQueryLog();
         DB::disableQueryLog();
 

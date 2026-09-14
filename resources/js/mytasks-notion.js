@@ -1,3 +1,5 @@
+import {boardFilterStateFrom, boardTaskMatches} from './pages/mytasks/task-filter-state.js';
+
 (() => {
     const root = document.querySelector('[data-workspace]');
     if (!root) return;
@@ -18,6 +20,9 @@
     const thaiShortDate = new Intl.DateTimeFormat('th-TH', {day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC'});
     let ascending = true;
     let toastTimer;
+    const initialFilterState = boardFilterStateFrom(new URLSearchParams(window.location.search));
+    if (search) search.value = initialFilterState.search;
+    if (filter) filter.value = initialFilterState.status;
 
     const toast = (message, ok = true) => {
         const element = document.querySelector('[data-toast]');
@@ -49,7 +54,13 @@
         let shown = 0;
         root.querySelectorAll('[data-row]').forEach((row) => {
             const matchesText = !query || row.textContent.toLowerCase().includes(query);
-            const matchesFilter = !selectedStatus || (selectedStatus === 'late' ? row.dataset.late === '1' : row.dataset.status === selectedStatus);
+            const matchesFilter = boardTaskMatches({
+                searchable: '',
+                status: row.dataset.status,
+                canReview: row.dataset.canReview,
+                reviewableSubtasks: row.dataset.reviewableSubtasks,
+                late: row.dataset.late,
+            }, {search: '', status: selectedStatus});
             row.hidden = !(matchesText && matchesFilter);
             if (!row.hidden) shown++;
         });
@@ -184,6 +195,7 @@
 
     search?.addEventListener('input', apply);
     filter?.addEventListener('change', apply);
+    apply();
     groupSelect?.addEventListener('change', regroup);
     const sort = root.querySelector('[data-sort]');
     sort?.addEventListener('click', () => {

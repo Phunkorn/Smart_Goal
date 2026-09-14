@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -12,6 +13,8 @@ use Tests\TestCase;
 class TaskCommentReadReceiptTest extends TestCase
 {
     use RefreshDatabase;
+
+    private ?Department $sharedDepartment = null;
 
     public function test_admin_and_user_share_comments_read_receipts_and_bangkok_time(): void
     {
@@ -114,13 +117,27 @@ class TaskCommentReadReceiptTest extends TestCase
             ->assertJsonPath('comment_receipts', null);
     }
 
+    /**
+     * ผู้ใช้ในแผนกเดียวกันเป็นค่าเริ่มต้น
+     *
+     * สิทธิ์ระดับโปรเจกต์ผูกกับแผนกแล้ว (คนต่างแผนกที่ถูกเชิญมาช่วยงานหนึ่งใบ
+     * จะไม่เห็นงานพี่น้องในโปรเจกต์นั้น) การไม่ระบุแผนกจะทำให้ทุกคนในไฟล์นี้
+     * กลายเป็นคนละแผนกกันโดยไม่ได้ตั้งใจ ซึ่งไม่ใช่สถานการณ์ที่ไฟล์นี้ตรวจ
+     */
     private function user(string $role = 'user'): User
     {
         return User::factory()->create([
             'role' => $role,
             'must_change_password' => false,
             'is_active' => true,
+            'department_id' => $this->sharedDepartment()->id,
         ]);
+    }
+
+    /** แผนกร่วมของไฟล์นี้ สร้างครั้งเดียวแล้วใช้ซ้ำ */
+    private function sharedDepartment(): Department
+    {
+        return $this->sharedDepartment ??= Department::create(['department_name' => 'แผนกร่วม']);
     }
 
     private function project(User $owner): WorkOrderList

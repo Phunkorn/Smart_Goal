@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -220,6 +221,23 @@ class WorkOrder extends Model
         return $this->belongsTo(User::class, 'delete_requested_by');
     }
 
+    /**
+     * ประกาศแชร์งานทุกใบของงานนี้ รวมที่ปิดไปแล้ว
+     *
+     * งานหนึ่งใบแชร์ซ้ำได้หลังปิดประกาศเดิม จึงเป็น hasMany ไม่ใช่ hasOne
+     */
+    public function shares(): HasMany
+    {
+        return $this->hasMany(WorkOrderShare::class, 'work_order_id', 'job_id');
+    }
+
+    /** ประกาศที่ยังเปิดรับผู้ร่วมงานอยู่ — มีได้ใบเดียวตามกติกาใน WorkOrderShareService */
+    public function openShare(): HasOne
+    {
+        return $this->hasOne(WorkOrderShare::class, 'work_order_id', 'job_id')
+            ->where('status', 'open');
+    }
+
     public function collaborators(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'work_order_collaborators', 'work_order_id', 'user_id')
@@ -285,16 +303,30 @@ class WorkOrder extends Model
 
         return $query->where(function (Builder $query) use ($user): void {
             $query->involving($user)
-                ->orWhere(function (Builder $projectTasks) use ($user): void {
-                    $projectTasks->where('approval_status', 'approved')
-                        ->whereIn('work_order_list_id', WorkOrder::query()
-                            ->select('work_order_list_id')
-                            ->where('approval_status', 'approved')
-                            ->whereNotNull('work_order_list_id')
-                            ->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
-                                ->where('users.id', $user->id)
-                                ->where('work_order_collaborators.status', 'accepted')));
-                })
+                /*
+                 * สิทธิ์ระดับโปรเจกต์ให้เฉพาะคนในแผนกเดียวกับงาน
+                 *
+                 * ของเดิมไม่ดูแผนกเลย คนต่างแผนกที่ถูกเชิญมาช่วยงานหนึ่งใบจึงเห็นงาน
+                 * ทุกใบของโปรเจกต์นั้นตามไปด้วย การเชิญข้ามแผนกครั้งเดียวเลยเปิดงาน
+                 * ทั้งโปรเจกต์ของอีกแผนกให้คนนอกเห็นหมด
+                 *
+                 * ตอนนี้ต้องเข้าเงื่อนไขทั้งสองด้าน: งานที่เขาตอบรับไว้ต้องเป็นงานของ
+                 * แผนกเขา และงานพี่น้องที่จะเห็นก็ต้องเป็นของแผนกเขาเช่นกัน ส่วนงานที่
+                 * เขาร่วมอยู่จริงยังเห็นได้เสมอจาก involving() ด้านบน
+                 *
+                 * เกณฑ์ต้องตรงกับ WorkOrderPolicy::acceptedProjectIds() ทุกประการ
+                 */
+                ->when($user->department_id !== null, fn (Builder $visible) => $visible
+                    ->orWhere(function (Builder $projectTasks) use ($user): void {
+                        $projectTasks->inDepartmentOf($user)
+                            ->whereIn('work_order_list_id', WorkOrder::query()
+                                ->select('work_order_list_id')
+                                ->whereNotNull('work_order_list_id')
+                                ->inDepartmentOf($user)
+                                ->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
+                                    ->where('users.id', $user->id)
+                                    ->where('work_order_collaborators.status', 'accepted')));
+                    }))
                 ->when($user->isDepartmentHead(), fn (Builder $visible) => $visible
                     ->orWhere(fn (Builder $departmentTasks) => $departmentTasks->inDepartmentOf($user)));
         });

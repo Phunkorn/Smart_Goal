@@ -35,6 +35,29 @@
     min-width: min-content;
 }
 
+/*
+ * เมื่อเหลือเฉพาะสถานะที่เลือก อย่ายืดการ์ดใบเดียวจนเต็มพื้นที่แนวนอน
+ * คงหัวสถานะไว้เต็มแถว แล้วเรียงงานเป็นการ์ดกระชับหลายใบต่อแถว
+ * เพื่อให้สแกนรายการจำนวนมากได้โดยไม่ต้องเลื่อนลงทีละการ์ดยาว ๆ
+ */
+@media (min-width: 761px) {
+    .my-tasks-page .mytasks-kanban.is-status-filtered .mytasks-kanban__columns {
+        grid-auto-flow: row;
+        grid-auto-columns: auto;
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+    }
+
+    .my-tasks-page .mytasks-kanban.is-status-filtered .mytasks-kanban__column {
+        min-height: 0;
+    }
+
+    .my-tasks-page .mytasks-kanban.is-status-filtered .mytasks-kanban__cards {
+        grid-template-columns: repeat(auto-fill, minmax(245px, 280px));
+        min-height: 0;
+    }
+}
+
 .my-tasks-page .mytasks-kanban__column {
     min-height: 560px;
     padding: 12px;

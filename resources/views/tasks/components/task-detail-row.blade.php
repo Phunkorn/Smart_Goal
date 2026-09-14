@@ -10,7 +10,7 @@
     $detailIsLate = (int) $detail->job_status !== 4 && $detail->job_due_at?->isPast();
     $detailIsSoon = ! $detailIsLate && (int) $detail->job_status !== 4 && $detail->job_due_at && now()->diffInDays($detail->job_due_at, false) <= 3;
     $detailStatus = [2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused'],6=>['ล่าช้า','late']][(int) $detail->job_status] ?? ['สถานะไม่รองรับ','unsupported'];
-    $detailPriority = [1=>['routine','routine'],2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int) $detail->job_priority] ?? ['สำคัญไม่ด่วน','important'];
+    $detailPriority = [2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int) $detail->job_priority] ?? ['สำคัญไม่ด่วน','important'];
     $detailAccepted = $detail->collaborators->filter(fn ($person) => $person->pivot?->status === 'accepted')->values();
     $detailPending = $detail->collaborators->filter(fn ($person) => $person->pivot?->status !== 'accepted')->values();
     $detailTeam = $detailAccepted->concat($detailPending);
@@ -52,6 +52,7 @@
     data-project-name="{{ $detail->taskList?->name ?? 'งานทั่วไป' }}"
     data-topic="{{ $detail->job_topic }}"
     data-status="{{ $detail->job_status }}"
+    data-can-review="{{ auth()->user()->can('review', $detail) ? 1 : 0 }}"
     data-priority="{{ $detail->job_priority }}"
     data-late="{{ $detailIsLate ? 1 : 0 }}"
     data-due-time="{{ \App\Support\TodayWorkspace::clockTime($detail->job_due_at) }}"
@@ -85,7 +86,7 @@
         </details>
         <details class="board-status-menu board-priority-menu" data-board-priority-menu>
             <summary class="board-priority priority-{{ $detailPriority[1] }}"><span data-board-priority-label>{{ $detailPriority[0] }}</span><i class="bi bi-chevron-down"></i></summary>
-            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible'],1=>['routine','routine']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$detail->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$detail->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
     @else
         <span class="board-status-pill status-{{ $detailIsLate ? 'late' : $detailStatus[1] }}">{{ $detailIsLate ? 'ล่าช้า' : $detailStatus[0] }}</span>
@@ -115,13 +116,16 @@
 
     <button type="button" class="board-comments{{ $detailComments ? ' has-comments' : '' }}" data-open-task-modal data-task-id="{{ $detail->job_id }}" data-task-tab="updates" data-unread-comments="{{ $detail->job_id }}" data-unread-persistent data-comment-label="{{ $detailCommentLabel }}" title="{{ $detailCommentLabel }}" aria-label="{{ $detailCommentLabel }} ของงานย่อย {{ $detail->job_topic }}"><i class="bi bi-chat-left-text" aria-hidden="true"></i><strong>{{ $detailComments ?: '-' }}</strong></button>
 
-    @if($canManageTaskDetails)
+    @if($canManageTaskDetails || auth()->user()->can('share', $detail))
         <details class="task-more-menu board-reference-menu board-task-detail__menu">
             <summary aria-label="เมนูจัดการงานย่อย {{ $detail->job_topic }}"><i class="bi bi-three-dots-vertical"></i></summary>
             <div class="board-task-menu">
+                @include('tasks.partials.share-task-menu-item', ['shareTask' => $detail])
+                @if($canManageTaskDetails)
                 <button type="button" data-task-detail-move><i class="bi bi-arrow-left-right"></i><span><strong>ย้ายไปงานอื่น</strong><small>ย้ายงานย่อยนี้ไปอยู่ใต้งานอื่น</small></span></button>
                 <button type="button" data-task-detail-edit><i class="bi bi-pencil-square"></i><span><strong>แก้ไขชื่องานย่อย</strong><small>เปลี่ยนเฉพาะชื่อ ฟิลด์อื่นแก้ในหน้ารายละเอียดงาน</small></span></button>
                 <button type="button" class="danger" data-task-detail-delete><i class="bi bi-trash3"></i><span><strong>ลบงานย่อย</strong><small>นำงานย่อยนี้ไปไว้ในถังขยะ</small></span></button>
+                @endif
             </div>
         </details>
     @else

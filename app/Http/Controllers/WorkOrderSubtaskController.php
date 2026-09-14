@@ -22,7 +22,8 @@ class WorkOrderSubtaskController extends Controller
     public function store(Request $request, WorkOrder $workOrder): JsonResponse
     {
         $workOrder->loadMissing('collaborators');
-        $this->authorize('work', $workOrder);
+        // นิยามว่างานใบนี้มีงานย่อยอะไรบ้าง เป็นสิทธิ์ของเจ้าของงาน ไม่ใช่ของผู้ร่วมงาน
+        $this->authorize('manageSubtasks', $workOrder);
         $request->merge(['title' => trim((string) $request->input('title'))]);
 
         $validated = $request->validate([
@@ -76,7 +77,7 @@ class WorkOrderSubtaskController extends Controller
     public function update(Request $request, WorkOrder $detail): JsonResponse
     {
         $parent = $this->parentOf($detail);
-        $this->authorize('work', $parent);
+        $this->authorize('manageSubtasks', $parent);
         $request->merge(['title' => trim((string) $request->input('title'))]);
 
         $validated = $request->validate([
@@ -102,7 +103,7 @@ class WorkOrderSubtaskController extends Controller
     public function destroy(Request $request, WorkOrder $detail): JsonResponse
     {
         $parent = $this->parentOf($detail);
-        $this->authorize('work', $parent);
+        $this->authorize('manageSubtasks', $parent);
 
         $before = $detail->attributesToArray();
 
@@ -136,8 +137,8 @@ class WorkOrderSubtaskController extends Controller
             ->with(['collaborators', 'taskList'])
             ->findOrFail((int) $validated['target_work_order_id']);
 
-        $this->authorize('work', $source);
-        $this->authorize('work', $target);
+        $this->authorize('manageSubtasks', $source);
+        $this->authorize('manageSubtasks', $target);
 
         // งานย่อยเป็นงานจริง การให้มันไปอยู่ใต้ตัวเองหรือใต้งานย่อยของตัวเอง
         // จะสร้างวงวนที่ทำให้หน้าบอร์ดวาดซ้ำไม่รู้จบ

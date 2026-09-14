@@ -63,21 +63,24 @@
 
         <div class="sidebar-nav">
             @if ($isAdmin)
-                <div class="nav-section-label">ภาพรวม</div>
+                {{--
+                    แถบข้างของ admin แบ่งตามบทบาทจริงสามอย่าง ไม่ใช่ตามชนิดของหน้า
+
+                      ภาพรวมองค์กร — สิ่งที่ admin "ดู" ทั้งองค์กร
+                      งานและการสื่อสาร — สิ่งที่ admin "ลงมือทำเอง"
+                      ดูแลระบบ — สิ่งที่ "มีแต่ admin ทำได้"
+
+                    เดิมหัวข้อ "ภาพรวม" ปนเครื่องมือทำงานส่วนตัว (แชร์งาน บันทึกงานประจำวัน
+                    กระดานไอเดีย) ไว้กับภาพรวมองค์กร ส่วน "งานและคำขอ" เหลือการแจ้งเตือน
+                    อันเดียวเกือบตลอดเวลาหลังจากคำขออนุมัติถูกซ่อนไปตามบทบาทใหม่ของ admin
+                    และ "องค์กร" กับ "ระบบ" ก็เป็นงานดูแลระบบเหมือนกันแต่ถูกแยกเป็นสองก้อนเล็ก
+                --}}
+                <div class="nav-section-label">ภาพรวมองค์กร</div>
 
                 {{-- เมนู "การประชุม" อยู่ใน Admin Member Workspace เพื่อให้ดูในบริบทของสมาชิก --}}
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดรวม</span>
-                </a>
-                <a href="{{ route('daily-logs.index') }}" class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}">
-                    <i class="bi bi-journal-check"></i>
-                    <span class="nav-item__label">บันทึกงานประจำวัน</span>
-                </a>
-                <a href="{{ route('workspace.index') }}"
-                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
-                    <i class="bi bi-easel"></i>
-                    <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
                 <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                     <i class="bi bi-bar-chart-line"></i>
@@ -134,6 +137,19 @@
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดงาน</span>
                 </a>
+                {{--
+                    แชร์งาน — งานที่เปิดรับผู้ร่วมงาน อยู่กลุ่มเดียวกับบอร์ดของทีม
+                    เพราะเป็นการทำงานร่วมกับคนอื่น ไม่ใช่งานส่วนตัว
+                    ป้ายตัวเลขนับคำขอที่รอเราตัดสินในฐานะผู้แชร์ (AppServiceProvider)
+                --}}
+                <a href="{{ route('shares.index') }}"
+                    class="nav-item {{ request()->routeIs('shares.*') ? 'active' : '' }}">
+                    <i class="bi bi-share"></i>
+                    <span class="nav-item__label">แชร์งาน</span>
+                    @if(($shareRequestCount ?? 0) > 0)
+                        <span class="nav-item__count" data-share-request-count>{{ $shareRequestCount }}</span>
+                    @endif
+                </a>
                 <a href="{{ route('workspace.index') }}"
                     class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
                     <i class="bi bi-easel"></i>
@@ -159,7 +175,14 @@
 
             @stack('sidebar_nav_extra')
 
-            <div class="nav-section-label">{{ $isAdmin || $isDepartmentHead ? 'งานและคำขอ' : 'การสื่อสาร' }}</div>
+            @php
+                $communicationLabel = match (true) {
+                    $isAdmin => 'งานและการสื่อสาร',
+                    $isDepartmentHead => 'งานและคำขอ',
+                    default => 'การสื่อสาร',
+                };
+            @endphp
+            <div class="nav-section-label">{{ $communicationLabel }}</div>
 
             <a href="{{ route('notifications.index') }}"
                 class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
@@ -168,7 +191,15 @@
                 <span class="nav-item__count" data-notification-count data-sidebar-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
             </a>
 
-            @if ($isAdmin || $isDepartmentHead)
+            {{--
+                หัวหน้าแผนกเห็นเมนูนี้เสมอ เพราะการอนุมัติเป็นหน้าที่ประจำ
+
+                ส่วน admin เห็นเฉพาะตอนมีของค้างจริง เพราะ admin เป็นผู้ดูแลระบบ ไม่ใช่
+                ผู้อนุมัติงาน คิวของ admin ถูกจำกัดเหลือเฉพาะคำขอที่ไม่มีหัวหน้าแผนก
+                รับผิดชอบแล้ว (AdminApprovalQuery::scopeAssignments) ในองค์กรที่ทุกแผนก
+                มีหัวหน้า เมนูนี้จึงหายไปจากสายตา admin ตามที่ควรเป็น
+            --}}
+            @if ($isDepartmentHead || ($isAdmin && ($approvalCounts['total'] ?? 0) > 0))
                 <a href="{{ route('admin.approvals.index') }}"
                     class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}">
                     <i class="bi bi-shield-check"></i>
@@ -178,6 +209,32 @@
                     @endif
                 </a>
             @endif
+            @if ($isAdmin)
+                {{--
+                    เครื่องมือที่ admin ลงมือใช้เอง อยู่กลุ่มเดียวกับการแจ้งเตือน เพราะเป็น
+                    สิ่งที่ตอบคำถาม "วันนี้ฉันต้องทำอะไร" ไม่ใช่ภาพรวมขององค์กร
+
+                    ป้ายตัวเลขของแชร์งานนับคำขอที่รอเราตัดสินในฐานะผู้แชร์ (AppServiceProvider)
+                --}}
+                <a href="{{ route('shares.index') }}"
+                    class="nav-item {{ request()->routeIs('shares.*') ? 'active' : '' }}">
+                    <i class="bi bi-share"></i>
+                    <span class="nav-item__label">แชร์งาน</span>
+                    @if(($shareRequestCount ?? 0) > 0)
+                        <span class="nav-item__count" data-share-request-count>{{ $shareRequestCount }}</span>
+                    @endif
+                </a>
+                <a href="{{ route('daily-logs.index') }}" class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}">
+                    <i class="bi bi-journal-check"></i>
+                    <span class="nav-item__label">บันทึกงานประจำวัน</span>
+                </a>
+                <a href="{{ route('workspace.index') }}"
+                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
+                    <i class="bi bi-easel"></i>
+                    <span class="nav-item__label">กระดานไอเดีย</span>
+                </a>
+            @endif
+
             @if ($isViewer)
                 <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
                     <i class="bi bi-calendar-event"></i>
@@ -186,7 +243,9 @@
             @endif
 
             @if ($isAdmin || $isViewer)
-                <div class="nav-section-label">องค์กร</div>
+                {{-- สำหรับ admin ทุกอย่างตั้งแต่ตรงนี้ลงไปคืองานดูแลระบบ จึงเป็นหัวข้อเดียว
+                     ไม่ต้องแยก "องค์กร" กับ "ระบบ" ออกเป็นสองก้อนเล็ก ๆ อีก --}}
+                <div class="nav-section-label">{{ $isAdmin ? 'ดูแลระบบ' : 'องค์กร' }}</div>
 
                 <a href="{{ route('employees.index') }}"
                     class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
@@ -207,22 +266,26 @@
                 @endif
             @endif
 
-            <div class="nav-section-label">ระบบ</div>
+            {{-- admin รวมกลุ่มนี้เข้ากับ "ดูแลระบบ" ด้านบนแล้ว จึงไม่ต้องขึ้นหัวข้อใหม่ --}}
+            @unless ($isAdmin)
+                <div class="nav-section-label">ระบบ</div>
+            @endunless
 
             @if ($isAdmin)
-                {{-- บันทึกระบบกับถังขยะรวมเป็นเมนูเดียว เพราะทั้งคู่ตอบคำถามเดียวกันว่าใครทำอะไรกับข้อมูล --}}
-                <a href="{{ route('admin.audit.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
-                    <i class="bi bi-shield-lock"></i>
-                    <span class="nav-item__label">Audit Log</span>
-                </a>
-
                 {{-- หมวดงานของบันทึกงานประจำวันเป็นตาราง lookup ที่ admin แก้ได้เอง
-                     จึงอยู่ในกลุ่ม "ระบบ" ไม่ใช่กลุ่มงาน --}}
+                     จึงเป็นการตั้งค่าข้อมูล ไม่ใช่กลุ่มงาน --}}
                 <a href="{{ route('admin.work-log-categories.index') }}"
                     class="nav-item {{ request()->routeIs('admin.work-log-categories.*') ? 'active' : '' }}">
                     <i class="bi bi-tags"></i>
                     <span class="nav-item__label">หมวดงานประจำวัน</span>
+                </a>
+
+                {{-- บันทึกระบบกับถังขยะรวมเป็นเมนูเดียว เพราะทั้งคู่ตอบคำถามเดียวกันว่าใครทำอะไรกับข้อมูล
+                     อยู่ท้ายกลุ่มคู่กับ "ตั้งค่า" เพราะเป็นการย้อนตรวจ ไม่ใช่งานที่ทำทุกวัน --}}
+                <a href="{{ route('admin.audit.index') }}"
+                    class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
+                    <i class="bi bi-shield-lock"></i>
+                    <span class="nav-item__label">Audit Log</span>
                 </a>
             @endif
 
@@ -302,7 +365,6 @@
             --}}
             <span class="role-chip role-chip--mobile-only {{ $roleChipClass }}" aria-label="{{ $roleChipText }}" title="{{ $roleChipText }}">
                 <i class="bi {{ $roleChipIcon }}"></i>
-                <span class="role-chip__label">{{ $roleChipText }}</span>
             </span>
             @unless($isViewer)
                 <div class="dropdown routine-topbar" data-routine-topbar data-routine-status-url="{{ route('daily-logs.routine-status') }}">

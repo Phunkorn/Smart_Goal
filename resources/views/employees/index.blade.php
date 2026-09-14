@@ -48,7 +48,13 @@
 
         <section class="employee-toolbar" aria-label="ค้นหาและกรองพนักงาน">
             <label class="employee-search" for="employeeSearchInput">
-                <span>ค้นหา</span>
+                <span class="employee-toolbar__line">
+                    ค้นหา
+                    @if($isSystemAccounts)
+                        {{-- หน้าบัญชีระบบไม่มีตัวกรองแผนก ตัวนับจึงมาอยู่บรรทัดนี้แทน --}}
+                        <em class="employee-count">แสดง <strong data-employee-visible-count>{{ $filteredEmployees->count() }}</strong> บัญชี</em>
+                    @endif
+                </span>
                 <span class="employee-search__control">
                     <i class="bi bi-search" aria-hidden="true"></i>
                     <input type="search" id="employeeSearchInput" data-employee-search
@@ -58,7 +64,10 @@
 
             @unless($isSystemAccounts)
             <nav class="employee-department-filter" aria-label="กรองตามแผนก">
-                <span class="employee-department-filter__label">แผนก</span>
+                <span class="employee-department-filter__label employee-toolbar__line">
+                    แผนก
+                    <em class="employee-count">แสดง <strong data-employee-visible-count>{{ $filteredEmployees->count() }}</strong> บัญชี</em>
+                </span>
                 <div class="employee-department-filter__options">
                     <a href="{{ route('employees.index') }}" class="employee-filter-chip {{ !$currentDeptId ? 'is-active' : '' }}"
                         @if(!$currentDeptId) aria-current="page" @endif>
@@ -76,10 +85,6 @@
             </nav>
             @endunless
         </section>
-
-        <div class="employee-results-meta" aria-live="polite">
-            <span>แสดง <strong data-employee-visible-count>{{ $filteredEmployees->count() }}</strong> บัญชี</span>
-        </div>
 
         <div class="employee-grid" data-employee-grid>
             @forelse($filteredEmployees as $employee)
@@ -130,10 +135,12 @@
                         @endif
                     </div>
 
+                    {{-- ป้ายกำกับไม่มีไอคอน — คำบอกความหมายอยู่แล้ว ไอคอนสามตัวต่อการ์ด
+                         กลายเป็นเสียงรบกวนเมื่อเรียงกันสามใบต่อแถว --}}
                     <dl class="employee-meta">
-                        <div><dt><i class="bi bi-person-badge" aria-hidden="true"></i>บัญชีผู้ใช้งาน</dt><dd>{{ $employee->username }}</dd></div>
-                        <div><dt><i class="bi bi-envelope" aria-hidden="true"></i>Email</dt><dd>{{ $employee->email ?: 'ไม่ได้ระบุ' }}</dd></div>
-                        <div><dt><i class="bi bi-telephone" aria-hidden="true"></i>โทรศัพท์</dt><dd>{{ $employee->phone ?: 'ไม่ได้ระบุ' }}</dd></div>
+                        <div><dt>บัญชีผู้ใช้งาน</dt><dd>{{ $employee->username }}</dd></div>
+                        <div><dt>Email</dt><dd>{{ $employee->email ?: 'ไม่ได้ระบุ' }}</dd></div>
+                        <div><dt>โทรศัพท์</dt><dd>{{ $employee->phone ?: 'ไม่ได้ระบุ' }}</dd></div>
                     </dl>
 
                     @if ($canManageEmployees)
@@ -151,8 +158,12 @@
                                     class="employee-delete-form" data-employee-name="{{ $employee->name }}">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="employee-action employee-action--delete">
-                                        <i class="bi bi-trash" aria-hidden="true"></i>ลบ
+                                    {{-- ไอคอนล้วนเพื่อให้ปุ่มที่ควรกดน้อยที่สุดเงียบที่สุด
+                                         ชื่อเต็มยังอ่านออกผ่าน aria-label และ title --}}
+                                    <button type="submit" class="employee-action employee-action--delete"
+                                        aria-label="ลบบัญชีของ {{ $employee->name }}"
+                                        title="ลบบัญชีของ {{ $employee->name }}">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>
                                     </button>
                                 </form>
                             @endif

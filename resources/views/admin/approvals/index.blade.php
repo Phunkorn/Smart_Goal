@@ -40,16 +40,23 @@
             <strong>{{ $approvalCounts['collaborators'] }}</strong>
             <i class="bi bi-people-fill" aria-hidden="true"></i>
         </article>
+        <article class="admin-approvals-summary__card">
+            <span>ผู้ขอร่วมงานจากการแชร์งาน</span>
+            <strong>{{ $approvalCounts['shares'] }}</strong>
+            <i class="bi bi-share-fill" aria-hidden="true"></i>
+        </article>
     </section>
 
     <nav class="admin-approvals-tabs" aria-label="ประเภทคำขออนุมัติ">
         <a href="#assignment-approval-queue">งานข้ามแผนก <span>{{ $approvalCounts['assignments'] }}</span></a>
         <a href="#collaborator-approval-queue">ผู้ร่วมงานข้ามแผนก <span>{{ $approvalCounts['collaborators'] }}</span></a>
+        <a href="#share-approval-queue">ผู้ขอร่วมงานจากการแชร์งาน <span>{{ $approvalCounts['shares'] }}</span></a>
     </nav>
 
     <div class="admin-approvals-queues">
         @include('admin.approvals.components.assignment-queue')
         @include('admin.approvals.components.collaborator-queue')
+        @include('admin.approvals.components.share-queue')
     </div>
 </div>
 @endsection

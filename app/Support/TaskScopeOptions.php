@@ -60,7 +60,7 @@ class TaskScopeOptions
             [
                 'value' => 'assigned_by_me',
                 'label' => 'ฉันสั่งให้คนอื่นทำ',
-                'description' => 'งานที่คุณมอบหมายออกไป และคนอื่นเป็นผู้รับผิดชอบ',
+                'description' => 'งานที่คุณมอบหมายให้คนอื่นรับผิดชอบ หรือชวนคนอื่นเข้ามาร่วมทำ',
                 'group' => self::GROUP_WATCHING,
                 'icon' => 'bi-send',
             ],
@@ -72,26 +72,6 @@ class TaskScopeOptions
                 'icon' => 'bi-pencil-square',
             ],
         ];
-
-        /*
-         * "ทั้งแผนก" มีเฉพาะหัวหน้าแผนก
-         *
-         * ตัวกรองทำได้แค่ "แคบลง" จากสิ่งที่ผู้ใช้เห็นอยู่แล้วเสมอ ตัวเลือกนี้จึงมีความหมาย
-         * ก็ต่อเมื่อขอบเขตการมองเห็นครอบคลุมงานของทั้งแผนกจริง ซึ่งตอนนี้เป็นเช่นนั้นแล้ว
-         * (WorkOrder::scopeVisibleInProjectsFor() ให้หัวหน้าเห็นงานที่อนุมัติแล้วของแผนกตัวเอง
-         * ตรงกับที่ WorkOrderPolicy::view() อนุญาตไว้อยู่ก่อนแล้ว)
-         *
-         * ผู้ใช้ทั่วไปไม่มีตัวเลือกนี้ เพราะกดแล้วจะได้ผลเท่ากับ "งานทั้งหมด" ซึ่งหลอกผู้ใช้
-         */
-        if ($user->isDepartmentHead()) {
-            $options[] = [
-                'value' => 'department',
-                'label' => 'งานทั้งแผนก',
-                'description' => 'งานของทุกคนในแผนกที่คุณดูแล รวมงานที่ปิดไปแล้ว',
-                'group' => self::GROUP_WATCHING,
-                'icon' => 'bi-diagram-3',
-            ];
-        }
 
         return $options;
     }
@@ -181,14 +161,29 @@ class TaskScopeOptions
         return match ($scope) {
             'responsible' => $query->where('user_id', $user->id),
             'created' => $query->where('created_by', $user->id),
-            'assigned_by_me' => $query
-                ->where('assigned_by', $user->id)
-                ->where('user_id', '!=', $user->id),
+            /*
+             * "สั่งให้คนอื่นทำ" มีสองทางที่งานหลุดจากมือเราไปอยู่กับคนอื่น
+             *
+             *   1. มอบหมายทั้งใบ  — เราตั้งคนอื่นเป็นผู้รับผิดชอบหลัก
+             *   2. ชวนมาร่วมทำ   — เรายังรับผิดชอบหลักอยู่ แต่ดึงคนอื่นเข้ามาช่วย
+             *
+             * ของเดิมมีแต่ข้อ 1 และบังคับ user_id != me ด้วย งานที่เราเชิญคนอื่นเข้ามาร่วม
+             * โดยที่เรายังเป็นผู้รับผิดชอบหลักจึงถูกตัดทิ้งทั้งหมด ตัวเลือกนี้เลยว่างเปล่า
+             * ทั้งที่ผู้ใช้เห็นงานเหล่านั้นอยู่ใน "งานทั้งหมด"
+             *
+             * added_by บนตารางผู้ร่วมงานคือหลักฐานว่าใครเป็นคนเชิญ จึงใช้ตอบข้อ 2 ได้ตรง ๆ
+             * และกันไม่ให้ "เชิญตัวเอง" นับเป็นการสั่งคนอื่น
+             */
+            'assigned_by_me' => $query->where(fn (Builder $scoped) => $scoped
+                ->where(fn (Builder $delegated) => $delegated
+                    ->where('assigned_by', $user->id)
+                    ->where('user_id', '!=', $user->id))
+                ->orWhereHas('collaborators', fn (Builder $invited) => $invited
+                    ->where('work_order_collaborators.added_by', $user->id)
+                    ->where('users.id', '!=', $user->id))),
             'collaborating' => $query->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
                 ->where('users.id', $user->id)
                 ->where('work_order_collaborators.status', 'accepted')),
-            // ใช้นิยาม "ปลายทางเป็นแผนกนี้" ชุดเดียวกับ scopeVisibleInProjectsFor()
-            'department' => $query->inDepartmentOf($user),
             default => $query,
         };
     }

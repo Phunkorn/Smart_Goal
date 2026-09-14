@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Department;
-use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -117,7 +116,8 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee('data-reopen-task', false)
             ->assertSee('data-schedule-template', false)
             ->assertDontSee('data-progress-template', false)
-            ->assertSee('data-quick-template', false)
+            // ไม่มี quick add แล้ว — Workspace ของสมาชิกเป็นอ่านอย่างเดียว
+            ->assertDontSee('data-quick-template', false)
             ->assertSee('data-row', false)
             ->assertSee('data-total-count="2"', false)
             // ผู้รับผิดชอบเป็นข้อมูลอ่านอย่างเดียวใน Workspace ใหม่ จึงไม่ใช่ช่องกรอกอีกต่อไป
@@ -126,18 +126,14 @@ class AdminWorkBoardTest extends TestCase
             ->assertDontSee('data-create-modal', false)
             ->assertDontSee('data-create-form', false)
             ->assertDontSee('data-group>', false)
-            // ปุ่มมอบหมายงานเปิดโมดัลในหน้าเดิม ไม่พา Admin กลับไปหน้าบอร์ดรวมอีกต่อไป
-            ->assertSee('<button type="button" class="admin-assignment-launch admin-assign-button" data-open-admin-assignment>', false)
-            ->assertDontSee(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]))
-            ->assertSee('data-admin-assignment-modal', false)
-            ->assertSee('name="assignment_origin" value="admin-member"', false)
-            ->assertSee('name="origin_department_id" value="'.$department->id.'"', false)
-            ->assertSee('name="origin_member_id" value="'.$member->id.'"', false)
-            ->assertSee('data-default-assignee-id="'.$member->id.'"', false)
-            ->assertSee('name="user_id" data-task-assignee value="'.$member->id.'"', false)
-            ->assertSee('name="work_order_list_id" data-selected-project-id value="'.$project->id.'"', false);
+            // ไม่มีทางมอบหมายงานจากหน้านี้แล้ว — Workspace ของสมาชิกเป็นอ่านอย่างเดียว
+            // การมอบหมายงานให้สมาชิกเป็นหน้าที่ของหัวหน้าแผนก
+            ->assertDontSee('admin-assign-button', false)
+            ->assertDontSee('data-open-admin-assignment', false)
+            ->assertDontSee('data-admin-assignment-modal', false)
+            ->assertDontSee('name="assignment_origin" value="admin-member"', false);
         $this->assertSame(1, substr_count($response->getContent(), 'data-task-modal'));
-        $this->assertSame(1, substr_count($response->getContent(), 'data-admin-assignment-modal'));
+        $this->assertSame(0, substr_count($response->getContent(), 'data-admin-assignment-modal'));
 
         $response->assertViewHas('activeTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$memberTask->job_id])
             ->assertViewHas('todayTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$memberTask->job_id]);
@@ -164,50 +160,36 @@ class AdminWorkBoardTest extends TestCase
         $this->actingAs($admin)->get(route('admin.work-board.member', [$first, $otherDepartmentUser]))->assertNotFound();
     }
 
-    public function test_admin_can_quick_add_to_the_members_existing_project_without_changing_project_identity(): void
+    /**
+     * Workspace ของสมาชิกเป็นอ่านอย่างเดียวสำหรับ admin
+     *
+     * เดิม admin เพิ่มงานเข้าโปรเจกต์ของสมาชิกได้จากหน้านี้ ซึ่งทับหน้าที่ของหัวหน้าแผนก
+     * ตอนนี้ endpoint ถูกลบทิ้ง ไม่ใช่แค่ซ่อนปุ่ม — งานยังเปิดดูได้ครบเหมือนเดิม
+     */
+    public function test_the_member_workspace_is_read_only_for_an_admin(): void
     {
         $department = Department::create(['department_name' => 'Operations']);
         $admin = $this->user('admin', $department, 'Admin');
         $member = $this->user('user', $department, 'Member');
-        $other = $this->user('user', $department, 'Other');
         $project = WorkOrderList::create(['user_id' => $admin->id, 'name' => 'Shared Project', 'priority' => 2]);
         $this->task($project, $admin, $member, 'Existing member task');
 
         $this->actingAs($admin)
-            ->postJson(route('admin.work-board.member.tasks.store', [$department, $member, $project]), [
+            ->get(route('admin.work-board.member', [$department, $member]))
+            ->assertOk()
+            ->assertSee('Existing member task')
+            ->assertDontSee('data-quick-template', false)
+            ->assertDontSee('data-open-admin-assignment', false)
+            ->assertDontSee('admin-assign-button', false);
+
+        // endpoint เดิมต้องไม่มีอยู่จริงแล้ว ไม่ใช่แค่ไม่มีปุ่มเรียก
+        $this->actingAs($admin)
+            ->postJson("/admin/work-board/departments/{$department->id}/members/{$member->id}/projects/{$project->id}/tasks", [
                 'job_topic' => 'Quick task',
             ])
-            ->assertCreated()
-            ->assertJsonPath('list_id', $project->id);
-
-        $job = WorkOrder::where('job_topic', 'Quick task')->firstOrFail();
-        $this->assertSame($project->id, $job->work_order_list_id);
-        $this->assertSame($member->id, $job->user_id);
-        $this->assertSame($department->id, $job->department_id);
-        $this->assertSame($admin->id, $job->created_by);
-        $this->assertSame($admin->id, $job->assigned_by);
-        $this->assertSame('approved', $job->approval_status);
-        $this->assertDatabaseCount('work_order_lists', 1);
-        $this->assertDatabaseHas('system_notifications', [
-            'user_id' => $member->id,
-            'work_order_id' => $job->job_id,
-            'type' => 'admin_created_task',
-        ]);
-        $this->assertSame(1, SystemNotification::where('work_order_id', $job->job_id)->where('user_id', $member->id)->count());
-
-        $this->actingAs($admin)
-            ->postJson(route('tasks.collaborators.store', $job), ['collaborators' => [$other->id]])
-            ->assertOk();
-        $this->assertSame('accepted', $job->collaborators()->findOrFail($other->id)->pivot->status);
-
-        $foreignProject = WorkOrderList::create(['user_id' => $admin->id, 'name' => 'Foreign Project', 'priority' => 2]);
-        $this->task($foreignProject, $admin, $other, 'Other task');
-        $this->actingAs($admin)
-            ->postJson(route('admin.work-board.member.tasks.store', [$department, $member, $foreignProject]), ['job_topic' => 'Tampered'])
             ->assertNotFound();
-        $this->actingAs($member)
-            ->postJson(route('admin.work-board.member.tasks.store', [$department, $member, $project]), ['job_topic' => 'Forbidden'])
-            ->assertForbidden();
+
+        $this->assertFalse(WorkOrder::where('job_topic', 'Quick task')->exists());
     }
 
     public function test_admin_preview_hides_unapproved_work_and_never_links_to_wrong_member_context(): void
@@ -575,77 +557,27 @@ class AdminWorkBoardTest extends TestCase
         $this->actingAs($admin)->get(route('admin.work-board.member.preview', [$department, $viewer]))->assertNotFound();
     }
 
-    public function test_member_workspace_without_tasks_opens_with_zero_totals_and_in_page_assignment_modal(): void
+    public function test_member_workspace_without_tasks_opens_with_zero_totals_and_no_assignment_affordances(): void
     {
         $department = Department::create(['department_name' => 'Blank']);
-        $otherDepartment = Department::create(['department_name' => 'Elsewhere']);
         $admin = $this->user('admin', $department, 'Admin');
         $member = $this->user('user', $department, 'Fresh Member');
-        $outsider = $this->user('user', $otherDepartment, 'Outsider');
 
-        $response = $this->actingAs($admin)
+        $this->actingAs($admin)
             ->get(route('admin.work-board.member', [$department, $member]))
             ->assertOk()
             ->assertViewHas('totals', ['projects' => 0, 'tasks' => 0])
-            ->assertSee('admin-assign-button', false)
-            ->assertSee('data-open-admin-assignment', false)
-            ->assertSee('data-admin-assignment-modal', false)
-            ->assertSee('action="'.route('mytasks.create').'"', false)
-            ->assertSee('action="'.route('tasks.store').'"', false)
-            // โปรเจกต์และงานใหม่ต้องตั้งต้นที่สมาชิกคนนี้
-            ->assertSee('data-default-assignee-id="'.$member->id.'"', false)
-            ->assertSee('name="project_owner_id" value="'.$member->id.'"', false)
-            ->assertSee('name="user_id" data-task-assignee value="'.$member->id.'"', false)
-            ->assertSee('name="assignment_origin" value="admin-member"', false)
-            ->assertSee('name="origin_department_id" value="'.$department->id.'"', false)
-            ->assertSee('name="origin_member_id" value="'.$member->id.'"', false)
-            // ยังคงเป็นการเปิดในหน้าเดิม ไม่มีลิงก์ออกไปบอร์ดรวมพร้อม query string
-            ->assertDontSee(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]))
-            // ไม่มี validation error ค้างอยู่ Modal จึงต้องยังไม่เปิดเอง
-            ->assertDontSee('data-open-on-load', false);
+            // การมอบหมายงานย้ายไปอยู่ที่บอร์ดรวมแล้ว หน้านี้ไม่มีทางเขียนเหลืออยู่เลย
+            ->assertDontSee('admin-assign-button', false)
+            ->assertDontSee('data-open-admin-assignment', false)
+            ->assertDontSee('data-admin-assignment-modal', false)
+            ->assertDontSee('name="assignment_origin" value="admin-member"', false);
 
-        // ผู้รับผิดชอบที่เลือกได้ต้องเป็น role user เท่านั้น (รวมคนต่างแผนก ตาม logic เดิมของ modal)
-        $this->assertStringContainsString('data-id="'.$outsider->id.'"', $response->getContent());
-        $viewer = $this->user('viewer', $department, 'Viewer');
-        $this->assertStringNotContainsString('data-id="'.$viewer->id.'"', $response->getContent());
-        $this->assertSame(1, substr_count($response->getContent(), 'data-admin-assignment-modal'));
-    }
-
-    /** ช่วงงานที่ผู้ใช้กรอกเป็นเวลาไทย เก็บลงคอลัมน์เป็น UTC เหมือนเส้นทางจริงของ controller */
-    private static function businessInstant(string $bangkokTime): Carbon
-    {
-        return Carbon::parse($bangkokTime, TodayWorkspace::BUSINESS_TIMEZONE)->utc();
-    }
-
-    private function user(string $role, Department $department, string $name): User
-    {
-        return User::factory()->create([
-            'name' => $name,
-            'role' => $role,
-            'department_id' => $department->id,
-            'is_active' => true,
-            'must_change_password' => false,
-        ]);
-    }
-
-    private function task(WorkOrderList $project, User $creator, User $assignee, string $topic): WorkOrder
-    {
-        return WorkOrder::create([
-            'user_id' => $assignee->id,
-            'created_by' => $creator->id,
-            'leader_user_id' => $assignee->id,
-            'department_id' => $assignee->department_id,
-            'work_order_list_id' => $project->id,
-            'job_topic' => $topic,
-            'job_details' => 'Task details',
-            'job_priority' => 2,
-            'job_status' => 2,
-            'approval_status' => 'approved',
-            'approved_by' => $creator->role === 'admin' ? $creator->id : null,
-            'approved_at' => now(),
-            'job_start_at' => now(),
-            'job_due_at' => now()->addDay(),
-        ]);
+        // โมดัลยังอยู่ที่บอร์ดรวมตามเดิม
+        $this->actingAs($admin)
+            ->get(route('board.index'))
+            ->assertOk()
+            ->assertSee('data-admin-assignment-modal', false);
     }
 
     public function test_task_added_by_admin_stays_in_its_project_after_member_opens_my_tasks(): void
@@ -677,12 +609,18 @@ class AdminWorkBoardTest extends TestCase
             ]);
         }
 
+        // admin มอบหมายงานผ่านโมดัลของบอร์ดรวม ซึ่งยิงไป tasks.store
+        // (endpoint ของ Member Workspace ถูกลบทิ้งแล้ว)
         $this->actingAs($admin)
-            ->postJson(
-                route('admin.work-board.member.tasks.store', [$department, $member, $list]),
-                ['job_topic' => 'Admin added task']
-            )
-            ->assertCreated();
+            ->postJson(route('tasks.store'), [
+                'work_order_list_id' => $list->id,
+                'job_topic' => 'Admin added task',
+                'user_id' => $member->id,
+                'job_priority' => 2,
+                'job_start_at' => now()->toDateTimeString(),
+                'job_due_at' => now()->addDay()->toDateTimeString(),
+            ])
+            ->assertSuccessful();
 
         $added = WorkOrder::where('job_topic', 'Admin added task')->firstOrFail();
         $this->assertSame($list->id, (int) $added->work_order_list_id);
@@ -720,5 +658,41 @@ class AdminWorkBoardTest extends TestCase
         $project = WorkOrderList::where('user_id', $member->id)->firstOrFail();
         $this->assertSame('Loose admin assignment', $project->name);
         $this->assertSame($project->id, (int) $job->fresh()->work_order_list_id);
+    }
+
+    private static function businessInstant(string $bangkokTime): Carbon
+    {
+        return Carbon::parse($bangkokTime, TodayWorkspace::BUSINESS_TIMEZONE)->utc();
+    }
+
+    private function user(string $role, Department $department, string $name): User
+    {
+        return User::factory()->create([
+            'name' => $name,
+            'role' => $role,
+            'department_id' => $department->id,
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+    }
+
+    private function task(WorkOrderList $project, User $creator, User $assignee, string $topic): WorkOrder
+    {
+        return WorkOrder::create([
+            'user_id' => $assignee->id,
+            'created_by' => $creator->id,
+            'leader_user_id' => $assignee->id,
+            'department_id' => $assignee->department_id,
+            'work_order_list_id' => $project->id,
+            'job_topic' => $topic,
+            'job_details' => 'Task details',
+            'job_priority' => 2,
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'approved_by' => $creator->role === 'admin' ? $creator->id : null,
+            'approved_at' => now(),
+            'job_start_at' => now(),
+            'job_due_at' => now()->addDay(),
+        ]);
     }
 }

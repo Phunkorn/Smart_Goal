@@ -358,8 +358,10 @@ class Plan2026WorkbookReader
     private function mapPriority(string $value, string $cell): int
     {
         $normalized = mb_strtolower(preg_replace('/\s+/u', '', $value) ?? '');
+        // 'routine' ถูกเลิกใช้แล้ว ไฟล์เก่าที่ยังเขียนคำนี้มาจึงตกไประดับ 5 ซึ่งใกล้เคียงที่สุด
+        // ไม่ปล่อยให้ throw เพราะไฟล์แผนที่ทำไว้ก่อนหน้านี้ยังต้องนำเข้าได้
         $map = [
-            'routine' => 1,
+            'routine' => 5,
             'สำคัญไม่ด่วน' => 2,
             'สำคัญด่วน' => 3,
             'ด่วนไม่ค่อยสำคัญ' => 4,

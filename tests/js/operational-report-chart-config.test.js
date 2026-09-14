@@ -128,24 +128,12 @@ test('สัดส่วนไม่หารด้วยศูนย์เม�
  * id ของ canvas ต้องตรงกันสามที่: Blade, ตัวเชื่อมใน operational.js และคีย์ของ
  * config ถ้าหลุดที่ใดที่หนึ่งกราฟจะไม่ถูกวาดโดยไม่มี error ให้เห็น
  */
-test('id ของ canvas ตรงกันระหว่าง Blade กับตัวเชื่อมใน entry', () => {
-    const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
-    const blade = read('resources/views/reports/components/operational-charts.blade.php');
-    const entry = read('resources/js/pages/reports/operational.js');
-    const configs = buildOperationalChartConfigs(sampleData);
-
-    const pairs = [
-        ['operationalDailyChart', 'daily'],
-        ['operationalCategoryChart', 'categories'],
-        ['operationalMemberChart', 'members'],
-    ];
-
-    pairs.forEach(([id, key]) => {
-        assert.ok(blade.includes(`'${id}'`), `Blade ต้องมีกราฟ ${id}`);
-        assert.ok(entry.includes(`{id: '${id}', key: '${key}'}`), `entry ต้องเชื่อม ${id} กับ ${key}`);
-        assert.ok(configs[key], `config ต้องมีคีย์ ${key}`);
-    });
-});
+/*
+ * เทสต์ที่เคยผูก canvas ของกราฟเข้ากับ entry ของหน้า ถูกถอดออกพร้อมกับกราฟ
+ *
+ * หน้ารายงานปฏิบัติงานเหลือสองตารางกับตัวกรองช่วงวัน ไม่มีกราฟให้เชื่อมอีกแล้ว
+ * ตัวสร้าง config ยังถูกทดสอบต่อไปในไฟล์นี้ เผื่อถูกนำกลับมาใช้
+ */
 
 test('การ์ดกราฟใช้สัญญา markup เดียวกับรายงานอื่น', () => {
     const blade = readFileSync(

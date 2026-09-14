@@ -243,17 +243,64 @@ test('every report panel keeps its text away from the card edge', async () => {
  * ตารางรายคนอยู่นอก .report-dashboard จึงไม่ได้ gap ของกริดนั้น
  * grid-column ที่เคยประกาศไว้ไม่มีผลใด ๆ เพราะพ่อแม่ไม่ใช่กริด
  */
-test('the member table keeps a gap from the chart card above it', async () => {
+test('the operational page keeps its filter and board compact on a phone', async () => {
     const css = await read('resources/css/pages/reports/operational.css');
-    const blade = await read('resources/views/reports/operational.blade.php');
+    const mobile = css.slice(css.lastIndexOf('@media (max-width: 760px)'));
 
-    const dashboardEnd = blade.indexOf('</section>', blade.indexOf('class="report-dashboard"'));
-    const tableInclude = blade.indexOf('operational-member-table');
-    assert.ok(tableInclude > dashboardEnd, 'ตารางอยู่นอกกริดของแดชบอร์ดจริง');
+    /*
+     * กระดานรายคนเป็นการ์ดแล้ว กริดจึงยุบเหลือคอลัมน์เดียวเองด้วย auto-fill
+     * ไม่ต้องมีกฎแปลงตารางเป็นการ์ดสำหรับกระดานนี้อีก และต้องไม่เหลือกฎของตารางเดิมทิ้งไว้
+     */
+    assert.match(css, /\.report-people-cards \{[^}]*grid-template-columns: repeat\(auto-fill/);
+    assert.doesNotMatch(css, /report-operational-people__table/, 'ตารางรายคนถูกแทนที่ด้วยการ์ดแล้ว ห้ามเหลือกฎของมันไว้');
 
-    const rule = css.match(/\.report-operational-table \{([^}]*)\}/)?.[1] ?? '';
-    assert.match(rule, /margin-top:\d+px/, 'ต้องมีระยะห่างจากการ์ดด้านบน');
-    assert.doesNotMatch(rule, /grid-column/, 'grid-column ไม่มีผลเมื่อพ่อแม่ไม่ใช่กริด');
+    /* ตารางรายวันของหน้าคนคนเดียวยังเป็นตารางจริง จึงยังต้องกลายเป็นการ์ดบนมือถือ */
+    assert.match(mobile, /\.report-operational-days__table[\s\S]{0,200}display: block/);
+    assert.match(mobile, /thead \{ display: none/);
+    assert.match(mobile, /content: attr\(data-label\)/);
+
+    // การ์ดต้องมีระยะขอบในของตัวเอง ไม่งั้นข้อความชิดขอบจนดูเหมือนล้นออกนอกกรอบ
+    assert.match(css, /\.report-operational-people,[\s\S]{0,80}\{[^}]*padding: \d+px/);
+
+    // ตัวกรองเหลือช่องเดียว จึงถูกบีบให้เป็นแถบเดียวแนวนอน ไม่ใช่การ์ดเต็มความกว้าง
+    assert.match(css, /\.report-operational \.report-filter \{[^}]*display: flex/);
+    assert.match(css, /\.report-operational \.report-filter__form \{[^}]*display: flex/);
+    assert.match(css, /\.report-operational \.report-filter__heading p \{ display: none/);
+});
+
+test('both operational tables page ten rows with the shared pager', async () => {
+    /*
+     * หน้ารายงานปฏิบัติงานเหลือสองตาราง: รายชื่อพนักงาน และรายวันของคนที่เลือก
+     * ทั้งคู่ต้องใช้ initTablePager ตัวเดียวกับรายงานอื่น ไม่ใช่โค้ดแบ่งหน้าชุดใหม่
+     */
+    const [people, days, entry] = await Promise.all([
+        read('resources/views/reports/components/operational-people.blade.php'),
+        read('resources/views/reports/components/operational-routine-days.blade.php'),
+        read('resources/js/pages/reports/operational.js'),
+    ]);
+
+    for (const markup of [people, days]) {
+        assert.match(markup, /data-page-size="10"/);
+    }
+
+    /*
+     * กระดานรายคนเป็นกริดของการ์ด ไม่ใช่ตาราง แต่ยังใช้ตัวแบ่งหน้าตัวเดียวกัน
+     * เพราะ initTablePager ซ่อนแถวด้วย hidden ล้วน ๆ ไม่ได้ผูกกับ tbody
+     */
+    assert.match(people, /class="report-people-cards" data-operational-people-table/);
+    assert.match(people, /<article class="report-people-card[^"]*" data-operational-people-row/);
+
+    assert.match(entry, /import \{initTablePager\} from '\.\/table-pager\.js'/);
+    assert.match(entry, /data-operational-people-table/);
+    assert.match(entry, /data-operational-days-table/);
+
+    /*
+     * เหลือกราฟใบเดียว คืองานของวันนี้รายคน ซึ่งเป็นข้อมูลชุดเดียวกับการ์ดด้านล่าง
+     * id ต้องตรงกันสามที่: Blade, ตัวเชื่อมที่นี่ และคีย์ของ config
+     */
+    assert.match(entry, /operationalTodayMemberChart', key: 'todayMembers'/);
+    assert.doesNotMatch(entry, /operationalRoutine/, 'กราฟชุดเดิมถูกถอดออกจากหน้านี้แล้ว');
+    assert.doesNotMatch(entry, /operationalCategoryChart/, 'กราฟชุดของทั้งแผนกไม่ถูกใช้บนหน้านี้แล้ว');
 });
 
 /*

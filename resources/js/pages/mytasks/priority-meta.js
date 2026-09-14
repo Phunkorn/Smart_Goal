@@ -14,8 +14,9 @@ export const projectPriorityMeta = {
     3: {className: 'priority-high', tone: 'project-tone-high', label: 'สูง', projectLabel: 'สำคัญ/สูง'},
 };
 
+// ระดับ 1 ("routine") ถูกเลิกใช้แล้ว งานเก่าถูกย้ายไประดับ 5 ด้วย migration
+// ค่าที่ไม่รู้จักยังตกกลับไประดับ 2 ตามเดิมที่ผู้เรียกทุกตัวทำอยู่แล้ว
 export const taskPriorityMeta = {
-    1: {className: 'priority-routine', label: 'routine'},
     2: {className: 'priority-important', label: 'สำคัญไม่ด่วน'},
     3: {className: 'priority-urgent', label: 'สำคัญด่วน'},
     4: {className: 'priority-quick', label: 'ด่วนไม่ค่อยสำคัญ'},

@@ -11,10 +11,21 @@ export const taskScopes = Object.freeze([
     'created',
     'assigned_by_me',
     'collaborating',
-    'department',
 ]);
 
-const boardStatuses = new Set(['', '1', '2', '3', '4', '5', 'late']);
+/*
+ * ขั้นตรวจสอบถูกแยกเป็นสองตัวเลือกที่ไม่ทับกัน แทนตัวเลือก '3' ตัวเดียวที่รวมทุกอย่าง
+ *
+ * ของเดิมมี 'my_review' (งานที่ฉันตรวจได้) คู่กับ '3' (งานสถานะรอตรวจทั้งหมด)
+ * ซึ่ง '3' เป็นซูเปอร์เซ็ตของอีกตัว ผู้ใช้จึงเห็นสองบรรทัดที่ขึ้นต้นว่า "รอตรวจ" เหมือนกัน
+ * แล้วเดาไม่ออกว่าต่างกันตรงไหน และเลือกผิดบ่อยเพราะผลลัพธ์ซ้อนกันจริง ๆ
+ *
+ *   my_review       — คนอื่นส่งงานกลับมาให้เราตรวจ  → ลูกบอลอยู่ที่เรา
+ *   awaiting_review — เราส่งงานไปแล้ว รอคนอื่นตรวจ   → ลูกบอลอยู่ที่คนอื่น
+ *
+ * สองชุดนี้ตัดกันเป็นศูนย์โดยนิยาม งานหนึ่งใบจึงตกอยู่ในตัวเลือกเดียวเสมอ
+ */
+const boardStatuses = new Set(['', '1', '2', '4', '5', 'late', 'my_review', 'awaiting_review']);
 const dueSorts = new Set(['', 'asc', 'desc']);
 
 export const normalizeTaskScope = (scope) => taskScopes.includes(scope) ? scope : 'all';
@@ -62,8 +73,20 @@ export const boardTaskMatches = (task, state) => {
     const query = String(state?.search || '').trim().toLowerCase();
     const status = String(state?.status || '');
     const textMatch = !query || searchable.includes(query);
+
+    // งานที่ "ถึงคิวเราตรวจ" คืองานรอตรวจที่เราตรวจได้ หรืองานแม่ที่มีงานย่อยรอเราตรวจอยู่
+    const waitsForMe = (String(task.status) === '3' && String(task.canReview) === '1')
+        || Number(task.reviewableSubtasks || 0) > 0;
+
     const statusMatch = !status
-        || (status === 'late' ? String(task.late) === '1' : String(task.status) === status);
+        || (status === 'late'
+            ? String(task.late) === '1'
+            : status === 'my_review'
+                ? waitsForMe
+                // เราส่งไปแล้วรอคนอื่นตรวจ — ตัดงานที่รอเราตรวจออก สองตัวเลือกจึงไม่ทับกัน
+                : status === 'awaiting_review'
+                    ? String(task.status) === '3' && ! waitsForMe
+                    : String(task.status) === status);
 
     return textMatch && statusMatch;
 };

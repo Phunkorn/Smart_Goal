@@ -17,8 +17,11 @@ final class WorkBoardDesign
         'late' => ['label' => 'ล่าช้า', 'tone' => 'red', 'icon' => 'bi-exclamation-circle'],
     ];
 
+    /*
+     * ระดับ 1 ("routine") ถูกเลิกใช้แล้วตามที่เจ้าของระบบสั่ง จึงไม่มีอยู่ในรายการนี้อีก
+     * งานเก่าที่เคยตั้งค่าไว้ถูกย้ายไประดับ 5 โดย migration ของวันที่ 2026-09-12
+     */
     public const TASK_PRIORITIES = [
-        1 => ['label' => 'routine', 'tone' => 'gray'],
         2 => ['label' => 'สำคัญไม่ด่วน', 'tone' => 'blue'],
         3 => ['label' => 'สำคัญด่วน', 'tone' => 'red'],
         4 => ['label' => 'ด่วนไม่ค่อยสำคัญ', 'tone' => 'amber'],

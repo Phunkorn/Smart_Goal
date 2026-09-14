@@ -7,6 +7,7 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderListTaskRequest;
+use App\Models\WorkOrderShareRequest;
 use App\Models\WorkOrderUpdate;
 use App\Services\Telegram\TelegramOutbox;
 use App\Support\ApprovalPresenter;
@@ -162,17 +163,24 @@ class NotificationService
     }
 
     /**
-     * ผู้ดูแลของงานนี้ = ผู้ดูแลระบบ + หัวหน้าแผนกปลายทาง
+     * ผู้ที่ต้องติดตามงานใบนี้ = หัวหน้าแผนกปลายทาง
      *
-     * เดิมส่งเฉพาะ role = 'admin' หัวหน้าแผนกจึงไม่เคยรู้เลยว่าลูกทีมมอบหมายงานกันเอง
-     * ทั้งที่เป็นคนที่ต้องติดตามภาระงานของแผนกโดยตรง
+     * เดิมชื่อ notifyTaskAdmins() และส่งหา admin ทุกคนแบบไม่มีเงื่อนไขด้วย ทำให้ admin
+     * ได้รับแจ้งเตือนทุกครั้งที่ลูกทีมมอบหมายงานกันเองภายในแผนก ซึ่งเป็นงานประจำวันที่
+     * admin ไม่เกี่ยวข้องและไม่มีอะไรต้องลงมือ
+     *
+     * admin เป็นผู้ดูแลระบบ ไม่ใช่ผู้ดูแลงาน จะถูกแจ้งเตือนเฉพาะเรื่องที่มีแต่ admin ทำได้
+     * (คำขอลบงาน — ดู WorkOrderPolicy::delete) หรือเรื่องที่ไม่มีหัวหน้าแผนกรับผิดชอบ
+     * (ดู departmentApprovalRecipientIds) เท่านั้น
+     *
+     * ถ้าแผนกยังไม่มีหัวหน้า รายชื่อจะว่างและไม่มีใครได้รับ ซึ่งถูกต้อง เพราะการมอบหมายงาน
+     * ภายในแผนกเป็นเรื่องที่ทั้งผู้สั่งและผู้รับรู้กันอยู่แล้ว ไม่ใช่คำขอที่ต้องมีคนตัดสิน
      *
      * @param  array<int>  $excludeIds  คนที่ได้รับแจ้งเตือนฉบับของตัวเองไปแล้ว เช่นผู้รับงาน
      */
-    public function notifyTaskAdmins(WorkOrder $task, string $type, string $title, string $message, User $actor, ?string $dedupePrefix = null, array $excludeIds = []): void
+    public function notifyTaskOverseers(WorkOrder $task, string $type, string $title, string $message, User $actor, ?string $dedupePrefix = null, array $excludeIds = []): void
     {
-        $recipientIds = collect(User::where('role', 'admin')->pluck('id'))
-            ->merge($this->departmentHeadIds($this->taskDepartmentId($task)))
+        $recipientIds = collect($this->departmentHeadIds($this->taskDepartmentId($task)))
             ->map(fn ($id) => (int) $id)
             ->reject(fn (int $id) => in_array($id, array_map('intval', $excludeIds), true))
             ->unique()
@@ -229,6 +237,31 @@ class NotificationService
             ->all();
     }
 
+    /**
+     * รหัสแผนกที่มีหัวหน้าแผนกใช้งานอยู่จริง
+     *
+     * ใช้ตอบคำถามว่า "งานใบนี้มีคนรับผิดชอบอยู่แล้วหรือยัง" ซึ่งเป็นเกณฑ์เดียวกับที่
+     * departmentApprovalRecipientIds() ใช้ตัดสินว่าจะส่งคำขอไปหาหัวหน้าหรือตกไปหา admin
+     *
+     * คิวคำขออนุมัติของ admin กรองด้วยค่านี้ เพื่อให้ "สิ่งที่ admin เห็นในคิว" ตรงกับ
+     * "สิ่งที่ admin ถูกแจ้งเตือน" พอดี — เดิมไม่ตรงกัน admin จึงเห็นคำขอทั้งระบบรวมทั้งที่
+     * หัวหน้าแผนกถืออยู่แล้ว
+     *
+     * @return array<int>
+     */
+    public function departmentIdsWithActiveHead(): array
+    {
+        return User::query()
+            ->where('role', 'user')
+            ->where('is_active', true)
+            ->where('is_department_head', true)
+            ->whereNotNull('department_id')
+            ->distinct()
+            ->pluck('department_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     /** @return array<int> */
     public function departmentApprovalRecipientIds(?int $departmentId): array
     {
@@ -276,13 +309,13 @@ class NotificationService
 
             if ($sameDepartment) {
                 // ผู้รับงานได้ฉบับ "มีงานใหม่" ไปแล้วด้านบน ไม่ต้องได้ฉบับสรุปของฝ่ายดูแลซ้ำอีก
-                $this->notifyTaskAdmins(
+                $this->notifyTaskOverseers(
                     $task,
                     'same_department_assignment',
                     'มีการมอบหมายงานภายในแผนก',
                     $actor->name.' มอบหมายงาน "'.$task->job_topic.'" ให้ '.$assignee->name,
                     $actor,
-                    'assignment-created:'.$task->job_id.':admins',
+                    'assignment-created:'.$task->job_id.':overseers',
                     [$assignee->id]
                 );
             }
@@ -518,6 +551,19 @@ class NotificationService
                 ]));
             }
 
+            // คำขอชั้นที่สองเป็นงานของหัวหน้าแผนก ปลายทางคือหน้าคำขออนุมัติหน้าเดิม
+            if ($notification->type === 'share_join_awaiting_head') {
+                return route('admin.approvals.index', ['approval_queue' => 'share']);
+            }
+
+            // แชร์งานไม่ผูกกับ WorkOrder เพราะผู้ขอยังไม่มีสิทธิ์ view() งานนั้นจนกว่า
+            // คำขอจะผ่าน ปลายทางจึงเป็นหน้าแชร์งาน ไม่ใช่หน้างาน
+            if (str_starts_with($notification->type, 'share_join_')) {
+                return route('shares.index', [
+                    'tab' => $notification->type === 'share_join_requested' ? 'incoming' : 'mine',
+                ]);
+            }
+
             if (str_starts_with($notification->type, 'project_task_request_')
                 && $notification->project
                 && Gate::forUser($viewer)->allows('view', $notification->project)) {
@@ -586,6 +632,22 @@ class NotificationService
             return ! $notification->workOrder
                 || ! $candidate
                 || ! Gate::forUser($viewer)->allows('approveCollaborator', [$notification->workOrder, $candidate]);
+        }
+
+        if (str_starts_with($notification->type, 'share_join_')) {
+            $requestId = $notification->data['share_request_id'] ?? null;
+
+            if (! $requestId || $viewer->role === 'viewer') {
+                return true;
+            }
+
+            // คำขอชั้นที่สองพาไปหน้าคำขออนุมัติ ซึ่งเปิดได้เฉพาะ admin และหัวหน้าแผนก
+            if ($notification->type === 'share_join_awaiting_head'
+                && $viewer->role !== 'admin' && ! $viewer->isDepartmentHead()) {
+                return true;
+            }
+
+            return ! WorkOrderShareRequest::query()->whereKey($requestId)->exists();
         }
 
         if (str_starts_with($notification->type, 'project_task_request_')) {

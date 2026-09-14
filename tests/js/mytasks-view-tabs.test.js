@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mountDom} from './helpers/dom.js';
 
+/*
+ * ประชุมของฟิกซ์เจอร์ต้อง "ยังไม่เลิก" เสมอ ไม่ว่าเทสต์จะถูกรันตอนกี่โมง
+ *
+ * ปฏิทินตัดประชุมที่เลิกไปแล้วออก ฟิกซ์เจอร์ที่ตรึงเวลาไว้ (เช่น 10:00-11:00 ของวันนี้)
+ * จึงหายไปเองเมื่อรันหลัง 11 โมง และการบวกเวลาไปข้างหน้าก็ไม่ปลอดภัย เพราะถ้าบวกแล้ว
+ * ข้ามเที่ยงคืน เวลาที่ได้จะกลายเป็นช่วงเช้าของ "วันเดียวกัน" ซึ่งเป็นอดีตไปแล้ว
+ *
+ * จึงให้ประชุมเริ่ม ณ ตอนนี้และเลิกสิ้นวัน — อยู่ระหว่างดำเนินการเสมอ
+ */
+const nowClock = () => {
+    const at = new Date();
+
+    return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+};
+
 /**
  * Regression: ปฏิทินคลิกอะไรไม่ได้เลย เพราะ "ตัวครอบ panel" ถูกนับเป็นปุ่มสลับมุมมอง
  *
@@ -52,7 +67,7 @@ let fixtureCount = 0;
  * โครงสร้างต้องสะท้อนหน้าจริง: viewbar อยู่นอก .notion-database และ .notion-database
  * เป็นตัวครอบ panel ทั้งหมด (รวมปฏิทิน) พร้อม data-view เป็น "สถานะ" ไม่ใช่ปุ่ม
  */
-async function boot(t, {withCalendar = true, viewHistory = true} = {}) {
+async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHidden = false} = {}) {
     const env = mountDom();
     t.after(env.cleanup);
 
@@ -60,13 +75,16 @@ async function boot(t, {withCalendar = true, viewHistory = true} = {}) {
     const iso = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
     const meeting = {
         id: 'meeting-1', type: 'meeting', title: 'ประชุมทดสอบ', location: 'ห้องประชุม', organizer: 'ผู้จัด',
-        start: iso, due: iso, startTime: '10:00', endTime: '11:00', entityId: 1,
+        start: iso, due: iso, startTime: nowClock(), endTime: '23:59', entityId: 1,
         quickViewUrl: '/my-tasks/calendar/quick-view/meeting/1', detailUrl: '/meetings/1', url: '/meetings/1',
     };
 
     env.document.body.innerHTML = `
         <div data-workspace data-context="user"${viewHistory ? ' data-view-history="true"' : ''}>
             ${VIEWBAR}
+            <div class="notion-filter" data-board-status-filter data-sg-select${statusFilterHidden ? ' hidden' : ''}>
+                <select data-filter><option value="">ทุกสถานะ</option></select>
+            </div>
             <section class="notion-database" data-view="calendar">
                 <div data-workspace-task-source hidden>
                     <div data-row data-id="1" data-topic="งานทดสอบ" data-project="โปรเจกต์"
@@ -128,6 +146,7 @@ async function boot(t, {withCalendar = true, viewHistory = true} = {}) {
     return {
         ...env,
         database: env.document.querySelector('.notion-database'),
+        statusFilter: env.document.querySelector('[data-board-status-filter]'),
         popover: env.document.querySelector('[data-quick-view-popover]'),
         title: () => env.document.querySelector('[data-calendar-title]').textContent,
         // ช่องวันที่สรุปเป็นจำนวนงานต่อความสำคัญแล้ว แถวที่คลิกได้อยู่ในการ์ดสรุปใต้ปฏิทิน
@@ -219,6 +238,31 @@ test('ปุ่มควบคุมปฏิทินยังทำงาน�
  * ต้องไม่ถูกเขียน History เปื้อน — เดิมกฎนี้ hardcode ไว้ที่ data-context="user"
  * ซึ่งกันหน้า Admin Member Workspace ที่ตอนนี้ resolve ?view= แล้วออกไปด้วย
  */
+test('ตัวกรองสถานะกลับมาเมื่อกลับจากหน้าประชุม และไม่โผล่ในปฏิทิน', async (t) => {
+    /*
+     * มุมมองประชุมเป็นการโหลดหน้าใหม่จาก server หน้านั้นจึงส่งตัวกรองมาแบบ hidden
+     * ส่วนการกดกลับมาที่ตาราง/บอร์ดเป็นการสลับฝั่ง client ล้วน ๆ
+     *
+     * ของเดิม applyView() สลับ hidden ให้เฉพาะ toolbar ไม่เคยแตะตัวกรอง
+     * ผู้ใช้จึงเสียตัวกรองไปจนกว่าจะรีโหลดหน้าเอง — เริ่มเทสต์จากสภาพนั้นตรง ๆ
+     */
+    const ui = await boot(t, {withCalendar: false, statusFilterHidden: true});
+    await flush(30);
+
+    ui.click('[role="tab"][data-view="table"]');
+    assert.equal(ui.statusFilter.hidden, false, 'กลับมาที่ตารางแล้วตัวกรองต้องกลับมาด้วย');
+
+    ui.click('[role="tab"][data-view="board"]');
+    assert.equal(ui.statusFilter.hidden, false, 'บอร์ดก็ต้องมีตัวกรอง');
+
+    // ปฏิทินจัดวางงานตามวัน การกรองสถานะทำให้ช่องวันหายไปเฉย ๆ โดยไม่บอกอะไร
+    ui.click('[role="tab"][data-view="calendar"]');
+    assert.equal(ui.statusFilter.hidden, true, 'ปฏิทินต้องไม่มีตัวกรองสถานะ');
+
+    ui.click('[role="tab"][data-view="table"]');
+    assert.equal(ui.statusFilter.hidden, false, 'สลับกลับไปกลับมาต้องยังถูกต้อง');
+});
+
 test('หน้าที่ประกาศ data-view-history ต้องเขียน ?view= ลง History เมื่อผู้ใช้สลับมุมมอง', async (t) => {
     const ui = await boot(t, {withCalendar: false});
     await flush(30);

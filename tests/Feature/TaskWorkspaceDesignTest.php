@@ -156,7 +156,8 @@ class TaskWorkspaceDesignTest extends TestCase
 
         // ผู้ที่ไม่เกี่ยวข้องมองไม่เห็นงานนี้ในคิวรีตั้งต้น จึงถูกปฏิเสธด้วย 404 ก่อนถึง Policy
         $this->actingAs($stranger)
-            ->postJson(route('mytasks.updatePriority', $task->job_id), ['job_priority' => 1])
+            // ใช้ค่าที่ผ่าน validation ได้จริง ไม่งั้นจะถูกตีกลับด้วย 422 ก่อนถึงจุดที่เทสต์นี้ตรวจ
+            ->postJson(route('mytasks.updatePriority', $task->job_id), ['job_priority' => 4])
             ->assertNotFound();
         $this->assertSame(3, (int) $task->fresh()->job_priority);
     }

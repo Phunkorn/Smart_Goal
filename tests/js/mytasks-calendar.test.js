@@ -108,7 +108,8 @@ test('date-point controls always leave at least one visible endpoint', () => {
 
 test('timeline reserves four overlapping lanes by priority and reports the fifth task per day', () => {
     const tasks = [
-        {id: 1, title: 'routine', priority: 1, start: '2026-08-10', due: '2026-08-12'},
+        // ระดับ 1 ("routine") ถูกเลิกใช้แล้ว งานใบที่ห้าจึงใช้ระดับต่ำสุดซ้ำกับอีกใบแทน
+        {id: 1, title: 'flexible ใบที่สอง', priority: 5, start: '2026-08-10', due: '2026-08-12'},
         {id: 2, title: 'flexible', priority: 5, start: '2026-08-10', due: '2026-08-12'},
         {id: 3, title: 'important', priority: 2, start: '2026-08-10', due: '2026-08-12'},
         {id: 4, title: 'quick', priority: 4, start: '2026-08-10', due: '2026-08-12'},
@@ -126,17 +127,19 @@ test('timeline reserves four overlapping lanes by priority and reports the fifth
 
 test('a low-priority range is hidden only on the crowded day and continues on both sides', () => {
     const tasks = [
-        {id: 1, title: 'routine range', priority: 1, start: '2026-08-10', due: '2026-08-12'},
+        {id: 1, title: 'ช่วงงานความสำคัญต่ำ', priority: 5, start: '2026-08-10', due: '2026-08-12'},
         {id: 2, title: 'urgent', priority: 3, start: '2026-08-11', due: '2026-08-11'},
         {id: 3, title: 'quick', priority: 4, start: '2026-08-11', due: '2026-08-11'},
         {id: 4, title: 'important', priority: 2, start: '2026-08-11', due: '2026-08-11'},
-        {id: 5, title: 'flexible', priority: 5, start: '2026-08-11', due: '2026-08-11'},
+        // ต้องเป็นระดับที่สูงกว่าช่วงงานข้างบน ไม่งั้นการเสมอกันจะตัดสินด้วยวันเริ่ม
+        // แล้วช่วงงานที่เริ่มก่อนจะได้เลนไป กลายเป็นว่าไม่มีอะไรถูกซ่อนในวันที่แน่น
+        {id: 5, title: 'urgent ใบที่สอง', priority: 3, start: '2026-08-11', due: '2026-08-11'},
     ];
     const calendar = buildMonthCalendar(tasks, 2026, 7);
     const week = calendar.weeks.find((candidate) => candidate.days[0].key === '2026-08-10');
-    const routineSegments = week.segments.filter((segment) => segment.event.id === '1');
+    const lowPrioritySegments = week.segments.filter((segment) => segment.event.id === '1');
 
-    assert.deepEqual(routineSegments.map((segment) => [segment.startDay, segment.spanDays]), [[0, 1], [2, 1]]);
+    assert.deepEqual(lowPrioritySegments.map((segment) => [segment.startDay, segment.spanDays]), [[0, 1], [2, 1]]);
     assert.equal(calendar.days.find((day) => day.key === '2026-08-10').hiddenTimelineTasks, 0);
     assert.equal(calendar.days.find((day) => day.key === '2026-08-11').hiddenTimelineTasks, 1);
     assert.equal(calendar.days.find((day) => day.key === '2026-08-12').hiddenTimelineTasks, 0);
@@ -187,7 +190,7 @@ test('agenda remains due-based even though the month grid uses full task ranges'
  */
 test('day summaries follow the legend order and never depend on input order', () => {
     const events = [
-        {id: 1, title: 'routine', priority: 1, start: '', due: '2026-08-12'},
+        {id: 1, title: 'important', priority: 2, start: '', due: '2026-08-12'},
         {id: 2, title: 'flexible', priority: 5, start: '', due: '2026-08-12'},
         {id: 3, title: 'urgent A', priority: 3, start: '', due: '2026-08-12'},
         {id: 4, title: 'urgent B', priority: 3, start: '', due: '2026-08-12'},
@@ -198,21 +201,21 @@ test('day summaries follow the legend order and never depend on input order', ()
         .days.find((day) => day.key === '2026-08-12')
         .groups.map((group) => `${group.key}:${group.count}`);
 
-    assert.deepEqual(shape(events), ['priority-3:2', 'priority-4:1', 'priority-5:1', 'priority-1:1', 'meeting:1']);
+    assert.deepEqual(shape(events), ['priority-3:2', 'priority-4:1', 'priority-2:1', 'priority-5:1', 'meeting:1']);
     assert.deepEqual(shape([...events].reverse()), shape(events));
 });
 
 /*
  * โทนของทั้งช่องวันที่ = ความสำคัญสูงสุดที่มีในวันนั้น
- * วันที่มีทั้งงานด่วนและ routine ต้องอ่านว่า "ด่วน" ไม่ใช่เฉลี่ยหรือเอาตัวที่มากที่สุด
+ * วันที่มีทั้งงานด่วนและงานความสำคัญต่ำ ต้องอ่านว่า "ด่วน" ไม่ใช่เฉลี่ยหรือเอาตัวที่มากที่สุด
  */
 test('the day tone follows the most urgent item on that day', () => {
     const toneOf = (events) => buildMonthCalendar(events, 2026, 7)
         .days.find((day) => day.key === '2026-08-12').tone;
 
     assert.equal(toneOf([
-        {id: 1, title: 'routine A', priority: 1, start: '', due: '2026-08-12'},
-        {id: 2, title: 'routine B', priority: 1, start: '', due: '2026-08-12'},
+        {id: 1, title: 'flexible A', priority: 5, start: '', due: '2026-08-12'},
+        {id: 2, title: 'flexible B', priority: 5, start: '', due: '2026-08-12'},
         {id: 3, title: 'urgent', priority: 3, start: '', due: '2026-08-12'},
     ]), 'priority-3');
 
@@ -227,8 +230,8 @@ test('the day tone follows the most urgent item on that day', () => {
     ]), 'meeting');
     assert.equal(toneOf([
         {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
-        {id: 1, title: 'routine', priority: 1, start: '', due: '2026-08-12'},
-    ]), 'priority-1');
+        {id: 1, title: 'flexible', priority: 5, start: '', due: '2026-08-12'},
+    ]), 'priority-5');
 
     assert.equal(buildMonthCalendar([], 2026, 7).days[0].tone, null);
 });

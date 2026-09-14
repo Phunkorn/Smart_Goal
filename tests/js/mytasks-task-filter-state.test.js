@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {
     boardFilterStateFrom,
     boardTaskMatches,
@@ -50,4 +51,79 @@ test('board matching combines text and status including late semantics', () => {
     assert.equal(boardTaskMatches(task, {search: 'printer', status: 'late'}), true);
     assert.equal(boardTaskMatches(task, {search: 'printer', status: '3'}), false);
     assert.equal(boardTaskMatches(task, {search: 'scanner', status: 'late'}), false);
+});
+
+test('my review filter only matches pending tasks the current user can review', () => {
+    assert.equal(boardTaskMatches(
+        {searchable: 'Approval', status: '3', canReview: '1', late: '0'},
+        {search: '', status: 'my_review'},
+    ), true);
+    assert.equal(boardTaskMatches(
+        {searchable: 'Approval', status: '3', canReview: '0', late: '0'},
+        {search: '', status: 'my_review'},
+    ), false);
+    assert.equal(boardTaskMatches(
+        {searchable: 'Approval', status: '2', canReview: '1', late: '0'},
+        {search: '', status: 'my_review'},
+    ), false);
+    assert.equal(boardTaskMatches(
+        {searchable: 'Parent task', status: '2', canReview: '0', reviewableSubtasks: '1', late: '0'},
+        {search: '', status: 'my_review'},
+    ), true);
+});
+
+test('the two review filters never overlap, so a task lands in exactly one of them', () => {
+    /*
+     * ของเดิมคู่นี้เป็น 'my_review' กับ '3' ซึ่ง '3' เป็นซูเปอร์เซ็ตของอีกตัว
+     * ผู้ใช้จึงเห็นสองบรรทัดที่ขึ้นต้นว่า "รอตรวจ" เหมือนกันแล้วเดาไม่ออกว่าต่างกันตรงไหน
+     * ตอนนี้แยกเป็น "รอฉันตรวจ" กับ "รอคนอื่นตรวจ" ที่ตัดกันเป็นศูนย์
+     */
+    const waitingForMe = {searchable: 'ส่งกลับมาให้เราตรวจ', status: '3', canReview: '1', late: '0'};
+    const waitingForSomeoneElse = {searchable: 'เราส่งไปรอตรวจ', status: '3', canReview: '0', late: '0'};
+
+    assert.equal(boardTaskMatches(waitingForMe, {search: '', status: 'my_review'}), true);
+    assert.equal(boardTaskMatches(waitingForMe, {search: '', status: 'awaiting_review'}), false);
+
+    assert.equal(boardTaskMatches(waitingForSomeoneElse, {search: '', status: 'awaiting_review'}), true);
+    assert.equal(boardTaskMatches(waitingForSomeoneElse, {search: '', status: 'my_review'}), false);
+
+    // งานแม่ที่มีงานย่อยรอเราตรวจ ถือว่าลูกบอลอยู่ที่เรา จึงต้องไม่ไปโผล่ฝั่ง "รอคนอื่นตรวจ"
+    const parentWithReviewableChild = {
+        searchable: 'งานแม่', status: '3', canReview: '0', reviewableSubtasks: '1', late: '0',
+    };
+    assert.equal(boardTaskMatches(parentWithReviewableChild, {search: '', status: 'my_review'}), true);
+    assert.equal(boardTaskMatches(parentWithReviewableChild, {search: '', status: 'awaiting_review'}), false);
+});
+
+test('the retired all-review filter value is no longer accepted from the url', () => {
+    // ตัวเลือก "รอตรวจสอบทั้งหมด" ถูกเอาออกแล้ว ลิงก์เก่าที่ยังถือ ?status=3 ต้องตกกลับไปเป็นทุกสถานะ
+    assert.equal(boardFilterStateFrom('status=3').status, '');
+    assert.equal(boardFilterStateFrom('status=awaiting_review').status, 'awaiting_review');
+    assert.equal(boardFilterStateFrom('status=my_review').status, 'my_review');
+});
+
+test('table cards can reuse board matching for reviewable subtasks', () => {
+    const parentCard = {
+        searchable: 'Parent task',
+        status: '2',
+        canReview: '0',
+        reviewableSubtasks: '1',
+        late: '0',
+    };
+
+    assert.equal(boardTaskMatches(parentCard, {search: '', status: 'my_review'}), true);
+    assert.equal(boardTaskMatches(parentCard, {search: '', status: '2'}), true);
+    assert.equal(boardTaskMatches(parentCard, {search: '', status: '4'}), false);
+});
+
+test('board search reads the explicit searchable text rendered for names hidden inside avatars', async () => {
+    const [boardScript, boardRow] = await Promise.all([
+        readFile(new URL('../../resources/js/mytasks-project-board.js', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/tasks/partials/project-board-card.blade.php', import.meta.url), 'utf8'),
+    ]);
+
+    assert.match(boardScript, /task\.dataset\.searchText/);
+    assert.match(boardRow, /data-search-text=/);
+    assert.match(boardRow, /\$collaborators->pluck\('name'\)/);
+    assert.match(boardRow, /\$assigneeName/);
 });

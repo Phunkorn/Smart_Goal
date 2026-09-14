@@ -161,6 +161,37 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
      */
     const CALENDAR_HIDDEN_STATUS = 4;
 
+    /*
+     * ประชุมที่จบไปแล้วก็ไม่ต้องอยู่บนปฏิทินเช่นกัน — เหตุผลเดียวกับงานที่ปิดแล้ว
+     *
+     * ปฏิทินตอบคำถามว่า "ข้างหน้ามีอะไรรออยู่" ประชุมที่เลิกไปแล้วตอบคำถามนั้นไม่ได้
+     * มีแต่จะเบียดช่องวันจนนัดหมายที่ยังไม่ถึงมองไม่เห็น ประวัติการประชุมอยู่ครบที่หน้าประชุม
+     *
+     * ตัดที่ "เวลาเลิกประชุม" ไม่ใช่เวลาเริ่ม ประชุมที่กำลังดำเนินอยู่จึงยังอยู่บนปฏิทิน
+     * ซึ่งเป็นช่วงที่คนต้องการเห็นมันที่สุด
+     *
+     * เทียบด้วยสตริง 'Y-m-dTH:i' ได้ตรง ๆ เพราะรูปแบบนี้เรียงตามเวลาอยู่แล้ว
+     * และ payload ฝั่ง server แปลงเป็นเวลาไทยมาให้แล้ว (MeetingQueryService)
+     * จึงใช้นาฬิกาเครื่องผู้ใช้เป็น "ตอนนี้" ชุดเดียวกับ todayKey ของไฟล์นี้
+     */
+    const meetingHasEnded = (meeting) => {
+        const endDate = meeting.due || meeting.start || '';
+        if (!endDate) return false;
+
+        const at = new Date();
+        const nowKey = [
+            at.getFullYear(),
+            String(at.getMonth() + 1).padStart(2, '0'),
+            String(at.getDate()).padStart(2, '0'),
+        ].join('-') + 'T' + [
+            String(at.getHours()).padStart(2, '0'),
+            String(at.getMinutes()).padStart(2, '0'),
+        ].join(':');
+
+        // ประชุมที่ไม่มีเวลาเลิกถือว่ากินทั้งวัน จึงพ้นไปเมื่อข้ามวันเท่านั้น
+        return `${endDate}T${meeting.endTime || '23:59'}` < nowKey;
+    };
+
     const readEvents = () => {
         const unique = new Map();
         source.querySelectorAll('[data-row]').forEach((row) => {
@@ -189,7 +220,10 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 subtasks: readSubtasks(row),
             });
         });
-        meetingsById.forEach((meeting, id) => unique.set(id, meeting));
+        meetingsById.forEach((meeting, id) => {
+            if (meetingHasEnded(meeting)) return;
+            unique.set(id, meeting);
+        });
         return [...unique.values()];
     };
 

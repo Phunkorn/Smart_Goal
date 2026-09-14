@@ -106,10 +106,14 @@ class MyTaskController extends Controller
                 'creator',
                 'leader.department',
                 'collaborators.department',
+                // เมนู "แชร์งาน" ในแถวงานถามว่างานใบนี้กำลังถูกแชร์อยู่หรือเปล่า
+                // ถ้าไม่โหลดมาพร้อมกัน แต่ละแถวจะยิง query ของตัวเอง
+                'openShare',
                 'images',
                 'children.user.department',
                 'children.taskList',
                 'children.collaborators.department',
+                'children.openShare',
                 'children.images',
                 'children.updates',
                 'updates.user.department',
@@ -708,7 +712,7 @@ class MyTaskController extends Controller
             'collaborators.*' => ['integer', 'exists:users,id'],
             'job_start_at' => ['nullable', 'date'],
             'job_due_at' => ['nullable', 'date', 'after_or_equal:job_start_at'],
-            'job_priority' => ['nullable', 'integer', 'in:1,2,3,4,5'],
+            'job_priority' => ['nullable', 'integer', 'in:2,3,4,5'],
             'project_priority' => ['nullable', 'integer', 'in:1,2,3'],
             'attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
             'attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
@@ -1044,7 +1048,7 @@ class MyTaskController extends Controller
     public function updatePriority(Request $request, int $job_id): JsonResponse
     {
         $validated = $request->validate([
-            'job_priority' => 'required|integer|in:1,2,3,4,5',
+            'job_priority' => 'required|integer|in:2,3,4,5',
         ]);
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
@@ -1115,6 +1119,13 @@ class MyTaskController extends Controller
         app(NotificationService::class)->notify($userIds, $type, $safeTitle, $safeMessage, $job, Auth::user());
     }
 
+    /**
+     * แจ้ง admin ทุกคน — ใช้กับคำขอลบงานเท่านั้น
+     *
+     * เป็นข้อยกเว้นที่ตั้งใจของหลักการ "admin ไม่รับแจ้งเตือนงานประจำวัน" เพราะ
+     * WorkOrderPolicy::delete() เปิดให้ admin เท่านั้น ถ้าไม่แจ้งก็ไม่มีใครตัดสินคำขอได้
+     * ห้ามนำไปใช้กับแจ้งเตือนชนิดอื่น
+     */
     private function notifyAdmins(WorkOrder $job, string $type, string $title, string $message): void
     {
         $adminIds = User::where('role', 'admin')->pluck('id')->all();

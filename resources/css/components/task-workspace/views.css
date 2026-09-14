@@ -296,6 +296,11 @@
         width: 100%;
     }
 
+    .my-tasks-page .mytasks-view-controls > .notion-filter,
+    .my-tasks-page .mytasks-view-controls > .notion-filter .sg-select {
+        width: 100%;
+    }
+
     /*
      * แถวเรียงเป็นคอลัมน์แล้ว บรรทัดสรุปแบบลอยจะไปทับปุ่มถัดไป
      * จึงคืนให้อยู่ในสายงานปกติ และเลิกเผื่อที่ว่างด้านล่างที่ไม่ต้องใช้แล้ว

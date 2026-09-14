@@ -41,30 +41,49 @@ class TaskCollaboratorSelectorTest extends TestCase
         $this->department = Department::create(['department_name' => 'Operations']);
     }
 
-    public function test_user_and_admin_render_the_same_people_selector(): void
+    public function test_the_people_selector_uses_the_shared_component_wherever_it_can_be_used(): void
+    {
+        [$member] = $this->scenario();
+        $this->member('Selectable Mate');
+
+        $response = $this->actingAs($member)->get(route('mytasks.index'))->assertOk();
+
+        foreach (self::SHARED_MARKUP as $marker) {
+            $response->assertSee($marker, false);
+        }
+
+        // ตัวเลือกเดิมต้องไม่เหลืออยู่ที่ไหนอีก
+        $this->assertSame(
+            0,
+            preg_match('/<select[^>]*name="collaborators\[\]"[^>]*multiple/i', $response->getContent()),
+            'ต้องไม่เหลือ select multiple ของผู้ร่วมงาน'
+        );
+    }
+
+    /**
+     * Admin เปิด Workspace ของสมาชิกได้ แต่จัดทีมไม่ได้แล้ว
+     *
+     * การจัดทีมให้สมาชิกเป็นหน้าที่ของหัวหน้าแผนก หน้านี้จึงเป็นอ่านอย่างเดียวทั้งสองทาง
+     * ตัวเลือกผู้ร่วมงานจึงต้องไม่ถูก render เลย ไม่ใช่ render แล้วซ่อนหรือ disable ไว้
+     */
+    public function test_an_admin_gets_no_people_selector_in_the_member_workspace(): void
     {
         [$member, $admin] = $this->scenario();
         $this->member('Selectable Mate');
 
-        $pages = [
-            [$member, route('mytasks.index')],
-            [$admin, route('admin.work-board.member', [$this->department, $member])],
-        ];
+        $response = $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member]))
+            ->assertOk();
 
-        foreach ($pages as [$actor, $url]) {
-            $response = $this->actingAs($actor)->get($url)->assertOk();
+        // ไม่มีรายชื่อให้เลือกและไม่มีช่องส่งค่าเลย
+        $response->assertDontSee('data-people-checkbox', false)
+            ->assertDontSee('name="collaborators[]"', false);
 
-            foreach (self::SHARED_MARKUP as $marker) {
-                $response->assertSee($marker, false);
-            }
-
-            // ตัวเลือกเดิมต้องไม่เหลืออยู่ที่ไหนอีก
-            $this->assertSame(
-                0,
-                preg_match('/<select[^>]*name="collaborators\[\]"[^>]*multiple/i', $response->getContent()),
-                'ต้องไม่เหลือ select multiple ของผู้ร่วมงาน'
-            );
-        }
+        // และสิทธิ์ที่ฝังมากับหน้าต้องบอกชัดว่าแก้ไม่ได้ ไม่ใช่แค่ไม่มีตัวเลือกให้กด
+        // (โครงโมดัลทีมเป็น partial ร่วม หัวหน้าแผนกก็ได้โครงเดียวกันในโหมดอ่านอย่างเดียว)
+        $response->assertSee('"locked":true', false)
+            ->assertSee('"can_manage":false', false)
+            ->assertSee('"add_url":null', false);
     }
 
     public function test_team_manager_is_one_component_without_the_old_duplicated_panels(): void

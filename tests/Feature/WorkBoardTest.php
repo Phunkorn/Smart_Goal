@@ -213,14 +213,15 @@ class WorkBoardTest extends TestCase
             ->assertDontSee('tasks/', false);
     }
 
-    public function test_member_board_labels_every_task_priority_with_the_five_level_scale(): void
+    public function test_member_board_labels_every_task_priority_with_the_four_level_scale(): void
     {
         $department = Department::create(['department_name' => 'Priority Dept']);
         $viewer = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
         $assignee = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
         $project = WorkOrderList::create(['user_id' => $assignee->id, 'name' => 'Priority project']);
 
-        foreach ([1, 2, 3, 4, 5] as $priority) {
+        // ระดับ 1 ("routine") ถูกเลิกใช้แล้ว เหลือสี่ระดับที่ UI แสดงจริง
+        foreach ([2, 3, 4, 5] as $priority) {
             WorkOrder::create([
                 'user_id' => $assignee->id,
                 'created_by' => $assignee->id,
@@ -239,11 +240,12 @@ class WorkBoardTest extends TestCase
         $this->actingAs($viewer)
             ->get(route('work-board.member', [$department, $assignee]))
             ->assertOk()
-            ->assertSee('routine')
             ->assertSee('สำคัญไม่ด่วน')
             ->assertSee('สำคัญด่วน')
             ->assertSee('ด่วนไม่ค่อยสำคัญ')
-            ->assertSee('ไม่รีบ ไม่มีกำหนด');
+            ->assertSee('ไม่รีบ ไม่มีกำหนด')
+            // ระดับที่เลิกใช้แล้วต้องไม่โผล่กลับมาบนหน้าจออีก
+            ->assertDontSee('routine');
     }
 
     public function test_department_member_filters_use_name_email_status_and_project(): void

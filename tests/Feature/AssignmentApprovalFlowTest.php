@@ -21,6 +21,7 @@ class AssignmentApprovalFlowTest extends TestCase
         $department = Department::create(['department_name' => 'IT']);
         $actor = $this->user($department);
         $assignee = $this->user($department);
+        $head = $this->departmentHead($department);
         $admin = $this->admin();
 
         $this->actingAs($actor)
@@ -30,7 +31,10 @@ class AssignmentApprovalFlowTest extends TestCase
         $taskEndpointJob = WorkOrder::where('job_topic', 'Task endpoint assignment')->firstOrFail();
         $this->assertSame('approved', $taskEndpointJob->approval_status);
         $this->assertNotificationCount($assignee, $taskEndpointJob, 'task_assigned', 1);
-        $this->assertNotificationCount($admin, $taskEndpointJob, 'same_department_assignment', 1);
+        // ฉบับสรุปงานภายในแผนกเป็นของหัวหน้าแผนก ไม่ใช่ของ admin
+        // (NotificationService::notifyTaskOverseers)
+        $this->assertNotificationCount($head, $taskEndpointJob, 'same_department_assignment', 1);
+        $this->assertNotificationCount($admin, $taskEndpointJob, 'same_department_assignment', 0);
 
         $this->actingAs($actor)
             ->postJson(route('mytasks.create'), $this->payload($assignee, 'My Tasks endpoint assignment'))
@@ -40,13 +44,15 @@ class AssignmentApprovalFlowTest extends TestCase
         $myTasksJob = WorkOrder::where('job_topic', 'My Tasks endpoint assignment')->firstOrFail();
         $this->assertSame('approved', $myTasksJob->approval_status);
         $this->assertNotificationCount($assignee, $myTasksJob, 'task_assigned', 1);
-        $this->assertNotificationCount($admin, $myTasksJob, 'same_department_assignment', 1);
+        $this->assertNotificationCount($head, $myTasksJob, 'same_department_assignment', 1);
+        $this->assertNotificationCount($admin, $myTasksJob, 'same_department_assignment', 0);
     }
 
-    public function test_self_assignment_does_not_notify_self_but_still_notifies_admin(): void
+    public function test_self_assignment_does_not_notify_self_but_still_notifies_the_department_head(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $actor = $this->user($department);
+        $head = $this->departmentHead($department);
         $admin = $this->admin();
 
         $this->actingAs($actor)
@@ -55,7 +61,9 @@ class AssignmentApprovalFlowTest extends TestCase
 
         $job = WorkOrder::where('job_topic', 'Self assignment')->firstOrFail();
         $this->assertNotificationCount($actor, $job, 'task_assigned', 0);
-        $this->assertNotificationCount($admin, $job, 'same_department_assignment', 1);
+        $this->assertNotificationCount($head, $job, 'same_department_assignment', 1);
+        // admin เป็นผู้ดูแลระบบ ไม่ใช่ผู้ติดตามภาระงานของแผนก
+        $this->assertNotificationCount($admin, $job, 'same_department_assignment', 0);
     }
 
     public function test_pending_cross_department_assignment_is_hidden_and_immutable_for_assignee(): void
@@ -395,6 +403,18 @@ class AssignmentApprovalFlowTest extends TestCase
         return User::factory()->create([
             'role' => 'user',
             'department_id' => $department->id,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+    }
+
+    /** หัวหน้าแผนกถือ role = 'user' ต่างกันที่ธง is_department_head เท่านั้น */
+    private function departmentHead(Department $department): User
+    {
+        return User::factory()->create([
+            'role' => 'user',
+            'department_id' => $department->id,
+            'is_department_head' => true,
             'must_change_password' => false,
             'is_active' => true,
         ]);

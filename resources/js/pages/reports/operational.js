@@ -1,14 +1,17 @@
 /*
  * หน้ารายงานภาระงานปฏิบัติการ
  *
- * ใช้ initializeChartCards และ parseChartData ตัวเดียวกับรายงานอื่น เพราะ markup
- * ของการ์ดกราฟใช้สัญญาเดียวกัน (data-report-chart / data-chart-state) การ์ดจึงได้
- * skeleton, สถานะว่าง และสถานะผิดพลาดเหมือนกันโดยไม่ต้องเขียนซ้ำ
+ * หน้าทำงานเป็นสองจังหวะ: เลือกคน แล้วค่อยดูของคนนั้น
+ * หน้ารายชื่อมีการ์ดรายคนกับกราฟงานของวันนี้ ส่วนหน้าของคนมีกราฟใบเดียวกันและอีกสองตาราง
+ *
+ * กราฟชุดของทั้งแผนก (ชั่วโมงงาน/หมวดงาน/รายคน) ไม่ถูกใช้บนหน้านี้แล้ว
+ * เพราะตอบคนละคำถามกับ "คนนี้ทำงานประจำครบไหม"
  */
 import Chart from 'chart.js/auto';
 import {initializeChartCards, parseChartData} from './chart-lifecycle.js';
 import {buildOperationalChartConfigs} from './operational-chart-config.js';
 import {initTablePager} from './table-pager.js';
+import {initPeopleModal} from './people-modal.js';
 
 const page = document.querySelector('.report-operational');
 
@@ -24,17 +27,36 @@ if (page) {
     period?.addEventListener('change', synchronizeCustomDates);
     synchronizeCustomDates();
 
-    // ตารางรายคนแสดงครั้งละ 10 แถว ปุ่มเปลี่ยนหน้าถูก render มาจาก Blade แล้ว
+    /*
+     * ทั้งสองตารางแสดงครั้งละ 10 แถว และใช้ตัวแบ่งหน้าตัวเดียวกับรายงานอื่น
+     * ปุ่มถูก render มาจาก Blade แล้ว ที่นี่เพียงผูกเข้ากับตารางของมัน
+     * หน้าหนึ่งมีได้ทีละตาราง ตัวที่ไม่มีอยู่จะคืน null เองโดยไม่ทำให้ไฟล์พัง
+     */
+    /*
+     * รายละเอียดของการ์ดพนักงานเปิดเป็น modal ผูกที่ page ทีเดียว
+     * การ์ดถูกซ่อน/แสดงใหม่ตลอดจากการแบ่งหน้า จึงต้องเป็น delegation ไม่ใช่ผูกทีละใบ
+     */
+    initPeopleModal(page);
+
     initTablePager({
-        table: page.querySelector('[data-operational-member-table]'),
-        pager: page.querySelector('[data-operational-member-pager]'),
-        rowSelector: '[data-operational-member-row]',
-        pageLabel: page.querySelector('[data-operational-member-page]'),
-        previous: page.querySelector('[data-operational-member-previous]'),
-        next: page.querySelector('[data-operational-member-next]'),
+        table: page.querySelector('[data-operational-people-table]'),
+        pager: page.querySelector('[data-operational-people-pager]'),
+        rowSelector: '[data-operational-people-row]',
+        pageLabel: page.querySelector('[data-operational-people-page]'),
+        previous: page.querySelector('[data-operational-people-previous]'),
+        next: page.querySelector('[data-operational-people-next]'),
     });
 
-    // ตารางการตรวจงานประจำใช้ตัวแบ่งหน้าตัวเดียวกัน ไม่มีโค้ดแบ่งหน้าชุดที่สอง
+    initTablePager({
+        table: page.querySelector('[data-operational-days-table]'),
+        pager: page.querySelector('[data-operational-days-pager]'),
+        rowSelector: '[data-operational-days-row]',
+        pageLabel: page.querySelector('[data-operational-days-page]'),
+        previous: page.querySelector('[data-operational-days-previous]'),
+        next: page.querySelector('[data-operational-days-next]'),
+    });
+
+    // รายการงานประจำทีละรายการ ใช้ตัวแบ่งหน้าตัวเดียวกันอีกเช่นกัน
     initTablePager({
         table: page.querySelector('[data-checklist-table]'),
         pager: page.querySelector('[data-checklist-pager]'),
@@ -44,6 +66,10 @@ if (page) {
         next: page.querySelector('[data-checklist-next]'),
     });
 
+    /*
+     * เหลือกราฟใบเดียว คืองานของวันนี้รายคน ซึ่งเป็นข้อมูลชุดเดียวกับการ์ดด้านล่าง
+     * initializeChartCards ข้าม canvas ที่ไม่มีอยู่ให้เองอยู่แล้ว จึงไม่ต้องมีเงื่อนไขซ้อน
+     */
     const configs = buildOperationalChartConfigs(
         parseChartData(document.getElementById('report-chart-data'))
     );
@@ -53,9 +79,7 @@ if (page) {
         ChartCtor: Chart,
         configs,
         definitions: [
-            {id: 'operationalDailyChart', key: 'daily'},
-            {id: 'operationalCategoryChart', key: 'categories'},
-            {id: 'operationalMemberChart', key: 'members'},
+            {id: 'operationalTodayMemberChart', key: 'todayMembers'},
         ],
     });
 }

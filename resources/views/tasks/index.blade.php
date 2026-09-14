@@ -4,7 +4,7 @@
 <?php
     $allTasks = $activeTasks->merge($completedTasks)->unique('job_id')->values();
     $statusLabels = [2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน', 6 => 'ล่าช้า'];
-    $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
+    $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด'];
     $doneCount = $allTasks->where('job_status', 4)->count();
     $lateCount = $allTasks->filter(fn ($task) => (int) $task->job_status !== 4 && $task->job_due_at?->isPast())->count();
     $overall = $allTasks->count() ? (int) round($doneCount / $allTasks->count() * 100) : 0;
@@ -66,6 +66,19 @@
         --}}
         @include('tasks.partials.scope-menu')
 
+        <div class="notion-filter" data-board-status-filter data-sg-select {{ ! in_array($workspaceView, ['table', 'board'], true) ? 'hidden' : '' }}>
+            <i class="bi bi-funnel" aria-hidden="true"></i>
+            <select data-filter aria-label="กรองตามสถานะ">
+                <option value="" data-icon="bi-collection" data-description="แสดงงานทุกสถานะในขอบเขตปัจจุบัน">ทุกสถานะ</option>
+                <option value="my_review" data-icon="bi-clipboard-check" data-description="คนที่เรามอบงานให้ส่งกลับมาแล้ว รอเราอนุมัติหรือส่งกลับไปแก้">รอฉันตรวจ</option>
+                <option value="2" data-icon="bi-play-circle" data-description="งานที่กำลังดำเนินการอยู่" data-divider="true">กำลังทำ</option>
+                <option value="awaiting_review" data-icon="bi-hourglass-split" data-description="งานที่เราส่งไปแล้ว กำลังรอผู้มอบหมายตรวจ">รอคนอื่นตรวจ</option>
+                <option value="5" data-icon="bi-pause-circle" data-description="งานที่หยุดดำเนินการไว้ชั่วคราว">พักงาน</option>
+                <option value="late" data-icon="bi-exclamation-triangle" data-description="งานที่เลยกำหนดส่งและยังไม่เสร็จ">ล่าช้า</option>
+                <option value="4" data-icon="bi-check-circle" data-description="งานที่อนุมัติและปิดเรียบร้อยแล้ว">เสร็จแล้ว</option>
+            </select>
+        </div>
+
         {{--
             คลังโปรเจกต์ที่จัดเก็บแล้ว — อยู่ข้างปุ่มสร้างงาน ไม่ใช่ในแถวหัวคอลัมน์ของบอร์ด
             แถวหัวคอลัมน์เป็นป้ายชื่อคอลัมน์ล้วน ๆ การแทรกปุ่มลงไปทำให้แถวนั้นรกและสูงขึ้นเปล่า ๆ
@@ -85,12 +98,10 @@
 
     {{-- server เป็นผู้ตัดสินมุมมองตั้งแต่ HTML แรก จึงไม่มีการกระพริบจากตารางไปปฏิทิน --}}
     <section class="notion-database" data-view="{{ $workspaceView }}">
-        {{-- <div class="notion-toolbar" data-board-toolbar {{ $workspaceView !== 'board' ? 'hidden' : '' }}>
+        <div class="notion-toolbar" data-board-toolbar {{ $workspaceView !== 'board' ? 'hidden' : '' }}>
             <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องาน โปรเจกต์ หรือผู้รับผิดชอบ..."></label>
-            <label class="notion-group">จัดกลุ่มตาม <select data-group><option value="project">โปรเจกต์</option><option value="status">สถานะ</option><option value="assignee">ผู้รับผิดชอบ</option><option value="priority">ความสำคัญ</option></select></label>
-            <label class="notion-filter"><i class="bi bi-funnel"></i><select data-filter><option value="">ทุกสถานะ</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="5">พักงาน</option><option value="late">ล่าช้า</option><option value="4">เสร็จแล้ว</option></select></label>
             <button type="button" data-sort><i class="bi bi-sort-down"></i> กำหนดส่ง</button>
-        </div> --}}
+        </div>
 
         <div class="notion-table-scroll">
             <div class="project-board" data-project-board>
