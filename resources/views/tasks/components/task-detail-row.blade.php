@@ -89,7 +89,7 @@
             <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$detail->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
     @else
-        <span class="board-status-pill status-{{ $detailIsLate ? 'late' : $detailStatus[1] }}">{{ $detailIsLate ? 'ล่าช้า' : $detailStatus[0] }}</span>
+        <span class="board-status-pill status-{{ $detailIsLate ? 'late' : $detailStatus[1] }}"><span class="bi bi-lock-fill board-status-lock" aria-hidden="true"></span>{{ $detailIsLate ? 'ล่าช้า' : $detailStatus[0] }}<span class="visually-hidden">อ่านอย่างเดียว</span></span>
         <span class="board-priority priority-{{ $detailPriority[1] }}"><i class="bi bi-flag-fill" aria-hidden="true"></i>{{ $detailPriority[0] }}</span>
     @endif
 

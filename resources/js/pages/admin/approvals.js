@@ -24,11 +24,9 @@ document.querySelectorAll('[data-approval-form]').forEach((form) => {
     });
 });
 
-const requestedQueue = new URLSearchParams(window.location.search).get('approval_queue');
-document.getElementById(
-    requestedQueue === 'collaborator'
-        ? 'collaborator-approval-queue'
-        : requestedQueue === 'assignment'
-            ? 'assignment-approval-queue'
-            : ''
-)?.scrollIntoView({behavior: 'smooth', block: 'start'});
+/*
+ * ?approval_queue= ถูกกรองที่ server แล้ว (AdminApprovalController) หน้าจอแสดงคิวเดียวอยู่แล้ว
+ * สิ่งที่เหลือให้ฝั่ง client คือเลื่อนแถบแท็บให้แท็บที่เลือกอยู่ในสายตาบนจอแคบ
+ */
+document.querySelector('.admin-approvals-tabs [aria-current="page"]')
+    ?.scrollIntoView({block: 'nearest', inline: 'center'});

@@ -35,25 +35,19 @@
     @include('daily-logs.components.day-header')
 
     <div class="daily-log__body">
-        <div class="daily-log__main">
-            @if($capabilities['canCreate'])
-                @include('daily-logs.components.launcher')
+        <main class="daily-log__main">
+            @if($calendarView === 'calendar')
+                @include('daily-logs.components.plan-calendar')
+                @include('daily-logs.components.plan-management')
+            @elseif($calendarView === 'monthly')
+                @include('daily-logs.components.month-summary')
+            @else
+                @include('daily-logs.components.timeline')
             @endif
-
-            @include('daily-logs.components.timeline')
-
-            @if($pendingRoutines->isNotEmpty())
-                @include('daily-logs.components.pending-routines')
-            @endif
-        </div>
-
-        <aside class="daily-log__side">
-            @include('daily-logs.components.summary')
-        </aside>
+        </main>
     </div>
 
-    {{-- กล่องเดียวของหน้านี้ — ทั้งบันทึกงานครั้งเดียวและตั้งงานประจำ
-         งานประจำไม่มีหน้าแยกและไม่มีกล่องของตัวเองอีกต่อไป --}}
+    {{-- กล่องเดียวของหน้านี้ — ฟอร์มบันทึกงานแบบเต็ม และตั้ง/แก้งานประจำ --}}
     @if($capabilities['canCreate'] || $capabilities['canEdit'])
         @include('daily-logs.components.entry-modal')
     @endif

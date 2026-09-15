@@ -31,6 +31,7 @@ final class WorkLogSummary
             'by_category' => self::byCategory($counted),
             'open_count' => $counted->whereIn('status', ['open', 'in_progress'])->count(),
             'in_progress_count' => $counted->where('status', 'in_progress')->count(),
+            'done_count' => $counted->where('status', 'done')->count(),
             'skipped_count' => $counted->where('status', 'skipped')->count(),
             'auto_closed_count' => $counted->filter(fn (WorkLog $log): bool => $log->auto_closed_at !== null)->count(),
             'untimed_count' => $counted->filter(fn (WorkLog $log): bool => $log->duration_minutes === null)->count(),

@@ -1,0 +1,18 @@
+.daily-log .daily-plan-management { display:grid; gap:10px; padding:18px; border:1px solid #e3ebf7; border-radius:12px; background:#fff; }
+.daily-log .daily-plan-management__head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.daily-log .daily-plan-management h2 { margin:0; color:#172c51; font-size:.96rem; font-weight:500; }
+.daily-log .daily-plan-management h3 { margin:10px 0 0; color:#4d6281; font-size:.78rem; font-weight:300; }
+.daily-log .daily-plan-management__head small { color:#7e8fa7; font-size:.72rem; }
+.daily-log .daily-plan-management__row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid #e4ebf6; border-radius:9px; }
+.daily-log .daily-plan-management__row--shared { background:#f8faff; }
+.daily-log .daily-plan-management__body { display:grid; gap:3px; min-width:0; }
+.daily-log .daily-plan-management__body strong { color:#1c3356; font-size:.82rem; font-weight:300; }
+.daily-log .daily-plan-management__body small { color:#7588a4; font-size:.72rem; }
+.daily-log .daily-plan-management__actions { display:flex; align-items:center; gap:8px; }
+.daily-log .daily-plan-management__actions button { padding:5px 9px; border:1px solid #d5e2f5; border-radius:7px; background:#fff; color:#1261dc; font-size:.72rem; font-weight:300; cursor:pointer; }
+.daily-log .daily-plan-management__actions form button { color:#8b5970; }
+.daily-log .daily-plan-management__actions button:focus-visible { outline:2px solid #1261dc; outline-offset:2px; }
+@media (max-width:575px) {
+  .daily-log .daily-plan-management__head,
+  .daily-log .daily-plan-management__row { align-items:flex-start; flex-direction:column; }
+}

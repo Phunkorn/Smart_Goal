@@ -20,6 +20,7 @@ class WorkOrderListTaskRequest extends Model
         'requester_id',
         'decided_by',
         'work_order_id',
+        'parent_job_id',
         'status',
         'job_topic',
         'job_details',
@@ -58,5 +59,10 @@ class WorkOrderListTaskRequest extends Model
     public function workOrder(): BelongsTo
     {
         return $this->belongsTo(WorkOrder::class, 'work_order_id', 'job_id');
+    }
+
+    public function parentTask(): BelongsTo
+    {
+        return $this->belongsTo(WorkOrder::class, 'parent_job_id', 'job_id');
     }
 }

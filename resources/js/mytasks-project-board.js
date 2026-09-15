@@ -6,7 +6,7 @@ import {
     resolveBoardFloatingMenu,
 } from './pages/mytasks/board-floating-menu.js';
 import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
-import {synchronizeCompletedTaskGroup, synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {synchronizeCompletedTaskGroup, synchronizeTaskManagement, synchronizeTaskSource} from './pages/mytasks/task-state.js';
 import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
 import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
@@ -39,17 +39,31 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 
     const refreshStatusControls = (task) => {
         const capabilities = management[String(task.dataset.taskId)]?.transitions || {};
-        ownControls(task, '[data-board-status-value]').forEach((button) => {
-            button.disabled = !canTransitionTo(Number(task.dataset.status), Number(button.dataset.boardStatusValue), capabilities);
+        const currentStatus = Number(task.dataset.status);
+        const isFinal = capabilities.is_final === true || currentStatus === 4;
+        const normalOptions = ownControls(task, '[data-board-normal-status-option]');
+        const reopenOption = ownControls(task, '[data-board-reopen-option]')[0];
+
+        normalOptions.forEach((button) => {
+            button.hidden = isFinal;
+            button.querySelector('.bi-check2')?.remove();
         });
+        const selected = normalOptions.find((button) => Number(button.dataset.boardStatusValue) === currentStatus);
+        if (selected && !isFinal) selected.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
+        if (reopenOption) reopenOption.hidden = !isFinal || capabilities.can_reopen !== true;
+
+        ownControls(task, '[data-board-status-value]').forEach((button) => {
+            button.disabled = !canTransitionTo(currentStatus, Number(button.dataset.boardStatusValue), capabilities);
+        });
+        task.classList.toggle('is-readonly', capabilities.can_edit !== true && capabilities.can_reopen !== true);
     };
 
     board.querySelectorAll('[data-board-task]').forEach(refreshStatusControls);
     const endpoint = (template, id) => template.replace('__ID__', id);
+    // ทุก Workspace อ่านตัวกรองตั้งต้นจาก URL ได้ (ลิงก์ "ดูในบอร์ด" จากหน้าคำขออนุมัติส่ง
+    // ?status=cross_department มา) แต่เขียนกลับลง URL เฉพาะหน้า "งานของฉัน" เหมือนเดิม
     const persistFilterState = workspace.dataset.context === 'user';
-    const initialFilterState = persistFilterState
-        ? boardFilterStateFrom(new URLSearchParams(window.location.search))
-        : {search: '', status: '', dueSort: ''};
+    const initialFilterState = boardFilterStateFrom(new URLSearchParams(window.location.search));
     if (search) search.value = initialFilterState.search;
     if (filter) filter.value = initialFilterState.status;
     let dueSort = initialFilterState.dueSort;
@@ -337,6 +351,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         const list = attachmentModal.querySelector('[data-board-attachment-list]');
         const empty = attachmentModal.querySelector('[data-board-attachment-empty]');
         const upload = attachmentModal.querySelector('[data-board-attachment-upload]');
+        const locked = attachmentModal.querySelector('[data-board-attachment-locked]');
         const input = attachmentModal.querySelector('[data-board-modal-attachment-input]');
         attachmentModal.querySelector('[data-board-attachment-topic]').textContent = data.topic || '';
         list.replaceChildren();
@@ -356,8 +371,8 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         });
         empty.hidden = (data.files || []).length > 0;
         upload.hidden = !data.can_upload;
-        const folderInput = attachmentModal.querySelector('[data-board-modal-attachment-folder]');
-        [input, folderInput].filter(Boolean).forEach((field) => {
+        if (locked) locked.hidden = data.is_closed !== true;
+        [input].filter(Boolean).forEach((field) => {
             field.dataset.url = data.upload_url;
             field.dataset.existingCount = String((data.files || []).length);
             field.value = '';
@@ -397,6 +412,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                 status: task.dataset.status,
                 canReview: task.dataset.canReview,
                 late: task.dataset.late,
+                crossDepartment: task.dataset.crossDepartment,
             }, state);
             const subtasks = [...task.querySelectorAll('[data-board-subtask]')];
             const parentSearchable = String(task.dataset.searchText || ((task.dataset.projectName || '') + ' ' + task.textContent)).toLowerCase();
@@ -499,6 +515,17 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
     // โมดัลรายละเอียดงานแนบ/ลบไฟล์ได้เอง บอร์ดต้องวาด modal ไฟล์แนบใหม่ถ้ากำลังเปิดงานเดียวกันอยู่
     document.addEventListener('mytasks:attachments-changed', (event) => {
         const changedId = String(event.detail?.id || '');
+        if (attachmentModal && !attachmentModal.hidden && attachmentModal.dataset.taskId === changedId) {
+            openAttachmentModal(changedId);
+        }
+    });
+
+    document.addEventListener('mytasks:access-changed', (event) => {
+        const changedId = String(event.detail?.id || '');
+        const interactions = event.detail?.interactions;
+        if (!changedId || !interactions || !attachmentData[changedId]) return;
+
+        Object.assign(attachmentData[changedId], interactions);
         if (attachmentModal && !attachmentModal.hidden && attachmentModal.dataset.taskId === changedId) {
             openAttachmentModal(changedId);
         }
@@ -615,7 +642,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             const payload = await confirmTaskTransition(Number(task.dataset.status), value, management[String(task.dataset.taskId)]?.transitions || {});
             if (!payload) { statusOption.disabled = false; return; }
             request(endpoint(workspace.dataset.statusTemplate, task.dataset.taskId), 'PATCH', payload).then((data) => {
-                if (data.transitions) management[String(task.dataset.taskId)].transitions = data.transitions;
+                synchronizeTaskManagement(management, task.dataset.taskId, data);
                 const actualStatus = Number(data.job_status ?? value);
                 const actualMeta = statusMeta[actualStatus] || meta;
                 task.dataset.status = String(actualStatus);
@@ -625,8 +652,6 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                 summary.classList.add(actualMeta.className);
                 const label = summary.querySelector('[data-board-status-label]');
                 if (label) label.textContent = actualMeta.label;
-                menu.querySelectorAll('[data-board-status-value] .bi-check2').forEach((check) => check.remove());
-                statusOption.insertAdjacentHTML('beforeend', '<span class="bi bi-check2"></span>');
                 closeBoardMenu(menu);
                 synchronizeTaskSource(workspace, task.dataset.taskId, {status: actualStatus});
                 refreshStatusControls(task);
@@ -816,7 +841,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         try {
             if (field === 'status') {
                 const data = await request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', {job_status: Number(control.value)});
-                if (data.transitions) management[String(id)].transitions = data.transitions;
+                synchronizeTaskManagement(management, id, data);
                 const actualStatus = Number(data.job_status ?? control.value);
                 task.dataset.status = String(actualStatus);
                 task.dataset.late = actualStatus === 6 ? '1' : '0';
@@ -854,7 +879,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                     job_start_at: control.value,
                     job_due_at: shiftedDue,
                 });
-                if (data.transitions) management[String(id)].transitions = data.transitions;
+                synchronizeTaskManagement(management, id, data);
                 applyScheduleValue(task, 'start', data.job_start_at ? `${data.job_start_at}T${data.job_start_time ?? ''}` : control.value);
                 if (data.job_due_at) applyScheduleValue(task, 'due', `${data.job_due_at}T${data.job_due_time ?? ''}`);
                 else applyScheduleValue(task, 'due', shiftedDue);
@@ -874,7 +899,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                     job_start_at: shiftedStart,
                     job_due_at: control.value,
                 });
-                if (data.transitions) management[String(id)].transitions = data.transitions;
+                synchronizeTaskManagement(management, id, data);
                 if (data.job_start_at) applyScheduleValue(task, 'start', `${data.job_start_at}T${data.job_start_time ?? ''}`);
                 else applyScheduleValue(task, 'start', shiftedStart);
                 applyScheduleValue(task, 'due', data.job_due_at ? `${data.job_due_at}T${data.job_due_time ?? ''}` : control.value);
@@ -896,7 +921,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
     });
 
     attachmentModal?.addEventListener('change', async (event) => {
-        const input = event.target.closest('[data-board-modal-attachment-input], [data-board-modal-attachment-folder]');
+        const input = event.target.closest('[data-board-modal-attachment-input]');
         if (input) await uploadAttachments(input);
     });
 

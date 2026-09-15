@@ -45,6 +45,7 @@
 <div class="notion-row" data-row data-id="{{ $task->job_id }}"
     data-can-review="{{ $canReview ? 1 : 0 }}"
     data-reviewable-subtasks="{{ $reviewableSubtaskCount }}"
+    data-cross-department="{{ \App\Support\CrossDepartmentWork::marker($task, $workspaceSubject ?? auth()->user()) ? 1 : 0 }}"
     @if($task->parent_job_id) data-child-task="1" data-parent-id="{{ $task->parent_job_id }}" @endif
     @if($task->taskList && auth()->user()->can('manage', $task->taskList))
         data-list-update-url="{{ route('mytasks.lists.update', $task->taskList) }}"

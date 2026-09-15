@@ -47,7 +47,10 @@ class SystemNotification extends Model
         'work_log_routine_assigned' => 'worklog',
         'work_log_routine_start_late' => 'worklog',
         'work_log_routine_overdue' => 'worklog',
+        // ไม่ถูกสร้างใหม่แล้ว (แทนด้วย work_log_routine_cutoff) เก็บไว้ให้แจ้งเตือนเก่ายังจัดหมวดได้
         'work_log_routine_day_pending' => 'worklog',
+        'work_log_routine_cutoff' => 'worklog',
+        'work_log_routine_absent' => 'worklog',
         'system' => 'system',
     ];
 

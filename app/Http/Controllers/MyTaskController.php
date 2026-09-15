@@ -15,6 +15,7 @@ use App\Services\TaskStatusTransitionService;
 use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
+use App\Support\CrossDepartmentWork;
 use App\Support\ProjectCreatorSummary;
 use App\Support\ProtectedMedia;
 use App\Support\ScheduleChangeNote;
@@ -102,8 +103,9 @@ class MyTaskController extends Controller
         $workOrders = WorkOrder::query()->visibleInProjectsFor($user)
             ->with([
                 'taskList',
+                'department',
                 'user.department',
-                'creator',
+                'creator.department',
                 'leader.department',
                 'collaborators.department',
                 // เมนู "แชร์งาน" ในแถวงานถามว่างานใบนี้กำลังถูกแชร์อยู่หรือเปล่า
@@ -126,6 +128,9 @@ class MyTaskController extends Controller
             ->orderBy('job_due_at')
             ->latest('job_id')
             ->get();
+
+        // ผู้ร่วมงานข้ามแผนกเห็นเฉพาะงานย่อยที่ตัวเองมีส่วนร่วม ไม่ใช่งานย่อยทุกใบของงานนั้น
+        CrossDepartmentWork::restrictChildren($workOrders, $user);
 
         $allTaskLists = $this->taskListsForCurrentUser();
         $archivedTaskLists = $allTaskLists->whereNotNull('archived_at')->values();
@@ -194,8 +199,10 @@ class MyTaskController extends Controller
         // โมดัลรายละเอียดงานอ่านข้อมูลจากแถวต้นทางและ JSON ที่ฝังไว้ในหน้า
         // งานย่อยของงานที่มองเห็นจึงต้องถูกส่งไปด้วย ไม่งั้นกดเปิดงานย่อยแล้วจะไม่มีอะไรเกิดขึ้น
         $visibleTaskIds = $workspaceWorkOrders->pluck('job_id')->map(fn ($id) => (int) $id)->all();
+        $visibleChildIds = CrossDepartmentWork::visibleChildIds($workspaceWorkOrders);
         $childTasks = $childWorkOrders
-            ->filter(fn (WorkOrder $workOrder) => in_array((int) $workOrder->parent_job_id, $visibleTaskIds, true))
+            ->filter(fn (WorkOrder $workOrder) => in_array((int) $workOrder->parent_job_id, $visibleTaskIds, true)
+                && in_array((int) $workOrder->job_id, $visibleChildIds, true))
             ->values();
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($workOrders->pluck('job_id'), $user);
         $availableCollaborators = TaskCollaboratorOptions::forActor($user);
@@ -1183,7 +1190,7 @@ class MyTaskController extends Controller
             'attachments',
             'taskRequests' => fn ($query) => $query
                 ->where('status', 'pending')
-                ->with('requester')
+                ->with(['requester', 'parentTask'])
                 ->oldest(),
         ])
             ->withCount(['workOrders', 'attachments'])

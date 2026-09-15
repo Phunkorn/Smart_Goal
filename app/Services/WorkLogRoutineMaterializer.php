@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogTemplate;
-use App\Support\AuditTrail;
 use App\Support\TodayWorkspace;
 use App\Support\WorkLogDesign;
 use App\Support\WorkLogWeekdays;
@@ -13,7 +12,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * สร้างรายการงานประจำของแต่ละวันจากแม่แบบ
@@ -46,9 +44,9 @@ class WorkLogRoutineMaterializer
     {
         // สร้างได้เฉพาะ "วันนี้" เท่านั้น
         //
-        // การสร้างรายการของวันย้อนหลังเท่ากับเปิดให้กดเริ่มงานย้อนหลังได้ ซึ่งเป็น
-        // สิ่งที่กติกาของงานประจำห้ามไว้ วันที่ผ่านไปแล้วมีทางเดียวคือระบุเหตุผล
-        // ที่ไม่ได้ทำ ผ่าน recordMissed()
+        // การสร้างรายการเปิด (open) ของวันย้อนหลังเท่ากับเปิดให้กดเริ่มงานย้อนหลังได้ ซึ่งเป็น
+        // สิ่งที่กติกาของงานประจำห้ามไว้ วันที่ผ่านไปแล้วถูกสร้างเป็นรายการปิดรอบ (not_started)
+        // โดย RoutineAccountabilityService::closeFor() แล้วระบุได้เฉพาะเหตุผล
         if (! $businessDay->isSameDay(TodayWorkspace::businessNow())) {
             return 0;
         }
@@ -85,9 +83,8 @@ class WorkLogRoutineMaterializer
     /**
      * งานประจำของวันนั้นที่ยังไม่มีรายการอยู่จริง
      *
-     * ใช้แสดง "รายการที่ยังไม่ได้บันทึก" ของวันย้อนหลัง โดยไม่สร้างข้อมูลให้เอง
-     * เพราะการสร้างรายการค้างย้อนหลังให้คนที่เพิ่งกลับจากลา จะกลายเป็นสัญญาณ
-     * "ไม่ได้ทำงาน" ปลอม ๆ ที่ไปเพี้ยนในรายงานภาระงาน
+     * อ่านอย่างเดียว ไม่สร้างข้อมูล — TodayOperationalStatus ใช้นับงานของวันนี้ที่เจ้าตัวยังไม่ได้เปิดระบบ
+     * ให้ขึ้นว่า "ยังไม่เริ่ม" วันที่ผ่านไปแล้วไม่ต้องใช้เมธอดนี้ เพราะปิดรอบ 17:00 สร้างรายการ not_started ให้แล้ว
      *
      * @return Collection<int, WorkLogTemplate>
      */
@@ -107,81 +104,6 @@ class WorkLogRoutineMaterializer
 
         return $due->reject(fn (WorkLogTemplate $template): bool => in_array($template->id, $existing, true))
             ->values();
-    }
-
-    /**
-     * บันทึกว่าวันที่ผ่านไปแล้ววันนั้น "ไม่ได้ทำ" งานประจำรายการนี้ พร้อมเหตุผล
-     *
-     * เป็นทางเดียวที่รายการของวันย้อนหลังจะเกิดขึ้นได้ และเกิดในสถานะ skipped
-     * เสมอ ไม่ใช่ open — เพื่อไม่ให้กลายเป็นช่องทางอ้อมสำหรับกดเริ่ม/ปิดงาน
-     * ย้อนหลัง ตัวเลขเวลาทำงานของวันนั้นจึงยังเป็นศูนย์ ตรงกับความจริงที่ว่า
-     * วันนั้นไม่ได้ทำ ส่วนเหตุผล (ลา ขาด ลืม) เป็นสิ่งที่หัวหน้าต้องเห็น
-     *
-     * @throws ValidationException เมื่อวันนั้นไม่ใช่วันย้อนหลังที่รับได้ หรือแม่แบบ
-     *                             ไม่ได้ถึงกำหนดในวันนั้น หรือมีรายการอยู่แล้ว
-     */
-    public function recordMissed(
-        User $owner,
-        WorkLogTemplate $template,
-        CarbonInterface $businessDay,
-        string $reason
-    ): WorkLog {
-        $reason = trim($reason);
-
-        if ($reason === '') {
-            throw ValidationException::withMessages(['reason' => 'กรุณาระบุเหตุผลที่ไม่ได้ทำงานประจำวันนั้น']);
-        }
-
-        if ($businessDay->isSameDay(TodayWorkspace::businessNow()) || ! $this->isMaterializable($businessDay)) {
-            throw ValidationException::withMessages([
-                'date' => 'ระบุเหตุผลย้อนหลังได้เฉพาะวันที่ผ่านมาไม่เกิน '.WorkLogDesign::MAX_BACKFILL_DAYS.' วัน',
-            ]);
-        }
-
-        $due = $this->dueTemplates($owner, $businessDay);
-
-        if (! $due->contains(fn (WorkLogTemplate $candidate): bool => $candidate->is($template))) {
-            throw ValidationException::withMessages([
-                'template' => 'งานประจำรายการนี้ไม่ได้ถึงกำหนดในวันนั้น',
-            ]);
-        }
-
-        if ($this->existingTemplateIds($owner, $businessDay, collect([$template])) !== []) {
-            throw ValidationException::withMessages([
-                'template' => 'วันนั้นมีรายการของงานประจำนี้อยู่แล้ว',
-            ]);
-        }
-
-        $now = TodayWorkspace::businessNow()->utc();
-
-        $log = WorkLog::create([
-            'user_id' => $owner->id,
-            'created_by' => $owner->id,
-            'department_id' => $owner->department_id,
-            'work_log_category_id' => $template->work_log_category_id,
-            'work_log_template_id' => $template->id,
-            'work_order_list_id' => $template->work_order_list_id,
-            'job_id' => $template->job_id,
-            'kind' => $template->kind ?: WorkLogDesign::DEFAULT_KIND,
-            'status' => 'skipped',
-            'source' => 'template',
-            'title' => $template->title,
-            'details' => $template->details,
-            'work_date' => $businessDay->format('Y-m-d'),
-            'planned_start_at' => $this->plannedStartAt($template, $businessDay),
-            'planned_end_at' => $this->plannedEndAt($template, $businessDay),
-            'skip_reason' => $reason,
-            'skipped_at' => $now,
-        ]);
-
-        AuditTrail::log(
-            'work_log_skipped',
-            $log,
-            sprintf('ระบุว่าไม่ได้ทำงานประจำ "%s" เมื่อวันที่ %s', $log->title, $businessDay->format('Y-m-d')),
-            ['after' => ['status' => 'skipped', 'skip_reason' => $reason, 'work_date' => $businessDay->format('Y-m-d')]]
-        );
-
-        return $log;
     }
 
     /**
@@ -283,7 +205,7 @@ class WorkLogRoutineMaterializer
         } catch (QueryException $exception) {
             // อีกแท็บหรือ cron สร้างไปก่อนแล้วในเสี้ยววินาทีเดียวกัน
             // ฐานข้อมูลเป็นผู้ตัดสิน ผลลัพธ์สุดท้ายจึงยังเหลือแถวเดียวเสมอ
-            if ($this->isDuplicateKey($exception)) {
+            if (self::isDuplicateKey($exception)) {
                 return 0;
             }
 
@@ -317,7 +239,7 @@ class WorkLogRoutineMaterializer
      *
      * มีไว้ให้ไทม์ไลน์เรียงลำดับได้ถูกตั้งแต่แรก ไม่ได้แปลว่างานเริ่มไปแล้ว
      */
-    private function plannedStartAt(WorkLogTemplate $template, CarbonInterface $businessDay): ?CarbonInterface
+    public function plannedStartAt(WorkLogTemplate $template, CarbonInterface $businessDay): ?CarbonInterface
     {
         if ($template->default_start_time === null) {
             return null;
@@ -328,7 +250,7 @@ class WorkLogRoutineMaterializer
             ->utc();
     }
 
-    private function plannedEndAt(WorkLogTemplate $template, CarbonInterface $businessDay): ?CarbonInterface
+    public function plannedEndAt(WorkLogTemplate $template, CarbonInterface $businessDay): ?CarbonInterface
     {
         $start = $this->plannedStartAt($template, $businessDay);
 
@@ -347,7 +269,8 @@ class WorkLogRoutineMaterializer
             && ! $businessDay->lessThan($today->copy()->subDays(WorkLogDesign::MAX_BACKFILL_DAYS));
     }
 
-    private function isDuplicateKey(QueryException $exception): bool
+    /** unique index work_logs_template_day_unique กันการสร้างซ้ำ — ใช้ร่วมกับ RoutineAccountabilityService */
+    public static function isDuplicateKey(QueryException $exception): bool
     {
         return in_array($exception->getCode(), ['23000', '23505'], true)
             || str_contains(mb_strtolower($exception->getMessage()), 'unique');

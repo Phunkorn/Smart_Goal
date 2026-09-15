@@ -59,6 +59,7 @@ class WorkOrderPolicy
         return in_array($user->role, ['admin', 'viewer'], true)
             || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
             || $this->isTaskParticipant($workOrder, $user)
+            || $this->overseesMemberOnTask($workOrder, $user)
             /*
              * สิทธิ์ระดับโปรเจกต์ให้เฉพาะคนในแผนกเดียวกับงานใบนั้น
              *
@@ -209,8 +210,10 @@ class WorkOrderPolicy
     {
         return $workOrder->approval_status === 'approved'
             && $user->role !== 'viewer'
+            && (int) $workOrder->job_status !== 4
             && ($this->isTaskParticipant($workOrder, $user)
-                || $user->overseesDepartment($this->destinationDepartmentId($workOrder)));
+                || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
+                || $this->overseesMemberOnTask($workOrder, $user));
     }
 
     public function viewComments(User $user, WorkOrder $workOrder): bool
@@ -222,6 +225,7 @@ class WorkOrderPolicy
         return $user->role === 'admin'
             || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
             || $this->isTaskParticipant($workOrder, $user)
+            || $this->overseesMemberOnTask($workOrder, $user)
             || ($workOrder->work_order_list_id
                 && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
     }
@@ -358,6 +362,62 @@ class WorkOrderPolicy
         return $workOrder->collaborators()
             ->where('users.id', $user->id)
             ->wherePivot('status', 'accepted')
+            ->exists();
+    }
+
+    /**
+     * หัวหน้าแผนกที่ลูกทีมของตัวเองอยู่ในงานใบนี้
+     *
+     * ลูกทีม = ผู้รับผิดชอบ ผู้สร้างงาน หัวหน้างาน หรือผู้ร่วมงานที่ตอบรับแล้ว ซึ่งอยู่แผนกของหัวหน้า
+     * นิยามเดียวกับ "ผลงาน" ในรายงานโปรเจกต์ (WorkOrder::scopeContributedBy) หัวหน้าจึงเปิดดู
+     * ทุกงานที่ขึ้นในภาพรวมแผนกได้จริง
+     *
+     * งานย่อยได้สิทธิ์นี้ต่อจากงานแม่ด้วย — ลูกทีมไปร่วมงานข้ามแผนก หัวหน้าต้นสังกัดต้องเห็น
+     * งานย่อยและไฟล์ของงานนั้นครบ แม้ลูกทีมไม่ได้อยู่ในงานย่อยทุกใบ
+     *
+     * ใช้กับงานข้ามแผนก — หัวหน้าต้นสังกัดดูงานและคอมเมนต์ได้ แต่ห้ามแก้เวลาหรือเปลี่ยนสถานะ
+     * จึงถูกเติมเฉพาะ view / comment / viewComments ไม่ถูกเติมใน work() หรือ ability ใดที่แก้งาน
+     */
+    private function overseesMemberOnTask(WorkOrder $workOrder, User $user): bool
+    {
+        if (! $user->isDepartmentHead()) {
+            return false;
+        }
+
+        $departmentId = (int) $user->department_id;
+
+        if ($this->involvesDepartmentMember($workOrder, $departmentId)) {
+            return true;
+        }
+
+        if ($workOrder->parent_job_id === null) {
+            return false;
+        }
+
+        $parent = $workOrder->relationLoaded('parent') ? $workOrder->parent : $workOrder->parent()->first();
+
+        return $parent !== null && $this->involvesDepartmentMember($parent, $departmentId);
+    }
+
+    private function involvesDepartmentMember(WorkOrder $workOrder, int $departmentId): bool
+    {
+        foreach (['user', 'creator', 'leader'] as $relation) {
+            if ($workOrder->{$relation}?->department_id !== null
+                && (int) $workOrder->{$relation}->department_id === $departmentId) {
+                return true;
+            }
+        }
+
+        if ($workOrder->relationLoaded('collaborators')) {
+            return $workOrder->collaborators->contains(
+                fn ($person) => $person->pivot?->status === 'accepted'
+                    && (int) $person->department_id === $departmentId
+            );
+        }
+
+        return $workOrder->collaborators()
+            ->wherePivot('status', 'accepted')
+            ->where('users.department_id', $departmentId)
             ->exists();
     }
 

@@ -6,6 +6,8 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogCategory;
+use App\Models\WorkLogTemplate;
+use App\Services\WorkLogQueryService;
 use App\Models\WorkOrderList;
 use App\Support\TodayWorkspace;
 use App\Support\WorkLogDesign;
@@ -22,7 +24,129 @@ class WorkLogDailyPageTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_member_sees_own_timeline_with_summary(): void
+    public function test_employee_department_calendar_shows_colleagues_but_not_other_departments(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $otherDepartment = Department::create(['department_name' => 'Sales']);
+        $employee = $this->user($department);
+        $other = $this->user($department);
+        $outside = $this->user($otherDepartment);
+        $other->forceFill(['profile_image' => 'profiles/colleague.webp'])->save();
+        $this->log($other, $department, ['title' => 'งานของเพื่อนร่วมแผนก']);
+        $this->log($outside, $otherDepartment, ['title' => 'งานต่างแผนก']);
+        WorkLogTemplate::create([
+            'user_id' => $other->id,
+            'title' => 'แผนงานประจำของเพื่อนร่วมแผนก',
+            'kind' => 'routine',
+            'weekday_mask' => 127,
+            'starts_on' => $this->today(),
+            'ends_on' => $this->today(),
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($employee)
+            ->get(route('daily-logs.index', ['view' => 'calendar', 'scope' => 'team']))
+            ->assertOk()
+            ->assertViewHas('calendarScope', 'team')
+            ->assertViewHas('calendarEntries', function ($entries) use ($other, $outside): bool {
+                $items = collect($entries)->flatten(1);
+
+                return $items->contains(fn ($item) => $item['owner'] === $other->name
+                        && $item['avatar_url'] === route('media.profile', $other))
+                    && $items->contains(fn ($item) => $item['title'] === 'แผนงานประจำของเพื่อนร่วมแผนก'
+                        && $item['status'] === 'planned')
+                    && $items->every(fn ($item) => $item['owner'] !== $outside->name);
+            });
+    }
+
+    public function test_department_calendar_shows_existing_logs_and_future_routine_plans(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $head = $this->user($department, true);
+        $employee = $this->user($department);
+        $this->log($employee, $department, ['title' => 'งานที่เกิดขึ้นแล้ว']);
+        WorkLogTemplate::create([
+            'user_id' => $employee->id, 'title' => 'แผนงานประจำของสมาชิก',
+            'kind' => 'routine', 'weekday_mask' => 127, 'is_active' => true,
+        ]);
+
+        $this->actingAs($head)
+            ->get(route('daily-logs.index', ['view' => 'calendar', 'scope' => 'team']))
+            ->assertOk()
+            ->assertViewHas('calendarScope', 'team')
+            ->assertSee('งานที่เกิดขึ้นแล้ว')
+            ->assertSee('แผนงานประจำของสมาชิก');
+    }
+
+    public function test_employee_calendar_page_defaults_to_department_scope(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $employee = $this->user($department);
+        $colleague = $this->user($department);
+        $this->log($colleague, $department, ['title' => 'งานในปฏิทินแผนก']);
+
+        $this->actingAs($employee)
+            ->get(route('daily-logs.index', ['view' => 'calendar']))
+            ->assertOk()
+            ->assertViewHas('calendarScope', 'team')
+            ->assertSee('งานในปฏิทินแผนก')
+            ->assertSee('ปฏิทินแผนก');
+    }
+
+    public function test_calendar_query_itself_does_not_materialize_a_due_template(): void
+    {
+        $employee = $this->user(Department::create(['department_name' => 'IT']));
+        $template = WorkLogTemplate::create([
+            'user_id' => $employee->id, 'title' => 'แผนที่ยังไม่ลงบันทึก',
+            'kind' => 'routine', 'weekday_mask' => 127, 'is_active' => true,
+        ]);
+
+        $entries = app(WorkLogQueryService::class)
+            ->calendarFor($employee, collect([$employee]), TodayWorkspace::businessNow());
+        $this->assertTrue(collect($entries)->flatten(1)
+            ->contains(fn ($item) => $item['title'] === 'แผนที่ยังไม่ลงบันทึก'));
+        $this->assertDatabaseMissing('work_logs', ['work_log_template_id' => $template->id]);
+    }
+
+    public function test_two_people_can_have_the_same_day_and_category_in_team_calendar(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $head = $this->user($department, true);
+        $first = $this->user($department);
+        $second = $this->user($department);
+        $category = WorkLogCategory::create(['name' => 'ตรวจเช็ก', 'tone' => 'gray']);
+        $this->log($first, $department, ['title' => 'งานคนแรก', 'work_log_category_id' => $category->id]);
+        $this->log($second, $department, ['title' => 'งานคนที่สอง', 'work_log_category_id' => $category->id]);
+
+        $this->actingAs($head)
+            ->get(route('daily-logs.index', ['view' => 'calendar', 'scope' => 'team', 'category' => $category->id]))
+            ->assertOk()
+            ->assertViewHas('calendarEntries', fn ($entries) => count($entries[$this->today()] ?? []) === 2);
+    }
+
+    public function test_monthly_tab_counts_only_actual_worklogs_with_existing_summary_formula(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department);
+        $this->log($owner, $department, ['title' => 'งานที่บันทึกแล้ว', 'duration_minutes' => 60, 'status' => 'done']);
+        WorkLogTemplate::create([
+            'user_id' => $owner->id, 'title' => 'แผนที่ยังไม่เกิด',
+            'kind' => 'routine', 'weekday_mask' => 127,
+            'starts_on' => TodayWorkspace::businessNow()->copy()->addDays(2)->format('Y-m-d'),
+            'ends_on' => TodayWorkspace::businessNow()->copy()->addDays(2)->format('Y-m-d'),
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($owner)
+            ->get(route('daily-logs.index', ['view' => 'monthly']))
+            ->assertOk()
+            ->assertViewHas('monthSummary', fn ($summary) => $summary['total_count'] === 1
+                && $summary['total_minutes'] === 60)
+            ->assertSee('สรุปรายเดือน')
+            ->assertSee('1 ชม.');
+    }
+
+    public function test_member_sees_own_today_list_and_view_tabs(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
@@ -46,11 +170,13 @@ class WorkLogDailyPageTest extends TestCase
             ->assertSee('บันทึกงานประจำวัน')
             ->assertSee('ตรวจสอบคอมพิวเตอร์ประจำวัน')
             ->assertSee('ไปส่งรถที่ศูนย์บริการ')
-            // 40 + 165 = 205 นาที = 3 ชม. 25 น.
-            ->assertSee('3 ชม. 25 น.');
+            ->assertSee('รายการงานวันนี้')
+            ->assertSee('ปฏิทินงาน')
+            ->assertSee('สรุปรายเดือน')
+            ->assertSee('(2 รายการ)');
     }
 
-    public function test_summary_counts_only_the_selected_day(): void
+    public function test_today_list_contains_only_the_selected_day(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
@@ -61,21 +187,21 @@ class WorkLogDailyPageTest extends TestCase
         $this->actingAs($owner)
             ->get(route('daily-logs.index', ['date' => $this->today()]))
             ->assertOk()
-            ->assertSee('1 ชม.')
-            ->assertDontSee('5 ชม.');
+            ->assertViewHas('logs', fn ($logs) => $logs->count() === 1
+                && $logs->first()->work_date->format('Y-m-d') === $this->today());
     }
 
     public function test_empty_day_shows_a_helpful_empty_state(): void
     {
         $owner = $this->user(Department::create(['department_name' => 'IT']));
 
-        // สถานะว่างต้องชี้ทางต่อให้ด้วย ไม่ใช่บอกแค่ว่าไม่มีข้อมูล —
-        // งานที่ทำซ้ำทุกวันควรถูกตั้งไว้ล่วงหน้า ไม่ใช่พิมพ์ใหม่ทุกเช้า
+        // สถานะว่างยังมีทางเพิ่มงานผ่านกล่องเลือกประเภท
         $this->actingAs($owner)
             ->get(route('daily-logs.index'))
             ->assertOk()
             ->assertSee('ยังไม่มีรายการของวันนี้', false)
-            ->assertSee('ตั้งงานประจำไว้ล่วงหน้า', false);
+            ->assertSee('เพิ่มงาน', false)
+            ->assertSee('data-entry-panel="choice"', false);
     }
 
     public function test_member_can_store_a_log_with_a_time_range(): void
@@ -107,6 +233,34 @@ class WorkLogDailyPageTest extends TestCase
             // แผนกถูกเก็บเป็น snapshot ตอนสร้าง
             'department_id' => $department->id,
         ]);
+    }
+
+    public function test_member_can_store_the_same_log_on_multiple_selected_dates(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department);
+        $category = WorkLogCategory::create(['name' => 'ตรวจเช็ก']);
+        $dates = [$this->daysAgo(2), $this->daysAgo(1), $this->today()];
+
+        $this->actingAs($owner)
+            ->post(route('daily-logs.store'), [
+                'title' => 'ตรวจเช็กคอมพิวเตอร์',
+                'kind' => 'routine',
+                'work_log_category_id' => $category->id,
+                'work_dates' => $dates,
+                'duration_minutes' => 30,
+            ])
+            ->assertRedirect();
+
+        $storedDates = WorkLog::query()
+            ->where('user_id', $owner->id)
+            ->where('title', 'ตรวจเช็กคอมพิวเตอร์')
+            ->orderBy('work_date')
+            ->get()
+            ->map(fn (WorkLog $log): string => $log->work_date->format('Y-m-d'))
+            ->all();
+
+        $this->assertSame($dates, $storedDates);
     }
 
     /**

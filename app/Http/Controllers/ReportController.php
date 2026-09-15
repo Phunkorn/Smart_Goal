@@ -5,13 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkLog;
-use App\Services\AdminReportService;
-use App\Services\EmployeeReportService;
 use App\Services\OperationalWorkloadReportService;
-use App\Services\PersonalReportService;
-use App\Support\TaskTeamSummary;
-use App\Support\TodayWorkspace;
-use App\Support\WorkLogDesign;
+use App\Services\ProjectReportService;
+use App\Support\OperationalReportScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -20,8 +16,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
-    public function __construct(private readonly PersonalReportService $personalReports) {}
-
     /**
      * หน้าเลือกประเภทรายงาน
      *
@@ -36,237 +30,218 @@ class ReportController extends Controller
     {
         $this->authorizeAnyReports();
 
-        if ($request->query() && $this->canSeeOrganizationReports()) {
-            return redirect()->route('reports.organization', $request->query());
-        }
-
         return view('reports.index', ['cards' => $this->landingCards()]);
     }
 
-    public function organization(Request $request, AdminReportService $reports)
-    {
-        $this->authorizeAdminReports();
-
-        return view('reports.organization', $reports->build($request, $this->forcedDepartmentId()));
-    }
-
-    public function exportCsv(Request $request, AdminReportService $reports): StreamedResponse
-    {
-        $this->authorizeAdminReports();
-
-        return $this->downloadJobsCsv(
-            $reports->exportJobs($request, $this->forcedDepartmentId()),
-            'smart-goals-report-'.now()->format('Ymd-His').'.csv',
-        );
-    }
-
     /**
-     * รายงานภาระงานปฏิบัติการ — งานประจำและงานนอกสถานที่
+     * รายงานปฏิบัติงานประจำเดือน — หน้า Overview
+     *
+     * หัวหน้าแผนก/admin ที่ยังไม่เลือกคนเห็นภาพรวมทีมก่อน พนักงานทั่วไปเห็นของตัวเองเสมอ
      *
      * ใช้ตัวตรวจสิทธิ์ของตัวเอง ไม่ใช่ authorizeAdminReports() เพราะรายงานนี้
      * เป็นข้อมูลรายบุคคลที่ละเอียดกว่าภาพรวมองค์กร viewer จึงต้องไม่เห็น
      */
     public function operational(Request $request, OperationalWorkloadReportService $reports)
     {
-        $this->authorizeOperationalReports();
+        $scope = $this->operationalScope($request, $reports, allowTeam: true);
 
-        return view('reports.operational', $reports->build(
-            $request,
-            $this->forcedDepartmentId(),
-            $this->forcedOwnerId()
-        ));
+        return $scope->isTeamView()
+            ? view('reports.operational.team', $reports->teamOverview($scope))
+            : view('reports.operational', $reports->overview($scope));
     }
 
+    public function operationalDaily(Request $request, OperationalWorkloadReportService $reports)
+    {
+        $scope = $this->operationalScope($request, $reports);
+
+        return view('reports.operational.daily', [
+            'scope' => $scope,
+            'rows' => $reports->dailyRows($scope),
+        ]);
+    }
+
+    public function operationalFrequent(Request $request, OperationalWorkloadReportService $reports)
+    {
+        $scope = $this->operationalScope($request, $reports);
+
+        return view('reports.operational.frequent', [
+            'scope' => $scope,
+            'rows' => $reports->frequentWork($scope),
+        ]);
+    }
+
+    public function operationalDelays(Request $request, OperationalWorkloadReportService $reports)
+    {
+        $scope = $this->operationalScope($request, $reports);
+
+        return view('reports.operational.delays', [
+            'scope' => $scope,
+            'groups' => $reports->delayReasonGroups($scope),
+            'events' => $reports->delayEvents($scope),
+        ]);
+    }
+
+    /**
+     * CSV หนึ่งไฟล์ต่อหนึ่งรายงาน — แถวชุดเดียวกับหน้า detail ของรายงานนั้น
+     *
+     * $report มาจาก defaults ของ route (daily / frequent / delays) ไม่ใช่จาก query string
+     */
     public function exportOperationalCsv(
         Request $request,
-        OperationalWorkloadReportService $reports
+        OperationalWorkloadReportService $reports,
+        string $report
     ): StreamedResponse {
-        $this->authorizeOperationalReports();
+        $scope = $this->operationalScope($request, $reports);
+        $table = $reports->csvTable($report, $scope);
 
-        return $this->downloadWorkLogsCsv(
-            $reports->exportRows($request, $this->forcedDepartmentId(), $this->forcedOwnerId()),
-            'smart-goals-operational-'.now()->format('Ymd-His').'.csv',
-        );
-    }
-
-    public function employees(Request $request)
-    {
-        $this->authorizeAdminReports();
-
-        $viewer = Auth::user();
-        $isDepartmentHead = (bool) $viewer?->isDepartmentHead();
-        $excludedEmployeeId = $isDepartmentHead ? (int) $viewer->id : null;
-
-        $departments = Department::query()
-            ->when($this->forcedDepartmentId(), fn ($query, int $id) => $query->whereKey($id))
-            ->withCount(['users as active_users_count' => fn ($query) => $query
-                ->where('role', 'user')
-                ->where('is_active', true)
-                ->when($excludedEmployeeId, fn ($users, int $id) => $users->whereKeyNot($id))])
-            ->orderBy('department_name')
-            ->get();
-        $departmentId = $this->forcedDepartmentId() ?: $request->integer('department');
-        $departmentId = $departments->contains('id', $departmentId) ? $departmentId : null;
-        $search = mb_substr(trim($request->string('search')->toString()), 0, 100);
-
-        $employees = User::query()
-            ->with('department:id,department_name')
-            ->where('role', 'user')
-            ->where('is_active', true)
-            ->when($excludedEmployeeId, fn ($query, int $id) => $query->whereKeyNot($id))
-            ->when($departmentId, fn ($query, int $id) => $query->where('department_id', $id))
-            ->when($search !== '', fn ($query) => $query->where('name', 'like', '%'.$search.'%'))
-            ->orderBy('name')
-            ->get(['id', 'name', 'department_id', 'profile_image']);
-
-        return view('reports.employees.index', compact(
-            'departments',
-            'departmentId',
-            'search',
-            'employees',
-            'isDepartmentHead',
-        ));
-    }
-
-    public function myReport(Request $request)
-    {
-        abort_unless(Auth::user()?->role === 'user', 403);
-
-        return view('reports.my', $this->personalReports->build(Auth::user(), $request));
-    }
-
-    public function exportMyCsv(Request $request): StreamedResponse
-    {
-        abort_unless(Auth::user()?->role === 'user', 403);
-
-        return $this->downloadEmployeeCsv(Auth::user(), (int) $request->query('year', now()->year));
-    }
-
-    public function employeeReport(Request $request, User $user, EmployeeReportService $reports)
-    {
-        $this->authorizeAdminReports();
-        $this->ensureReportableEmployee($user);
-
-        if (Auth::user()?->isDepartmentHead() && Auth::id() === $user->id) {
-            return redirect()->route('reports.my', $request->query());
-        }
-
-        $data = $reports->build($user, $request);
-
-        return view('reports.employee', [...$data]);
-    }
-
-    public function exportEmployeeCsv(Request $request, User $user, EmployeeReportService $reports): StreamedResponse
-    {
-        $this->authorizeAdminReports();
-        $this->ensureReportableEmployee($user);
-
-        return $this->downloadJobsCsv(
-            $reports->exportJobs($user, $request),
-            'smart-goals-'.$user->id.'-'.$request->string('period', 'last_6_months')->toString().'.csv',
-            $user->id,
-        );
-    }
-
-    private function downloadEmployeeCsv(User $user, int $year): StreamedResponse
-    {
-        return $this->downloadJobsCsv(
-            $this->personalReports->queryFor($user->id)
-                ->with(['user', 'leader', 'assigner', 'creator', 'collaborators', 'department'])
-                ->whereYear('created_at', $year)
-                ->orderBy('job_id'),
-            'smart-goals-'.$user->id.'-'.$year.'.csv',
-            $user->id,
+        return $this->downloadTableCsv(
+            $table['headers'],
+            $table['rows'],
+            'smart-goals-operational-'.$report.'-'.$scope->monthKey().'.csv',
         );
     }
 
     /**
-     * @param  int|null  $subjectUserId  เจ้าของรายงาน เมื่อระบุจะเพิ่มคอลัมน์บทบาท
-     *                                   เพื่อให้แยกออกว่างานใบไหนรับผิดชอบเอง ใบไหนไปร่วมกับคนอื่น
-     *                                   รายงานระดับองค์กรไม่มีเจ้าของคนเดียวจึงไม่มีคอลัมน์นี้
+     * รายงานโปรเจกต์ประจำเดือน — ภาพรวมและรายบุคคลในหน้าเดียว
+     *
+     * หัวหน้าแผนก/admin/viewer เปิดมาเป็นภาพรวมของทุกคนในขอบเขตที่ดูแล แล้วเลือกพนักงาน
+     * จากช่องด้านบนเพื่อดูรายบุคคล พนักงานทั่วไปใช้หน้าเดียวกันแต่เห็นเฉพาะงานของตัวเอง
+     *
+     * สิทธิ์ถูกบังคับที่ projectReportSubjects() ที่เดียว ใช้ร่วมกับหน้ารายละเอียดและ CSV:
+     * - พนักงานทั่วไป: รายชื่อมีแค่ตัวเอง และ owner ถูกบังคับเป็นตัวเองเสมอ (แก้ ?owner= ไม่มีผล)
+     * - รายชื่อที่เลือกได้ = พนักงาน active ในขอบเขตที่ผู้ดูดูแล (หัวหน้าถูกบังคับแผนก)
+     * - owner ที่ไม่อยู่ในรายชื่อ (นอกแผนก ไม่ active admin viewer) ได้ภาพรวมแทน ไม่มีข้อมูลของคนนั้นหลุดออกมา
      */
-    private function downloadJobsCsv($jobs, string $fileName, ?int $subjectUserId = null): StreamedResponse
+    public function projects(Request $request, ProjectReportService $reports)
     {
-        return response()->streamDownload(function () use ($jobs, $subjectUserId): void {
-            $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
-            $header = ['เลขงาน', 'ชื่องาน', 'ผู้รับผิดชอบ', 'แผนก', 'สถานะอนุมัติ', 'สถานะงาน', 'วันที่เริ่ม', 'กำหนดส่ง', 'วันที่เสร็จ'];
+        $this->authorizeProjectReports();
 
-            if ($subjectUserId !== null) {
-                array_splice($header, 3, 0, ['บทบาทของฉัน', 'หัวหน้าโปรเจกต์', 'มอบหมายโดย', 'ผู้ร่วมงาน']);
-            }
+        $data = $this->projectReportData($request, $reports);
 
-            fputcsv($handle, $header);
-
-            $writeRows = function ($chunk) use ($handle, $subjectUserId): void {
-                foreach ($chunk as $job) {
-                    $row = [
-                        'IT-'.$job->job_id,
-                        $job->job_topic,
-                        optional($job->user)->name,
-                        optional($job->department)->department_name,
-                        $this->approvalLabel($job->approval_status),
-                        $this->statusLabel((int) $job->job_status),
-                        $this->csvDateTime($job->job_start_at),
-                        $this->csvDateTime($job->job_due_at),
-                        $this->csvDateTime($job->job_completed_at),
-                    ];
-
-                    if ($subjectUserId !== null) {
-                        $team = TaskTeamSummary::for($job, $subjectUserId);
-                        array_splice($row, 3, 0, [
-                            $team['my_role']['label'],
-                            $team['leader']['name'] ?? '',
-                            $team['assigner']['name'] ?? '',
-                            implode(', ', array_column($team['collaborators'], 'name')),
-                        ]);
-                    }
-
-                    fputcsv($handle, $row);
-                }
-            };
-
-            if ($jobs instanceof Collection) {
-                $jobs->chunk(200)->each($writeRows);
-            } else {
-                $jobs->chunk(200, $writeRows);
-            }
-
-            fclose($handle);
-        }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        // ตารางหน้าหลักเป็นชุดเดียวกับหน้ารายละเอียด (รวมหลักฐาน) จึงเติมไฟล์ที่ตรวจสิทธิ์แล้วเฉพาะแถวที่แสดง
+        return view('reports.projects.index', [
+            ...$data,
+            'previewRows' => $reports->withEvidence($data['taskRows']->take(ProjectReportService::PREVIEW_LIMIT)->values(), $request->user()),
+        ]);
     }
 
-    /** Format exported dates as Thai-time text so Excel does not render narrow date columns as ######. */
-    private function csvDateTime($value): string
+    /**
+     * ดูรายละเอียดทั้งหมด — ทุกงานของเดือน (ตามตัวกรองเดียวกับหน้าหลัก) พร้อมงานย่อย
+     * ไฟล์แนบ และเวลาเริ่ม/เสร็จ ให้หัวหน้าแผนก/admin ตรวจผลงานจากหลักฐานจริงได้
+     *
+     * ขอบเขตคนและสิทธิ์ใช้ projectReportSubjects() ชุดเดียวกับหน้าหลักและ CSV
+     * ลิงก์ไฟล์ออกให้เฉพาะงานที่ผู้ดูผ่าน WorkOrderPolicy (ดู ProjectReportService::withEvidence)
+     */
+    public function projectDetails(Request $request, ProjectReportService $reports)
     {
-        return $value
-            ? $value->copy()->timezone(TodayWorkspace::BUSINESS_TIMEZONE)->format('d/m/Y H:i').' น.'
-            : '';
+        $this->authorizeProjectReports();
+
+        $data = $this->projectReportData($request, $reports);
+        $page = $reports->paginate($data['taskRows'], $request, 'reports.projects.details', $data['query']);
+        $page->setCollection($reports->withEvidence($page->getCollection(), $request->user()));
+
+        return view('reports.projects.details', [...$data, 'pageRows' => $page]);
     }
 
-    private function statusLabel(int $status): string
+    /**
+     * @return array<string, mixed>
+     */
+    private function projectReportData(Request $request, ProjectReportService $reports): array
     {
+        $subjects = $this->projectReportSubjects($request);
+        $report = $reports->build($request, $subjects['members'], $subjects['owner']);
+
+        // ภาพรวมแผนกที่ admin เลือกต้องติดไปกับทุกลิงก์ต่อจากหน้านี้ (CSV แบ่งหน้า เรียงลำดับ ตัวกรอง)
+        // ไม่อย่างนั้นกดเปลี่ยนหน้าแล้วจะหลุดกลับไปเป็นภาพรวมทุกแผนกเงียบ ๆ
+        if ($report['isTeamView'] && $subjects['overviewDepartmentId'] !== null) {
+            $report['query'] = ['department' => $subjects['overviewDepartmentId'], ...$report['query']];
+        }
+
         return [
-            2 => 'กำลังทำ',
-            3 => 'ตรวจสอบ',
-            4 => 'เสร็จสิ้น',
-            5 => 'พักงานชั่วคราว',
-            6 => 'ล่าช้า',
-        ][$status] ?? 'สถานะไม่รองรับ';
+            ...$report,
+            'owners' => $subjects['owners'],
+            'scopeName' => $subjects['scopeName'],
+            'overviewLabel' => $subjects['overviewLabel'],
+            'isForcedDepartment' => $subjects['isForcedDepartment'],
+            'isPersonalReport' => $subjects['isPersonal'],
+            'overviewDepartmentId' => $subjects['overviewDepartmentId'],
+            'departmentOptions' => $subjects['departmentOptions'],
+        ];
     }
 
-    private function approvalLabel(?string $status): string
+    /**
+     * CSV ของรายงานโปรเจกต์ — แถวเดียวกับตารางบนหน้าจอ (เดือน คน ตัวกรอง และลำดับเดียวกัน)
+     */
+    public function exportProjectsCsv(Request $request, ProjectReportService $reports): StreamedResponse
     {
-        return [
-            'pending' => 'รออนุมัติ',
-            'approved' => 'อนุมัติแล้ว',
-            'rejected' => 'ไม่อนุมัติ',
-        ][$status] ?? 'อนุมัติแล้ว';
+        $this->authorizeProjectReports();
+
+        ['members' => $members, 'owner' => $owner] = $this->projectReportSubjects($request);
+        $report = $reports->build($request, $members, $owner);
+        $table = $reports->csvTable($report);
+
+        return $this->downloadTableCsv(
+            $table['headers'],
+            $table['rows'],
+            'smart-goals-projects-'.($owner?->id ?? 'team').'-'.$report['periodFileKey'].'.csv',
+        );
+    }
+
+    /**
+     * หน้าเลือกพนักงานเดิม — เลิกใช้แล้ว พาไปรายงานโปรเจกต์ที่เลือกพนักงานได้ในหน้าเดียว
+     *
+     * ยังตรวจสิทธิ์เดิมก่อน redirect เพื่อให้ลิงก์เก่าที่บันทึกไว้ได้ผลเท่าเดิมทุกบทบาท
+     */
+    public function employees(Request $request)
+    {
+        $this->authorizeAdminReports();
+
+        return redirect()->route('reports.projects', array_filter([
+            'department' => $this->forcedDepartmentId() === null ? $request->integer('department') : null,
+        ]));
+    }
+
+    /**
+     * รายงานรายบุคคลเดิม — ย้ายไปเป็นโหมดรายบุคคลของรายงานโปรเจกต์
+     *
+     * ตรวจสิทธิ์เดิมก่อน redirect: คนนอกแผนกของหัวหน้ายังได้ 403 และคนที่ไม่ใช่พนักงาน active ได้ 404
+     */
+    public function employeeReport(Request $request, User $user)
+    {
+        $this->authorizeAdminReports();
+        $this->ensureReportableEmployee($user);
+
+        return redirect()->route('reports.projects', [
+            ...$request->except(['owner', 'department']),
+            'owner' => $user->id,
+        ]);
+    }
+
+    /**
+     * CSV รายบุคคลเดิม — ตรวจสิทธิ์เดิมแล้วส่งต่อไป CSV ของรายงานโปรเจกต์
+     */
+    public function exportEmployeeCsv(Request $request, User $user)
+    {
+        $this->authorizeAdminReports();
+        $this->ensureReportableEmployee($user);
+
+        return redirect()->route('reports.projects.csv', array_filter([
+            'owner' => $user->id,
+            'month' => $request->string('month')->toString() ?: null,
+        ]));
     }
 
     private function authorizeAdminReports(): void
     {
         abort_unless($this->canSeeOrganizationReports(), 403);
+    }
+
+    /**
+     * รายงานโปรเจกต์ — admin/หัวหน้าแผนก/viewer ในขอบเขตที่ดูแล และพนักงานทั่วไปเฉพาะของตัวเอง
+     */
+    private function authorizeProjectReports(): void
+    {
+        abort_unless($this->canSeeOrganizationReports() || $this->forcedOwnerId() !== null, 403);
     }
 
     /**
@@ -300,42 +275,32 @@ class ReportController extends Controller
         $user = Auth::user();
         $cards = [];
 
+        // รายงานภาพรวมองค์กรถูกยกเลิกแล้ว ภาพรวมแผนกอยู่ในรายงานโปรเจกต์ (เลือก "ภาพรวม" ในช่องพนักงาน)
         if ($this->canSeeOrganizationReports()) {
-            $cards[] = [
-                'tone' => 'organization',
-                'icon' => 'bi-bar-chart-line',
-                'title' => 'ดูภาพรวมองค์กร',
-                'description' => 'ติดตามแนวโน้มและภาพรวมการทำงานของทุกแผนกในช่วงเวลาที่เลือก',
-                'features' => ['แนวโน้มงานและสถิติองค์กร', 'ประสิทธิภาพแต่ละแผนก', 'สถานะและความสำคัญของงาน', 'งานที่ต้องติดตาม'],
-                'cta' => 'เข้าสู่รายงานภาพรวมองค์กร',
-                'route' => route('reports.organization'),
-            ];
-
+            // รายงานโปรเจกต์ — เข้าภาพรวมทันที แล้วเลือกพนักงานได้ในหน้าเดียว ไม่ผ่านหน้าเลือกพนักงาน
             $cards[] = [
                 'tone' => 'employee',
-                'icon' => 'bi-person-lines-fill',
-                'title' => 'ดูรายงานรายบุคคล',
-                'description' => 'เลือกพนักงานเพื่อดูผลงานจากงานที่รับผิดชอบจริงและตรวจสอบรายละเอียดได้',
-                'features' => ['สถิติการทำงานของพนักงาน', 'อัตราส่งงานตรงเวลา', 'งานที่รับผิดชอบ', 'รายละเอียดงานสำหรับตรวจสอบ'],
-                'cta' => 'เลือกพนักงานเพื่อดูรายงาน',
-                'route' => route('reports.employees.index'),
+                'icon' => 'bi-kanban',
+                'title' => 'รายงานโปรเจกต์',
+                'description' => 'สรุปโปรเจกต์รายเดือนในขอบเขตที่ดูแล และเลือกดูรายงานของพนักงานแต่ละคนได้ในหน้าเดียว',
+                'features' => ['สรุปโปรเจกต์และงานประจำเดือน', 'เลือกพนักงานจากหน้าเดียวกัน', 'งานข้ามแผนกและบทบาทในงาน', 'ตัวกรองและไฟล์ CSV'],
+                'cta' => 'เข้าสู่รายงานโปรเจกต์',
+                'route' => route('reports.projects'),
             ];
         }
 
-        // รายงานของตัวเอง — สำหรับพนักงานทั่วไป
+        // รายงานโปรเจกต์ของตัวเอง — พนักงานทั่วไปใช้หน้าเดียวกับหัวหน้า แต่ขอบเขตเฉพาะตัวเอง
         //
-        // หัวหน้าแผนกไม่ได้การ์ดใบนี้โดยตั้งใจ หน้าเลือกของหัวหน้ามีรายงานรายบุคคล
-        // อยู่แล้วซึ่งครอบคลุมตัวเองด้วย การเพิ่มอีกใบจะทำให้มีสองทางไปหาข้อมูล
-        // ชุดเดียวกัน ซึ่งเป็นอาการเดียวกับที่ทำให้หน้านี้อ่านยากมาตั้งแต่แรก
-        if ($user?->role === 'user' && ! $user->isDepartmentHead()) {
+        // หัวหน้าแผนกไม่ได้การ์ดใบนี้โดยตั้งใจ รายงานโปรเจกต์ของหัวหน้าเลือกดูตัวเองได้อยู่แล้ว
+        if ($this->forcedOwnerId() !== null) {
             $cards[] = [
                 'tone' => 'employee',
-                'icon' => 'bi-person-badge',
-                'title' => 'รายงานตัวเอง',
-                'description' => 'ผลงานจากงานโครงการที่คุณรับผิดชอบ ทั้งงานที่ปิดแล้วและที่ยังค้างอยู่',
-                'features' => ['สถิติงานของคุณเอง', 'อัตราส่งงานตรงเวลา', 'งานที่ยังค้าง', 'ดาวน์โหลดเป็นไฟล์ CSV'],
-                'cta' => 'เข้าสู่รายงานตัวเอง',
-                'route' => route('reports.my'),
+                'icon' => 'bi-kanban',
+                'title' => 'รายงานโปรเจกต์',
+                'description' => 'สรุปโปรเจกต์รายเดือนที่คุณมีส่วนร่วม ทั้งงานที่รับผิดชอบและงานที่ไปร่วมกับคนอื่น',
+                'features' => ['สรุปโปรเจกต์และงานประจำเดือน', 'แนวโน้มงานและสถานะงาน', 'งานข้ามแผนกและบทบาทในงาน', 'ตัวกรองและไฟล์ CSV'],
+                'cta' => 'เข้าสู่รายงานโปรเจกต์',
+                'route' => route('reports.projects'),
             ];
         }
 
@@ -348,11 +313,11 @@ class ReportController extends Controller
                 'icon' => 'bi-journal-check',
                 'title' => 'รายงานปฏิบัติงาน',
                 'description' => $isOwnScope
-                    ? 'งานประจำที่ต้องเข้าไปตรวจในแต่ละวัน พร้อมสถานะว่าวันนี้ตรวจไปแล้วหรือยัง'
-                    : 'สถานะการตรวจงานประจำของวันนี้ และชั่วโมงงานที่ไม่ปรากฏบนบอร์ดโปรเจกต์',
+                    ? 'สรุปงานประจำและงานนอกสถานที่ของคุณรายเดือน พร้อมชั่วโมงงานและเหตุผลที่ล่าช้า'
+                    : 'รายงานปฏิบัติงานรายบุคคลรายเดือน ดูของตัวเองหรือเลือกพนักงานในขอบเขตที่ดูแล',
                 'features' => $isOwnScope
-                    ? ['ตารางงานประจำของวันนี้', 'ตรวจแล้ว / ยังไม่ตรวจ', 'ชั่วโมงงานของคุณเอง', 'ดาวน์โหลดเป็นไฟล์ CSV']
-                    : ['ตารางงานประจำของวันนี้ทั้งทีม', 'ตรวจแล้ว / ยังไม่ตรวจ', 'ชั่วโมงงานรายคน', 'เวลาที่ไม่ได้ลงโปรเจกต์'],
+                    ? ['ชั่วโมงงานรายวัน', 'สัดส่วนประเภทงาน', 'งานที่ทำบ่อยและเหตุผลที่ล่าช้า', 'CSV แยกตามรายงาน']
+                    : ['เลือกพนักงานในขอบเขตที่ดูแล', 'ชั่วโมงงานและสัดส่วนประเภทงาน', 'งานที่ทำบ่อยและเหตุผลที่ล่าช้า', 'CSV แยกตามรายงาน'],
                 'cta' => 'เข้าสู่รายงานปฏิบัติงาน',
                 'route' => route('reports.operational'),
             ];
@@ -374,45 +339,155 @@ class ReportController extends Controller
     }
 
     /**
-     * ไฟล์ CSV ของบันทึกงานประจำวัน
-     *
-     * โครงเดียวกับ downloadJobsCsv() (BOM + fputcsv + streamDownload) แต่หัวคอลัมน์
-     * เป็นของงานปฏิบัติการ ไม่ปนกับงานโครงการ
-     *
-     * @param  Collection<int, WorkLog>  $logs
+     * ขอบเขตของรายงานปฏิบัติงาน — ตรวจสิทธิ์และตัดสินเดือน/คนที่เดียวสำหรับทุก route
      */
-    private function downloadWorkLogsCsv(Collection $logs, string $fileName): StreamedResponse
+    private function operationalScope(
+        Request $request,
+        OperationalWorkloadReportService $reports,
+        bool $allowTeam = false
+    ): OperationalReportScope {
+        $this->authorizeOperationalReports();
+
+        return $reports->scope($request, $request->user(), $this->forcedDepartmentId(), $this->forcedOwnerId(), $allowTeam);
+    }
+
+    /**
+     * ไฟล์ CSV ของตารางหนึ่งตาราง
+     *
+     * BOM + fputcsv + streamDownload
+     * ค่าที่ขึ้นต้นด้วย = + - @ ถูกนำหน้าด้วย ' เพื่อไม่ให้ Excel ตีความชื่องานหรือเหตุผล
+     * ที่ผู้ใช้พิมพ์เองเป็นสูตร
+     *
+     * @param  array<int, string>  $headers
+     * @param  array<int, array<int, int|string|null>>  $rows
+     */
+    private function downloadTableCsv(array $headers, array $rows, string $fileName): StreamedResponse
     {
-        return response()->streamDownload(function () use ($logs): void {
+        return response()->streamDownload(function () use ($headers, $rows): void {
             $handle = fopen('php://output', 'w');
             // BOM เพื่อให้ Excel บน Windows อ่านภาษาไทยได้ถูกต้อง
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($handle, [
-                'วันที่', 'ผู้บันทึก', 'แผนก', 'ประเภท', 'หมวดงาน', 'เรื่อง',
-                'เริ่ม', 'สิ้นสุด', 'นาที', 'โปรเจกต์', 'งาน',
-            ]);
+            fputcsv($handle, $headers);
 
-            $logs->chunk(200)->each(function (Collection $chunk) use ($handle): void {
-                foreach ($chunk as $log) {
-                    fputcsv($handle, [
-                        $log->work_date?->format('Y-m-d'),
-                        $log->user?->name,
-                        $log->department?->department_name ?? $log->user?->department?->department_name,
-                        WorkLogDesign::kind($log->kind)['label'],
-                        $log->category?->name,
-                        $log->title,
-                        // แปลงกลับเป็นเวลาทำการ ไม่ใช่ UTC ที่เก็บในฐานข้อมูล
-                        $log->started_at === null ? '' : TodayWorkspace::businessNow($log->started_at)->format('H:i'),
-                        $log->ended_at === null ? '' : TodayWorkspace::businessNow($log->ended_at)->format('H:i'),
-                        $log->duration_minutes,
-                        $log->project?->name,
-                        $log->job_id === null ? '' : 'IT-'.$log->job_id,
-                    ]);
-                }
-            });
+            foreach ($rows as $row) {
+                fputcsv($handle, array_map(
+                    fn ($value) => is_string($value) && preg_match('/^[=+\-@]/', $value) === 1 ? "'".$value : $value,
+                    $row
+                ));
+            }
 
             fclose($handle);
         }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * คนที่ผู้ดูเลือกดูในรายงานโปรเจกต์ได้ และคนที่ถูกเลือกอยู่
+     *
+     * หัวหน้าแผนกได้เฉพาะพนักงาน active ในแผนกตัวเอง admin/viewer ได้พนักงาน active ทุกแผนก
+     * owner มาจากรายชื่อนี้เท่านั้น ค่าที่ไม่อยู่ในรายชื่อจึงกลายเป็นภาพรวม
+     *
+     * admin/viewer เลือกภาพรวมทีละแผนกได้ (overviewDepartmentId) โดยรายชื่อในดร็อปดาวน์ (owners) ยังเป็นทุกคน
+     * ส่วน members คือคนที่นับในภาพรวมจริง — แคบลงเหลือแผนกนั้นเมื่อเลือกภาพรวมแผนก
+     *
+     * @return array{members: Collection<int, User>, owners: Collection<int, User>, owner: User|null, scopeName: string, overviewLabel: string, isForcedDepartment: bool, isPersonal: bool, overviewDepartmentId: int|null, departmentOptions: array<int, string>}
+     */
+    private function projectReportSubjects(Request $request): array
+    {
+        // พนักงานทั่วไป: ขอบเขตคือตัวเองคนเดียว ไม่อ่าน ?owner= หรือ ?department= จาก request เลย
+        if ($this->forcedOwnerId() !== null) {
+            $self = User::query()
+                ->with('department:id,department_name')
+                ->whereKey($this->forcedOwnerId())
+                ->firstOrFail(['id', 'name', 'role', 'is_active', 'department_id', 'profile_image']);
+
+            return [
+                'members' => collect([$self]),
+                'owners' => collect([$self]),
+                'owner' => $self,
+                'scopeName' => 'ของฉัน',
+                'overviewLabel' => $self->name,
+                'isForcedDepartment' => true,
+                'isPersonal' => true,
+                'overviewDepartmentId' => null,
+                'departmentOptions' => [],
+            ];
+        }
+
+        $forcedDepartmentId = $this->forcedDepartmentId();
+        $people = User::query()
+            ->with('department:id,department_name')
+            ->where('role', 'user')
+            ->where('is_active', true)
+            ->when($forcedDepartmentId, fn ($query, int $id) => $query->where('department_id', $id))
+            ->orderBy('name')
+            // role และ is_active ต้องถูกโหลดมาด้วย ensureReportableEmployee() อ่านสองคอลัมน์นี้ตรวจซ้ำ
+            ->get(['id', 'name', 'role', 'is_active', 'department_id', 'profile_image']);
+        $owner = $people->firstWhere('id', $request->integer('owner'));
+
+        if ($owner !== null) {
+            // รายชื่อถูกกรองด้วยกติกาเดียวกันอยู่แล้ว ตรวจซ้ำอีกชั้นเพื่อไม่ให้การแก้ query ในอนาคตเปิดช่องรั่ว
+            $this->ensureReportableEmployee($owner);
+        }
+
+        // ภาพรวมทีละแผนก — เฉพาะ admin/viewer หัวหน้าแผนกถูกล็อกแผนกตัวเองอยู่แล้วจึงไม่มีตัวเลือกนี้
+        // ตัวเลือกคือแผนกที่มีพนักงาน active อยู่จริง แผนกที่ส่งมานอกรายการถูกทิ้งแล้วได้ภาพรวมทุกแผนก
+        $departmentOptions = $forcedDepartmentId === null
+            ? Department::query()
+                ->whereIn('id', $people->pluck('department_id')->filter()->unique()->values())
+                ->orderBy('department_name')
+                ->pluck('department_name', 'id')
+                ->all()
+            : [];
+        $requestedDepartment = $this->requestedOverviewDepartment($request);
+        $overviewDepartmentId = $owner === null
+            && $requestedDepartment !== null
+            && array_key_exists($requestedDepartment, $departmentOptions)
+                ? $requestedDepartment
+                : null;
+
+        $members = $overviewDepartmentId === null
+            ? $people
+            : $people->where('department_id', $overviewDepartmentId)->values();
+
+        $departmentId = $forcedDepartmentId ?? $overviewDepartmentId;
+        $departmentName = match (true) {
+            $departmentId === null => null,
+            array_key_exists($departmentId, $departmentOptions) => $departmentOptions[$departmentId],
+            default => Department::query()->whereKey($departmentId)->value('department_name'),
+        };
+        $scopeName = $departmentName === null ? 'ทุกแผนก' : 'แผนก '.$departmentName;
+
+        return [
+            'members' => $members,
+            'owners' => $people,
+            'owner' => $owner,
+            'scopeName' => $scopeName,
+            'overviewLabel' => 'ภาพรวม'.$scopeName,
+            'isForcedDepartment' => $forcedDepartmentId !== null,
+            'isPersonal' => false,
+            'overviewDepartmentId' => $overviewDepartmentId,
+            'departmentOptions' => $departmentOptions,
+        ];
+    }
+
+    /**
+     * แผนกของภาพรวมที่ขอมา — จากดร็อปดาวน์ (owner=department-5) หรือลิงก์ที่พกต่อมา (department=5)
+     *
+     * ดร็อปดาวน์ใช้ช่อง owner ช่องเดียวทั้งภาพรวมแผนกและรายบุคคล จึงเข้ารหัสแผนกไว้ในค่าของ owner
+     * ส่วนลิงก์ภายในหน้าใช้ department=ID ซึ่งตรงกับลิงก์เดิมของหน้าเลือกพนักงาน (employees())
+     * ค่านี้ยังไม่ผ่านการตรวจ ผู้เรียกต้องเทียบกับรายการแผนกที่อนุญาตเสมอ
+     */
+    private function requestedOverviewDepartment(Request $request): ?int
+    {
+        $owner = $request->query('owner');
+
+        if (is_string($owner) && preg_match('/^department-(\d+)$/', $owner, $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        $department = $request->query('department');
+
+        return is_scalar($department) && ctype_digit((string) $department) ? (int) $department : null;
     }
 
     private function ensureReportableEmployee(User $user): void
@@ -429,7 +504,7 @@ class ReportController extends Controller
     }
 
     /**
-     * บังคับให้พนักงานทั่วไปเห็นเฉพาะบันทึกของตัวเองในรายงานปฏิบัติงาน
+     * บังคับให้พนักงานทั่วไปเห็นเฉพาะข้อมูลของตัวเอง (รายงานปฏิบัติงานและรายงานโปรเจกต์)
      *
      * คืน null สำหรับ admin และหัวหน้าแผนก ซึ่งมีขอบเขตกว้างกว่าอยู่แล้ว
      * (หัวหน้าถูกจำกัดด้วย forcedDepartmentId() แทน)

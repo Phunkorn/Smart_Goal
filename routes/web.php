@@ -263,11 +263,12 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::delete('/settings/telegram', [TelegramSettingsController::class, 'destroy'])
         ->name('settings.telegram.destroy');
 
-    // รายงานของผู้ใช้ปัจจุบัน
-    Route::get('/my-reports', [ReportController::class, 'myReport'])
+    // รายงานของฉันเดิม — พนักงานใช้รายงานโปรเจกต์หน้าเดียวกับหัวหน้าแล้ว (ขอบเขตเฉพาะตัวเอง)
+    // ลิงก์เดิมพาไปหน้าใหม่ ปลายทางตรวจสิทธิ์เอง
+    Route::redirect('/my-reports', '/reports/projects')
         ->name('reports.my');
 
-    Route::get('/my-reports/export.csv', [ReportController::class, 'exportMyCsv'])
+    Route::redirect('/my-reports/export.csv', '/reports/projects/export.csv')
         ->name('reports.myExportCsv');
 
     Route::get('/media/profile-images/{user}', [MediaController::class, 'profile'])
@@ -290,23 +291,54 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/reports', [ReportController::class, 'index'])
         ->name('reports.index');
 
-    Route::get('/reports/organization', [ReportController::class, 'organization'])
+    // รายงานภาพรวมองค์กรถูกยกเลิกแล้ว — ลิงก์เดิมพาไปรายงานโปรเจกต์ ซึ่งตรวจสิทธิ์ที่ปลายทางเอง
+    Route::redirect('/reports/organization', '/reports/projects')
         ->name('reports.organization');
 
-    Route::get('/reports/organization/export.csv', [ReportController::class, 'exportCsv'])
+    Route::redirect('/reports/organization/export.csv', '/reports/projects/export.csv')
         ->name('reports.exportCsv');
 
-    // รายงานภาระงานปฏิบัติการ — แยก metric จาก Project Performance โดยเจตนา
-    // สิทธิ์เข้าถึงต่างจากรายงานโครงการ (viewer เข้าไม่ได้) ตรวจใน controller
+    // รายงานปฏิบัติงานประจำเดือน (รายบุคคล) — แยก metric จาก Project Performance โดยเจตนา
+    // สิทธิ์เข้าถึงต่างจากรายงานโครงการ (viewer เข้าไม่ได้) ตรวจใน controller ทุก route
+    // CSV แยกไฟล์ตามรายงาน ไม่รวมข้อมูลคนละประเภทไว้ในไฟล์เดียว
     Route::get('/reports/operational', [ReportController::class, 'operational'])
         ->name('reports.operational');
 
-    Route::get('/reports/operational/export.csv', [ReportController::class, 'exportOperationalCsv'])
-        ->name('reports.operationalExportCsv');
+    Route::get('/reports/operational/daily', [ReportController::class, 'operationalDaily'])
+        ->name('reports.operational.daily');
 
-    Route::get('/reports/export.csv', [ReportController::class, 'exportCsv'])
+    Route::get('/reports/operational/frequent', [ReportController::class, 'operationalFrequent'])
+        ->name('reports.operational.frequent');
+
+    Route::get('/reports/operational/delays', [ReportController::class, 'operationalDelays'])
+        ->name('reports.operational.delays');
+
+    Route::get('/reports/operational/daily/export.csv', [ReportController::class, 'exportOperationalCsv'])
+        ->defaults('report', 'daily')
+        ->name('reports.operational.daily.csv');
+
+    Route::get('/reports/operational/frequent/export.csv', [ReportController::class, 'exportOperationalCsv'])
+        ->defaults('report', 'frequent')
+        ->name('reports.operational.frequent.csv');
+
+    Route::get('/reports/operational/delays/export.csv', [ReportController::class, 'exportOperationalCsv'])
+        ->defaults('report', 'delays')
+        ->name('reports.operational.delays.csv');
+
+    Route::redirect('/reports/export.csv', '/reports/projects/export.csv')
         ->name('reports.legacyExportCsv');
 
+    // รายงานโปรเจกต์ — ภาพรวมและรายบุคคลในหน้าเดียว (เลือกพนักงานจาก ?owner=)
+    Route::get('/reports/projects', [ReportController::class, 'projects'])
+        ->name('reports.projects');
+
+    Route::get('/reports/projects/details', [ReportController::class, 'projectDetails'])
+        ->name('reports.projects.details');
+
+    Route::get('/reports/projects/export.csv', [ReportController::class, 'exportProjectsCsv'])
+        ->name('reports.projects.csv');
+
+    // หน้าเลือกพนักงานและรายงานรายบุคคลเดิม — ตรวจสิทธิ์เดิมแล้ว redirect ไป reports.projects
     Route::get('/reports/employees', [ReportController::class, 'employees'])
         ->name('reports.employees.index');
 
@@ -458,7 +490,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         Route::post('/{workLog}/complete', [WorkLogController::class, 'complete'])->name('complete');
         Route::post('/{workLog}/start', [WorkLogController::class, 'start'])->name('start');
         Route::post('/{workLog}/skip', [WorkLogController::class, 'skip'])->name('skip');
-        Route::post('/{workLog}/reopen', [WorkLogController::class, 'reopen'])->name('reopen');
 
         Route::post('/{workLog}/attachments', [WorkLogAttachmentController::class, 'store'])
             ->name('attachments.store');
@@ -472,8 +503,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         // ระบุเหตุผลที่ไม่ได้ทำงานประจำของวันที่ผ่านมา — ทางเดียวที่วันย้อนหลัง
         // จะมีรายการเกิดขึ้นได้ และเกิดในสถานะ "ไม่ได้ทำ" เสมอ ไม่ใช่ "รอเริ่ม"
         // จึงอยู่ที่ WorkLogController เพราะสิ่งที่สร้างคือบันทึกงาน ไม่ใช่แม่แบบ
-        Route::post('/routines/{template}/missed', [WorkLogController::class, 'missRoutine'])
-            ->name('routines.missed');
         Route::patch('/routines/{template}', [WorkLogTemplateController::class, 'update'])->name('routines.update');
         Route::delete('/routines/{template}', [WorkLogTemplateController::class, 'destroy'])->name('routines.destroy');
     });

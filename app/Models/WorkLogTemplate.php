@@ -37,6 +37,7 @@ class WorkLogTemplate extends Model
         'ends_on',
         'last_materialized_on',
         'is_active',
+        'accountable_from',
         'sort_order',
     ];
 
@@ -49,6 +50,8 @@ class WorkLogTemplate extends Model
             'ends_on' => 'date',
             'last_materialized_on' => 'date',
             'is_active' => 'boolean',
+            // เวลาที่เริ่มนับวันค้างย้อนหลัง (ดู RoutineAccountabilityService) ว่าง = ใช้ created_at
+            'accountable_from' => 'datetime',
             'sort_order' => 'integer',
         ];
     }

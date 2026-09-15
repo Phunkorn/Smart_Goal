@@ -42,6 +42,16 @@ final class ContributionRole
         return ['key' => $key, ...self::META[$key]];
     }
 
+    /**
+     * ตัวเลือกของตัวกรอง "บทบาท" ในรายงาน — ลำดับเดียวกับลำดับความสำคัญของบทบาท
+     *
+     * @return array<string, string>
+     */
+    public static function options(): array
+    {
+        return array_map(fn (array $meta): string => $meta['label'], self::META);
+    }
+
     public static function label(WorkOrder $job, int $userId): string
     {
         return self::META[self::keyFor($job, $userId)]['label'];

@@ -4,12 +4,29 @@
  */
 const mutableFields = ['topic', 'status', 'priority', 'start', 'due', 'startTime', 'dueTime'];
 
-export const synchronizeTaskManagement = (management, id, response = {}) => {
+export const synchronizeTaskManagement = (management, id, response = {}, eventTarget = globalThis.document) => {
     const meta = management?.[String(id)];
-    if (!meta || !response.transitions) return meta || null;
+    if (!meta) return null;
 
-    meta.transitions = response.transitions;
-    meta.can_work = response.transitions.can_edit === true;
+    if (response.transitions) {
+        meta.transitions = response.transitions;
+        meta.can_work = response.transitions.can_edit === true;
+        meta.status = Number(response.job_status ?? meta.status);
+    }
+
+    if (response.interactions) {
+        meta.can_comment = response.interactions.can_comment === true;
+        meta.comment_url = response.interactions.comment_url || null;
+    }
+
+    eventTarget?.dispatchEvent?.(new CustomEvent('mytasks:access-changed', {
+        detail: {
+            id: String(id),
+            status: Number(response.job_status ?? meta.status),
+            transitions: response.transitions || meta.transitions,
+            interactions: response.interactions || null,
+        },
+    }));
 
     return meta;
 };

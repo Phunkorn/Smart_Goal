@@ -70,6 +70,14 @@
     transition: opacity .17s ease, transform .17s cubic-bezier(.2, .8, .3, 1), visibility 0s linear .17s;
 }
 
+/* พื้นที่ใต้ปุ่มไม่พอ (เช่นช่องท้ายฟอร์มในกล่องที่เลื่อนได้) — กางขึ้นและสไลด์จากล่างขึ้นบน */
+.sg-select--up .sg-select__panel {
+    top: auto;
+    bottom: calc(100% + 5px);
+    transform: translateY(6px) scaleY(.97);
+    transform-origin: bottom center;
+}
+
 .sg-select.is-open .sg-select__panel {
     opacity: 1;
     transform: none;

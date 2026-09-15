@@ -6,7 +6,6 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
-use App\Services\PersonalReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -263,17 +262,20 @@ class ProjectCollaboratorPermissionTest extends TestCase
         $siblingTask = $this->task($owner, $project, 'Project context only');
         $directTask->collaborators()->attach($collaborator->id, ['status' => 'accepted']);
 
-        $personalTaskIds = app(PersonalReportService::class)
-            ->queryFor($collaborator->id)
+        $personalTaskIds = WorkOrder::query()
+            ->contributedBy($collaborator->id)
             ->pluck('job_id');
 
         $this->assertTrue($personalTaskIds->contains($directTask->job_id));
         $this->assertFalse($personalTaskIds->contains($siblingTask->job_id));
 
-        $this->actingAs($collaborator)->get(route('reports.my'))
+        // รายงานโปรเจกต์ของผู้ร่วมงานมีงานที่ร่วมทำจริงเป็นแถว "ร่วมทำ" แต่งานพี่น้องในโปรเจกต์เดียวกันไม่ติดมา
+        $rows = $this->actingAs($collaborator)->get(route('reports.projects'))
             ->assertOk()
-            ->assertSee($directTask->job_topic)
-            ->assertDontSee($siblingTask->job_topic);
+            ->assertDontSee($siblingTask->job_topic)
+            ->viewData('taskRows');
+        $this->assertSame([$directTask->job_id], $rows->pluck('id')->all());
+        $this->assertSame('joined', $rows->first()['role']['key']);
     }
 
     public function test_direct_accepted_collaborator_has_worker_actions_but_not_management_actions(): void

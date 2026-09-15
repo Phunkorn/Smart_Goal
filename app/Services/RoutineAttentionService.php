@@ -12,6 +12,7 @@ class RoutineAttentionService
     public function __construct(
         private readonly WorkLogRoutineMaterializer $materializer,
         private readonly NotificationService $notifications,
+        private readonly RoutineAccountabilityService $accountability,
     ) {}
 
     /**
@@ -25,6 +26,8 @@ class RoutineAttentionService
             return ['total' => 0, 'waiting' => 0, 'running' => 0, 'overdue' => 0, 'items' => collect()];
         }
 
+        // ปิดรอบ 17:00 ก่อน — รายการที่ปิดรอบแล้วไม่ใช่ "รอเริ่ม/กำลังทำ" อีกต่อไป และได้แจ้งเตือนปิดรอบของตัวเอง
+        $this->accountability->closeFor($user);
         $this->materializer->materializeToday($user);
         $now = TodayWorkspace::businessNow()->utc();
         $day = TodayWorkspace::businessNow()->format('Y-m-d');
@@ -88,19 +91,8 @@ class RoutineAttentionService
                     'routine-overdue:'.$log->id.':'.$day
                 );
             }
-
-            if ((int) TodayWorkspace::businessNow()->format('H') >= 17) {
-                $this->notifications->notifyDetached(
-                    [$user->id],
-                    'work_log_routine_day_pending',
-                    'ยังมีงานประจำที่ไม่ได้ปิดรายการ',
-                    sprintf('งาน “%s” ยังไม่ได้กดเสร็จหรือระบุว่าไม่ได้ทำวันนี้', $log->title),
-                    null,
-                    ['work_log_id' => $log->id, 'work_date' => $day],
-                    [],
-                    'routine-day-pending:'.$log->id.':'.$day
-                );
-            }
         }
+        // แจ้งเตือน "ยังไม่ได้ปิดรายการหลัง 17:00" แบบเดิมถูกแทนด้วยแจ้งเตือนปิดรอบของ
+        // RoutineAccountabilityService::closeFor() เพราะถึง 17:00 รายการถูกปิดรอบแล้ว ไม่ได้ค้างอยู่อีก
     }
 }

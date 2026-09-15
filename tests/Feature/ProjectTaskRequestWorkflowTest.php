@@ -64,7 +64,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
         $this->actingAs($owner)->postJson(route('mytasks.lists.task-requests.store', $project), $this->payload('owner'))->assertForbidden();
     }
 
-    public function test_only_project_owner_can_approve_and_approval_creates_exactly_one_task(): void
+    public function test_only_project_owner_can_approve_and_approval_creates_an_owner_task_with_requester_as_collaborator(): void
     {
         [$owner, $collaborator, $project] = $this->collaborativeProject();
         $taskRequest = $this->request($collaborator, $project, 'Approved request');
@@ -81,8 +81,10 @@ class ProjectTaskRequestWorkflowTest extends TestCase
         $this->assertDatabaseHas('work_orders', [
             'job_id' => $jobId,
             'work_order_list_id' => $project->id,
-            'user_id' => $collaborator->id,
+            'user_id' => $owner->id,
             'created_by' => $owner->id,
+            'assigned_by' => $owner->id,
+            'leader_user_id' => $owner->id,
             'job_topic' => 'Approved request',
             'job_details' => null,
         ]);
@@ -123,6 +125,84 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             'job_topic' => 'Legacy detailed request',
             'job_details' => 'Legacy request details',
         ]);
+    }
+
+    public function test_collaborator_can_request_a_subtask_and_owner_approval_keeps_the_parent(): void
+    {
+        [$owner, $collaborator, $project, $parent] = $this->collaborativeProject();
+        $payload = array_replace($this->payload('Requested child'), [
+            'request_type' => 'subtask',
+            'parent_job_id' => $parent->job_id,
+        ]);
+
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), $payload)
+            ->assertCreated();
+
+        $taskRequest = $project->taskRequests()->where('job_topic', 'Requested child')->firstOrFail();
+        $this->assertSame((int) $parent->job_id, (int) $taskRequest->parent_job_id);
+
+        $response = $this->actingAs($owner)
+            ->patchJson(route('mytasks.task-requests.approve', $taskRequest))
+            ->assertOk();
+
+        $this->assertDatabaseHas('work_orders', [
+            'job_id' => $response->json('job_id'),
+            'work_order_list_id' => $project->id,
+            'parent_job_id' => $parent->job_id,
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+        ]);
+        $this->assertDatabaseHas('work_order_collaborators', [
+            'work_order_id' => $response->json('job_id'),
+            'user_id' => $collaborator->id,
+            'status' => 'accepted',
+        ]);
+    }
+
+    public function test_subtask_request_rejects_a_parent_from_another_project(): void
+    {
+        [, $collaborator, $project] = $this->collaborativeProject();
+        $otherOwner = $this->user();
+        $otherParent = $this->task($otherOwner, $this->project($otherOwner));
+
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), array_replace($this->payload('Wrong parent'), [
+                'request_type' => 'subtask',
+                'parent_job_id' => $otherParent->job_id,
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('parent_job_id');
+
+        $this->assertDatabaseMissing('work_order_list_task_requests', ['job_topic' => 'Wrong parent']);
+    }
+
+    public function test_subtask_request_rejects_a_closed_parent_and_pending_approval_stops_if_parent_closes(): void
+    {
+        [$owner, $collaborator, $project, $parent] = $this->collaborativeProject();
+        $payload = array_replace($this->payload('Closed parent child'), [
+            'request_type' => 'subtask',
+            'parent_job_id' => $parent->job_id,
+        ]);
+        $parent->update(['job_status' => 4]);
+
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('parent_job_id');
+
+        $parent->update(['job_status' => 2]);
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), $payload)
+            ->assertCreated();
+        $taskRequest = $project->taskRequests()->where('job_topic', 'Closed parent child')->firstOrFail();
+        $parent->update(['job_status' => 4]);
+
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.task-requests.approve', $taskRequest))
+            ->assertUnprocessable();
+        $this->assertDatabaseMissing('work_orders', ['job_topic' => 'Closed parent child']);
+        $this->assertSame('pending', $taskRequest->fresh()->status);
     }
 
     public function test_rejection_creates_no_task_notifies_requester_and_allows_a_new_request(): void
@@ -383,7 +463,13 @@ class ProjectTaskRequestWorkflowTest extends TestCase
         $this->assertSame('pending', $taskRequest->fresh()->status);
     }
 
-    public function test_cross_department_approval_still_uses_existing_admin_approval_flow(): void
+    /**
+     * กติกาเปลี่ยนตามที่เจ้าของระบบกำหนด: ผู้ร่วมงานข้ามแผนกขอเพิ่มงานในโปรเจกต์ของแผนกอื่นไม่ได้
+     *
+     * เดิม test นี้ยืนยันว่าคำขอข้ามแผนกถูกอนุมัติแล้วเข้าคิวอนุมัติของ admin ต่อ ตอนนี้เจ้าของ
+     * โปรเจกต์เป็นผู้สร้างงานเองแล้วเพิ่มคนเข้าร่วม คำขอจึงถูกปิดทั้งตอนส่งและตอนอนุมัติคำขอค้าง
+     */
+    public function test_cross_department_collaborator_cannot_request_tasks_in_another_departments_project(): void
     {
         $departmentA = Department::create(['department_name' => 'A']);
         $departmentB = Department::create(['department_name' => 'B']);
@@ -392,50 +478,21 @@ class ProjectTaskRequestWorkflowTest extends TestCase
         $project = $this->project($owner);
         $anchor = $this->task($owner, $project);
         $anchor->collaborators()->attach($collaborator->id, ['status' => 'accepted']);
-        $taskRequest = $this->request($collaborator, $project, 'Cross department');
-        $admin = $this->user(['role' => 'admin']);
 
-        $response = $this->actingAs($owner)
-            ->patchJson(route('mytasks.task-requests.approve', $taskRequest))
-            ->assertOk();
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), $this->payload('Cross department'))
+            ->assertForbidden();
+        $this->assertDatabaseMissing('work_order_list_task_requests', ['job_topic' => 'Cross department']);
 
-        $this->assertDatabaseHas('work_orders', [
-            'job_id' => $response->json('job_id'),
-            'approval_status' => 'pending',
-            'approved_by' => null,
-        ]);
-        $this->assertDatabaseHas('work_order_collaborators', [
-            'work_order_id' => $response->json('job_id'),
-            'user_id' => $collaborator->id,
-            'status' => 'pending',
-            'decided_by' => null,
-        ]);
+        // คำขอที่ค้างอยู่ก่อนกติกาใหม่ อนุมัติไม่ได้ และไม่สร้างงาน
+        $staleRequest = $this->request($collaborator, $project, 'Stale cross department');
 
-        $job = WorkOrder::findOrFail($response->json('job_id'));
-        $this->actingAs($collaborator)->get(route('tasks.show', $job))->assertForbidden();
-        $this->actingAs($admin)
-            ->patchJson(route('admin.tasks.approval', $job), ['approval_status' => 'approved'])
-            ->assertOk();
+        $this->actingAs($owner)
+            ->patchJson(route('mytasks.task-requests.approve', $staleRequest))
+            ->assertUnprocessable();
 
-        $this->assertDatabaseHas('work_order_collaborators', [
-            'work_order_id' => $job->job_id,
-            'user_id' => $collaborator->id,
-            'status' => 'accepted',
-            'decided_by' => $admin->id,
-        ]);
-        $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $job))->assertOk();
-        $this->assertSame(1, SystemNotification::where('user_id', $collaborator->id)
-            ->where('work_order_id', $job->job_id)
-            ->where('type', 'task_assigned')
-            ->count());
-
-        $this->actingAs($admin)
-            ->patchJson(route('admin.tasks.approval', $job), ['approval_status' => 'approved'])
-            ->assertConflict();
-        $this->assertSame(1, SystemNotification::where('user_id', $collaborator->id)
-            ->where('work_order_id', $job->job_id)
-            ->where('type', 'task_assigned')
-            ->count());
+        $this->assertDatabaseMissing('work_orders', ['job_topic' => 'Stale cross department']);
+        $this->assertSame('pending', $staleRequest->fresh()->status);
     }
 
     public function test_page_renders_request_action_for_collaborator_and_pending_queue_for_owner(): void
@@ -451,7 +508,11 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             ->assertDontSee('name="request_details"', false)
             ->assertDontSee('รายละเอียดโดยย่อ');
         $this->actingAs($owner)->get(route('mytasks.index', ['view' => 'table']))
-            ->assertOk()->assertSee('Pending UI request')->assertSee('อนุมัติ');
+            ->assertOk()
+            ->assertSee('Pending UI request')
+            ->assertSee('อนุมัติและเพิ่มงาน')
+            ->assertSee('เมื่ออนุมัติ คุณจะเป็นผู้รับผิดชอบ')
+            ->assertSee('project-task-requests__assignment-note', false);
     }
 
     private function collaborativeProject(): array
@@ -494,6 +555,7 @@ class ProjectTaskRequestWorkflowTest extends TestCase
     private function payload(string $topic): array
     {
         return [
+            'request_type' => 'task',
             'job_topic' => $topic,
             'job_priority' => 2,
             'job_start_at' => now()->addDay()->format('Y-m-d'),

@@ -236,6 +236,7 @@ $defaultProjectPriority = (int) ($defaultKanbanList?->priority ?? 2);
                                     data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}"
                                     data-reviewable-subtasks="{{ $kanbanReviewableChildren }}"
                                     data-late="{{ (int) $task->job_status === 6 ? 1 : 0 }}"
+                                    data-cross-department="{{ \App\Support\CrossDepartmentWork::marker($task, $workspaceSubject ?? auth()->user()) ? 1 : 0 }}"
                                 >
                                     <button
                                         type="button"

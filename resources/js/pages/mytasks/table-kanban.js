@@ -1,4 +1,4 @@
-import {synchronizeTaskSource} from './task-state.js';
+import {synchronizeTaskManagement, synchronizeTaskSource} from './task-state.js';
 import {canDragTask, canTransitionTo, confirmTaskTransition, lockReason, nextStepHint} from './task-transitions.js';
 import {boardTaskMatches} from './task-filter-state.js';
 
@@ -83,7 +83,7 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
         const status = statusFilter?.value || '';
         // ตัวกรองบางตัวไม่ใช่เลขสถานะ จึงต้องบอกว่าคอลัมน์ไหนคือ "บ้าน" ของมัน
         // เพื่อให้คอลัมน์นั้นยังอยู่แม้ไม่มีการ์ด ไม่งั้นกรองแล้วหน้าจอว่างเปล่าโดยไม่บอกอะไรเลย
-        const columnHomeOfFilter = {late: '6', my_review: '3', awaiting_review: '3'};
+        const columnHomeOfFilter = {late: '6', my_review: '3', awaiting_review: '3', cross_department: '2'};
         const fallbackStatus = columnHomeOfFilter[status] ?? status;
 
         panel.querySelectorAll('[data-kanban-card]').forEach((card) => {
@@ -93,6 +93,7 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
                 canReview: card.dataset.canReview,
                 reviewableSubtasks: card.dataset.reviewableSubtasks,
                 late: card.dataset.late,
+                crossDepartment: card.dataset.crossDepartment,
             }, {search: '', status});
         });
 
@@ -213,7 +214,7 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
             if (!response.ok) {
                 throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
             }
-            if (data.transitions) management[String(card.dataset.id)].transitions = data.transitions;
+            synchronizeTaskManagement(management, card.dataset.id, data);
 
             const actualStatus = Number(data.job_status ?? status);
             card.dataset.status = String(actualStatus);

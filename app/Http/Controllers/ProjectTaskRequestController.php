@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ProjectTaskRequestController extends Controller
@@ -25,6 +26,18 @@ class ProjectTaskRequestController extends Controller
         $request->session()->flash('project_task_request_list_id', $list->id);
 
         $validated = $request->validateWithBag('projectTaskRequest', [
+            'request_type' => ['required', Rule::in(['task', 'subtask'])],
+            'parent_job_id' => [
+                'exclude_unless:request_type,subtask',
+                'nullable',
+                'required_if:request_type,subtask',
+                'integer',
+                Rule::exists('work_orders', 'job_id')->where(fn ($query) => $query
+                    ->where('work_order_list_id', $list->id)
+                    ->whereNull('parent_job_id')
+                    ->whereNull('deleted_at')
+                    ->where('job_status', '!=', 4)),
+            ],
             'job_topic' => ['required', 'string', 'max:255'],
             'job_priority' => ['required', 'integer', 'in:2,3,4,5'],
             'job_start_at' => ['required', 'date'],
@@ -51,6 +64,7 @@ class ProjectTaskRequestController extends Controller
             $alreadyPending = $lockedList->taskRequests()
                 ->where('requester_id', $actor->id)
                 ->where('status', 'pending')
+                ->where('parent_job_id', $validated['request_type'] === 'subtask' ? $validated['parent_job_id'] : null)
                 ->where('job_topic', $topic)
                 ->exists();
 
@@ -62,6 +76,7 @@ class ProjectTaskRequestController extends Controller
 
             $taskRequest = $lockedList->taskRequests()->create([
                 'requester_id' => $actor->id,
+                'parent_job_id' => $validated['request_type'] === 'subtask' ? $validated['parent_job_id'] : null,
                 'status' => 'pending',
                 'job_topic' => $topic,
                 'job_priority' => $validated['job_priority'],
@@ -109,16 +124,38 @@ class ProjectTaskRequestController extends Controller
                 return ['error' => 'ผู้ขอไม่ได้เป็นผู้ร่วมงานที่ได้รับการยอมรับในโปรเจกต์นี้แล้ว', 'status' => 422];
             }
 
+            $parentTask = null;
+            $parentSortOrder = 0;
+            if ($locked->parent_job_id !== null) {
+                $parentTask = WorkOrder::query()
+                    ->whereKey($locked->parent_job_id)
+                    ->where('work_order_list_id', $locked->work_order_list_id)
+                    ->whereNull('parent_job_id')
+                    ->where('job_status', '!=', 4)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $parentTask) {
+                    return ['error' => 'งานหลักที่เลือกไม่พร้อมรับงานย่อยแล้ว กรุณาส่งคำขอใหม่', 'status' => 422];
+                }
+
+                $parentSortOrder = ((int) WorkOrder::query()
+                    ->where('parent_job_id', $parentTask->job_id)
+                    ->max('parent_sort_order')) + 1;
+            }
+
             $owner = $request->user()->loadMissing('department');
-            $approval = WorkOrderApprovalResolver::resolve($owner, $locked->requester);
+            $approval = WorkOrderApprovalResolver::resolve($owner, $owner);
 
             $workOrder = WorkOrder::create([
-                'user_id' => $locked->requester_id,
+                'user_id' => $owner->id,
                 'created_by' => $owner->id,
                 'assigned_by' => $owner->id,
                 'leader_user_id' => $approval['leader_user_id'],
-                'department_id' => $locked->requester->department_id ?? $owner->department_id,
+                'department_id' => $owner->department_id,
                 'work_order_list_id' => $locked->work_order_list_id,
+                'parent_job_id' => $parentTask?->job_id,
+                'parent_sort_order' => $parentSortOrder,
                 'job_topic' => $locked->job_topic,
                 'job_details' => $locked->job_details,
                 'job_priority' => $locked->job_priority,

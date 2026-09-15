@@ -567,3 +567,83 @@
     }
 }
 
+
+/* งานปฏิบัติวันนี้ในแผงดูงานสมาชิก — รายการอ่านอย่างเดียว */
+.work-board-department-page .wb-preview-ops {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.work-board-department-page .wb-preview-op {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 10px 12px;
+    border: 1px solid #e0e6ef;
+    border-radius: 11px;
+    background: #fff;
+}
+
+.work-board-department-page .wb-preview-op__icon {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    color: #1d4ed8;
+    background: #edf3ff;
+}
+
+.work-board-department-page .wb-preview-op__icon--field { color: #6b3fa0; background: #f3edfb; }
+.work-board-department-page .wb-preview-op__body { min-width: 0; }
+
+.work-board-department-page .wb-preview-op__title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.work-board-department-page .wb-preview-op__title-row h5 {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.work-board-department-page .wb-preview-op__body p {
+    margin: 3px 0 0;
+    color: #718096;
+    font-size: 11px;
+}
+
+.work-board-department-page .wb-preview-op__status {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.work-board-department-page .wb-ops-tone-red { color: #b42318; background: #fef0ef; }
+.work-board-department-page .wb-ops-tone-amber { color: #b45309; background: #fff6e5; }
+.work-board-department-page .wb-ops-tone-blue { color: #1d4ed8; background: #edf3ff; }
+.work-board-department-page .wb-ops-tone-teal,
+.work-board-department-page .wb-ops-tone-green { color: #0f766e; background: #e9f8f6; }
+.work-board-department-page .wb-ops-tone-gray,
+.work-board-department-page .wb-ops-tone-slate { color: #64748b; background: #f3f5f8; }
+
+.work-board-department-page .wb-preview-ops__empty {
+    margin: 0;
+    padding: 12px;
+    border: 1px dashed #d9e2f0;
+    border-radius: 11px;
+    color: #8290a4;
+    font-size: 12px;
+    text-align: center;
+}

@@ -54,11 +54,7 @@ button {
 .employee-reset-modal__eyebrow,
 .mytasks-calendar__option-label,
 .meetings-page__eyebrow,
-.employee-picker__eyebrow,
-.employee-report__eyebrow,
 .report-landing__eyebrow,
-.report-page__eyebrow,
-.personal-report__eyebrow,
 
 /* ป้ายที่ข้อความเป็นตัวพิมพ์ใหญ่มาตั้งแต่ใน Blade
  * (ป้ายที่ข้อความเป็นภาษาไทยล้วนไม่อยู่ในรายการนี้ เพราะการถ่างช่องไฟ

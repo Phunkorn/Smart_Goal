@@ -1,3 +1,7 @@
+/* โครงหน้ารายงาน (รายงานปฏิบัติงาน) — กว้างเต็มพื้นที่เท่ารายงานโปรเจกต์ */
+.report-page { width:100%; min-width:0; margin-inline:auto; color:#16233d; }
+.report-panel { min-width:0; overflow:hidden; border:1px solid #e3e9f2; border-radius:14px; background:#fff; box-shadow:0 5px 16px rgba(28,51,84,.05); }
+
 .report-breadcrumb { display:flex; align-items:center; gap:8px; min-width:0; margin-bottom:16px; color:#71809b; font-size:.82rem; }
 .report-breadcrumb a { color:#537099; text-decoration:none; }
 .report-breadcrumb a:hover { color:#1769e8; }

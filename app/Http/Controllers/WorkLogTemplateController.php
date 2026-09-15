@@ -14,7 +14,9 @@ use App\Support\WorkLogDesign;
 use App\Support\WorkLogWeekdays;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -55,28 +57,52 @@ class WorkLogTemplateController extends Controller
         $data = $request->validate($this->rules());
         $this->assertOwnedLinks($owner, $data);
 
-        $template = WorkLogTemplate::create([
-            'user_id' => $owner->id,
-            'work_log_category_id' => $data['work_log_category_id'] ?? null,
-            'work_order_list_id' => $data['work_order_list_id'] ?? null,
-            'job_id' => $data['job_id'] ?? null,
-            'kind' => $data['kind'] ?? WorkLogDesign::DEFAULT_KIND,
-            'title' => $data['title'],
-            'details' => $data['details'] ?? null,
-            'weekday_mask' => WorkLogWeekdays::mask($data['weekdays'] ?? []),
-            'default_start_time' => $data['default_start_time'] ?? null,
-            'default_duration_minutes' => $this->durationFrom($data),
-            'is_active' => true,
-        ]);
+        /*
+         * เลือกหลายวันจากปฏิทินได้ในการกรอกครั้งเดียว
+         *
+         * แม่แบบแบบวันเดียวเก็บ starts_on = ends_on อยู่แล้ว จึงสร้างหนึ่งแม่แบบต่อหนึ่งวัน
+         * ไม่ต้องเพิ่มโครงข้อมูลใหม่ และแต่ละวันยังแก้หรือลบแยกกันได้ในรายการแผนงาน
+         * ถ้าไม่ได้ส่ง plan_dates มา (ฟอร์มเก่า หรือเลือกเป็นวันในสัปดาห์) ใช้ plan_date เดิม
+         */
+        $planDates = collect($data['plan_dates'] ?? [])->filter()->unique()->sort()->values();
+        if ($planDates->isEmpty()) {
+            $planDates->push($data['plan_date'] ?? null);
+        }
 
-        $this->participants->syncTemplate($template, $owner, $data['participants'] ?? []);
+        $durationMinutes = $this->durationFrom($data);
+        $templates = DB::transaction(fn (): Collection => $planDates->map(
+            function (?string $planDate) use ($owner, $data, $durationMinutes): WorkLogTemplate {
+                $template = WorkLogTemplate::create([
+                    'user_id' => $owner->id,
+                    'work_log_category_id' => $data['work_log_category_id'] ?? null,
+                    'work_order_list_id' => $data['work_order_list_id'] ?? null,
+                    'job_id' => $data['job_id'] ?? null,
+                    'kind' => $data['kind'] ?? WorkLogDesign::DEFAULT_KIND,
+                    'title' => $data['title'],
+                    'details' => $data['details'] ?? null,
+                    'weekday_mask' => $this->maskFrom($data, $planDate),
+                    'starts_on' => $planDate,
+                    'ends_on' => $planDate,
+                    'default_start_time' => $data['default_start_time'] ?? null,
+                    'default_duration_minutes' => $durationMinutes,
+                    'is_active' => true,
+                ]);
 
-        AuditTrail::log(
-            'work_log_template_created',
-            $template,
-            sprintf('สร้างแม่แบบงานประจำ "%s" (%s)', $template->title, WorkLogWeekdays::label((int) $template->weekday_mask)),
-            null
-        );
+                $this->participants->syncTemplate($template, $owner, $data['participants'] ?? []);
+
+                AuditTrail::log(
+                    'work_log_template_created',
+                    $template,
+                    sprintf('สร้างแม่แบบงานประจำ "%s" (%s)', $template->title, WorkLogWeekdays::label((int) $template->weekday_mask)),
+                    null
+                );
+
+                return $template;
+            }
+        ));
+
+        /** @var WorkLogTemplate $template */
+        $template = $templates->last();
 
         // สร้างรายการของวันนี้ทันที ผู้ใช้จึงเห็นผลตั้งแต่ครั้งแรกที่กลับไปหน้าไทม์ไลน์
         // แทนที่จะต้องรอถึงพรุ่งนี้ ซึ่งทำให้รู้สึกเหมือนระบบไม่ทำงาน
@@ -92,7 +118,7 @@ class WorkLogTemplateController extends Controller
                 ? 'สร้างแม่แบบและเพิ่มรายการของวันนี้แล้ว'
                 : 'สร้างแม่แบบเรียบร้อย',
             200,
-            ['template_id' => $template->id, 'created_today' => $created]
+            ['template_id' => $template->id, 'created_today' => $created, 'created_count' => $templates->count()]
         );
     }
 
@@ -111,10 +137,11 @@ class WorkLogTemplateController extends Controller
             'kind' => $data['kind'] ?? WorkLogDesign::DEFAULT_KIND,
             'title' => $data['title'],
             'details' => $data['details'] ?? null,
-            'weekday_mask' => WorkLogWeekdays::mask($data['weekdays'] ?? []),
+            'weekday_mask' => $this->maskFrom($data, $data['plan_date'] ?? null),
+            ...(isset($data['plan_date']) ? ['starts_on' => $data['plan_date'], 'ends_on' => $data['plan_date']] : []),
             'default_start_time' => $data['default_start_time'] ?? null,
             'default_duration_minutes' => $this->durationFrom($data),
-            'is_active' => $request->boolean('is_active'),
+            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : $template->is_active,
         ]);
 
         $this->participants->syncTemplate($template, $owner, $data['participants'] ?? []);
@@ -169,11 +196,15 @@ class WorkLogTemplateController extends Controller
             // ฟอร์มในหน้าไม่ถามประเภทงานอีกแล้ว — แม่แบบในเมนู "งานประจำ" เป็น
             // ประเภทงานประจำอยู่แล้วโดยนิยาม ยังรับค่าที่ส่งมาได้เผื่อทางเข้าอื่น
             'kind' => ['nullable', 'string', 'in:'.implode(',', WorkLogDesign::kindKeys())],
-            'work_log_category_id' => ['nullable', 'integer', 'exists:work_log_categories,id'],
+            'work_log_category_id' => ['required_with:plan_date,plan_dates', 'nullable', 'integer', 'exists:work_log_categories,id'],
             'work_order_list_id' => ['nullable', 'integer', 'exists:work_order_lists,id'],
             'job_id' => ['nullable', 'integer', 'exists:work_orders,job_id'],
             'details' => ['nullable', 'string', 'max:2000'],
-            'weekdays' => ['required', 'array', 'min:1'],
+            'plan_date' => ['nullable', 'date_format:Y-m-d', 'required_without_all:weekdays,plan_dates'],
+            // หลายวันจากปฏิทิน — จำกัด 31 วันเท่ากับบันทึกงานนอกสถานที่
+            'plan_dates' => ['nullable', 'array', 'max:31'],
+            'plan_dates.*' => ['required', 'date_format:Y-m-d', 'distinct'],
+            'weekdays' => ['required_without_all:plan_date,plan_dates', 'array', 'min:1'],
             'weekdays.*' => ['integer', 'min:0', 'max:6'],
             'default_start_time' => ['nullable', 'date_format:H:i'],
             // ผู้ใช้คิดเป็น "ช่วงเวลาที่ต้องเข้าไปทำ" เช่น 08:30 ถึง 08:50 ไม่ใช่
@@ -182,6 +213,17 @@ class WorkLogTemplateController extends Controller
             'participants' => ['nullable', 'array', 'max:20'],
             'participants.*' => ['integer', 'exists:users,id'],
         ];
+    }
+
+    private function maskFrom(array $data, ?string $planDate): int
+    {
+        if (! empty($planDate)) {
+            $weekday = Carbon::createFromFormat('Y-m-d', $planDate)->dayOfWeekIso - 1;
+
+            return WorkLogWeekdays::mask([$weekday]);
+        }
+
+        return WorkLogWeekdays::mask($data['weekdays'] ?? []);
     }
 
     /**

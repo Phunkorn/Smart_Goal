@@ -6,8 +6,8 @@ import {mountDom, click, pressKey} from './helpers/dom.js';
 const read = async (path) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
 
 /**
- * markup ที่ตรงกับ resources/views/reports/components/personal-filters.blade.php
- * ถ้า Blade เปลี่ยน hook ต้องแก้ที่นี่ด้วย test จึงจะยังสะท้อนของจริง
+ * markup ตัวอย่างของช่องกรองที่ใช้ data-sg-select (โครงเดียวกับตัวกรองของรายงาน)
+ * ใช้ทดสอบพฤติกรรมของคอมโพเนนต์กลาง ไม่ได้อ้างอิงหน้าใดหน้าหนึ่ง
  */
 function filterMarkup() {
     return `
@@ -183,19 +183,56 @@ test('an option can render an icon description and visual divider', async (t) =>
     assert.equal(option.querySelector('small').textContent, 'Only work waiting for you');
 });
 
-test('both report pages enhance their filters with the shared component', async () => {
-    const [my, employee, personalFilters, employeeView] = await Promise.all([
-        read('resources/js/pages/reports/my.js'),
-        read('resources/js/pages/reports/employee.js'),
-        read('resources/views/reports/components/personal-filters.blade.php'),
-        read('resources/views/reports/employee.blade.php'),
+test('the project report enhances its filters with the shared component', async () => {
+    const [projects, ...projectsPartials] = await Promise.all([
+        read('resources/js/pages/reports/projects.js'),
+        read('resources/views/reports/components/projects/header.blade.php'),
+        read('resources/views/reports/components/projects/filters.blade.php'),
+        read('resources/views/reports/components/projects/sort.blade.php'),
     ]);
+    const projectsView = projectsPartials.join('\n');
 
-    for (const source of [my, employee]) {
-        assert.match(source, /from '\.\.\/\.\.\/components\/select-dropdown\.js'/);
-        assert.match(source, /initSelectDropdowns\(page\)/);
+    assert.match(projects, /from '\.\.\/\.\.\/components\/select-dropdown\.js'/);
+    assert.match(projects, /initSelectDropdowns\(page\)/);
+
+    // ช่องพนักงาน เดือน ตัวกรอง และการเรียงของรายงานโปรเจกต์ใช้คอมโพเนนต์เดียวกันทุกช่อง
+    for (const id of ['projectReportOwner', 'projectReportMonth', 'projectReportProject', 'projectReportStatus', 'projectReportScope', 'projectReportRole', 'projectReportSort']) {
+        assert.match(projectsView, new RegExp(`data-sg-select[^>]*>\\s*(?:<i[^>]*></i>\\s*)?<label for="${id}"`));
     }
+});
 
-    assert.match(personalFilters, /data-sg-select/);
-    assert.match(employeeView, /class="employee-report__period" data-sg-select/);
+/*
+ * ฟอร์มในกล่องเพิ่มงานถูก form.reset() ทุกครั้งที่เปิด ซึ่งไม่ยิง change
+ * ป้ายบนปุ่มต้องกลับไปตรงกับค่าของ <select> ไม่ใช่ค้างค่าที่เลือกไว้รอบก่อน
+ */
+test('the trigger label follows a form reset, which fires no change event', async (t) => {
+    const env = mountDom();
+    t.after(env.cleanup);
+    env.document.body.innerHTML = `
+        <form><div data-sg-select>
+            <select name="category"><option value="">เลือกหมวดงาน</option><option value="1">ตรวจเช็ก</option></select>
+        </div></form>`;
+    const {initSelectDropdowns} = await import('../../resources/js/components/select-dropdown.js');
+    initSelectDropdowns(env.document);
+
+    const label = env.document.querySelector('.sg-select__value');
+    click(env.document.querySelector('.sg-select__trigger'));
+    click(env.document.querySelectorAll('.sg-select__option')[1]);
+    assert.equal(label.textContent, 'ตรวจเช็ก');
+
+    env.document.querySelector('form').reset();
+    await Promise.resolve();
+
+    assert.equal(label.textContent, 'เลือกหมวดงาน');
+});
+
+test('the panel opens upward only when space below is short and above is larger', async () => {
+    const {shouldOpenUpward} = await import('../../resources/js/components/select-dropdown.js');
+
+    // ช่องท้ายกล่อง: ใต้ปุ่มเหลือ 40px เหนือปุ่มมี 300px
+    assert.equal(shouldOpenUpward({triggerTop: 340, triggerBottom: 378, boundaryTop: 40, boundaryBottom: 418, panelHeight: 200}), true);
+    // ใต้ปุ่มพอ
+    assert.equal(shouldOpenUpward({triggerTop: 60, triggerBottom: 98, boundaryTop: 40, boundaryBottom: 418, panelHeight: 200}), false);
+    // ไม่มีข้อมูล layout (jsdom) ต้องกางลงตามเดิม
+    assert.equal(shouldOpenUpward({}), false);
 });

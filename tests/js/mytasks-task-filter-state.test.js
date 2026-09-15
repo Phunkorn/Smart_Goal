@@ -95,6 +95,37 @@ test('the two review filters never overlap, so a task lands in exactly one of th
     assert.equal(boardTaskMatches(parentWithReviewableChild, {search: '', status: 'awaiting_review'}), false);
 });
 
+test('cross department filter matches only rows the server marked as cross department', () => {
+    assert.equal(boardFilterStateFrom('status=cross_department').status, 'cross_department');
+    assert.equal(boardTaskMatches(
+        {searchable: 'ทดสอบข้ามแผนก', status: '2', late: '0', crossDepartment: '1'},
+        {search: '', status: 'cross_department'},
+    ), true);
+    assert.equal(boardTaskMatches(
+        {searchable: 'งานในแผนก', status: '2', late: '0', crossDepartment: '0'},
+        {search: '', status: 'cross_department'},
+    ), false);
+    // แถวที่ไม่มี attribute เลยต้องไม่ถูกนับว่าข้ามแผนก
+    assert.equal(boardTaskMatches({searchable: 'x', status: '2'}, {search: '', status: 'cross_department'}), false);
+});
+
+test('every workspace filter caller forwards the cross department flag', async () => {
+    const sources = await Promise.all([
+        '../../resources/js/mytasks-project-board.js',
+        '../../resources/js/mytasks-notion.js',
+        '../../resources/js/pages/mytasks/table-kanban.js',
+    ].map((path) => readFile(new URL(path, import.meta.url), 'utf8')));
+
+    for (const source of sources) assert.match(source, /crossDepartment: \w+\.dataset\.crossDepartment/);
+
+    const [filterPartial, boardRow] = await Promise.all([
+        readFile(new URL('../../resources/views/tasks/partials/status-filter.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/tasks/partials/project-board-card.blade.php', import.meta.url), 'utf8'),
+    ]);
+    assert.match(filterPartial, /<option value="cross_department"/);
+    assert.match(boardRow, /data-cross-department=/);
+});
+
 test('the retired all-review filter value is no longer accepted from the url', () => {
     // ตัวเลือก "รอตรวจสอบทั้งหมด" ถูกเอาออกแล้ว ลิงก์เก่าที่ยังถือ ?status=3 ต้องตกกลับไปเป็นทุกสถานะ
     assert.equal(boardFilterStateFrom('status=3').status, '');

@@ -9,7 +9,14 @@
     $taskDetails = $task->relationLoaded('children')
         ? $task->children->sortBy([['parent_sort_order', 'asc'], ['job_id', 'asc']])->values()
         : collect();
-    $canManageTaskDetails = auth()->user()->can('work', $task);
+    /*
+     * เพิ่ม ลาก ย้าย แก้ชื่อ และลบงานย่อย ใช้สิทธิ์ manageSubtasks ตัวเดียวกับ WorkOrderSubtaskController
+     *
+     * เดิมหน้าจอเช็ค work() ซึ่งกว้างกว่า ผู้ร่วมงาน (รวมถึงผู้ร่วมงานข้ามแผนก) จึงเห็นช่องเพิ่มงานย่อย
+     * และเมนูย้าย/ลบ แต่กดแล้วได้ "This action is unauthorized" ทุกครั้ง
+     * งานย่อยของงานนั้นเป็นหน้าที่ของเจ้าของงาน ซึ่งเพิ่มคนเข้าร่วมเองได้
+     */
+    $canManageTaskDetails = auth()->user()->can('manageSubtasks', $task);
 @endphp
 
 <div class="board-task-details__panel" id="task-details-{{ $task->job_id }}" data-task-details-panel hidden>

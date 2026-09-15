@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogTemplate;
 use App\Services\NotificationMaintenanceService;
+use App\Services\RoutineAccountabilityService;
 use App\Services\RoutineAttentionService;
 use App\Services\Telegram\TelegramClient;
 use App\Services\Telegram\TelegramOutbox;
@@ -122,6 +123,34 @@ Artisan::command('worklogs:materialize-routines', function (): void {
 })->purpose('Create today\'s routine work-log entries from each member\'s templates');
 
 Schedule::command('worklogs:materialize-routines')->dailyAt('00:10')->timezone('Asia/Bangkok');
+
+/*
+ * ปิดรอบงานประจำ 17:00 ตามเวลาไทย
+ *
+ * ตัวช่วยเหมือนคำสั่งข้างบน ไม่ใช่แหล่งความจริง — ทุกทางเข้า (เปิดหน้า, topbar, เริ่ม/เสร็จ)
+ * เรียก RoutineAccountabilityService::closeFor() เองอยู่แล้ว คำสั่งนี้ทำให้หัวหน้าและรายงาน
+ * เห็นรายการปิดรอบของคนที่ยังไม่ได้เปิดระบบตั้งแต่ 17:00
+ */
+Artisan::command('worklogs:close-routine-day', function (): void {
+    $closed = 0;
+
+    User::query()
+        ->whereIn('role', ['admin', 'user'])
+        ->where('is_active', true)
+        ->where(fn ($scoped) => $scoped
+            ->whereIn('id', WorkLogTemplate::query()->where('is_active', true)->select('user_id'))
+            ->orWhereIn('id', DB::table('work_log_template_participants')
+                ->join('work_log_templates', 'work_log_templates.id', '=', 'work_log_template_participants.work_log_template_id')
+                ->where('work_log_templates.is_active', true)
+                ->select('work_log_template_participants.user_id')))
+        ->each(function (User $member) use (&$closed): void {
+            $closed += app(RoutineAccountabilityService::class)->closeFor($member);
+        });
+
+    $this->info("Closed {$closed} routine work-log entr(ies) at the daily cutoff.");
+})->purpose('Close routine entries that were not started or not completed by 17:00 Bangkok time');
+
+Schedule::command('worklogs:close-routine-day')->dailyAt('17:00')->timezone('Asia/Bangkok')->withoutOverlapping();
 
 Artisan::command('worklogs:notify-routines', function (): void {
     $users = User::query()

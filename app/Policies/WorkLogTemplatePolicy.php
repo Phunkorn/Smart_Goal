@@ -27,6 +27,31 @@ class WorkLogTemplatePolicy
         return $user->role !== 'viewer' && $user->id === $template->user_id;
     }
 
+    /**
+     * อ่านเฉพาะข้อมูลสรุปบนปฏิทินของผู้รับผิดชอบในแผนกเดียวกัน
+     *
+     * ability นี้ไม่ถูกใช้กับหน้าแก้ไขแม่แบบ และไม่เปลี่ยน update()/delete()
+     * ซึ่งยังเป็นสิทธิ์ของเจ้าของแม่แบบเพียงคนเดียว
+     */
+    public function viewCalendar(User $viewer, WorkLogTemplate $template, User $responsibleOwner): bool
+    {
+        if ($viewer->role === 'viewer') {
+            return false;
+        }
+
+        $isResponsible = (int) $template->user_id === (int) $responsibleOwner->id
+            || $template->participants->contains('id', $responsibleOwner->id);
+
+        if (! $isResponsible) {
+            return false;
+        }
+
+        return $viewer->role === 'admin'
+            || $viewer->id === $responsibleOwner->id
+            || ($viewer->department_id !== null
+                && (int) $viewer->department_id === (int) $responsibleOwner->department_id);
+    }
+
     public function create(User $user): bool
     {
         return $user->role !== 'viewer';

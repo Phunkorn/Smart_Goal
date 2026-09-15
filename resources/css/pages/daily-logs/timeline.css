@@ -1,124 +1,97 @@
+.daily-log .log-timeline { min-width:0; padding:12px; border:1px solid #e4ebf5; border-radius:12px; background:#fff; box-shadow:0 8px 24px -22px rgba(24,65,129,.45); }
+.daily-log .log-timeline__head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:2px 0 14px; }
+.daily-log .log-timeline__heading { display:flex; align-items:center; gap:9px; margin:0; color:#172c51; font-size:1rem; font-weight:500; }
+.daily-log .log-timeline__heading-mark { width:20px; height:20px; border:3px solid #1261dc; border-right-color:#dce9ff; border-radius:50%; }
+.daily-log .log-timeline__heading small { color:#6a7d9b; font-size:.8rem; font-weight:300; }
+.daily-log .log-timeline__status-control { width:140px; }
+.daily-log .log-timeline__status-control .form-select,
+.daily-log .log-timeline__status-control .sg-select__trigger { border-color:#dbe5f4; border-radius:9px; color:#445b7d; font-size:.8rem; font-weight:300; }
+.daily-log .log-timeline__scroll { min-width:0; overflow-x:auto; }
 /*
- * ไทม์ไลน์ของวัน
- *
- * แต่ละแถวอ่านจากซ้ายไปขวา: เวลา → ประเภทและหมวด → ชื่องาน
- * คอลัมน์เวลาถูกตรึงความกว้างไว้เพื่อให้ตาไล่ลงมาตามแนวตั้งได้โดยไม่สะดุด
+ * คอลัมน์สถานะต้องกว้างพอให้ป้าย เวลาที่กำลังทำ และเหตุผลที่เริ่มช้า ขึ้นบรรทัดใหม่ได้
+ * โดยไม่ไปดันปุ่มในคอลัมน์ Action ส่วน Action กว้างพอสำหรับปุ่มสองปุ่มกับปุ่ม ⋯
+ * ทุกการ์ดเป็น grid ของตัวเอง จึงต้องใช้ความกว้างคงที่ ไม่ใช่ max-content ไม่เช่นนั้นคอลัมน์จะไม่ตรงกัน
  */
-.log-timeline { display:grid; gap:12px; }
-.log-timeline__head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
-.log-timeline__heading { margin:0; color:#0f172a; font-size:1.02rem; font-weight:700; }
-
-.log-timeline__filters { display:flex; flex-wrap:wrap; gap:6px; }
-.log-filter { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid #dde5f1; border-radius:999px; background:#fff; color:#526180; font-size:.8rem; font-weight:600; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
-.log-filter:hover { border-color:#b9cbe8; }
-.log-filter:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
-.log-filter.is-active { border-color:#2563eb; background:#eff5ff; color:#1d4ed8; }
-.log-filter__count { padding:1px 7px; border-radius:999px; background:#eef2f8; color:#64748b; font-size:.72rem; font-weight:700; }
-.log-filter.is-active .log-filter__count { background:#dbeafe; color:#1d4ed8; }
-
-.log-timeline__hint { display:flex; align-items:center; gap:8px; margin:0; padding:9px 13px; border:1px solid #f3e2c0; border-radius:11px; background:#fffaeb; color:#8a6212; font-size:.82rem; }
-
+.daily-log .log-timeline__columns,
+.daily-log .log-card { display:grid; grid-template-columns:56px minmax(170px,1.5fr) minmax(110px,.75fr) minmax(115px,.8fr) 84px minmax(165px,1fr) 184px; align-items:center; column-gap:12px; min-width:920px; }
+.daily-log .log-timeline__columns { padding:0 12px 8px; color:#8090a8; font-size:.68rem; font-weight:300; }
+.daily-log .log-timeline__list { display:grid; gap:8px; }
+.daily-log .log-card { position:relative; min-height:70px; padding:10px 12px; border:1px solid #e3ebf7; border-radius:9px; background:#fff; color:#1b2d4d; font-size:.78rem; font-weight:300; }
+.daily-log .log-card[hidden] { display:none; }
+.daily-log .log-card__time { display:grid; gap:2px; font-variant-numeric:tabular-nums; }
+.daily-log .log-card__time strong { color:#14284b; font-size:.8rem; font-weight:300; }
+.daily-log .log-card__time small,
+.daily-log .log-card__type small,
+.daily-log .log-card__name small,
+.daily-log .log-card__project small,
+.daily-log .log-card__state small { color:#7485a2; font-size:.7rem; }
+.daily-log .log-card__name { display:flex; align-items:center; gap:10px; min-width:0; }
+.daily-log .log-card__name > span:last-child { display:grid; gap:3px; min-width:0; }
+.daily-log .log-card__name strong { overflow:hidden; color:#17284a; font-size:.82rem; font-weight:300; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .log-card__name small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .log-card__kind-icon { display:grid; flex:0 0 34px; place-items:center; height:34px; border-radius:9px; background:#edf4ff; color:#1261d9; font-size:1rem; }
+.daily-log .log-card__type,
+.daily-log .log-card__project,
+.daily-log .log-card__state { display:grid; gap:3px; min-width:0; }
+.daily-log .log-card__state small { line-height:1.35; white-space:normal; overflow-wrap:anywhere; }
+.daily-log .log-card__state small.log-card__issue { color:#b42318; }
+.daily-log .log-card__name small.log-card__shared { color:#3768aa; }
+.daily-log .log-card__project { border-left:1px solid #e7edf6; padding-left:10px; }
+.daily-log .log-card__project > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .log-card__type-label { width:max-content; padding:2px 7px; border-radius:7px; background:#edf4ff; color:#1261d9; font-size:.68rem; font-weight:300; }
+.daily-log .log-card[data-log-kind="field"] .log-card__type-label { background:#f3efff; color:#6c49b6; }
+.daily-log .log-card__people > span:not(.log-card__muted) { display:flex; align-items:center; }
+.daily-log .log-card__avatar { display:grid; place-items:center; width:22px; height:22px; margin-right:-3px; border:2px solid #fff; border-radius:50%; background:#e5eefc; color:#31558d; font-size:.65rem; font-weight:300; }
+.daily-log .log-card__people small { margin-left:5px; color:#7182a0; }
+.daily-log .log-card__muted { color:#a0aec3; }
+.daily-log .log-card__status { width:max-content; max-width:100%; padding:4px 9px; border-radius:999px; background:#f0f5fc; color:#456187; font-size:.7rem; font-weight:300; }
+.daily-log .log-card--status-in_progress .log-card__status { background:#eaf2ff; color:#1261d9; }
+.daily-log .log-card--status-done .log-card__status { background:#e6f7f2; color:#13856a; }
+.daily-log .log-card--status-overdue .log-card__status { background:#fff2e7; color:#c26b1e; }
+.daily-log .log-card__actions { display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; }
+.daily-log .log-card__action { padding:6px 9px; border:1px solid #cddbf0; border-radius:7px; background:#fff; color:#395478; font-size:.7rem; font-weight:300; white-space:nowrap; cursor:pointer; }
+.daily-log .log-card__action--primary { border-color:#1261dc; background:#1261dc; color:#fff; }
+.daily-log .log-card__action--quiet { padding:5px; border-color:transparent; color:#7384a0; }
+.daily-log .log-card__action[disabled] { opacity:.55; cursor:not-allowed; }
+.daily-log .log-card__action:focus-visible,
+.daily-log .log-card__menu-trigger:focus-visible { outline:2px solid #1261dc; outline-offset:2px; }
+.daily-log .log-card__menu-trigger { display:grid; flex:0 0 auto; place-items:center; width:25px; height:25px; border:0; border-radius:6px; background:transparent; color:#5d7394; cursor:pointer; }
+.daily-log .log-card__menu-trigger:hover { background:#edf4ff; }
+.daily-log .log-timeline__empty { margin:0; padding:26px; color:#798ba7; text-align:center; font-size:.83rem; }
 /*
- * กลุ่ม "ที่ต้องทำ" และ "ทำแล้ว"
- *
- * กลุ่มที่ทำแล้วถูกลดน้ำหนักสายตาลง (หัวข้อจาง การ์ดพื้นเทาอ่อน) เพราะเป็น
- * ข้อมูลยืนยัน ไม่ใช่สิ่งที่ต้องลงมือต่อ สิ่งที่ต้องเด่นคือรายการที่ยังเหลืออยู่
+ * เมนู ⋯ ลอยแบบ fixed อิงตำแหน่งปุ่ม (timeline.js คำนวณ top/left)
+ * ถ้าเป็นลูกของการ์ด มันจะถูก overflow ของ .log-timeline__scroll ตัดทิ้งและไปซ่อนอยู่ในกรอบรายการ
+ * z-index ต่ำกว่า modal-stack (1200) เพราะเมนูถูกปิดก่อนกล่องแก้ไขเปิดเสมอ
  */
-.log-group { display:grid; gap:9px; }
-.log-group + .log-group { margin-top:18px; padding-top:16px; border-top:1px solid #eef2f8; }
-.log-group__heading { display:flex; align-items:center; gap:8px; margin:0; color:#33415c; font-size:.88rem; font-weight:700; }
-.log-group__heading i { color:#94a3b8; font-size:.85rem; }
-.log-group--done .log-group__heading { color:#7c8aa3; }
-.log-group--done .log-group__heading i { color:#0d9488; }
-.log-group__count { padding:1px 8px; border-radius:999px; background:#eef2f8; color:#64748b; font-size:.74rem; font-weight:700; }
-
-.log-timeline__list { display:grid; gap:9px; }
-.log-timeline__empty { display:flex; flex-direction:column; align-items:center; gap:9px; margin:0; padding:38px 24px; border:1px dashed #d9e2f0; border-radius:14px; color:#7c8aa3; font-size:.88rem; text-align:center; }
-.log-timeline__empty i { color:#a8b6cc; font-size:1.7rem; }
-
-/* หนึ่งบันทึก */
-.log-card { position:relative; display:grid; grid-template-columns:74px minmax(0,1fr) auto; align-items:start; gap:14px; padding:14px 16px; border:1px solid #e4eaf3; border-left:3px solid #cbd5e1; border-radius:13px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.03); transition:border-color .15s ease, box-shadow .15s ease; }
-.log-card:hover { border-color:#cfdcf0; box-shadow:0 8px 20px -16px rgba(15,23,42,.45); }
-.log-card--blue { border-left-color:#2563eb; }
-.log-card--amber { border-left-color:#d97706; }
-.log-card--teal { border-left-color:#0d9488; }
-.log-card--gray { border-left-color:#94a3b8; }
-.log-card--done { background:#fbfcfe; }
-.log-card--done .log-card__title { color:#475569; }
-
-.log-card__time { display:grid; gap:2px; }
-.log-card__clock { color:#0f172a; font-size:.94rem; font-weight:700; font-variant-numeric:tabular-nums; }
-.log-card__duration { color:#7c8aa3; font-size:.75rem; font-weight:600; }
-.log-card__elapsed { color:#0f766e; font-variant-numeric:tabular-nums; }
-
-.log-card__body { display:grid; gap:6px; min-width:0; }
-.log-card__chips { display:flex; flex-wrap:wrap; gap:5px; }
-.log-card__title { margin:0; color:#111827; font-size:.95rem; font-weight:650; line-height:1.4; overflow-wrap:anywhere; }
-
-.log-card__meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; margin:0; color:#7382a0; font-size:.78rem; }
-.log-card__meta-item { display:inline-flex; align-items:center; gap:5px; min-width:0; }
-.log-card__meta-item i { color:#9aa8bf; font-size:.8rem; }
-.log-card__meta-item--muted { color:#a3adc0; text-decoration:line-through; }
-.log-card__range { font-variant-numeric:tabular-nums; }
-
-.log-card__details { margin:2px 0 0; color:#5c6b85; font-size:.83rem; line-height:1.55; overflow-wrap:anywhere; }
-
-/*
- * ปุ่มลงมือของแถว
- *
- * มีปุ่มเดียวต่อแถวเสมอ — "ทำเสร็จแล้ว" ตอนยังค้าง และ "ยังไม่เสร็จ" ตอนยืนยัน
- * ไปแล้ว ไม่มีปุ่มจับเวลาแยกอีกชุดหนึ่งให้ต้องเลือกว่าจะกดอันไหน
- */
-.log-card__actions { display:flex; align-items:flex-start; gap:6px; }
-.log-card__action { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border:1px solid #dde5f1; border-radius:999px; background:#fff; color:#526180; font-size:.8rem; font-weight:650; white-space:nowrap; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
-.log-card__action:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
-.log-card__action[disabled] { opacity:.55; cursor:progress; }
-.log-card__action--done { border-color:#99e6d9; background:#effcfa; color:#0f766e; }
-.log-card__action--done:hover { border-color:#0d9488; background:#d9f7f1; }
-.log-card__action--start { border-color:#9fc2f5; background:#edf5ff; color:#1d5fbf; }
-.log-card__action--start:hover { border-color:#4d8ddd; background:#dcecff; }
-.log-card__action--skip { border-color:#d8dee8; background:#f8fafc; color:#64748b; }
-.log-card__action--skip:hover { border-color:#94a3b8; background:#f1f5f9; color:#334155; }
-.log-card__action[disabled] { cursor:not-allowed; }
-.log-card__action--undo { color:#7c8aa3; }
-.log-card__action--undo:hover { border-color:#b9cbe8; color:#33415c; }
-
-.log-card--status-overdue { border-color:#fecaca; background:#fffafa; }
-
-/* งานประจำของวันที่ผ่านไปแล้วซึ่งยังไม่ถูกปิดรายการ — ต้องสะดุดตากว่า "เกินเวลา"
-   เพราะเป็นสิ่งที่ค้างอยู่ข้ามวันและปิดได้ทางเดียวคือระบุเหตุผล */
-.log-card--status-missed { border-color:#fca5a5; background:#fff5f5; }
-.log-card__action--reason { border-color:#f7b9b9; background:#fff5f5; color:#b42318; }
-.log-card__action--reason:hover { border-color:#e35d5d; background:#ffe9e9; }
-.log-card__reason { margin:7px 0 0; color:#64748b; font-size:.76rem; line-height:1.45; }
-.log-card__reason strong { color:#475569; font-weight:700; }
-.log-chip--red { background:#feecec; color:#c62828; }
-
-.log-card__menu-trigger { display:grid; place-items:center; width:30px; height:30px; border:1px solid transparent; border-radius:8px; background:transparent; color:#8494ae; cursor:pointer; transition:background-color .15s ease, color .15s ease, border-color .15s ease; }
-.log-card__menu-trigger:hover { border-color:#dde5f1; background:#f5f8fd; color:#33415c; }
-.log-card__menu-trigger:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
-.log-card__menu-trigger[aria-expanded="true"] { border-color:#c2d4f0; background:#eff5ff; color:#1d4ed8; }
-
-/* ป้ายกำกับเล็กในแถว */
-.log-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:#eef2f8; color:#526180; font-size:.72rem; font-weight:650; }
-.log-chip i { font-size:.75rem; }
-.log-chip--blue { background:#eff5ff; color:#1d4ed8; }
-.log-chip--amber { background:#fffaeb; color:#b45309; }
-.log-chip--teal { background:#effcfa; color:#0f766e; }
-.log-chip--purple { background:#f5f2ff; color:#6d28d9; }
-.log-chip--cyan { background:#ecfeff; color:#0e7490; }
-.log-chip--gray { background:#f1f5f9; color:#475569; }
-.log-chip--warning { background:#fef3c7; color:#92400e; }
-/* ช่วงเวลาที่ "ตั้งไว้ว่าต้องเข้าไปทำ" ต่างจากเวลาที่ทำจริงในคอลัมน์ซ้าย */
-.log-chip--plan { background:#eef4ff; color:#3b5bab; }
-
-/* เมนูจัดการรายแถว — เป็น popover ไม่ใช่ modal จึงไม่มี backdrop และไม่ล็อกการเลื่อนหน้า */
-.log-row-menu { position:absolute; z-index:40; min-width:172px; padding:6px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 18px 40px -22px rgba(15,23,42,.6); }
-.log-row-menu[hidden] { display:none !important; }
-.log-row-menu__item { display:flex; align-items:center; gap:9px; width:100%; padding:8px 10px; border:0; border-radius:8px; background:transparent; color:#33415c; font-size:.85rem; text-align:left; cursor:pointer; }
-.log-row-menu__item:hover { background:#f2f6fd; }
-.log-row-menu__item:focus-visible { outline:2px solid #2563eb; outline-offset:-2px; }
-.log-row-menu__item i { color:#8494ae; }
-.log-row-menu__item--danger { color:#b42318; }
-.log-row-menu__item--danger:hover { background:#fef3f2; }
-.log-row-menu__item--danger i { color:#d92d20; }
+.daily-log .log-row-menu { position:fixed; z-index:1050; min-width:160px; padding:5px; border:1px solid #e0e8f3; border-radius:10px; background:#fff; box-shadow:0 18px 40px -22px rgba(15,23,42,.6); transform-origin:top right; animation:log-row-menu-slide .16s ease-out; }
+.daily-log .log-row-menu[data-placement="top"] { transform-origin:bottom right; animation-name:log-row-menu-slide-up; }
+.daily-log .log-row-menu__item { display:flex; align-items:center; gap:8px; width:100%; padding:8px; border:0; border-radius:7px; background:transparent; color:#33415c; font-size:.8rem; font-weight:300; text-align:left; cursor:pointer; }
+.daily-log .log-row-menu__item:hover { background:#edf4ff; }
+.daily-log .log-row-menu__item--danger { color:#b42318; }
+.daily-log .log-row-menu__item--danger:hover { background:#fff2f1; }
+@keyframes log-row-menu-slide {
+  from { opacity:0; transform:translateY(-6px) scale(.98); }
+  to { opacity:1; transform:none; }
+}
+@keyframes log-row-menu-slide-up {
+  from { opacity:0; transform:translateY(6px) scale(.98); }
+  to { opacity:1; transform:none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .daily-log .log-row-menu { animation:none; }
+}
+@media (max-width:575px) {
+  .daily-log .log-timeline__columns { display:none; }
+  .daily-log .log-timeline__scroll { overflow-x:visible; }
+  .daily-log .log-card { grid-template-columns:48px minmax(0,1fr); min-width:0; gap:6px 10px; }
+  .daily-log .log-card__time { grid-row:1 / 3; align-self:start; }
+  .daily-log .log-card__name { grid-column:2; }
+  .daily-log .log-card__type,
+  .daily-log .log-card__project,
+  .daily-log .log-card__people,
+  .daily-log .log-card__state,
+  .daily-log .log-card__actions { grid-column:2; }
+  .daily-log .log-card__type { display:flex; align-items:center; gap:6px; }
+  .daily-log .log-card__project { border-left:0; padding-left:0; }
+  .daily-log .log-card__actions { justify-content:flex-start; }
+}

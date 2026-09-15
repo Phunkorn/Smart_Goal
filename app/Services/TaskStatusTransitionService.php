@@ -231,12 +231,20 @@ class TaskStatusTransitionService
 
     private function notify(WorkOrder $task, User $actor, string $action, string $reason): void
     {
+        /*
+         * ส่งกลับแก้ไขใช้ผู้รับชุดเดียวกับการอนุมัติ — คนที่ต้องลงมือแก้งานต่อคือทุกคนที่ทำงานนี้
+         *
+         * เดิมส่งให้ผู้รับผิดชอบ (user_id) คนเดียว เมื่อผู้ตรวจเป็นผู้รับผิดชอบเอง (สร้างงานของตัวเอง
+         * แล้วเชิญคนอื่นมาร่วม) ผู้รับจะถูกตัดออกเพราะเป็นคนกด ผู้ร่วมงานที่ส่งตรวจมาจึงไม่รู้ว่า
+         * งานถูกส่งกลับ ทั้งที่ตอนอนุมัติเขาได้รับแจ้งเตือน
+         */
+        $workers = fn () => collect([$task->user_id])
+            ->merge($task->collaborators->filter(fn ($user) => $user->pivot?->status === 'accepted')->pluck('id'));
+
         $recipientIds = match ($action) {
             'admin_status_overridden' => collect(),
             'submitted_for_review' => collect([$this->approverId($task)]),
-            'review_returned' => collect([$task->user_id]),
-            'review_approved', 'self_closed', 'task_reopened' => collect([$task->user_id])
-                ->merge($task->collaborators->filter(fn ($user) => $user->pivot?->status === 'accepted')->pluck('id')),
+            'review_returned', 'review_approved', 'self_closed', 'task_reopened' => $workers(),
             default => collect(),
         };
 

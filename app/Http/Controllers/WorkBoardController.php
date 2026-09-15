@@ -11,6 +11,7 @@ use App\Services\DepartmentWorkBoardQuery;
 use App\Services\MeetingQueryService;
 use App\Services\MemberWorkloadQuery;
 use App\Services\TaskCommentService;
+use App\Support\CrossDepartmentWork;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TaskCollaboratorOptions;
 use App\Support\TaskScopeOptions;
@@ -114,6 +115,7 @@ class WorkBoardController extends Controller
                 'department' => $department,
                 'member' => $user,
                 'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
+                'operations' => $this->departmentWorkBoard->memberOperations($user, $request->user()),
                 'isAdmin' => true,
                 'workspaceRouteName' => 'work-board.member',
                 'workspaceRouteParameters' => [$department, $user, 'workspace' => 1],
@@ -124,6 +126,7 @@ class WorkBoardController extends Controller
             'department' => $department,
             'member' => $user,
             'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
+            'operations' => $this->departmentWorkBoard->memberOperations($user, $request->user()),
             'isAdmin' => false,
         ]);
     }
@@ -141,7 +144,7 @@ class WorkBoardController extends Controller
         ]);
     }
 
-    public function adminMemberPreview(Department $department, User $user)
+    public function adminMemberPreview(Request $request, Department $department, User $user)
     {
         $this->ensurePreviewMember($department, $user);
 
@@ -149,6 +152,7 @@ class WorkBoardController extends Controller
             'department' => $department,
             'member' => $user,
             'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
+            'operations' => $this->departmentWorkBoard->memberOperations($user, $request->user()),
             'isAdmin' => true,
         ]);
     }
@@ -197,8 +201,9 @@ class WorkBoardController extends Controller
         $allJobs = $memberJobsQuery
             ->with([
                 'taskList.attachments',
+                'department',
                 'user.department',
-                'creator',
+                'creator.department',
                 'leader.department',
                 'collaborators.department',
                 // เมนู "แชร์งาน" ในแถวงานถามว่างานใบนี้กำลังถูกแชร์อยู่หรือเปล่า
@@ -218,6 +223,10 @@ class WorkBoardController extends Controller
             ])
             ->withCount('images')
             ->get();
+
+        // สมาชิกที่ไปร่วมงานข้ามแผนก — Workspace ของเขาแสดงเฉพาะงานย่อยที่เขามีส่วนร่วม
+        // กติกาเดียวกับ MyTaskController::index() ผู้เปิดดู (หัวหน้า/admin) จึงเห็นเท่ากับเจ้าตัว
+        CrossDepartmentWork::restrictChildren($allJobs, $user);
 
         // งานย่อยแสดงใต้งานแม่ ไม่ใช่แถวของตัวเอง — กติกาเดียวกับ MyTaskController::index()
         $childJobs = $allJobs->filter(fn (WorkOrder $job) => $job->parent_job_id !== null)->values();
@@ -273,6 +282,7 @@ class WorkBoardController extends Controller
         $workspaceTaskLists = $taskScope === 'all'
             ? $taskLists
             : $taskLists->whereIn('id', $scopedJobs->pluck('work_order_list_id')->filter()->unique())->values();
+        $visibleChildIds = CrossDepartmentWork::visibleChildIds($jobs);
         $activeTasks = $jobs->reject(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $completedTasks = $jobs->filter(fn (WorkOrder $job) => (int) $job->job_status === 4)->values();
         $todayTasks = TodayWorkspace::tasks($scopedJobs);
@@ -323,7 +333,8 @@ class WorkBoardController extends Controller
             'completedTasks' => $completedTasks,
             // งานย่อยของงานที่แสดงอยู่ ต้องถูกส่งไปด้วยเพื่อให้โมดัลรายละเอียดงานเปิดมันได้
             'childTasks' => $childJobs
-                ->filter(fn (WorkOrder $job) => $jobs->contains('job_id', $job->parent_job_id))
+                ->filter(fn (WorkOrder $job) => $jobs->contains('job_id', $job->parent_job_id)
+                    && in_array((int) $job->job_id, $visibleChildIds, true))
                 ->values(),
             'todayTasks' => $todayTasks,
             'workspaceTasks' => $workspaceTasks,

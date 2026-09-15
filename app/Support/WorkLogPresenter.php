@@ -20,29 +20,12 @@ final class WorkLogPresenter
         $kind = WorkLogDesign::kind($log->kind);
         $now = TodayWorkspace::businessNow()->utc();
         $isRoutine = $log->work_log_template_id !== null;
-
-        // วันของรายการผ่านไปแล้วหรือยัง เทียบด้วยวันตามเวลาทำการเสมอ
-        // เพราะ 23:00 ที่กรุงเทพยังเป็นวันเดิม แต่เป็นวันถัดไปแล้วตามเวลา UTC
-        $isPastDay = $log->work_date !== null
-            && $log->work_date->format('Y-m-d') < TodayWorkspace::businessNow()->format('Y-m-d');
-
-        // งานประจำที่วันนั้นผ่านไปแล้วและยังไม่ถูกปิดรายการ กดเริ่มงานไม่ได้อีกแล้ว
-        // เหลือทางเดียวคือระบุเหตุผลว่าทำไมวันนั้นไม่ได้ทำ ดู WorkLogService::startRoutine()
-        $isMissed = $isRoutine
-            && $isPastDay
-            && in_array($log->status, ['open', 'in_progress'], true);
-
-        $isOverdue = $isRoutine
-            && ! $isMissed
-            && in_array($log->status, ['open', 'in_progress'], true)
-            && $log->planned_end_at !== null
-            && $now->greaterThan($log->planned_end_at);
-
-        $displayStatus = match (true) {
-            $isMissed => 'missed',
-            $isOverdue => 'overdue',
-            default => $log->status,
-        };
+        $isPastDay = self::isPastDay($log);
+        $displayStatus = self::displayStatus($log);
+        $isOverdue = $displayStatus === 'overdue';
+        $requiresExplanation = self::requiresExplanation($log);
+        $isPastCutoff = $log->work_date !== null && WorkLogDesign::isPastCutoff($log->work_date->format('Y-m-d'));
+        $isStartable = $log->status === 'open' || ($log->status === 'absent' && ! $isPastCutoff);
         $status = WorkLogDesign::status($displayStatus);
 
         return [
@@ -85,17 +68,32 @@ final class WorkLogPresenter
             'is_in_progress' => $log->status === 'in_progress',
             'is_overdue' => $isOverdue,
             'is_past_day' => $isPastDay,
-            // งานของวันที่ผ่านไปแล้วต้องระบุเหตุผล ไม่ใช่กดเริ่มงานย้อนหลัง
-            'is_missed' => $isMissed,
-            'requires_missed_reason' => $isMissed,
-            'can_start' => $isRoutine && ! $isPastDay && $log->status === 'open'
+            // ปิดรอบ 17:00 แล้ว (ไม่ได้เริ่ม / เริ่มแล้วไม่กดเสร็จ / ไม่มา) — เหลือทางเดียวคือระบุเหตุผล
+            'is_closed_by_cutoff' => $isRoutine && in_array($displayStatus, WorkLogDesign::EXPLANATION_STATUSES, true)
+                && ($displayStatus !== 'absent' || $isPastCutoff),
+            'requires_explanation' => $requiresExplanation,
+            'explanation_type' => $requiresExplanation ? $displayStatus : null,
+            'can_start' => $isRoutine && ! $isPastCutoff && $isStartable
                 && ($log->planned_start_at === null || ! $now->lessThan($log->planned_start_at)),
-            'requires_late_start_reason' => $isRoutine && ! $isPastDay && $log->status === 'open'
-                && $log->planned_start_at !== null && $now->greaterThan($log->planned_start_at),
+            // ช้าเมื่อเลยเวลาที่ตั้งไว้เกินช่วงผ่อนผัน — กติกาเดียวกับ WorkLogService
+            'requires_late_start_reason' => $isRoutine && ! $isPastCutoff && $isStartable
+                && $log->planned_start_at !== null && $now->greaterThan(WorkLogDesign::lateAfter($log->planned_start_at)),
             'requires_late_completion_reason' => $isRoutine && ! $isPastDay && $log->status === 'in_progress'
-                && $log->planned_end_at !== null && $now->greaterThan($log->planned_end_at),
+                && $log->planned_end_at !== null && $now->greaterThan(WorkLogDesign::lateAfter($log->planned_end_at)),
+            // เวลาที่เริ่มนับว่าช้า ให้หน้าจอที่เปิดค้างไว้รู้ว่าต้องถามเหตุผลแล้ว โดยไม่ต้องคำนวณช่วงผ่อนผันเอง
+            'late_start_after' => $isRoutine && $log->planned_start_at !== null
+                ? WorkLogDesign::lateAfter($log->planned_start_at)->toIso8601String() : null,
+            'late_completion_after' => $isRoutine && $log->planned_end_at !== null
+                ? WorkLogDesign::lateAfter($log->planned_end_at)->toIso8601String() : null,
             'late_start_reason' => $log->late_start_reason,
             'late_completion_reason' => $log->late_completion_reason,
+            'unfinished_reason' => $log->unfinished_reason,
+            'absent_marked_by' => $log->absent_marked_by === null ? null : $log->absentMarkedBy?->name,
+            'explained_at' => $log->explained_at?->toIso8601String(),
+            'has_issue' => (bool) $log->has_issue,
+            'issue_details' => $log->issue_details,
+            // งานนอกสถานที่ที่คนอื่นสร้างแล้วเพิ่มเจ้าของรายการนี้เข้าร่วม
+            'shared_from' => self::sharedFrom($log),
             'skip_reason' => $log->skip_reason,
             'auto_closed' => $log->auto_closed_at !== null,
 
@@ -134,6 +132,107 @@ final class WorkLogPresenter
     }
 
     /**
+     * สถานะที่ผู้ใช้เห็น — แหล่งเดียวของกติกา "เกินเวลา" และ "ต้องระบุเหตุผล"
+     *
+     * ใช้ร่วมกันระหว่างหน้าบันทึกงานประจำวันและรายงานปฏิบัติงาน สองหน้าจึงบอกสถานะ
+     * ของรายการเดียวกันตรงกันเสมอ ไม่ต้องโหลดไฟล์แนบเหมือน forClient()
+     */
+    public static function displayStatus(WorkLog $log): string
+    {
+        $isRoutine = $log->work_log_template_id !== null;
+        $isUnclosed = in_array($log->status, ['open', 'in_progress'], true);
+
+        // เลยเวลาปิดรอบ 17:00 ของวันนั้นแล้ว — แยก "ไม่ได้เริ่ม" กับ "เริ่มแล้วไม่กดเสร็จ" ให้ชัด
+        // ใช้ได้แม้ยังไม่มีทางเข้าไหนเขียนสถานะลงฐานข้อมูล รายงานจึงเห็นตรงกันเสมอ
+        // (RoutineAccountabilityService::closeFor() เขียนค่าเดียวกันนี้ลงคอลัมน์ status)
+        if ($isRoutine && $isUnclosed && $log->work_date !== null
+            && WorkLogDesign::isPastCutoff($log->work_date->format('Y-m-d'))) {
+            return $log->status === 'in_progress' ? 'unfinished' : 'not_started';
+        }
+
+        if ($isRoutine && $isUnclosed && $log->planned_end_at !== null
+            && TodayWorkspace::businessNow()->utc()->greaterThan($log->planned_end_at)) {
+            return 'overdue';
+        }
+
+        return (string) $log->status;
+    }
+
+    /**
+     * รายการงานประจำนี้ปิดรอบแล้วและยังไม่มีเหตุผลหรือไม่
+     *
+     * not_started / absent ต้องมี skip_reason ส่วน unfinished ต้องมี unfinished_reason
+     * absent ของวันนี้ที่ยังไม่ถึงเวลาปิดรอบยังไม่ต้องตอบ เพราะเจ้าตัวยังมาเริ่มเองได้
+     */
+    public static function requiresExplanation(WorkLog $log): bool
+    {
+        if ($log->work_log_template_id === null) {
+            return false;
+        }
+
+        $status = self::displayStatus($log);
+
+        return match ($status) {
+            'unfinished' => blank($log->unfinished_reason),
+            'not_started' => blank($log->skip_reason),
+            'absent' => blank($log->skip_reason)
+                && $log->work_date !== null
+                && WorkLogDesign::isPastCutoff($log->work_date->format('Y-m-d')),
+            default => false,
+        };
+    }
+
+    /**
+     * สถานะที่คนในแผนกเห็นบนปฏิทิน — เหมือน displayStatus() แต่แยก "พบปัญหา" ออกจาก "เสร็จแล้ว"
+     *
+     * แยกเป็นเมธอดของตัวเองเพราะรายงานปฏิบัติงานนับ displayStatus() = 'done' เป็นงานที่ปิดแล้ว
+     * ถ้าเปลี่ยนค่านั้นเป็น 'issue' ตัวเลขในรายงานจะหายไปเงียบ ๆ
+     */
+    public static function calendarStatus(WorkLog $log): string
+    {
+        if ($log->status === 'done' && $log->has_issue) {
+            return 'issue';
+        }
+
+        return self::displayStatus($log);
+    }
+
+    /**
+     * คนสร้างงานนอกสถานที่ต้นฉบับ และคนอื่นที่ไปด้วยกัน (ไม่รวมเจ้าของรายการนี้)
+     */
+    private static function sharedFrom(WorkLog $log): ?array
+    {
+        if ($log->shared_from_work_log_id === null) {
+            return null;
+        }
+
+        // ต้นฉบับถูกลบไปแล้ว — ยังเป็นสำเนา แต่ไม่มีชื่อให้แสดง
+        $source = $log->sharedFrom;
+
+        if ($source === null) {
+            return ['owner_name' => null, 'people' => []];
+        }
+
+        return [
+            'owner_name' => $source->user?->name,
+            'people' => collect([$source->user])
+                ->merge($source->participants)
+                ->filter(fn ($person) => $person && (int) $person->id !== (int) $log->user_id)
+                ->pluck('name')->unique()->values()->all(),
+        ];
+    }
+
+    /**
+     * วันของรายการผ่านไปแล้วหรือยัง เทียบด้วยวันตามเวลาทำการเสมอ
+     * เพราะ 23:00 ที่กรุงเทพยังเป็นวันเดิม แต่เป็นวันถัดไปแล้วตามเวลา UTC
+     */
+    public static function isPastDay(WorkLog $log): bool
+    {
+        return $log->work_date !== null
+            && $log->work_date->format('Y-m-d') < TodayWorkspace::businessNow()->format('Y-m-d');
+    }
+
+    /**
      * ข้อมูลของงานประจำที่รายการนี้ถูกสร้างมาจาก
      *
      * คืน null สำหรับงานที่ผู้ใช้พิมพ์เอง เพื่อให้ฝั่งแสดงผลแยกสองกรณีนี้ได้ตรง ๆ
@@ -160,6 +259,10 @@ final class WorkLogPresenter
             'is_shared' => $isShared,
             // ชื่อคนที่ตั้งงานประจำนี้ไว้ แสดงเฉพาะตอนที่ไม่ใช่ของตัวเอง
             'owner_name' => $isShared ? $template->user?->name : null,
+            'people' => collect([$template->user])
+                ->merge($template->participants)
+                ->filter(fn ($person) => $person && (int) $person->id !== (int) $log->user_id)
+                ->pluck('name')->unique()->values()->all(),
         ];
     }
 

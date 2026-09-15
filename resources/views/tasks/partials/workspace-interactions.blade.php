@@ -45,6 +45,7 @@
     $attachmentData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
         'id' => $task->job_id,
         'topic' => $task->job_topic,
+        'is_closed' => (int) $task->job_status === 4,
         'can_upload' => ! $forceReadOnly && auth()->user()->can('work', $task),
         'upload_url' => ! $forceReadOnly && auth()->user()->can('work', $task) ? route('tasks.attachments.store', $task->job_id) : null,
         'files' => $task->images->map(fn ($file) => [
@@ -235,11 +236,11 @@
         </header>
         <div class="board-attachment-modal__body">
             <div class="board-attachment-modal__list" data-board-attachment-list></div>
-            <div class="board-attachment-modal__empty" data-board-attachment-empty hidden><i class="bi bi-paperclip"></i><strong>ยังไม่มีไฟล์แนบ</strong><span>เพิ่มเอกสารหรือรูปภาพที่เกี่ยวข้องกับงานนี้ได้ด้านล่าง</span></div>
+            <div class="board-attachment-modal__empty" data-board-attachment-empty hidden><i class="bi bi-paperclip"></i><strong>ยังไม่มีไฟล์แนบ</strong><span>ยังไม่มีเอกสารหรือรูปภาพในงานนี้</span></div>
             <div class="board-attachment-modal__upload" data-board-attachment-upload>
                 <label><i class="bi bi-cloud-arrow-up"></i><span><strong>เพิ่มไฟล์แนบ</strong><small>{{ \App\Support\AttachmentPolicy::limitsLabel() }}</small></span><input type="file" multiple data-board-modal-attachment-input accept="{{ \App\Support\AttachmentPolicy::acceptAttribute() }}"></label>
-                <label class="attachment-modal-folder"><i class="bi bi-folder-plus"></i><span><strong>เพิ่มทั้งโฟลเดอร์</strong><small>ระบบจะแนบเฉพาะไฟล์ที่รองรับ</small></span><input type="file" multiple webkitdirectory directory data-board-modal-attachment-folder></label>
             </div>
+            <p class="task-workspace__locked-notice" data-board-attachment-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i><span>งานนี้ปิดแล้ว ไม่สามารถแนบไฟล์ได้ หากต้องการแนบไฟล์ กรุณาเปิดงานอีกครั้ง</span></p>
         </div>
         <footer><button type="button" class="task-secondary" data-close-board-attachments>ปิด</button></footer>
     </section>
@@ -357,13 +358,6 @@
                         <i class="bi bi-plus-lg" aria-hidden="true"></i> เพิ่มไฟล์
                         <input type="file" multiple data-task-inline-file-input accept="{{ \App\Support\AttachmentPolicy::acceptAttribute() }}">
                     </label>
-                    {{-- HTML อัปโหลด "โฟลเดอร์" เป็นก้อนเดียวไม่ได้ webkitdirectory ให้เบราว์เซอร์
-                         กางโฟลเดอร์เป็นไฟล์ย่อยแล้วส่งมาทีละไฟล์ การตรวจชนิดและขนาดจึงยังทำงานตามปกติ
-                         เบราว์เซอร์ที่ไม่รองรับจะปฏิบัติกับปุ่มนี้เหมือนปุ่มเลือกไฟล์ธรรมดา --}}
-                    <label class="task-workspace__add-file task-workspace__add-file--folder" title="เลือกทั้งโฟลเดอร์ ระบบจะแนบเฉพาะไฟล์ที่รองรับ">
-                        <i class="bi bi-folder-plus" aria-hidden="true"></i> เพิ่มทั้งโฟลเดอร์
-                        <input type="file" multiple webkitdirectory directory data-task-inline-folder-input>
-                    </label>
                 </header>
                 {{-- ทั้งพื้นที่นี้คือ drop zone ไม่ใช่แค่ปุ่ม "เพิ่มไฟล์" เล็ก ๆ ที่หัวการ์ด
                      ผู้ใช้ลากไฟล์มาที่กรอบว่างกลางการ์ดเป็นธรรมชาติที่สุด --}}
@@ -371,8 +365,9 @@
                     <div class="task-inline-files" data-task-inline-files></div>
                     <p class="task-workspace__file-types" data-attachment-types>
                         <i class="bi bi-info-circle" aria-hidden="true"></i>
-                        ลากไฟล์หรือทั้งโฟลเดอร์มาวางที่นี่ได้ — รองรับ {{ \App\Support\AttachmentPolicy::limitsLabel() }}
+                        เลือกหรือลากไฟล์หลายรายการมาวางที่นี่ได้ — รองรับ {{ \App\Support\AttachmentPolicy::limitsLabel() }}
                     </p>
+                    <p class="task-workspace__locked-notice" data-attachment-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i><span>งานนี้ปิดแล้ว ไม่สามารถแนบไฟล์ได้ หากต้องการแนบไฟล์ กรุณาเปิดงานอีกครั้ง</span></p>
                     <p class="task-workspace__file-status" data-attachment-status role="status" aria-live="polite" hidden></p>
                     <div class="task-workspace__drop-overlay" data-attachment-drop-overlay aria-hidden="true">
                         <i class="bi bi-cloud-arrow-up-fill" aria-hidden="true"></i>
@@ -403,6 +398,7 @@
                     <textarea data-task-update-note maxlength="2000" rows="4" placeholder="เขียนอัปเดต..." aria-label="เขียนอัปเดต"></textarea>
                     <button type="button" data-submit-task-update aria-label="ส่งอัปเดต"><i class="bi bi-send-fill" aria-hidden="true"></i></button>
                 </div>
+                <p class="task-workspace__locked-notice task-workspace__locked-notice--comment" data-comment-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i><span>งานนี้ปิดแล้ว ไม่สามารถเพิ่มคอมเมนต์ได้ หากต้องการคอมเมนต์ กรุณาเปิดงานอีกครั้ง</span></p>
             </section>
         </div>
 

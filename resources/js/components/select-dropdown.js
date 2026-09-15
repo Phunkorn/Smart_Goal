@@ -27,6 +27,33 @@ export function nextOptionIndex({total = 0, current = -1, step = 1} = {}) {
     return (current + step + total) % total;
 }
 
+/**
+ * แผงควรกางขึ้นด้านบนไหม — ฟังก์ชันบริสุทธิ์ เทียบพื้นที่ใต้และเหนือปุ่มภายในกรอบที่ตัดขอบได้
+ *
+ * กางขึ้นเฉพาะเมื่อด้านล่างไม่พอ และด้านบนมีที่มากกว่า เช่นช่องท้ายฟอร์มในกล่องที่เลื่อนได้
+ */
+export function shouldOpenUpward({triggerTop = 0, triggerBottom = 0, boundaryTop = 0, boundaryBottom = 0, panelHeight = 0} = {}) {
+    const below = boundaryBottom - triggerBottom;
+    const above = triggerTop - boundaryTop;
+
+    return panelHeight > 0 && below < panelHeight && above > below;
+}
+
+/** กรอบที่ตัดแผงได้: บรรพบุรุษตัวแรกที่เลื่อนหรือซ่อนส่วนเกิน ถ้าไม่มีก็คือหน้าจอ */
+const clippingBounds = (node) => {
+    const view = node.ownerDocument.defaultView;
+
+    for (let parent = node.parentElement; parent && parent !== node.ownerDocument.body; parent = parent.parentElement) {
+        if (/(auto|scroll|hidden)/.test(view.getComputedStyle(parent).overflowY)) {
+            const rect = parent.getBoundingClientRect();
+
+            return {top: rect.top, bottom: rect.bottom};
+        }
+    }
+
+    return {top: 0, bottom: view.innerHeight};
+};
+
 /** ตัวเลือกที่เลือกได้จริง — ตัด option ที่ถูก disable ออกตั้งแต่ชั้นข้อมูล */
 export function readableOptions(select) {
     return [...select.options].filter((option) => ! option.disabled);
@@ -182,6 +209,15 @@ export function enhanceSelect(select, index = 0) {
 
         if (open) {
             renderOptions();
+            const triggerRect = trigger.getBoundingClientRect();
+            const bounds = clippingBounds(root);
+            root.classList.toggle('sg-select--up', shouldOpenUpward({
+                triggerTop: triggerRect.top,
+                triggerBottom: triggerRect.bottom,
+                boundaryTop: bounds.top,
+                boundaryBottom: bounds.bottom,
+                panelHeight: Math.min(panel.scrollHeight, 260),
+            }));
             setActive(items.findIndex((item) => item.dataset.value === select.value));
 
             return;
@@ -265,6 +301,9 @@ export function enhanceSelect(select, index = 0) {
 
     // ค่าที่ถูกเปลี่ยนจากที่อื่น (เช่นกดล้างตัวกรอง) ต้องสะท้อนบนปุ่มด้วย
     select.addEventListener('change', syncLabel);
+
+    // form.reset() ไม่ยิง change และคืนค่าหลังเหตุการณ์ reset จบ จึงอ่านป้ายใหม่ในไมโครทาสก์ถัดไป
+    select.form?.addEventListener('reset', () => queueMicrotask(syncLabel));
 
     syncLabel();
 

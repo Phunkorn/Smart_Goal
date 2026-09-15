@@ -29,7 +29,7 @@
 
 .admin-approvals-summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 16px;
 }
@@ -75,11 +75,16 @@
 
 .admin-approvals-tabs a:hover,
 .admin-approvals-tabs a:focus-visible { background: #fff; color: var(--approvals-accent); }
+.admin-approvals-tabs a.is-active { background: #fff; color: var(--approvals-accent); box-shadow: 0 1px 4px rgb(15 23 42 / 10%); }
 .admin-approvals-tabs span { min-width: 24px; padding: 1px 7px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; text-align: center; }
+/* แท็บติดตามแยกจากคิวรออนุมัติด้วยเส้นคั่น เพราะไม่ใช่งานที่ต้องตัดสินใจ */
+.admin-approvals-tabs__outgoing { margin-left: auto; }
+.admin-approvals-tabs a.admin-approvals-tabs__outgoing span { background: #ede9fe; color: #6d28d9; }
 
+/* หนึ่งคิวต่อหนึ่งแถวเต็มความกว้างเสมอ — กริดสองคอลัมน์เดิมบีบการ์ดครึ่งจอข้างคิวว่าง */
 .admin-approvals-queues {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 20px;
     align-items: start;
 }
@@ -104,6 +109,34 @@
 }
 
 .admin-approvals-queue__heading h2 { margin: 3px 0 0; font-size: 1.15rem; font-weight: 800; }
+.admin-approvals-queue__heading p { margin: 4px 0 0; color: var(--approvals-muted); font-size: .82rem; }
+
+.admin-approvals-group + .admin-approvals-group { border-top: 1px solid var(--approvals-line); }
+.admin-approvals-group__heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #f5f3ff;
+    color: #5b21b6;
+}
+.admin-approvals-group__heading span { margin-left: auto; color: var(--approvals-muted); font-size: .8rem; font-weight: 700; }
+
+.admin-approvals-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: .78rem;
+    font-weight: 700;
+}
+.admin-approvals-status.is-purple { background: #f5f3ff; color: #6d28d9; }
+.admin-approvals-status.is-green { background: #ecfdf5; color: #047857; }
+.admin-approvals-status.is-amber { background: #fffbeb; color: #b45309; }
+.admin-approvals-status.is-red { background: #fef2f2; color: #b91c1c; }
 
 .admin-approvals-list__header,
 .admin-approvals-request {
@@ -153,55 +186,16 @@
 .admin-approvals-empty i { display: block; margin-bottom: 6px; color: #22c55e; font-size: 1.6rem; }
 .admin-approvals-empty p { margin: 0; }
 
-/* เมื่อวางสองคิวคู่กัน แต่ละคำขอใช้รูปแบบการ์ดเพื่ออ่านตามลำดับจากบนลงล่าง */
-@media (min-width: 1200px) {
-    .admin-approvals-queues .admin-approvals-list__header { display: none; }
-
-    .admin-approvals-queues .admin-approvals-list {
-        display: grid;
-        gap: 12px;
-        padding: 14px;
-        background: var(--approvals-background);
-    }
-
-    .admin-approvals-queues .admin-approvals-request {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px 18px;
-        padding: 16px;
-        border: 1px solid var(--approvals-line);
-        border-radius: 12px;
-        background: var(--approvals-surface);
-        box-shadow: 0 3px 12px rgb(15 23 42 / 4%);
-    }
-
-    .admin-approvals-queues .admin-approvals-request__cell::before {
-        display: block;
-        margin-bottom: 4px;
-        color: var(--approvals-muted);
-        content: attr(data-label);
-        font-size: .7rem;
-        font-weight: 800;
-        text-transform: uppercase;
-    }
-
-    .admin-approvals-queues .admin-approvals-request__topic,
-    .admin-approvals-queues .admin-approvals-request__actions {
-        grid-column: 1 / -1;
-    }
-
-    .admin-approvals-queues .admin-approvals-request__actions {
-        justify-content: flex-start;
-        padding-top: 12px;
-        border-top: 1px solid var(--approvals-line);
-    }
-}
-
+/*
+ * คิวเต็มความกว้างแล้ว คำขอจึงแสดงเป็นแถวตาราง 5 คอลัมน์ตรงกับหัวตารางบนจอกว้าง
+ * และเปลี่ยนเป็นการ์ดเมื่อจอแคบลงกว่าที่ 5 คอลัมน์จะอ่านได้
+ */
 @media (max-width: 1199.98px) {
-    .admin-approvals-queues { grid-template-columns: 1fr; }
-    .admin-approvals-queue { margin-bottom: 4px; }
+    .admin-approvals-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 991.98px) {
+    .admin-approvals-tabs__outgoing { margin-left: 0; }
     .admin-approvals-list__header { display: none; }
     .admin-approvals-list { display: grid; gap: 12px; padding: 14px; background: var(--approvals-background); }
     .admin-approvals-request {

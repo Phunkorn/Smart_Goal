@@ -154,7 +154,7 @@ const position = (anchor) => {
 const render = () => {
     if (!state) return;
 
-    const {input, year, month, withTime} = state;
+    const {input, year, month, withTime, multiple, selectedDates} = state;
     // ช่องที่มีเวลาด้วยเก็บค่าเป็น 'Y-m-dTH:i' ปฏิทินจึงเทียบเฉพาะครึ่งหน้าที่เป็นวัน
     const selected = withTime ? splitDateTimeValue(input.value).date : (input.value || '');
     const today = toDateValue(new Date());
@@ -179,16 +179,23 @@ const render = () => {
         day.dataset.dateValue = value;
         day.classList.toggle('is-outside', !isCurrentMonth);
         day.classList.toggle('is-today', value === today);
-        day.classList.toggle('is-selected', value === selected);
+        const isSelected = multiple ? selectedDates.has(value) : value === selected;
+        day.classList.toggle('is-selected', isSelected);
         day.disabled = !isSelectable(value, bounds);
         day.setAttribute('aria-label', thaiDateLabel(date));
-        if (value === selected) day.setAttribute('aria-current', 'date');
+        if (multiple) day.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+        if (! multiple && value === selected) day.setAttribute('aria-current', 'date');
 
         return day;
     }));
 
     parts.todayButton.disabled = !isSelectable(today, bounds);
     parts.timeRow.hidden = !withTime;
+    parts.confirmButton.hidden = !multiple;
+    parts.confirmButton.textContent = `ใช้ ${selectedDates.size} วัน`;
+    parts.confirmButton.disabled = selectedDates.size === 0;
+    // วันที่ถูกเขียนลงฟอร์มทันทีที่กด ปุ่มนี้จึงเป็นแค่ "ปิด" ไม่ใช่การยกเลิกสิ่งที่เลือก
+    parts.closeButton.textContent = 'ปิด';
     if (withTime) parts.timeInput.value = state.time;
     position(state.anchor);
 };
@@ -205,7 +212,23 @@ const move = (months) => {
 const commit = (dateValue) => {
     if (!state) return;
 
-    const {input, withTime} = state;
+    const {input, withTime, multiple, selectedDates} = state;
+    if (multiple) {
+        if (selectedDates.has(dateValue)) {
+            // ต้องเหลืออย่างน้อยหนึ่งวันเสมอ ไม่เช่นนั้นฟอร์มจะถอยไปส่งค่า work_date เดิมแบบเงียบ ๆ
+            if (selectedDates.size > 1) selectedDates.delete(dateValue);
+        } else if (selectedDates.size < 31) {
+            selectedDates.add(dateValue);
+        }
+        /*
+         * เขียนลงฟอร์มทันทีทุกครั้งที่กด ไม่ต้องรอปุ่ม "ใช้ N วัน"
+         * ของเดิมถ้าผู้ใช้คลิกนอกกล่องหรือกด Escape วันที่เลือกเพิ่มจะหายทั้งหมด
+         * เหลือแค่วันแรก ผู้ใช้จึงเห็นว่า "เลือกได้ทีละวัน"
+         */
+        writeMultiple();
+        render();
+        return;
+    }
     // เลือกวันใหม่ต้องไม่ทำให้เวลาที่ตั้งไว้หายไป จึงประกอบกลับด้วยเวลาที่ค้างอยู่ในกล่อง
     const value = withTime ? joinDateTimeValue(dateValue, state.time) : dateValue;
 
@@ -214,6 +237,80 @@ const commit = (dateValue) => {
         // ตัวจัดการเดิมของบอร์ดฟัง 'change' แบบ delegated จึงต้อง bubble ขึ้นไปถึง document
         input.dispatchEvent(new Event('change', {bubbles: true}));
     }
+    close({restoreFocus: true});
+};
+
+/** ป้ายวันแบบสั้นสำหรับรายการวันที่เลือกไว้ เช่น "12 ก.ย." */
+const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+export const shortThaiDates = (values) => values
+    .map(parseDateValue)
+    .filter(Boolean)
+    .map((date) => `${date.getDate()} ${THAI_MONTHS_SHORT[date.getMonth()]}`)
+    .join(', ');
+
+/** เขียนวันที่เลือกทั้งหมดลงฟอร์มเป็น hidden input หนึ่งช่องต่อวัน โดยไม่ปิดกล่อง */
+const writeMultiple = () => {
+    if (!state?.multiple || state.selectedDates.size === 0) return;
+
+    const {input} = state;
+    const values = [...state.selectedDates].sort();
+    const field = input.closest('[data-date-picker-field]') || input.parentElement;
+    const name = input.dataset.datePickerMultipleName || 'dates[]';
+
+    field?.querySelectorAll('[data-date-picker-generated]').forEach((node) => node.remove());
+    values.forEach((value) => {
+        const hidden = element('input');
+        hidden.type = 'hidden';
+        hidden.name = name;
+        hidden.value = value;
+        hidden.dataset.datePickerGenerated = '';
+        field?.appendChild(hidden);
+    });
+
+    input.value = values[0];
+    input.dataset.datePickerValues = values.join(',');
+    const summary = field?.querySelector('[data-date-picker-summary]');
+    if (summary) summary.textContent = `เลือกแล้ว ${values.length} วัน`;
+    // ช่อง date แสดงได้แค่วันเดียว จึงต้องบอกให้เห็นว่าเลือกวันไหนไว้บ้าง
+    const list = field?.querySelector('[data-date-picker-dates]');
+    if (list) {
+        list.textContent = shortThaiDates(values);
+        list.hidden = values.length < 2;
+    }
+    input.dispatchEvent(new Event('change', {bubbles: true}));
+};
+
+/**
+ * ล้างวันที่ที่เลือกไว้ของช่องหลายวัน แล้วเปิดหรือปิดโหมดหลายวัน
+ *
+ * form.reset() ไม่ลบ hidden input ที่ปฏิทินสร้างไว้ ทุกฟอร์มที่เปิดใหม่หรือเข้าโหมดแก้ไข
+ * จึงต้องเรียกตัวนี้ ไม่เช่นนั้นวันที่ของรอบก่อนจะติดไปกับการส่งครั้งถัดไป
+ */
+export const resetMultipleDates = (input, {enabled = true, value = ''} = {}) => {
+    if (!input) return;
+
+    const field = input.closest('[data-date-picker-field]');
+    field?.querySelectorAll('[data-date-picker-generated]').forEach((node) => node.remove());
+    input.dataset.datePickerMultiple = enabled ? 'on' : 'off';
+    input.dataset.datePickerValues = enabled && value ? value : '';
+
+    const summary = field?.querySelector('[data-date-picker-summary]');
+    if (summary) {
+        summary.hidden = !enabled;
+        summary.textContent = value ? 'เลือก 1 วัน' : 'เลือกวันที่จากปฏิทิน';
+    }
+    const list = field?.querySelector('[data-date-picker-dates]');
+    if (list) {
+        list.textContent = '';
+        list.hidden = true;
+    }
+};
+
+const applyMultiple = () => {
+    if (!state?.multiple || state.selectedDates.size === 0) return;
+
+    writeMultiple();
     close({restoreFocus: true});
 };
 
@@ -273,9 +370,12 @@ const build = () => {
     const footer = element('div', 'sg-date-picker__footer');
     const todayButton = element('button', 'sg-date-picker__today', 'วันนี้');
     todayButton.type = 'button';
+    const confirmButton = element('button', 'sg-date-picker__confirm', 'ใช้ 1 วัน');
+    confirmButton.type = 'button';
+    confirmButton.hidden = true;
     const closeButton = element('button', 'sg-date-picker__close', 'ปิด');
     closeButton.type = 'button';
-    footer.append(todayButton, closeButton);
+    footer.append(todayButton, confirmButton, closeButton);
 
     popover.append(header, weekdays, grid, timeRow, footer);
     document.body.append(popover);
@@ -293,6 +393,7 @@ const build = () => {
         render();
     });
     todayButton.addEventListener('click', () => commit(toDateValue(new Date())));
+    confirmButton.addEventListener('click', applyMultiple);
     closeButton.addEventListener('click', () => close({restoreFocus: true}));
     grid.addEventListener('click', (event) => {
         const day = event.target.closest('[data-date-value]');
@@ -342,7 +443,7 @@ const build = () => {
         state.input.dispatchEvent(new Event('change', {bubbles: true}));
     });
 
-    return {monthSelect, yearSelect, grid, todayButton, timeRow, timeInput};
+    return {monthSelect, yearSelect, grid, todayButton, confirmButton, closeButton, timeRow, timeInput};
 };
 
 /**
@@ -372,11 +473,21 @@ export const openDatePicker = (input, anchor = input) => {
     const withTime = input.type === 'datetime-local';
     const {date: datePart, time: timePart} = splitDateTimeValue(input.value);
     const current = parseDateValue(withTime ? datePart : input.value) || new Date();
+    const multiple = !withTime
+        && input.hasAttribute('data-date-picker-multiple')
+        && input.dataset.datePickerMultiple !== 'off';
+    const selectedDates = new Set(
+        (input.dataset.datePickerValues || input.value || '')
+            .split(',')
+            .filter((value) => parseDateValue(value) && isSelectable(value, input))
+    );
 
     state = {
         input,
         anchor,
         withTime,
+        multiple,
+        selectedDates,
         // ช่องที่ยังว่างเริ่มที่เวลาตั้งต้นของช่องนั้น ผู้ใช้จึงไม่ต้องพิมพ์เวลาจากศูนย์ทุกครั้ง
         time: withTime ? (timePart || initialTimeFor(input)) : '',
         year: current.getFullYear(),

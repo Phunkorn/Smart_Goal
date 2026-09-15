@@ -95,6 +95,84 @@ test('picking a day writes the input and fires one bubbling change event', async
     assert.equal(popover.hidden, true, 'เลือกแล้วต้องปิดเอง');
 });
 
+test('multiple mode keeps the picker open and submits every selected date', async (t) => {
+    const ui = mountDom(`<!doctype html><html><body>
+        <div data-date-picker-field>
+            <label>
+                <input type="date" name="work_date" value="2026-09-01" max="2026-09-10"
+                    data-date-picker data-date-picker-multiple data-date-picker-multiple-name="work_dates[]">
+            </label>
+            <small data-date-picker-summary></small>
+        </div>
+    </body></html>`);
+    t.after(() => ui.cleanup());
+    const picker = await import(`../../resources/js/components/date-picker.js?multiple=${Math.random()}`);
+    picker.useDatePickers();
+
+    const input = ui.document.querySelector('[data-date-picker-multiple]');
+    click(input);
+    const popover = ui.document.querySelector('.sg-date-picker');
+    click(popover.querySelector('[data-date-value="2026-09-04"]'));
+
+    assert.equal(popover.hidden, false, 'เลือกวันเพิ่มแล้วต้องยังเปิดอยู่');
+    assert.equal(popover.querySelectorAll('.sg-date-picker__day.is-selected').length, 2);
+    click(popover.querySelector('.sg-date-picker__confirm'));
+
+    const dates = [...ui.document.querySelectorAll('[data-date-picker-generated]')].map((node) => node.value);
+    assert.deepEqual(dates, ['2026-09-01', '2026-09-04']);
+    assert.equal(ui.document.querySelector('[data-date-picker-summary]').textContent, 'เลือกแล้ว 2 วัน');
+    assert.equal(popover.hidden, true);
+});
+
+/*
+ * ของเดิมวันที่เลือกเพิ่มถูกเขียนลงฟอร์มเฉพาะตอนกด "ใช้ N วัน"
+ * คลิกนอกกล่องแล้วทุกวันที่เลือกหายไป เหลือวันแรกวันเดียว ผู้ใช้จึงเห็นว่าเลือกได้ทีละวัน
+ */
+test('multiple mode keeps every selected date even when closed by an outside click', async (t) => {
+    const ui = mountDom(`<!doctype html><html><body>
+        <div data-date-picker-field>
+            <input type="date" name="work_date" value="2026-09-01" max="2026-09-10"
+                data-date-picker data-date-picker-multiple data-date-picker-multiple-name="work_dates[]">
+            <small data-date-picker-summary></small>
+            <small data-date-picker-dates hidden></small>
+        </div>
+    </body></html>`);
+    t.after(() => ui.cleanup());
+    const picker = await import(`../../resources/js/components/date-picker.js?outside=${Math.random()}`);
+    picker.useDatePickers();
+
+    click(ui.document.querySelector('[data-date-picker-multiple]'));
+    const popover = ui.document.querySelector('.sg-date-picker');
+    click(popover.querySelector('[data-date-value="2026-09-03"]'));
+    click(popover.querySelector('[data-date-value="2026-09-05"]'));
+    ui.document.body.dispatchEvent(new ui.window.MouseEvent('pointerdown', {bubbles: true, cancelable: true}));
+
+    assert.equal(popover.hidden, true);
+    const dates = [...ui.document.querySelectorAll('[data-date-picker-generated]')].map((node) => node.value);
+    assert.deepEqual(dates, ['2026-09-01', '2026-09-03', '2026-09-05']);
+    const list = ui.document.querySelector('[data-date-picker-dates]');
+    assert.equal(list.hidden, false);
+    assert.equal(list.textContent, '1 ก.ย., 3 ก.ย., 5 ก.ย.');
+});
+
+test('multiple mode never lets the last selected date be removed', async (t) => {
+    const ui = mountDom(`<!doctype html><html><body>
+        <div data-date-picker-field>
+            <input type="date" name="work_date" value="2026-09-01" max="2026-09-10"
+                data-date-picker data-date-picker-multiple data-date-picker-multiple-name="work_dates[]">
+        </div>
+    </body></html>`);
+    t.after(() => ui.cleanup());
+    const picker = await import(`../../resources/js/components/date-picker.js?last=${Math.random()}`);
+    picker.useDatePickers();
+
+    click(ui.document.querySelector('[data-date-picker-multiple]'));
+    const popover = ui.document.querySelector('.sg-date-picker');
+    click(popover.querySelector('[data-date-value="2026-09-01"]'));
+
+    assert.equal(popover.querySelectorAll('.sg-date-picker__day.is-selected').length, 1);
+});
+
 test('a day outside min/max cannot be committed even if it is clicked', async (t) => {
     const {ui} = await boot(t);
     const label = ui.document.querySelector('.board-start-editable');

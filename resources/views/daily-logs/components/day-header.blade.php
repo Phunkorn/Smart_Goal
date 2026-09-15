@@ -1,5 +1,5 @@
 {{--
-    หัวหน้าจอ: ตัวเลื่อนวัน ป้ายวันที่แบบไทย (พ.ศ.) และตัวเลือกสมาชิก
+    หัวหน้าจอ: ตัวเลื่อนวันและตัวเลือกสมาชิก (หัวหน้า/admin)
 
     ปุ่ม "วันถัดไป" หายไปเมื่ออยู่ที่วันนี้แล้ว เพราะระบบไม่ให้บันทึกงานล่วงหน้า
     การแสดงปุ่มที่กดแล้วไม่เกิดอะไรขึ้นสร้างความสับสนมากกว่าไม่มีปุ่ม
@@ -9,26 +9,35 @@
 --}}
 <header class="daily-log__header">
     <div class="daily-log__heading">
-        <div class="daily-log__eyebrow">
-            <i class="bi bi-journal-check" aria-hidden="true"></i>
-            บันทึกงานประจำวัน
-        </div>
         <h1 class="daily-log__title">
             @if($isOwnDay)
-                งานของฉัน
+                บันทึกงานประจำวัน
             @else
-                งานของ {{ $owner->name }}
+                บันทึกงานของ {{ $owner->name }}
             @endif
         </h1>
         <p class="daily-log__subtitle">
-            งานประจำและงานนอกสถานที่ที่ไม่ได้อยู่ในบอร์ดโปรเจกต์
+            จัดการงานของวันนี้ ติดตามความคืบหน้า และสร้างผลงานที่มีความหมาย
         </p>
     </div>
 
+    <nav class="daily-log__tabs" aria-label="มุมมองบันทึกงาน">
+        <a class="@if($calendarView === 'today') is-active @endif"
+            href="{{ route('daily-logs.index', array_filter(['date' => $dateValue, 'user' => $isOwnDay ? null : $owner->id])) }}">วันนี้</a>
+        <a class="@if($calendarView === 'calendar') is-active @endif"
+            href="{{ route('daily-logs.index', ['view' => 'calendar', 'month' => $calendarMonthValue, 'scope' => $calendarScope]) }}">ปฏิทินงาน</a>
+        <a class="@if($calendarView === 'monthly') is-active @endif"
+            href="{{ route('daily-logs.index', array_filter(['view' => 'monthly', 'month' => $calendarMonthValue, 'user' => $isOwnDay ? null : $owner->id])) }}">สรุปรายเดือน</a>
+    </nav>
     <div class="daily-log__controls">
-        @if($capabilities['canViewOthers'])
+        @if($capabilities['canViewOthers'] && $calendarView !== 'calendar')
             <form method="GET" action="{{ route('daily-logs.index') }}" class="daily-log__member-form" data-member-form>
-                <input type="hidden" name="date" value="{{ $dateValue }}">
+                @if($calendarView === 'monthly')
+                    <input type="hidden" name="view" value="monthly">
+                    <input type="hidden" name="month" value="{{ $calendarMonthValue }}">
+                @else
+                    <input type="hidden" name="date" value="{{ $dateValue }}">
+                @endif
                 <label class="visually-hidden" for="dailyLogMember">เลือกสมาชิก</label>
                 <select class="form-select daily-log__member-select" id="dailyLogMember" name="user" data-member-select>
                     <option value="{{ auth()->id() }}" @selected($owner->id === auth()->id())>งานของฉัน</option>
@@ -55,6 +64,7 @@
             ส่ง user ไปด้วยเฉพาะตอนดูของคนอื่น เพื่อให้ URL ของงานตัวเองสั้น
             เหลือแค่ ?date= ตามเดิมที่ผู้ใช้อ่านแล้วเข้าใจได้
         --}}
+        @if($calendarView === 'today')
         <form method="GET" action="{{ route('daily-logs.index') }}" class="daily-log__date-nav" data-date-form>
             @unless($isOwnDay)
                 <input type="hidden" name="user" value="{{ $owner->id }}">
@@ -97,6 +107,10 @@
 
             <noscript><button type="submit" class="btn btn-outline-secondary btn-sm">ไป</button></noscript>
         </form>
+        @endif
+        @if($capabilities['canCreate'])
+            @include('daily-logs.components.launcher')
+        @endif
     </div>
 </header>
 

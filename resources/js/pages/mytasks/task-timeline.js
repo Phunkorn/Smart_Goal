@@ -43,6 +43,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     // ฟองที่มีแต่รูปไม่ต้องมีย่อหน้าข้อความว่างมาดันความสูง
     const entry = (item) => `<article class="task-timeline-entry${item.is_comment === true && item.is_mine ? ' is-mine' : ''}" data-comment-id="${escapeHtml(item.id)}"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div class="task-timeline-entry__content"><strong>${escapeHtml(item.author)}</strong><div class="task-timeline-entry__bubble">${String(item.note ?? '').trim() ? `<p>${escapeHtml(item.note)}</p>` : ''}${commentImages(item)}</div><small>${escapeHtml(item.at)}</small>${readReceipts(item)}</div></article>`;
     const compose = panel.querySelector('.task-timeline__compose');
+    const lockedNotice = panel.querySelector('[data-comment-locked]');
 
     const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม' : 'ยังไม่มีรายการอัปเดต';
 
@@ -67,7 +68,14 @@ import {shouldSendUpdate} from './task-workspace-model.js';
                 items.scrollTop = previousScrollTop;
             }
         }
-        if (compose) compose.hidden = tab !== 'updates' || !canComposeComment(management[String(taskId)]);
+        const taskManagement = management[String(taskId)];
+        const canCompose = canComposeComment(taskManagement);
+        if (compose) compose.hidden = tab !== 'updates' || !canCompose;
+        if (lockedNotice) {
+            lockedNotice.hidden = tab !== 'updates'
+                || canCompose
+                || taskManagement?.transitions?.is_final !== true;
+        }
     };
 
     const clearBadges = () => {
@@ -358,6 +366,19 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         // Shift+Enter ไม่เข้าเงื่อนไขนี้ จึงตกไปเป็นการขึ้นบรรทัดใหม่ตามปกติของเบราว์เซอร์
         event.preventDefault();
         sendUpdate();
+    });
+
+    document.addEventListener('mytasks:access-changed', (event) => {
+        const id = String(event.detail?.id || '');
+        const meta = management[id];
+        if (!id || !meta) return;
+
+        if (event.detail.transitions) meta.transitions = event.detail.transitions;
+        if (event.detail.interactions) {
+            meta.can_comment = event.detail.interactions.can_comment === true;
+            meta.comment_url = event.detail.interactions.comment_url || null;
+        }
+        if (String(taskId) === id) render();
     });
 
     document.addEventListener('smartgoal:realtime-notification', (event) => {

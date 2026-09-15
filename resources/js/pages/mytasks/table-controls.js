@@ -1,6 +1,6 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './priority-meta.js';
 import {canTransitionTo, confirmTaskTransition} from './task-transitions.js';
-import {synchronizeTaskSource} from './task-state.js';
+import {synchronizeTaskManagement, synchronizeTaskSource} from './task-state.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -137,7 +137,7 @@ import {synchronizeTaskSource} from './task-state.js';
                 const payload = await confirmTaskTransition(Number(row.dataset.status), value, management[String(row.dataset.id)]?.transitions || {});
                 if (!payload) return;
                 const data = await request(endpoint(workspace.dataset.statusTemplate, row.dataset.id), 'PATCH', payload);
-                if (data.transitions) management[String(row.dataset.id)].transitions = data.transitions;
+                synchronizeTaskManagement(management, row.dataset.id, data);
                 const actualStatus = Number(data.job_status ?? value);
                 updateStatusVisual(row, menu, actualStatus);
                 refreshStatusControls(row);

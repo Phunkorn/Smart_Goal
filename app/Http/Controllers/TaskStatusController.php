@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RespondsWithTaskResult;
+use App\Models\JobImage;
+use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\CollaboratorInvitationService;
 use App\Services\NotificationService;
@@ -62,10 +64,35 @@ class TaskStatusController extends Controller
                 'job_id' => $job->job_id,
                 'job_status' => (int) $job->job_status,
                 'transitions' => $transitions->capabilities($job, $user),
+                // สิทธิ์ของ Workspace เปลี่ยนพร้อมสถานะงาน จึงต้องส่งค่าชุดใหม่กลับไป
+                // ไม่เช่นนั้นงานที่เพิ่งเปิดอีกครั้งจะยังแนบไฟล์/คอมเมนต์ไม่ได้จนกว่าจะ reload
+                'interactions' => $this->interactionPayload($job, $user),
             ]);
         }
 
         return back()->with('success', $message);
+    }
+
+    /** @return array<string, mixed> */
+    private function interactionPayload(WorkOrder $job, User $user): array
+    {
+        $canUpload = $user->can('work', $job);
+        $canComment = $user->can('comment', $job);
+
+        return [
+            'is_closed' => (int) $job->job_status === 4,
+            'can_upload' => $canUpload,
+            'upload_url' => $canUpload ? route('tasks.attachments.store', $job->job_id) : null,
+            'files' => $job->loadMissing('images')->images->map(fn (JobImage $file) => [
+                'name' => $file->original_name ?? basename($file->file_path),
+                'url' => route('media.task-attachments.show', $file),
+                'delete_url' => $canUpload
+                    ? route('tasks.attachments.destroy', [$job->job_id, $file])
+                    : null,
+            ])->values()->all(),
+            'can_comment' => $canComment,
+            'comment_url' => $canComment ? route('tasks.comments.store', $job) : null,
+        ];
     }
 
     public function updateApproval(Request $request, $id, CollaboratorInvitationService $invitations)

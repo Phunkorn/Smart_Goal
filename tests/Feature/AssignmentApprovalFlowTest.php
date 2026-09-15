@@ -7,7 +7,6 @@ use App\Models\Department;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
-use App\Services\PersonalReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
@@ -120,7 +119,7 @@ class AssignmentApprovalFlowTest extends TestCase
         $this->actingAs($assignee)->postJson(route('mytasks.updateDueDate', $job), ['job_due_at' => now()->addDays(2)->format('Y-m-d')])->assertNotFound();
         $this->actingAs($assignee)->deleteJson(route('mytasks.destroy', $job))->assertForbidden();
 
-        $this->assertSame(0, app(PersonalReportService::class)->queryFor($assignee->id)->whereKey($job->job_id)->count());
+        $this->assertSame(0, WorkOrder::query()->contributedBy($assignee->id)->whereKey($job->job_id)->count());
         $this->assertSame('Private pending assignment', $job->fresh()->job_topic);
     }
 

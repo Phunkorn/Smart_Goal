@@ -28,7 +28,10 @@ use Illuminate\Support\Facades\DB;
  */
 class WorkLogParticipantService
 {
-    public function __construct(private readonly NotificationService $notifications) {}
+    public function __construct(
+        private readonly NotificationService $notifications,
+        private readonly WorkLogService $logs,
+    ) {}
 
     /**
      * ตั้งรายชื่อผู้ร่วมงานของบันทึกหนึ่งให้ตรงกับที่ส่งมา
@@ -42,6 +45,12 @@ class WorkLogParticipantService
      */
     public function sync(WorkLog $log, User $actor, array $userIds): int
     {
+        // สำเนาของผู้ร่วมงานเชิญคนเพิ่มเองไม่ได้ ไม่งั้นสำเนาจะแตกต่อเป็นสำเนาของสำเนา
+        // รายชื่อคนที่ไปด้วยกันมาจากต้นฉบับเสมอ (ดู WorkLogPresenter::sharedFrom())
+        if ($log->shared_from_work_log_id !== null) {
+            return $log->participants()->count();
+        }
+
         $eligible = $this->eligibleIds($log, $userIds);
         $before = $log->participants()->pluck('users.id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
 
@@ -62,11 +71,100 @@ class WorkLogParticipantService
             );
         }
 
+        $this->syncSharedCopies($log, $actor, $after);
+
         // แจ้งเฉพาะคนที่เพิ่งถูกเพิ่มเข้ามา การแก้ไขบันทึกเดิมซ้ำ ๆ จึงไม่ยิง
         // แจ้งเตือนเดิมซ้ำให้คนที่อยู่ในรายชื่อมาตั้งแต่แรก
         $this->notifyAddedToLog($log, $actor, array_values(array_diff($after, $before)));
 
         return count($after);
+    }
+
+    /**
+     * งานนอกสถานที่ที่ไปกันหลายคน — ผู้ร่วมงานแต่ละคนได้รายการของตัวเอง
+     *
+     * คนสร้างเพิ่มทุกคนที่จะไปได้ในครั้งเดียว แต่ละคนเห็นงานในบันทึกงานของตัวเอง
+     * และบนปฏิทินแผนก แล้วปิดงานของตัวเองแยกกัน (เสร็จสิ้น / พบปัญหา)
+     *
+     * - คนที่ถูกเอาออก: สำเนาที่ยังไม่ปิดถูกลบ สำเนาที่ปิดแล้วเป็นประวัติจริงจึงเก็บไว้
+     * - สำเนาที่ยังไม่ปิด: ชื่องาน สถานที่ วัน และช่วงเวลาตามต้นฉบับทุกครั้งที่ต้นฉบับถูกแก้
+     * - งานประจำที่บันทึกเอง (kind = routine) ยังเป็นผู้ร่วมงานแบบรายชื่อตามเดิม
+     *
+     * @param  array<int, int>  $participantIds
+     */
+    private function syncSharedCopies(WorkLog $log, User $actor, array $participantIds): void
+    {
+        $targets = $log->kind === 'field' ? $participantIds : [];
+        $copies = WorkLog::query()
+            ->where('shared_from_work_log_id', $log->id)
+            ->get()
+            ->keyBy(fn (WorkLog $copy): int => (int) $copy->user_id);
+
+        foreach ($copies as $userId => $copy) {
+            $unfinished = in_array($copy->status, ['open', 'in_progress'], true);
+
+            if (! in_array($userId, $targets, true)) {
+                if ($unfinished) {
+                    $this->logs->delete($copy, $actor);
+                }
+
+                continue;
+            }
+
+            if ($unfinished) {
+                $copy->update($this->sharedAttributes($log));
+            }
+        }
+
+        $missing = array_values(array_diff($targets, $copies->keys()->all()));
+
+        if ($missing === []) {
+            return;
+        }
+
+        User::query()->whereKey($missing)->get(['id', 'department_id'])
+            ->each(function (User $person) use ($log, $actor): void {
+                $copy = WorkLog::create([
+                    'user_id' => $person->id,
+                    'created_by' => $actor->id,
+                    'department_id' => $person->department_id,
+                    'shared_from_work_log_id' => $log->id,
+                    'kind' => 'field',
+                    // ผู้ร่วมงานต้องยืนยันเองว่าไปทำแล้ว จึงเริ่มที่ "รอเริ่ม" เสมอ
+                    'status' => 'open',
+                    'source' => 'manual',
+                    ...$this->sharedAttributes($log),
+                ]);
+
+                AuditTrail::log(
+                    'work_log_shared_copy_created',
+                    $copy,
+                    sprintf('เพิ่มงานนอกสถานที่ "%s" ลงบันทึกงานของผู้ร่วมงาน', $copy->title),
+                    ['after' => ['shared_from_work_log_id' => $log->id, 'user_id' => $person->id]]
+                );
+            });
+    }
+
+    /**
+     * ข้อมูลที่สำเนาได้จากต้นฉบับ — ไม่รวมโปรเจกต์/งาน เพราะเป็นของคนสร้างเท่านั้น
+     *
+     * ช่วงเวลาของต้นฉบับถูกเก็บเป็น "เวลาที่วางไว้" ของสำเนา ตอนผู้ร่วมงานกดเสร็จ
+     * WorkLogService จึงเติมเวลาเดียวกันให้
+     *
+     * @return array<string, mixed>
+     */
+    private function sharedAttributes(WorkLog $log): array
+    {
+        return [
+            'work_log_category_id' => $log->work_log_category_id,
+            'title' => $log->title,
+            'details' => $log->details,
+            'location' => $log->location,
+            'requester_name' => $log->requester_name,
+            'work_date' => $log->work_date?->format('Y-m-d'),
+            'planned_start_at' => $log->started_at,
+            'planned_end_at' => $log->ended_at,
+        ];
     }
 
     /**
@@ -187,7 +285,9 @@ class WorkLogParticipantService
             $userIds,
             'work_log_participant_added',
             'ถูกเพิ่มเป็นผู้ร่วมงาน',
-            sprintf('%s บันทึกว่าคุณทำงาน "%s" ด้วยกัน', $actor->name, $log->title),
+            $log->kind === 'field'
+                ? sprintf('%s เพิ่มคุณเข้างานนอกสถานที่ "%s" — รายการอยู่ในบันทึกงานของคุณแล้ว', $actor->name, $log->title)
+                : sprintf('%s บันทึกว่าคุณทำงาน "%s" ด้วยกัน', $actor->name, $log->title),
             $actor,
             [
                 'work_log_id' => $log->id,

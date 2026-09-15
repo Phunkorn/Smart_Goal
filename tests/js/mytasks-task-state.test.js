@@ -62,11 +62,19 @@ test('reopening refreshes the modal edit permission without a page reload', () =
     };
 
     const meta = synchronizeTaskManagement(management, 10, {
+        job_status: 2,
         transitions: {can_edit: true, can_reopen: false, is_final: false},
+        interactions: {
+            can_comment: true,
+            comment_url: '/tasks/10/comments',
+        },
     });
 
     assert.equal(meta.can_work, true);
     assert.equal(meta.transitions.is_final, false);
+    assert.equal(meta.status, 2);
+    assert.equal(meta.can_comment, true);
+    assert.equal(meta.comment_url, '/tasks/10/comments');
     assert.equal(management[10], meta);
 });
 

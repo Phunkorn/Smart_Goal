@@ -128,9 +128,10 @@ class DepartmentHeadAuthorizationTest extends TestCase
             // งานวันนี้ของคนนั้นเห็นได้ เท่ากับที่ผู้ใช้ทั่วไปเห็นอยู่แล้ว ไม่ใช่ข้อมูลใหม่ที่เพิ่งเปิด
             ->assertSee('IT secret task');
 
-        $report = $this->actingAs($head)->get(route('reports.organization'));
-        $report->assertOk()->assertDontSee('IT secret task');
-        $this->assertSame($sales->id, $report->viewData('filters')['department_id']);
+        // ภาพรวมแผนกของหัวหน้าอยู่ในรายงานโปรเจกต์ (รายงานภาพรวมองค์กรถูกยกเลิกแล้ว)
+        $report = $this->actingAs($head)->get(route('reports.projects'));
+        $report->assertOk()->assertDontSee('IT secret task')->assertSee('Sales scoped task');
+        $this->assertTrue($report->viewData('isTeamView'));
         $this->assertSame(1, $report->viewData('totalJobs'));
         $this->actingAs($head)->get(route('reports.employee', $outsider))->assertForbidden();
 
@@ -430,15 +431,19 @@ class DepartmentHeadAuthorizationTest extends TestCase
 
         $this->actingAs($head)->get(route('reports.index'))->assertOk();
 
-        // หน้าเลือกพนักงาน: เห็นเฉพาะแผนกตัวเอง และต้องไม่มีตัวเลือก "ทุกแผนก" ที่ให้ผลเท่ากัน
-        $this->actingAs($head)->get(route('reports.employees.index'))
+        // รายงานโปรเจกต์: ช่องเลือกพนักงานมีเฉพาะแผนกตัวเอง และต้องไม่มีตัวเลือก "ทุกแผนก" ที่ให้ผลเท่ากัน
+        $this->actingAs($head)->get(route('reports.projects'))
             ->assertOk()
             ->assertSee($member->name)
             ->assertDontSee($outsider->name)
             ->assertDontSee('ทุกแผนก')
             ->assertSee('IT');
 
-        // ข้อมูลยังถูกจำกัดที่เซิร์ฟเวอร์เหมือนเดิม ไม่ได้พึ่งการซ่อนปุ่ม
+        // ข้อมูลยังถูกจำกัดที่เซิร์ฟเวอร์เหมือนเดิม ไม่ได้พึ่งการซ่อนตัวเลือก
+        $this->actingAs($head)->get(route('reports.projects', ['owner' => $outsider->id]))
+            ->assertOk()
+            ->assertViewHas('isTeamView', true)
+            ->assertDontSee($outsider->name);
         $this->actingAs($head)->get(route('reports.employee', $outsider))->assertForbidden();
     }
 

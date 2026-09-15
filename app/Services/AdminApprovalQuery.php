@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Support\CrossDepartmentWork;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -111,6 +112,65 @@ class AdminApprovalQuery
                 ->unique())
             ->get()
             ->keyBy('id');
+    }
+
+    /**
+     * พนักงานของแผนกไปร่วมงานของแผนกอื่น — แท็บ "พนักงานไปร่วมงานแผนกอื่น"
+     *
+     * ไม่ใช่คิวรออนุมัติ แต่เป็นมุมมองติดตามของหัวหน้าต้นสังกัด จึงไม่ถูกนับใน approvalCounts
+     * (ตัวเลขบนแถบข้างต้องเป็นงานที่รอการตัดสินใจเท่านั้น)
+     *
+     * หัวหน้าแผนกเห็นเฉพาะลูกทีมของแผนกตัวเอง admin เห็นทุกแผนก
+     * นับเฉพาะผู้ร่วมงานที่ตอบรับแล้ว บนงานที่อนุมัติแล้ว และแผนกปลายทางของงานไม่ใช่แผนกของพนักงาน
+     *
+     * @return Collection<int, array{task: WorkOrder, member: User, destination: string}>
+     */
+    public function outgoingCollaborations(User $viewer): Collection
+    {
+        $departmentId = $viewer->role === 'admin' ? null : $viewer->department_id;
+
+        if ($viewer->role !== 'admin' && $departmentId === null) {
+            return collect();
+        }
+
+        $members = fn ($collaborators) => $collaborators
+            ->where('work_order_collaborators.status', 'accepted')
+            ->where('users.role', 'user')
+            ->whereNotNull('users.department_id')
+            ->when($departmentId !== null, fn ($query) => $query->where('users.department_id', $departmentId));
+
+        return WorkOrder::query()
+            ->with([
+                'department',
+                'user.department',
+                'taskList',
+                'parent',
+                'collaborators' => fn ($collaborators) => $members($collaborators)->with('department'),
+            ])
+            ->where('approval_status', 'approved')
+            ->whereHas('collaborators', $members)
+            ->when($departmentId !== null, fn (Builder $query) => $query->where(fn (Builder $elsewhere) => $elsewhere
+                ->where(fn (Builder $explicit) => $explicit
+                    ->whereNotNull('department_id')
+                    ->where('department_id', '!=', $departmentId))
+                ->orWhere(fn (Builder $fallback) => $fallback
+                    ->whereNull('department_id')
+                    ->whereHas('user', fn (Builder $assignee) => $assignee->where('department_id', '!=', $departmentId)))))
+            ->orderByRaw('job_status = 4 asc')
+            ->latest('job_id')
+            ->get()
+            ->flatMap(function (WorkOrder $task): Collection {
+                $destination = CrossDepartmentWork::destinationDepartmentId($task);
+
+                return $task->collaborators
+                    ->filter(fn (User $member) => $destination !== null && (int) $member->department_id !== $destination)
+                    ->map(fn (User $member) => [
+                        'task' => $task,
+                        'member' => $member,
+                        'destination' => CrossDepartmentWork::destinationDepartmentName($task) ?? 'ไม่ระบุแผนก',
+                    ]);
+            })
+            ->values();
     }
 
     /** @return array{assignments: int, collaborators: int, shares: int, total: int} */

@@ -24,8 +24,11 @@ export const taskScopes = Object.freeze([
  *   awaiting_review — เราส่งงานไปแล้ว รอคนอื่นตรวจ   → ลูกบอลอยู่ที่คนอื่น
  *
  * สองชุดนี้ตัดกันเป็นศูนย์โดยนิยาม งานหนึ่งใบจึงตกอยู่ในตัวเลือกเดียวเสมอ
+ *
+ *   cross_department — งานข้ามแผนก ตัดสินที่ server (App\Support\CrossDepartmentWork)
+ *                      แล้วส่งมาเป็น data-cross-department บนแถวงาน
  */
-const boardStatuses = new Set(['', '1', '2', '4', '5', 'late', 'my_review', 'awaiting_review']);
+const boardStatuses = new Set(['', '1', '2', '4', '5', 'late', 'my_review', 'awaiting_review', 'cross_department']);
 const dueSorts = new Set(['', 'asc', 'desc']);
 
 export const normalizeTaskScope = (scope) => taskScopes.includes(scope) ? scope : 'all';
@@ -79,7 +82,9 @@ export const boardTaskMatches = (task, state) => {
         || Number(task.reviewableSubtasks || 0) > 0;
 
     const statusMatch = !status
-        || (status === 'late'
+        || (status === 'cross_department'
+            ? String(task.crossDepartment) === '1'
+            : status === 'late'
             ? String(task.late) === '1'
             : status === 'my_review'
                 ? waitsForMe

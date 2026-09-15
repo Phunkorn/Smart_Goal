@@ -662,6 +662,7 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
     const status = box.querySelector('[data-attachment-status]');
     const dropZone = box.querySelector('[data-task-drop-zone]');
     const typesHint = box.querySelector('[data-attachment-types]');
+    const lockedNotice = box.querySelector('[data-attachment-locked]');
     let taskId = null;
     let uploading = false;
     // dragenter/dragleave ยิงทุกครั้งที่ผ่าน element ลูก ต้องนับชั้นไม่งั้นกรอบกะพริบ
@@ -707,6 +708,7 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         if (drop) drop.hidden = !task?.can_upload;
         // งานที่แนบไฟล์ไม่ได้ต้องไม่ชวนให้ลาก
         if (typesHint) typesHint.hidden = !task?.can_upload;
+        if (lockedNotice) lockedNotice.hidden = task?.is_closed !== true;
         if (dropZone) dropZone.classList.toggle('is-droppable', Boolean(task?.can_upload));
     };
 
@@ -819,7 +821,6 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
     };
 
     fileInput?.addEventListener('change', (event) => upload(event.target.files));
-    box.querySelector('[data-task-inline-folder-input]')?.addEventListener('change', (event) => upload(event.target.files));
     drop?.addEventListener('dragover', (event) => { event.preventDefault(); event.currentTarget.classList.add('is-dragover'); });
     drop?.addEventListener('dragleave', (event) => event.currentTarget.classList.remove('is-dragover'));
     drop?.addEventListener('drop', (event) => {
@@ -866,5 +867,17 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         event.preventDefault();
         endDrag();
         setStatus('วางไฟล์ในกรอบ "ไฟล์แนบ" เพื่ออัปโหลด', true);
+    });
+
+    document.addEventListener('mytasks:access-changed', (event) => {
+        const id = String(event.detail?.id || '');
+        const interactions = event.detail?.interactions;
+        if (!id || !interactions || !data[id]) return;
+
+        Object.assign(data[id], interactions);
+        if (String(taskId) === id) {
+            setStatus('');
+            render();
+        }
     });
 })();

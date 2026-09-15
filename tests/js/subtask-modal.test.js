@@ -171,27 +171,22 @@ test('broken subtask data renders an empty list instead of throwing', async () =
     assert.deepEqual(readSubtasks({dataset: {subtaskNames: '[1,"ok",null]'}}), ['ok']);
 });
 
-test('both report pages share one cell partial, one modal and one initialiser', async () => {
-    const [my, employee, myJs, employeeJs, contributions, attention] = await Promise.all([
-        read('resources/views/reports/my.blade.php'),
-        read('resources/views/reports/employee.blade.php'),
-        read('resources/js/pages/reports/my.js'),
-        read('resources/js/pages/reports/employee.js'),
-        read('resources/views/reports/components/personal-team-table.blade.php'),
-        read('resources/views/reports/components/personal-attention-table.blade.php'),
+test('the project report uses the shared cell partial, modal and initialiser', async () => {
+    const [projects, details, taskCells, projectsJs] = await Promise.all([
+        read('resources/views/reports/projects/index.blade.php'),
+        read('resources/views/reports/projects/details.blade.php'),
+        read('resources/views/reports/components/projects/task-cells.blade.php'),
+        read('resources/js/pages/reports/projects.js'),
     ]);
 
-    for (const view of [my, employee]) {
+    // ทั้งหน้าหลักและหน้ารายละเอียดใช้เซลล์ชุดเดียวกัน จึงต้องมีกล่องรายชื่องานย่อยทั้งสองหน้า
+    for (const view of [projects, details]) {
         assert.match(view, /@include\('reports\.components\.subtask-modal'\)/);
+        assert.match(view, /@include\('reports\.components\.projects\.task-cells'/);
     }
-
-    for (const table of [contributions, attention, employee]) {
-        assert.match(table, /@include\('reports\.components\.subtask-cell'\)/);
-    }
-
-    for (const source of [myJs, employeeJs]) {
-        assert.match(source, /initSubtaskModal\(document\)/);
-    }
+    // แถวรายงานโปรเจกต์ส่งชื่อโปรเจกต์เป็นข้อความเข้า partial กลาง
+    assert.match(taskCells, /@include\('reports\.components\.subtask-cell', \['job' =>/);
+    assert.match(projectsJs, /initSubtaskModal\(document\)/);
 });
 
 /* modal จริงต้องมี backdrop และ aria-modal ส่วนลำดับชั้นต้องไม่ถูกกำหนดซ้ำในไฟล์นี้ */

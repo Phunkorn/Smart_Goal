@@ -16,8 +16,10 @@
     --sg-red:#d9363e; --sg-red-soft:#feedef;
     color:var(--sg-ink); font-family:"Prompt",sans-serif;
 }
+/* กว้างเต็มพื้นที่ (เหลือขอบข้างละ 24px) ตารางและบอร์ดงานมีคอลัมน์มาก จึงไม่จำกัด 1540px แล้ว
+   ใช้ร่วมกันทั้ง "งานของฉัน" และ Workspace ของพนักงานที่ admin/หัวหน้าเปิดดู */
 .my-tasks-page {
-    width:min(1540px,calc(100% - 48px)); margin:0 auto; padding:28px 0 64px;
+    width:calc(100% - 48px); margin:0 auto; padding:28px 0 64px;
 }
 .main:has(.my-tasks-page){padding:0;background:linear-gradient(180deg,#f8fafc 0,#eef3f8 280px)}
 .main:has(> .my-tasks-page[data-context=user]){min-height:calc(100vh - 64px);min-height:calc(100dvh - 64px)}

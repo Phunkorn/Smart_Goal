@@ -9,7 +9,9 @@ use App\Models\WorkLogCategory;
 use App\Models\WorkLogTemplate;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Services\RoutineAccountabilityService;
 use App\Services\RoutineAttentionService;
+use App\Services\RoutineStartRequirements;
 use App\Services\WorkLogParticipantService;
 use App\Services\WorkLogQueryService;
 use App\Services\WorkLogRoutineMaterializer;
@@ -23,7 +25,9 @@ use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /**
  * หน้า "บันทึกงานประจำวัน" — ไทม์ไลน์งานปฏิบัติการรายวันของคนหนึ่งคน
@@ -42,12 +46,13 @@ class WorkLogController extends Controller
         private readonly WorkLogRoutineMaterializer $routines,
         private readonly WorkLogParticipantService $participants,
         private readonly RoutineAttentionService $routineAttention,
+        private readonly RoutineAccountabilityService $accountability,
     ) {}
 
     public function routineStatus(Request $request)
     {
         $viewer = Auth::user();
-        $owner = $this->resolveOwner($request, $viewer);
+        $owner = $this->query->resolveOwner($request->integer('user'), $viewer);
         Gate::authorize('viewDay', [WorkLog::class, $owner]);
 
         $attention = $this->routineAttention->summary($owner, $owner->is($viewer));
@@ -69,8 +74,13 @@ class WorkLogController extends Controller
         $viewer = Auth::user();
         Gate::authorize('viewAny', WorkLog::class);
 
-        $owner = $this->resolveOwner($request, $viewer);
+        $owner = $this->query->resolveOwner($request->integer('user'), $viewer);
         Gate::authorize('viewDay', [WorkLog::class, $owner]);
+        $calendarView = match ($request->query('view')) {
+            'calendar' => 'calendar',
+            'monthly' => 'monthly',
+            default => 'today',
+        };
 
         // เก็บกวาดตัวจับเวลาที่ค้างอยู่จากรุ่นก่อนหน้า
         //
@@ -78,23 +88,83 @@ class WorkLogController extends Controller
         // ค้างสถานะ "กำลังจับเวลา" ได้ ถ้าไม่ปิดให้ รายการนั้นจะค้างอยู่ตลอดไป
         // โดยไม่มีปุ่มไหนในหน้าจอปิดมันได้อีก
         // (รูปแบบเดียวกับที่ AuditController::index() เรียก TrashRetention::purgeExpired())
-        $this->logs->closeLeftoverTimers($owner);
+        if ($calendarView === 'today') {
+            $this->logs->closeLeftoverTimers($owner);
+        }
 
         $businessDay = $this->query->resolveBusinessDay($request->query('date'));
 
         // สร้างรายการงานประจำของวันนี้ให้อัตโนมัติ ด้วยเหตุผลเดียวกับข้างบน
         // คือไม่พึ่ง cron เป็นแหล่งความจริง (ดู WorkLogRoutineMaterializer)
         //
+        // ปิดรอบ 17:00 ของวันที่ถึงเวลาแล้ว (รวมวันที่ไม่ได้เปิดระบบเลย) ก่อนอ่านข้อมูลทุกมุมมอง
+        $this->accountability->closeFor($owner);
+
         // ทำเฉพาะ "วันนี้" เท่านั้น วันที่ผ่านไปแล้วสร้างรายการเพื่อเริ่มงานย้อนหลัง
-        // ไม่ได้เด็ดขาด เหลือทางเดียวคือระบุเหตุผลที่ไม่ได้ทำ (missRoutine)
-        if ($businessDay->isSameDay(TodayWorkspace::businessNow())) {
+        // ไม่ได้เด็ดขาด รายการของวันเหล่านั้นเป็นรายการปิดรอบที่ระบุได้เฉพาะเหตุผล
+        if ($calendarView === 'today' && $businessDay->isSameDay(TodayWorkspace::businessNow())) {
             $this->routines->materializeToday($owner);
         }
 
         $dayLogs = $this->query->dayFor($owner, $businessDay);
+        $members = $this->query->visibleMembersFor($viewer);
+        $calendarMembers = $this->query->calendarMembersFor($viewer);
+        $capabilities = $this->capabilities(
+            $viewer,
+            $owner,
+            $members->isNotEmpty(),
+            $calendarMembers->isNotEmpty(),
+        );
+        $calendarScope = $capabilities['canViewTeamCalendar']
+            && ($request->query('scope') === 'team'
+                || ($calendarView === 'calendar' && $request->query('scope') !== 'mine'))
+            ? 'team'
+            : 'mine';
+        $calendarOwners = $calendarScope === 'team'
+            ? $calendarMembers
+            : collect([$viewer]);
+        $calendarMonth = $businessDay->copy()->startOfMonth();
+        $requestedMonth = $request->query('month');
+        if (is_string($requestedMonth) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $requestedMonth)) {
+            $calendarMonth = \Carbon\Carbon::parse($requestedMonth.'-01', TodayWorkspace::BUSINESS_TIMEZONE)
+                ->startOfMonth();
+        }
+        $calendarEntries = $this->query->calendarFor($viewer, $calendarOwners, $calendarMonth);
+        $monthLogs = $calendarView === 'monthly'
+            ? $this->query->monthFor($viewer, $owner, $calendarMonth)
+            : collect();
+        $monthSummary = WorkLogSummary::fromLogs($monthLogs);
+        $calendarKind = in_array($request->query('kind'), ['routine', 'field'], true)
+            ? $request->query('kind') : '';
+        $calendarCategory = $request->integer('category');
+        if ($calendarKind !== '' || $calendarCategory > 0) {
+            foreach ($calendarEntries as $date => $items) {
+                $calendarEntries[$date] = array_values(array_filter($items, fn (array $item): bool =>
+                    ($calendarKind === '' || $item['kind'] === $calendarKind)
+                    && ($calendarCategory === 0 || (int) $item['category_id'] === $calendarCategory)));
+            }
+        }
+        $calendarSelectedDate = $businessDay->format('Y-m-d');
+        if ($calendarMonth->format('Y-m') !== $businessDay->format('Y-m')) {
+            $calendarSelectedDate = $calendarMonth->format('Y-m-d');
+        }
 
         return view('daily-logs.index', [
             'owner' => $owner,
+            'calendarView' => $calendarView,
+            'calendarScope' => $calendarScope,
+            'calendarMonth' => $calendarMonth,
+            'calendarMonthValue' => $calendarMonth->format('Y-m'),
+            'calendarSelectedDate' => $calendarSelectedDate,
+            'calendarEntries' => $calendarEntries,
+            'monthLogs' => $monthLogs,
+            'monthSummary' => $monthSummary,
+            'monthDurationLabel' => WorkLogDesign::durationLabel($monthSummary['total_minutes']),
+            'monthKindDurationLabels' => collect($monthSummary['by_kind'])
+                ->mapWithKeys(fn (array $kind, string $key): array => [$key => WorkLogDesign::durationLabel($kind['minutes'])])
+                ->all(),
+            'calendarKind' => $calendarKind,
+            'calendarCategory' => $calendarCategory,
             'isOwnDay' => $owner->id === $viewer->id,
             'businessDay' => $businessDay,
             'dateValue' => $businessDay->format('Y-m-d'),
@@ -119,7 +189,7 @@ class WorkLogController extends Controller
                 $log->ended_at?->toIso8601String(),
             ])->toJson()),
             'summary' => WorkLogSummary::fromLogs($dayLogs),
-            'members' => $this->query->visibleMembersFor($viewer),
+            'members' => $members,
             'categories' => WorkLogCategory::query()->selectable()->get(),
             'projects' => $this->projectOptions($owner),
             'tasks' => $this->taskOptions($owner),
@@ -131,13 +201,8 @@ class WorkLogController extends Controller
             'sharedRoutines' => $this->sharedRoutinesFor($owner),
             'weekdays' => WorkLogWeekdays::WEEKDAYS,
             'defaultMask' => WorkLogWeekdays::WORKWEEK,
-            'capabilities' => $this->capabilities($viewer, $owner, $businessDay),
+            'capabilities' => $capabilities,
             'design' => WorkLogDesign::forClient(),
-            // งานประจำของวันย้อนหลังที่ไม่มีรายการเลย แสดงเป็นรายการจาง ๆ พร้อมปุ่ม
-            // "ระบุเหตุผล" ปุ่มนั้นบันทึกว่าไม่ได้ทำ ไม่ใช่สร้างงานย้อนหลังให้ทำต่อ
-            'pendingRoutines' => $owner->id === $viewer->id
-                ? $this->routines->pendingRoutinesFor($owner, $businessDay)
-                : collect(),
             // สร้าง URL จากฝั่ง server เสมอ ฝั่ง client ไม่ประกอบเส้นทางเอง
             // __ID__ เป็นตัวยึดตำแหน่งที่ JavaScript แทนที่ด้วย id จริงตอนเรียก
             'routes' => [
@@ -147,10 +212,6 @@ class WorkLogController extends Controller
                 'complete' => route('daily-logs.complete', ['workLog' => '__ID__']),
                 'start' => route('daily-logs.start', ['workLog' => '__ID__']),
                 'skip' => route('daily-logs.skip', ['workLog' => '__ID__']),
-                'reopen' => route('daily-logs.reopen', ['workLog' => '__ID__']),
-                // ระบุเหตุผลที่ไม่ได้ทำงานประจำของวันย้อนหลัง __TEMPLATE__ เป็น
-                // ตัวยึดตำแหน่งแบบเดียวกับ __ID__ ของบันทึกงาน
-                'routineMissed' => route('daily-logs.routines.missed', ['template' => '__TEMPLATE__']),
                 'routineStatus' => route('daily-logs.routine-status', $owner->is($viewer) ? [] : ['user' => $owner->id]),
                 'attachmentStore' => route('daily-logs.attachments.store', ['workLog' => '__ID__']),
                 'attachmentDestroy' => route('daily-logs.attachments.destroy', [
@@ -168,15 +229,34 @@ class WorkLogController extends Controller
         $actor = Auth::user();
         $data = $request->validate($this->validationRules());
 
-        $log = $this->logs->create($actor, $actor, $data);
-        $this->participants->sync($log, $actor, $request->input('participants', []));
+        $dates = collect($data['work_dates'] ?? [])
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($dates->isEmpty()) {
+            $dates->push($data['work_date'] ?? null);
+        }
+
+        $logs = DB::transaction(function () use ($actor, $data, $dates, $request): Collection {
+            return $dates->map(function (?string $date) use ($actor, $data, $request): WorkLog {
+                $log = $this->logs->create($actor, $actor, [...$data, 'work_date' => $date]);
+                $this->participants->sync($log, $actor, $request->input('participants', []));
+
+                return $log;
+            });
+        });
+
+        /** @var WorkLog $log */
+        $log = $logs->last();
+        $createdCount = $logs->count();
 
         return $this->jsonOrBack(
             $request,
             true,
             'บันทึกงานเรียบร้อย',
             200,
-            $this->mutationPayload($actor, $log)
+            [...$this->mutationPayload($actor, $log), 'created_count' => $createdCount]
         );
     }
 
@@ -211,8 +291,14 @@ class WorkLogController extends Controller
         Gate::authorize('update', $workLog);
 
         $actor = Auth::user();
-        $data = $request->validate(['late_completion_reason' => ['nullable', 'string', 'max:500']]);
-        $workLog = $this->logs->markDone($workLog, $actor, $data['late_completion_reason'] ?? null);
+        $this->closeRoutineDayFor($workLog, $actor);
+        // ตรวจรูปแบบที่นี่ ส่วนกติกา "พบปัญหาต้องมีรายละเอียด" และ "เสร็จช้าต้องมีเหตุผล" อยู่ที่ WorkLogService
+        $data = $request->validate([
+            'outcome' => ['nullable', 'string', 'in:done,issue'],
+            'issue_details' => ['nullable', 'string', 'max:2000'],
+            'late_completion_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+        $workLog = $this->logs->markDone($workLog, $actor, $data);
 
         return $this->jsonOrBack(
             $request,
@@ -228,73 +314,64 @@ class WorkLogController extends Controller
         Gate::authorize('update', $workLog);
 
         $actor = Auth::user();
-        $data = $request->validate(['late_start_reason' => ['nullable', 'string', 'max:500']]);
-        $workLog = $this->logs->startRoutine($workLog, $actor, $data['late_start_reason'] ?? null);
+        $data = $request->validate([
+            'late_start_reason' => ['nullable', 'string', 'max:500'],
+            // เหตุผลของวันที่ค้าง: backlog_reasons[Y-m-d] และคำตอบผู้ร่วมงาน: attendance[user_id] = present|absent
+            'backlog_reasons' => ['nullable', 'array', 'max:'.WorkLogDesign::MAX_BACKFILL_DAYS],
+            'backlog_reasons.*' => ['nullable', 'string', 'max:500'],
+            'attendance' => ['nullable', 'array', 'max:50'],
+            'attendance.*' => ['string', 'in:present,absent'],
+        ]);
+
+        try {
+            $workLog = $this->accountability->start($workLog, $actor, $data);
+        } catch (RoutineStartRequirements $required) {
+            if (! ($request->expectsJson() || $request->ajax())) {
+                throw ValidationException::withMessages(['backlog_reasons' => $required->getMessage()]);
+            }
+
+            return $this->jsonOrBack($request, false, $required->getMessage(), 422, [
+                'errors' => ['routine' => [$required->getMessage()]],
+                'requirements' => ['backlog' => $required->backlog, 'attendance' => $required->attendance],
+            ]);
+        }
 
         return $this->jsonOrBack($request, true, 'เริ่มงานประจำแล้ว', 200, $this->mutationPayload($actor, $workLog));
     }
 
+    /**
+     * ไม่ได้ทำวันนี้ (ก่อนปิดรอบ) หรือระบุเหตุผลของรายการที่ปิดรอบแล้ว — endpoint เดียวกัน
+     *
+     * รายการปิดรอบคงสถานะเดิม (ไม่ได้เริ่ม / เริ่มแล้วไม่กดเสร็จ / ไม่มา) ไม่ถูกแปลงเป็น "ไม่ได้ทำ"
+     */
     public function skip(Request $request, WorkLog $workLog)
     {
         Gate::authorize('update', $workLog);
 
         $actor = Auth::user();
         $data = $request->validate(['skip_reason' => ['required', 'string', 'max:500']]);
+        $this->closeRoutineDayFor($workLog, $actor);
+
+        if (WorkLogPresenter::requiresExplanation($workLog)) {
+            $workLog = $this->accountability->explain($workLog, $actor, $data['skip_reason']);
+
+            return $this->jsonOrBack($request, true, 'บันทึกเหตุผลแล้ว', 200, $this->mutationPayload($actor, $workLog));
+        }
+
         $workLog = $this->logs->skipRoutine($workLog, $actor, $data['skip_reason']);
 
         return $this->jsonOrBack($request, true, 'บันทึกเหตุผลที่ไม่ได้ทำวันนี้แล้ว', 200, $this->mutationPayload($actor, $workLog));
     }
 
-    /**
-     * ระบุเหตุผลที่ไม่ได้ทำงานประจำของวันที่ผ่านมา
-     *
-     * วันที่ผ่านไปแล้วสร้างรายการเพื่อ "เริ่มงาน" ไม่ได้เด็ดขาด สิ่งที่ทำได้คือ
-     * บันทึกว่าวันนั้นไม่ได้ทำเพราะอะไร (ลืม ลา ขาด วันหยุด) ซึ่งลงเป็นรายการ
-     * สถานะ "ไม่ได้ทำ" ทันทีโดยไม่ต้องกดอะไรต่ออีก
-     */
-    public function missRoutine(Request $request, WorkLogTemplate $template)
+    /** งานประจำจากแม่แบบ: ปิดรอบให้ก่อนตัดสินใจ เพื่อให้กดหลัง 17:00 ได้ผลเหมือนเปิดหน้าใหม่ */
+    private function closeRoutineDayFor(WorkLog $workLog, User $actor): void
     {
-        Gate::authorize('create', WorkLog::class);
+        if ($workLog->work_log_template_id === null) {
+            return;
+        }
 
-        $actor = Auth::user();
-        $data = $request->validate([
-            'date' => ['required', 'date_format:Y-m-d'],
-            'reason' => ['required', 'string', 'max:500'],
-        ]);
-
-        $log = $this->routines->recordMissed(
-            $actor,
-            $template,
-            $this->query->resolveBusinessDay($data['date']),
-            $data['reason']
-        );
-
-        return $this->jsonOrBack(
-            $request,
-            true,
-            'บันทึกเหตุผลที่ไม่ได้ทำงานประจำวันนั้นแล้ว',
-            200,
-            $this->mutationPayload($actor, $log)
-        );
-    }
-
-    /**
-     * ยกเลิกการยืนยัน — กดผิดรายการแล้วต้องแก้กลับได้
-     */
-    public function reopen(Request $request, WorkLog $workLog)
-    {
-        Gate::authorize('update', $workLog);
-
-        $actor = Auth::user();
-        $workLog = $this->logs->reopen($workLog, $actor);
-
-        return $this->jsonOrBack(
-            $request,
-            true,
-            'ย้ายกลับไปรายการที่ต้องทำแล้ว',
-            200,
-            $this->mutationPayload($actor, $workLog)
-        );
+        $this->accountability->closeFor($actor);
+        $workLog->refresh();
     }
 
     public function destroy(Request $request, WorkLog $workLog)
@@ -323,7 +400,7 @@ class WorkLogController extends Controller
     private function routineTemplatesOf(User $owner): Collection
     {
         return WorkLogTemplate::query()
-            ->with('participants:id,name')
+            ->with(['participants:id,name', 'category:id,name'])
             ->where('user_id', $owner->id)
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -348,35 +425,24 @@ class WorkLogController extends Controller
     }
 
     /**
-     * เจ้าของไทม์ไลน์ที่กำลังเปิดดู — ตัวเองเป็นค่าเริ่มต้น
-     *
-     * การส่ง ?user= ที่ไม่มีอยู่จริงถือเป็น 404 ส่วนการไม่มีสิทธิ์ดูเป็นหน้าที่ของ
-     * policy ที่ผู้เรียกต้องตรวจต่อ เพื่อให้ข้อความ error สื่อความหมายต่างกัน
-     */
-    private function resolveOwner(Request $request, User $viewer): User
-    {
-        $requestedId = $request->integer('user');
-
-        if ($requestedId === 0 || $requestedId === $viewer->id) {
-            return $viewer;
-        }
-
-        return User::query()->findOrFail($requestedId);
-    }
-
-    /**
      * ความสามารถที่ Blade ใช้ตัดสินว่าจะแสดงปุ่มอะไร
      *
      * ทุกค่ามาจาก policy ฝั่ง server เสมอ Blade และ JavaScript ห้ามตัดสินสิทธิ์เอง
      */
-    private function capabilities(User $viewer, User $owner, CarbonInterface $businessDay): array
+    private function capabilities(
+        User $viewer,
+        User $owner,
+        bool $canViewOthers,
+        bool $canViewTeamCalendar,
+    ): array
     {
         $isOwnDay = $viewer->id === $owner->id;
 
         return [
             'canCreate' => $isOwnDay && Gate::forUser($viewer)->allows('create', WorkLog::class),
             'canEdit' => $isOwnDay,
-            'canViewOthers' => $this->query->visibleMembersFor($viewer)->isNotEmpty(),
+            'canViewOthers' => $canViewOthers,
+            'canViewTeamCalendar' => $canViewTeamCalendar,
             'isReadOnly' => ! $isOwnDay,
         ];
     }
@@ -389,7 +455,7 @@ class WorkLogController extends Controller
      */
     private function mutationPayload(User $owner, WorkLog $log): array
     {
-        $log->loadMissing(['category', 'project', 'task', 'attachments', 'user', 'participants', 'template.user']);
+        $log->loadMissing(['category', 'project', 'task', 'attachments', 'user', 'participants', 'template.user', 'template.participants', 'sharedFrom.user', 'sharedFrom.participants', 'absentMarkedBy:id,name']);
 
         return [
             'log' => WorkLogPresenter::forClient($log),
@@ -459,6 +525,8 @@ class WorkLogController extends Controller
             'work_order_list_id' => ['nullable', 'integer', 'exists:work_order_lists,id'],
             'job_id' => ['nullable', 'integer', 'exists:work_orders,job_id'],
             'work_date' => ['nullable', 'date_format:Y-m-d'],
+            'work_dates' => ['nullable', 'array', 'max:31'],
+            'work_dates.*' => ['required', 'date_format:Y-m-d', 'distinct'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
             'duration_minutes' => ['nullable', 'integer', 'min:'.WorkLogDesign::MIN_DURATION_MINUTES, 'max:'.WorkLogDesign::MAX_DURATION_MINUTES],

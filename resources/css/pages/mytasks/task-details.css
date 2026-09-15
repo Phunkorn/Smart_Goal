@@ -336,8 +336,7 @@
     color: #2867c7;
     font: inherit;
     font-size: 10px;
-    font-weight: 700;
-}
+    font-weight: 700;}
 
 .my-tasks-page .board-task-detail.is-dragging,
 .my-tasks-page .board-task-detail.is-moving {

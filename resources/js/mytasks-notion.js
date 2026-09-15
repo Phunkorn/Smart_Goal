@@ -60,6 +60,7 @@ import {boardFilterStateFrom, boardTaskMatches} from './pages/mytasks/task-filte
                 canReview: row.dataset.canReview,
                 reviewableSubtasks: row.dataset.reviewableSubtasks,
                 late: row.dataset.late,
+                crossDepartment: row.dataset.crossDepartment,
             }, {search: '', status: selectedStatus});
             row.hidden = !(matchesText && matchesFilter);
             if (!row.hidden) shown++;

@@ -73,6 +73,41 @@ class WorkLogPolicy
             || $viewer->overseesDepartment($owner->department_id);
     }
 
+    /**
+     * ปฏิทินแผนกเป็นมุมมองสรุปร่วมกัน ไม่ใช่สิทธิ์เปิด Timeline ของคนอื่น
+     *
+     * พนักงานทุกคนในแผนกเดียวกันเห็นชื่อ เวลา และประเภทงานบนปฏิทินได้ แต่
+     * viewDay(), update() และ delete() ยังคงกติกาเดิม จึงใช้สิทธิ์นี้เพื่อเปิด
+     * รายละเอียดหรือแก้บันทึกของเพื่อนร่วมงานไม่ได้
+     */
+    public function viewCalendarDay(User $viewer, User $owner): bool
+    {
+        if ($viewer->role === 'viewer') {
+            return false;
+        }
+
+        return $viewer->role === 'admin'
+            || $viewer->id === $owner->id
+            || ($viewer->department_id !== null
+                && (int) $viewer->department_id === (int) $owner->department_id);
+    }
+
+    /**
+     * ใช้ department snapshot ของ WorkLog เพื่อไม่ย้ายประวัติเก่าไปตามแผนก
+     * ปัจจุบันของเจ้าของโดยไม่ตั้งใจ
+     */
+    public function viewCalendar(User $viewer, WorkLog $log): bool
+    {
+        if ($viewer->role === 'viewer') {
+            return false;
+        }
+
+        return $viewer->role === 'admin'
+            || $viewer->id === $log->user_id
+            || ($viewer->department_id !== null
+                && (int) $viewer->department_id === (int) $this->logDepartmentId($log));
+    }
+
     public function create(User $user): bool
     {
         return $user->role !== 'viewer';

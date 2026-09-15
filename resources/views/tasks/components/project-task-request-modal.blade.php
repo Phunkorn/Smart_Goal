@@ -8,6 +8,8 @@
         'list_id' => session('project_task_request_list_id'),
         'errors' => $projectTaskRequestErrors->getMessages(),
         'old' => [
+            'request_type' => old('request_type', 'task'),
+            'parent_job_id' => old('parent_job_id'),
             'job_topic' => old('job_topic'),
             'job_priority' => old('job_priority'),
             'job_start_at' => old('job_start_at'),
@@ -26,9 +28,29 @@
             @csrf
             <div class="project-task-request-modal__body">
                 <div class="alert alert-danger py-2 mb-0" role="alert" data-project-task-request-general-error hidden></div>
+                <fieldset class="project-task-request-modal__type">
+                    <legend>ต้องการเพิ่มแบบไหน</legend>
+                    <label>
+                        <input type="radio" name="request_type" value="task" checked>
+                        <span><i class="bi bi-list-task" aria-hidden="true"></i><b>งานใหม่</b><small>เพิ่มรายการงานหลักในโปรเจกต์</small></span>
+                    </label>
+                    <label>
+                        <input type="radio" name="request_type" value="subtask">
+                        <span><i class="bi bi-diagram-3" aria-hidden="true"></i><b>งานย่อย</b><small>เพิ่มรายการภายใต้งานหลักที่เลือก</small></span>
+                    </label>
+                    <div class="invalid-feedback" data-project-task-request-error="request_type"></div>
+                </fieldset>
+                <label data-project-task-request-parent hidden>
+                    <span>เลือกงานหลัก</span>
+                    <select class="form-select" name="parent_job_id" data-project-task-request-parent-select>
+                        <option value="">เลือกงานหลักที่ต้องการเพิ่มงานย่อย</option>
+                    </select>
+                    <div class="invalid-feedback" data-project-task-request-error="parent_job_id"></div>
+                    <small class="project-task-request-modal__parent-empty" data-project-task-request-parent-empty hidden>โปรเจกต์นี้ไม่มีงานหลักที่เปิดอยู่</small>
+                </label>
                 <label><span>ชื่องาน</span><input class="form-control" name="job_topic" maxlength="255" required><div class="invalid-feedback" data-project-task-request-error="job_topic"></div></label>
                 <div class="project-task-request-modal__grid">
-                    <label><span>ความสำคัญ</span><select class="form-select" name="job_priority" required><option value="1">Routine</option><option value="2" selected>สำคัญไม่ด่วน</option><option value="3">สำคัญด่วน</option><option value="4">ด่วนไม่สำคัญ</option><option value="5">ไม่รีบ</option></select><div class="invalid-feedback" data-project-task-request-error="job_priority"></div></label>
+                    <label><span>ความสำคัญ</span><select class="form-select" name="job_priority" required><option value="2" selected>สำคัญไม่ด่วน</option><option value="3">สำคัญด่วน</option><option value="4">ด่วนไม่สำคัญ</option><option value="5">ไม่รีบ</option></select><div class="invalid-feedback" data-project-task-request-error="job_priority"></div></label>
                     <label><span>วันที่เริ่ม</span><input class="form-control" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}" name="job_start_at" required><div class="invalid-feedback" data-project-task-request-error="job_start_at"></div></label>
                     <label><span>กำหนดส่ง</span><input class="form-control" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" name="job_due_at" required><div class="invalid-feedback" data-project-task-request-error="job_due_at"></div></label>
                 </div>

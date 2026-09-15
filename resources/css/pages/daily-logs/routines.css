@@ -33,28 +33,10 @@
 
 .routine-day { position:relative; cursor:pointer; }
 .routine-day input { position:absolute; opacity:0; width:0; height:0; }
-.routine-day span { display:grid; place-items:center; min-width:38px; padding:7px 9px; border:1px solid #dde5f1; border-radius:9px; background:#fff; color:#526180; font-size:.8rem; font-weight:650; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
+.routine-day span { display:grid; place-items:center; min-width:38px; padding:7px 9px; border:1px solid #dde5f1; border-radius:9px; background:#fff; color:#526180; font-size:.8rem; font-weight:300; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
 .routine-day:hover span { border-color:#b9cbe8; }
 .routine-day input:checked + span { border-color:#2563eb; background:#eff5ff; color:#1d4ed8; }
 .routine-day input:focus-visible + span { outline:2px solid #2563eb; outline-offset:2px; }
-
-/* รายการงานประจำที่ยังไม่ได้บันทึกของวันย้อนหลัง — จงใจให้ดูจางกว่ารายการจริง
-   เพราะยังไม่ใช่ข้อมูลที่บันทึกไว้ เป็นเพียงสิ่งที่ระบบเสนอให้ */
-.pending-routines { display:grid; gap:10px; padding:15px 17px; border:1px dashed #d9e2f0; border-radius:14px; background:#fbfcfe; }
-.pending-routines__head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
-.pending-routines__heading { display:flex; align-items:center; gap:7px; margin:0; color:#526180; font-size:.88rem; font-weight:650; }
-.pending-routines__heading i { color:#8494ae; }
-.pending-routines__list { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
-.pending-routines__item { display:flex; align-items:center; gap:9px; color:#7382a0; font-size:.85rem; }
-.pending-routines__item i { color:#b4c2d6; font-size:.7rem; }
-.pending-routines__item small { color:#9aa8bf; font-size:.74rem; }
-.pending-routines__title { min-width:0; overflow-wrap:anywhere; }
-/* ปุ่มเดียวของรายการย้อนหลัง — บันทึกว่าไม่ได้ทำ ไม่ใช่สร้างงานย้อนหลัง */
-.pending-routines__reason { display:inline-flex; align-items:center; gap:6px; margin-left:auto; padding:4px 11px; border:1px solid #f0c4c4; border-radius:999px; background:#fff; color:#b42318; font-size:.76rem; font-weight:650; white-space:nowrap; cursor:pointer; transition:border-color .15s ease, background-color .15s ease; }
-.pending-routines__reason:hover { border-color:#e35d5d; background:#fff5f5; }
-.pending-routines__reason:focus-visible { outline:2px solid #b42318; outline-offset:1px; }
-.pending-routines__reason[disabled] { opacity:.55; cursor:progress; }
-.pending-routines__note { margin:0; color:#9aa8bf; font-size:.74rem; line-height:1.55; }
 
 @media (max-width: 1100px) {
     .routine-page__body { grid-template-columns:minmax(0,1fr); }
@@ -64,7 +46,6 @@
 @media (max-width: 640px) {
     .routine-page { padding:14px 12px 28px; }
     .routine-page__title { font-size:1.3rem; }
-    .pending-routines__head { align-items:flex-start; }
 }
 
 /* หน้าจัดการหมวดงาน (admin) — แถวละหนึ่งหมวด แก้ในที่ได้เลย */
@@ -84,43 +65,7 @@
     .category-row__order { width:100%; }
 }
 
-/*
- * งานประจำใน modal
- *
- * รายการที่มีอยู่แสดงเป็นแถวเตี้ย ๆ ไม่ใช่การ์ด เพราะเป็นข้อมูลอ้างอิงที่ผู้ใช้
- * แค่กวาดตาดูว่ามีอะไรตั้งไว้แล้วบ้าง การ์ดสูง ๆ ทำให้เห็นได้ทีละสองสามรายการ
- * แล้วต้องเลื่อนหา ทั้งที่แต่ละรายการมีข้อมูลแค่บรรทัดเดียว
- *
- * ปุ่มในแต่ละแถวมีปุ่มเดียวคือลบ การแก้ไขทำได้ด้วยการลบแล้วเพิ่มใหม่ ซึ่งเร็วกว่า
- * การเปิดฟอร์มแก้ไขสำหรับข้อมูลสี่ช่อง
- */
-.routine-modal__lead { margin:0 0 4px; color:#7382a0; font-size:.83rem; line-height:1.6; }
-.routine-modal__section { margin:6px 0 0; color:#33415c; font-size:.85rem; font-weight:700; }
-.routine-modal__empty { margin:0; padding:14px 16px; border:1px dashed #d9e2f0; border-radius:11px; color:#8494ae; font-size:.83rem; text-align:center; }
-
-.routine-rows { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
-.routine-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 11px; border:1px solid #e9eef6; border-radius:10px; background:#fff; }
-.routine-row--inactive { opacity:.6; }
-.routine-row--shared { background:#fbfcfe; border-style:dashed; }
-.routine-row__body { display:grid; gap:1px; min-width:0; }
-.routine-row__title { color:#111827; font-size:.87rem; font-weight:650; overflow-wrap:anywhere; }
-.routine-row__meta { color:#8494ae; font-size:.75rem; }
-.routine-row__actions { display:flex; align-items:center; gap:3px; }
-.routine-row__delete,.routine-row__edit { display:grid; place-items:center; flex:0 0 auto; width:28px; height:28px; border:1px solid transparent; border-radius:8px; background:transparent; color:#a8b6cc; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
-.routine-row__edit:hover { border-color:#c5d8f5; background:#f1f6ff; color:#2563eb; }
-.routine-row:hover .routine-row__delete { color:#8494ae; }
-.routine-row__delete:hover { border-color:#fbd5d1; background:#fef3f2; color:#d92d20; }
-.routine-row__delete:focus-visible { outline:2px solid #d92d20; outline-offset:1px; }
-
-/* ฟอร์มเพิ่ม — ถามแค่สี่อย่าง จึงไม่ต้องมีส่วนพับซ่อนอะไรอีก */
-.routine-add { display:grid; gap:12px; margin-top:4px; padding-top:14px; border-top:1px dashed #e4eaf3; }
-.routine-add__submit { justify-self:start; display:inline-flex; align-items:center; gap:7px; border-radius:10px; font-size:.87rem; font-weight:650; }
-
-.routine-form__window { margin:0; padding:0; border:0; }
-.routine-form__times { display:flex; align-items:center; gap:9px; }
-.routine-form__times input { flex:1 1 0; min-width:0; }
-.routine-form__times-sep { color:#7c8aa3; font-size:.82rem; font-weight:600; }
-.routine-form__more { border:1px solid #e1e8f1; border-radius:10px; background:#fbfcfe; }
-.routine-form__more > summary { display:flex; align-items:center; gap:7px; padding:10px 12px; color:#52627a; font-size:.78rem; font-weight:650; cursor:pointer; list-style:none; }
-.routine-form__more > summary::-webkit-details-marker { display:none; }
-.routine-form__more-body { display:grid; gap:12px; padding:2px 12px 12px; }
+.daily-log .routine-form__window { margin:0; padding:0; border:0; }
+.daily-log .routine-form__times { display:flex; align-items:center; gap:9px; }
+.daily-log .routine-form__times input { flex:1 1 0; min-width:0; }
+.daily-log .routine-form__times-sep { color:#7c8aa3; font-size:.82rem; }

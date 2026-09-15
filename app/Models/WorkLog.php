@@ -49,8 +49,16 @@ class WorkLog extends Model
         'duration_minutes',
         'late_start_reason',
         'late_completion_reason',
+        'has_issue',
+        'issue_details',
+        'shared_from_work_log_id',
         'skip_reason',
         'skipped_at',
+        'unfinished_reason',
+        'absent_marked_by',
+        'absent_marked_at',
+        'cutoff_closed_at',
+        'explained_at',
         'open_timer_owner_id',
         'auto_closed_at',
         'created_by',
@@ -67,7 +75,33 @@ class WorkLog extends Model
             'skipped_at' => 'datetime',
             'auto_closed_at' => 'datetime',
             'duration_minutes' => 'integer',
+            'has_issue' => 'boolean',
+            'absent_marked_at' => 'datetime',
+            'cutoff_closed_at' => 'datetime',
+            'explained_at' => 'datetime',
         ];
+    }
+
+    /** ผู้ร่วมงานที่ระบุตอนกดเริ่มว่าเจ้าของรายการนี้ไม่มา (สถานะ absent) */
+    public function absentMarkedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'absent_marked_by');
+    }
+
+    /**
+     * รายการต้นฉบับของคนที่สร้างงานนอกสถานที่ แล้วเพิ่มเจ้าของรายการนี้เข้าร่วม
+     */
+    public function sharedFrom(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'shared_from_work_log_id');
+    }
+
+    /**
+     * สำเนาของผู้ร่วมงาน — ดู WorkLogParticipantService::syncSharedCopies()
+     */
+    public function sharedCopies(): HasMany
+    {
+        return $this->hasMany(self::class, 'shared_from_work_log_id');
     }
 
     public function user(): BelongsTo

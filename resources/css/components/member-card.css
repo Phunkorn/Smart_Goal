@@ -3,9 +3,9 @@
  *
  * ใช้อยู่ที่:
  *   - ไดเรกทอรีสมาชิกของแผนก (work-board/components/member-card.blade.php)
- *   - หน้าเลือกพนักงานเพื่อดูรายงาน (reports/employees/index.blade.php)
  *
- * ทั้งสองหน้าต้องเห็นการ์ดหน้าตาเดียวกัน สไตล์จึงอยู่ที่นี่ที่เดียว ไม่ผูกกับ
+ * หน้าเลือกพนักงานเพื่อดูรายงานเคยใช้การ์ดนี้ด้วย แต่ถูกแทนด้วยช่องเลือกพนักงานใน
+ * รายงานโปรเจกต์ (reports.projects) แล้ว สไตล์ยังอยู่ที่นี่ที่เดียว ไม่ผูกกับ
  * .work-board-department-page เหมือนเดิม (ของเดิมทำให้หน้ารายงานลอกสไตล์ไปใช้ไม่ได้
  * ต้องเขียนการ์ดของตัวเองขึ้นมาคู่ขนาน แล้วสองหน้าก็เพี้ยนจากกันทีละนิด)
  *
@@ -178,3 +178,38 @@
         transition: none;
     }
 }
+
+/*
+ * งานประจำ/นอกสถานที่ของวันนี้บนการ์ดสมาชิก — แสดงเฉพาะผู้ดูที่มีสิทธิ์เห็นบันทึกงานประจำวัน
+ * โทนมาจาก TodayOperationalStatus: แดง = เกินเวลา, ส้ม = ยังไม่เริ่ม, น้ำเงิน = กำลังทำ,
+ * ครบแล้วใช้ teal (ฟีเจอร์บันทึกงานเลี่ยงสีเขียว), เทา = ไม่มีงานประจำ
+ */
+.wb-member-card__ops {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.wb-ops-chip {
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.wb-ops-chip--red { color: #b42318; background: #fef0ef; }
+.wb-ops-chip--amber { color: #b45309; background: #fff6e5; }
+.wb-ops-chip--blue { color: #1d4ed8; background: #edf3ff; }
+.wb-ops-chip--green { color: #0f766e; background: #e9f8f6; }
+.wb-ops-chip--slate { color: #64748b; background: #f3f5f8; }
+.wb-ops-chip--field { color: #6b3fa0; background: #f3edfb; }

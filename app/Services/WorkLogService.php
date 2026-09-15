@@ -125,6 +125,14 @@ class WorkLogService
             // เริ่มงานใหม่ได้ เพราะ soft delete ไม่ได้เอาแถวออกจากตารางจริง
             $log->forceFill(['open_timer_owner_id' => null])->save();
             $log->delete();
+
+            // ต้นฉบับงานนอกสถานที่ถูกลบ สำเนาของผู้ร่วมงานที่ยังไม่ปิดก็ไม่มีงานให้ทำแล้ว
+            // สำเนาที่ปิดไปแล้วเป็นประวัติการทำงานจริงของคนนั้น จึงเก็บไว้
+            WorkLog::query()
+                ->where('shared_from_work_log_id', $log->id)
+                ->whereIn('status', ['open', 'in_progress'])
+                ->get()
+                ->each(fn (WorkLog $copy) => $this->delete($copy, $actor));
         });
     }
 
@@ -145,7 +153,18 @@ class WorkLogService
             throw ValidationException::withMessages(['routine' => 'ปุ่มเริ่มงานใช้กับงานประจำเท่านั้น']);
         }
 
-        if ($log->status !== 'open') {
+        // ผู้ที่ถูกระบุว่าไม่มา (absent) มาเริ่มเองในวันเดียวกันก่อนปิดรอบได้ — แปลว่ามาทำจริง
+        $cameAfterMarkedAbsent = $log->status === 'absent'
+            && $log->work_date !== null
+            && ! WorkLogDesign::isPastCutoff($log->work_date->format('Y-m-d'));
+
+        if (in_array($log->status, WorkLogDesign::EXPLANATION_STATUSES, true) && ! $cameAfterMarkedAbsent) {
+            throw ValidationException::withMessages([
+                'routine' => 'งานประจำรายการนี้ปิดรอบแล้ว ระบุได้เฉพาะเหตุผล',
+            ]);
+        }
+
+        if ($log->status !== 'open' && ! $cameAfterMarkedAbsent) {
             return $log;
         }
 
@@ -161,19 +180,30 @@ class WorkLogService
             ]);
         }
 
+        // ถึงเวลาตัดรอบ 17:00 ของวันนั้นแล้ว เริ่มไม่ได้ (ผู้เรียกปิดรอบให้ก่อนแล้วตามปกติ ที่นี่กันซ้ำ)
+        if ($log->work_date !== null && WorkLogDesign::isPastCutoff($log->work_date->format('Y-m-d'))) {
+            throw ValidationException::withMessages([
+                'routine' => sprintf('เลยเวลาปิดรอบ %s น. แล้ว เริ่มงานประจำของวันนี้ไม่ได้', WorkLogDesign::ROUTINE_CUTOFF_TIME),
+            ]);
+        }
+
         $now = TodayWorkspace::businessNow()->utc();
 
         if ($log->planned_start_at !== null && $now->lessThan($log->planned_start_at)) {
             throw ValidationException::withMessages(['routine' => 'ยังไม่ถึงเวลาเริ่มงานประจำ']);
         }
 
-        if ($log->planned_start_at !== null && $now->greaterThan($log->planned_start_at) && blank($lateReason)) {
+        // เลยเวลาเริ่มไม่เกินช่วงผ่อนผัน (WorkLogDesign::LATE_GRACE_MINUTES) ยังไม่นับว่าเริ่มช้า
+        if ($log->planned_start_at !== null && $now->greaterThan(WorkLogDesign::lateAfter($log->planned_start_at)) && blank($lateReason)) {
             throw ValidationException::withMessages(['late_start_reason' => 'กรุณาระบุเหตุผลที่เริ่มงานช้า']);
         }
 
         $before = $this->auditSnapshot($log);
         $log->update([
             'status' => 'in_progress',
+            // มาเริ่มเองแล้ว บันทึก "ไม่มา" ของวันนี้จึงไม่จริงอีกต่อไป (ประวัติยังอยู่ใน audit)
+            'absent_marked_by' => null,
+            'absent_marked_at' => null,
             'started_at' => $now,
             'ended_at' => null,
             'duration_minutes' => null,
@@ -190,16 +220,40 @@ class WorkLogService
         return $log;
     }
 
-    public function markDone(WorkLog $log, User $actor, ?string $lateReason = null): WorkLog
+    /**
+     * ปิดงาน — ใช้ทั้งงานประจำและงานนอกสถานที่
+     *
+     * @param  array{outcome?: ?string, issue_details?: ?string, late_completion_reason?: ?string}  $completion
+     *                                                                                                           outcome = 'done' (ค่าเริ่มต้น) หรือ 'issue' ซึ่งต้องมีรายละเอียดปัญหาเสมอ
+     */
+    /*
+     * "เสร็จแล้ว" และ "ไม่ได้ทำ" เป็นสถานะสุดท้าย ไม่มีทางย้อนกลับไปรอเริ่มอีก
+     *
+     * การกดเสร็จงานคือการยืนยันว่าเช็กแล้ว ถ้าย้อนกลับได้ ผลที่หัวหน้าและคนในแผนก
+     * เห็นบนปฏิทินก็เชื่อถือไม่ได้ เดิมมีปุ่ม "แก้สถานะ" (reopen) ซึ่งถูกถอดออกแล้ว
+     * แก้รายละเอียดหรือลบรายการยังทำได้จากเมนู ⋯ ตามสิทธิ์ของเจ้าของ
+     */
+    public function markDone(WorkLog $log, User $actor, array $completion = []): WorkLog
     {
         if ($log->status === 'done') {
             return $log;
         }
 
+        $lateReason = $completion['late_completion_reason'] ?? null;
+        [$hasIssue, $issueDetails] = $this->completionIssue($completion);
+
         if ($log->work_log_template_id !== null) {
             if ($this->isPastDay($log) && $log->status !== 'in_progress') {
                 throw ValidationException::withMessages([
                     'routine' => 'งานประจำของวันที่ผ่านมาปิดย้อนหลังไม่ได้ กรุณาระบุเหตุผลที่ไม่ได้ทำวันนั้นแทน',
+                ]);
+            }
+
+            // ปิดรอบ 17:00 แล้ว (ไม่ได้เริ่ม / เริ่มแล้วไม่กดเสร็จ / ไม่มา) กดเสร็จย้อนหลังไม่ได้
+            if (in_array($log->status, WorkLogDesign::EXPLANATION_STATUSES, true)
+                || ($log->work_date !== null && WorkLogDesign::isPastCutoff($log->work_date->format('Y-m-d')))) {
+                throw ValidationException::withMessages([
+                    'routine' => sprintf('งานประจำรายการนี้ปิดรอบ %s น. แล้ว ระบุได้เฉพาะเหตุผล', WorkLogDesign::ROUTINE_CUTOFF_TIME),
                 ]);
             }
 
@@ -209,7 +263,8 @@ class WorkLogService
 
             $now = TodayWorkspace::businessNow()->utc();
 
-            if ($log->planned_end_at !== null && $now->greaterThan($log->planned_end_at) && blank($lateReason)) {
+            // เลยเวลาสิ้นสุดไม่เกินช่วงผ่อนผัน ยังไม่ต้องบอกเหตุผลที่เสร็จช้า
+            if ($log->planned_end_at !== null && $now->greaterThan(WorkLogDesign::lateAfter($log->planned_end_at)) && blank($lateReason)) {
                 throw ValidationException::withMessages(['late_completion_reason' => 'กรุณาระบุเหตุผลที่งานเสร็จเกินเวลา']);
             }
 
@@ -224,6 +279,8 @@ class WorkLogService
                 'ended_at' => $now,
                 'duration_minutes' => $minutes,
                 'late_completion_reason' => filled($lateReason) ? trim((string) $lateReason) : null,
+                'has_issue' => $hasIssue,
+                'issue_details' => $issueDetails,
             ]);
 
             AuditTrail::log('work_log_completed', $log, sprintf('ทำงานประจำ "%s" เสร็จแล้ว', $log->title), [
@@ -237,12 +294,14 @@ class WorkLogService
         $before = $this->auditSnapshot($log);
         [$startedAt, $endedAt, $minutes] = $this->plannedCompletion($log);
 
-        return DB::transaction(function () use ($log, $startedAt, $endedAt, $minutes, $before): WorkLog {
+        return DB::transaction(function () use ($log, $startedAt, $endedAt, $minutes, $before, $hasIssue, $issueDetails): WorkLog {
             $log->update([
                 'status' => 'done',
                 'started_at' => $startedAt,
                 'ended_at' => $endedAt,
                 'duration_minutes' => $minutes,
+                'has_issue' => $hasIssue,
+                'issue_details' => $issueDetails,
             ]);
 
             AuditTrail::log(
@@ -264,6 +323,12 @@ class WorkLogService
 
         if (in_array($log->status, ['done', 'skipped'], true)) {
             return $log;
+        }
+
+        // รายการที่ปิดรอบแล้วใช้ RoutineAccountabilityService::explain() — สถานะต้องไม่ถูกแปลงเป็น "ไม่ได้ทำ"
+        if (in_array($log->status, WorkLogDesign::EXPLANATION_STATUSES, true)
+            || ($log->work_date !== null && WorkLogDesign::isPastCutoff($log->work_date->format('Y-m-d')))) {
+            throw ValidationException::withMessages(['routine' => 'งานประจำรายการนี้ปิดรอบแล้ว ระบุได้เฉพาะเหตุผล']);
         }
 
         $reason = trim($reason);
@@ -292,49 +357,31 @@ class WorkLogService
     }
 
     /**
-     * ยกเลิกการยืนยัน — กดผิดรายการแล้วต้องแก้กลับได้
-     *
-     * เวลาที่ระบบเติมให้ตอนยืนยันถูกถอนออกด้วย ไม่งั้นรายการที่ "ยังไม่เสร็จ"
-     * จะยังกินเวลาอยู่ในสรุปของวัน ซึ่งเป็นตัวเลขที่อ่านแล้วเข้าใจผิด
-     */
-    public function reopen(WorkLog $log, User $actor): WorkLog
-    {
-        if (! in_array($log->status, ['done', 'skipped'], true)) {
-            return $log;
-        }
-
-        $before = $this->auditSnapshot($log);
-
-        return DB::transaction(function () use ($log, $before): WorkLog {
-            $log->update([
-                'status' => 'open',
-                'started_at' => null,
-                'ended_at' => null,
-                'duration_minutes' => null,
-                'auto_closed_at' => null,
-                'late_start_reason' => null,
-                'late_completion_reason' => null,
-                'skip_reason' => null,
-                'skipped_at' => null,
-            ]);
-
-            AuditTrail::log(
-                'work_log_reopened',
-                $log,
-                sprintf('ยกเลิกการยืนยันงาน "%s"', $log->title),
-                ['before' => $before, 'after' => $this->auditSnapshot($log->refresh())]
-            );
-
-            return $log;
-        });
-    }
-
-    /**
      * วันของรายการผ่านไปแล้วหรือยัง เทียบด้วยวันตามเวลาทำการ (Asia/Bangkok)
      *
      * ห้ามเทียบกับ now() ตรง ๆ เพราะ 23:00 ที่กรุงเทพยังเป็นวันเดิมของธุรกิจ
      * แต่เป็นวันถัดไปแล้วตามเวลา UTC ที่เก็บอยู่ในฐานข้อมูล
      */
+    /**
+     * ผลการปิดงาน — "พบปัญหา" ต้องมีรายละเอียดเสมอ ไม่งั้นหัวหน้าเห็นป้ายแต่ไม่รู้ว่าปัญหาคืออะไร
+     *
+     * @return array{0: bool, 1: ?string}
+     */
+    private function completionIssue(array $completion): array
+    {
+        if (($completion['outcome'] ?? 'done') !== 'issue') {
+            return [false, null];
+        }
+
+        $details = trim((string) ($completion['issue_details'] ?? ''));
+
+        if ($details === '') {
+            throw ValidationException::withMessages(['issue_details' => 'กรุณาระบุรายละเอียดปัญหาที่พบ']);
+        }
+
+        return [true, $details];
+    }
+
     private function isPastDay(WorkLog $log): bool
     {
         return $log->work_date !== null
@@ -352,6 +399,17 @@ class WorkLogService
     {
         if ($log->duration_minutes !== null) {
             return [$log->started_at, $log->ended_at, $log->duration_minutes];
+        }
+
+        // สำเนาของผู้ร่วมงานนอกสถานที่เก็บช่วงเวลาของต้นฉบับไว้เป็นเวลาที่วางไว้
+        // ยืนยันแล้วจึงได้เวลาเดียวกับคนสร้าง ไม่ใช่รายการที่ไม่มีเวลาเลย
+        if ($log->work_log_template_id === null && $log->started_at === null
+            && $log->planned_start_at !== null && $log->planned_end_at !== null) {
+            return [
+                $log->planned_start_at,
+                $log->planned_end_at,
+                $this->minutesBetween($log->planned_start_at, $log->planned_end_at),
+            ];
         }
 
         $minutes = $log->template?->default_duration_minutes;
@@ -611,7 +669,10 @@ class WorkLogService
             'planned_end_at' => $log->planned_end_at?->toIso8601String(),
             'late_start_reason' => $log->late_start_reason,
             'late_completion_reason' => $log->late_completion_reason,
+            'has_issue' => (bool) $log->has_issue,
+            'issue_details' => $log->issue_details,
             'skip_reason' => $log->skip_reason,
+            'shared_from_work_log_id' => $log->shared_from_work_log_id,
             'work_order_list_id' => $log->work_order_list_id,
             'job_id' => $log->job_id,
         ];

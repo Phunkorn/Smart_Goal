@@ -1,0 +1,24 @@
+.daily-log .daily-month { display:grid; gap:20px; padding:22px; border:1px solid #e3ebf7; border-radius:12px; background:#fff; }
+.daily-log .daily-month__head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.daily-log .daily-month__head h2 { margin:0; color:#172c51; font-size:1.12rem; font-weight:500; }
+.daily-log .daily-month__head p { margin:5px 0 0; color:#7d8ea7; font-size:.79rem; }
+.daily-log .daily-month__navigation { display:flex; align-items:center; gap:12px; white-space:nowrap; }
+.daily-log .daily-month__navigation a { display:grid; place-items:center; width:28px; height:28px; border:1px solid #e0e9f6; border-radius:50%; color:#38577f; }
+.daily-log .daily-month__navigation strong { color:#172c51; font-size:.83rem; font-weight:300; }
+.daily-log .daily-month__metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+.daily-log .daily-month__metrics > div { display:grid; gap:5px; padding:16px; border-radius:9px; background:#f5f8fe; }
+.daily-log .daily-month__metrics small,
+.daily-log .daily-month__kinds small { color:#7b8ca7; font-size:.74rem; }
+.daily-log .daily-month__metrics strong { color:#1261dc; font-size:1.25rem; font-weight:300; }
+.daily-log .daily-month__kinds { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.daily-log .daily-month__kinds > div { display:flex; align-items:center; gap:10px; padding:14px; border:1px solid #e3ebf7; border-radius:9px; color:#365373; font-size:.82rem; }
+.daily-log .daily-month__kinds strong { margin-left:auto; color:#172c51; font-weight:300; }
+.daily-log .daily-month__empty { margin:0; padding:16px; color:#798ba5; text-align:center; font-size:.82rem; }
+@media (max-width:900px) {
+  .daily-log .daily-month__metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media (max-width:575px) {
+  .daily-log .daily-month__head { align-items:flex-start; flex-direction:column; }
+  .daily-log .daily-month__metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .daily-log .daily-month__kinds { grid-template-columns:minmax(0,1fr); }
+}

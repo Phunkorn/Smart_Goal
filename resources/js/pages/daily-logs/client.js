@@ -82,7 +82,11 @@ export const sendAction = async (url, {method = 'POST', fields = {}, repeated = 
     const payload = await response.json().catch(() => ({}));
 
     if (! response.ok) {
-        throw new Error(firstErrorMessage(payload) || 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่');
+        // แนบ payload ไว้ด้วย เพราะบาง endpoint (เช่นเริ่มงานประจำ) ตอบ 422 พร้อมรายการคำถามที่ต้องตอบก่อน
+        const error = new Error(firstErrorMessage(payload) || 'ดำเนินการไม่สำเร็จ กรุณาลองใหม่');
+        error.status = response.status;
+        error.payload = payload;
+        throw error;
     }
 
     return payload;

@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-const organizationCss = readFileSync(new URL('../../resources/css/pages/reports/organization.css', import.meta.url), 'utf8');
-const employeeCss = readFileSync(new URL('../../resources/css/pages/reports/employee.css', import.meta.url), 'utf8');
+const projectsCss = readFileSync(new URL('../../resources/css/pages/reports/projects.css', import.meta.url), 'utf8');
 const sharedCss = readFileSync(new URL('../../resources/css/pages/reports/shared.css', import.meta.url), 'utf8');
 const operationalCss = readFileSync(new URL('../../resources/css/pages/reports/operational.css', import.meta.url), 'utf8');
 
@@ -20,66 +19,13 @@ const mediaBlock = (css, query) => {
     assert.fail(`Unclosed @media (${query})`);
 };
 
-const assertGenericRulePrecedesModifier = (block, genericSelector, modifierSelector) => {
-    const generic = block.indexOf(`${genericSelector} {`);
-    const modifier = block.indexOf(modifierSelector);
-    assert.ok(generic >= 0 && modifier > generic, `${modifierSelector} must win the cascade after ${genericSelector}`);
-};
-
-test('organization desktop grid seats the department table beside the attention list', () => {
-    assert.match(organizationCss, /report-dashboard-card--trend[^}]*grid-column:span 8/);
-    assert.match(organizationCss, /report-dashboard-card--status[^}]*grid-column:span 4/);
-    assert.match(organizationCss, /report-dashboard-card \{[^}]*grid-column:span 4/);
-    assert.match(organizationCss, /report-dashboard-card--completed[^}]*grid-column:span 5/);
-    assert.match(organizationCss, /report-dashboard-card--priority[^}]*grid-column:span 3/);
-    assert.match(organizationCss, /report-dashboard-card--workload[^}]*grid-column:span 4/);
-    assert.match(organizationCss, /report-dashboard-card--departments[^}]*grid-column:span 7/);
-    assert.match(organizationCss, /report-dashboard-card--attention[^}]*grid-column:span 5/);
-});
-
-test('employee desktop grid keeps the on-time figure beside the charts', () => {
-    assert.match(employeeCss, /employee-chart-card--trend[^}]*grid-column:span 6/);
-    assert.match(employeeCss, /employee-chart-card--status[^}]*grid-column:span 3/);
-    assert.match(employeeCss, /employee-chart-card--priority[^}]*grid-column:span 3/);
-    assert.match(employeeCss, /employee-report__ontime[^}]*grid-column:span 3/);
-
-    /*
-     * หน้านี้เหลือกราฟสามใบ การ์ด "ปิดงานได้เดือนละเท่าไร" ถูกตัดออกเพราะซ้ำกับ
-     * เส้น "งานที่เสร็จ" ในกราฟแนวโน้ม ช่องกว้าง 3 ที่ว่างลงจึงตกเป็นของรายการ
-     * งานที่ต้องติดตาม ไม่งั้นแถวล่างจะรวมได้แค่ 9 จาก 12 แล้วเหลือช่องว่างข้างขวา
-     */
-    assert.doesNotMatch(employeeCss, /employee-chart-card--completed/,
-        'กราฟที่ถูกตัดออกต้องไม่เหลือกฎค้างไว้');
-    assert.match(employeeCss, /employee-report__attention[^}]*grid-column:span 9/);
-});
-
-test('tablet grid cascade preserves full-width primary cards through 991px', () => {
-    const organizationTablet = mediaBlock(organizationCss, 'max-width:991px');
-    const employeeTablet = mediaBlock(employeeCss, 'max-width:991px');
-
-    assertGenericRulePrecedesModifier(organizationTablet, '.report-dashboard-card', '.report-dashboard-card--trend,.report-dashboard-card--status');
-    assertGenericRulePrecedesModifier(employeeTablet, '.employee-chart-card,.employee-report__attention,.employee-report__ontime', '.employee-chart-card--trend,.employee-chart-card--status');
-    assert.match(organizationTablet, /report-dashboard-card--trend[^}]*grid-column:1\/-1/);
-    assert.match(employeeTablet, /employee-chart-card--trend[^}]*grid-column:1\/-1/);
-    assert.match(mediaBlock(organizationCss, 'max-width:760px'), /report-dashboard-card[^}]*grid-column:1/);
-    assert.match(mediaBlock(employeeCss, 'max-width:760px'), /employee-chart-card[^}]*grid-column:1/);
-});
-
-test('custom employee date range fits two columns until its 430px single-column breakpoint', () => {
-    const mobile = mediaBlock(employeeCss, 'max-width:760px');
-    const narrow = mediaBlock(employeeCss, 'max-width:430px');
-
-    assert.match(mobile, /employee-report__period > div[^}]*display:grid[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-    assert.match(mobile, /employee-report__period input[^}]*width:100%[^}]*min-width:0/);
-    assert.doesNotMatch(mobile, /employee-report__period input[^}]*width:50%/);
-    assert.match(narrow, /employee-report__period > div[^}]*grid-template-columns:1fr/);
-});
-
-test('report pages constrain ultrawide content and use chart-specific height variables', () => {
-    assert.match(organizationCss, /width:min\(1560px,100%\)/);
-    assert.match(employeeCss, /width:min\(1560px,100%\)/);
-    assert.match(organizationCss, /report-dashboard-card--trend[^}]*--report-chart-height:360px/);
-    assert.match(employeeCss, /employee-chart-card--priority[^}]*--report-chart-height:290px/);
+test('report pages use the full width and share chart state styles', () => {
+    // รายงานโปรเจกต์และรายงานปฏิบัติงานกว้างเต็มพื้นที่เท่ากัน
+    assert.match(projectsCss, /\.project-report \{[^}]*width: 100%;/);
+    assert.match(sharedCss, /\.report-page \{ width:100%;/);
+    for (const css of [projectsCss, sharedCss, operationalCss]) {
+        assert.doesNotMatch(css, /1560px/);
+    }
     assert.match(sharedCss, /data-chart-kind="doughnut"/);
     assert.match(sharedCss, /prefers-reduced-motion:reduce/);
 });
@@ -92,23 +38,34 @@ test('ready-state skeleton handoff shares the chart stagger and reduced motion d
 });
 
 /*
- * รายงานปฏิบัติงานของหัวหน้าแผนกมีกราฟสามใบบนกริด 12 คอลัมน์
+ * รายงานปฏิบัติงานประจำเดือน — กริดตามแบบ
  *
- * แนวโน้ม (8) + หมวดงาน (4) เต็มแถวแรกพอดี กราฟรายคนจึงอยู่แถวสองตามลำพัง
- * ถ้ามันยังกว้าง 3 คอลัมน์ตามค่าที่สืบทอดมาจากรายงานองค์กร จะเหลือช่องว่างเปล่า
- * อีก 9 คอลัมน์กลางหน้า ซึ่งเป็นบั๊กที่ผู้ใช้เห็นก่อนตัวเลขใด ๆ ในหน้า
+ * แถวกราฟ: ชั่วโมงงานรายวันกว้างสองส่วน สัดส่วนประเภทงานหนึ่งส่วน
+ * แถว Top: สองการ์ดเท่ากัน และทุกแถวยุบเป็นคอลัมน์เดียวบนแท็บเล็ต
+ * KPI หกใบเต็มแถวบนจอกว้าง ลดเป็นสามและสองคอลัมน์ตามความกว้าง
  */
-test('the operational member chart fills the row instead of leaving a gap', () => {
-    assert.match(
-        operationalCss,
-        /\.report-operational \.report-dashboard-card--priority\s*\{[^}]*grid-column:\s*1\/-1/s,
-    );
+test('the operational overview grid follows the monthly layout and stacks on tablets', () => {
+    assert.match(operationalCss, /\.operational-grid--charts \{ grid-template-columns: minmax\(0, 2fr\) minmax\(0, 1fr\); \}/);
+    assert.match(operationalCss, /\.operational-grid--tops \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+    assert.match(operationalCss, /\.operational-kpis \{[^}]*grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+
+    const tablet = mediaBlock(operationalCss, 'max-width: 991.98px');
+    assert.match(tablet, /\.operational-grid--charts,[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+
+    const card = operationalCss.match(/\.operational-card \{([^}]*)\}/)?.[1] ?? '';
+    assert.match(card, /padding:\s*17px/);
+    assert.match(card, /margin-bottom:\s*16px/);
 });
 
-/* การ์ดสรุปงานประจำอยู่นอกกริด จึงต้องมีระยะขอบในและระยะห่างของตัวเองเท่ากับการ์ดอื่น */
-test('the routine summary panel carries its own padding and spacing', () => {
-    const rule = operationalCss.match(/\.report-routine\s*\{([^}]*)\}/s)?.[1] ?? '';
-
-    assert.match(rule, /padding:\s*17px/);
-    assert.match(rule, /margin-bottom:\s*16px/);
+/*
+ * รายงานโปรเจกต์ประจำเดือน — KPI หกใบเต็มแถวบนจอกว้าง ลดเป็นสาม สอง และหนึ่งคอลัมน์
+ * ตารางกว้างเลื่อนแนวนอนในกรอบของตัวเอง หน้าไม่เลื่อนแนวนอนตาม
+ */
+test('the project report keeps seven kpis per row (4 + 3 below 1600px) and scrolls only its table sideways', () => {
+    assert.match(projectsCss, /\.project-report__kpis \{[^}]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);
+    assert.match(mediaBlock(projectsCss, 'max-width: 1599px'), /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+    assert.match(mediaBlock(projectsCss, 'max-width: 760px'), /\.project-report__kpis \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+    assert.match(mediaBlock(projectsCss, 'max-width: 430px'), /grid-template-columns: minmax\(0, 1fr\)/);
+    assert.match(projectsCss, /\.project-report__table-scroll \{[^}]*overflow-x: auto/);
+    assert.match(projectsCss, /\.project-report__table \{[^}]*min-width: 1340px/);
 });

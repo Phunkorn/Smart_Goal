@@ -1,0 +1,128 @@
+.daily-log .daily-plan {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--daily-line, #dfe8f7);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(32, 72, 137, .04);
+}
+.daily-log .daily-plan__scope { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.daily-log .daily-plan__scope-actions { position:relative; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex:0 0 auto; }
+.daily-log .daily-plan__title { margin:0; color:#14233f; font-size:1rem; font-weight:500; }
+.daily-log .daily-plan__subtitle { margin:3px 0 0; color:#74839d; font-size:.74rem; line-height:1.45; }
+.daily-log .daily-plan__scope-tabs { display:inline-flex; flex:0 0 auto; width:auto; padding:3px; border:1px solid #dce5f3; border-radius:10px; background:#f7f9fc; }
+.daily-log .daily-plan__scope-tabs a {
+    min-width:72px; padding:6px 12px; border-radius:7px; color:#52627d; font-size:.78rem;
+    font-weight:300; text-align:center; text-decoration:none;
+}
+.daily-log .daily-plan__scope-tabs a.is-active { background:#fff; color:#145fd7; box-shadow:0 1px 4px rgba(32,72,137,.14); }
+.daily-log .daily-plan__toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:16px 0 10px; }
+.daily-log .daily-plan__toolbar strong { color:#152442; font-size:.94rem; font-weight:300; }
+.daily-log .daily-plan__month-nav { display:flex; gap:3px; }
+.daily-log .daily-plan__month-nav a {
+    display:grid; place-items:center; width:30px; height:30px; border:1px solid #e5ebf6;
+    border-radius:9px; color:#4168a7; text-decoration:none;
+}
+.daily-log .daily-plan__month-nav a:hover { background:#eff5ff; }
+.daily-log .daily-plan__filter-menu { position:relative; }
+.daily-log .daily-plan__filter-menu > summary {
+    display:flex; align-items:center; gap:6px; min-height:38px; padding:6px 11px;
+    border:1px solid #dce5f3; border-radius:10px; background:#fff; color:#52627d;
+    font-size:.78rem; font-weight:300; cursor:pointer; list-style:none;
+}
+.daily-log .daily-plan__filter-menu > summary::-webkit-details-marker { display:none; }
+.daily-log .daily-plan__filter-menu > summary:hover,
+.daily-log .daily-plan__filter-menu[open] > summary { border-color:#a9c3ed; background:#f7faff; color:#145fd7; }
+.daily-log .daily-plan__filter-chevron { font-size:.65rem; transition:transform .18s ease; }
+.daily-log .daily-plan__filter-menu[open] .daily-plan__filter-chevron { transform:rotate(180deg); }
+.daily-log .daily-plan__filter-popover {
+    position:absolute; z-index:20; top:calc(100% + 7px); right:0; width:min(310px,calc(100vw - 32px));
+    padding:12px; border:1px solid #dce5f3; border-radius:12px; background:#fff;
+    box-shadow:0 16px 36px rgba(32,72,137,.16); transform-origin:top right;
+    animation:daily-plan-filter-slide .18s ease-out;
+}
+.daily-log .daily-plan__filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:0; }
+.daily-log .daily-plan__filters label { display:grid; gap:4px; min-width:0; color:#53637f; font-size:.76rem; font-weight:300; }
+.daily-log .daily-plan__filters .form-select { border-color:#e0e8f5; font-size:.82rem; font-weight:300; }
+@keyframes daily-plan-filter-slide {
+    from { opacity:0; transform:translateY(-8px) scale(.98); }
+    to { opacity:1; transform:translateY(0) scale(1); }
+}
+.daily-log .daily-plan__calendar-scroll { width:100%; overflow-x:auto; border:1px solid #dfe7f2; border-radius:12px; background:#fff; }
+.daily-log .daily-plan__weekdays,
+.daily-log .daily-plan__grid { display:grid; grid-template-columns:repeat(7,minmax(100px,1fr)); min-width:700px; }
+.daily-log .daily-plan__weekdays { background:#f7f9fc; border-bottom:1px solid #dfe7f2; }
+.daily-log .daily-plan__weekdays span { padding:9px 6px; color:#667791; font-size:.72rem; font-weight:300; text-align:center; }
+.daily-log .daily-plan__day {
+    display:grid; grid-template-rows:auto 1fr auto; align-content:stretch; justify-items:start; gap:6px; min-height:96px;
+    padding:9px 10px; border:0; border-right:1px solid #e5ebf4; border-bottom:1px solid #e5ebf4;
+    border-radius:0; background:#fff; color:#243652; font-size:.78rem; text-align:left; cursor:pointer;
+}
+.daily-log .daily-plan__day:nth-child(7n) { border-right:0; }
+.daily-log .daily-plan__day:nth-last-child(-n + 7) { border-bottom:0; }
+.daily-log .daily-plan__day:hover:not(:disabled) { background:#f4f8ff; }
+/* วันที่เลือกไม่มีกรอบสีน้ำเงินรอบช่องแล้ว เหลือแค่พื้นอ่อนกับวงกลมทึบที่ตัวเลขวัน */
+.daily-log .daily-plan__day[aria-pressed="true"] { background:#edf4ff; color:#174f9f; font-weight:300; }
+.daily-log .daily-plan__day > span:first-child { display:grid; place-items:center; width:28px; height:28px; padding:0; border-radius:50%; }
+.daily-log .daily-plan__day[aria-pressed="true"] > span:first-child { background:#2267e8; color:#fff; }
+.daily-log .daily-plan__day--outside { background:#fafbfd; color:#a8b2c2; opacity:1; cursor:default; }
+.daily-log .daily-plan__day-avatars { display:flex; align-self:end; justify-self:start; justify-content:flex-start; padding-left:4px; }
+.daily-log .daily-plan__avatar {
+    display:inline-grid; place-items:center; flex:0 0 auto; width:22px; height:22px;
+    overflow:hidden; border:2px solid #fff; border-radius:50%; background:#dce9ff;
+    color:#2159b5; font-size:.6rem; font-weight:300;
+}
+.daily-log .daily-plan__avatar + .daily-plan__avatar { margin-left:-6px; }
+.daily-log .daily-plan__avatar img { width:100%; height:100%; object-fit:cover; }
+.daily-log .daily-plan__avatar--more { background:#eef2f8; color:#5f6f88; }
+.daily-log .daily-plan__day[aria-pressed="true"] .daily-plan__avatar { border-color:#edf4ff; }
+.daily-log .daily-plan__day-count { align-self:end; color:#71819a; font-size:.66rem; line-height:1.2; }
+.daily-log .daily-plan__day[aria-pressed="true"] .daily-plan__day-count { color:#3768aa; }
+.daily-log .daily-plan__day-list { margin-top:18px; }
+.daily-log .daily-plan__day-list h3 { margin:0 0 9px; color:#14233f; font-size:.83rem; font-weight:500; }
+.daily-log .daily-plan__day-list h3 small { color:#7b8aa3; font-weight:300; }
+.daily-log .daily-plan__item {
+    display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:start; gap:8px;
+    padding:10px 4px; border-top:1px solid #edf2fa;
+}
+.daily-log .daily-plan__item-time { color:#233d69; font-size:.72rem; font-weight:300; }
+.daily-log .daily-plan__item-body { display:grid; min-width:0; }
+.daily-log .daily-plan__item-body strong { display:flex; align-items:center; gap:5px; overflow:hidden; color:#1d2d4b; font-size:.78rem; font-weight:300; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .daily-plan__item-body strong i { flex:0 0 auto; color:#2b68d6; font-size:.78rem; }
+.daily-log .daily-plan__item-body strong .bi-geo-alt { color:#7557db; }
+.daily-log .daily-plan__item-body small { color:#6a7a97; font-size:.7rem; }
+/* ป้ายสถานะบนปฏิทินแผนก — โทนมาจาก WorkLogDesign::STATUSES */
+.daily-log .daily-plan__item-status { justify-self:start; margin-top:3px; padding:2px 8px; border-radius:999px; background:#f0f3f8; color:#5f6f88; font-size:.66rem; font-weight:300; }
+.daily-log .daily-plan__item-status--amber { background:#fff4e5; color:#b0661b; }
+.daily-log .daily-plan__item-status--blue { background:#eaf2ff; color:#1261d9; }
+.daily-log .daily-plan__item-status--teal { background:#e6f6f4; color:#127a6c; }
+.daily-log .daily-plan__item-status--red { background:#fdecec; color:#b42318; }
+.daily-log .daily-plan__item-owner {
+    display:flex; align-items:center; gap:5px; max-width:120px; overflow:hidden;
+    color:#4f607e; font-size:.68rem; white-space:nowrap;
+}
+.daily-log .daily-plan__item-owner > span:last-child { overflow:hidden; text-overflow:ellipsis; }
+.daily-log .daily-plan__item-owner .daily-plan__avatar { width:24px; height:24px; border-width:1px; }
+.daily-log .daily-plan__empty { margin:10px 0 0; color:#7787a1; font-size:.78rem; }
+/* กล่องรายละเอียดของวัน — โครงกล่องมาจาก .log-modal (modal.css) ที่นี่ปรับแค่เนื้อใน */
+.daily-log .daily-plan-modal .log-modal__panel { width:min(640px,100%); }
+.daily-log .daily-plan-modal__summary { margin:3px 0 0; color:#74839d; font-size:.76rem; font-weight:300; }
+.daily-log .daily-plan-modal__body { gap:0; padding-top:6px; }
+.daily-log .daily-plan-modal__body .daily-plan__item:first-child { border-top:0; }
+.daily-log .daily-plan-modal__body .daily-plan__item-owner { max-width:180px; }
+.daily-log .daily-plan--expanded .daily-plan__day { min-height:106px; font-size:.84rem; }
+.daily-log .daily-plan--expanded .daily-plan__day-list { max-height:300px; overflow:auto; }
+@media (max-width: 760px) {
+    .daily-log .daily-plan__scope { display:grid; gap:10px; }
+    .daily-log .daily-plan__scope-actions { width:100%; justify-content:space-between; }
+    .daily-log .daily-plan__scope-tabs { justify-self:start; }
+    .daily-log .daily-plan__weekdays,
+    .daily-log .daily-plan__grid { grid-template-columns:repeat(7,96px); min-width:672px; }
+    .daily-log .daily-plan--expanded .daily-plan__day { min-height:92px; }
+    .daily-log .daily-plan__item { grid-template-columns:38px minmax(0,1fr); }
+    .daily-log .daily-plan__item-owner { grid-column:2; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .daily-log .daily-plan__filter-popover { animation:none; }
+    .daily-log .daily-plan__filter-chevron { transition:none; }
+}

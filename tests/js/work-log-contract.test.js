@@ -65,20 +65,17 @@ test('งานประจำไม่มี entry และไม่มีก�
 });
 
 /*
- * ทั้งหน้ามีทางเข้าเดียวคือปุ่มเพิ่มงาน — ไม่มีแถบพิมพ์เร็วและไม่มีปุ่มงานประจำ
- * แยกบนหัวหน้าจออีกแล้ว เพราะถ้อยคำบนปุ่มทั้งสองฝั่งซ้ำกันจนแยกไม่ออก
+ * ปุ่ม +เพิ่มงานมีทางเดียวและเปิดกล่องเลือกประเภท
+ * การจัดการแม่แบบเดิมในแท็บปฏิทินไม่ใช่ quick-add
  */
 test('หน้าบันทึกงานมีปุ่มเพิ่มงานปุ่มเดียวเป็นทางเข้า', () => {
     const launcher = read('resources/views/daily-logs/components/launcher.blade.php');
     const header = read('resources/views/daily-logs/components/day-header.blade.php');
 
-    assert.ok(indexView.includes('daily-logs.components.launcher'));
+    assert.ok(header.includes('daily-logs.components.launcher'));
     assert.ok(launcher.includes('data-open-entry-modal'));
-
-    const openers = (launcher + header + indexView).split('data-open-entry-modal').length - 1;
-    assert.equal(openers, 1, 'ต้องมีปุ่มเปิดกล่องเพิ่มงานเพียงปุ่มเดียว');
-
-    assert.ok(! header.includes('data-open-routine-modal'), 'ปุ่มงานประจำแยกต้องถูกเอาออก');
+    assert.equal(launcher.split('data-open-entry-modal').length - 1, 1, 'ปุ่ม +เพิ่มงานต้องมีทางเดียว');
+    assert.ok(read('resources/views/daily-logs/components/entry-modal.blade.php').includes('data-entry-panel="choice"'));
 });
 
 /*
@@ -127,12 +124,25 @@ test('หน้าบันทึกงานเรียกใช้ entry ท�
  * ถ้าลืม import สไตล์ของบล็อกนั้นจะหายไปเงียบ ๆ โดยไม่มี error
  */
 test('CSS entry import ไฟล์ย่อยครบทุกบล็อกของหน้า', () => {
-    ['layout', 'launcher', 'participants', 'timeline', 'summary', 'routines', 'modal', 'responsive'].forEach((partial) => {
+    ['layout', 'launcher', 'calendar', 'plan-management', 'month', 'participants', 'timeline', 'routines', 'modal', 'responsive'].forEach((partial) => {
         assert.ok(
             cssEntry.includes(`./daily-logs/${partial}.css`),
             `daily-logs.css ต้อง import ${partial}.css`
         );
     });
+});
+
+/*
+ * หน้านี้ใช้ data-date-picker (ช่องวันที่ในกล่องเพิ่มงาน) แต่เคยไม่ได้ import สไตล์ของปฏิทิน
+ * popover จึงไม่มี position:fixed/z-index แล้วไปกองเป็นปุ่มตัวเลขท้ายหน้า ข้างหลังกล่อง
+ * ผู้ใช้เลยเลือกหลายวันไม่ได้ ทั้งที่ JavaScript ทำงานถูก
+ */
+test('หน้าบันทึกงานโหลดสไตล์ของปฏิทินเลือกวัน เพราะมีช่อง data-date-picker', () => {
+    assert.ok(read('resources/views/daily-logs/components/entry-modal.blade.php').includes('data-date-picker'));
+    assert.ok(
+        cssEntry.includes("@import '../components/date-picker.css';"),
+        'daily-logs.css ต้อง import components/date-picker.css'
+    );
 });
 
 test('เมนูข้างมีบันทึกงานประจำวันทั้งฝั่งพนักงานและ admin', () => {
@@ -208,7 +218,7 @@ test('โมดูลของหน้านี้ไม่ใช้ alert conf
         'resources/js/pages/daily-logs/timeline.js',
         'resources/js/pages/daily-logs/entry-form.js',
         'resources/js/pages/daily-logs/client.js',
-        'resources/js/pages/daily-logs/summary.js',
+        'resources/js/pages/daily-logs/plan-calendar.js',
         'resources/js/pages/daily-logs/attachments.js',
         'resources/js/pages/daily-logs/routines.js',
         'resources/js/pages/daily-logs/participants.js',

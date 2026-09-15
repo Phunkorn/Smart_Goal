@@ -235,21 +235,21 @@ test('the client hint matches the server allow-list exactly', async () => {
     assert.match(blade, /AttachmentPolicy::limitsLabel\(\)/);
     assert.doesNotMatch(blade, /accept="\.jpg/);
     assert.doesNotMatch(blade, /รวมไม่เกิน 5 ไฟล์/);
-    assert.match(blade, /ลากไฟล์หรือทั้งโฟลเดอร์มาวางที่นี่ได้/);
+    assert.match(blade, /เลือกหรือลากไฟล์หลายรายการมาวางที่นี่ได้/);
 });
 
-test('folder picking is offered wherever files can be attached', async () => {
+test('one multiple-file picker is used without a separate folder action', async () => {
     const blade = await read('resources/views/tasks/partials/workspace-interactions.blade.php');
     const script = await read('resources/js/mytasks-task-modal.js');
     const board = await read('resources/js/mytasks-project-board.js');
 
-    // HTML อัปโหลดโฟลเดอร์เป็นก้อนเดียวไม่ได้ ต้องใช้ webkitdirectory ให้เบราว์เซอร์กางเป็นไฟล์ย่อย
-    assert.match(blade, /webkitdirectory directory data-task-inline-folder-input/);
-    assert.match(blade, /webkitdirectory directory data-board-modal-attachment-folder/);
-    assert.match(script, /data-task-inline-folder-input.*addEventListener\('change'/s);
-    assert.match(board, /data-board-modal-attachment-folder/);
+    assert.equal((blade.match(/data-task-inline-file-input/g) || []).length, 1);
+    assert.equal((blade.match(/data-board-modal-attachment-input/g) || []).length, 1);
+    assert.doesNotMatch(blade, /webkitdirectory|add-file--folder|attachment-modal-folder/);
+    assert.doesNotMatch(script, /data-task-inline-folder-input/);
+    assert.doesNotMatch(board, /data-board-modal-attachment-folder/);
 
-    // ไฟล์ที่ไม่รองรับในโฟลเดอร์ต้องถูกข้าม ไม่ใช่ทำให้ทั้งชุดล้ม
+    // การเลือกหลายไฟล์ยังคัดชนิดที่รองรับและแจ้งจำนวนที่ข้ามเหมือนเดิม
     assert.match(script, /const skipped = picked\.length - accepted\.length;/);
     assert.match(board, /const skipped = files\.length - accepted\.length;/);
 });

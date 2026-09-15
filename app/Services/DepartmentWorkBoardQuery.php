@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Department;
 use App\Models\User;
+use App\Models\WorkLog;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Support\TodayWorkspace;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 final class DepartmentWorkBoardQuery
 {
@@ -21,7 +23,43 @@ final class DepartmentWorkBoardQuery
     /** ล่าช้าก่อน แล้วครบกำหนดวันนี้ ตามด้วยงานที่กำลังทำอยู่ และปิดท้ายด้วยงานที่เพิ่งเริ่มวันนี้ */
     private const TODAY_BUCKET_ORDER = ['late' => 0, 'due_today' => 1, 'active' => 2, 'starts_today' => 3];
 
-    public function __construct(private readonly MemberWorkloadQuery $memberWorkloads) {}
+    public function __construct(
+        private readonly MemberWorkloadQuery $memberWorkloads,
+        private readonly TodayOperationalStatus $todayOperations,
+    ) {}
+
+    /**
+     * สถานะงานประจำ/นอกสถานที่ของวันนี้ — เฉพาะคนที่ผู้ดูมีสิทธิ์เห็นบันทึกงานประจำวัน
+     *
+     * สิทธิ์ใช้ WorkLogPolicy::viewDay ตัวเดียวกับหน้าบันทึกงาน (ตัวเอง / หัวหน้าแผนกนั้น / admin)
+     * ผู้ใช้ทั่วไปที่เปิดบอร์ดของทีมจึงไม่เห็นว่าเพื่อนทำอะไร
+     *
+     * @param  Collection<int, User>  $members
+     * @return Collection<int, array<string, mixed>> keyed by user id
+     */
+    public function todayOperations(Collection $members, ?User $viewer): Collection
+    {
+        if ($viewer === null) {
+            return collect();
+        }
+
+        $visible = $members->filter(fn (User $member): bool => Gate::forUser($viewer)
+            ->allows('viewDay', [WorkLog::class, $member]))->values();
+
+        return $this->todayOperations->forMembers($visible);
+    }
+
+    /**
+     * สถานะวันนี้ของสมาชิกหนึ่งคน พร้อมรายการ สำหรับแผงดูงานสมาชิก — null เมื่อไม่มีสิทธิ์
+     *
+     * @return array<string, mixed>|null
+     */
+    public function memberOperations(User $member, ?User $viewer): ?array
+    {
+        $summary = $this->todayOperations(collect([$member]), $viewer)->get((int) $member->id);
+
+        return $summary === null ? null : [...$summary, 'items' => $this->todayOperations->items($summary)];
+    }
 
     /**
      * Build the lightweight member directory without loading every task model.
@@ -110,6 +148,9 @@ final class DepartmentWorkBoardQuery
             ->when($hasTaskFilter, fn (Collection $collection) => $collection
                 ->filter(fn (User $member) => $member->board_task_count > 0))
             ->values();
+
+        $operations = $this->todayOperations($members, $request->user());
+        $members->each(fn (User $member) => $member->setAttribute('board_operations', $operations->get((int) $member->id)));
 
         $allMemberIds = User::query()
             ->where('department_id', $department->id)

@@ -20,27 +20,13 @@ const cardMarkup = (id, kind, title, status = 'open') => `
         </div>
     </article>`;
 
-/*
- * โครงของหน้าจริงมีสองกลุ่ม (ที่ต้องทำ / ทำแล้ว) แถวถูกวางตาม data-log-status
- * ที่เซิร์ฟเวอร์ใส่มากับ HTML ของแถว
- */
+/* หน้าปัจจุบันมีรายการเดียว เรียงเวลา และกรองสถานะได้ */
 const mountTimeline = (cards = '', doneCards = '') => mountDom(`<!doctype html><html><body>
     <div data-daily-log data-date="2026-09-04" data-owner="1">
-        <div class="log-timeline__filters">
-            <button type="button" class="log-filter is-active" data-kind-filter="all">ทั้งหมด</button>
-            <button type="button" class="log-filter" data-kind-filter="routine">งานประจำ</button>
-            <button type="button" class="log-filter" data-kind-filter="field">งานนอกสถานที่</button>
-        </div>
-        <div class="log-group" data-log-group="open">
-            <h3><span data-group-count>0</span></h3>
-            <div class="log-timeline__list" data-timeline-list>${cards}</div>
-            <p data-group-empty>ยังไม่มีบันทึกงานของวันนี้</p>
-        </div>
-        <div class="log-group" data-log-group="done">
-            <h3><span data-group-count>0</span></h3>
-            <div class="log-timeline__list" data-timeline-done>${doneCards}</div>
-            <p data-group-empty>ยังไม่มีรายการที่ยืนยันว่าทำเสร็จแล้ว</p>
-        </div>
+        <h3 data-timeline-count>(0 รายการ)</h3>
+        <select data-status-filter><option value="all">ทั้งหมด</option><option value="open">รอเริ่ม</option><option value="done">เสร็จแล้ว</option></select>
+        <div class="log-timeline__list" data-timeline-list>${cards}${doneCards}</div>
+        <p data-timeline-empty>ยังไม่มีรายการ</p>
     </div>
 </body></html>`);
 
@@ -215,28 +201,22 @@ test('upsertCard แทนที่แถวเดิมแทนการเพ
     }
 });
 
-test('upsertCard ซ่อนข้อความสถานะว่างและอัปเดตตัวนับของกลุ่ม', () => {
+test('upsertCard ซ่อนข้อความสถานะว่างและอัปเดตตัวนับรายการ', () => {
     const dom = mountTimeline();
 
     try {
         const timeline = initTimeline({root: dom.document.querySelector('[data-daily-log]')});
-        const group = dom.document.querySelector('[data-log-group="open"]');
-
         timeline.upsertCard(cardMarkup(1, 'routine', 'งานแรก'), 1);
 
-        assert.equal(group.querySelector('[data-group-empty]').hidden, true);
-        assert.equal(group.querySelector('[data-group-count]').textContent, '1');
+        assert.equal(dom.document.querySelector('[data-timeline-empty]').hidden, true);
+        assert.equal(dom.document.querySelector('[data-timeline-count]').textContent, '(1 รายการ)');
         assert.equal(dom.document.querySelectorAll('[data-log-card]').length, 1);
     } finally {
         dom.cleanup();
     }
 });
 
-/*
- * เส้นทางจริงของงานประจำ: กดยืนยันแล้วแถวต้องย้ายจาก "ที่ต้องทำ" ไป "ทำแล้ว"
- * โดยไม่โหลดหน้าใหม่ และต้องไม่เหลือแถวซ้ำค้างอยู่ในกลุ่มเดิม
- */
-test('แถวที่ถูกยืนยันย้ายไปกลุ่มทำแล้วโดยไม่ทิ้งแถวซ้ำไว้', () => {
+test('แถวที่ถูกยืนยันอัปเดตสถานะโดยไม่ทิ้งแถวซ้ำไว้', () => {
     const dom = mountTimeline(cardMarkup(7, 'routine', 'เช็คคอมพิวเตอร์'));
 
     try {
@@ -244,43 +224,35 @@ test('แถวที่ถูกยืนยันย้ายไปกลุ�
 
         timeline.upsertCard(cardMarkup(7, 'routine', 'เช็คคอมพิวเตอร์', 'done'), 7);
 
-        const openList = dom.document.querySelector('[data-timeline-list]');
-        const doneList = dom.document.querySelector('[data-timeline-done]');
-
-        assert.equal(openList.querySelectorAll('[data-log-card]').length, 0);
-        assert.equal(doneList.querySelectorAll('[data-log-card]').length, 1);
+        const list = dom.document.querySelector('[data-timeline-list]');
+        assert.equal(list.querySelectorAll('[data-log-card]').length, 1);
         assert.equal(dom.document.querySelectorAll('[data-log-card][data-log-id="7"]').length, 1);
-        assert.equal(
-            dom.document.querySelector('[data-log-group="done"] [data-group-count]').textContent,
-            '1'
-        );
-        assert.equal(
-            dom.document.querySelector('[data-log-group="open"] [data-group-empty]').hidden,
-            false
-        );
+        assert.equal(list.querySelector('[data-log-card]').dataset.logStatus, 'done');
+        assert.equal(dom.document.querySelector('[data-timeline-count]').textContent, '(1 รายการ)');
     } finally {
         dom.cleanup();
     }
 });
 
-test('ตัวกรองประเภทซ่อนเฉพาะแถวที่ไม่ตรง และกลับมาครบเมื่อเลือกทั้งหมด', () => {
+test('ตัวกรองสถานะซ่อนเฉพาะแถวที่ไม่ตรง และกลับมาครบเมื่อเลือกทั้งหมด', () => {
     const dom = mountTimeline(
-        cardMarkup(1, 'routine', 'งานประจำ')
-        + cardMarkup(2, 'field', 'งานนอกสถานที่')
+        cardMarkup(1, 'routine', 'งานประจำ', 'done')
+        + cardMarkup(2, 'field', 'งานนอกสถานที่', 'open')
         + cardMarkup(3, 'routine', 'งานประจำอีกงาน')
     );
 
     try {
         initTimeline({root: dom.document.querySelector('[data-daily-log]')});
 
-        click(dom.document.querySelector('[data-kind-filter="routine"]'));
+        const filter = dom.document.querySelector('[data-status-filter]');
+        filter.value = 'done';
+        filter.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
 
         const visible = [...dom.document.querySelectorAll('[data-log-card]')].filter((card) => ! card.hidden);
-        assert.equal(visible.length, 2);
-        assert.equal(dom.document.querySelector('[data-kind-filter="routine"]').classList.contains('is-active'), true);
-        assert.equal(dom.document.querySelector('[data-kind-filter="all"]').classList.contains('is-active'), false);
+        assert.equal(visible.length, 1);
 
-        click(dom.document.querySelector('[data-kind-filter="all"]'));
+        filter.value = 'all';
+        filter.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
 
         const restored = [...dom.document.querySelectorAll('[data-log-card]')].filter((card) => ! card.hidden);
         assert.equal(restored.length, 3);
@@ -321,6 +293,54 @@ test('removeCard เอาแถวออกจากไทม์ไลน์', 
         timeline.removeCard(9);
 
         assert.equal(dom.document.querySelectorAll('[data-log-card]').length, 0);
+    } finally {
+        dom.cleanup();
+    }
+});
+
+/*
+ * รายการอยู่ใน .log-timeline__scroll ที่มี overflow — เมนูที่เป็นลูกของการ์ดถูกตัดขอบ
+ * และไปซ่อนอยู่ในกรอบรายการ เมนูจึงต้องอยู่นอกการ์ดและนอกกล่องที่เลื่อนได้
+ */
+test('เมนูรายแถวไม่ถูกวางในการ์ดหรือกล่องที่เลื่อนได้ แต่ยังส่ง id และการ์ดให้ตัวจัดการ', () => {
+    const dom = mountDom(`<!doctype html><html><body>
+        <div data-daily-log>
+            <div class="log-timeline__scroll" style="overflow-x:auto">
+                <div data-timeline-list>${cardMarkup(3, 'routine', 'งานแถวสุดท้าย')}</div>
+            </div>
+        </div>
+    </body></html>`);
+    const edited = [];
+
+    try {
+        const root = dom.document.querySelector('[data-daily-log]');
+        initTimeline({root, onEdit: (id, card) => edited.push([id, card?.dataset.logId])});
+
+        click(dom.document.querySelector('[data-log-menu-trigger]'));
+        const menu = dom.document.querySelector('.log-row-menu');
+
+        assert.equal(menu.closest('[data-log-card]'), null, 'เมนูต้องไม่อยู่ในการ์ด');
+        assert.equal(menu.closest('.log-timeline__scroll'), null, 'เมนูต้องไม่อยู่ในกล่องที่ตัดขอบ');
+        assert.equal(menu.parentElement, root);
+
+        click(menu.querySelector('[data-log-action="edit"]'));
+        assert.deepEqual(edited, [['3', '3']]);
+    } finally {
+        dom.cleanup();
+    }
+});
+
+test('เลื่อนหน้าแล้วเมนูลอยปิดเอง ไม่ค้างผิดตำแหน่ง', () => {
+    const dom = mountTimeline(cardMarkup(1, 'routine', 'งานทดสอบ'));
+
+    try {
+        initTimeline({root: dom.document.querySelector('[data-daily-log]')});
+        click(dom.document.querySelector('[data-log-menu-trigger]'));
+        assert.ok(dom.document.querySelector('.log-row-menu'));
+
+        dom.window.dispatchEvent(new dom.window.Event('scroll'));
+
+        assert.equal(dom.document.querySelector('.log-row-menu'), null);
     } finally {
         dom.cleanup();
     }

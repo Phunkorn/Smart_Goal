@@ -12,6 +12,7 @@ use App\Support\TodayWorkspace;
 use App\Support\WorkLogWeekdays;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -177,32 +178,28 @@ class WorkLogRoutineMaterializationTest extends TestCase
     }
 
     /**
-     * ระบบต้องไม่สร้างรายการย้อนหลังให้เอง เพราะจะกลายเป็นสัญญาณ "ไม่ได้ทำงาน"
-     * ปลอม ๆ ของวันที่ลาหยุด ซึ่งจะไปเพี้ยนในรายงานภาระงาน
+     * กติกาปัจจุบัน: วันที่ผ่านไปแล้วที่ถึงกำหนดแต่ไม่มีรายการ ถูกสร้างเป็น "ไม่ได้เริ่ม" ตอนปิดรอบ 17:00
+     * เพื่อให้ต้องระบุเหตุผลก่อนเริ่มงานเดียวกันครั้งถัดไป — แต่ไม่เคยถูกสร้างเป็นรายการเปิด (open) ที่กดเริ่มย้อนหลังได้
      */
-    public function test_past_days_are_not_materialized_automatically(): void
+    public function test_past_days_are_created_only_as_closed_not_started_entries(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-04 02:00:00', 'UTC'));
         $owner = $this->user();
         $this->template($owner, ['title' => 'งานประจำ']);
 
-        // ข้ามไปวันจันทร์โดยไม่เปิดหน้าเลยตลอดสุดสัปดาห์
+        // ข้ามไปวันจันทร์โดยไม่เปิดหน้าเลยตลอดสุดสัปดาห์ (แม่แบบ จ–ศ ไม่มีรายการของเสาร์/อาทิตย์)
         $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
         $this->actingAs($owner)->get(route('daily-logs.index'))->assertOk();
 
-        // มีเฉพาะของวันจันทร์ ไม่มีของวันศุกร์ที่ผ่านมา
-        $this->assertSame(1, WorkLog::query()->count());
         $this->assertSame(
-            '2026-09-07',
-            WorkLog::query()->firstOrFail()->work_date->format('Y-m-d')
+            ['2026-09-04' => 'not_started', '2026-09-07' => 'open'],
+            WorkLog::query()->orderBy('work_date')->get()
+                ->mapWithKeys(fn (WorkLog $log): array => [$log->work_date->format('Y-m-d') => $log->status])->all()
         );
     }
 
     /**
-     * วันย้อนหลังไม่มีปุ่ม "สร้างย้อนหลัง" อีกแล้ว
-     *
-     * การสร้างรายการของวันที่ผ่านไปแล้วเท่ากับเปิดให้กดเริ่มงานย้อนหลัง ซึ่งจะ
-     * บันทึกเวลาของวันนี้ลงในรายการของเมื่อวาน สิ่งที่เหลือให้ทำได้คือระบุเหตุผล
+     * วันย้อนหลังไม่มีปุ่ม "สร้างย้อนหลัง" หรือปุ่มเริ่มงาน มีแต่ปุ่มระบุเหตุผลของรายการที่ปิดรอบ
      */
     public function test_a_past_day_offers_a_reason_button_instead_of_backfill(): void
     {
@@ -216,14 +213,16 @@ class WorkLogRoutineMaterializationTest extends TestCase
             ->get(route('daily-logs.index', ['date' => '2026-09-04']))
             ->assertOk()
             ->assertSee('งานประจำที่ยังไม่ได้ลง')
-            ->assertSee('ระบุเหตุผลที่ไม่ได้ทำ')
+            ->assertSee('ระบุเหตุผล')
+            ->assertSee('ไม่ได้เริ่ม')
+            ->assertDontSee('data-row-start', false)
             ->assertDontSee('สร้างย้อนหลัง');
     }
 
     /**
-     * การเปิดดูวันย้อนหลังต้องไม่สร้างรายการใด ๆ ให้เอง
+     * การเปิดดูวันย้อนหลังต้องไม่สร้างรายการเปิด (open) ให้กดเริ่มย้อนหลังได้
      */
-    public function test_opening_a_past_day_creates_nothing(): void
+    public function test_opening_a_past_day_never_creates_an_open_entry(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-04 02:00:00', 'UTC'));
         $owner = $this->user();
@@ -235,7 +234,7 @@ class WorkLogRoutineMaterializationTest extends TestCase
             ->get(route('daily-logs.index', ['date' => '2026-09-04']))
             ->assertOk();
 
-        $this->assertSame(0, WorkLog::query()->whereDate('work_date', '2026-09-04')->count());
+        $this->assertSame(0, WorkLog::query()->whereDate('work_date', '2026-09-04')->where('status', 'open')->count());
         $this->assertSame(
             0,
             app(WorkLogRoutineMaterializer::class)->materializeDay(
@@ -247,57 +246,29 @@ class WorkLogRoutineMaterializationTest extends TestCase
     }
 
     /**
-     * ทางเดียวที่วันย้อนหลังจะมีรายการ คือเจ้าของระบุเหตุผลที่ไม่ได้ทำ
-     * และรายการนั้นต้องเกิดในสถานะ "ไม่ได้ทำ" ไม่ใช่ "รอเริ่ม"
+     * เส้นทาง "ระบุเหตุผลย้อนหลังแล้วสร้างรายการไม่ได้ทำ" เดิมถูกแทนด้วยรายการปิดรอบ
+     * เหตุผลของวันที่ผ่านไปแล้วบันทึกผ่านปุ่มระบุเหตุผลบนรายการนั้น และสถานะคง "ไม่ได้เริ่ม"
      */
-    public function test_recording_a_reason_creates_a_skipped_entry_for_the_past_day(): void
+    public function test_a_reason_for_a_past_day_is_recorded_on_its_closed_entry(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-04 02:00:00', 'UTC'));
         $owner = $this->user();
-        $template = $this->template($owner, ['title' => 'งานประจำที่ลืมทำ']);
+        $this->template($owner, ['title' => 'งานประจำที่ลืมทำ']);
 
         $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
+        $this->actingAs($owner)->get(route('daily-logs.index'))->assertOk();
 
-        $this->actingAs($owner)
-            ->post(route('daily-logs.routines.missed', $template), [
-                'date' => '2026-09-04',
-                'reason' => 'ลางาน',
-            ])
-            ->assertRedirect();
+        $this->assertFalse(Route::has('daily-logs.routines.missed'));
 
         $log = WorkLog::query()->whereDate('work_date', '2026-09-04')->firstOrFail();
+        $this->actingAs($owner)->post(route('daily-logs.skip', $log), ['skip_reason' => 'ลางาน'])->assertRedirect();
 
-        $this->assertSame('skipped', $log->status);
+        $log->refresh();
+        $this->assertSame('not_started', $log->status);
         $this->assertSame('ลางาน', $log->skip_reason);
         $this->assertNull($log->started_at);
         $this->assertNull($log->duration_minutes);
-
-        // ระบุซ้ำอีกครั้งต้องไม่เกิดรายการที่สอง
-        $this->actingAs($owner)
-            ->post(route('daily-logs.routines.missed', $template), [
-                'date' => '2026-09-04',
-                'reason' => 'ลางาน',
-            ])
-            ->assertSessionHasErrors();
-
         $this->assertSame(1, WorkLog::query()->whereDate('work_date', '2026-09-04')->count());
-    }
-
-    /**
-     * เหตุผลย้อนหลังใช้กับ "วันนี้" ไม่ได้ วันนี้มีปุ่มเริ่มงานและปุ่มไม่ได้ทำวันนี้อยู่แล้ว
-     */
-    public function test_a_reason_cannot_be_recorded_for_today(): void
-    {
-        $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
-        $owner = $this->user();
-        $template = $this->template($owner);
-
-        $this->actingAs($owner)
-            ->post(route('daily-logs.routines.missed', $template), [
-                'date' => '2026-09-07',
-                'reason' => 'ลืมทำ',
-            ])
-            ->assertSessionHasErrors('date');
     }
 
     /**
@@ -404,26 +375,27 @@ class WorkLogRoutineMaterializationTest extends TestCase
      * ชื่อที่ใช้ทดสอบต้องไม่ชนกับข้อความ placeholder ในฟอร์มเพิ่ม ไม่งั้น
      * assertDontSee จะเจอ placeholder แล้วสอบตกทั้งที่โค้ดถูก
      */
-    public function test_the_routine_mode_lists_templates_and_is_private(): void
+    public function test_the_calendar_plan_management_lists_templates_and_is_private(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
         $head = $this->user($department, true);
 
-        $this->template($owner, ['title' => 'สำรองฐานข้อมูลกลางคืน']);
+        $template = $this->template($owner, ['title' => 'สำรองฐานข้อมูลกลางคืน']);
 
         $this->actingAs($owner)
-            ->get(route('daily-logs.index'))
+            ->get(route('daily-logs.index', ['view' => 'calendar']))
             ->assertOk()
-            ->assertSee('data-entry-panel="routine"', false)
+            ->assertSee('daily-plan-management', false)
             ->assertSee('สำรองฐานข้อมูลกลางคืน')
             ->assertSee('จ–ศ');
 
-        // หัวหน้าเปิดหน้าของตัวเองได้ แต่ต้องไม่เห็นแม่แบบของลูกทีม
+        // หัวหน้าเห็นชื่อแผนในปฏิทินแผนกได้ แต่ไม่มี URL หรือปุ่มแก้แม่แบบของลูกทีม
         $this->actingAs($head)
-            ->get(route('daily-logs.index'))
+            ->get(route('daily-logs.index', ['view' => 'calendar']))
             ->assertOk()
-            ->assertDontSee('สำรองฐานข้อมูลกลางคืน');
+            ->assertSee('สำรองฐานข้อมูลกลางคืน')
+            ->assertDontSee(route('daily-logs.routines.update', $template), false);
     }
 
     /**

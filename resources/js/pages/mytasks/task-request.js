@@ -5,6 +5,9 @@
 
     const projectName = modal.querySelector('[data-project-task-request-name]');
     const generalError = modal.querySelector('[data-project-task-request-general-error]');
+    const parentField = modal.querySelector('[data-project-task-request-parent]');
+    const parentSelect = modal.querySelector('[data-project-task-request-parent-select]');
+    const parentEmpty = modal.querySelector('[data-project-task-request-parent-empty]');
     const feedbackNode = document.querySelector('[data-project-task-request-feedback]');
     const bangkokDate = (offset = 0) => {
         const parts = new Intl.DateTimeFormat('en', {
@@ -19,6 +22,41 @@
     const today = bangkokDate();
     const tomorrow = bangkokDate(86400000);
     let opener = null;
+
+    const readParentTasks = (button) => {
+        try {
+            const tasks = JSON.parse(button?.dataset.parentTasks || '[]');
+            return Array.isArray(tasks) ? tasks : [];
+        } catch {
+            return [];
+        }
+    };
+
+    const populateParentTasks = (button) => {
+        if (!parentSelect) return;
+        const tasks = readParentTasks(button);
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'เลือกงานหลักที่ต้องการเพิ่มงานย่อย';
+        parentSelect.replaceChildren(placeholder);
+        tasks.forEach((task) => {
+            const option = document.createElement('option');
+            option.value = String(task.id);
+            option.textContent = task.name;
+            parentSelect.append(option);
+        });
+        if (parentEmpty) parentEmpty.hidden = tasks.length > 0;
+    };
+
+    const syncRequestType = () => {
+        const isSubtask = form.elements.request_type?.value === 'subtask';
+        if (parentField) parentField.hidden = !isSubtask;
+        if (parentSelect) {
+            parentSelect.required = isSubtask;
+            parentSelect.disabled = !isSubtask;
+            if (!isSubtask) parentSelect.value = '';
+        }
+    };
 
     const readFeedback = () => {
         try {
@@ -55,7 +93,8 @@
                 return;
             }
 
-            const field = form.elements.namedItem(name);
+            const control = form.elements.namedItem(name);
+            const field = control?.length && !control?.tagName ? control[0] : control;
             const error = form.querySelector(`[data-project-task-request-error="${name}"]`);
             field?.classList.add('is-invalid');
             field?.setAttribute('aria-invalid', 'true');
@@ -71,6 +110,7 @@
         clearErrors();
         form.action = button.dataset.action;
         projectName.textContent = button.dataset.projectName || '';
+        populateParentTasks(button);
         form.elements.job_start_at.value = today;
         form.elements.job_due_at.value = tomorrow;
 
@@ -79,6 +119,7 @@
             if (field && value !== null && value !== undefined) field.value = value;
         });
 
+        syncRequestType();
         applyErrors(errors);
         modal.hidden = false;
         document.body.style.overflow = 'hidden';
@@ -97,6 +138,9 @@
 
     document.querySelectorAll('[data-open-project-task-request]').forEach((button) => {
         button.addEventListener('click', () => open(button));
+    });
+    form.querySelectorAll('[name="request_type"]').forEach((field) => {
+        field.addEventListener('change', syncRequestType);
     });
 
     modal.querySelectorAll('[data-close-project-task-request]').forEach((button) => button.addEventListener('click', close));

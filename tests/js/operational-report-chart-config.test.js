@@ -6,140 +6,100 @@ import {reportChartColors} from '../../resources/js/pages/reports/chart-config.j
 import {
     buildOperationalChartConfigs,
     normalizeOperationalChartData,
+    operationalChartColors,
 } from '../../resources/js/pages/reports/operational-chart-config.js';
 
 /*
- * กราฟของรายงานภาระงานปฏิบัติการ
+ * กราฟของรายงานปฏิบัติงานประจำเดือน
  *
- * หน่วยของรายงานนี้เป็น "ชั่วโมง" ต่างจากรายงานโครงการที่นับ "จำนวนงาน"
- * ทูลทิปและแกนจึงต้องเขียนหน่วยของตัวเอง แต่ชุดสีต้องมาจาก chart-config.js
- * ที่เดียว เพราะลำดับสีนั้นผ่านการตรวจคอนทราสต์และตาบอดสีมาแล้ว
+ * หน่วยของรายงานนี้เป็น "ชั่วโมง" ทูลทิปและแกนจึงเขียนหน่วยของตัวเอง
+ * และโทนสีเป็นน้ำเงิน ไม่ใช้สีเขียวซึ่งสงวนไว้ให้ความหมายของสถานะ
  */
 const sampleData = {
     daily: {
-        labels: ['1 Sep', '2 Sep'],
+        labels: ['1', '2'],
+        titles: ['1 ก.ย. 2569', '2 ก.ย. 2569'],
         routine: [1.5, 2],
         field: [0, 4],
     },
-    categories: {
-        labels: ['IT Support', 'ซ่อมบำรุง'],
-        values: [6, 2],
-        tones: ['blue', 'amber'],
-    },
-    members: {labels: ['สมชาย', 'สมหญิง'], values: [8, 3]},
+    workTypes: {labels: ['งานประจำ', 'งานนอกสถานที่'], values: [98, 30]},
 };
 
 test('normalize คืนโครงสร้างครบทุกชุดข้อมูลแม้ข้อมูลว่าง', () => {
     const normalized = normalizeOperationalChartData({});
 
-    assert.deepEqual(normalized.daily, {labels: [], routine: [], field: []});
-    assert.deepEqual(normalized.categories, {labels: [], values: [], colors: []});
-    assert.deepEqual(normalized.members, {labels: [], values: []});
+    assert.deepEqual(normalized.daily, {labels: [], titles: [], routine: [], field: []});
+    assert.deepEqual(normalized.workTypes, {labels: [], values: []});
 });
 
-/*
- * ค่าที่ไม่ใช่ตัวเลขหรือเป็นลบต้องกลายเป็นศูนย์ ไม่ใช่ทำให้กราฟพังทั้งใบ
- */
 test('normalize ปัดค่าที่ใช้ไม่ได้เป็นศูนย์', () => {
     const normalized = normalizeOperationalChartData({
         daily: {labels: [1, 'สอง'], routine: ['x', -5, 3]},
-        members: {values: [null, undefined, 7]},
+        workTypes: {values: [null, undefined, 7]},
     });
 
     assert.deepEqual(normalized.daily.labels, ['1', 'สอง']);
     assert.deepEqual(normalized.daily.routine, [0, 0, 3]);
-    assert.deepEqual(normalized.members.values, [0, 0, 7]);
+    assert.deepEqual(normalized.workTypes.values, [0, 0, 7]);
 });
 
-test('สีของกราฟหมวดงานมาจากชุดสีร่วม ไม่ประกาศสีใหม่', () => {
-    const normalized = normalizeOperationalChartData(sampleData);
-
-    assert.deepEqual(normalized.categories.colors, [
-        reportChartColors.blue,
-        reportChartColors.amber,
-    ]);
-});
-
-test('tone ที่ไม่รู้จักถอยไปใช้สีเทาสำรอง', () => {
-    const normalized = normalizeOperationalChartData({
-        categories: {labels: ['ไม่ระบุหมวด'], values: [1], tones: ['ไม่มีสีนี้']},
-    });
-
-    assert.deepEqual(normalized.categories.colors, [reportChartColors.gray]);
-});
-
-test('กราฟรายวันเป็นแท่งซ้อนสองประเภทงาน', () => {
+test('กราฟรายวันเป็นแท่งซ้อนสองประเภทงานในโทนน้ำเงิน', () => {
     const configs = buildOperationalChartConfigs(sampleData);
 
     assert.equal(configs.daily.type, 'bar');
     assert.equal(configs.daily.options.scales.x.stacked, true);
     assert.equal(configs.daily.options.scales.y.stacked, true);
+    assert.deepEqual(configs.daily.data.datasets.map((dataset) => dataset.label), ['งานประจำ', 'นอกสถานที่']);
     assert.deepEqual(
-        configs.daily.data.datasets.map((dataset) => dataset.label),
-        ['งานประจำ', 'งานนอกสถานที่']
+        configs.daily.data.datasets.map((dataset) => dataset.backgroundColor),
+        [operationalChartColors.routine, reportChartColors.blue]
     );
+    assert.ok(!Object.values(operationalChartColors).includes(reportChartColors.green), 'กราฟหน้านี้ต้องไม่ใช้สีเขียว');
 });
 
-test('กราฟที่เหลือใช้ชนิดที่ตรงกับ data-chart-kind ใน Blade', () => {
+test('สัดส่วนประเภทงานเป็นโดนัทที่ไม่มี legend ซ้ำกับรายการใต้กราฟ', () => {
     const configs = buildOperationalChartConfigs(sampleData);
 
-    assert.equal(configs.categories.type, 'doughnut');
-    assert.equal(configs.members.type, 'bar');
-    assert.equal(configs.members.options.indexAxis, 'y', 'ชั่วโมงรายคนเป็นแท่งแนวนอน');
+    assert.equal(configs.workTypes.type, 'doughnut');
+    assert.equal(configs.workTypes.options.plugins.legend.display, false);
 });
 
-/*
- * ตัวเลขในรายงานนี้เป็นชั่วโมง การใช้ทูลทิปของรายงานโครงการจะได้ข้อความ
- * "8 งาน" ซึ่งผิดความหมาย
- */
-test('ทูลทิปและแกนบอกหน่วยเป็นชั่วโมง', () => {
+test('ทูลทิปและแกนบอกหน่วยเป็นชั่วโมง พร้อมวันที่เต็มของแท่งนั้น', () => {
     const configs = buildOperationalChartConfigs(sampleData);
+    const tooltip = configs.daily.options.plugins.tooltip.callbacks;
 
-    const dailyLabel = configs.daily.options.plugins.tooltip.callbacks.label({
-        raw: 2.5,
-        dataset: {label: 'งานประจำ'},
-    });
-    assert.equal(dailyLabel, 'งานประจำ: 2.5 ชม.');
-
-    const categoryLabel = configs.categories.options.plugins.tooltip.callbacks.label({
-        raw: 6,
-        label: 'IT Support',
-        dataset: {data: [6, 2]},
-    });
-    assert.equal(categoryLabel, 'IT Support: 6 ชม. (75%)');
-
+    assert.equal(tooltip.label({raw: 2.5, dataset: {label: 'งานประจำ'}}), 'งานประจำ: 2.5 ชม.');
+    assert.equal(tooltip.title([{dataIndex: 1, label: '2'}]), '2 ก.ย. 2569');
     assert.equal(configs.daily.options.scales.y.ticks.callback(4), '4 ชม.');
-    assert.equal(configs.members.options.scales.x.ticks.callback(8), '8 ชม.');
+
+    const share = configs.workTypes.options.plugins.tooltip.callbacks.label({
+        raw: 98,
+        label: 'งานประจำ',
+        dataset: {data: [98, 30]},
+    });
+    assert.equal(share, 'งานประจำ: 98 ชม. (77%)');
 });
 
 test('สัดส่วนไม่หารด้วยศูนย์เมื่อยังไม่มีข้อมูล', () => {
     const configs = buildOperationalChartConfigs({});
+    const label = configs.workTypes.options.plugins.tooltip.callbacks.label({raw: 0, label: 'งานประจำ', dataset: {data: []}});
 
-    const label = configs.categories.options.plugins.tooltip.callbacks.label({
-        raw: 0,
-        label: 'ไม่ระบุหมวด',
-        dataset: {data: []},
-    });
-
-    assert.equal(label, 'ไม่ระบุหมวด: 0 ชม. (0%)');
+    assert.equal(label, 'งานประจำ: 0 ชม. (0%)');
 });
 
 /*
- * id ของ canvas ต้องตรงกันสามที่: Blade, ตัวเชื่อมใน operational.js และคีย์ของ
- * config ถ้าหลุดที่ใดที่หนึ่งกราฟจะไม่ถูกวาดโดยไม่มี error ให้เห็น
+ * id ของ canvas ต้องตรงกันสามที่: Blade, ตัวเชื่อมใน operational.js และคีย์ของ config
+ * ถ้าหลุดที่ใดที่หนึ่งกราฟจะไม่ถูกวาดโดยไม่มี error ให้เห็น
  */
-/*
- * เทสต์ที่เคยผูก canvas ของกราฟเข้ากับ entry ของหน้า ถูกถอดออกพร้อมกับกราฟ
- *
- * หน้ารายงานปฏิบัติงานเหลือสองตารางกับตัวกรองช่วงวัน ไม่มีกราฟให้เชื่อมอีกแล้ว
- * ตัวสร้าง config ยังถูกทดสอบต่อไปในไฟล์นี้ เผื่อถูกนำกลับมาใช้
- */
+test('canvas ของแถวกราฟผูกกับ config และใช้สัญญา markup เดียวกับรายงานอื่น', () => {
+    // แถวกราฟเป็น component ที่ภาพรวมทีมและ Overview รายบุคคลใช้ร่วมกัน
+    const blade = readFileSync(new URL('../../resources/views/reports/components/operational/charts.blade.php', import.meta.url), 'utf8');
+    const entry = readFileSync(new URL('../../resources/js/pages/reports/operational.js', import.meta.url), 'utf8');
 
-test('การ์ดกราฟใช้สัญญา markup เดียวกับรายงานอื่น', () => {
-    const blade = readFileSync(
-        new URL('../../resources/views/reports/components/operational-charts.blade.php', import.meta.url),
-        'utf8'
-    );
+    for (const [id, key] of [['operationalDailyHoursChart', 'daily'], ['operationalWorkTypeChart', 'workTypes']]) {
+        assert.ok(blade.includes(`id="${id}"`), `Blade ต้องมี canvas ${id}`);
+        assert.ok(entry.includes(`{id: '${id}', key: '${key}'}`), `operational.js ต้องผูก ${id} กับ ${key}`);
+    }
 
     ['data-report-chart', 'data-chart-kind', 'data-chart-state="loading"',
         'data-chart-skeleton', 'data-chart-empty', 'data-chart-error'].forEach((hook) => {
@@ -147,7 +107,7 @@ test('การ์ดกราฟใช้สัญญา markup เดียว
     });
 });
 
-test('vite ลงทะเบียน entry ของรายงานภาระงานปฏิบัติการ', () => {
+test('vite ลงทะเบียน entry ของรายงานปฏิบัติงาน', () => {
     const viteConfig = readFileSync(new URL('../../vite.config.js', import.meta.url), 'utf8');
 
     assert.ok(viteConfig.includes("'resources/js/pages/reports/operational.js'"));

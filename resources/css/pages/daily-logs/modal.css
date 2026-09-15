@@ -8,31 +8,40 @@
 .log-modal[hidden] { display:none !important; }
 .log-modal[data-modal-backdrop="on"]::before { content:''; position:absolute; inset:0; background:rgba(15,23,42,.45); }
 
-.log-modal__panel { position:relative; display:flex; flex-direction:column; width:min(680px,100%); max-height:calc(100vh - 40px); border-radius:18px; background:#fff; box-shadow:0 30px 70px -30px rgba(15,23,42,.7); }
+.log-modal__panel { position:relative; display:flex; flex-direction:column; width:min(560px,100%); max-height:calc(100vh - 40px); border-radius:12px; background:#fff; box-shadow:0 30px 70px -30px rgba(15,23,42,.7); }
 
 .log-modal__header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 22px 12px; border-bottom:1px solid #eef2f8; }
-.log-modal__title { margin:0; color:#0f172a; font-size:1.08rem; font-weight:700; }
+.log-modal__title { margin:0; color:#0f172a; font-size:1.08rem; font-weight:500; }
 .log-modal__close { display:grid; place-items:center; width:32px; height:32px; border:0; border-radius:9px; background:transparent; color:#8494ae; cursor:pointer; }
 .log-modal__close:hover { background:#f2f6fd; color:#33415c; }
 .log-modal__close:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
-
-/*
- * แถบเลือกโหมด — "ทำครั้งเดียว" กับ "ทำซ้ำทุกวัน"
- *
- * เป็นการสลับเนื้อในของกล่องเดียวกัน ไม่ใช่การเปิดกล่องชั้นใหม่ จึงทำหน้าตาเป็น
- * แท็บที่อ่านออกทันทีว่าเลือกอันไหนอยู่ ไม่ใช่ปุ่มลงมือที่แข่งกับปุ่มบันทึกด้านล่าง
- */
-.log-modal__modes { display:flex; gap:6px; padding:12px 22px 0; }
-.log-modal__modes[hidden] { display:none !important; }
-.log-mode { display:inline-flex; align-items:center; gap:7px; padding:8px 15px; border:1px solid #dde5f1; border-radius:999px; background:#fff; color:#526180; font-size:.84rem; font-weight:600; cursor:pointer; transition:border-color .15s ease, background-color .15s ease, color .15s ease; }
-.log-mode:hover { border-color:#b9cbe8; }
-.log-mode:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
-.log-mode.is-active { border-color:#2563eb; background:#eff5ff; color:#1d4ed8; }
 
 .log-modal__form,
 .log-modal__routine { display:flex; flex-direction:column; min-height:0; }
 .log-modal__form[hidden],
 .log-modal__routine[hidden] { display:none !important; }
+.log-modal__choice[hidden],
+.log-modal__step[hidden],
+.log-modal__body[hidden],
+.log-modal__footer button[hidden] { display:none !important; }
+.log-modal__choice { display:grid; gap:18px; padding-top:20px; }
+.log-modal__choice > .log-modal__step-heading,
+.log-modal__type-grid { margin-left:22px; margin-right:22px; }
+.log-modal__type-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding-bottom:30px; }
+.log-modal__type-grid button { display:grid; justify-items:center; gap:7px; min-height:132px; padding:20px 12px; border:1px solid #dbe6f7; border-radius:9px; background:#fff; color:#1c3357; cursor:pointer; }
+.log-modal__type-grid button:hover,
+.log-modal__type-grid button:focus-visible { border-color:#1261dc; background:#f5f9ff; outline:2px solid #e1edff; outline-offset:1px; }
+.log-modal__type-grid i { color:#1261dc; font-size:1.6rem; }
+.log-modal__type-grid strong { font-size:.9rem; font-weight:300; }
+.log-modal__type-grid small { color:#7b8da8; font-size:.72rem; text-align:center; }
+.log-modal__step { display:grid; gap:14px; }
+.log-modal__step-heading { display:flex; align-items:center; gap:9px; margin:0 0 6px; color:#183154; font-size:.86rem; font-weight:500; }
+.log-modal__step-heading span { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#1261dc; color:#fff; font-size:.7rem; }
+.log-modal__step .form-control,
+.log-modal__step .form-select { border-radius:7px; }
+.log-modal__step .participant-picker { width:100%; }
+.log-modal__step .routine-form__weekdays[hidden],
+.log-modal__step .log-field[hidden] { display:none !important; }
 .log-modal__routine .log-modal__body + .routine-add { min-height:0; }
 .log-modal__body { display:grid; gap:14px; overflow-y:auto; padding:18px 22px; }
 .log-modal__footer { display:flex; justify-content:flex-end; gap:9px; padding:14px 22px 18px; border-top:1px solid #eef2f8; }
@@ -40,7 +49,8 @@
 .log-modal__error[hidden] { display:none !important; }
 
 .log-field { display:grid; gap:5px; min-width:0; }
-.log-field .form-label { margin:0; color:#475569; font-size:.82rem; font-weight:600; }
+.log-field .form-label { margin:0; color:#475569; font-size:.82rem; font-weight:300; }
+.log-field .form-label small { color:#8494ae; font-size:.72rem; font-weight:300; }
 .log-field .form-control,
 .log-field .form-select { border:1px solid #dde5f1; border-radius:10px; font-size:.88rem; }
 .log-field .form-control:focus,
@@ -49,6 +59,13 @@
 
 .log-field-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
 .log-field__hint { margin:-6px 0 0; color:#8494ae; font-size:.76rem; line-height:1.5; }
+.log-field__date-summary { color:#2563eb; font-size:.73rem; font-weight:300; }
+.log-field__date-summary[hidden] { display:none !important; }
+.log-field__date-list { color:#5b6b85; font-size:.72rem; font-weight:300; line-height:1.5; }
+.log-field__date-list[hidden] { display:none !important; }
+@media (max-width:480px) {
+  .log-modal__type-grid { grid-template-columns:minmax(0,1fr); }
+}
 
 /*
  * ไฟล์แนบในฟอร์มเต็ม
@@ -58,7 +75,7 @@
  */
 .log-attachments { display:grid; gap:10px; padding:15px 22px 20px; border-top:1px solid #eef2f8; background:#fbfcfe; border-radius:0 0 18px 18px; }
 .log-attachments[hidden] { display:none !important; }
-.log-attachments__heading { display:flex; align-items:center; gap:7px; margin:0; color:#475569; font-size:.85rem; font-weight:650; }
+.log-attachments__heading { display:flex; align-items:center; gap:7px; margin:0; color:#475569; font-size:.85rem; font-weight:300; }
 .log-attachments__heading i { color:#8494ae; }
 
 .log-attachments__list { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
@@ -73,7 +90,7 @@
 .log-attachments__form { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin:0; }
 .log-attachments__picker { position:relative; cursor:pointer; }
 .log-attachments__picker input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
-.log-attachments__picker span { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px dashed #c2d4f0; border-radius:9px; background:#fff; color:#1d4ed8; font-size:.83rem; font-weight:600; }
+.log-attachments__picker span { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px dashed #c2d4f0; border-radius:9px; background:#fff; color:#1d4ed8; font-size:.83rem; font-weight:300; }
 .log-attachments__picker:hover span { border-color:#93b4fa; background:#f4f8ff; }
 .log-attachments__hint { margin:0; color:#8494ae; font-size:.74rem; }
 
@@ -91,3 +108,65 @@
  * ของงานโครงการ เพื่อให้กล่องยืนยันของทั้งระบบอยู่ชั้นเดียวกัน
  */
 .swal2-container.daily-log-dialog { z-index:1400; }
+
+/* กล่องก่อนเริ่มงานประจำ (routine-start-dialog.js) — เหตุผลวันที่ค้าง และผู้ร่วมงานมาไหม */
+.routine-start { display:grid; gap:14px; max-height:60vh; overflow-y:auto; color:#33415c; font-size:.86rem; font-weight:300; text-align:left; }
+.routine-start [hidden] { display:none !important; }
+.routine-start__section { display:grid; gap:8px; }
+.routine-start__heading { margin:0; color:#183154; font-size:.84rem; font-weight:500; }
+.routine-start__day { display:grid; gap:6px; padding:10px 12px; border:1px solid #e3ebf7; border-radius:10px; }
+.routine-start__day-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.routine-start__day small { color:#7485a2; font-size:.74rem; }
+.routine-start__tag { padding:2px 8px; border-radius:999px; background:#fdecec; color:#b42318; font-size:.7rem; }
+.routine-start__tag--unfinished { background:#fff4e5; color:#b0661b; }
+.routine-start__day select,
+.routine-start__day input { width:100%; padding:7px 9px; border:1px solid #dde5f1; border-radius:9px; font:inherit; font-size:.84rem; }
+.routine-start__person { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:8px 12px; border:1px solid #e3ebf7; border-radius:10px; }
+.routine-start__person > span { flex:1 1 140px; min-width:0; }
+.routine-start__person label { display:inline-flex; align-items:center; gap:5px; cursor:pointer; }
+
+/*
+ * กล่องปิดงาน (completion-dialog.js) — อยู่ใน popup ของ SweetAlert2 ซึ่งต่อกับ <body>
+ * จึงไม่ขึ้นกับ .daily-log
+ */
+.log-completion { display:grid; gap:12px; margin:4px 0 0; color:#33415c; font-size:.88rem; font-weight:300; text-align:left; }
+.log-completion [hidden] { display:none !important; }
+.log-completion__outcome { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:0; padding:0; border:0; }
+.log-completion__outcome label { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid #dde5f1; border-radius:10px; cursor:pointer; }
+.log-completion__outcome label:has(input:checked) { border-color:#2563eb; background:#eff5ff; color:#1d4ed8; }
+.log-completion__outcome label:has(input[value="issue"]:checked) { border-color:#e35d5d; background:#fff5f5; color:#b42318; }
+.log-completion__field { display:grid; gap:5px; }
+.log-completion__field > span,
+.log-completion__field > label { color:#475569; font-size:.82rem; }
+.log-completion__field textarea,
+.log-completion__field select:not(.sg-select__native),
+.log-completion__field input { width:100%; padding:8px 10px; border:1px solid #dde5f1; border-radius:10px; font:inherit; font-size:.88rem; }
+.log-reason-select { width:calc(100% - 2rem); max-width:360px; margin:1rem auto 0; text-align:left; }
+.swal2-popup .log-reason-select .swal2-select.sg-select__native { position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0; overflow:hidden; clip-path:inset(50%); pointer-events:none; }
+.log-completion__field .sg-select__trigger,
+.log-reason-select .sg-select__trigger { min-height:40px; border-color:#dde5f1; border-radius:10px; font-size:.88rem; }
+.log-completion__field .sg-select__panel,
+.log-reason-select .sg-select__panel {
+  position:static;
+  top:auto;
+  bottom:auto;
+  max-height:0;
+  margin-top:0;
+  padding:0;
+  border-width:0;
+  overflow:hidden;
+  transform:translateY(-6px) scaleY(.97);
+  transform-origin:top center;
+  transition:max-height .2s ease, margin-top .2s ease, opacity .17s ease, transform .17s ease, visibility 0s linear .2s;
+}
+.log-completion__field .sg-select.is-open .sg-select__panel,
+.log-reason-select.is-open .sg-select__panel {
+  max-height:min(220px, 35vh);
+  margin-top:5px;
+  padding:5px;
+  border-width:1px;
+  overflow-y:auto;
+}
+@media (max-width:480px) {
+  .log-completion__outcome { grid-template-columns:minmax(0,1fr); }
+}

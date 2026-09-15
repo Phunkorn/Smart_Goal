@@ -369,6 +369,33 @@
     padding: 14px 16px;
 }
 
+.task-workspace__locked-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin: 10px 0 0;
+    padding: 11px 12px;
+    border: 1px solid #f2c98c;
+    border-radius: 10px;
+    background: #fff8e8;
+    color: #8a5708;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.task-workspace__locked-notice[hidden] {
+    display: none;
+}
+
+.task-workspace__locked-notice > i {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+.task-workspace__locked-notice--comment {
+    margin: 0;
+}
+
 .task-workspace__panel {
     display: flex;
     min-height: 0;

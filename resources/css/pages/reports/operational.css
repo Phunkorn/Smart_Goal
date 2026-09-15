@@ -1,836 +1,486 @@
 /*
- * ส่วนที่เป็นของรายงานภาระงานปฏิบัติการเท่านั้น
+ * รายงานปฏิบัติงานประจำเดือน — Overview และหน้า detail
  *
- * โครงหน้า แถบ KPI การ์ดกราฟ และตารางใช้สไตล์ร่วมจาก reports/organization.css
- * ที่นี่จึงมีเฉพาะสิ่งที่รายงานนี้เพิ่มขึ้นมา
+ * โทนหลักเป็น blue / slate / neutral สีเขียว ส้ม แดง ใช้เฉพาะความหมายของสถานะ
+ * (สถานะงาน ลูกศรเทียบเดือนก่อน และงานค้าง) ไม่ใช้เป็นสีตกแต่ง
+ *
+ * โครงหน้า breadcrumb และสถานะของกราฟมาจาก organization.css / shared.css
+ * ไฟล์นี้กำหนดเฉพาะส่วนที่เป็นของรายงานนี้
  */
-
-/* ตารางรายคนกินความกว้างทั้งแถวเพราะมีแปดคอลัมน์ */
-/*
- * ตารางรายคนอยู่นอก .report-dashboard จึงไม่ได้ gap ของกริดนั้น
- *
- * grid-column ที่ประกาศไว้ไม่มีผลใด ๆ เพราะพ่อแม่ไม่ใช่กริด การ์ดจึงไปติดกับ
- * การ์ดกราฟด้านบนแบบไม่มีระยะห่างเลย ต้องประกาศระยะห่างเป็นของตัวเอง
- * ใช้ค่าเท่ากับ gap ของ .report-dashboard เพื่อให้จังหวะทั้งหน้าเท่ากัน
- */
-.report-operational-table { margin-top:16px; }
-
-/*
- * ตารางนี้มีแปดคอลัมน์ มากกว่าตารางแผนกที่ยืมสไตล์มาใช้
- *
- * min-width ที่สืบทอดมาคือ 620px ซึ่งพอสำหรับตารางแผนก แต่ที่นี่ทำให้แปดคอลัมน์
- * ถูกอัดอยู่ในความกว้างเท่านั้นโดยไม่เกิดแถบเลื่อน หัวตารางจึงเบียดกันจนอ่านไม่ออก
- * บนจอที่แคบกว่าราว 900px
- *
- * ตั้งค่าให้ยอมเลื่อนแนวนอนแทนการบีบ อ่านตัวเลขได้ครบเสมอไม่ว่าจอกว้างเท่าไร
- */
-.report-operational-table .report-department-table { min-width:880px; }
-
-/*
- * เว้นขอบซ้ายขวาให้เท่ากับขอบในของการ์ด
- *
- * .report-department-scroll กินเต็มความกว้างของการ์ด คอลัมน์แรกและคอลัมน์สุดท้าย
- * จึงชิดขอบการ์ดพอดีเมื่อเลื่อนไปสุด ตัวเลขดูเหมือนล้นออกนอกกรอบ
- */
-.report-operational-table .report-department-table th:first-child,
-.report-operational-table .report-department-table td:first-child { padding-left:2px; }
-.report-operational-table .report-department-table th:last-child,
-.report-operational-table .report-department-table td:last-child { padding-right:2px; }
-
-.report-operational-table__number { text-align:right !important; white-space:nowrap; font-variant-numeric:tabular-nums; }
-
-/*
- * งานที่ทำบ่อยที่สุด — เป็นลำดับ ไม่ใช่กราฟ เพราะสิ่งที่อ่านคือ "ชื่องาน"
- *
- * ใช้แค่ .report-panel ซึ่งให้เฉพาะกรอบและพื้นหลัง ไม่ได้ให้ระยะขอบใน
- * (padding มาจาก .report-dashboard-card ซึ่งการ์ดใบนี้ไม่ได้ใช้) หัวข้อและ
- * รายการจึงชิดขอบการ์ดทั้งสี่ด้าน ต้องประกาศระยะขอบในเอง
- */
-.report-operational-top { margin-top:16px; padding:17px; }
-
-/*
- * ตารางอันดับงานที่ทำบ่อยที่สุด
- *
- * เดิมเป็นรายการ <ol> ซึ่งอ่านเทียบตัวเลขข้ามบรรทัดได้ยาก เพราะจำนวนครั้งกับ
- * เวลาลอยตามความยาวของชื่องาน เปลี่ยนเป็นตารางที่ใช้โครงร่วม
- * (report-department-table) เหมือนตารางอื่นในหน้านี้ ตัวเลขจึงอยู่ในแนวเดียวกัน
- * และมีหัวคอลัมน์บอกว่าแต่ละช่องคืออะไร
- *
- * มีแค่สี่คอลัมน์และยาวสุด 10 แถว จึงพอดีทุกความกว้างโดยไม่ต้องเลื่อนแนวนอน
- * ล้าง min-width ที่สืบทอดมาจาก .report-department-table (620px) และปิดแถบเลื่อน
- * ของ .report-department-scroll ทิ้ง ชื่องานยาวใช้การตัดคำแทนการดันตารางให้กว้าง
- */
-.report-operational-top__scroll { overflow:visible; }
-.report-operational-top__table { min-width:0; table-layout:fixed; }
-.report-operational-top__rank-head { width:64px; }
-
-/*
- * ทั้งตารางเป็นน้ำหนักปกติ
- *
- * ตัวหนาทั้งคอลัมน์ทำให้ตาไม่รู้ว่าควรหยุดตรงไหน เหมือนที่ตารางการตรวจงานประจำ
- * เจอมาก่อน ที่นี่ลำดับถูกบอกด้วยตำแหน่งแถวอยู่แล้ว ไม่ต้องเน้นด้วยน้ำหนักหรือสี
- */
-.report-operational-top__table tbody td,
-.report-operational-top__table tbody th { color:#33415c; font-size:.83rem; font-weight:400; }
-.report-operational-top__table tbody td.report-operational-top__rank { width:64px; color:#16233d; }
-.report-operational-top__table tbody th.report-operational-top__name { min-width:0; word-break:break-word; }
-.report-operational-top__hours small { color:#7c8aa3; font-weight:400; }
-
-/*
- * ตารางสถานะงานประจำของวันนี้
- *
- * ใช้โครงตารางร่วมของหน้ารายงาน (report-department-table) แล้วเติมเฉพาะสถานะ
- * ตรวจแล้ว/ยังไม่ตรวจ ซึ่งเป็นสิ่งเดียวที่ตารางนี้มีต่างจากตารางอื่น
- *
- * แถวที่ยังไม่ตรวจใช้สีแดงและมีแถบซ้าย เพราะเป็นแถวเดียวที่ต้องลงมือต่อ
- * สีไม่ใช่สัญญาณเดียว — มีทั้งไอคอนและข้อความกำกับ สำหรับผู้ที่แยกสีได้ยาก
- */
-/*
- * แผงต้องมีระยะขอบของตัวเอง
- *
- * .report-panel กำหนดแค่กรอบกับพื้นหลัง ส่วนระยะขอบเป็นของการ์ดแต่ละชนิด
- * (.report-dashboard-card ใส่ 17px ไว้เอง) ตารางนี้เคยไม่ใส่ หัวข้อกับตารางจึง
- * ไปชนขอบซ้ายจนดูเหมือนข้อความล้นออกนอกแผง
- */
-.report-checklist { padding:17px; }
-
-.report-checklist__score { display:flex; align-items:baseline; gap:6px; padding:6px 14px; border-radius:999px; background:#eef2f8; color:#475569; font-size:.8rem; font-weight:600; white-space:nowrap; }
-.report-checklist__score strong { font-size:1rem; font-weight:700; }
-.report-checklist__score.is-complete { background:#effcfa; color:#0f766e; }
-.report-checklist__score.is-pending { background:#fef3f2; color:#b42318; }
-
-.report-checklist__empty { display:flex; flex-direction:column; align-items:center; gap:9px; margin:0; padding:30px 20px; border:1px dashed #d9e2f0; border-radius:14px; color:#7c8aa3; font-size:.88rem; text-align:center; }
-.report-checklist__empty i { color:#a8b6cc; font-size:1.6rem; }
-
-/*
- * ทุกช่องเป็นน้ำหนักปกติ
- *
- * ตัวหนาทั้งคอลัมน์ทำให้ตาไม่รู้ว่าควรหยุดตรงไหน ทั้งที่สิ่งที่ต้องเด่นคือสถานะ
- * ซึ่งมีป้ายสีของตัวเองอยู่แล้ว ชื่อวันและชื่องานเป็นข้อมูลที่อ่านไล่ลงมา
- * ไม่ใช่หัวข้อ
- */
-.report-checklist__table tbody td { color:#33415c; font-size:.83rem; font-weight:400; }
-
-/*
- * ไม่มีแถบเลื่อนแนวนอน
- *
- * ตารางนี้แบ่งหน้าครั้งละ 10 แถวด้วยปุ่มถัดไป/ย้อนกลับอยู่แล้ว การเลื่อนซ้ายขวา
- * ซ้อนเข้ามาอีกชั้นทำให้คอลัมน์ขวาสุด (สถานะ) ซึ่งเป็นสิ่งที่ต้องอ่าน หายไปนอกจอ
- * โดยไม่มีอะไรบอก ล้าง min-width ที่สืบทอดมาจาก .report-department-table แล้วให้
- * ข้อความยาวตัดบรรทัดแทนการดันตารางให้กว้างเกินการ์ด
- */
-.report-checklist__scroll { overflow:visible; }
-.report-checklist__table { min-width:0; }
-.report-checklist__table tbody th,
-.report-checklist__table tbody td { word-break:break-word; }
-
-/*
- * จอแคบ: ปล่อยให้ช่องที่เคยห้ามตัดบรรทัดตัดได้
- *
- * วันที่และช่วงเวลาใช้ white-space:nowrap เพื่อไม่ให้ "09:41 - 09:42" ขาดกลาง
- * ซึ่งดีบนจอกว้าง แต่บนมือถือมันคือความกว้างขั้นต่ำที่ดันตารางล้นออกนอกการ์ด
- * ในเมื่อไม่มีแถบเลื่อนแล้ว การตัดบรรทัดคือทางเดียวที่ยังอ่านครบทุกคอลัมน์
- */
-@media (max-width: 640px) {
-    .report-checklist__date,
-    .report-checklist__window { white-space:normal; }
+.report-operational {
+    --op-ink: #0f172a;
+    --op-text: #334155;
+    --op-muted: #64748b;
+    --op-line: #e2e8f0;
+    --op-soft: #f8fafc;
+    --op-blue: #1d4ed8;
+    --op-blue-soft: #eff6ff;
+    --op-routine: #60a5fa;
+    --op-green: #047857;
+    --op-amber: #b45309;
+    --op-red: #b91c1c;
+    color: var(--op-ink);
 }
 
-.report-checklist__date { white-space:nowrap; }
-.report-checklist__today { display:inline-block; margin-left:5px; padding:1px 7px; border-radius:999px; background:#eef4ff; color:#3b5bab; font-size:.68rem; font-weight:600; }
-.report-checklist__task { min-width:180px; }
-.report-checklist__category { display:block; margin-top:2px; color:#8494ae; font-size:.72rem; font-weight:400; }
-.report-checklist__window { font-variant-numeric:tabular-nums; white-space:nowrap; }
-
-.report-checklist__row--pending td:first-child { box-shadow:inset 3px 0 0 #d92d20; }
-.report-checklist__row--pending { background:#fffaf9; }
-
-.report-checklist__status { display:inline-flex; align-items:center; gap:6px; padding:4px 11px; border-radius:999px; font-size:.76rem; font-weight:600; white-space:nowrap; }
-.report-checklist__status--done { background:#effcfa; color:#0f766e; }
-.report-checklist__status--pending { background:#fef3f2; color:#b42318; }
-.report-checklist__status--running { background:#eef4ff; color:#1d4ed8; }
-.report-checklist__status--skipped { background:#f1f5f9; color:#475569; }
-.report-checklist__reason { display:block; max-width:260px; margin-top:5px; color:#64748b; font-size:.72rem; line-height:1.4; }
-
-/*
- * ตารางการตรวจงานประจำอยู่ท้ายหน้า ต่อจากกราฟหรือตารางรายคน
- *
- * .report-panel ไม่มี margin ของตัวเอง (การ์ดในกริดได้ระยะจาก gap ของกริดแทน)
- * ตารางนี้อยู่นอกกริดจึงต้องเว้นระยะด้านบนเอง ไม่งั้นไปติดกับบล็อกก่อนหน้าพอดี
- */
-.report-checklist { margin-top:16px; }
-
-/*
- * รายงานของพนักงานคนเดียวมีกราฟใบเดียว
- *
- * กริด 12 คอลัมน์ที่ออกแบบไว้ให้การ์ดสี่ใบ ทำให้กราฟใบเดียวกินแค่ 8 ใน 12 คอลัมน์
- * แล้วเหลือช่องว่างข้าง ๆ ที่ไม่มีอะไรอยู่ ในหน้านี้จึงให้กินเต็มความกว้าง
- */
-.report-dashboard--personal .report-dashboard-card,
-.report-dashboard--personal .report-dashboard-card--trend { grid-column:1/-1; }
-
-/*
- * กราฟรายคนของหน้านี้กินเต็มความกว้าง
- *
- * หัวหน้าแผนกได้กราฟสามใบ: แนวโน้ม (8 คอลัมน์) + หมวดงาน (4) เต็มแถวแรกพอดี
- * เหลือกราฟรายคนอยู่แถวสองเพียงใบเดียวที่กว้าง 3 ใน 12 คอลัมน์ ที่เหลืออีก 9 คอลัมน์
- * จึงเป็นพื้นที่ว่างเปล่ากลางหน้า และแท่งของแต่ละคนก็สั้นจนอ่านไม่ออก
- * ค่า span 3 นั้นมาจากรายงานองค์กรที่มีการ์ดสี่ใบต่อแถว ซึ่งไม่ใช่ผังของหน้านี้
- */
-.report-operational .report-dashboard-card--priority { grid-column:1/-1; --report-chart-height:280px; }
-
-/*
- * สรุปงานประจำ
- *
- * เป็น .report-panel ที่อยู่นอกกริด จึงไม่ได้ทั้ง gap และ padding ของการ์ดในกริด
- * ต้องประกาศระยะขอบในและระยะห่างจากบล็อกข้างเคียงเอง ด้วยค่าชุดเดียวกับการ์ดอื่นทั้งหน้า
- * (padding 17px, ระยะห่าง 16px) ไม่งั้นมันจะไปติดกับแถบ KPI ด้านบนและกราฟด้านล่างพอดี
- *
- * แต่ละใบเป็นลิงก์ที่กรองตารางด้านล่าง ไม่ใช่การ์ดอ่านอย่างเดียว จึงต้องมีสถานะ hover
- * และสถานะ "กำลังถูกเลือก" ให้ชัด ผู้ใช้จะได้รู้ว่าตัวเลขที่เห็นอยู่มาจากมุมมองไหน
- */
-.report-routine { margin-bottom:16px; padding:17px; }
-
-.report-routine__rates {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 16px;
-    color: #64748b;
-    font-size: .8rem;
-}
-
-.report-routine__rate b {
-    color: #1f2937;
-    font-size: 1.05rem;
-}
-
-.report-routine__tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
-    gap: 12px;
-    margin-top: 14px;
-}
-
-.report-routine__tile {
-    display: grid;
-    gap: 3px;
-    padding: 14px 16px;
-    border: 1px solid #e3e9f1;
-    border-radius: 12px;
-    background: #fff;
-    color: #475569;
-    text-decoration: none;
-    transition: border-color .12s ease, background .12s ease, transform .12s ease;
-}
-
-.report-routine__tile:hover {
-    border-color: #b8cef0;
-    background: #f7faff;
-    transform: translateY(-1px);
-}
-
-.report-routine__tile.is-active {
-    border-color: #2563eb;
-    background: #eff6ff;
-    box-shadow: 0 0 0 1px #2563eb inset;
-}
-
-.report-routine__tile i {
-    font-size: 1rem;
-}
-
-.report-routine__tile strong {
-    color: #0f172a;
-    font-size: 1.6rem;
-    font-weight: 750;
-    letter-spacing: -.01em;
-    line-height: 1.2;
-}
-
-.report-routine__tile span {
-    font-size: .8rem;
-    font-weight: 600;
-    line-height: var(--thai-line-height);
-}
-
-.report-routine__tile--success i { color: #07845f; }
-.report-routine__tile--warning i { color: #b45309; }
-.report-routine__tile--danger i { color: #dc2626; }
-.report-routine__tile--muted i { color: #94a3b8; }
-.report-routine__tile--neutral i { color: #2563eb; }
-
-.report-routine__empty {
-    margin: 12px 0 0;
-    color: #8290a4;
-    font-size: .82rem;
-}
-
-@media (max-width: 640px) {
-    .report-routine__tiles {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-/*
- * ตารางรายชื่อพนักงาน และตารางรายวัน
- *
- * ทั้งคู่สืบทอด min-width:620px มาจาก .report-department-table ซึ่งเป็นค่าของ
- * ตารางแผดที่มีคอลัมน์กว้างกว่านี้ ผลคือคอลัมน์ตัวเลขห้าหกช่องถูกยืดออกจนห่างกัน
- * ผิดสัดส่วน และชื่อคนยาว ๆ ดันความกว้างจนข้อความล้นออกนอกการ์ด
- *
- * table-layout:fixed บวกความกว้างที่ประกาศไว้ทำให้คอลัมน์ตัวเลขคงที่ ส่วนที่เหลือ
- * ตกเป็นของคอลัมน์ชื่อ ชื่อยาวจึงตัดคำลงบรรทัดใหม่แทนการดันตารางให้กว้างขึ้น
- */
-.report-operational-days__table {
-    min-width: 0;
-    table-layout: fixed;
-}
-
-.report-operational-days__table th,
-.report-operational-days__table td {
-    /* ชื่อวันยาวได้ ต้องตัดคำ ไม่ใช่ล้นออกนอกช่อง */
-    overflow-wrap: anywhere;
-}
-
-.report-operational-days__table th:not(:first-child),
-.report-operational-days__table td:not(:first-child) {
-    width: 104px;
-    white-space: nowrap;
-}
-
-/*
- * กระดานรายคน — การ์ดต่อคน ไม่ใช่แถวในตาราง
- *
- * ข้อมูลของคนหนึ่งคนไม่ได้เป็นแถวเดียวจริง ๆ มันคือชื่อ ความคืบหน้าของวันนี้ รายการงาน
- * อีกหลายบรรทัด และตัวเลขสะสมของช่วง การยัดทั้งหมดลงแถวเดียวทำให้ช่องหนึ่งสูงกว่า
- * ช่องอื่นมาก คอลัมน์ตัวเลขจึงลอยอยู่กลางอากาศ และงานของแต่ละคนถูกบีบจนอ่านเป็นก้อนเดียว
- *
- * auto-fill ทำให้จอกว้างได้สามคนต่อแถวโดยไม่ต้องกวาดสายตาข้ามทั้งจอ และจอแคบยุบ
- * เหลือคอลัมน์เดียวเองโดยไม่ต้องมีกฎของมือถือแยก
- */
-.report-people-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-    gap: 12px;
-}
-
-.report-people-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    padding: 13px 14px;
-    border: 1px solid #e6ecf4;
-    border-radius: 14px;
-    background: #fff;
-}
-
-/* ตัวแบ่งหน้าซ่อนการ์ดด้วย hidden ซึ่งต้องชนะ display:flex ของการ์ด */
-.report-people-card[hidden] { display: none; }
-
-/* ยังไม่ได้เริ่มเลยทั้งที่มีงานรออยู่ คือการ์ดที่หัวหน้าต้องเห็นก่อนใคร */
-.report-people-card.is-idle {
-    border-color: #fecaca;
-    background: #fffbfb;
-}
-
-.report-people-card__head {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-}
-
-.report-people-card__avatar {
-    display: grid;
-    flex: 0 0 auto;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #eef2ff;
-    color: #4f46e5;
-    font-size: .86rem;
-    font-weight: 600;
-    place-items: center;
-}
-
-.report-people-card__identity {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.report-people-card__identity a {
-    display: block;
-    color: #0f172a;
-    font-size: .88rem;
-    font-weight: 600;
-    overflow-wrap: anywhere;
-    text-decoration: none;
-}
-
-.report-people-card__identity a:hover {
-    color: #1d4ed8;
-    text-decoration: underline;
-}
-
-.report-people-card__identity small {
-    display: block;
-    color: #94a3b8;
-    font-size: .72rem;
-}
-
-.report-people-card__head .report-tag { flex: 0 0 auto; }
-
-/* บรรทัดสรุปของวันนี้ อ่านก่อนรายการงานเสมอ */
-.report-people-card__today-line {
-    display: flex;
-    align-items: baseline;
-    gap: 7px;
-    font-size: .78rem;
-}
-
-.report-people-card__today-label { color: #64748b; }
-
-.report-people-card__today-count { font-size: .95rem; }
-.report-people-card__today-count.is-green { color: #047857; }
-.report-people-card__today-count.is-amber { color: #b45309; }
-.report-people-card__today-count.is-red { color: #b91c1c; }
-
-.report-people-card__today-time {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: auto;
-    color: #64748b;
-    font-size: .74rem;
-}
-
-.report-people-card__today-none { color: #94a3b8; font-size: .76rem; }
-
-/*
- * แถบความคืบหน้าอ่านได้ก่อนตัวเลข จึงเทียบคนทั้งกริดได้ด้วยการกวาดสายตา
- * ไม่ใช้ element progress เพราะสีของมันถูกกำหนดคนละแบบบนแต่ละแพลตฟอร์ม
- */
-.report-people-card__bar {
-    overflow: hidden;
-    height: 5px;
-    margin-top: 6px;
-    border-radius: 999px;
-    background: #eef2f8;
-}
-
-.report-people-card__bar > span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-}
-
-.report-people-card__bar > span.is-green { background: #10b981; }
-.report-people-card__bar > span.is-amber { background: #f59e0b; }
-.report-people-card__bar > span.is-red { background: #ef4444; }
-
-/*
- * รายการงานของวันนี้ — หนึ่งบรรทัดต่อหนึ่งรายการ
- *
- * ของเดิมเป็นชิปที่ไหลต่อกันในบรรทัดเดียว พอคนหนึ่งมีงานหลายรายการ ชื่องาน ชนิดงาน
- * และเวลาจะกองรวมกันจนแยกไม่ออกว่าอะไรเป็นของรายการไหน
- */
-.report-people-card__items {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.report-people-card__item {
-    display: flex;
-    align-items: baseline;
-    gap: 7px;
-    padding: 4px 7px;
-    border-radius: 8px;
-    color: #475569;
-    font-size: .76rem;
-    line-height: 1.45;
-}
-
-/* ลายเส้นสลับ ช่วยให้สายตาไม่หลุดบรรทัดเวลามีรายการยาว ๆ */
-.report-people-card__item:nth-child(odd) { background: #f8fafc; }
-
-.report-people-card__item > i {
-    flex: 0 0 auto;
-    color: #cbd5e1;
-    font-size: .78rem;
-}
-
-.report-people-card__item-title {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    font-weight: 500;
-}
-
-/* ชนิดงานกับเวลาอยู่ท้ายบรรทัดเสมอ ตำแหน่งจึงตรงกันทุกบรรทัดและทุกการ์ด */
-.report-people-card__item-kind,
-.report-people-card__item-status,
-.report-people-card__item-time {
-    flex: 0 0 auto;
-    color: #94a3b8;
-    font-size: .69rem;
-    white-space: nowrap;
-}
-
-.report-people-card__item-status {
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: #fef3c7;
-    color: #b45309;
-}
-
-.report-people-card__item-time {
-    min-width: 46px;
-    color: #64748b;
-    text-align: right;
-}
-
-.report-people-card__item.is-done { color: #1d4ed8; }
-.report-people-card__item.is-done > i { color: #2563eb; }
-
-/*
- * ปุ่มเปิดรายละเอียด — ส่วนที่เกินจากการ์ดไปอยู่ใน modal ไม่ใช่กางในที่เดิม
- *
- * การกางในการ์ดทำให้การ์ดใบอื่นในแถวเดียวกันขยับตามทุกครั้งที่กด ซึ่งทำลาย
- * ข้อดีข้อเดียวของกริด คือการเทียบหลายคนพร้อมกันโดยตำแหน่งไม่เปลี่ยน
- */
-.report-people-card__open {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border: 1px solid #e6ecf4;
-    border-radius: 9px;
-    background: #f8fafc;
-    color: #2563eb;
-    cursor: pointer;
-    font-size: .74rem;
-    font-weight: 600;
-    transition: border-color .15s ease, background-color .15s ease;
-}
-
-.report-people-card__open:hover { border-color: #bfdbfe; background: #eff6ff; }
-.report-people-card__open:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
-
-/* ทั้งการ์ดกดได้ด้วย ตัวชี้จึงต้องบอกแบบนั้นตั้งแต่ก่อนกด */
-.report-people-card { cursor: pointer; }
-.report-people-card:hover { border-color: #cfe0f7; }
-.report-people-card a,
-.report-people-card summary { cursor: pointer; }
-
-.report-people-card__empty {
-    margin: 0;
-    padding: 6px 7px;
-    border-radius: 8px;
-    background: #f8fafc;
-    color: #94a3b8;
-    font-size: .76rem;
-}
-
-/* ท้ายการ์ด: ตัวเลขสะสมของช่วง แยกจากของวันนี้ด้วยเส้นคั่น เพราะเป็นคนละคำถาม */
-.report-people-card__period {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin-top: auto;
-    padding-top: 9px;
-    border-top: 1px solid #eef2f8;
-    color: #94a3b8;
-    font-size: .73rem;
-}
-
-.report-people-card__period > strong {
-    color: #334155;
-    font-weight: 600;
-}
-
-.report-people-card__period-time {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: auto;
-    white-space: nowrap;
-}
-
-/* ตารางเวลาแยกตามงาน อยู่ในกล่องรายละเอียด ไม่ได้ลอยทับการ์ดอีกแล้ว */
-.report-people-card__breakdown {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.report-people-card__breakdown li {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 3px 0;
-    font-size: .72rem;
-}
-
-.report-people-card__breakdown li + li { border-top: 1px solid #eef2f8; }
-
-.report-people-card__breakdown-title {
-    flex: 1 1 auto;
-    color: #475569;
-    overflow-wrap: anywhere;
-}
-
-.report-people-card__breakdown-times { flex: 0 0 auto; color: #94a3b8; }
-
-.report-people-card__breakdown-time {
-    flex: 0 0 auto;
-    color: #334155;
-    font-weight: 500;
-}
-
-/* ตารางรายวันอ่านเป็นข้อมูล ไม่ใช่หัวข้อ จึงไม่ต้องมีคอลัมน์ไหนหนาทั้งคอลัมน์ */
-.report-operational-days__table tbody th {
-    font-weight: 500;
-}
-
-/* จำนวนคน/จำนวนวันที่มุมขวาของหัวการ์ด อ่านคู่กับหัวข้อ ไม่ใช่แข่งกับมัน */
-.report-panel__count {
-    flex: 0 0 auto;
-    color: #64748b;
-    font-size: .78rem;
-    white-space: nowrap;
-}
-
-/* ข้อความตอนไม่มีข้อมูล ต้องมีระยะขอบในของตัวเอง เพราะ .report-panel ให้แค่กรอบ */
-.report-empty {
-    margin: 0;
-    padding: 18px 2px;
-    color: #64748b;
-    font-size: .85rem;
-}
-
-/*
- * การ์ดของกระดานต้องมีระยะขอบในของตัวเอง
- *
- * .report-panel ให้แค่กรอบกับพื้นหลัง ส่วน padding มาจาก .report-dashboard-card
- * ซึ่งการ์ดพวกนี้ไม่ได้ใช้ ผลคือหัวข้อและตารางชิดขอบการ์ดทั้งสี่ด้านจนดูเหมือน
- * ข้อความล้นออกนอกกรอบ — อาการเดียวกับที่การ์ด "งานที่ทำบ่อยที่สุด" เคยเจอ
- */
-.report-operational-people,
-.report-operational-days {
-    margin-top: 16px;
-    padding: 17px;
-}
-
-/*
- * ตัวกรองเหลือช่องเดียว จึงไม่ต้องกินความสูงเท่าตอนมีหกช่อง
- *
- * .report-filter__form เป็นกริด auto-fit ที่ยืดช่องเดียวให้เต็มแถว และแถบปุ่ม
- * ด้านล่างมีเส้นคั่นกับระยะห่างที่ออกแบบไว้สำหรับฟอร์มหลายบรรทัด เมื่อเหลือช่องเดียว
- * ทั้งการ์ดจึงสูงและกว้างเกินเนื้อหาไปมาก
- */
-.report-operational .report-filter {
+/* ---------- หัวรายงานและตัวกรอง ---------- */
+.operational-header {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 10px 14px;
-    padding: 10px 12px;
+    justify-content: space-between;
+    gap: 14px 20px;
+    margin-bottom: 18px;
 }
 
-/* หัวข้อเป็นป้ายกำกับของแถบ ไม่ใช่หัวข้อของส่วนหนึ่งในหน้า จึงเล็กและอยู่บรรทัดเดียวกัน */
-.report-operational .report-filter__heading {
-    flex: 0 0 auto;
-    align-self: center;
+.operational-header__copy { min-width: 0; }
+.operational-header__copy h1 { margin: 0; color: var(--op-ink); font-size: clamp(1.35rem, 2.2vw, 1.75rem); font-weight: 700; letter-spacing: -.02em; }
+.operational-header__copy p { margin: 5px 0 0; color: var(--op-muted); font-size: .86rem; }
+
+.operational-header__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.operational-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; }
+
+.operational-filter__field {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
     margin: 0;
+    padding: 0 10px 0 12px;
+    border: 1px solid var(--op-line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--op-text);
 }
 
-.report-operational .report-filter__heading h2 {
-    margin: 0;
+.operational-filter__field > i { color: var(--op-blue); }
+.operational-filter__field:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(37, 99, 235, .14); }
+.operational-filter__field--owner { min-width: 220px; }
+.operational-filter__field--month { min-width: 180px; }
+
+/* ใช้เมื่อ JavaScript ไม่ทำงาน — ดร็อปดาวน์ปกติของเบราว์เซอร์ */
+.operational-filter__select {
+    min-width: 0;
+    max-width: 240px;
+    padding: 6px 4px;
+    border: 0;
+    background: transparent;
+    color: var(--op-ink);
+    font-size: .86rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.operational-filter__select:focus { outline: none; }
+
+/*
+ * ดร็อปดาวน์ของระบบภายในช่องตัวกรอง — กรอบอยู่ที่ช่องแล้ว ปุ่มจึงไม่มีกรอบซ้อน
+ * แผงกว้างกว่าช่องได้ และชิดขวาเพื่อไม่ล้นขอบจอเมื่อช่องอยู่ด้านขวาของหัวรายงาน
+ */
+.operational-filter__field .sg-select { flex: 1 1 auto; }
+
+.operational-filter__field .sg-select__trigger {
+    min-height: 38px;
+    padding: 0 2px 0 0;
+    border: 0;
+    background: transparent;
+    color: var(--op-ink);
+    font-size: .86rem;
+    font-weight: 600;
+}
+
+.operational-filter__field .sg-select__trigger:focus-visible { outline: none; }
+.operational-filter__field .sg-select__caret { color: var(--op-muted); }
+
+.operational-filter__field .sg-select__panel {
+    top: calc(100% + 9px);
+    right: -11px;
+    left: auto;
+    width: max(100% + 44px, 230px);
+    max-height: 300px;
+    padding: 6px;
+    border-color: var(--op-line);
+    border-radius: 12px;
+    box-shadow: 0 18px 38px -16px rgba(15, 23, 42, .35);
+}
+
+.operational-filter__field .sg-select__option {
+    padding: 9px 11px;
+    border-radius: 8px;
+    color: var(--op-text);
     font-size: .84rem;
 }
 
-/* คำอธิบายซ้ำกับ label ของช่องเดียวที่เหลืออยู่ จึงไม่ต้องกินอีกบรรทัด */
-.report-operational .report-filter__heading p { display: none; }
+.operational-filter__field .sg-select__option.is-active { background: #f1f5f9; }
+.operational-filter__field .sg-select__option[aria-selected="true"] { background: var(--op-blue-soft); color: var(--op-blue); font-weight: 600; }
 
-.report-operational .report-filter__form {
-    display: flex;
-    flex: 1 1 auto;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 8px 12px;
-    margin: 0;
-}
-
-.report-operational .report-filter__custom-dates {
-    display: flex;
-    gap: 8px;
-    margin: 0;
-}
-
-.report-operational .report-filter .form-label {
-    margin-bottom: 2px;
-    font-size: .72rem;
-}
-
-.report-operational .report-filter .form-select,
-.report-operational .report-filter .form-control {
-    min-width: 150px;
-    min-height: 34px;
-    padding: 4px 10px;
-    font-size: .82rem;
-}
-
-/* ปุ่มไปชิดขวาของแถบเดียวกัน ไม่ต้องมีเส้นคั่นของฟอร์มหลายบรรทัด */
-.report-operational .report-filter__actions {
-    margin-top: 0;
-    margin-left: auto;
-    padding-top: 0;
-    border-top: 0;
-}
-
-.report-operational .report-filter__actions .btn {
-    padding: 5px 12px;
-    font-size: .8rem;
-}
-
-/* ---------- จอแคบ ---------- */
-
-@media (max-width: 760px) {
-    /*
-     * กระดานรายคนเป็นการ์ดอยู่แล้ว กริดยุบเหลือคอลัมน์เดียวเองตาม auto-fill
-     * จึงไม่ต้องมีกฎแปลงตารางเป็นการ์ดสำหรับกระดานนี้อีก
-     *
-     * เหลือเฉพาะตารางรายวันของหน้า "คนคนเดียว" ที่ยังเป็นตารางจริง ห้าคอลัมน์ของมัน
-     * ถูกบีบจนตัวเลขซ้อนกันบนมือถือ จึงต้องกลายเป็นการ์ดต่อวัน โดยใช้ data-label
-     * ที่ Blade ใส่ไว้แล้วเป็นหัวข้อของแต่ละช่อง ไม่ใช่เพิ่ม markup ใหม่
-     */
-    .report-operational-days__table,
-    .report-operational-days__table thead,
-    .report-operational-days__table tbody,
-    .report-operational-days__table tr { display: block; }
-
-    .report-operational-days__table thead { display: none; }
-
-    .report-operational-days__table tr {
-        margin-bottom: 10px;
-        padding: 11px 12px;
-        border: 1px solid #e6ecf4;
-        border-radius: 12px;
-    }
-
-    .report-operational-days__table td,
-    .report-operational-days__table th {
-        display: flex;
-        width: auto !important;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 5px 0;
-        border-bottom: 0;
-        text-align: left !important;
-        white-space: normal !important;
-    }
-
-    /* วันเป็นหัวของการ์ด ไม่ใช่ช่องที่มีป้ายกำกับ */
-    .report-operational-days__table tbody th:first-child {
-        display: block;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #eef2f8;
-        font-size: .92rem;
-    }
-
-    .report-operational-days__table td::before {
-        content: attr(data-label);
-        flex: 0 0 auto;
-        color: #64748b;
-        font-size: .74rem;
-        font-weight: 600;
-    }
-
-    /* จอแคบไม่มีที่ให้ตัวกรองเรียงแถวเดียว ทุกช่องจึงเต็มความกว้างและปุ่มอยู่ใต้สุด */
-    .report-operational .report-filter__form > div,
-    .report-operational .report-filter__custom-dates { flex: 1 1 100%; }
-
-    .report-operational .report-filter .form-select,
-    .report-operational .report-filter .form-control {
-        min-width: 0;
-        width: 100%;
-    }
-
-    .report-operational .report-filter__actions { margin-left: 0; }
-
-    /*
-     * บรรทัดของงานบนจอแคบไม่มีที่พอให้สี่ส่วนเรียงกัน ชื่องานจึงได้บรรทัดของตัวเอง
-     * ส่วนสถานะ ชนิดงาน และเวลาไหลไปอยู่บรรทัดล่าง
-     */
-    .report-people-card__item { flex-wrap: wrap; }
-
-    .report-people-card__item-title { flex: 1 1 100%; }
-
-    .report-people-card__item-time { min-width: 0; margin-left: auto; }
-}
-
-/*
- * กล่องรายละเอียดของการ์ดพนักงาน
- *
- * ใช้โครงและ backdrop ของ .subtask-modal ที่มีอยู่แล้ว (components/subtask-modal.css)
- * ไฟล์นี้เติมเฉพาะส่วนที่ต่างออกไป คือความกว้างที่มากกว่าเพราะต้องแสดงรายการงาน
- * ทั้งวันพร้อมเวลา และแถบท้ายที่ลิงก์ไปหน้ารายวันของคนนั้น
- */
-.report-people-modal .subtask-modal__panel { width: min(560px, 100%); }
-
-.report-people-detail + .report-people-detail {
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid #eef2f8;
-}
-
-.report-people-detail h3 {
-    margin: 0 0 4px;
-    color: #0f172a;
-    font-size: .86rem;
-    font-weight: 700;
-}
-
-.report-people-detail__summary {
-    margin: 0 0 9px;
-    color: #64748b;
-    font-size: .76rem;
-}
-
-.report-people-detail__empty {
-    margin: 0;
-    color: #94a3b8;
-    font-size: .78rem;
-}
-
-.report-people-detail .report-people-card__breakdown li {
-    padding: 6px 0;
-    border-top: 1px solid #eef2f8;
-}
-
-.report-people-detail .report-people-card__breakdown li:first-child { border-top: 0; }
-
-.report-people-modal__footer {
-    display: flex;
-    padding: 12px 20px 16px;
-    border-top: 1px solid #eef2f8;
-}
-
-.report-people-modal__footer a {
+.operational-button {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    color: #2563eb;
-    font-size: .8rem;
+    justify-content: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--op-line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--op-text);
+    font-size: .84rem;
     font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.operational-button:hover { border-color: #bfdbfe; color: var(--op-blue); }
+.operational-button:focus-visible { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; }
+.operational-button--primary { border-color: #bfdbfe; background: var(--op-blue-soft); color: var(--op-blue); }
+.operational-button--primary:hover { background: #dbeafe; }
+
+/* เมนู CSV — popover ที่อยู่ติดปุ่ม ไม่บังทั้งหน้าและไม่ล็อกการเลื่อน */
+.operational-csv { position: relative; }
+
+.operational-csv__panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    display: grid;
+    gap: 2px;
+    width: min(290px, calc(100vw - 32px));
+    padding: 6px;
+    border: 1px solid var(--op-line);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, .14);
+}
+
+.operational-csv__panel[hidden] { display: none; }
+.operational-csv__hint { margin: 4px 8px 6px; color: var(--op-muted); font-size: .74rem; }
+
+.operational-csv__panel a {
+    display: grid;
+    gap: 2px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    color: var(--op-ink);
     text-decoration: none;
 }
 
-.report-people-modal__footer a:hover { text-decoration: underline; }
-.report-people-modal__footer a[hidden] { display: none; }
+.operational-csv__panel a:hover,
+.operational-csv__panel a:focus-visible { outline: none; background: var(--op-blue-soft); color: var(--op-blue); }
+.operational-csv__panel a strong { font-size: .84rem; font-weight: 600; }
+.operational-csv__panel a small { color: var(--op-muted); font-size: .74rem; }
+
+/* ---------- KPI ---------- */
+.operational-kpis {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.operational-kpi {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 15px;
+    border: 1px solid var(--op-line);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+}
+
+.operational-kpi__icon {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    place-items: center;
+    border-radius: 11px;
+    background: var(--op-blue-soft);
+    color: var(--op-blue);
+    font-size: 1.05rem;
+}
+
+.operational-kpi--close_rate .operational-kpi__icon,
+.operational-kpi--on_time .operational-kpi__icon { background: #f1f5f9; color: #334155; }
+.operational-kpi--pending .operational-kpi__icon { background: #fef2f2; color: var(--op-red); }
+
+.operational-kpi__body { display: grid; min-width: 0; gap: 3px; }
+.operational-kpi__label { color: var(--op-muted); font-size: .78rem; font-weight: 600; }
+.operational-kpi__value { color: var(--op-ink); font-size: 1.35rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+
+.operational-kpi__trend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; color: var(--op-muted); font-size: .74rem; font-weight: 600; }
+.operational-kpi__trend small { margin-left: 3px; color: var(--op-muted); font-size: .72rem; font-weight: 400; }
+.operational-kpi__trend.is-good { color: var(--op-green); }
+.operational-kpi__trend.is-bad { color: var(--op-red); }
+.operational-kpi__trend.is-empty { font-weight: 400; }
+
+/* ---------- การ์ดและกริด ---------- */
+.operational-grid { display: grid; gap: 16px; margin-bottom: 16px; }
+.operational-grid--charts { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.operational-grid--tops { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.operational-grid--detail { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: start; }
+
+.operational-card { margin-bottom: 16px; padding: 17px; }
+.operational-grid > .operational-card { margin-bottom: 0; }
+
+.operational-card__heading {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.operational-card__heading > div { min-width: 0; }
+.operational-card__heading h2 { margin: 0; color: var(--op-ink); font-size: .98rem; font-weight: 700; }
+.operational-card__heading h2 i { margin-right: 4px; color: var(--op-blue); }
+.operational-card__heading p { margin: 4px 0 0; color: var(--op-muted); font-size: .78rem; }
+
+.operational-card__link {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    color: var(--op-blue);
+    font-size: .8rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.operational-card__link:hover { text-decoration: underline; }
+.operational-card__link:focus-visible { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; border-radius: 4px; }
+
+/* กราฟ — ความสูงผ่านตัวแปรเดียวกับรายงานอื่น (shared.css) */
+.operational-chart-card--daily { --report-chart-height: 300px; --report-chart-height-mobile: 240px; }
+.operational-chart-card--types { --report-chart-height: 230px; --report-chart-height-mobile: 210px; }
+
+.operational-donut { position: relative; }
+
+.operational-donut__total {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: 2px;
+    color: var(--op-ink);
+    text-align: center;
+    pointer-events: none;
+}
+
+.operational-donut__total strong { font-size: 1.35rem; font-weight: 700; }
+.operational-donut__total span { color: var(--op-muted); font-size: .72rem; }
+
+/* ตัวเลขรวมกลางวงแสดงเมื่อกราฟพร้อมเท่านั้น ไม่ซ้อนทับโครงโหลดหรือข้อความว่าง */
+.operational-chart-card:not([data-chart-state="ready"]) .operational-donut__total { visibility: hidden; }
+
+.operational-legend { display: grid; gap: 8px; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--op-line); list-style: none; }
+.operational-legend__item { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: var(--op-text); font-size: .82rem; }
+.operational-legend__item strong { color: var(--op-ink); font-weight: 600; white-space: nowrap; }
+.operational-legend__swatch { width: 12px; height: 12px; border-radius: 3px; background: var(--op-blue); }
+.operational-legend__item--routine .operational-legend__swatch { background: var(--op-routine); }
+
+/* ---------- ภาพรวมทีม ---------- */
+.operational-team-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+
+.operational-team-summary__item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid var(--op-line);
+    border-radius: 10px;
+    background: var(--op-soft);
+    font-size: .8rem;
+}
+
+/* แถบสรุปเป็นข้อความอ่านกวาดตา ไม่ใช้ตัวหนาทั้งป้ายสถานะและตัวเลข */
+.operational-team-summary__item .operational-status { font-weight: 400; }
+.operational-team-summary__item strong { color: var(--op-ink); font-size: .95rem; font-weight: 400; }
+.operational-team-summary__item > span:last-child { color: var(--op-muted); }
+
+.operational-table--team { min-width: 980px; }
+.operational-table .is-action { text-align: right; white-space: nowrap; }
+.operational-row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 12px; }
+
+.operational-button--small { min-height: 32px; padding: 0 11px; border-radius: 8px; font-size: .78rem; }
+
+/* ---------- กล่อง "ดูงาน" ---------- */
+.operational-work-modal .subtask-modal__panel { width: min(640px, 100%); }
+.operational-work-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.operational-work-list__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 12px;
+    border: 1px solid var(--op-line, #e2e8f0);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.operational-work-list__main { display: grid; min-width: 0; gap: 3px; }
+.operational-work-list__main strong { color: #0f172a; font-size: .86rem; font-weight: 600; overflow-wrap: anywhere; }
+.operational-work-list__main span { color: #64748b; font-size: .76rem; }
+.operational-work-list__meta { display: grid; flex: 0 0 auto; justify-items: end; gap: 3px; color: #64748b; font-size: .76rem; }
+.operational-work-list__empty { padding: 18px 12px; color: #64748b; text-align: center; }
+
+/* ---------- ตาราง ---------- */
+/*
+ * เลื่อนได้เฉพาะแนวนอนเมื่อตารางกว้างกว่าการ์ด — ห้ามมีแถบเลื่อนขึ้นลง
+ * overflow-x: auto ทำให้เบราว์เซอร์คิด overflow-y เป็น auto ตามไปด้วย ต้องปิดไว้ตรง ๆ
+ */
+.operational-table-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+
+.operational-table { width: 100%; border-collapse: collapse; color: var(--op-text); font-size: .83rem; }
+
+.operational-table th,
+.operational-table td { padding: 10px 12px; border-bottom: 1px solid #eef2f7; text-align: left; vertical-align: middle; }
+
+.operational-table thead th {
+    background: var(--op-soft);
+    color: var(--op-muted);
+    font-size: .74rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.operational-table tbody th { color: var(--op-ink); font-weight: 500; }
+.operational-table tbody th small { display: block; margin-top: 2px; color: var(--op-muted); font-size: .72rem; font-weight: 400; }
+.operational-table tbody tr:last-child th,
+.operational-table tbody tr:last-child td { border-bottom: 0; }
+.operational-table tbody tr:hover th,
+.operational-table tbody tr:hover td { background: #fbfdff; }
+
+.operational-table .is-number { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.operational-table .is-rank { width: 64px; color: var(--op-muted); font-variant-numeric: tabular-nums; }
+.operational-table .is-date { white-space: nowrap; }
+.operational-table .is-note { min-width: 180px; color: var(--op-muted); }
+
+.operational-table--daily,
+.operational-table--events { min-width: 880px; }
+
+.operational-table__empty { padding: 26px 12px !important; color: var(--op-muted); text-align: center !important; }
+
+.operational-count {
+    display: inline-grid;
+    min-width: 30px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #1e293b;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* สถานะเป็นข้อความสีธรรมดา ไม่มีพื้นหลังและไม่มีไอคอน */
+.operational-status { font-weight: 600; white-space: nowrap; }
+.operational-status.is-green { color: var(--op-green); }
+.operational-status.is-amber { color: var(--op-amber); }
+.operational-status.is-red { color: var(--op-red); }
+.operational-status.is-blue { color: var(--op-blue); }
+.operational-status.is-slate { color: #475569; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1399.98px) {
+    .operational-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 991.98px) {
+    .operational-grid--charts,
+    .operational-grid--tops,
+    .operational-grid--detail { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+    .operational-header { align-items: stretch; }
+    .operational-header__controls,
+    .operational-filter { width: 100%; }
+    .operational-filter__field { flex: 1 1 100%; }
+    .operational-filter__select { flex: 1 1 auto; max-width: none; }
+    .operational-csv,
+    .operational-header__controls > .operational-button { flex: 1 1 100%; }
+    .operational-csv > .operational-button { width: 100%; }
+    .operational-csv__panel { left: 0; right: auto; width: 100%; }
+
+    .operational-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .operational-kpi { padding: 12px; }
+    .operational-kpi__value { font-size: 1.15rem; }
+
+    .operational-card { padding: 14px; }
+    .operational-card__heading { flex-wrap: wrap; }
+
+    /* ตารางกลายเป็นการ์ดทีละรายการ ป้ายคอลัมน์มาจาก data-label */
+    .operational-table--daily,
+    .operational-table--events,
+    .operational-table--team { min-width: 0; }
+
+    .operational-filter__field--owner,
+    .operational-filter__field--month { min-width: 0; }
+    .operational-row-actions { justify-content: flex-start; flex-wrap: wrap; }
+    .operational-work-list__item { align-items: flex-start; flex-direction: column; }
+    .operational-work-list__meta { justify-items: start; }
+    .operational-filter__field .sg-select__panel { right: -11px; width: calc(100% + 44px); }
+
+    .operational-table,
+    .operational-table thead,
+    .operational-table tbody,
+    .operational-table tr,
+    .operational-table th,
+    .operational-table td { display: block; }
+
+    .operational-table thead { display: none; }
+
+    .operational-table tbody tr {
+        margin-bottom: 10px;
+        padding: 10px 12px;
+        border: 1px solid var(--op-line);
+        border-radius: 12px;
+        background: #fff;
+    }
+
+    .operational-table tbody tr:last-child { margin-bottom: 0; }
+
+    .operational-table tbody th,
+    .operational-table tbody td {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 8px;
+        padding: 5px 0;
+        border-bottom: 0;
+        text-align: left;
+    }
+
+    .operational-table tbody th::before,
+    .operational-table tbody td::before {
+        color: var(--op-muted);
+        content: attr(data-label);
+        font-size: .74rem;
+        font-weight: 500;
+    }
+
+    .operational-table .is-number,
+    .operational-table .is-rank { width: auto; text-align: left; }
+
+    .operational-table .is-note { min-width: 0; }
+
+    .operational-table tbody td.operational-table__empty { display: block; }
+    .operational-table tbody td.operational-table__empty::before { content: none; }
+}
+
+@media (max-width: 430px) {
+    .operational-kpis { grid-template-columns: minmax(0, 1fr); }
+}

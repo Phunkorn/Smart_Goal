@@ -4,26 +4,44 @@
  * สรุปเวลาอยู่คอลัมน์ขวาบนจอกว้าง เพราะเป็นตัวเลขที่ผู้ใช้เหลือบดูระหว่างทำงาน
  * ไม่ใช่สิ่งที่ต้องอ่านก่อนเริ่มบันทึก ส่วนบนจอแคบจะสลับไปอยู่บนสุด (ดู responsive.css)
  */
-.daily-log { display:grid; gap:18px; padding:22px 24px 40px; }
+/* พื้นหลังโปร่งใส ให้ใช้พื้นของหน้า (--bg ใน tokens.css) — ของเดิมทาสีอ่อนของตัวเองจนเห็นเป็นกรอบคนละสี */
+.daily-log { display:grid; gap:16px; padding:20px 22px 40px; background:transparent; font-weight:300; }
 
-.daily-log__header { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; }
-.daily-log__eyebrow { display:flex; align-items:center; gap:7px; color:#6b7a94; font-size:.78rem; font-weight:650; letter-spacing:.02em; }
-.daily-log__eyebrow i { color:#2563eb; }
-.daily-log__title { margin:4px 0 2px; color:#0f172a; font-size:1.55rem; font-weight:750; letter-spacing:-.01em; }
+/*
+ * น้ำหนักตัวอักษรของทั้งหน้าบันทึกงานประจำวันเป็น 300
+ * strong/b และปุ่ม Bootstrap มีน้ำหนักของตัวเอง จึงต้องตั้งซ้ำ ไม่เช่นนั้นจะกลับไปหนา
+ * เหลือเฉพาะหัวเรื่องหลักที่ 500 เพื่อให้ยังแยกลำดับได้
+ */
+.daily-log strong,
+.daily-log b,
+.daily-log .btn,
+.daily-log .form-label,
+.daily-log .form-control,
+.daily-log .form-select,
+.daily-log .sg-select__option-copy strong,
+.daily-log .sg-select__option[aria-selected="true"] { font-weight:300; }
+
+.daily-log__header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:16px; }
+.daily-log__title { margin:0 0 2px; color:#111827; font-size:1.5rem; font-weight:500; letter-spacing:-.01em; }
 .daily-log__subtitle { margin:0; color:#7382a0; font-size:.85rem; }
 
-.daily-log__controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.daily-log__controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }
+.daily-log__tabs { display:flex; align-items:center; gap:10px; grid-column:1; grid-row:2; }
+.daily-log__tabs a { min-width:92px; padding:10px 14px; border:1px solid #e0e9f5; border-radius:8px; background:#fff; color:#455a7c; font-size:.82rem; font-weight:300; text-align:center; text-decoration:none; }
+.daily-log__tabs a.is-active { border-color:#1261dc; background:#1261dc; color:#fff; box-shadow:0 0 0 3px #e1ecff; }
+.daily-log__tabs a:focus-visible { outline:2px solid #1261dc; outline-offset:2px; }
+.daily-log__controls { grid-column:2; grid-row:2; }
 .daily-log__member-form { display:flex; align-items:center; gap:8px; }
 .daily-log__member-select { min-width:190px; border-radius:10px; font-size:.85rem; }
-.daily-log__routines-link { display:inline-flex; align-items:center; gap:7px; border-radius:10px; font-size:.85rem; font-weight:600; white-space:nowrap; }
 
-.daily-log__date-nav { display:flex; align-items:center; gap:4px; padding:4px; border:1px solid #e4eaf3; border-radius:12px; background:#fff; }
+.daily-log__date-nav { display:flex; align-items:center; gap:4px; padding:4px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
+
 .daily-log__date-step { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; color:#526180; text-decoration:none; transition:background-color .15s ease, color .15s ease; }
 .daily-log__date-step:hover { background:#eef3fb; color:#1d4ed8; }
 .daily-log__date-step:focus-visible { outline:2px solid #2563eb; outline-offset:1px; }
 .daily-log__date-step--disabled { color:#c6cede; cursor:not-allowed; }
 .daily-log__date-step--disabled:hover { background:transparent; color:#c6cede; }
-.daily-log__date-label { display:flex; align-items:center; gap:8px; padding:0 10px; color:#1e293b; font-size:.9rem; font-weight:650; white-space:nowrap; cursor:pointer; }
+.daily-log__date-label { display:flex; align-items:center; gap:8px; padding:0 10px; color:#1e293b; font-size:.9rem; font-weight:300; white-space:nowrap; cursor:pointer; }
 .daily-log__date-icon { color:#8494ae; font-size:.85rem; }
 
 /* ปฏิทินเลือกวัน — ช่องวันที่จริงวางทับป้ายไว้แบบโปร่งใส เพื่อให้ยังอ่านวันที่
@@ -32,12 +50,21 @@
 .daily-log__date-picker:hover { background:#eef3fb; }
 .daily-log__date-picker:focus-within { outline:2px solid #2563eb; outline-offset:1px; }
 .daily-log__date-input { position:absolute; inset:0; width:100%; height:100%; padding:0; border:0; opacity:0; background:transparent; cursor:pointer; }
-.daily-log__today-chip { padding:2px 8px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:.7rem; font-weight:700; }
+.daily-log__today-chip { padding:2px 8px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:.7rem; font-weight:300; }
+.daily-log__member-form .sg-select { min-width:220px; }
 
 /* แถบแจ้งว่ากำลังดูของคนอื่น — ต้องเห็นชัดว่าทำไมปุ่มแก้ไขหายไป */
 .daily-log__notice { display:flex; align-items:center; gap:8px; margin:0; padding:11px 14px; border:1px solid #dbe4f3; border-radius:12px; background:#f4f8ff; color:#41547a; font-size:.85rem; }
 .daily-log__notice i { color:#5b7cc4; }
 
-.daily-log__body { display:grid; grid-template-columns:minmax(0,1fr) 300px; align-items:start; gap:20px; }
+.daily-log__body { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; gap:18px; }
 .daily-log__main { display:grid; gap:16px; min-width:0; }
-.daily-log__side { position:sticky; top:18px; min-width:0; }
+@media (max-width:767px) {
+  .daily-log { padding:16px 12px 30px; }
+  .daily-log__header { grid-template-columns:minmax(0,1fr); }
+  .daily-log__tabs,
+  .daily-log__controls { grid-column:1; grid-row:auto; }
+  .daily-log__tabs { overflow-x:auto; }
+  .daily-log__tabs a { white-space:nowrap; }
+  .daily-log__controls { justify-content:flex-start; }
+}

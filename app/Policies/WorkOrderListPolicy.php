@@ -59,10 +59,24 @@ class WorkOrderListPolicy
     {
         $owner = $list->relationLoaded('user') ? $list->user : $list->user()->first();
 
+        /*
+         * ผู้ร่วมงานข้ามแผนกขอเพิ่มงานในโปรเจกต์ของแผนกอื่นไม่ได้
+         *
+         * เขาถูกเชิญมาทำงานเฉพาะใบ งานใหม่ในโปรเจกต์ของแผนกอื่นเป็นหน้าที่ของเจ้าของโปรเจกต์
+         * ซึ่งสร้างงานแล้วเพิ่มคนเข้าร่วมเองได้ ถ้าเปิดให้ขอข้ามแผนก ผู้ใช้จะสับสนว่าใครกำหนดงาน
+         *
+         * "ข้ามแผนก" คือทั้งสองฝั่งมีแผนกและเป็นคนละแผนก — นิยามเดียวกับ CrossDepartmentWork::marker()
+         * ผู้ใช้ที่ยังไม่ถูกจัดเข้าแผนกจึงไม่ถูกนับเป็นข้ามแผนก
+         */
+        $crossDepartment = $owner?->department_id !== null
+            && $user->department_id !== null
+            && (int) $owner->department_id !== (int) $user->department_id;
+
         return $user->role !== 'viewer'
             && (int) $list->user_id !== (int) $user->id
             && $owner?->is_active
             && $owner->role !== 'viewer'
+            && ! $crossDepartment
             && in_array((int) $list->id, $this->acceptedProjectIds($user), true);
     }
 

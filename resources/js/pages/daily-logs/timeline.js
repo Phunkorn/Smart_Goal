@@ -7,8 +7,6 @@
  * เมนู "⋯" เป็น popover ไม่ใช่ modal จึงไม่มี backdrop ไม่ล็อกการเลื่อนหน้า
  * ปิดเมื่อคลิกนอกหรือกด Escape และคืนโฟกัสให้ปุ่มที่เปิดมันเสมอ
  */
-import {ALL_KINDS, matchesFilter} from './filters.js';
-
 const MENU_MARKUP = `
     <button type="button" class="log-row-menu__item" data-log-action="edit">
         <i class="bi bi-pencil" aria-hidden="true"></i> แก้ไข
@@ -28,11 +26,8 @@ export function initTimeline({
     root.dataset.timelineReady = 'on';
 
     const doc = root.ownerDocument;
-    const lists = {
-        open: root.querySelector('[data-timeline-list]'),
-        done: root.querySelector('[data-timeline-done]'),
-    };
-    const list = lists.open;
+    const list = root.querySelector('[data-timeline-list]');
+    const statusFilter = root.querySelector('[data-status-filter]');
 
     /**
      * ปรับหัวกลุ่มให้ตรงกับจำนวนแถวที่อยู่ในกลุ่มนั้นจริง
@@ -41,21 +36,43 @@ export function initTimeline({
      * ได้ทันทีที่กดยืนยัน การมีตัวนับสองแหล่งจะทำให้หัวข้อกับรายการไม่ตรงกัน
      */
     const refreshGroups = () => {
-        Object.values(lists).forEach((node) => {
-            const group = node?.closest('[data-log-group]');
-
-            if (! group) return;
-
-            const count = node.querySelectorAll('[data-log-card]').length;
-            const badge = group.querySelector('[data-group-count]');
-            const empty = group.querySelector('[data-group-empty]');
-
-            if (badge) badge.textContent = String(count);
-            if (empty) empty.hidden = count > 0;
+        if (! list) return;
+        const cards = [...list.querySelectorAll('[data-log-card]')];
+        const count = root.querySelector('[data-timeline-count]');
+        const empty = root.querySelector('[data-timeline-empty]');
+        if (count) count.textContent = `(${cards.length} รายการ)`;
+        cards.forEach((card) => {
+            card.hidden = Boolean(statusFilter && statusFilter.value !== 'all'
+                && card.dataset.logStatus !== statusFilter.value);
         });
+        if (empty) empty.hidden = cards.some((card) => ! card.hidden);
     };
     let menu = null;
     let menuTrigger = null;
+    const view = doc.defaultView;
+
+    /** วางเมนูใต้ปุ่ม ชิดขวาของปุ่ม แล้วพลิกขึ้นด้านบนหรือขยับเข้าในจอเมื่อพื้นที่ไม่พอ */
+    const placeMenu = (trigger) => {
+        const margin = 8;
+        const rect = trigger.getBoundingClientRect();
+        const box = menu.getBoundingClientRect();
+        let top = rect.bottom + 6;
+        let placement = 'bottom';
+
+        if (top + box.height > view.innerHeight - margin && rect.top - box.height - 6 >= margin) {
+            top = rect.top - box.height - 6;
+            placement = 'top';
+        }
+
+        const left = Math.min(
+            Math.max(margin, rect.right - box.width),
+            Math.max(margin, view.innerWidth - box.width - margin)
+        );
+
+        menu.style.top = `${Math.round(top)}px`;
+        menu.style.left = `${Math.round(left)}px`;
+        menu.dataset.placement = placement;
+    };
 
     const closeMenu = ({restoreFocus = true} = {}) => {
         if (! menu) return;
@@ -89,11 +106,10 @@ export function initTimeline({
         menu.dataset.logMenu = card.dataset.logId || '';
         menu.innerHTML = MENU_MARKUP;
 
-        // วางเทียบกับการ์ดที่เป็นเจ้าของปุ่ม ไม่ใช่ตำแหน่งบนหน้าจอ เมนูจึงเลื่อน
-        // ไปพร้อมเนื้อหาและไม่ต้องคำนวณใหม่เมื่อผู้ใช้เลื่อนหน้า
-        card.appendChild(menu);
-        menu.style.top = `${trigger.offsetTop + trigger.offsetHeight + 6}px`;
-        menu.style.right = '12px';
+        // ห้ามวางเป็นลูกของการ์ด — รายการอยู่ใน .log-timeline__scroll ที่มี overflow
+        // เมนูของแถวท้าย ๆ จึงถูกตัดและไปซ่อนอยู่ในกรอบรายการ วางที่ root แล้วลอยแบบ fixed แทน
+        root.appendChild(menu);
+        placeMenu(trigger);
 
         menuTrigger = trigger;
         trigger.setAttribute('aria-expanded', 'true');
@@ -113,8 +129,9 @@ export function initTimeline({
 
         if (action && menu && menu.contains(action)) {
             event.preventDefault();
-            const card = action.closest('[data-log-card]');
-            const logId = card?.dataset.logId;
+            // เมนูไม่ได้อยู่ในการ์ดแล้ว จึงหาแถวจาก id ที่ผูกไว้กับเมนู
+            const logId = menu.dataset.logMenu;
+            const card = root.querySelector(`[data-log-card][data-log-id="${logId}"]`);
             const name = action.dataset.logAction;
 
             closeMenu({restoreFocus: false});
@@ -139,25 +156,15 @@ export function initTimeline({
         }
     };
 
-    const handleFilter = (event) => {
-        const button = event.target.closest('[data-kind-filter]');
-
-        if (! button || ! root.contains(button)) return;
-
-        const kind = button.dataset.kindFilter || ALL_KINDS;
-
-        root.querySelectorAll('[data-kind-filter]').forEach((node) => {
-            node.classList.toggle('is-active', node === button);
-        });
-
-        root.querySelectorAll('[data-log-card]').forEach((card) => {
-            card.hidden = ! matchesFilter(kind, card.dataset.logKind);
-        });
-    };
+    // เมนูลอยแบบ fixed เลื่อนหน้าหรือเลื่อนรายการแล้วตำแหน่งปุ่มเปลี่ยน ปิดแทนการคำนวณใหม่ทุกเฟรม
+    const handleViewportChange = () => closeMenu({restoreFocus: false});
 
     doc.addEventListener('click', handleClick);
     doc.addEventListener('keydown', handleKeydown);
-    root.addEventListener('click', handleFilter);
+    view?.addEventListener('scroll', handleViewportChange, true);
+    view?.addEventListener('resize', handleViewportChange);
+    statusFilter?.addEventListener('change', refreshGroups);
+    refreshGroups();
 
     return {
         closeMenu,
@@ -178,15 +185,13 @@ export function initTimeline({
 
             if (! card) return;
 
-            const target = (['done', 'skipped'].includes(card.dataset.logStatus) ? lists.done : lists.open) || list;
-
-            if (! target) return;
+            if (! list) return;
 
             // แถวเดิมอาจอยู่คนละกลุ่มกับปลายทาง จึงค้นทั้งหน้าไม่ใช่แค่ในกลุ่มเดียว
             const existing = root.querySelector(`[data-log-card][data-log-id="${logId}"]`);
 
             existing?.remove();
-            target.appendChild(card);
+            list.appendChild(card);
             refreshGroups();
         },
         removeCard(logId) {
@@ -196,7 +201,9 @@ export function initTimeline({
         destroy() {
             doc.removeEventListener('click', handleClick);
             doc.removeEventListener('keydown', handleKeydown);
-            root.removeEventListener('click', handleFilter);
+            view?.removeEventListener('scroll', handleViewportChange, true);
+            view?.removeEventListener('resize', handleViewportChange);
+            statusFilter?.removeEventListener('change', refreshGroups);
             delete root.dataset.timelineReady;
         },
     };

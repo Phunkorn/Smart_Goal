@@ -25,6 +25,8 @@
     $statusLabels = [2 => 'กำลังทำ', 3 => 'รอตรวจสอบ', 4 => 'เสร็จแล้ว', 5 => 'พักงาน', 6 => 'ล่าช้า'];
     $priorityLabels = [3 => 'สำคัญด่วน', 4 => 'ด่วนไม่ค่อยสำคัญ', 2 => 'สำคัญไม่ด่วน', 5 => 'ไม่รีบ ไม่มีกำหนด', 1 => 'routine'];
     $workspaceContext = $viaDepartmentHead ? 'department-head-member' : 'admin-member';
+    // ป้าย "งานข้ามแผนก" ตัดสินจากมุมของสมาชิกเจ้าของ Workspace ไม่ใช่ของผู้ที่เปิดดู
+    $workspaceSubject = $member;
     $showCreateActions = false;
     $showQuickAdd = ! $isReadOnlyWorkspace;
     $taskLinkMode = false;
@@ -98,16 +100,13 @@
                 ถ้อยคำถูกเขียนในมุมของสมาชิกที่กำลังถูกดูโดย TaskScopeOptions::forSubject()
             --}}
             @include('tasks.partials.scope-menu')
+
+            {{-- ตัวกรองสถานะตัวเดียวกับหน้า "งานของฉัน" รวมตัวเลือก "งานข้ามแผนก" --}}
+            @include('tasks.partials.status-filter')
         </div>
 
         {{-- server ตัดสินมุมมองตั้งแต่ HTML แรก จึงไม่มีการกระพริบตอนเปิดหน้า --}}
         <section class="notion-database" data-view="{{ $workspaceView }}">
-            {{-- <div class="notion-toolbar" data-board-toolbar hidden>
-                <label class="notion-search"><i class="bi bi-search"></i><input type="search" data-search placeholder="ค้นหาชื่องานหรือโปรเจกต์"></label>
-                <label class="notion-group is-locked">สมาชิก <select disabled><option>{{ $member->name }}</option></select></label>
-                <label class="notion-filter"><i class="bi bi-funnel"></i><select data-filter><option value="">ทุกสถานะ</option><option value="2">กำลังทำ</option><option value="3">รอตรวจสอบ</option><option value="5">พักงาน</option><option value="late">ล่าช้า</option><option value="4">เสร็จแล้ว</option></select></label>
-                <button type="button" data-sort><i class="bi bi-sort-down"></i>กำหนดส่ง</button>
-            </div> --}}
             <div class="notion-table-scroll">
                 <div class="project-board" data-project-board>
                     @include('tasks.partials.project-board-card', [

@@ -267,6 +267,36 @@ class WorkOrder extends Model
             });
     }
 
+    /**
+     * งานที่อนุมัติแล้วซึ่งคนในรายชื่อเป็น "ผู้รับผิดชอบ" (work_orders.user_id) — งานที่รับผิดชอบของรายงานโปรเจกต์
+     *
+     * ตัวเลข KPI เดิม กราฟ และแนวโน้มของรายงานโปรเจกต์นับเฉพาะชุดนี้ (รวมงานย่อยที่ถูกมอบให้)
+     * ผู้สร้างหรือหัวหน้างานของคนอื่นไม่นับ ส่วนงานที่ไปร่วมทำอยู่ที่ scopeJoinedByAny() แยกต่างหาก
+     *
+     * @param  array<int>  $userIds
+     */
+    public function scopeAssignedToAny(Builder $query, array $userIds): Builder
+    {
+        return $query->where('approval_status', 'approved')
+            ->whereIn('user_id', $userIds);
+    }
+
+    /**
+     * งานที่อนุมัติแล้วซึ่งคนในรายชื่อเป็น "ผู้ร่วมงานที่ตอบรับแล้ว" — งานที่ร่วมทำของรายงานโปรเจกต์
+     *
+     * คำเชิญที่ยังรออนุมัติหรือถูกปฏิเสธไม่นับ ผู้สร้างหรือหัวหน้างานที่ไม่ได้ร่วมทำก็ไม่นับ
+     * งานที่คนเดียวกันเป็นผู้รับผิดชอบด้วยจะติดมาเช่นกัน ผู้เรียกต้องตัดออกเอง (รับผิดชอบมาก่อนร่วมทำ)
+     *
+     * @param  array<int>  $userIds
+     */
+    public function scopeJoinedByAny(Builder $query, array $userIds): Builder
+    {
+        return $query->where('approval_status', 'approved')
+            ->whereHas('collaborators', fn (Builder $collaborators) => $collaborators
+                ->whereIn('users.id', $userIds)
+                ->where('work_order_collaborators.status', 'accepted'));
+    }
+
     public function scopeInvolving(Builder $query, User $user): Builder
     {
         if ($user->role === 'admin') {

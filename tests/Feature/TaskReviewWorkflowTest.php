@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ActivityLog;
+use App\Models\Department;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -64,6 +65,49 @@ class TaskReviewWorkflowTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['action' => 'review_returned', 'user_id' => $creator->id]);
     }
 
+    /**
+     * Regression: การส่งกลับแก้ไขแจ้งเตือนเฉพาะผู้รับผิดชอบ (user_id) คนเดียว
+     *
+     * สถานการณ์จริงที่พบ: user a แผนกบัญชีสร้างงานของตัวเองแล้วเชิญ user b แผนกไอทีเข้าร่วม
+     * b ส่งตรวจ a อนุมัติแล้ว b ได้แจ้งเตือน แต่ถ้า a ส่งกลับแก้ไข ผู้รับมีแค่ a เอง ซึ่งถูกตัดออก
+     * เพราะเป็นคนกดเอง ผู้ร่วมงานจึงไม่รู้เลยว่างานถูกส่งกลับ ไม่ว่าจะแผนกเดียวกันหรือข้ามแผนก
+     */
+    public function test_returning_a_review_notifies_accepted_collaborators_too(): void
+    {
+        $account = Department::create(['department_name' => 'บัญชี']);
+        $it = Department::create(['department_name' => 'ไอที']);
+        $owner = $this->user();
+        $owner->update(['department_id' => $account->id]);
+        $crossDepartmentCollaborator = $this->user();
+        $crossDepartmentCollaborator->update(['department_id' => $it->id]);
+        $sameDepartmentCollaborator = $this->user();
+        $sameDepartmentCollaborator->update(['department_id' => $account->id]);
+        $pendingCollaborator = $this->user();
+        $pendingCollaborator->update(['department_id' => $it->id]);
+
+        $task = $this->task($owner, $owner, 2, ['department_id' => $account->id]);
+        $task->collaborators()->attach([
+            $crossDepartmentCollaborator->id => ['status' => 'accepted', 'added_by' => $owner->id],
+            $sameDepartmentCollaborator->id => ['status' => 'accepted', 'added_by' => $owner->id],
+            $pendingCollaborator->id => ['status' => 'pending', 'added_by' => $owner->id],
+        ]);
+
+        $this->actingAs($crossDepartmentCollaborator)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 3])
+            ->assertOk();
+        $this->assertDatabaseHas('system_notifications', ['user_id' => $owner->id, 'type' => 'submitted_for_review']);
+
+        $this->actingAs($owner)
+            ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'reason' => 'แก้ตัวเลขยอดรวม'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('system_notifications', ['user_id' => $crossDepartmentCollaborator->id, 'type' => 'review_returned']);
+        $this->assertDatabaseHas('system_notifications', ['user_id' => $sameDepartmentCollaborator->id, 'type' => 'review_returned']);
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $pendingCollaborator->id, 'type' => 'review_returned']);
+        // ผู้ส่งกลับไม่แจ้งเตือนตัวเอง
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $owner->id, 'type' => 'review_returned']);
+    }
+
     public function test_only_creator_or_admin_can_explicitly_reopen_a_completed_delegated_task(): void
     {
         $creator = $this->user();
@@ -74,13 +118,19 @@ class TaskReviewWorkflowTest extends TestCase
 
         $this->actingAs($assignee)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
         $this->actingAs($admin)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
-        $this->actingAs($assignee)->postJson(route('tasks.comments.store', $task), ['message' => 'follow up'])->assertCreated();
+        $this->actingAs($assignee)->postJson(route('tasks.comments.store', $task), ['message' => 'follow up'])->assertForbidden();
+        $this->actingAs($assignee)->postJson(route('tasks.attachments.store', $task), [])->assertForbidden();
         $this->actingAs($assignee)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])->assertForbidden();
         $this->actingAs($outsider)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])->assertForbidden();
         $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2])->assertUnprocessable();
         $this->actingAs($creator)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])
             ->assertOk()
-            ->assertJsonPath('transitions.can_edit', true);
+            ->assertJsonPath('transitions.can_edit', true)
+            ->assertJsonPath('interactions.is_closed', false)
+            ->assertJsonPath('interactions.can_upload', true)
+            ->assertJsonPath('interactions.can_comment', true)
+            ->assertJsonPath('interactions.upload_url', route('tasks.attachments.store', $task))
+            ->assertJsonPath('interactions.comment_url', route('tasks.comments.store', $task));
 
         $task->refresh();
         $this->assertSame(2, (int) $task->job_status);

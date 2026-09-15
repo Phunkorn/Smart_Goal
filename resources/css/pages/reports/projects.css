@@ -1,0 +1,461 @@
+/*
+ * รายงานโปรเจกต์ประจำเดือน
+ *
+ * โทนหลัก blue / white สีเขียว ส้ม แดง ใช้เฉพาะความหมาย (สถานะงาน และงานข้ามแผนก)
+ * breadcrumb, report-empty, report-tag และปุ่มงานย่อยมาจาก shared.css / subtask-modal.css
+ */
+.project-report {
+    --pr-ink: #0f172a;
+    --pr-text: #334155;
+    --pr-muted: #64748b;
+    --pr-line: #e2e8f0;
+    --pr-soft: #f8fafc;
+    --pr-blue: #1d4ed8;
+    --pr-blue-solid: #2563eb;
+    --pr-blue-soft: #eff6ff;
+    --pr-green: #047857;
+    --pr-orange: #c2410c;
+    --pr-red: #b91c1c;
+    /* ข้อมูลมีหลายคอลัมน์ ทั้งหน้าหลักและหน้ารายละเอียดจึงใช้ความกว้างเต็มพื้นที่ */
+    width: 100%;
+    min-width: 0;
+    margin-inline: auto;
+    color: var(--pr-ink);
+}
+
+/* ---------- หัวรายงาน ---------- */
+.project-report__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px 20px;
+    margin-bottom: 18px;
+}
+
+.project-report__heading { min-width: 0; flex: 1 1 360px; }
+.project-report__heading h1 { margin: 0; color: var(--pr-ink); font-size: clamp(1.35rem, 2.2vw, 1.75rem); font-weight: 700; letter-spacing: -.02em; }
+.project-report__heading p { max-width: 720px; margin: 6px 0 0; color: var(--pr-muted); font-size: .86rem; line-height: 1.6; }
+
+.project-report__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.project-report__period,
+.project-report__sort { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; }
+
+.project-report__readonly { display: inline-flex; align-items: center; gap: 6px; color: var(--pr-muted); font-size: .8rem; }
+
+/* ช่องที่มีไอคอนหรือป้ายนำหน้า — กรอบอยู่ที่ช่อง ปุ่มของดร็อปดาวน์จึงไม่มีกรอบซ้อน */
+.project-report__control {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 10px 0 12px;
+    border: 1px solid var(--pr-line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--pr-text);
+}
+
+.project-report__control > i { color: var(--pr-blue); }
+.project-report__control > label:not(.visually-hidden) { margin: 0; color: var(--pr-muted); font-size: .82rem; white-space: nowrap; }
+.project-report__control:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(37, 99, 235, .14); }
+.project-report__control--owner { min-width: 250px; }
+/* พนักงานทั่วไป — ชื่อตัวเองแบบอ่านอย่างเดียว ไม่ใช่ช่องเลือก */
+.project-report__owner-fixed { font-size: .88rem; font-weight: 600; background: #f8fafc; }
+.project-report__control--month { min-width: 180px; }
+.project-report__control--sort { min-width: 250px; }
+
+/*
+ * ช่วงวันที่ที่กำหนดเอง — ช่องวันเริ่มและวันสิ้นสุดข้างดร็อปดาวน์ช่วงเวลา
+ *
+ * <input type="date"> จริงเป็นแหล่งค่าที่ฟอร์มส่ง แต่ซ่อนไว้ใต้ป้ายวันที่ พ.ศ. เพราะช่องวันที่ของ
+ * เบราว์เซอร์แสดง ค.ศ. กดป้ายแล้วปฏิทินของระบบ (components/date-picker.js) เปิดขึ้นมาแทน
+ */
+.project-report__range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.project-report__range[hidden] { display: none; }
+.project-report__range-field { position: relative; min-width: 150px; cursor: pointer; }
+.project-report__range-caption { color: var(--pr-muted); font-size: .8rem; white-space: nowrap; }
+.project-report__range-value { color: var(--pr-ink); font-size: .86rem; font-weight: 600; white-space: nowrap; }
+.project-report__range-field > i { margin-left: auto; }
+.project-report__range-field > input[type="date"] { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+
+/* ใช้เมื่อ JavaScript ไม่ทำงาน — ดร็อปดาวน์ปกติของเบราว์เซอร์ */
+.project-report__control > select {
+    min-width: 0;
+    max-width: 260px;
+    padding: 6px 4px;
+    border: 0;
+    background: transparent;
+    color: var(--pr-ink);
+    font-size: .86rem;
+    font-weight: 600;
+}
+
+.project-report__control .sg-select { flex: 1 1 auto; }
+
+.project-report__control .sg-select__trigger {
+    min-height: 38px;
+    padding: 0 2px 0 0;
+    border: 0;
+    background: transparent;
+    color: var(--pr-ink);
+    font-size: .86rem;
+    font-weight: 600;
+}
+
+.project-report__control .sg-select__trigger:focus-visible { outline: none; }
+
+.project-report__control .sg-select__panel {
+    top: calc(100% + 9px);
+    right: -11px;
+    left: auto;
+    width: max(100% + 44px, 240px);
+    max-height: 320px;
+}
+
+.project-report .sg-select__option[aria-selected="true"] { background: var(--pr-blue-soft); color: var(--pr-blue); font-weight: 600; }
+
+/* ---------- ปุ่ม ---------- */
+.project-report__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--pr-line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--pr-text);
+    font-size: .84rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.project-report__button:hover { border-color: #bfdbfe; color: var(--pr-blue); }
+.project-report__button:focus-visible { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; }
+.project-report__button--primary,
+.project-report__button--solid { border-color: var(--pr-blue-solid); background: var(--pr-blue-solid); color: #fff; }
+.project-report__button--primary:hover,
+.project-report__button--solid:hover { border-color: var(--pr-blue); background: var(--pr-blue); color: #fff; }
+
+.project-report__clear { color: var(--pr-blue); font-size: .82rem; text-decoration: none; white-space: nowrap; }
+.project-report__clear:hover { text-decoration: underline; }
+
+/* ---------- KPI ---------- */
+.project-report__kpis {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.project-report__kpi {
+    --pr-kpi-tone: var(--pr-blue);
+    --pr-kpi-soft: var(--pr-blue-soft);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--pr-line);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+
+.project-report__kpi--indigo { --pr-kpi-tone: #4338ca; --pr-kpi-soft: #eef2ff; }
+.project-report__kpi--violet { --pr-kpi-tone: #6d28d9; --pr-kpi-soft: #f5f3ff; }
+.project-report__kpi--orange { --pr-kpi-tone: var(--pr-orange); --pr-kpi-soft: #fff7ed; }
+.project-report__kpi--sky { --pr-kpi-tone: #0369a1; --pr-kpi-soft: #f0f9ff; }
+.project-report__kpi--green { --pr-kpi-tone: var(--pr-green); --pr-kpi-soft: #ecfdf5; }
+.project-report__kpi--teal { --pr-kpi-tone: #0f766e; --pr-kpi-soft: #f0fdfa; }
+
+.project-report__kpi-icon {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    place-items: center;
+    border-radius: 12px;
+    background: var(--pr-kpi-soft);
+    color: var(--pr-kpi-tone);
+    font-size: 1.2rem;
+}
+
+.project-report__kpi-body { display: grid; min-width: 0; gap: 2px; }
+.project-report__kpi-label { overflow: hidden; color: var(--pr-muted); font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.project-report__kpi-value { color: var(--pr-ink); font-size: 1.5rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.project-report__kpi-value small { color: var(--pr-muted); font-size: .76rem; font-weight: 400; }
+.project-report__kpi-note { color: var(--pr-red); font-size: .72rem; }
+
+/* ---------- การ์ด ---------- */
+.project-report__card {
+    min-width: 0;
+    margin-bottom: 16px;
+    padding: 17px;
+    border: 1px solid var(--pr-line);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+
+/* ---------- ตัวกรอง ---------- */
+.project-report__filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 0; }
+.project-report__field { display: grid; min-width: 0; flex: 1 1 160px; gap: 6px; }
+.project-report__field > label { margin: 0; color: var(--pr-muted); font-size: .78rem; }
+.project-report__field > select { width: 100%; min-height: 40px; padding: 0 10px; border: 1px solid var(--pr-line); border-radius: 10px; background: #fff; color: var(--pr-ink); font-size: .84rem; }
+.project-report__field .sg-select__trigger { min-height: 40px; border-color: var(--pr-line); border-radius: 10px; font-size: .84rem; }
+.project-report__field--search { flex: 2 1 260px; }
+
+.project-report__search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--pr-line);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.project-report__search:focus-within { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(37, 99, 235, .14); }
+.project-report__search i { color: var(--pr-muted); }
+.project-report__search input { width: 100%; min-width: 0; padding: 8px 0; border: 0; background: transparent; color: var(--pr-ink); font-size: .84rem; }
+.project-report__search input:focus { outline: none; }
+.project-report__filter-actions { display: flex; align-items: center; gap: 12px; }
+
+/* ---------- กราฟ ---------- */
+/* แท่งรายสัปดาห์กว้างกว่า โดนัทสถานะแคบกว่า ยุบเป็นคอลัมน์เดียวบนแท็บเล็ต */
+/* กราฟสี่ใบ 2 × 2 ยุบเป็นคอลัมน์เดียวบนแท็บเล็ต */
+.project-report__charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.project-report__charts > .project-report__card { margin-bottom: 0; }
+.project-report__chart-card { --report-chart-height: 300px; --report-chart-height-mobile: 260px; }
+
+/* โดนัทงานที่ปิดได้รายคนกับตารางชื่อ/จำนวน/% วางคู่กัน ยุบซ้อนบนจอแคบ */
+.project-report__donut { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, auto); align-items: center; gap: 16px; }
+.project-report__donut-legend { width: 100%; border-collapse: collapse; color: var(--pr-text); font-size: .82rem; }
+.project-report__donut-legend th,
+.project-report__donut-legend td { padding: 7px 4px; border-bottom: 1px solid #eef2f7; }
+.project-report__donut-legend tr:last-child > * { border-bottom: 0; }
+.project-report__donut-legend th { display: flex; min-width: 0; align-items: center; gap: 8px; font-weight: 400; text-align: left; }
+.project-report__donut-legend td { color: var(--pr-ink); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.project-report__donut-legend td:last-child { color: var(--pr-muted); }
+.project-report__legend-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; }
+.project-report__legend-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* งานล่าช้าที่ต้องติดตาม — รายการเรียบ ๆ แถวละงาน ด้านขวาเป็นป้ายจำนวนวันที่เลยกำหนด */
+.project-report__late-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.project-report__late-item { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid #eef2f7; }
+.project-report__late-item:last-child { border-bottom: 0; }
+.project-report__late-rank { color: var(--pr-muted); font-size: .8rem; text-align: center; font-variant-numeric: tabular-nums; }
+.project-report__late-body { display: grid; min-width: 0; gap: 2px; }
+.project-report__late-topic { overflow: hidden; color: var(--pr-ink); font-size: .84rem; text-overflow: ellipsis; white-space: nowrap; }
+.project-report__late-body small { overflow: hidden; color: var(--pr-muted); font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
+.project-report__late-due { display: grid; justify-items: end; gap: 2px; }
+.project-report__late-days { padding: 2px 9px; border-radius: 999px; background: #fff1f2; color: #be123c; font-size: .76rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.project-report__late-due small { color: var(--pr-muted); font-size: .72rem; white-space: nowrap; }
+.project-report__chart-head { margin-bottom: 10px; }
+.project-report__chart-head h2 { margin: 0; color: var(--pr-ink); font-size: .96rem; font-weight: 700; }
+.project-report__chart-head p { margin: 4px 0 0; color: var(--pr-muted); font-size: .78rem; }
+
+/* ---------- ตาราง ---------- */
+.project-report__table-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.project-report__table-head h2 { margin: 0; color: var(--pr-ink); font-size: 1rem; font-weight: 700; }
+.project-report__table-head p { margin: 4px 0 0; color: var(--pr-muted); font-size: .8rem; }
+
+.project-report__table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid #eef2f7; border-radius: 12px; }
+.project-report__table { width: 100%; min-width: 1340px; border-collapse: collapse; color: var(--pr-text); font-size: .82rem; }
+.project-report__table th,
+.project-report__table td { padding: 11px 12px; border-bottom: 1px solid #eef2f7; text-align: left; vertical-align: middle; }
+.project-report__table thead th { background: var(--pr-soft); color: var(--pr-muted); font-size: .76rem; font-weight: 600; white-space: nowrap; }
+.project-report__table tbody tr:last-child > * { border-bottom: 0; }
+.project-report__table tbody tr { transition: background-color .12s ease; }
+.project-report__table tbody tr:hover { background: #f5f8ff; }
+.project-report__table .is-index { width: 44px; color: var(--pr-muted); text-align: center; font-variant-numeric: tabular-nums; }
+.project-report__table .is-date { white-space: nowrap; }
+.project-report__table .is-action { text-align: right; white-space: nowrap; }
+
+.project-report__project { max-width: 190px; overflow: hidden; color: var(--pr-text); text-overflow: ellipsis; white-space: nowrap; }
+/* ชื่องานเป็นข้อความธรรมดา ไม่ตัวหนาและไม่มีลิงก์ ชื่อเต็มอยู่ใน title */
+.project-report__topic { max-width: 260px; overflow: hidden; color: var(--pr-ink); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.project-report__muted { color: #94a3b8; }
+
+.project-report__person { display: inline-flex; align-items: center; gap: 8px; max-width: 180px; }
+.project-report__person > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.project-report__avatar {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    place-items: center;
+    overflow: hidden;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #dbeafe;
+    color: var(--pr-blue);
+    font-size: .66rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.project-report__avatar img { width: 100%; height: 100%; object-fit: cover; }
+/* ผู้เข้าร่วม — ปุ่ม "N คน" กับ popover รายชื่อ (position: fixed วางโดย participants-popover.js) */
+.project-report__participants { display: inline-block; }
+.project-report__participants-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid var(--pr-line); border-radius: 999px; background: #fff; color: var(--pr-text); font-size: .8rem; white-space: nowrap; cursor: pointer; }
+.project-report__participants-trigger i { color: var(--pr-muted); font-size: .8rem; }
+.project-report__participants-trigger:hover,
+.project-report__participants-trigger[aria-expanded="true"] { border-color: #bfdbfe; background: var(--pr-blue-soft); color: var(--pr-blue); }
+.project-report__participants-trigger:focus-visible { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; }
+.project-report__participants-panel { position: fixed; z-index: 40; width: 240px; max-height: 280px; overflow-y: auto; padding: 10px; border: 1px solid var(--pr-line); border-radius: 12px; background: #fff; box-shadow: 0 18px 38px -16px rgba(15, 23, 42, .35); }
+.project-report__participants-title { margin: 0 0 6px; color: var(--pr-muted); font-size: .74rem; }
+.project-report__participants-panel ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.project-report__participants-panel li { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--pr-ink); font-size: .82rem; }
+.project-report__participants-panel li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.project-report__scope { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: .74rem; white-space: nowrap; }
+.project-report__scope--cross { background: #fff7ed; color: var(--pr-orange); }
+.project-report__scope--internal { background: var(--pr-blue-soft); color: var(--pr-blue); }
+
+/* บทบาทของแถว — รับผิดชอบเป็นข้อความธรรมดา ร่วมทำเป็นป้ายเขียวอมฟ้าตรงกับการ์ด KPI "งานที่ร่วมทำ" */
+.project-report__role { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: .74rem; white-space: nowrap; }
+.project-report__role--owned { background: #f1f5f9; color: #334155; }
+.project-report__role--joined { background: #f0fdfa; color: #0f766e; }
+.project-report__role-detail { display: block; max-width: 180px; margin-top: 3px; overflow: hidden; color: var(--pr-muted); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+
+/* สถานะเป็นจุดสีกับข้อความ ความหมายอยู่ที่ข้อความเสมอ ไม่ได้สื่อด้วยสีอย่างเดียว */
+/* สถานะเป็นข้อความสีอย่างเดียว ไม่มีจุดสีนำหน้า — คำบอกสถานะอยู่แล้ว จุดสีซ้ำความหมายเดียวกันและทำให้คอลัมน์รก */
+.project-report__status { --pr-status: #64748b; display: inline-flex; align-items: center; color: var(--pr-status); white-space: nowrap; }
+.project-report__status--done { --pr-status: #047857; }
+.project-report__status--doing { --pr-status: #1d4ed8; }
+.project-report__status--review { --pr-status: #c2410c; }
+.project-report__status--late { --pr-status: #b91c1c; }
+.project-report__status--paused { --pr-status: #64748b; }
+
+/* ---------- หน้า "ดูรายละเอียดทั้งหมด" ---------- */
+.project-report__table-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+/*
+ * หน้ารายละเอียดมีคอลัมน์มากที่สุด ชื่อโปรเจกต์และชื่องานได้ที่กว้างขึ้นก่อนถูกตัดด้วย …
+ * จอที่แคบกว่าตารางเลื่อนแนวนอนในกรอบของตัวเอง แถวยังสูงบรรทัดเดียว รายละเอียดเต็มอยู่ในกล่อง
+ */
+/* ขึ้นต้นด้วย 9 คอลัมน์ชุดเดียวกับหน้าหลัก แล้วต่อท้ายหลักฐาน 4 คอลัมน์ — เลื่อนแนวนอนในกรอบตาราง */
+.project-report__table--details { min-width: 1980px; }
+.project-report__table--details .is-datetime { white-space: nowrap; }
+.project-report__table--details .project-report__project { max-width: 240px; }
+.project-report__table--details .project-report__topic { max-width: 360px; }
+.project-report__table--details .project-report__person { max-width: 220px; }
+
+/* ป้ายจำนวนงานย่อยและไอคอนนับไฟล์ — กดแล้วเปิดกล่องรายละเอียด */
+.project-report__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid #dbeafe;
+    border-radius: 999px;
+    background: var(--pr-blue-soft);
+    color: var(--pr-blue);
+    font-size: .78rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.project-report__chip:hover { border-color: #93c5fd; background: #dbeafe; }
+.project-report__chip:focus-visible { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; }
+.project-report__chip--files { gap: 10px; }
+.project-report__chip > span { display: inline-flex; align-items: center; gap: 4px; }
+.project-report__chip-lock { color: var(--pr-muted); }
+
+/* ---------- กล่องรายละเอียดหลักฐานผลงาน ---------- */
+.project-report__evidence-panel { position: relative; width: min(720px, 100%); max-height: min(86vh, 900px); overflow-y: auto; padding: 20px; }
+.project-report__evidence-close { position: absolute; top: 14px; right: 14px; }
+.project-report__evidence-head { padding-right: 40px; }
+.project-report__evidence-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 8px 0 0; color: var(--pr-muted); font-size: .8rem; }
+.project-report__evidence-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--pr-line); }
+.project-report__evidence-section h3 { margin: 0 0 10px; color: var(--pr-ink); font-size: .9rem; font-weight: 700; }
+.project-report__evidence-subtasks { display: grid; gap: 12px; margin: 0; padding-left: 20px; }
+.project-report__evidence-subtasks li { display: grid; gap: 4px; }
+.project-report__evidence-subtask-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.project-report__evidence-subtask-head strong { color: var(--pr-ink); font-weight: 600; overflow-wrap: anywhere; }
+.project-report__evidence-subtasks small { color: var(--pr-muted); font-size: .76rem; }
+
+.project-report__files { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 14px; margin: 0; padding: 0; list-style: none; }
+.project-report__files li { min-width: 0; }
+.project-report__files a { display: flex; min-width: 0; align-items: center; gap: 6px; color: var(--pr-blue); font-size: .82rem; text-decoration: none; }
+.project-report__files a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-report__files a:hover span { text-decoration: underline; }
+
+/* ---------- แบ่งหน้า ---------- */
+.project-report__table-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.project-report__table-foot p { margin: 0; color: var(--pr-muted); font-size: .8rem; }
+.project-report__pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.project-report__page {
+    display: inline-grid;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    place-items: center;
+    border: 1px solid var(--pr-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--pr-text);
+    font-size: .8rem;
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+}
+
+a.project-report__page:hover { border-color: #93c5fd; background: var(--pr-blue-soft); color: var(--pr-blue); }
+a.project-report__page:focus-visible { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; }
+.project-report__page.is-current { border-color: var(--pr-blue-solid); background: var(--pr-blue-solid); color: #fff; font-weight: 600; }
+.project-report__page.is-disabled { opacity: .45; }
+.project-report__page.is-gap { border-color: transparent; background: transparent; }
+
+/* ---------- จอเล็ก ---------- */
+/* KPI 7 ใบ: จอกว้างแถวเดียว ต่ำกว่านั้น 4 + 3 */
+@media (max-width: 1599px) {
+    .project-report__kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 991.98px) {
+    .project-report__charts { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+    .project-report__donut { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+@media (max-width: 760px) {
+    .project-report__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .project-report__kpi { padding: 12px; }
+    .project-report__kpi-icon { width: 38px; height: 38px; flex-basis: 38px; font-size: 1.05rem; }
+    .project-report__kpi-value { font-size: 1.25rem; }
+
+    .project-report__controls,
+    .project-report__period,
+    .project-report__sort { width: 100%; }
+
+    .project-report__control,
+    .project-report__control--owner,
+    .project-report__control--month,
+    .project-report__control--sort { min-width: 0; flex: 1 1 100%; }
+
+    .project-report__controls > .project-report__button { flex: 1 1 100%; }
+    .project-report__field { flex-basis: 100%; }
+    .project-report__filter-actions { width: 100%; }
+    .project-report__filter-actions .project-report__button { flex: 1 1 auto; }
+}
+
+@media (max-width: 430px) {
+    .project-report__kpis { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .project-report__table tbody tr { transition: none; }
+}

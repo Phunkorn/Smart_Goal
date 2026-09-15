@@ -36,6 +36,34 @@
         </div>
     @endif
 
+    {{-- งานปฏิบัติวันนี้ (งานประจำ/นอกสถานที่) — null เมื่อผู้ดูไม่มีสิทธิ์ตาม WorkLogPolicy::viewDay --}}
+    @if($operations ?? null)
+        <div class="wb-member-preview__section-heading">
+            <h4>งานปฏิบัติวันนี้</h4>
+            <span class="wb-count-chip" data-preview-operation-count>{{ count($operations['items']) }} รายการ</span>
+        </div>
+        <div class="wb-preview-ops" data-preview-operations>
+            @forelse($operations['items'] as $item)
+                <article class="wb-preview-op">
+                    <span class="wb-preview-op__icon wb-preview-op__icon--{{ $item['kind'] }}" aria-hidden="true"><i class="bi {{ $item['kind_icon'] }}"></i></span>
+                    <div class="wb-preview-op__body">
+                        <div class="wb-preview-op__title-row">
+                            <h5>{{ $item['title'] }}</h5>
+                            <span class="wb-preview-op__status wb-ops-tone-{{ $item['status_tone'] }}">{{ $item['status_label'] }}</span>
+                        </div>
+                        <p>
+                            {{ $item['kind_label'] }} · {{ $item['category'] }}
+                            @if($item['time']) · {{ $item['time'] }} @endif
+                            @if($item['location']) · <i class="bi bi-geo-alt" aria-hidden="true"></i> {{ $item['location'] }} @endif
+                        </p>
+                    </div>
+                </article>
+            @empty
+                <p class="wb-preview-ops__empty">วันนี้ยังไม่มีงานประจำหรืองานนอกสถานที่</p>
+            @endforelse
+        </div>
+    @endif
+
     <div class="wb-member-preview__section-heading">
         <h4>งานที่ต้องจัดการวันนี้</h4>
         @if($tasks->isNotEmpty())

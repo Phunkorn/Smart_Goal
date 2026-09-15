@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkLog;
+use App\Models\WorkLogCategory;
 use App\Models\WorkLogTemplate;
 use App\Services\RoutineAttentionService;
 use App\Services\WorkLogRoutineMaterializer;
@@ -31,6 +32,72 @@ class WorkLogRoutineFlowTest extends TestCase
 
     /** จันทร์ 7 ก.ย. 2026 เวลา 09:00 ที่กรุงเทพ (= 02:00 UTC) */
     private const MONDAY_MORNING_UTC = '2026-09-07 02:00:00';
+
+    public function test_a_single_selected_date_uses_existing_template_window_without_creating_today_log(): void
+    {
+        $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
+        $owner = $this->user();
+        $category = WorkLogCategory::create(['name' => 'ตรวจเช็ก', 'tone' => 'gray']);
+
+        $this->actingAs($owner)->post(route('daily-logs.routines.store'), [
+            'title' => 'ตรวจระบบวันพุธ',
+            'work_log_category_id' => $category->id,
+            'plan_date' => '2026-09-09',
+            'default_start_time' => '08:00',
+            'default_end_time' => '09:00',
+        ])->assertRedirect();
+
+        $template = WorkLogTemplate::firstOrFail();
+        $this->assertSame('2026-09-09', $template->starts_on->format('Y-m-d'));
+        $this->assertSame('2026-09-09', $template->ends_on->format('Y-m-d'));
+        $this->assertSame(WorkLogWeekdays::mask([2]), $template->weekday_mask);
+        $this->assertDatabaseMissing('work_logs', ['work_log_template_id' => $template->id]);
+    }
+
+    /**
+     * ฟอร์มงานประจำเคยรับได้วันเดียว ต้องกรอกซ้ำทีละวัน
+     * เลือกหลายวันแล้วต้องได้แม่แบบวันเดียวครบทุกวันจากการส่งครั้งเดียว
+     */
+    public function test_several_selected_dates_create_one_single_day_template_each(): void
+    {
+        $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
+        $owner = $this->user();
+        $category = WorkLogCategory::create(['name' => 'ตรวจเช็ก', 'tone' => 'gray']);
+
+        $this->actingAs($owner)->post(route('daily-logs.routines.store'), [
+            'title' => 'ตรวจระบบกลางสัปดาห์',
+            'work_log_category_id' => $category->id,
+            'plan_date' => '2026-09-09',
+            'plan_dates' => ['2026-09-11', '2026-09-09', '2026-09-10'],
+            'default_start_time' => '08:00',
+            'default_end_time' => '09:00',
+        ])->assertRedirect();
+
+        $templates = WorkLogTemplate::orderBy('starts_on')->get();
+
+        $this->assertCount(3, $templates);
+        $this->assertSame(['2026-09-09', '2026-09-10', '2026-09-11'], $templates->map(fn ($t) => $t->starts_on->format('Y-m-d'))->all());
+        $this->assertSame(
+            [WorkLogWeekdays::mask([2]), WorkLogWeekdays::mask([3]), WorkLogWeekdays::mask([4])],
+            $templates->pluck('weekday_mask')->map(fn ($mask) => (int) $mask)->all()
+        );
+        $templates->each(fn ($t) => $this->assertTrue($t->starts_on->isSameDay($t->ends_on)));
+    }
+
+    public function test_editing_an_existing_weekly_template_without_active_field_preserves_its_state(): void
+    {
+        $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
+        $owner = $this->user();
+        $template = $this->template($owner);
+
+        $this->actingAs($owner)->patch(route('daily-logs.routines.update', $template), [
+            'title' => 'งานเดิมที่แก้ชื่อ',
+            'weekdays' => [0, 1, 2, 3, 4],
+        ])->assertRedirect();
+
+        $this->assertTrue($template->refresh()->is_active);
+        $this->assertSame('งานเดิมที่แก้ชื่อ', $template->title);
+    }
 
     public function test_a_routine_reaches_the_selected_teammate_own_day(): void
     {
@@ -174,7 +241,11 @@ class WorkLogRoutineFlowTest extends TestCase
         $this->assertSame('ติดงานอื่น', $log->late_start_reason);
     }
 
-    public function test_reopening_a_confirmed_routine_removes_the_filled_in_time(): void
+    /**
+     * กติกาเดิมให้ "แก้สถานะ" ย้อนงานที่ยืนยันแล้วกลับไปรอเริ่มได้ ซึ่งทำให้การยืนยันว่าเช็กแล้วไม่มีความหมาย
+     * กติกาปัจจุบัน: เสร็จแล้ว และ ไม่ได้ทำ เป็นสถานะสุดท้าย เวลาที่บันทึกไว้ต้องคงอยู่
+     */
+    public function test_a_confirmed_or_skipped_routine_cannot_be_moved_back_to_open(): void
     {
         $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
 
@@ -183,19 +254,35 @@ class WorkLogRoutineFlowTest extends TestCase
             'default_start_time' => '08:30',
             'default_duration_minutes' => 20,
         ]);
+        $this->template($owner, ['title' => 'งานที่วันนี้ไม่ได้ทำ']);
 
         app(WorkLogRoutineMaterializer::class)->materializeToday($owner);
-        $log = WorkLog::where('user_id', $owner->id)->firstOrFail();
+        $log = WorkLog::where('user_id', $owner->id)->where('title', '!=', 'งานที่วันนี้ไม่ได้ทำ')->firstOrFail();
+        $skipped = WorkLog::where('user_id', $owner->id)->where('title', 'งานที่วันนี้ไม่ได้ทำ')->firstOrFail();
 
         $this->actingAs($owner)->post(route('daily-logs.start', $log), ['late_start_reason' => 'ประชุม']);
         $this->actingAs($owner)->post(route('daily-logs.complete', $log), ['late_completion_reason' => 'รอข้อมูล']);
-        $this->actingAs($owner)->post(route('daily-logs.reopen', $log))->assertRedirect();
+        $this->actingAs($owner)->post(route('daily-logs.skip', $skipped), ['skip_reason' => 'ลางาน']);
+
+        $this->assertFalse(Route::has('daily-logs.reopen'));
+
+        // ปุ่มเริ่ม/เสร็จ/ไม่ได้ทำ ที่ถูกยิงซ้ำหลังปิดงานแล้วต้องไม่ย้อนสถานะเช่นกัน
+        $this->actingAs($owner)->post(route('daily-logs.start', $log));
+        $this->actingAs($owner)->post(route('daily-logs.start', $skipped));
+        $this->actingAs($owner)->post(route('daily-logs.skip', $log), ['skip_reason' => 'กดผิด']);
 
         $log->refresh();
+        $skipped->refresh();
 
-        $this->assertSame('open', $log->status);
-        $this->assertNull($log->duration_minutes);
-        $this->assertNull($log->ended_at);
+        $this->assertSame('done', $log->status);
+        $this->assertNotNull($log->ended_at);
+        $this->assertNotNull($log->duration_minutes);
+        $this->assertSame('skipped', $skipped->status);
+        $this->assertSame('ลางาน', $skipped->skip_reason);
+
+        $this->actingAs($owner)->get(route('daily-logs.index'))
+            ->assertOk()
+            ->assertDontSee('data-row-reopen', false);
     }
 
     /**
@@ -222,10 +309,10 @@ class WorkLogRoutineFlowTest extends TestCase
     }
 
     /**
-     * คนที่ถูกเพิ่มต้องเห็นงานประจำนั้นในกล่องตั้งค่าของตัวเองด้วย แต่แก้ไม่ได้
+     * คนที่ถูกเพิ่มเห็นแผนร่วมในปฏิทิน แต่แก้ไม่ได้
      * เจ้าของแม่แบบเป็นคนเดียวที่แก้การตั้งค่าได้
      */
-    public function test_a_teammate_sees_the_shared_routine_in_their_routine_modal(): void
+    public function test_a_teammate_sees_the_shared_routine_in_their_calendar_plan_card(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
@@ -235,9 +322,9 @@ class WorkLogRoutineFlowTest extends TestCase
         $template->participants()->attach($mate->id, ['added_by' => $owner->id]);
 
         $this->actingAs($mate)
-            ->get(route('daily-logs.index'))
+            ->get(route('daily-logs.index', ['view' => 'calendar']))
             ->assertOk()
-            ->assertSee('ได้รับมอบหมายจากเพื่อนร่วมแผนก')
+            ->assertSee('แผนที่ร่วมกับผู้อื่น')
             ->assertSee('เช็คคอมพิวเตอร์ห้องบัญชี');
 
         $this->actingAs($mate)
@@ -284,7 +371,9 @@ class WorkLogRoutineFlowTest extends TestCase
 
         // ปุ่มเพิ่มงานปุ่มเดียว ครอบทั้งงานครั้งเดียวและงานประจำ
         $this->assertSame(1, substr_count($response->getContent(), 'data-open-entry-modal'));
-        $response->assertSee('data-entry-mode="routine"', false);
+        $response->assertSee('data-entry-panel="routine"', false)
+            ->assertDontSee('data-quick-add-form', false)
+            ->assertDontSee('data-roster-board', false);
 
         // ไม่มีตัวจับเวลาทั่วไป แต่งานประจำมีปุ่มเริ่ม/เสร็จที่ชัดเจน
         $response->assertDontSee('data-row-timer-start', false)
@@ -384,16 +473,18 @@ class WorkLogRoutineFlowTest extends TestCase
             ->post(route('daily-logs.complete', $log))
             ->assertSessionHasErrors('routine');
 
-        $this->assertSame('open', $log->refresh()->status);
+        // ปิดรอบ 17:00 ของวันจันทร์แล้ว — สถานะเป็น "ไม่ได้เริ่ม" ไม่ใช่ open ค้าง
+        $this->assertSame('not_started', $log->refresh()->status);
 
         // เหลือทางเดียวคือระบุเหตุผล ซึ่งไม่บันทึกเวลาทำงานให้วันนั้นเลย
+        // กติกาปัจจุบัน: สถานะคงเป็น "ไม่ได้เริ่ม" ไม่ถูกแปลงเป็น "ไม่ได้ทำ" (skipped)
         $this->actingAs($owner)
             ->post(route('daily-logs.skip', $log), ['skip_reason' => 'ลืมทำ'])
             ->assertRedirect();
 
         $log->refresh();
 
-        $this->assertSame('skipped', $log->status);
+        $this->assertSame('not_started', $log->status);
         $this->assertSame('ลืมทำ', $log->skip_reason);
         $this->assertNull($log->duration_minutes);
     }
@@ -414,8 +505,9 @@ class WorkLogRoutineFlowTest extends TestCase
         $this->actingAs($owner)
             ->get(route('daily-logs.index', ['date' => '2026-09-07']))
             ->assertOk()
-            ->assertSee('ระบุเหตุผลที่ไม่ได้ทำ')
-            ->assertSee('ต้องระบุเหตุผล')
+            ->assertSee('ระบุเหตุผล')
+            ->assertSee('ไม่ได้เริ่ม')
+            ->assertSee('data-explain-type="not_started"', false)
             ->assertDontSee('data-row-start', false)
             // ปฏิทินเลือกวันได้เอง ไม่ต้องกดลูกศรทีละวัน
             ->assertSee('data-date-input', false);
