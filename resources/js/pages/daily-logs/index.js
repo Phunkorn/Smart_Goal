@@ -11,6 +11,7 @@ import {initSelectDropdowns} from '../../components/select-dropdown.js';
 import {initAttachments} from './attachments.js';
 import {firstErrorMessage, sendAction, submitLogForm} from './client.js';
 import {askCompletion} from './completion-dialog.js';
+import {askReason} from './reason-dialog.js';
 import {askStartRequirements} from './routine-start-dialog.js';
 import {initEntryForm} from './entry-form.js';
 import {initParticipantPickers} from './participants.js';
@@ -134,55 +135,6 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
     });
 
     /* ปุ่มเริ่ม/จบงานประจำและปุ่มยืนยันของงานครั้งเดียว ใช้ delegation เพราะแถวถูกแทนที่ได้ */
-    /**
-     * ตัวเลือกเหตุผลของแต่ละปุ่ม อ่านจาก WorkLogDesign
-     *
-     * 'missed' ใช้กับรายการปิดรอบที่ไม่ได้เริ่ม/ไม่มา ส่วน 'unfinished' ใช้กับเริ่มแล้วไม่กดเสร็จ
-     * ท้ายรายการเติม "อื่น ๆ" ไว้เสมอ เพื่อให้พิมพ์เหตุผลเองได้
-     */
-    const reasonOptions = (type) => {
-        const list = design?.reasons?.[type] || [];
-        const options = {};
-
-        list.forEach((reason) => { options[reason] = reason; });
-        options['อื่น ๆ'] = 'อื่น ๆ';
-
-        return options;
-    };
-
-    const askReason = async (type, title, text = undefined) => {
-        const answer = await swal?.fire({
-            title,
-            text,
-            input: 'select',
-            inputOptions: reasonOptions(type),
-            inputPlaceholder: 'เลือกเหตุผล',
-            showCancelButton: true,
-            confirmButtonText: 'ยืนยัน',
-            cancelButtonText: 'ยกเลิก',
-            inputValidator: (value) => value ? undefined : 'กรุณาเลือกเหตุผล',
-            didOpen: (popup) => {
-                const dropdown = initSelectDropdowns(popup, '.swal2-select')[0];
-                dropdown?.root.classList.add('log-reason-select');
-            },
-        });
-
-        if (! answer?.isConfirmed) return null;
-        if (answer.value !== 'อื่น ๆ') return answer.value;
-
-        const custom = await swal?.fire({
-            title: 'ระบุเหตุผล',
-            input: 'text',
-            inputPlaceholder: 'พิมพ์เหตุผลสั้น ๆ',
-            showCancelButton: true,
-            confirmButtonText: 'ยืนยัน',
-            cancelButtonText: 'ยกเลิก',
-            inputValidator: (value) => value?.trim() ? undefined : 'กรุณาระบุเหตุผล',
-        });
-
-        return custom?.isConfirmed ? custom.value.trim() : null;
-    };
-
     const isAfter = (iso) => iso && Date.now() > new Date(iso).getTime();
 
     const refreshRoutineClocks = () => {
@@ -245,7 +197,7 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
 
         // late_*_after = เวลาที่ตั้งไว้ + ช่วงผ่อนผัน คำนวณจากฝั่ง server ที่เดียว
         if (name === 'data-row-start' && (current?.requires_late_start_reason || isAfter(current?.late_start_after))) {
-            const reason = await askReason('start', 'เหตุผลที่เริ่มงานช้า');
+            const reason = await askReason({swal, title: 'เหตุผลที่เริ่มงานช้า', reasons: design?.reasons?.start || []});
             if (! reason) return;
             body.late_start_reason = reason;
         }
@@ -270,7 +222,7 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
                 unfinished: ['unfinished', 'ทำไมเริ่มแล้วแต่ไม่ได้กดเสร็จ'],
             };
             const [list, prompt] = prompts[button.dataset.explainType || current?.explanation_type] || ['skip', 'เหตุผลที่ไม่ได้ทำงานวันนี้'];
-            const reason = await askReason(list, prompt);
+            const reason = await askReason({swal, title: prompt, reasons: design?.reasons?.[list] || []});
             if (! reason) return;
             body.skip_reason = reason;
         }

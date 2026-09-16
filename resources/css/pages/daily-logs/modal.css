@@ -141,8 +141,19 @@
 .log-completion__field textarea,
 .log-completion__field select:not(.sg-select__native),
 .log-completion__field input { width:100%; padding:8px 10px; border:1px solid #dde5f1; border-radius:10px; font:inherit; font-size:.88rem; }
-.log-reason-select { width:calc(100% - 2rem); max-width:360px; margin:1rem auto 0; text-align:left; }
-.swal2-popup .log-reason-select .swal2-select.sg-select__native { position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0; overflow:hidden; clip-path:inset(50%); pointer-events:none; }
+
+/*
+ * กล่องถามเหตุผล (reason-dialog.js) — เริ่มงานช้า และปิดรอบวันที่ไม่ได้ทำ
+ *
+ * markup เป็นของเราเอง ไม่ใช่ input:'select' ของ SweetAlert2 แล้ว จึงไม่มีคลาส
+ * .swal2-select มาชนกับ .sg-select__native และไม่ต้องเขียนกฎซ่อนซ้ำที่นี่อีก
+ */
+.log-reason { display:grid; gap:10px; margin:4px 0 0; color:#33415c; font-size:.88rem; font-weight:300; text-align:left; }
+.log-reason [hidden] { display:none !important; }
+.log-reason__other { display:grid; gap:5px; }
+.log-reason__other > span { color:#475569; font-size:.82rem; }
+.log-reason__other input { width:100%; padding:8px 10px; border:1px solid #dde5f1; border-radius:10px; font:inherit; font-size:.88rem; }
+.log-reason-select { width:100%; max-width:360px; margin:0 auto; text-align:left; }
 .log-completion__field .sg-select__trigger,
 .log-reason-select .sg-select__trigger { min-height:40px; border-color:#dde5f1; border-radius:10px; font-size:.88rem; }
 .log-completion__field .sg-select__panel,
