@@ -301,7 +301,7 @@ class WorkLogCompletionAndSharingTest extends TestCase
         $labels = fn (User $viewer): array => collect(
             $this->actingAs($viewer)->get(route('daily-logs.index', ['view' => 'calendar', 'month' => '2026-09']))
                 ->assertOk()->viewData('calendarEntries')[self::DAY] ?? []
-        )->where('owner_id', $owner->id)->pluck('status_label', 'title')->all();
+        )->filter(fn (array $item): bool => collect($item['people'])->contains('id', $owner->id))->pluck('status_label', 'title')->all();
 
         $this->assertSame(['ตรวจเช็กคอมพิวเตอร์' => 'พบปัญหา', 'สำรองข้อมูล' => 'ยังไม่เริ่ม'], $labels($colleague));
         $this->assertSame([], $labels($outsider));

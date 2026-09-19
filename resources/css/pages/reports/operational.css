@@ -369,9 +369,13 @@
 .operational-table .is-rank { width: 64px; color: var(--op-muted); font-variant-numeric: tabular-nums; }
 .operational-table .is-date { white-space: nowrap; }
 .operational-table .is-note { min-width: 180px; color: var(--op-muted); }
+.operational-table .is-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.operational-table .is-people,
+.operational-table .is-place { min-width: 140px; }
 
-.operational-table--daily,
 .operational-table--events { min-width: 880px; }
+/* 13 คอลัมน์ (เวลา ผู้ร่วมงาน สถานที่ เหตุผล) — เลื่อนแนวนอนใน .operational-table-scroll แทนการบีบข้อความ */
+.operational-table--daily { min-width: 1480px; }
 
 .operational-table__empty { padding: 26px 12px !important; color: var(--op-muted); text-align: center !important; }
 
@@ -475,7 +479,9 @@
     .operational-table .is-number,
     .operational-table .is-rank { width: auto; text-align: left; }
 
-    .operational-table .is-note { min-width: 0; }
+    .operational-table .is-note,
+    .operational-table .is-people,
+    .operational-table .is-place { min-width: 0; }
 
     .operational-table tbody td.operational-table__empty { display: block; }
     .operational-table tbody td.operational-table__empty::before { content: none; }

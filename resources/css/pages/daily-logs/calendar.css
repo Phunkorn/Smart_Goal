@@ -97,6 +97,8 @@
 .daily-log .daily-plan__item-status--blue { background:#eaf2ff; color:#1261d9; }
 .daily-log .daily-plan__item-status--teal { background:#e6f6f4; color:#127a6c; }
 .daily-log .daily-plan__item-status--red { background:#fdecec; color:#b42318; }
+/* งานประจำที่ทำร่วมกันเป็นแถวเดียว — ชิป avatar + ชื่อของทุกคนเรียงกัน ล้นแล้วขึ้นบรรทัดใหม่ */
+.daily-log .daily-plan__item-people { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px 10px; max-width:260px; min-width:0; }
 .daily-log .daily-plan__item-owner {
     display:flex; align-items:center; gap:5px; max-width:120px; overflow:hidden;
     color:#4f607e; font-size:.68rem; white-space:nowrap;
@@ -109,6 +111,7 @@
 .daily-log .daily-plan-modal__summary { margin:3px 0 0; color:#74839d; font-size:.76rem; font-weight:300; }
 .daily-log .daily-plan-modal__body { gap:0; padding-top:6px; }
 .daily-log .daily-plan-modal__body .daily-plan__item:first-child { border-top:0; }
+.daily-log .daily-plan-modal__body .daily-plan__item-people { max-width:320px; }
 .daily-log .daily-plan-modal__body .daily-plan__item-owner { max-width:180px; }
 .daily-log .daily-plan--expanded .daily-plan__day { min-height:106px; font-size:.84rem; }
 .daily-log .daily-plan--expanded .daily-plan__day-list { max-height:300px; overflow:auto; }
@@ -120,7 +123,7 @@
     .daily-log .daily-plan__grid { grid-template-columns:repeat(7,96px); min-width:672px; }
     .daily-log .daily-plan--expanded .daily-plan__day { min-height:92px; }
     .daily-log .daily-plan__item { grid-template-columns:38px minmax(0,1fr); }
-    .daily-log .daily-plan__item-owner { grid-column:2; }
+    .daily-log .daily-plan__item-people { grid-column:2; justify-content:flex-start; max-width:none; }
 }
 @media (prefers-reduced-motion: reduce) {
     .daily-log .daily-plan__filter-popover { animation:none; }

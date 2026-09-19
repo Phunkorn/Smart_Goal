@@ -19,7 +19,8 @@
     $capabilities ที่คำนวณด้วย policy ฝั่ง server เท่านั้น
 --}}
 <div class="daily-log" data-daily-log data-date="{{ $dateValue }}" data-owner="{{ $owner->id }}"
-    data-routine-fingerprint="{{ $routineFingerprint }}" data-read-only="{{ ($capabilities['isReadOnly'] ?? true) ? '1' : '0' }}">
+    data-day-fingerprint="{{ $dayFingerprint }}" data-read-only="{{ ($capabilities['isReadOnly'] ?? true) ? '1' : '0' }}"
+    data-live-day="{{ $isToday ? '1' : '0' }}">
     {{-- ป้ายชื่อและค่าคงที่ทั้งหมดมาจาก WorkLogDesign ที่เดียว ฝั่ง JavaScript
          อ่านจาก island นี้แทนการเขียนข้อความไทยซ้ำในไฟล์ .js --}}
     <script type="application/json" id="work-log-design">@json($design)</script>

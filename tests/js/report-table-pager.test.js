@@ -30,8 +30,10 @@ test('the operational tables scroll on desktop and never force their width on a 
     const css = await read('resources/css/pages/reports/operational.css');
     const mobile = css.slice(css.indexOf('@media (max-width: 760px)'));
 
-    const desktop = Number(css.match(/\.operational-table--daily,\s*\.operational-table--events \{ min-width: (\d+)px; \}/)?.[1]);
-    assert.ok(desktop >= 860, 'เจ็ดคอลัมน์ต้องการอย่างน้อยราว 860px จึงจะอ่านออก');
+    const events = Number(css.match(/\.operational-table--events \{ min-width: (\d+)px; \}/)?.[1]);
+    assert.ok(events >= 860, 'ตารางเหตุการณ์เจ็ดคอลัมน์ต้องการอย่างน้อยราว 860px จึงจะอ่านออก');
+    const daily = Number(css.match(/\.operational-table--daily \{ min-width: (\d+)px; \}/)?.[1]);
+    assert.ok(daily >= 1400, 'ตารางสรุปรายวันสิบสามคอลัมน์ (เวลา ผู้ร่วมงาน สถานที่ เหตุผล) ต้องกว้างพอจะไม่บีบข้อความ');
     assert.match(css, /\.operational-table-scroll \{[^}]*overflow-x: auto/);
     // การ์ดตารางต้องไม่มีแถบเลื่อนขึ้นลง — overflow-x: auto ลาก overflow-y เป็น auto ตามไปด้วย
     assert.match(css, /\.operational-table-scroll \{[^}]*overflow-y: hidden/);

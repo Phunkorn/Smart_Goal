@@ -51,11 +51,13 @@ class WorkLogDailyPageTest extends TestCase
             ->assertViewHas('calendarEntries', function ($entries) use ($other, $outside): bool {
                 $items = collect($entries)->flatten(1);
 
-                return $items->contains(fn ($item) => $item['owner'] === $other->name
-                        && $item['avatar_url'] === route('media.profile', $other))
+                $people = $items->flatMap(fn ($item) => $item['people']);
+
+                return $people->contains(fn ($person) => $person['name'] === $other->name
+                        && $person['avatar_url'] === route('media.profile', $other))
                     && $items->contains(fn ($item) => $item['title'] === 'แผนงานประจำของเพื่อนร่วมแผนก'
                         && $item['status'] === 'planned')
-                    && $items->every(fn ($item) => $item['owner'] !== $outside->name);
+                    && $people->every(fn ($person) => $person['name'] !== $outside->name);
             });
     }
 

@@ -153,24 +153,137 @@ class WorkLogRoutineAccountabilityTest extends TestCase
         $this->assertSame('absent', $response->json('requirements.backlog.0.type'));
         $this->assertSame($owner->name, $response->json('requirements.backlog.0.absent_marked_by'));
         $this->assertSame([$owner->id], array_column($response->json('requirements.attendance'), 'id'));
+        // คนสร้างเริ่มวันจันทร์แล้วไม่กดเสร็จ — ถ้าตอบว่าเขามาทำด้วย คนกดต้องตอบเหตุผลวันนั้นแทน
+        $this->assertSame([['2026-09-07', 'unfinished']], array_map(
+            fn ($day) => [$day['date'], $day['type']],
+            $response->json('requirements.attendance.0.backlog')
+        ));
+
+        // ตอบว่ามาแต่ไม่ตอบเหตุผลวันค้างของเขา = ไม่บันทึกอะไรเลย
+        $this->startJson($mate, $mateTuesday, [
+            'backlog_reasons' => ['2026-09-07' => 'ลางาน'],
+            'attendance' => [$owner->id => 'present'],
+        ])->assertStatus(422);
+        $this->assertSame('open', $mateTuesday->refresh()->status);
 
         $this->startJson($mate, $mateTuesday, [
             'backlog_reasons' => ['2026-09-07' => 'ลางาน'],
             'attendance' => [$owner->id => 'present'],
+            'member_backlog_reasons' => [$owner->id => ['2026-09-07' => 'ลืมกดเสร็จ']],
         ])->assertOk();
 
         $mateMonday->refresh();
         $this->assertSame('absent', $mateMonday->status);
         $this->assertSame('ลางาน', $mateMonday->skip_reason);
         $this->assertSame('in_progress', $mateTuesday->refresh()->status);
-        $this->assertSame(0, WorkLog::where('user_id', $owner->id)->whereDate('work_date', '2026-09-08')->count(), 'ตอบว่ามา = ไม่แตะรายการของเขา');
+        $this->assertSame('ลืมกดเสร็จ', $ownerMonday->refresh()->unfinished_reason, 'คนกดเริ่มตอบเหตุผลแทนผู้ร่วมงานที่มา');
+
+        // ตอบว่ามา = เริ่มพร้อมกันด้วยเวลาเดียวกัน
+        $ownerTuesday = $this->logOf($owner, 'ตรวจเช็กคอม', '2026-09-08');
+        $this->assertSame('in_progress', $ownerTuesday->status);
+        $this->assertTrue($ownerTuesday->started_at->equalTo($mateTuesday->started_at));
 
         // วันที่ไม่มาบันทึกให้เห็นบนหน้าจอว่าใครระบุ
         $this->actingAs($mate)->get(route('daily-logs.index', ['date' => '2026-09-07']))
             ->assertOk()->assertSee($owner->name.' ระบุว่าไม่มา')->assertSee('ไม่มา: ลางาน');
     }
 
-    public function test_each_member_starts_and_finishes_independently_and_cannot_be_marked_absent_after_starting(): void
+    public function test_one_person_starts_and_finishes_joint_work_for_everyone_who_came(): void
+    {
+        $this->at('2026-09-07 07:00');
+        [$owner, $mate] = $this->team();
+        $this->template($owner, ['title' => 'ตรวจเช็กคอม', 'default_start_time' => '08:30', 'default_duration_minutes' => 20], [$mate]);
+
+        // คนกดเริ่มสาย: ตอบผู้ร่วมงานก่อน แล้ว server จึงขอเหตุผลเริ่มช้า
+        $this->at('2026-09-07 09:10');
+        $this->actingAs($owner)->get(route('daily-logs.index'));
+        $ownerLog = $this->logOf($owner, 'ตรวจเช็กคอม', '2026-09-07');
+        $this->startJson($owner, $ownerLog)->assertStatus(422)->assertJsonPath('requirements.attendance.0.id', $mate->id);
+        $this->startJson($owner, $ownerLog, ['attendance' => [$mate->id => 'present']])
+            ->assertStatus(422)->assertJsonValidationErrors('late_start_reason');
+        $this->assertSame(0, WorkLog::where('status', 'in_progress')->count(), 'ยังขาดเหตุผลเริ่มช้า = ไม่มีใครเริ่ม');
+
+        $this->startJson($owner, $ownerLog, ['attendance' => [$mate->id => 'present'], 'late_start_reason' => 'รถติด'])->assertOk();
+
+        $ownerLog->refresh();
+        $mateLog = $this->logOf($mate, 'ตรวจเช็กคอม', '2026-09-07');
+        $this->assertSame(['in_progress', 'in_progress'], [$ownerLog->status, $mateLog->status]);
+        $this->assertTrue($mateLog->started_at->equalTo($ownerLog->started_at));
+        $this->assertSame('รถติด', $ownerLog->late_start_reason);
+        $this->assertNull($mateLog->late_start_reason, 'เหตุผลอยู่ที่คนกดคนเดียว');
+
+        // ผู้ร่วมงานกดเสร็จคนเดียว ปิดของคนกดเริ่มด้วย
+        $this->at('2026-09-07 09:40');
+        $this->actingAs($mate)->postJson(route('daily-logs.complete', $mateLog), [
+            'outcome' => 'issue',
+            'issue_details' => 'จอเครื่อง 3 กระพริบ',
+            'late_completion_reason' => 'งานเยอะกว่าปกติ',
+        ])->assertOk();
+
+        $ownerLog->refresh();
+        $mateLog->refresh();
+        $this->assertSame(['done', 'done'], [$ownerLog->status, $mateLog->status]);
+        $this->assertTrue($ownerLog->ended_at->equalTo($mateLog->ended_at));
+        $this->assertSame(30, $ownerLog->duration_minutes);
+        $this->assertSame(30, $mateLog->duration_minutes);
+        $this->assertSame([true, 'จอเครื่อง 3 กระพริบ', 'งานเยอะกว่าปกติ'], [$mateLog->has_issue, $mateLog->issue_details, $mateLog->late_completion_reason]);
+        $this->assertSame([false, null, null], [(bool) $ownerLog->has_issue, $ownerLog->issue_details, $ownerLog->late_completion_reason], 'ปัญหาและเหตุผลอยู่ที่คนกดเสร็จเท่านั้น');
+        $this->assertSame('รถติด', $ownerLog->late_start_reason, 'เหตุผลเริ่มช้าเดิมยังอยู่');
+
+        // ถึง 17:00 ไม่มีใครถูกนับว่าไม่ได้เริ่ม
+        $this->at('2026-09-07 17:05');
+        app(RoutineAccountabilityService::class)->closeFor($mate);
+        app(RoutineAccountabilityService::class)->closeFor($owner);
+        $this->assertSame(['done', 'done'], [$ownerLog->refresh()->status, $mateLog->refresh()->status]);
+    }
+
+    public function test_finishing_joint_work_never_touches_someone_who_did_not_come(): void
+    {
+        $this->at('2026-09-07 07:00');
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department, 'ผู้สร้างงาน');
+        $mate = $this->user($department, 'ผู้ร่วมงาน');
+        $absentee = $this->user($department, 'คนที่ไม่มา');
+        $this->template($owner, ['title' => 'ตรวจเช็กคอม'], [$mate, $absentee]);
+
+        $this->at('2026-09-07 09:00');
+        $this->actingAs($owner)->get(route('daily-logs.index'));
+        $ownerLog = $this->logOf($owner, 'ตรวจเช็กคอม', '2026-09-07');
+        $this->startJson($owner, $ownerLog, ['attendance' => [$mate->id => 'present', $absentee->id => 'absent']])->assertOk();
+        $this->actingAs($owner)->postJson(route('daily-logs.complete', $ownerLog))->assertOk();
+
+        $this->assertSame('done', $this->logOf($mate, 'ตรวจเช็กคอม', '2026-09-07')->status);
+        $absent = $this->logOf($absentee, 'ตรวจเช็กคอม', '2026-09-07');
+        $this->assertSame('absent', $absent->status);
+        $this->assertNull($absent->ended_at);
+    }
+
+    public function test_people_who_started_separately_still_finish_together(): void
+    {
+        $this->at('2026-09-07 07:00');
+        [$owner, $mate] = $this->team();
+        $this->template($owner, ['title' => 'ตรวจเช็กคอม'], [$mate]);
+
+        // ผู้ร่วมงานเริ่มก่อนแต่ตอบว่าคนสร้างไม่มา แล้วคนสร้างมาเริ่มเองทีหลังในวันเดียวกัน
+        $this->at('2026-09-07 09:00');
+        $this->actingAs($mate)->get(route('daily-logs.index'));
+        $mateLog = $this->logOf($mate, 'ตรวจเช็กคอม', '2026-09-07');
+        $this->startJson($mate, $mateLog, ['attendance' => [$owner->id => 'absent']])->assertOk();
+
+        $this->at('2026-09-07 09:20');
+        $ownerLog = $this->logOf($owner, 'ตรวจเช็กคอม', '2026-09-07');
+        $this->startJson($owner, $ownerLog)->assertOk();
+
+        $this->at('2026-09-07 10:00');
+        $this->actingAs($owner)->postJson(route('daily-logs.complete', $ownerLog))->assertOk();
+
+        $ownerLog->refresh();
+        $mateLog->refresh();
+        $this->assertSame(['done', 'done'], [$ownerLog->status, $mateLog->status]);
+        $this->assertSame([40, 60], [$ownerLog->duration_minutes, $mateLog->duration_minutes], 'นาทีคิดจากเวลาเริ่มของแต่ละคน');
+    }
+
+    public function test_the_starter_is_not_asked_about_someone_who_is_already_working(): void
     {
         $this->at('2026-09-07 07:00');
         [$owner, $mate] = $this->team();
@@ -180,14 +293,38 @@ class WorkLogRoutineAccountabilityTest extends TestCase
         $this->actingAs($mate)->get(route('daily-logs.index'));
         $mateLog = $this->logOf($mate, 'ตรวจเช็กคอม', '2026-09-07');
         $this->startJson($mate, $mateLog, ['attendance' => [$owner->id => 'present']])->assertOk();
-        $this->actingAs($mate)->postJson(route('daily-logs.complete', $mateLog))->assertOk();
-        $this->assertSame('done', $mateLog->refresh()->status, 'ไม่ต้องรอให้คนสร้างเริ่มก่อน');
 
-        $this->actingAs($owner)->get(route('daily-logs.index'));
+        // คนสร้างถูกเริ่มพร้อมกันไปแล้ว ส่ง "ไม่มา" ของผู้ร่วมงานมาเองก็ไม่มีผล
         $ownerLog = $this->logOf($owner, 'ตรวจเช็กคอม', '2026-09-07');
-        // ผู้ร่วมงานเริ่มไปแล้ว จึงไม่ถูกถาม และส่ง "ไม่มา" มาเองก็ไม่มีผล
+        $this->assertSame('in_progress', $ownerLog->status);
         $this->startJson($owner, $ownerLog, ['attendance' => [$mate->id => 'absent']])->assertOk();
-        $this->assertSame('done', $mateLog->refresh()->status);
+        $this->assertSame('in_progress', $mateLog->refresh()->status);
+        $this->assertNull($mateLog->absent_marked_by);
+    }
+
+    public function test_someone_absent_today_is_not_asked_for_their_old_reasons(): void
+    {
+        $this->at('2026-09-07 07:00');
+        [$owner, $mate] = $this->team();
+        $this->template($owner, ['title' => 'ตรวจเช็กคอม'], [$mate]);
+
+        // วันจันทร์ไม่มีใครมา วันอังคารคนสร้างมาคนเดียว
+        $this->at('2026-09-08 09:00');
+        $this->actingAs($owner)->get(route('daily-logs.index'));
+        $ownerTuesday = $this->logOf($owner, 'ตรวจเช็กคอม', '2026-09-08');
+
+        $response = $this->startJson($owner, $ownerTuesday)->assertStatus(422);
+        $this->assertSame(['2026-09-07'], array_column($response->json('requirements.attendance.0.backlog'), 'date'));
+
+        $this->startJson($owner, $ownerTuesday, [
+            'backlog_reasons' => ['2026-09-07' => 'ลางาน'],
+            'attendance' => [$mate->id => 'absent'],
+        ])->assertOk();
+
+        $mateMonday = $this->logOf($mate, 'ตรวจเช็กคอม', '2026-09-07');
+        $this->assertSame('not_started', $mateMonday->status);
+        $this->assertNull($mateMonday->skip_reason, 'คนไม่มาตอบเหตุผลของตัวเองเมื่อกลับมา');
+        $this->assertSame('absent', $this->logOf($mate, 'ตรวจเช็กคอม', '2026-09-08')->status);
     }
 
     public function test_someone_marked_absent_who_arrives_the_same_day_can_still_start(): void

@@ -55,18 +55,41 @@ class WorkLogController extends Controller
         $owner = $this->query->resolveOwner($request->integer('user'), $viewer);
         Gate::authorize('viewDay', [WorkLog::class, $owner]);
 
-        $attention = $this->routineAttention->summary($owner, $owner->is($viewer));
-        $logs = $this->query->dayFor($owner, TodayWorkspace::businessNow())
-            ->whereNotNull('work_log_template_id')
-            ->map(fn (WorkLog $log): array => WorkLogPresenter::forClient($log));
+        $today = fn (): Collection => $this->query->dayFor($owner, TodayWorkspace::businessNow())->values();
 
-        return response()->json([
-            'attention' => collect($attention)->except('items')->all(),
-            'items' => $logs->values(),
-            'fingerprint' => sha1($logs->map(fn (array $log): array => [
-                $log['id'], $log['status'], $log['display_status'], $log['started_at'], $log['ended_at'],
-            ])->toJson()),
-        ]);
+        /*
+         * หน้าบันทึกงานที่เปิดค้างไว้เช็กทุก 10 วินาที (live=1) — อ่านอย่างเดียว
+         *
+         * summary() ปิดรอบย้อนหลัง สร้างงานของวันนี้ และเช็กแจ้งเตือน ซึ่งเขียนฐานข้อมูลทุกครั้ง
+         * แถบด้านบนเรียกทุก 60 วินาทีอยู่แล้ว การเช็กสดจึงไม่ต้องทำซ้ำ ไม่งั้นภาระของ server เพิ่มหลายเท่า
+         */
+        if ($request->boolean('live')) {
+            $logs = $today();
+            $payload = ['fingerprint' => $this->dayFingerprint($logs)];
+        } else {
+            $attention = $this->routineAttention->summary($owner, $owner->is($viewer));
+            $logs = $today();
+            $payload = [
+                'attention' => collect($attention)->except('items')->all(),
+                // แถบด้านบนสนใจเฉพาะงานประจำ
+                'items' => $logs->whereNotNull('work_log_template_id')
+                    ->map(fn (WorkLog $log): array => WorkLogPresenter::forClient($log))
+                    ->values(),
+                'fingerprint' => $this->dayFingerprint($logs),
+            ];
+        }
+
+        // หน้าบันทึกงานที่เปิดค้างไว้ขอการ์ดทั้งวันเมื่อ fingerprint เปลี่ยน — ผู้ร่วมงานกดเริ่ม/เสร็จแทน
+        // หรือพนักงานเพิ่ม/แก้/ลบงานนอกสถานที่ขณะหัวหน้าเปิดดู ลำดับการ์ดเดียวกับตอนเปิดหน้า (dayFor)
+        // การ์ดวาดด้วยสิทธิ์เดียวกับหน้า: เจ้าของได้ปุ่ม คนที่เปิดดูแทนได้แบบอ่านอย่างเดียว
+        if ($request->boolean('cards')) {
+            $capabilities = ['canEdit' => $owner->is($viewer), 'isReadOnly' => ! $owner->is($viewer)];
+            $payload['cards'] = $logs
+                ->map(fn (WorkLog $log): array => $this->cardPayload($log, $capabilities))
+                ->values();
+        }
+
+        return response()->json($payload);
     }
 
     public function index(Request $request)
@@ -181,13 +204,7 @@ class WorkLogController extends Controller
             'maxDate' => TodayWorkspace::businessNow()->format('Y-m-d'),
             'logs' => $dayLogs,
             'presentedLogs' => $dayLogs->map(fn (WorkLog $log): array => WorkLogPresenter::forClient($log)),
-            'routineFingerprint' => sha1($dayLogs->whereNotNull('work_log_template_id')->map(fn (WorkLog $log): array => [
-                $log->id,
-                $log->status,
-                WorkLogPresenter::forClient($log)['display_status'],
-                $log->started_at?->toIso8601String(),
-                $log->ended_at?->toIso8601String(),
-            ])->toJson()),
+            'dayFingerprint' => $this->dayFingerprint($dayLogs->values()),
             'summary' => WorkLogSummary::fromLogs($dayLogs),
             'members' => $members,
             'categories' => WorkLogCategory::query()->selectable()->get(),
@@ -298,7 +315,8 @@ class WorkLogController extends Controller
             'issue_details' => ['nullable', 'string', 'max:2000'],
             'late_completion_reason' => ['nullable', 'string', 'max:500'],
         ]);
-        $workLog = $this->logs->markDone($workLog, $actor, $data);
+        // งานประจำที่ทำร่วมกันจบพร้อมกันทุกคน — กติกาอยู่ที่ RoutineAccountabilityService
+        $workLog = $this->accountability->complete($workLog, $actor, $data);
 
         return $this->jsonOrBack(
             $request,
@@ -321,6 +339,10 @@ class WorkLogController extends Controller
             'backlog_reasons.*' => ['nullable', 'string', 'max:500'],
             'attendance' => ['nullable', 'array', 'max:50'],
             'attendance.*' => ['string', 'in:present,absent'],
+            // เหตุผลวันค้างของผู้ร่วมงานที่ตอบว่ามาทำด้วย: member_backlog_reasons[user_id][Y-m-d]
+            'member_backlog_reasons' => ['nullable', 'array', 'max:50'],
+            'member_backlog_reasons.*' => ['array', 'max:'.WorkLogDesign::MAX_BACKFILL_DAYS],
+            'member_backlog_reasons.*.*' => ['nullable', 'string', 'max:500'],
         ]);
 
         try {
@@ -453,17 +475,51 @@ class WorkLogController extends Controller
      * ส่ง HTML ของแถวมาจาก server ด้วย เพื่อไม่ให้ JavaScript ต้องมีเทมเพลต
      * ของแถวเป็นชุดที่สอง ซึ่งจะเพี้ยนออกจาก Blade ทันทีที่ดีไซน์เปลี่ยน
      */
+    /**
+     * ลายนิ้วมือของรายการทั้งวัน — หน้าที่เปิดค้างไว้เทียบกับ routineStatus() เพื่อรู้ว่าต้องขอการ์ดใหม่ไหม
+     *
+     * ครอบคลุมทุกประเภทงาน: เพิ่ม/ลบ (id), เริ่ม/เสร็จ (status, เวลา) และแก้รายละเอียด (updated_at)
+     * ที่เดียวที่คำนวณ ถ้าหน้ากับ endpoint คิดต่างกันแม้นิดเดียว หน้าจะขอการ์ดใหม่ทุกรอบไม่หยุด
+     *
+     * @param  Collection<int, WorkLog>  $logs
+     */
+    private function dayFingerprint(Collection $logs): string
+    {
+        return sha1($logs->map(fn (WorkLog $log): array => [
+            $log->id,
+            $log->status,
+            WorkLogPresenter::displayStatus($log),
+            $log->started_at?->toIso8601String(),
+            $log->ended_at?->toIso8601String(),
+            $log->updated_at?->toIso8601String(),
+        ])->values()->toJson());
+    }
+
     private function mutationPayload(User $owner, WorkLog $log): array
     {
+        return [
+            ...$this->cardPayload($log, ['canEdit' => true, 'isReadOnly' => false]),
+            'summary' => $this->summaryFor($owner, $log->work_date),
+        ];
+    }
+
+    /**
+     * การ์ดหนึ่งใบของไทม์ไลน์ — ที่เดียวที่วาดการ์ดให้ JavaScript (หลังบันทึก และตอนเช็กสถานะใหม่)
+     *
+     * @param  array<string, bool>  $capabilities
+     * @return array{log: array<string, mixed>, html: string}
+     */
+    private function cardPayload(WorkLog $log, array $capabilities): array
+    {
         $log->loadMissing(['category', 'project', 'task', 'attachments', 'user', 'participants', 'template.user', 'template.participants', 'sharedFrom.user', 'sharedFrom.participants', 'absentMarkedBy:id,name']);
+        $presented = WorkLogPresenter::forClient($log);
 
         return [
-            'log' => WorkLogPresenter::forClient($log),
-            'summary' => $this->summaryFor($owner, $log->work_date),
+            'log' => $presented,
             'html' => view('daily-logs.components.log-card', [
                 'log' => $log,
-                'presented' => WorkLogPresenter::forClient($log),
-                'capabilities' => ['canEdit' => true, 'isReadOnly' => false],
+                'presented' => $presented,
+                'capabilities' => $capabilities,
             ])->render(),
         ];
     }

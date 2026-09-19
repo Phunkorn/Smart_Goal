@@ -137,6 +137,42 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
     /* ปุ่มเริ่ม/จบงานประจำและปุ่มยืนยันของงานครั้งเดียว ใช้ delegation เพราะแถวถูกแทนที่ได้ */
     const isAfter = (iso) => iso && Date.now() > new Date(iso).getTime();
 
+    /**
+     * เริ่มงานประจำ — ถามตามที่ server ขอทีละขั้น ไม่ตัดสินเองว่าต้องถามอะไร
+     *
+     * 1. เหตุผลวันค้าง (ของตัวเองและของผู้ร่วมงานที่มาทำด้วย) + ผู้ร่วมงานมาไหม — กล่องเดียว
+     * 2. แล้วจึงเหตุผลที่เริ่มช้า ถ้าเลยเวลาเริ่ม + ช่วงผ่อนผันแล้ว
+     *
+     * ทุกคำตอบถูกส่งซ้ำไปพร้อมกัน server ตรวจทั้งชุดใน transaction เดียว
+     * กดยกเลิกขั้นไหนก็ตาม = ไม่เริ่มงาน (คืน null)
+     */
+    const sendStart = async (url, fields, current) => {
+        try {
+            return await sendAction(url, {doc, fields});
+        } catch (error) {
+            const requirements = error.payload?.requirements;
+
+            if (requirements) {
+                const answers = await askStartRequirements({
+                    swal,
+                    requirements,
+                    reasons: design?.reasons || {},
+                    title: current?.title || '',
+                });
+
+                return answers ? sendStart(url, {...fields, ...answers}, current) : null;
+            }
+
+            if (error.payload?.errors?.late_start_reason && ! fields.late_start_reason) {
+                const reason = await askReason({swal, title: 'เหตุผลที่เริ่มงานช้า', reasons: design?.reasons?.start || []});
+
+                return reason ? sendStart(url, {...fields, late_start_reason: reason}, current) : null;
+            }
+
+            throw error;
+        }
+    };
+
     const refreshRoutineClocks = () => {
         root.querySelectorAll('[data-routine-elapsed]').forEach((node) => {
             const started = new Date(node.dataset.startedAt || '').getTime();
@@ -195,13 +231,6 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
         const current = byId.get(String(logId));
         const body = {};
 
-        // late_*_after = เวลาที่ตั้งไว้ + ช่วงผ่อนผัน คำนวณจากฝั่ง server ที่เดียว
-        if (name === 'data-row-start' && (current?.requires_late_start_reason || isAfter(current?.late_start_after))) {
-            const reason = await askReason({swal, title: 'เหตุผลที่เริ่มงานช้า', reasons: design?.reasons?.start || []});
-            if (! reason) return;
-            body.late_start_reason = reason;
-        }
-
         // ปิดงานทุกครั้งถามในกล่องเดียว: เสร็จสิ้น/พบปัญหา และเหตุผลที่เสร็จช้าเมื่อเลยช่วงผ่อนผัน
         if (name === 'data-row-complete') {
             const completion = await askCompletion({
@@ -231,25 +260,10 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
 
         try {
             const url = (action.route() || '').replace('__ID__', String(logId));
-            let payload;
-
-            try {
-                payload = await sendAction(url, {doc, fields: body});
-            } catch (error) {
-                // เริ่มงานประจำ: server ขอเหตุผลของวันที่ค้าง และ/หรือคำตอบว่าผู้ร่วมงานมาไหม — ถามครั้งเดียวแล้วส่งซ้ำ
-                const requirements = name === 'data-row-start' ? error.payload?.requirements : null;
-                if (! requirements) throw error;
-
-                const answers = await askStartRequirements({
-                    swal,
-                    requirements,
-                    reasons: design?.reasons || {},
-                    title: current?.title || '',
-                });
-                if (! answers) return;
-
-                payload = await sendAction(url, {doc, fields: {...body, ...answers}});
-            }
+            const payload = name === 'data-row-start'
+                ? await sendStart(url, body, current)
+                : await sendAction(url, {doc, fields: body});
+            if (! payload) return;
 
             applyResult(payload);
             // ตัวเลขงานประจำบนแถบบนอ่านจากสถานะล่าสุดของวันนี้ จึงต้องรู้ทันทีที่สถานะเปลี่ยน
@@ -307,22 +321,48 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
         event.target.form?.submit();
     });
 
-    // หน้าที่หัวหน้าเปิดดูเป็น read-only จึงเช็กสถานะจากเครื่องของพนักงานทุก 30 วินาที
-    // แล้วรีเฟรชเฉพาะเมื่อสถานะจริงเปลี่ยน ป้องกันการกระพริบหน้าโดยไม่จำเป็น
-    if (root.dataset.readOnly === '1' && routes.routineStatus) {
-        globalThis.setInterval(async () => {
-            if (doc.hidden) return;
-            try {
-                const response = await fetch(routes.routineStatus, {headers: {Accept: 'application/json'}});
-                if (! response.ok) return;
-                const payload = await response.json();
-                if (payload.fingerprint && payload.fingerprint !== root.dataset.routineFingerprint) {
-                    globalThis.location.reload();
-                }
-            } catch {
-                // การดูแบบสดเป็นส่วนเสริม เมื่อเครือข่ายหลุดให้ข้อมูลเดิมยังอ่านได้
-            }
-        }, 30_000);
+    /*
+     * รายการทั้งหมดของวันนี้อัปเดตเองโดยไม่ต้องกด F5 — ทั้งหน้าของเจ้าของและหน้าที่หัวหน้าเปิดดู
+     *
+     * สิ่งที่เปลี่ยนจากเครื่องอื่น: ผู้ร่วมงานกดเริ่ม/เสร็จงานประจำแทน (RoutineAccountabilityService)
+     * พนักงานเพิ่ม/แก้/ลบงานนอกสถานที่ขณะหัวหน้าเปิดดู หรือถูกเพิ่มเป็นผู้ร่วมงานนอกสถานที่
+     * จึงเช็ก fingerprint ทุก 10 วินาที (และทันทีที่กลับมาที่แท็บ) แล้วขอการ์ดทั้งวันเฉพาะเมื่อมีอะไรเปลี่ยน
+     * timeline.syncCards() เพิ่ม/แทน/ลบการ์ดตามลำดับของ server — ไม่รีโหลดหน้า กล่องที่เปิดอยู่จึงไม่หาย
+     */
+    const syncDay = async () => {
+        if (doc.hidden || ! routes.routineStatus) return;
+        try {
+            // live=1: server ตอบแค่ fingerprint แบบอ่านอย่างเดียว ไม่ปิดรอบ/สร้างงาน/แจ้งเตือนซ้ำทุก 10 วินาที
+            const url = new URL(routes.routineStatus, globalThis.location?.origin);
+            url.searchParams.set('live', '1');
+            const status = await (await fetch(url, {headers: {Accept: 'application/json'}})).json();
+            if (! status.fingerprint || status.fingerprint === root.dataset.dayFingerprint) return;
+
+            url.searchParams.set('cards', '1');
+            const response = await fetch(url, {headers: {Accept: 'application/json'}});
+            if (! response.ok) return;
+            const payload = await response.json();
+            const cards = Array.isArray(payload.cards) ? payload.cards : [];
+
+            // ข้อมูลของการ์ดที่ปุ่มเริ่ม/เสร็จ/แก้ไขอ่าน ต้องตรงกับการ์ดบนหน้าเสมอ
+            byId.clear();
+            cards.forEach((card) => {
+                if (card.log) byId.set(String(card.log.id), card.log);
+            });
+            timeline?.syncCards(cards);
+
+            root.dataset.dayFingerprint = payload.fingerprint || status.fingerprint;
+            doc.dispatchEvent(new CustomEvent('smartgoal:routine-changed', {detail: {source: 'sync'}}));
+        } catch {
+            // การอัปเดตสดเป็นส่วนเสริม เมื่อเครือข่ายหลุดให้ข้อมูลเดิมยังอ่านได้
+        }
+    };
+
+    if (root.dataset.liveDay === '1' && routes.routineStatus) {
+        globalThis.setInterval(syncDay, 10_000);
+        doc.addEventListener('visibilitychange', () => {
+            if (! doc.hidden) syncDay();
+        });
     }
 
     return {timeline, entryForm, routinePanel, applyResult, firstErrorMessage};

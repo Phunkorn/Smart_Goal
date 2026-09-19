@@ -25,7 +25,10 @@ use Illuminate\Validation\ValidationException;
  *    เป็น unfinished วันที่ถึงกำหนดแต่ไม่มีรายการเลย (ไม่ได้เปิดระบบ) ถูกสร้างเป็น not_started
  * 2. ก่อนเริ่มรายการของวันใหม่ ทุกวันที่ค้างของงานเดียวกันที่ยังไม่มีเหตุผลต้องได้เหตุผลครบในครั้งเดียว
  * 3. คนที่กดเริ่มต้องตอบว่าผู้ร่วมงานที่ยังไม่เริ่มวันนี้มาหรือไม่มา คนที่ "ไม่มา" ได้สถานะ absent
- *    และต้องระบุเหตุผลเองเมื่อกลับมาเริ่มงานนี้
+ *    และต้องระบุเหตุผลเองเมื่อกลับมาเริ่มงานนี้ คนที่ "มาทำด้วย" เริ่มพร้อมกันทันที (เวลาเดียวกัน)
+ *    ถ้าคนนั้นยังค้างเหตุผลของวันก่อน คนกดเริ่มตอบแทนในกล่องเดียวกัน
+ * 4. งานร่วมกันจบพร้อมกัน — ใครกดเสร็จก็ปิดแถวที่ "กำลังทำ" ของทุกคนในวันเดียวกัน
+ *    เหตุผลเริ่มช้า/เสร็จช้าและรายละเอียดปัญหาอยู่ที่แถวของคนกดเท่านั้น
  *
  * เรียกปิดรอบแบบ lazy จากทุกทางเข้า (เปิดหน้า, topbar, เริ่ม/เสร็จ/ไม่ได้ทำ) และจากคำสั่งตามเวลา
  * ความถูกต้องไม่ขึ้นกับว่าทางไหนมาก่อน เพราะ unique (template, user, วัน) กันรายการซ้ำ
@@ -240,9 +243,10 @@ final class RoutineAccountabilityService
     /**
      * กดเริ่มงานประจำพร้อมกติกาทั้งหมด — endpoint start เดิมเรียกที่นี่
      *
-     * @param  array{late_start_reason?: ?string, backlog_reasons?: array<string, ?string>, attendance?: array<int|string, string>}  $input
+     * @param  array{late_start_reason?: ?string, backlog_reasons?: array<string, ?string>, attendance?: array<int|string, string>, member_backlog_reasons?: array<int|string, array<string, ?string>>}  $input
      *
-     * @throws RoutineStartRequirements เมื่อยังขาดเหตุผลย้อนหลังหรือคำตอบว่าผู้ร่วมงานมาไหม
+     * @throws RoutineStartRequirements เมื่อยังขาดเหตุผลย้อนหลัง คำตอบว่าผู้ร่วมงานมาไหม
+     *                                  หรือเหตุผลวันค้างของผู้ร่วมงานที่ตอบว่ามาทำด้วย
      */
     public function start(WorkLog $log, User $actor, array $input): WorkLog
     {
@@ -255,23 +259,45 @@ final class RoutineAccountabilityService
 
         $reasons = collect($input['backlog_reasons'] ?? [])->map(fn ($value): string => trim((string) $value));
         $answers = collect($input['attendance'] ?? [])->mapWithKeys(fn ($value, $key): array => [(int) $key => (string) $value]);
+        $memberReasons = collect($input['member_backlog_reasons'] ?? [])
+            ->mapWithKeys(fn ($days, $userId): array => [(int) $userId => collect(is_array($days) ? $days : [])
+                ->map(fn ($value): string => trim((string) $value))]);
 
         $backlog = $this->backlogFor($actor, $log);
         $candidates = in_array($log->status, ['open', 'absent'], true)
             ? $this->attendanceCandidates($log, $actor)
             : collect();
 
+        // วันค้างของผู้ร่วมงานแต่ละคน — ปิดรอบของเขาก่อน ไม่งั้นวันที่เขายังไม่ได้เปิดระบบจะหลุดไป
+        $memberBacklogs = $candidates->mapWithKeys(function (User $member) use ($log): array {
+            $this->closeFor($member);
+
+            return [(int) $member->id => $this->backlogFor($member, $log)];
+        });
+
         $missingBacklog = $backlog->filter(fn (WorkLog $row): bool => ($reasons->get($row->work_date->format('Y-m-d')) ?? '') === '');
         $missingAttendance = $candidates->filter(fn (User $member): bool => ! in_array($answers->get((int) $member->id), ['present', 'absent'], true));
+        // ถามเหตุผลวันค้างเฉพาะคนที่มาทำด้วย คนที่ไม่มาวันนี้จะตอบเองเมื่อกลับมาเริ่มงานนี้
+        $missingMemberBacklog = $candidates->filter(fn (User $member): bool => $answers->get((int) $member->id) === 'present'
+            && $memberBacklogs->get((int) $member->id)->contains(
+                fn (WorkLog $row): bool => ($memberReasons->get((int) $member->id)?->get($row->work_date->format('Y-m-d')) ?? '') === ''
+            ));
 
-        if ($missingBacklog->isNotEmpty() || $missingAttendance->isNotEmpty()) {
+        if ($missingBacklog->isNotEmpty() || $missingAttendance->isNotEmpty() || $missingMemberBacklog->isNotEmpty()) {
             throw new RoutineStartRequirements(
                 $backlog->map(fn (WorkLog $row): array => $this->backlogItem($row))->all(),
-                $candidates->map(fn (User $member): array => ['id' => $member->id, 'name' => $member->name])->all()
+                $candidates->map(fn (User $member): array => [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'backlog' => $memberBacklogs->get((int) $member->id)
+                        ->map(fn (WorkLog $row): array => $this->backlogItem($row))
+                        ->values()
+                        ->all(),
+                ])->values()->all()
             );
         }
 
-        return DB::transaction(function () use ($log, $actor, $input, $reasons, $answers, $backlog, $candidates): WorkLog {
+        return DB::transaction(function () use ($log, $actor, $input, $reasons, $answers, $memberReasons, $backlog, $candidates, $memberBacklogs): WorkLog {
             foreach ($backlog as $row) {
                 $this->explain($row, $actor, (string) $reasons->get($row->work_date->format('Y-m-d')));
             }
@@ -279,11 +305,135 @@ final class RoutineAccountabilityService
             foreach ($candidates as $member) {
                 if ($answers->get((int) $member->id) === 'absent') {
                     $this->markAbsent($member, $log, $actor);
+
+                    continue;
+                }
+
+                foreach ($memberBacklogs->get((int) $member->id) as $row) {
+                    $this->explain($row, $actor, (string) $memberReasons->get((int) $member->id)?->get($row->work_date->format('Y-m-d')));
                 }
             }
 
-            return $this->logs->startRoutine($log, $actor, $input['late_start_reason'] ?? null);
+            $started = $this->logs->startRoutine($log, $actor, $input['late_start_reason'] ?? null);
+
+            foreach ($candidates as $member) {
+                if ($answers->get((int) $member->id) === 'present') {
+                    $this->startTogether($member, $started, $actor);
+                }
+            }
+
+            return $started;
         });
+    }
+
+    /**
+     * ปิดงานประจำ — งานที่ทำร่วมกันจบพร้อมกัน ใครกดก็ได้คนเดียว
+     *
+     * แถวของคนอื่นที่ "กำลังทำ" งานเดียวกันวันเดียวกันถูกปิดด้วยเวลาจบเดียวกัน
+     * ส่วนเหตุผลเสร็จช้าและรายละเอียดปัญหาอยู่ที่แถวของคนกดเท่านั้น ไม่คัดลอกไปแถวอื่น
+     *
+     * @param  array{outcome?: ?string, issue_details?: ?string, late_completion_reason?: ?string}  $completion
+     */
+    public function complete(WorkLog $log, User $actor, array $completion = []): WorkLog
+    {
+        if ($log->work_log_template_id === null) {
+            return $this->logs->markDone($log, $actor, $completion);
+        }
+
+        return DB::transaction(function () use ($log, $actor, $completion): WorkLog {
+            $wasDone = $log->status === 'done';
+            $done = $this->logs->markDone($log, $actor, $completion);
+
+            if (! $wasDone) {
+                $this->finishTogether($done, $actor);
+            }
+
+            return $done;
+        });
+    }
+
+    /**
+     * ผู้ร่วมงานที่ตอบว่า "มาทำด้วย" — เริ่มพร้อมกับคนกดด้วยเวลาเดียวกัน
+     *
+     * ไม่คัดลอกเหตุผลเริ่มช้า: คนกดตอบแทนทั้งทีมไปแล้วที่แถวของตัวเอง
+     */
+    private function startTogether(User $member, WorkLog $actorLog, User $actor): void
+    {
+        $row = $this->memberRow($member, $actorLog);
+
+        if ($row === null || $row->status !== 'open' || $actorLog->status !== 'in_progress') {
+            return;
+        }
+
+        $row->update([
+            'status' => 'in_progress',
+            'absent_marked_by' => null,
+            'absent_marked_at' => null,
+            'started_at' => $actorLog->started_at,
+            'ended_at' => null,
+            'duration_minutes' => null,
+            'late_start_reason' => null,
+            'skip_reason' => null,
+            'skipped_at' => null,
+        ]);
+
+        AuditTrail::log(
+            'work_log_started_together',
+            $row,
+            sprintf('%s เริ่มงานประจำ "%s" พร้อมกับ %s', $actor->name, $row->title, $member->name),
+            ['after' => ['status' => 'in_progress', 'started_at' => $actorLog->started_at?->toIso8601String()], 'by' => $actor->id]
+        );
+    }
+
+    /**
+     * ปิดแถวของทุกคนที่ "กำลังทำ" งานเดียวกันวันเดียวกัน — ใช้เวลาจบเดียวกับคนกด
+     *
+     * จำนวนนาทีคิดจากเวลาเริ่มของแต่ละแถว เผื่อกรณีต่างคนต่างกดเริ่มไว้คนละเวลา
+     */
+    private function finishTogether(WorkLog $actorLog, User $actor): void
+    {
+        $endedAt = $actorLog->ended_at;
+
+        if ($endedAt === null || $actorLog->work_date === null) {
+            return;
+        }
+
+        $partners = WorkLog::query()
+            ->where('work_log_template_id', $actorLog->work_log_template_id)
+            ->whereDate('work_date', $actorLog->work_date->format('Y-m-d'))
+            ->where('user_id', '!=', $actorLog->user_id)
+            ->where('status', 'in_progress')
+            ->whereNotNull('started_at')
+            ->get();
+
+        foreach ($partners as $row) {
+            $minutes = max(1, min(WorkLogDesign::MAX_DURATION_MINUTES, (int) $row->started_at->diffInMinutes($endedAt)));
+
+            $row->update([
+                'status' => 'done',
+                'ended_at' => $endedAt,
+                'duration_minutes' => $minutes,
+            ]);
+
+            AuditTrail::log(
+                'work_log_completed_together',
+                $row,
+                sprintf('%s ปิดงานประจำ "%s" ที่ทำร่วมกัน', $actor->name, $row->title),
+                ['after' => ['status' => 'done', 'ended_at' => $endedAt->toIso8601String(), 'duration_minutes' => $minutes], 'by' => $actor->id]
+            );
+        }
+    }
+
+    /** แถวของผู้ร่วมงานในวันเดียวกัน — สร้างให้ก่อนถ้าเขายังไม่ได้เปิดระบบวันนี้ */
+    private function memberRow(User $member, WorkLog $actorLog): ?WorkLog
+    {
+        $this->routines->materializeToday($member);
+
+        return WorkLog::query()
+            ->where('user_id', $member->id)
+            ->where('work_log_template_id', $actorLog->work_log_template_id)
+            ->whereDate('work_date', $actorLog->work_date->format('Y-m-d'))
+            ->first();
     }
 
     /**
@@ -292,13 +442,7 @@ final class RoutineAccountabilityService
     private function markAbsent(User $member, WorkLog $actorLog, User $actor): void
     {
         $date = $actorLog->work_date->format('Y-m-d');
-        $this->routines->materializeToday($member);
-
-        $row = WorkLog::query()
-            ->where('user_id', $member->id)
-            ->where('work_log_template_id', $actorLog->work_log_template_id)
-            ->whereDate('work_date', $date)
-            ->first();
+        $row = $this->memberRow($member, $actorLog);
 
         if ($row === null || $row->status !== 'open') {
             return;

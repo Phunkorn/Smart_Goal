@@ -7,8 +7,8 @@ import {initPlanCalendar} from '../../resources/js/pages/daily-logs/plan-calenda
 test('เลือกวันแล้วเห็นทุกความรับผิดชอบ แม้วัน/หมวดเดียวกัน และแสดงข้อความอย่างปลอดภัย', () => {
     const entries = {
         '2026-09-15': [
-            {title: '<img src=x onerror=alert(1)>', kind: 'routine', category: 'ตรวจเช็ก', owner: 'คนแรก', owner_initial: 'ค', avatar_url: '/media/profile/1', time: '08:00', status: 'planned', status_label: 'วางแผนไว้', status_tone: 'gray'},
-            {title: 'ติดตั้งอุปกรณ์', kind: 'field', category: 'ตรวจเช็ก', owner: 'คนที่สอง', owner_initial: 'ส', avatar_url: null, time: '10:00', status: 'done', status_label: 'พบปัญหา', status_tone: 'red"><img'},
+            {title: '<img src=x onerror=alert(1)>', kind: 'routine', category: 'ตรวจเช็ก', people: [{id: 1, name: 'คนแรก', initial: 'ค', avatar_url: '/media/profile/1'}], time: '08:00', status: 'planned', status_label: 'วางแผนไว้', status_tone: 'gray'},
+            {title: 'ติดตั้งอุปกรณ์', kind: 'field', category: 'ตรวจเช็ก', people: [{id: 2, name: 'คนที่สอง', initial: 'ส', avatar_url: null}], time: '10:00', status: 'done', status_label: 'พบปัญหา', status_tone: 'red"><img'},
         ],
     };
     const dom = mountDom(`<!doctype html><html><body><div data-daily-log><section data-plan-calendar>
@@ -57,9 +57,9 @@ const calendarWithModal = (entries) => mountDom(`<!doctype html><html><body><div
 
 const dayEntries = {
     '2026-09-16': [
-        {title: 'ตรวจเช็กคอมพิวเตอร์', kind: 'routine', category: 'IT Support', owner_id: 1, owner: 'สมชาย', owner_initial: 'ส', time: '08:30', status_label: 'พบปัญหา', status_tone: 'red'},
-        {title: 'สำรองข้อมูล', kind: 'routine', owner_id: 1, owner: 'สมชาย', owner_initial: 'ส', time: '16:00', status_label: 'เสร็จแล้ว', status_tone: 'teal'},
-        {title: 'ส่งเครื่องสาขาบางนา', kind: 'field', owner_id: 2, owner: 'สมหญิง', owner_initial: 'ส', time: '10:00', status_label: 'เสร็จแล้ว', status_tone: 'teal'},
+        {title: 'ตรวจเช็กคอมพิวเตอร์', kind: 'routine', category: 'IT Support', people: [{id: 1, name: 'สมชาย', initial: 'ส', avatar_url: null}], time: '08:30', status_label: 'พบปัญหา', status_tone: 'red'},
+        {title: 'สำรองข้อมูล', kind: 'routine', people: [{id: 1, name: 'สมชาย', initial: 'ส', avatar_url: null}], time: '16:00', status_label: 'เสร็จแล้ว', status_tone: 'teal'},
+        {title: 'ส่งเครื่องสาขาบางนา', kind: 'field', people: [{id: 2, name: 'สมหญิง', initial: 'ส', avatar_url: null}], time: '10:00', status_label: 'เสร็จแล้ว', status_tone: 'teal'},
     ],
 };
 
@@ -134,5 +134,43 @@ test('วันที่ไม่มีงานเปิดกล่องพ�
         assert.equal(modal.hidden, false);
         assert.equal(modal.querySelector('.daily-plan__empty').textContent, 'ไม่มีงานที่ลงไว้ในวันนี้');
         assert.equal(root.querySelector('[data-plan-day-modal-summary]').textContent, '0 รายการ · 0 คน');
+    } finally { dom.cleanup(); }
+});
+
+/*
+ * งานประจำที่ทำร่วมกัน — server รวมเป็นรายการเดียวแล้ว (WorkLogQueryService::mergeJointEntries)
+ * ทั้งรายการใต้ปฏิทินและกล่องของวันต้องเป็นแถวเดียวที่มีทุกคน ไม่ใช่แถวซ้ำต่อคน
+ */
+test('งานร่วมเป็นแถวเดียวที่มี avatar และชื่อของทุกคน ทั้งรายการใต้ปฏิทินและกล่องของวัน', () => {
+    const dom = calendarWithModal({
+        '2026-09-16': [
+            {title: 'เช็คคอมชั้น 5', kind: 'routine', category: 'IT Support', time: '08:30', status_label: 'กำลังทำ', status_tone: 'blue', people: [
+                {id: 1, name: 'Aum', initial: 'A', avatar_url: '/media/profile/1'},
+                {id: 2, name: 'Anutida', initial: 'A', avatar_url: null},
+            ]},
+            {title: 'เช็คคอมชั้น 5', kind: 'routine', category: 'IT Support', time: '08:30', status_label: 'ไม่มา', status_tone: 'red', people: [
+                {id: 3, name: 'คนที่ไม่มา', initial: 'ค', avatar_url: null},
+            ]},
+        ],
+    });
+    try {
+        const root = dom.document.querySelector('[data-daily-log]');
+        initPlanCalendar({root, stack: createModalStack(dom.document)});
+
+        click(root.querySelector('[data-plan-day="2026-09-16"]'));
+
+        const modal = root.querySelector('[data-plan-day-modal]');
+        for (const container of [root.querySelector('[data-plan-selected-items]'), modal]) {
+            const rows = [...container.querySelectorAll('.daily-plan__item')];
+            assert.equal(rows.length, 2, 'งานร่วม 1 แถว + คนที่ไม่มา 1 แถว');
+            const chips = [...rows[0].querySelectorAll('.daily-plan__item-people .daily-plan__item-owner')];
+            assert.deepEqual(chips.map((chip) => chip.lastElementChild.textContent), ['Aum', 'Anutida']);
+            assert.equal(chips[0].querySelector('img').getAttribute('src'), '/media/profile/1');
+            assert.equal(chips[1].querySelector('.daily-plan__avatar').textContent, 'A');
+            assert.equal(rows[0].querySelector('.daily-plan__item-people').title, 'Aum, Anutida');
+            assert.equal(rows[1].querySelectorAll('.daily-plan__item-owner').length, 1);
+        }
+
+        assert.equal(root.querySelector('[data-plan-day-modal-summary]').textContent, '2 รายการ · 3 คน · กำลังทำ 1 · ไม่มา 1');
     } finally { dom.cleanup(); }
 });

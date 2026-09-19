@@ -609,15 +609,19 @@ class OperationalWorkloadReportTest extends TestCase
 
         $dailyRows = $this->actingAs($member)->get(route('reports.operational.daily', $query))->viewData('rows');
         $dailyCsv = $this->csvRows($this->actingAs($member)->get(route('reports.operational.daily.csv', $query)));
-        $this->assertSame(['วันที่', 'รายการงาน', 'ประเภทงาน', 'หมวดงาน', 'สถานะ', 'ชั่วโมง', 'หมายเหตุ'], $dailyCsv[0]);
+        $this->assertSame([
+            'วันที่', 'รายการงาน', 'ประเภทงาน', 'หมวดงาน', 'เวลาที่ตั้งไว้', 'เวลาเริ่ม', 'เวลาเสร็จ',
+            'สถานะ', 'ชั่วโมง', 'ผู้ร่วมงาน', 'สถานที่ / ผู้แจ้ง', 'เหตุผล', 'หมายเหตุ',
+        ], $dailyCsv[0]);
         $this->assertSame(
             $dailyRows->map(fn (array $row): array => [
                 $row['date_label'], $row['title'], $row['kind_label'], $row['category'],
-                $row['status_label'], $row['hours'], $row['note'],
+                $row['planned_time'], $row['start_time'], $row['end_time'],
+                $row['status_label'], $row['hours'], $row['coworkers'], $row['place'], $row['reason'], $row['note'],
             ])->all(),
             array_slice($dailyCsv, 1)
         );
-        $this->assertContains('เครื่องใช้งานปกติ', array_column(array_slice($dailyCsv, 1), 6));
+        $this->assertContains('เครื่องใช้งานปกติ', array_column(array_slice($dailyCsv, 1), 12));
 
         $frequentRows = $this->actingAs($member)->get(route('reports.operational.frequent', $query))->viewData('rows');
         $frequentCsv = $this->csvRows($this->actingAs($member)->get(route('reports.operational.frequent.csv', $query)));

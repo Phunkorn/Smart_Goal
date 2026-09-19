@@ -345,3 +345,46 @@ test('เลื่อนหน้าแล้วเมนูลอยปิด�
         dom.cleanup();
     }
 });
+
+test('upsertCard แทนการ์ดเดิมตรงตำแหน่งเดิม ลำดับตามเวลาไม่เพี้ยน', () => {
+    const dom = mountTimeline(cardMarkup(9, 'routine', '08:30 เช็คคอม') + cardMarkup(10, 'field', '10:00 ส่งเครื่องสาขา') + cardMarkup(11, 'routine', '16:00 สำรองข้อมูล'));
+
+    try {
+        const timeline = initTimeline({root: dom.document.querySelector('[data-daily-log]')});
+
+        // เหมือนรอบอัปเดตสดที่ส่งการ์ดงานประจำกลับมาทุกใบ
+        timeline.upsertCard(cardMarkup(9, 'routine', '08:30 เช็คคอม', 'in_progress'), 9);
+        timeline.upsertCard(cardMarkup(11, 'routine', '16:00 สำรองข้อมูล'), 11);
+
+        const titles = [...dom.document.querySelectorAll('[data-log-card] .log-card__title')].map((node) => node.textContent);
+        assert.deepEqual(titles, ['08:30 เช็คคอม', '10:00 ส่งเครื่องสาขา', '16:00 สำรองข้อมูล']);
+        assert.equal(dom.document.querySelector('[data-log-card][data-log-id="9"]').dataset.logStatus, 'in_progress');
+    } finally {
+        dom.cleanup();
+    }
+});
+
+/*
+ * อัปเดตสดทั้งวัน — หัวหน้าเปิดหน้าของพนักงานค้างไว้ แล้วพนักงานเพิ่ม/ลบงานนอกสถานที่
+ * การ์ดใหม่ต้องเข้าไปอยู่ตรงตำแหน่งตามลำดับของ server ไม่ใช่ท้ายรายการ และการ์ดที่ถูกลบต้องหาย
+ */
+test('syncCards เพิ่มการ์ดใหม่ตรงตำแหน่ง ลบการ์ดที่ไม่อยู่แล้ว และไม่ทิ้งการ์ดซ้ำ', () => {
+    const dom = mountTimeline(cardMarkup(9, 'routine', '08:30 เช็คคอม') + cardMarkup(11, 'routine', '16:00 สำรองข้อมูล') + cardMarkup(12, 'field', '13:00 งานที่ถูกลบ'));
+
+    try {
+        const timeline = initTimeline({root: dom.document.querySelector('[data-daily-log]')});
+
+        timeline.syncCards([
+            {log: {id: 9}, html: cardMarkup(9, 'routine', '08:30 เช็คคอม', 'in_progress')},
+            {log: {id: 10}, html: cardMarkup(10, 'field', '10:00 ส่งเครื่องสาขาบางนา')},
+            {log: {id: 11}, html: cardMarkup(11, 'routine', '16:00 สำรองข้อมูล')},
+        ]);
+
+        const titles = [...dom.document.querySelectorAll('[data-log-card] .log-card__title')].map((node) => node.textContent);
+        assert.deepEqual(titles, ['08:30 เช็คคอม', '10:00 ส่งเครื่องสาขาบางนา', '16:00 สำรองข้อมูล']);
+        assert.equal(dom.document.querySelector('[data-log-card][data-log-id="9"]').dataset.logStatus, 'in_progress');
+        assert.equal(dom.document.querySelector('[data-timeline-count]').textContent, '(3 รายการ)');
+    } finally {
+        dom.cleanup();
+    }
+});

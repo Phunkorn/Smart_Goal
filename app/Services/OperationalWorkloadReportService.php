@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogTemplate;
+use App\Support\JointRoutineWork;
 use App\Support\OperationalReportScope;
 use App\Support\ReportMonth;
 use App\Support\TodayWorkspace;
@@ -35,7 +36,11 @@ final class OperationalWorkloadReportService
     /** จำนวนแถวของการ์ด Top ในหน้า Overview */
     public const OVERVIEW_LIMIT = 5;
 
-    public const DAILY_HEADERS = ['วันที่', 'รายการงาน', 'ประเภทงาน', 'หมวดงาน', 'สถานะ', 'ชั่วโมง', 'หมายเหตุ'];
+    /** หัวตารางสรุปรายวัน — ลำดับเดียวกับ dailyCells() และคอลัมน์ในตารางบนหน้าจอ */
+    public const DAILY_HEADERS = [
+        'วันที่', 'รายการงาน', 'ประเภทงาน', 'หมวดงาน', 'เวลาที่ตั้งไว้', 'เวลาเริ่ม', 'เวลาเสร็จ',
+        'สถานะ', 'ชั่วโมง', 'ผู้ร่วมงาน', 'สถานที่ / ผู้แจ้ง', 'เหตุผล', 'หมายเหตุ',
+    ];
 
     public const FREQUENT_HEADERS = ['อันดับ', 'ลักษณะงาน', 'จำนวนครั้ง', 'เวลาที่ใช้'];
 
@@ -77,6 +82,7 @@ final class OperationalWorkloadReportService
         'not_started' => 'red',
         'unfinished' => 'amber',
         'absent' => 'red',
+        'issue' => 'red',
     ];
 
     private const WEEKDAY_SHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
@@ -146,6 +152,10 @@ final class OperationalWorkloadReportService
         // สถานะวันนี้มาจาก TodayOperationalStatus ตัวเดียวกับบอร์ดทีม ตัวเลขสองหน้าจึงตรงกัน
         $todayByMember = $isCurrentMonth ? $this->today->forMembers($members, $scope->departmentId) : collect();
         $byMember = $logs->groupBy('user_id');
+        // ยอดรวมของแผนก: งานประจำที่ทำร่วมกันนับเป็นงานชิ้นเดียว ชั่วโมงนับครั้งเดียว
+        // ส่วนยอดรายคน ($byMember) นับให้ทุกคนที่ทำ จึงใช้ $logs ที่ยังไม่ยุบ
+        $teamLogs = JointRoutineWork::collapse($logs);
+        $previousTeamLogs = JointRoutineWork::collapse($previousLogs);
 
         $people = $members
             ->map(function (User $member) use ($byMember, $todayByMember, $isCurrentMonth): array {
@@ -173,10 +183,10 @@ final class OperationalWorkloadReportService
 
         return [
             'scope' => $scope,
-            'kpis' => $this->kpis($logs, $previousLogs),
-            'workTypes' => $this->workTypes($logs),
-            'totalHoursText' => $this->hoursText($this->minutesOf($logs)),
-            'chartData' => $this->chartData($scope, $logs),
+            'kpis' => $this->kpis($teamLogs, $previousTeamLogs),
+            'workTypes' => $this->workTypes($teamLogs),
+            'totalHoursText' => $this->hoursText($this->minutesOf($teamLogs)),
+            'chartData' => $this->chartData($scope, $teamLogs),
             'people' => $people,
             'isCurrentMonth' => $isCurrentMonth,
             'todaySummary' => collect(self::TODAY_STATUSES)
@@ -331,10 +341,7 @@ final class OperationalWorkloadReportService
         return match ($report) {
             'daily' => [
                 'headers' => self::DAILY_HEADERS,
-                'rows' => $this->dailyRows($scope)->map(fn (array $row): array => [
-                    $row['date_label'], $row['title'], $row['kind_label'], $row['category'],
-                    $row['status_label'], $row['hours'], $row['note'],
-                ])->all(),
+                'rows' => $this->dailyRows($scope)->map(fn (array $row): array => self::dailyCells($row))->all(),
             ],
             'frequent' => [
                 'headers' => self::FREQUENT_HEADERS,
@@ -377,7 +384,13 @@ final class OperationalWorkloadReportService
             'status' => 'waiting',
             'status_label' => self::TODAY_STATUSES['waiting']['label'],
             'status_tone' => self::TODAY_STATUSES['waiting']['tone'],
+            'planned_time' => '—',
+            'start_time' => '—',
+            'end_time' => '—',
             'hours' => '—',
+            'coworkers' => '—',
+            'place' => '—',
+            'reason' => '—',
             'note' => '—',
         ]))->values();
     }
@@ -619,7 +632,62 @@ final class OperationalWorkloadReportService
      */
     private function rowsFor(Collection $logs): Collection
     {
-        return $logs->map(fn (WorkLog $log): array => $this->rowFor($log))->values();
+        $coworkers = $this->coworkersFor($logs);
+
+        return $logs->map(fn (WorkLog $log): array => $this->rowFor($log, $coworkers[$log->id] ?? []))->values();
+    }
+
+    /**
+     * หนึ่งแถวของตารางสรุปรายวันในรูปเซลล์ — ใช้ทั้ง CSV และเทสต์ที่เทียบกับหน้าจอ ลำดับตาม DAILY_HEADERS
+     *
+     * @param  array<string, mixed>  $row
+     * @return list<string>
+     */
+    public static function dailyCells(array $row): array
+    {
+        return [
+            $row['date_label'], $row['title'], $row['kind_label'], $row['category'],
+            $row['planned_time'], $row['start_time'], $row['end_time'],
+            $row['status_label'], $row['hours'], $row['coworkers'], $row['place'], $row['reason'], $row['note'],
+        ];
+    }
+
+    /**
+     * ชื่อคนที่ทำงานร่วมกับแต่ละรายการ (ไม่รวมเจ้าของแถว) — key คือ id ของรายการ
+     *
+     * งานประจำจากแม่แบบ: คนในกลุ่มงานร่วมเดียวกัน (JointRoutineWork) ค้นทีเดียวทั้งช่วงวัน
+     * งานที่บันทึกเอง/งานนอกสถานที่: รายชื่อผู้ร่วมงานของรายการ หรือของต้นฉบับถ้าเป็นสำเนา
+     *
+     * @param  Collection<int, WorkLog>  $logs
+     * @return array<int, list<string>>
+     */
+    private function coworkersFor(Collection $logs): array
+    {
+        $routines = $logs->filter(fn (WorkLog $log): bool => JointRoutineWork::keyOf($log) !== null);
+        $groups = collect();
+
+        if ($routines->isNotEmpty()) {
+            $dates = $routines->map(fn (WorkLog $log): string => $log->work_date->format('Y-m-d'));
+            $groups = WorkLog::query()
+                ->with('user:id,name')
+                ->whereIn('work_log_template_id', $routines->pluck('work_log_template_id')->unique()->values()->all())
+                ->whereDate('work_date', '>=', $dates->min())
+                ->whereDate('work_date', '<=', $dates->max())
+                ->get()
+                ->groupBy(fn (WorkLog $log): string => (string) JointRoutineWork::keyOf($log));
+        }
+
+        return $logs->mapWithKeys(function (WorkLog $log) use ($groups): array {
+            $key = JointRoutineWork::keyOf($log);
+            $names = $key === null
+                ? WorkLogPresenter::coworkerNames($log)
+                : $groups->get($key, collect())
+                    ->filter(fn (WorkLog $partner): bool => (int) $partner->user_id !== (int) $log->user_id)
+                    ->map(fn (WorkLog $partner): string => (string) $partner->user?->name)
+                    ->filter()->unique()->sort()->values()->all();
+
+            return [$log->id => $names];
+        })->all();
     }
 
     /**
@@ -627,9 +695,15 @@ final class OperationalWorkloadReportService
      *
      * @return array<string, mixed>
      */
-    private function rowFor(WorkLog $log): array
+    /**
+     * @param  list<string>  $coworkers
+     */
+    private function rowFor(WorkLog $log, array $coworkers = []): array
     {
-        $status = WorkLogPresenter::displayStatus($log);
+        // ใช้สถานะเดียวกับปฏิทินแผนก — "พบปัญหา" ต้องไม่กลายเป็น "เสร็จแล้ว" ในตาราง
+        $status = WorkLogPresenter::calendarStatus($log);
+        $clock = fn (string $attribute): string => WorkLogPresenter::clockLabel($log, $attribute) ?? '—';
+        $plannedEnd = WorkLogPresenter::clockLabel($log, 'planned_end_at');
         $date = $log->work_date === null ? null : CarbonImmutable::parse($log->work_date->format('Y-m-d'), self::BUSINESS_TIMEZONE);
 
         return [
@@ -644,11 +718,58 @@ final class OperationalWorkloadReportService
             'status' => $status,
             'status_label' => WorkLogDesign::status($status)['label'],
             'status_tone' => self::STATUS_TONES[$status] ?? 'slate',
+            'planned_time' => $log->planned_start_at === null
+                ? '—'
+                : $clock('planned_start_at').($plannedEnd === null ? '' : '–'.$plannedEnd),
+            'start_time' => $clock('started_at'),
+            'end_time' => $clock('ended_at'),
             'hours' => $log->duration_minutes === null ? '—' : number_format($log->duration_minutes / 60, 1),
-            // เหตุผลมาก่อนรายละเอียด เพราะเป็นคำอธิบายของสถานะที่เห็นอยู่ในแถวเดียวกัน
+            'coworkers' => $coworkers === [] ? '—' : implode(', ', $coworkers),
+            'place' => $this->placeOf($log),
             // ค่าว่างเป็น "—" ทั้งบนหน้าจอและใน CSV สองช่องทางจึงตรงกันทุกตัวอักษร
-            'note' => trim((string) ($log->skip_reason ?: ($log->unfinished_reason ?: ($log->late_completion_reason ?: ($log->late_start_reason ?: ($log->details ?? '')))))) ?: '—',
+            'reason' => $this->reasonsOf($log, $status),
+            'note' => trim((string) $log->details) ?: '—',
         ];
+    }
+
+    /** สถานที่และคนแจ้งของงานนอกสถานที่ เช่น "สาขาบางนา (ผู้แจ้ง: สมชาย)" */
+    private function placeOf(WorkLog $log): string
+    {
+        $location = trim((string) $log->location);
+        $requester = trim((string) $log->requester_name);
+        $requesterText = $requester === '' ? '' : 'ผู้แจ้ง: '.$requester;
+
+        return match (true) {
+            $location !== '' && $requester !== '' => $location.' ('.$requesterText.')',
+            $location !== '' => $location,
+            $requester !== '' => $requesterText,
+            default => '—',
+        };
+    }
+
+    /**
+     * เหตุผลทุกข้อของรายการ พร้อมป้ายบอกว่าเป็นเหตุผลของอะไร — ข้อหนึ่งต้องไม่บังอีกข้อ
+     *
+     * เช่นเริ่มช้าแล้วยังเสร็จเกินเวลา ต้องเห็นทั้งสองคำตอบ รายละเอียดปัญหาที่พบก็อยู่ที่นี่
+     */
+    private function reasonsOf(WorkLog $log, string $status): string
+    {
+        $skipLabel = in_array($status, ['not_started', 'absent', 'skipped'], true)
+            ? WorkLogDesign::status($status)['label']
+            : WorkLogDesign::status('skipped')['label'];
+
+        return collect([
+            'เริ่มช้า' => $log->late_start_reason,
+            'เสร็จช้า' => $log->late_completion_reason,
+            $skipLabel => $log->skip_reason,
+            WorkLogDesign::status('unfinished')['label'] => $log->unfinished_reason,
+            'ปัญหาที่พบ' => $log->has_issue ? $log->issue_details : null,
+        ])
+            ->map(fn ($reason): string => trim((string) $reason))
+            ->filter()
+            ->map(fn (string $reason, string $label): string => $label.': '.$reason)
+            ->values()
+            ->implode(' · ') ?: '—';
     }
 
     /**
@@ -686,7 +807,7 @@ final class OperationalWorkloadReportService
         $key = implode(':', [md5(implode(',', $userIds)), $departmentId ?? 0, $month->format('Y-m')]);
 
         return $this->logCache[$key] ??= $this->scopedLogQuery($userIds, $departmentId)
-            ->with(['category:id,name'])
+            ->with(['category:id,name', 'participants:id,name', 'sharedFrom.user:id,name', 'sharedFrom.participants:id,name'])
             ->whereDate('work_date', '>=', $month->startOfMonth()->toDateString())
             ->whereDate('work_date', '<=', $month->endOfMonth()->toDateString())
             ->orderBy('work_date')

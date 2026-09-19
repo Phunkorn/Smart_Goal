@@ -76,7 +76,8 @@
                 $date = $day->format('Y-m-d');
                 $items = $calendarEntries[$date] ?? [];
                 $inMonth = $day->format('Y-m') === $calendarMonthValue;
-                $dayPeople = collect($items)->unique('owner_id')->values();
+                // งานร่วมหนึ่งแถวมีหลายคน — avatar ของช่องวันนับคนจากทุกแถว ไม่ซ้ำคน
+                $dayPeople = collect($items)->flatMap(fn (array $item): array => $item['people'])->unique('id')->values();
             @endphp
             <button type="button" class="daily-plan__day @unless($inMonth) daily-plan__day--outside @endunless"
                 data-plan-day="{{ $date }}" @if($date === $calendarSelectedDate) aria-pressed="true" @else aria-pressed="false" @endif
@@ -90,7 +91,7 @@
                                 @if($person['avatar_url'])
                                     <img src="{{ $person['avatar_url'] }}" alt="" loading="lazy">
                                 @else
-                                    {{ $person['owner_initial'] }}
+                                    {{ $person['initial'] }}
                                 @endif
                             </span>
                         @endforeach
@@ -123,15 +124,20 @@
                         {{-- สถานะที่ทุกคนในแผนกเห็น: ยังไม่เริ่ม / กำลังทำ / เสร็จแล้ว / พบปัญหา / ไม่ได้ทำ --}}
                         <span class="daily-plan__item-status daily-plan__item-status--{{ $item['status_tone'] }}">{{ $item['status_label'] }}</span>
                     </span>
-                    <span class="daily-plan__item-owner" title="{{ $item['owner'] }}">
-                        <span class="daily-plan__avatar">
-                            @if($item['avatar_url'])
-                                <img src="{{ $item['avatar_url'] }}" alt="" loading="lazy">
-                            @else
-                                {{ $item['owner_initial'] }}
-                            @endif
-                        </span>
-                        <span>{{ $item['owner'] }}</span>
+                    {{-- งานประจำที่ทำร่วมกันเป็นแถวเดียว มีทุกคนที่ทำอยู่ด้วยกัน (WorkLogQueryService::mergeJointEntries) --}}
+                    <span class="daily-plan__item-people" title="{{ collect($item['people'])->pluck('name')->join(', ') }}">
+                        @foreach($item['people'] as $person)
+                            <span class="daily-plan__item-owner">
+                                <span class="daily-plan__avatar">
+                                    @if($person['avatar_url'])
+                                        <img src="{{ $person['avatar_url'] }}" alt="" loading="lazy">
+                                    @else
+                                        {{ $person['initial'] }}
+                                    @endif
+                                </span>
+                                <span>{{ $person['name'] }}</span>
+                            </span>
+                        @endforeach
                     </span>
                 </div>
             @empty

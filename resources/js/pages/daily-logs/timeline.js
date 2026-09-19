@@ -166,32 +166,63 @@ export function initTimeline({
     statusFilter?.addEventListener('change', refreshGroups);
     refreshGroups();
 
+    /**
+     * เพิ่มหรือแทนที่แถวหนึ่งจาก HTML ที่เซิร์ฟเวอร์ render มาให้
+     *
+     * กลุ่มปลายทางมาจาก data-log-status ของการ์ดที่เซิร์ฟเวอร์ส่งมา ไม่ใช่การ
+     * เดาฝั่ง client แถวที่เพิ่งถูกยืนยันจึงย้ายจาก "ที่ต้องทำ" ไป "ทำแล้ว"
+     * ได้เองโดยไม่ต้องโหลดหน้าใหม่
+     */
+    const upsertCard = (html, logId) => {
+        if (! html) return;
+
+        const holder = doc.createElement('div');
+        holder.innerHTML = html.trim();
+        const card = holder.firstElementChild;
+
+        if (! card) return;
+
+        if (! list) return;
+
+        // แถวเดิมอาจอยู่คนละกลุ่มกับปลายทาง จึงค้นทั้งหน้าไม่ใช่แค่ในกลุ่มเดียว
+        const existing = root.querySelector(`[data-log-card][data-log-id="${logId}"]`);
+
+        // แทนที่ตรงตำแหน่งเดิม — ไทม์ไลน์เรียงตามเวลาจาก server ถ้าย้ายไปท้ายรายการ
+        // การอัปเดตสด (ผู้ร่วมงานกดเริ่ม/เสร็จแทน) จะดันงานประจำทุกใบลงไปใต้งานอื่นจนเรียงผิดเวลา
+        if (existing && list.contains(existing)) {
+            existing.replaceWith(card);
+        } else {
+            existing?.remove();
+            list.appendChild(card);
+        }
+        refreshGroups();
+    };
+
     return {
         closeMenu,
         refreshGroups,
+        upsertCard,
         /**
-         * เพิ่มหรือแทนที่แถวหนึ่งจาก HTML ที่เซิร์ฟเวอร์ render มาให้
+         * ทำให้ไทม์ไลน์ตรงกับรายการทั้งวันที่ server ส่งมา — ใช้กับการอัปเดตสด
          *
-         * กลุ่มปลายทางมาจาก data-log-status ของการ์ดที่เซิร์ฟเวอร์ส่งมา ไม่ใช่การ
-         * เดาฝั่ง client แถวที่เพิ่งถูกยืนยันจึงย้ายจาก "ที่ต้องทำ" ไป "ทำแล้ว"
-         * ได้เองโดยไม่ต้องโหลดหน้าใหม่
+         * การ์ดใหม่ (เช่นพนักงานเพิ่มงานนอกสถานที่ขณะหัวหน้าเปิดดูอยู่) ถูกเพิ่ม การ์ดที่ไม่อยู่ในชุดแล้ว
+         * (ถูกลบ) ถูกเอาออก แล้วเรียงตามลำดับของ server ซึ่งเป็นลำดับเดียวกับตอนเปิดหน้า
+         *
+         * @param {Array<{log: {id: number|string}, html: string}>} cards
          */
-        upsertCard(html, logId) {
-            if (! html) return;
+        syncCards(cards) {
+            if (! list || ! Array.isArray(cards)) return;
 
-            const holder = doc.createElement('div');
-            holder.innerHTML = html.trim();
-            const card = holder.firstElementChild;
+            const ids = new Set(cards.map((card) => String(card.log?.id)));
+            list.querySelectorAll('[data-log-card]').forEach((card) => {
+                if (! ids.has(card.dataset.logId)) card.remove();
+            });
 
-            if (! card) return;
-
-            if (! list) return;
-
-            // แถวเดิมอาจอยู่คนละกลุ่มกับปลายทาง จึงค้นทั้งหน้าไม่ใช่แค่ในกลุ่มเดียว
-            const existing = root.querySelector(`[data-log-card][data-log-id="${logId}"]`);
-
-            existing?.remove();
-            list.appendChild(card);
+            cards.forEach((card) => upsertCard(card.html, card.log?.id));
+            cards.forEach((card) => {
+                const node = list.querySelector(`[data-log-card][data-log-id="${card.log?.id}"]`);
+                if (node) list.appendChild(node);
+            });
             refreshGroups();
         },
         removeCard(logId) {

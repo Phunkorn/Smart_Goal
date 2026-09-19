@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogTemplate;
+use App\Support\JointRoutineWork;
 use App\Support\TodayWorkspace;
 use App\Support\WorkLogDesign;
 use App\Support\WorkLogPresenter;
@@ -24,6 +25,13 @@ use Illuminate\Support\Facades\Gate;
  */
 class WorkLogQueryService
 {
+    /**
+     * สถานะไหนเป็นป้ายของแถวงานร่วมบนปฏิทิน — ค่ามากกว่าชนะ (สิ่งที่ต้องสนใจก่อน)
+     *
+     * ใช้เฉพาะสถานะที่ JointRoutineWork นับเป็นช่วงเดียวกัน: พบปัญหา/เสร็จแล้ว และ เกินเวลา/รอเริ่ม/ยังไม่เริ่ม
+     */
+    private const JOINT_STATUS_WEIGHT = ['issue' => 3, 'overdue' => 2, 'open' => 1];
+
     /**
      * ขอบเขตข้อมูลที่ผู้ใช้คนหนึ่งมองเห็นได้
      *
@@ -124,10 +132,8 @@ class WorkLogQueryService
             }
             $entries[$date][] = [
                 'title' => $log->title,
-                'owner_id' => $log->user_id,
-                'owner' => $log->user?->name ?? 'ไม่ระบุชื่อ',
-                'owner_initial' => mb_substr($log->user?->name ?? '?', 0, 1),
-                'avatar_url' => $log->user?->profile_image ? route('media.profile', $log->user) : null,
+                'template_id' => $log->work_log_template_id === null ? null : (int) $log->work_log_template_id,
+                'people' => [$this->calendarPerson($log->user, (int) $log->user_id)],
                 'kind' => $log->kind,
                 'category_id' => $log->work_log_category_id,
                 'category' => $log->category?->name,
@@ -191,10 +197,8 @@ class WorkLogQueryService
                     }
                     $entries[$date][] = [
                         'title' => $template->title,
-                        'owner_id' => $owner->id,
-                        'owner' => $owner->name,
-                        'owner_initial' => mb_substr($owner->name ?: '?', 0, 1),
-                        'avatar_url' => $owner->profile_image ? route('media.profile', $owner) : null,
+                        'template_id' => (int) $template->id,
+                        'people' => [$this->calendarPerson($owner, (int) $owner->id)],
                         'kind' => $template->kind,
                         'category_id' => $template->work_log_category_id,
                         'category' => $template->category?->name,
@@ -215,6 +219,10 @@ class WorkLogQueryService
             }
         }
 
+        foreach ($entries as $date => $items) {
+            $entries[$date] = $this->mergeJointEntries((string) $date, $items);
+        }
+
         foreach ($entries as &$items) {
             usort($items, fn (array $a, array $b): int =>
                 strcmp((string) ($a['time'] ?? '99:99'), (string) ($b['time'] ?? '99:99'))
@@ -223,6 +231,62 @@ class WorkLogQueryService
         unset($items);
 
         return $entries;
+    }
+
+    /**
+     * งานประจำที่ทำร่วมกันเป็นแถวเดียว พร้อม avatar ของทุกคน — กติกาว่าอะไรรวมกันได้อยู่ที่ JointRoutineWork
+     *
+     * คนที่ "ไม่มา" หรือต้องตอบเหตุผลเองยังเป็นแถวของตัวเอง เพราะสถานะไม่ใช่สถานะร่วม
+     *
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    private function mergeJointEntries(string $date, array $items): array
+    {
+        $groups = [];
+
+        foreach (array_values($items) as $index => $item) {
+            $key = JointRoutineWork::key($item['template_id'], $date, (string) $item['status_key']) ?? 'single:'.$index;
+
+            if (! isset($groups[$key])) {
+                $groups[$key] = $item;
+
+                continue;
+            }
+
+            $group = $groups[$key];
+            $group['people'] = collect([...$group['people'], ...$item['people']])
+                ->unique('id')
+                ->sortBy('name')
+                ->values()
+                ->all();
+            $group['participants'] = array_values(array_unique([...$group['participants'], ...$item['participants']]));
+
+            // ป้ายของกลุ่มคือสถานะที่ต้องสนใจที่สุดในกลุ่ม: "พบปัญหา" ของคนกดเสร็จต้องไม่หายไป
+            // เพราะแถวของอีกคนเป็น "เสร็จแล้ว" และ "เกินเวลา" ต้องไม่ถูกกลบด้วย "ยังไม่เริ่ม" ของคนที่ยังไม่เปิดระบบ
+            if ((self::JOINT_STATUS_WEIGHT[$item['status_key']] ?? 0) > (self::JOINT_STATUS_WEIGHT[$group['status_key']] ?? 0)) {
+                $group = [...$group, ...array_intersect_key($item, array_flip(['status', 'status_key', 'status_label', 'status_tone']))];
+            }
+
+            $groups[$key] = $group;
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @return array{id: int, name: string, initial: string, avatar_url: ?string}
+     */
+    private function calendarPerson(?User $person, int $id): array
+    {
+        $name = $person?->name ?: 'ไม่ระบุชื่อ';
+
+        return [
+            'id' => $id,
+            'name' => $name,
+            'initial' => mb_substr($name, 0, 1),
+            'avatar_url' => $person?->profile_image ? route('media.profile', $person) : null,
+        ];
     }
 
     /**

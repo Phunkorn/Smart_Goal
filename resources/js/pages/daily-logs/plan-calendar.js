@@ -35,25 +35,35 @@ export function initPlanCalendar({root = document.querySelector('[data-daily-log
         day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok',
     }).format(new Date(`${date}T12:00:00+07:00`));
 
-    const ownerNode = (item) => {
+    const personNode = (person) => {
         const owner = doc.createElement('span');
         owner.className = 'daily-plan__item-owner';
-        owner.title = item.owner || '';
         const avatar = doc.createElement('span');
         avatar.className = 'daily-plan__avatar';
-        if (item.avatar_url) {
+        if (person.avatar_url) {
             const image = doc.createElement('img');
-            image.src = item.avatar_url;
+            image.src = person.avatar_url;
             image.alt = '';
             image.loading = 'lazy';
             avatar.appendChild(image);
         } else {
-            avatar.textContent = item.owner_initial || '?';
+            avatar.textContent = person.initial || '?';
         }
         const ownerName = doc.createElement('span');
-        ownerName.textContent = item.owner || '';
+        ownerName.textContent = person.name || '';
         owner.append(avatar, ownerName);
         return owner;
+    };
+
+    /** งานประจำที่ทำร่วมกันเป็นแถวเดียว มีทุกคนที่ทำอยู่ด้วยกัน (รวมกลุ่มที่ server แล้ว) */
+    const peopleOf = (item) => (Array.isArray(item.people) ? item.people : []);
+
+    const peopleNode = (item) => {
+        const people = doc.createElement('span');
+        people.className = 'daily-plan__item-people';
+        people.title = peopleOf(item).map((person) => person.name || '').join(', ');
+        people.append(...peopleOf(item).map(personNode));
+        return people;
     };
 
     /** ตัววาดรายการชุดเดียวของทั้งรายการใต้ปฏิทินและกล่องรายละเอียด */
@@ -96,14 +106,14 @@ export function initPlanCalendar({root = document.querySelector('[data-daily-log
                 status.textContent = item.status_label;
                 body.appendChild(status);
             }
-            row.append(time, body, ownerNode(item));
+            row.append(time, body, peopleNode(item));
             container.appendChild(row);
         });
     };
 
     /** สรุปหัวกล่อง เช่น "4 รายการ · 3 คน · เสร็จแล้ว 2 · พบปัญหา 1" */
     const summaryOf = (items) => {
-        const people = new Set(items.map((item) => item.owner_id ?? item.owner)).size;
+        const people = new Set(items.flatMap((item) => peopleOf(item).map((person) => person.id))).size;
         const byStatus = new Map();
         items.forEach((item) => {
             if (item.status_label) byStatus.set(item.status_label, (byStatus.get(item.status_label) || 0) + 1);

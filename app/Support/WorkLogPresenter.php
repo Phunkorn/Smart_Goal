@@ -75,14 +75,10 @@ final class WorkLogPresenter
             'explanation_type' => $requiresExplanation ? $displayStatus : null,
             'can_start' => $isRoutine && ! $isPastCutoff && $isStartable
                 && ($log->planned_start_at === null || ! $now->lessThan($log->planned_start_at)),
-            // ช้าเมื่อเลยเวลาที่ตั้งไว้เกินช่วงผ่อนผัน — กติกาเดียวกับ WorkLogService
-            'requires_late_start_reason' => $isRoutine && ! $isPastCutoff && $isStartable
-                && $log->planned_start_at !== null && $now->greaterThan(WorkLogDesign::lateAfter($log->planned_start_at)),
+            // เหตุผลเริ่มช้าไม่ต้องบอกหน้าจอล่วงหน้า: server ขอเองหลังถามวันค้าง/ผู้ร่วมงานแล้ว (index.js sendStart)
             'requires_late_completion_reason' => $isRoutine && ! $isPastDay && $log->status === 'in_progress'
                 && $log->planned_end_at !== null && $now->greaterThan(WorkLogDesign::lateAfter($log->planned_end_at)),
-            // เวลาที่เริ่มนับว่าช้า ให้หน้าจอที่เปิดค้างไว้รู้ว่าต้องถามเหตุผลแล้ว โดยไม่ต้องคำนวณช่วงผ่อนผันเอง
-            'late_start_after' => $isRoutine && $log->planned_start_at !== null
-                ? WorkLogDesign::lateAfter($log->planned_start_at)->toIso8601String() : null,
+            // เวลาที่เริ่มนับว่าเสร็จช้า ให้หน้าจอที่เปิดค้างไว้รู้ว่าต้องถามเหตุผลแล้ว โดยไม่ต้องคำนวณช่วงผ่อนผันเอง
             'late_completion_after' => $isRoutine && $log->planned_end_at !== null
                 ? WorkLogDesign::lateAfter($log->planned_end_at)->toIso8601String() : null,
             'late_start_reason' => $log->late_start_reason,
@@ -198,6 +194,27 @@ final class WorkLogPresenter
     }
 
     /**
+     * ชื่อคนที่ไปทำด้วยกันของงานที่บันทึกเอง — สำเนาของผู้ร่วมงานได้รายชื่อจากต้นฉบับ (ไม่รวมตัวเอง)
+     *
+     * งานประจำจากแม่แบบไม่ใช้ตัวนี้ คนที่ทำร่วมกันมาจากกลุ่มงานร่วม (JointRoutineWork)
+     * ต้องโหลด participants และ sharedFrom.user / sharedFrom.participants มาก่อน
+     *
+     * @return list<string>
+     */
+    public static function coworkerNames(WorkLog $log): array
+    {
+        $shared = self::sharedFrom($log);
+
+        if ($shared !== null) {
+            return $shared['people'];
+        }
+
+        return $log->participants
+            ->filter(fn ($person) => (int) $person->id !== (int) $log->user_id)
+            ->pluck('name')->unique()->values()->all();
+    }
+
+    /**
      * คนสร้างงานนอกสถานที่ต้นฉบับ และคนอื่นที่ไปด้วยกัน (ไม่รวมเจ้าของรายการนี้)
      */
     private static function sharedFrom(WorkLog $log): ?array
@@ -300,7 +317,8 @@ final class WorkLogPresenter
     /**
      * เวลานาฬิกาตามเวลาทำการ เช่น "09:30"
      */
-    private static function clockLabel(WorkLog $log, string $attribute): ?string
+    /** เวลา HH:mm ตามเวลาไทย — ใช้ทั้งการ์ดบันทึกงานและตารางสรุปรายวันของรายงาน ให้ตรงกันเสมอ */
+    public static function clockLabel(WorkLog $log, string $attribute): ?string
     {
         $value = $log->{$attribute};
 

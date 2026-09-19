@@ -4,6 +4,8 @@
  * server (RoutineAccountabilityService::start) ตอบ 422 พร้อม requirements เมื่อยังขาด:
  *   backlog    — วันที่ค้างของงานเดียวกันที่ยังไม่มีเหตุผล (ต้องครบทุกวัน)
  *   attendance — ผู้ร่วมงานที่วันนี้ยังไม่เริ่ม ต้องตอบว่ามาทำด้วยหรือไม่มา
+ *                คนที่ "มาทำด้วย" เริ่มพร้อมกันทันที ถ้าเขายังค้างเหตุผลของวันก่อน คนกดเริ่มตอบแทนที่นี่
+ *                (วันค้างของคนนั้นแสดงใต้ชื่อ และซ่อนเมื่อเลือกว่า "ไม่มา" เพราะเขาจะตอบเองเมื่อกลับมา)
  * กล่องนี้แค่เก็บคำตอบแล้วส่งกลับไปที่ endpoint เดิม กติกาจริงตรวจซ้ำที่ server เสมอ
  */
 const OTHER_REASON = 'อื่น ๆ';
@@ -17,8 +19,11 @@ const escapeHtml = (value) => String(value ?? '')
 /** unfinished = เริ่มแล้วไม่กดเสร็จ ถามคนละชุดกับ "ไม่ได้เริ่ม / ไม่มา" */
 const reasonsFor = (reasons, type) => [...(type === 'unfinished' ? reasons.unfinished : reasons.missed) || [], OTHER_REASON];
 
-export const startRequirementsMarkup = ({backlog = [], attendance = [], reasons = {}} = {}) => {
-    const days = backlog.map((day) => `<div class="routine-start__day" data-backlog-day data-date="${escapeHtml(day.date)}">
+/**
+ * วันค้างหนึ่งวัน — ใช้ทั้งวันของคนกดเริ่ม (data-backlog-day) และของผู้ร่วมงาน (data-member-backlog-day)
+ * แยกชื่อ attribute เพื่อให้วันของผู้ร่วมงานไม่ปนไปอยู่ใน backlog_reasons ของคนกด
+ */
+const dayMarkup = (day, reasons, marker = 'data-backlog-day') => `<div class="routine-start__day" ${marker} data-date="${escapeHtml(day.date)}">
         <div class="routine-start__day-head">
             <strong>${escapeHtml(day.date_label)}</strong>
             <span class="routine-start__tag routine-start__tag--${escapeHtml(day.type)}">${escapeHtml(day.status_label)}</span>
@@ -29,13 +34,24 @@ export const startRequirementsMarkup = ({backlog = [], attendance = [], reasons 
             ${reasonsFor(reasons, day.type).map((reason) => `<option value="${escapeHtml(reason)}">${escapeHtml(reason)}</option>`).join('')}
         </select>
         <input type="text" maxlength="500" placeholder="พิมพ์เหตุผล" data-backlog-other hidden>
-    </div>`).join('');
+    </div>`;
 
-    const people = attendance.map((person) => `<div class="routine-start__person" data-attendance-person data-user-id="${escapeHtml(person.id)}">
+export const startRequirementsMarkup = ({backlog = [], attendance = [], reasons = {}} = {}) => {
+    const days = backlog.map((day) => dayMarkup(day, reasons)).join('');
+
+    const people = attendance.map((person) => {
+        const personBacklog = Array.isArray(person.backlog) ? person.backlog : [];
+
+        return `<div class="routine-start__person" data-attendance-person data-user-id="${escapeHtml(person.id)}">
         <span>${escapeHtml(person.name)}</span>
         <label><input type="radio" name="routine-attendance-${escapeHtml(person.id)}" value="present" checked> มาทำด้วย</label>
         <label><input type="radio" name="routine-attendance-${escapeHtml(person.id)}" value="absent"> ไม่มา</label>
-    </div>`).join('');
+        ${personBacklog.length ? `<div class="routine-start__member-backlog" data-member-backlog>
+            <p class="routine-start__member-note">${escapeHtml(person.name)} ยังไม่ได้ระบุเหตุผลของวันที่ค้าง (${personBacklog.length} วัน)</p>
+            ${personBacklog.map((day) => dayMarkup(day, reasons, 'data-member-backlog-day')).join('')}
+        </div>` : ''}
+    </div>`;
+    }).join('');
 
     return `<div class="routine-start" data-routine-start>
         ${backlog.length ? `<section class="routine-start__section"><p class="routine-start__heading">ระบุเหตุผลของวันที่ค้าง (${backlog.length} วัน)</p>${days}</section>` : ''}
@@ -43,12 +59,25 @@ export const startRequirementsMarkup = ({backlog = [], attendance = [], reasons 
     </div>`;
 };
 
-/** แสดงช่องพิมพ์เหตุผลเฉพาะวันที่เลือก "อื่น ๆ" */
+/** แสดงช่องพิมพ์เหตุผลเฉพาะวันที่เลือก "อื่น ๆ" และซ่อนวันค้างของคนที่ตอบว่าไม่มา */
 export const syncStartRequirements = (box) => {
-    box?.querySelectorAll('[data-backlog-day]').forEach((day) => {
+    box?.querySelectorAll('[data-backlog-day], [data-member-backlog-day]').forEach((day) => {
         const other = day.querySelector('[data-backlog-other]');
         if (other) other.hidden = day.querySelector('[data-backlog-reason]')?.value !== OTHER_REASON;
     });
+
+    box?.querySelectorAll('[data-attendance-person]').forEach((person) => {
+        const memberBacklog = person.querySelector('[data-member-backlog]');
+        if (memberBacklog) memberBacklog.hidden = person.querySelector('input[type="radio"]:checked')?.value !== 'present';
+    });
+};
+
+const dayReason = (day) => {
+    const selected = day.querySelector('[data-backlog-reason]')?.value || '';
+
+    return selected === OTHER_REASON
+        ? (day.querySelector('[data-backlog-other]')?.value.trim() || '')
+        : selected;
 };
 
 /** คืน {fields} ในรูปแบบที่ส่งให้ endpoint start ได้ทันที หรือ {error} เมื่อยังตอบไม่ครบ */
@@ -56,10 +85,7 @@ export const readStartRequirements = (box) => {
     const fields = {};
 
     for (const day of box?.querySelectorAll('[data-backlog-day]') || []) {
-        const selected = day.querySelector('[data-backlog-reason]')?.value || '';
-        const reason = selected === OTHER_REASON
-            ? (day.querySelector('[data-backlog-other]')?.value.trim() || '')
-            : selected;
+        const reason = dayReason(day);
         if (! reason) return {error: 'กรุณาระบุเหตุผลให้ครบทุกวันที่ค้าง'};
         fields[`backlog_reasons[${day.dataset.date}]`] = reason;
     }
@@ -68,6 +94,15 @@ export const readStartRequirements = (box) => {
         const answer = person.querySelector('input[type="radio"]:checked')?.value;
         if (! answer) return {error: 'กรุณาตอบว่าผู้ร่วมงานแต่ละคนมาทำด้วยหรือไม่'};
         fields[`attendance[${person.dataset.userId}]`] = answer;
+
+        // คนที่ไม่มาวันนี้จะตอบเหตุผลของตัวเองเมื่อกลับมา จึงไม่ส่งและไม่บังคับ
+        if (answer !== 'present') continue;
+
+        for (const day of person.querySelectorAll('[data-member-backlog-day]')) {
+            const reason = dayReason(day);
+            if (! reason) return {error: 'กรุณาระบุเหตุผลวันค้างของผู้ร่วมงานที่มาทำด้วยให้ครบ'};
+            fields[`member_backlog_reasons[${person.dataset.userId}][${day.dataset.date}]`] = reason;
+        }
     }
 
     return {fields};

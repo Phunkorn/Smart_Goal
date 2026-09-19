@@ -93,3 +93,53 @@ test('ชื่อและป้ายจาก server ถูก escape ก่�
     assert.ok(! html.includes('<img'));
     assert.ok(! html.includes('<script>'));
 });
+
+/*
+ * ผู้ร่วมงานที่ตอบว่า "มาทำด้วย" เริ่มพร้อมกันทันที — วันค้างของเขาแสดงใต้ชื่อให้คนกดตอบแทน
+ * ถ้าเลือกว่า "ไม่มา" วันค้างของเขาซ่อนและไม่ถูกส่ง เพราะเขาจะตอบเองเมื่อกลับมา
+ */
+const withMemberBacklog = {
+    backlog: [],
+    attendance: [{id: 7, name: 'Anutida', backlog: [
+        {date: '2026-09-07', date_label: '7 กันยายน 2569', type: 'absent', status_label: 'ไม่มา', absent_marked_by: 'Aum'},
+    ]}],
+};
+
+test('วันค้างของผู้ร่วมงานแสดงใต้ชื่อเขา และซ่อนเมื่อเลือกว่าไม่มา', async () => {
+    const dom = mountDom();
+    try {
+        const swal = fakeSwal(dom, (popup) => {
+            const person = popup.querySelector('[data-attendance-person]');
+            const memberBacklog = person.querySelector('[data-member-backlog]');
+            assert.ok(memberBacklog, 'วันค้างต้องอยู่ในกล่องของคนนั้น');
+            assert.equal(memberBacklog.hidden, false, 'ค่าเริ่มต้นคือมาทำด้วย จึงต้องเห็นวันค้าง');
+            assert.ok(memberBacklog.textContent.includes('7 กันยายน 2569'));
+            assert.ok(memberBacklog.textContent.includes('Aum ระบุว่าไม่มา'));
+            assert.equal(popup.querySelectorAll('[data-backlog-day]').length, 0, 'ต้องไม่ปนกับวันค้างของคนกด');
+
+            const absent = person.querySelector('input[value="absent"]');
+            absent.checked = true;
+            absent.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+            assert.equal(memberBacklog.hidden, true);
+        });
+
+        assert.deepEqual(await askStartRequirements({swal, requirements: withMemberBacklog, reasons}), {'attendance[7]': 'absent'});
+    } finally { dom.cleanup(); }
+});
+
+test('ตอบว่ามาทำด้วยแต่ยังไม่ตอบวันค้างของเขา บันทึกไม่ได้ ตอบครบแล้วส่งแยกตามคน', async () => {
+    const dom = mountDom();
+    try {
+        const incomplete = fakeSwal(dom, () => {});
+        assert.equal(await askStartRequirements({swal: incomplete, requirements: withMemberBacklog, reasons}), null);
+        assert.equal(incomplete.message, 'กรุณาระบุเหตุผลวันค้างของผู้ร่วมงานที่มาทำด้วยให้ครบ');
+
+        const complete = fakeSwal(dom, (popup) => {
+            choose(popup.querySelector('[data-member-backlog-day] [data-backlog-reason]'), 'ลางาน');
+        });
+        assert.deepEqual(await askStartRequirements({swal: complete, requirements: withMemberBacklog, reasons}), {
+            'attendance[7]': 'present',
+            'member_backlog_reasons[7][2026-09-07]': 'ลางาน',
+        });
+    } finally { dom.cleanup(); }
+});
