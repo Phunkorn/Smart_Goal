@@ -288,15 +288,75 @@
         }
 
         .notification-item {
-            border: 1px solid var(--border);
+            --notification-item-bg: var(--surface, #fff);
+            --notification-item-border: var(--border);
+            --notification-item-new-bg: #F5F3FF;
+            --notification-item-new-border: #C7D2FE;
+            --notification-item-accent: var(--accent, #4F46E5);
+            border: 1px solid var(--notification-item-border);
             border-radius: 12px;
+            background: var(--notification-item-bg);
             color: inherit;
             text-decoration: none;
         }
 
         .notification-item.is-new {
-            border-color: #C7D2FE;
-            background: #F5F3FF;
+            border-color: var(--notification-item-new-border);
+            background: var(--notification-item-new-bg);
+        }
+
+        /* Pastel colors by notification category for Blade and realtime items. */
+        .notification-item--task {
+            --notification-item-bg: #FFFBEB;
+            --notification-item-border: #FDE68A;
+            --notification-item-new-bg: #FEF3C7;
+            --notification-item-new-border: #FCD34D;
+            --notification-item-accent: #A16207;
+        }
+
+        .notification-item--worklog {
+            --notification-item-bg: #EFF6FF;
+            --notification-item-border: #BFDBFE;
+            --notification-item-new-bg: #DBEAFE;
+            --notification-item-new-border: #93C5FD;
+            --notification-item-accent: #2563EB;
+        }
+
+        .notification-item--comment {
+            --notification-item-bg: #ECFEFF;
+            --notification-item-border: #A5F3FC;
+            --notification-item-new-bg: #CFFAFE;
+            --notification-item-new-border: #67E8F9;
+            --notification-item-accent: #0891B2;
+        }
+
+        .notification-item--review {
+            --notification-item-bg: #F0FDF4;
+            --notification-item-border: #BBF7D0;
+            --notification-item-new-bg: #DCFCE7;
+            --notification-item-new-border: #86EFAC;
+            --notification-item-accent: #16A34A;
+        }
+
+        .notification-item--meeting {
+            --notification-item-bg: #FFF7ED;
+            --notification-item-border: #FED7AA;
+            --notification-item-new-bg: #FFEDD5;
+            --notification-item-new-border: #FDBA74;
+            --notification-item-accent: #EA580C;
+        }
+
+        .notification-item__icon {
+            display: grid;
+            flex: 0 0 30px;
+            width: 30px;
+            height: 30px;
+            place-items: center;
+            border: 1px solid rgb(255 255 255 / 70%);
+            border-radius: 9px;
+            background: rgb(255 255 255 / 66%);
+            color: var(--notification-item-accent);
+            font-size: .9rem;
         }
 
         .notification-body {
@@ -348,7 +408,7 @@
         }
 
         .notification-title {
-            font-weight: 600;
+            font-weight: 400;
             font-size: .8rem;
             line-height: 1.45;
         }

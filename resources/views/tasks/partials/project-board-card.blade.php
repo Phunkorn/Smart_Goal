@@ -187,6 +187,17 @@
                         $taskShowsReviewStage = \App\Support\TaskReviewStage::appliesTo($task, auth()->user());
                         $canManageTaskDetails = auth()->user()->can('manageSubtasks', $task);
                         $canWorkTask = auth()->user()->can('work', $task);
+                        /*
+                         * "งานใบนี้เป็นของฉันไหม" สำหรับปุ่มกรอง "เฉพาะงานของฉัน" เท่านั้น
+                         *
+                         * ต้องใช้ ability participate ไม่ใช่ $canWorkTask เพราะ work() ปฏิเสธงานที่ปิดแล้ว
+                         * และงานที่ยังรออนุมัติทุกใบ ถ้าใช้ $canWorkTask ปุ่มจะซ่อนงานของตัวเองที่เสร็จแล้ว
+                         * ซึ่งเป็นปัญหาที่ WorkOrderPolicy::participate() ถูกเขียนขึ้นมาแก้พอดี
+                         *
+                         * ค่านี้สดเฉพาะตอน render หน้าใหม่ การเปลี่ยนทีมงานทุกทางจบด้วยการโหลดหน้าใหม่อยู่แล้ว
+                         * ถ้าวันหนึ่ง modal จัดการทีมเลิกโหลดหน้าใหม่ ต้องอัปเดต attribute นี้ด้วย
+                         */
+                        $taskIsMine = auth()->user()->can('participate', $task);
                         $canReopenTask = auth()->user()->can('reopen', $task);
                         $isReadOnlyTask = ! $canWorkTask && ! $canReopenTask;
                         $canEditSchedule = $canWorkTask
@@ -198,7 +209,7 @@
                         $crossDepartment = \App\Support\CrossDepartmentWork::marker($task, $workspaceSubject);
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
-                    <article class="board-reference-row task-priority-{{ $priority[1] }} {{ $isReadOnlyTask ? 'is-readonly' : '' }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-cross-department="{{ $crossDepartment ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-search-text="{{ $taskSearchText }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
+                    <article class="board-reference-row task-priority-{{ $priority[1] }} {{ $isReadOnlyTask ? 'is-readonly' : '' }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-participate="{{ $taskIsMine ? 1 : 0 }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-cross-department="{{ $crossDepartment ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-search-text="{{ $taskSearchText }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
                         <div class="board-reference-task">
                             @include('tasks.components.task-details', ['task' => $task])
                         </div>

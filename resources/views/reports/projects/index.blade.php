@@ -57,6 +57,12 @@
         น้ำเงินคืองานที่เสร็จ อำพันคืองานที่ได้รับ แดงใช้สื่อ "ล่าช้า" อย่างเดียว
     --}}
     <section class="project-report__charts" aria-label="กราฟรายงานโปรเจกต์ประจำเดือน">
+        @if($chartProjectLabel)
+            <div class="project-report__chart-scope" role="status">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                กราฟแสดงเฉพาะโปรเจกต์ <strong>{{ $chartProjectLabel }}</strong>
+            </div>
+        @endif
         <article class="project-report__card project-report__chart-card project-report__chart-card--trend" data-report-chart data-chart-kind="bar" data-chart-state="loading">
             <div class="project-report__chart-head">
                 <h2>{{ $trendTitle }}</h2>

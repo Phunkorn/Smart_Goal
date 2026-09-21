@@ -233,6 +233,20 @@
 /* กราฟสี่ใบ 2 × 2 ยุบเป็นคอลัมน์เดียวบนแท็บเล็ต */
 .project-report__charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .project-report__charts > .project-report__card { margin-bottom: 0; }
+.project-report__chart-scope {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 12px;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    background: #eff6ff;
+    color: #475569;
+    font-size: .82rem;
+}
+.project-report__chart-scope i { color: #2563eb; }
+.project-report__chart-scope strong { color: #1e3a8a; font-weight: 600; }
 .project-report__chart-card { --report-chart-height: 300px; --report-chart-height-mobile: 260px; }
 
 /* โดนัทงานที่ปิดได้รายคนกับตารางชื่อ/จำนวน/% วางคู่กัน ยุบซ้อนบนจอแคบ */

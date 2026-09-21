@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {mountDom} from './helpers/dom.js';
+import {initAutoSubmitFilters} from '../../resources/js/components/auto-submit-filter.js';
+import {initSelectDropdowns} from '../../resources/js/components/select-dropdown.js';
 import {initNotificationCenter} from '../../resources/js/pages/notifications.js';
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -31,6 +33,32 @@ const confirmedSwal = (calls) => ({
         calls.push(options);
         return {isConfirmed: true};
     },
+});
+
+test('choosing a notification filter from the custom dropdown submits immediately', () => {
+    const mounted = mountDom(`
+        <form data-auto-submit-form>
+            <label data-sg-select>
+                <span>ประเภทการแจ้งเตือน</span>
+                <select name="category" data-auto-submit>
+                    <option value="all">ทุกประเภท</option>
+                    <option value="comment">ความคิดเห็น</option>
+                </select>
+            </label>
+        </form>
+    `);
+    const form = mounted.document.querySelector('form');
+    let submissions = 0;
+    form.requestSubmit = () => submissions++;
+
+    initSelectDropdowns(mounted.document);
+    initAutoSubmitFilters(mounted.document);
+    mounted.document.querySelector('.sg-select__trigger').click();
+    mounted.document.querySelector('.sg-select__option[data-value="comment"]').click();
+
+    assert.equal(form.elements.category.value, 'comment');
+    assert.equal(submissions, 1);
+    mounted.cleanup();
 });
 
 test('single delete confirms with SweetAlert, removes the row, and synchronizes badges and empty state', async () => {
@@ -107,7 +135,10 @@ test('notification redesign keeps filters focused, the full row actionable, and 
     assert.match(blade, /data-bs-boundary="viewport"/);
     assert.match(blade, /class="notification-center__item-link"/);
     assert.match(blade, /data-bs-target="#notificationFilters"/);
+    assert.match(blade, /data-auto-submit-form/);
+    assert.equal((blade.match(/data-auto-submit/g) || []).length >= 3, true);
     assert.doesNotMatch(blade, />งาน<\/a>/);
+    assert.match(js, /initAutoSubmitFilters\(document\)/);
     assert.match(js, /swal = globalThis\.Swal/);
     assert.doesNotMatch(js, /\bconfirm\s*\(/);
 });

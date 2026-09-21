@@ -13,7 +13,6 @@
 @section('content')
 @php
     $categories = ['task' => 'เกี่ยวกับงาน', 'review' => 'รอตรวจหรืออนุมัติ', 'comment' => 'ความคิดเห็น', 'deadline' => 'กำหนดเวลา', 'meeting' => 'การประชุม', 'worklog' => 'งานประจำวัน', 'system' => 'จากระบบ'];
-    $icons = ['task' => 'bi-briefcase', 'review' => 'bi-check2-circle', 'comment' => 'bi-chat-dots', 'deadline' => 'bi-alarm', 'meeting' => 'bi-calendar-event-fill', 'worklog' => 'bi-journal-check', 'system' => 'bi-gear'];
     $status = $filters['status'] ?? 'all';
     $category = $filters['category'] ?? 'all';
     $projectId = $filters['project'] ?? null;
@@ -60,7 +59,7 @@
         </div>
     </header>
 
-    <form method="GET" class="notification-center__filters">
+    <form method="GET" class="notification-center__filters" data-auto-submit-form>
         <div class="notification-center__filter-bar">
             <nav class="notification-center__tabs" aria-label="สถานะการอ่าน">
                 <a href="{{ route('notifications.index', array_filter(['category' => $category === 'all' ? null : $category, 'project' => $projectId])) }}" @class(['active' => $status === 'all'])>
@@ -79,9 +78,9 @@
         <div id="notificationFilters" @class(['collapse', 'show' => $hasAdvancedFilters])>
             <div class="notification-center__advanced-filters">
                 <input type="hidden" name="status" value="{{ $status }}">
-                <label>
+                <label data-sg-select>
                     <span>ประเภทการแจ้งเตือน</span>
-                    <select class="form-select" name="category">
+                    <select class="form-select" name="category" data-auto-submit>
                         <option value="all">ทุกประเภท</option>
                         @foreach($categories as $value => $label)
                             <option value="{{ $value }}" @selected($category === $value)>{{ $label }}</option>
@@ -89,9 +88,9 @@
                     </select>
                 </label>
                 @if($projects->isNotEmpty())
-                    <label>
+                    <label data-sg-select>
                         <span>โปรเจกต์</span>
-                        <select class="form-select" name="project">
+                        <select class="form-select" name="project" data-auto-submit>
                             <option value="">ทุกโปรเจกต์</option>
                             @foreach($projects as $project)
                                 <option value="{{ $project->id }}" @selected((string) $projectId === (string) $project->id)>{{ $project->name }}</option>
@@ -115,9 +114,9 @@
                 <h2>{{ $group }}</h2>
                 <div class="notification-center__group-list">
                     @foreach($notifications as $notice)
-                        <article data-notification-center-item data-notification-id="{{ $notice->id }}" @class(['notification-center__item', 'is-unread' => ! $notice->read_at])>
+                        <article data-notification-center-item data-notification-id="{{ $notice->id }}" @class(['notification-center__item', 'notification-center__item--'.$notice->category, 'is-unread' => ! $notice->read_at])>
                             <a href="{{ route('notifications.open', $notice->id) }}" class="notification-center__item-link" aria-label="เปิดการแจ้งเตือน: {{ $notice->title }}">
-                                <span class="notification-center__icon category-{{ $notice->category }}" aria-hidden="true"><i class="bi {{ $icons[$notice->category] ?? $icons['system'] }}"></i></span>
+                                <span class="notification-center__icon" aria-hidden="true">@include('notifications.components.category-icon', ['category' => $notice->category])</span>
                                 <div class="notification-center__content">
                                     <div class="notification-center__title-line">
                                         <span class="notification-center__title">{{ $notice->title }}</span>

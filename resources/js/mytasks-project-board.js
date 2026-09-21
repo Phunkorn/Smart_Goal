@@ -20,6 +20,8 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
     const search = workspace.querySelector('[data-search]');
     const filter = workspace.querySelector('[data-filter]');
     const sort = workspace.querySelector('[data-sort]');
+    // ปุ่มสลับ "เฉพาะงานของฉัน" — มีเฉพาะหน้า "งานของฉัน" หน้าอื่นได้ null แล้วตัวกรองปิดอยู่เสมอ
+    const mineToggle = workspace.querySelector('[data-board-mine-toggle]');
     const toast = document.querySelector('[data-toast]');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const attachmentModal = document.querySelector('[data-board-attachment-modal]');
@@ -66,6 +68,10 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
     const initialFilterState = boardFilterStateFrom(new URLSearchParams(window.location.search));
     if (search) search.value = initialFilterState.search;
     if (filter) filter.value = initialFilterState.status;
+    if (mineToggle && initialFilterState.mine) {
+        mineToggle.setAttribute('aria-pressed', 'true');
+        mineToggle.classList.add('is-active');
+    }
     let dueSort = initialFilterState.dueSort;
     let ascending = dueSort !== 'desc';
     const statusMeta = {
@@ -386,6 +392,9 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         search: search?.value || '',
         status: filter?.value || '',
         dueSort,
+        // ปุ่มเองคือแหล่งความจริงเดียว แบบเดียวกับ search.value และ filter.value
+        // ไม่เก็บสถานะไว้ในตัวแปรระดับโมดูลอีกชุดให้หลุดกันได้
+        mine: mineToggle?.getAttribute('aria-pressed') === 'true',
     });
 
     const synchronizeFilterUrl = () => {
@@ -407,14 +416,29 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 
         // ตัวกรองทำงานกับงานระดับบนสุด งานย่อยติดตามงานแม่ไปเสมอ
         board.querySelectorAll('[data-board-task]:not([data-board-subtask])').forEach((task) => {
+            const subtasks = [...task.querySelectorAll('[data-board-subtask]')];
+
+            /*
+             * งานย่อยที่เราถูกมอบหมาย ใต้งานแม่ของคนอื่น ต้องไม่หายไปพร้อมงานแม่
+             *
+             * งานย่อยนั้นคือ "งานที่ได้รับมอบหมาย" จริง ๆ ถ้าซ่อนงานแม่ทิ้ง ผู้ใช้จะมองไม่เห็นมันเลย
+             * งานแม่ที่เหลืออยู่ยังแสดงแบบ read-only ตามสิทธิ์เดิมทุกประการ ไม่มีปุ่มอะไรเพิ่มขึ้นมา
+             *
+             * ยกเว้นให้เฉพาะมิติ "เป็นงานของฉันไหม" เท่านั้น จึงส่งต่อเป็น participate ของงานแม่
+             * ไม่ใช่ไปปลดเงื่อนไข task.hidden ทีหลัง มิฉะนั้นงานแม่จะโผล่ข้ามตัวกรองสถานะ
+             * และคำค้นที่ตัดมันทิ้งไปแล้วด้วย
+             */
+            const hasOwnSubtask = state.mine
+                && subtasks.some((subtask) => subtask.dataset.participate === '1');
+
             const taskMatches = boardTaskMatches({
                 searchable: task.dataset.searchText || ((task.dataset.projectName || '') + ' ' + task.textContent),
                 status: task.dataset.status,
                 canReview: task.dataset.canReview,
                 late: task.dataset.late,
                 crossDepartment: task.dataset.crossDepartment,
+                participate: hasOwnSubtask ? '1' : task.dataset.participate,
             }, state);
-            const subtasks = [...task.querySelectorAll('[data-board-subtask]')];
             const parentSearchable = String(task.dataset.searchText || ((task.dataset.projectName || '') + ' ' + task.textContent)).toLowerCase();
             const reviewSubtasks = status === 'my_review'
                 ? subtasks.filter((subtask) => {
@@ -424,13 +448,26 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                         status: subtask.dataset.status,
                         canReview: subtask.dataset.canReview,
                         late: subtask.dataset.late,
+                        participate: subtask.dataset.participate,
                     }, {...state, search: ''});
 
                     return isPendingReview && (!query || parentSearchable.includes(query) || subtaskSearchable.includes(query));
                 })
                 : [];
 
-            subtasks.forEach((subtask) => subtask.classList.toggle('is-review-match', reviewSubtasks.includes(subtask)));
+            subtasks.forEach((subtask) => {
+                subtask.classList.toggle('is-review-match', reviewSubtasks.includes(subtask));
+                /*
+                 * งานย่อยที่เราไม่ได้ร่วม ต้องหายไปด้วยตอนเปิด "เฉพาะงานของฉัน"
+                 *
+                 * นี่เป็นข้อยกเว้นเดียวของกติกา "งานย่อยติดตามงานแม่ไปเสมอ" ด้านบน เพราะงานแม่
+                 * ของคนอื่นถูกคงไว้ได้ด้วยงานย่อยของเรา ถ้าไม่ซ่อนตรงนี้ แผงงานย่อยจะกางงานของ
+                 * คนอื่นออกมาทั้งชุด ซึ่งย้อนแย้งกับสิ่งที่ปุ่มบอกว่าจะทำ
+                 *
+                 * ตั้งค่าทุกรอบไม่ใช่เฉพาะตอนเปิด มิฉะนั้นกดปิดแล้วงานย่อยที่เคยซ่อนจะไม่กลับมา
+                 */
+                subtask.hidden = state.mine && subtask.dataset.participate !== '1';
+            });
             task.hidden = !taskMatches && reviewSubtasks.length === 0;
 
             const panel = task.querySelector('[data-task-details-panel]');
@@ -453,7 +490,10 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         board.querySelectorAll('[data-project-header]').forEach((header) => {
             const projectTasks = tasksForProject(header);
             const visibleInProject = projectTasks.filter((task) => !task.hidden).length;
-            const emptyProjectMatch = projectTasks.length === 0 && !status && (!query || (header.dataset.projectName || '').toLowerCase().includes(query));
+            // โปรเจกต์ที่ไม่มีงานเลยเคยถูกคงไว้เพื่อให้ผู้ใช้เพิ่มงานใบแรกได้
+            // แต่ระหว่างดู "เฉพาะงานของฉัน" มันคือโปรเจกต์ที่เราไม่มีงานอยู่ จึงต้องหายไปด้วย
+            const emptyProjectMatch = projectTasks.length === 0 && !status && !state.mine
+                && (!query || (header.dataset.projectName || '').toLowerCase().includes(query));
             header.hidden = visibleInProject === 0 && !emptyProjectMatch;
             const count = header.querySelector('[data-board-visible-count]');
             if (count) count.textContent = visibleInProject;
@@ -464,11 +504,20 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         board.querySelectorAll('[data-completed-group]').forEach((group) => {
             const visibleCompleted = [...group.querySelectorAll('[data-board-task]:not([data-board-subtask])')]
                 .some((task) => !task.hidden);
-            group.hidden = Boolean(status || query) && !visibleCompleted;
+            group.hidden = Boolean(status || query || state.mine) && !visibleCompleted;
         });
 
         const empty = board.querySelector('[data-board-empty]');
-        if (empty) empty.hidden = visibleTasks > 0;
+        if (empty) {
+            empty.hidden = visibleTasks > 0;
+            // บอกให้ตรงว่าตัวกรองไหนเป็นคนซ่อน — ถ้ามีแต่ปุ่ม "เฉพาะงานของฉัน" ที่เปิดอยู่
+            // ข้อความทั่วไปจะทำให้เข้าใจผิดว่าโปรเจกต์นี้ไม่มีงานเหลือแล้วจริง ๆ
+            const mineOnly = state.mine && !status && !query;
+            const generic = empty.querySelector('[data-board-empty-generic]');
+            const mineMessage = empty.querySelector('[data-board-empty-mine]');
+            if (generic) generic.hidden = mineOnly;
+            if (mineMessage) mineMessage.hidden = !mineOnly;
+        }
         if (synchronizeUrl) synchronizeFilterUrl();
     };
 
@@ -500,6 +549,13 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 
     search?.addEventListener('input', () => filterBoard());
     filter?.addEventListener('change', () => filterBoard());
+    mineToggle?.addEventListener('click', () => {
+        const next = mineToggle.getAttribute('aria-pressed') !== 'true';
+        mineToggle.setAttribute('aria-pressed', String(next));
+        mineToggle.classList.toggle('is-active', next);
+        // filterBoard() ตามค่าเริ่มต้นจะ sync URL ให้เอง เหมือน handler ของช่องค้นหาและสถานะ
+        filterBoard();
+    });
     workspace.querySelectorAll('[data-summary-filter]').forEach((button) => button.addEventListener('click', () => setTimeout(filterBoard)));
     sort?.addEventListener('click', () => {
         ascending = !ascending;

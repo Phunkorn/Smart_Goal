@@ -44,6 +44,13 @@ export const boardFilterStateFrom = (parameters) => {
         search: (source.get('search') || '').trim(),
         status: boardStatuses.has(status) ? status : '',
         dueSort: dueSorts.has(dueSort) ? dueSort : '',
+        /*
+         * ?mine=1 — ปุ่ม "เฉพาะงานของฉัน" บนบอร์ด
+         *
+         * เทียบกับ '1' แบบเข้ม ค่าที่พิมพ์ผิดอย่าง mine=true หรือ mine=0 จึงกลายเป็น false
+         * เหมือนที่ boardStatuses/dueSorts ปฏิเสธค่านอกรายการ ค่าเริ่มต้นคือปิดเสมอ
+         */
+        mine: source.get('mine') === '1',
     };
 };
 
@@ -54,6 +61,7 @@ export const parametersForTaskWorkspace = (parameters, state, scope) => {
         search: String(state?.search || '').trim(),
         status: boardStatuses.has(String(state?.status || '')) ? String(state.status || '') : '',
         dueSort: dueSorts.has(String(state?.dueSort || '')) ? String(state.dueSort || '') : '',
+        mine: state?.mine === true,
     };
 
     if (normalizedScope === 'all') result.delete('task_scope');
@@ -63,6 +71,7 @@ export const parametersForTaskWorkspace = (parameters, state, scope) => {
         ['search', normalizedState.search],
         ['status', normalizedState.status],
         ['due_sort', normalizedState.dueSort],
+        ['mine', normalizedState.mine ? '1' : ''],
     ]) {
         if (value) result.set(key, value);
         else result.delete(key);
@@ -76,6 +85,15 @@ export const boardTaskMatches = (task, state) => {
     const query = String(state?.search || '').trim().toLowerCase();
     const status = String(state?.status || '');
     const textMatch = !query || searchable.includes(query);
+
+    /*
+     * ตัวกรอง "เฉพาะงานของฉัน" — ตัดสินจาก data-participate ที่ server ใส่มา
+     * ซึ่งมาจาก WorkOrderPolicy::participate() ที่เดียว ห้ามเดาความเป็นเจ้าของจากฝั่ง client
+     *
+     * เป็น AND กับเงื่อนไขอื่นเสมอ มันจึงกรองได้แคบลงอย่างเดียว ไม่มีทางดึงงานที่ตัวกรอง
+     * สถานะหรือคำค้นตัดทิ้งไปแล้วกลับขึ้นมา
+     */
+    const mineMatch = ! state?.mine || String(task.participate) === '1';
 
     // งานที่ "ถึงคิวเราตรวจ" คืองานรอตรวจที่เราตรวจได้ หรืองานแม่ที่มีงานย่อยรอเราตรวจอยู่
     const waitsForMe = (String(task.status) === '3' && String(task.canReview) === '1')
@@ -93,5 +111,5 @@ export const boardTaskMatches = (task, state) => {
                     ? String(task.status) === '3' && ! waitsForMe
                     : String(task.status) === status);
 
-    return textMatch && statusMatch;
+    return textMatch && statusMatch && mineMatch;
 };

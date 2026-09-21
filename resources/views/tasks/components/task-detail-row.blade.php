@@ -19,6 +19,9 @@
     $detailCommentLabel = $detailComments ? 'ดูคอมเมนต์ '.$detailComments.' รายการ' : 'ยังไม่มีคอมเมนต์';
     $detailAssigneeName = $detail->user?->name ?? auth()->user()->name;
     $detailCanWork = auth()->user()->can('work', $detail);
+    // "งานย่อยใบนี้เป็นของฉันไหม" — ใช้เกณฑ์เดียวกับแถวงานแม่ใน project-board-card.blade.php
+    // งานย่อยที่เราถูกมอบหมาย ทำให้งานแม่ของคนอื่นยังแสดงอยู่เมื่อเปิดปุ่ม "เฉพาะงานของฉัน"
+    $detailIsMine = auth()->user()->can('participate', $detail);
     $detailCanManageTeam = auth()->user()->can('manageTeam', $detail);
     $detailCanEditSchedule = $detailCanWork && ((int) $detail->job_status !== 4 || auth()->user()->role === 'admin');
     $detailShowsReviewStage = \App\Support\TaskReviewStage::appliesTo($detail, auth()->user());
@@ -47,6 +50,7 @@
     data-detail-target="0"
     data-detail-id="{{ $detail->job_id }}"
     data-task-id="{{ $detail->job_id }}"
+    data-participate="{{ $detailIsMine ? 1 : 0 }}"
     data-work-order-id="{{ $task->job_id }}"
     data-project-key="{{ $projectKey ?? '' }}"
     data-project-name="{{ $detail->taskList?->name ?? 'งานทั่วไป' }}"

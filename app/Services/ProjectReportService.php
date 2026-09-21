@@ -121,6 +121,11 @@ final class ProjectReportService
         $filterOptions = $this->filterOptions($rows);
         $filters = $this->normalizeFilters($request, $filterOptions);
         $taskRows = $this->sortRows($this->filterRows($rows, $filters), $filters['sort']);
+        // กราฟติดตามโปรเจกต์ที่เลือก แต่ยังนับเฉพาะงานที่รับผิดชอบตามนิยามเดิม
+        // ตัวกรองอื่นเป็นตัวกรองตารางและ CSV จึงไม่เปลี่ยนความหมายของกราฟ
+        $chartRows = $filters['project']
+            ? $ownedRows->where('project.key', $filters['project'])->values()
+            : $ownedRows;
 
         // KPI เดิมและกราฟนับเฉพาะงานที่รับผิดชอบ (ownedRows) — ตัวเลขเหมือนก่อนมีงานที่ร่วมทำทุกประการ
         $completedJobs = $jobs->filter(fn (WorkOrder $job): bool => ReportMetrics::isCompleted($job)
@@ -145,7 +150,8 @@ final class ProjectReportService
             'periodTo' => $period->toValue(),
             'isCustomPeriod' => $period->isCustom,
             'trendTitle' => $period->trendTitle(),
-            'monthOptions' => ReportMonth::options() + [ReportPeriod::CUSTOM => 'กำหนดช่วงวันที่เอง…'],
+            // แสดงทางเลือกกำหนดช่วงเองไว้บนสุดให้ค้นพบง่าย แต่ selected ยังมาจากช่วงปัจจุบันตามเดิม
+            'monthOptions' => [ReportPeriod::CUSTOM => 'กำหนดช่วงวันที่เอง…'] + ReportMonth::options(),
             'totalJobs' => $jobs->count(),
             'kpis' => [
                 ['key' => 'projects', 'label' => 'โปรเจกต์ที่มีงานรับผิดชอบ', 'value' => $jobs->pluck('work_order_list_id')->filter()->unique()->count(), 'unit' => 'โปรเจกต์', 'icon' => 'bi-folder2-open', 'tone' => 'blue'],
@@ -158,11 +164,12 @@ final class ProjectReportService
             ],
             'filters' => $filters,
             'filterOptions' => $filterOptions,
+            'chartProjectLabel' => $filters['project'] ? $filterOptions['projects'][$filters['project']] : null,
             'hasActiveFilters' => collect(['project', 'status', 'scope', 'role', 'q'])
                 ->contains(fn (string $key): bool => $filters[$key] !== null),
             'query' => $query,
             'taskRows' => $taskRows,
-            'chartData' => $this->chartData($ownedRows, $subjects, $owner, $period, $now),
+            'chartData' => $this->chartData($chartRows, $subjects, $owner, $period, $now, $filters['project']),
         ];
     }
 
@@ -282,7 +289,7 @@ final class ProjectReportService
     }
 
     /**
-     * กราฟของหน้า — ไม่ขึ้นกับตัวกรอง เหมือน KPI และนับเฉพาะงานที่รับผิดชอบ (ผู้เรียกส่ง ownedRows มา)
+     * กราฟของหน้า — ตามโปรเจกต์ที่เลือก แต่นับเฉพาะงานที่รับผิดชอบเหมือนเดิม
      *
      * ทุกมุมมอง (2 ใบ):
      * trend: แนวโน้มรายเดือนตั้งแต่มกราคมถึงเดือนที่เลือก (ปีเดียวกัน) งานที่ได้รับเทียบงานที่เสร็จ
@@ -298,13 +305,13 @@ final class ProjectReportService
      * @param  Collection<int, User>  $subjects
      * @return array{trend: array<string, mixed>, status: array<string, mixed>, late: array<string, mixed>|null, breakdown: array<string, mixed>|null}
      */
-    private function chartData(Collection $rows, Collection $subjects, ?User $owner, ReportPeriod $period, CarbonInterface $now): array
+    private function chartData(Collection $rows, Collection $subjects, ?User $owner, ReportPeriod $period, CarbonInterface $now, ?string $project): array
     {
         $statuses = collect(self::STATUS_CHART_ORDER)
             ->mapWithKeys(fn (string $key): array => [$key => WorkBoardDesign::statusMeta($key)]);
 
         return [
-            'trend' => $this->monthlyTrend($subjects, $period),
+            'trend' => $this->monthlyTrend($subjects, $period, $project),
             'status' => [
                 'keys' => $statuses->keys()->all(),
                 'labels' => $statuses->pluck('label')->values()->all(),
@@ -400,7 +407,7 @@ final class ProjectReportService
      * @param  Collection<int, User>  $subjects
      * @return array{keys: list<string>, labels: list<string>, created: list<int>, completed: list<int>, selected: int, all_selected: bool}
      */
-    private function monthlyTrend(Collection $subjects, ReportPeriod $period): array
+    private function monthlyTrend(Collection $subjects, ReportPeriod $period, ?string $project = null): array
     {
         $buckets = $period->trendBuckets();
         $from = $buckets[0]['start']->utc();
@@ -408,6 +415,9 @@ final class ProjectReportService
         $jobs = WorkOrder::query()
             ->select(['job_id', 'parent_job_id', 'job_status', 'created_at', 'job_completed_at'])
             ->assignedToAny($subjects->pluck('id')->map(fn ($id): int => (int) $id)->all())
+            ->when($project, fn (Builder $query, string $project) => $project === self::NO_PROJECT
+                ? $query->whereNull('work_order_list_id')
+                : $query->where('work_order_list_id', (int) $project))
             ->where(function ($query) use ($from, $to): void {
                 $query->whereBetween('created_at', [$from, $to])
                     ->orWhere(function ($completed) use ($from, $to): void {

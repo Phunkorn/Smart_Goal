@@ -166,7 +166,8 @@ class SidebarNavigationTest extends TestCase
                 ->get(route($routeName))
                 ->assertOk()
                 ->assertSee('<span class="brand-mark" aria-hidden="true"><img src="'.$logo.'" alt=""></span>', false)
-                ->assertSee('class="topbar-brand"', false)
+                ->assertSee('<div class="topbar-brand">', false)
+                ->assertDontSee('<a class="topbar-brand"', false)
                 ->assertSee('<span class="topbar-brand__name">Smart Goals</span>', false)
                 ->assertSee('<span class="topbar-brand__subtitle">ระบบจัดการองค์กร</span>', false)
                 // ชื่อระบบต้องไม่เหลือค้างอยู่ในหัว Sidebar อีก

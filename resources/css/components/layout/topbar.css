@@ -58,10 +58,6 @@
             white-space: nowrap;
         }
 
-        .topbar-brand:hover .topbar-brand__name {
-            text-decoration: underline;
-        }
-
         .topbar .search {
             flex: 1;
             max-width: 380px;

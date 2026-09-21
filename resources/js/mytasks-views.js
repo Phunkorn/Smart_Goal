@@ -27,6 +27,14 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
      */
     const statusFilter = workspace.querySelector('[data-board-status-filter]');
     const STATUS_FILTER_VIEWS = ['table', 'board'];
+    /*
+     * ปุ่ม "เฉพาะงานของฉัน" มีความหมายเฉพาะมุมมองบอร์ด
+     *
+     * มุมมองตารางกรองด้วย ability participate ที่ฝั่ง server อยู่แล้ว ปุ่มที่นั่นจึงไม่มีผล
+     * ส่วนปฏิทินจัดวางงานตามวัน การซ่อนงานจะทำให้ช่องวันหายไปเฉย ๆ โดยไม่บอกอะไร
+     */
+    const mineFilter = workspace.querySelector('[data-board-mine-filter]');
+    const MINE_FILTER_VIEWS = ['board'];
     const scopeControl = workspace.querySelector('[data-task-scope-control]');
     if (!database) return;
     if (!tabs.length) {
@@ -67,6 +75,7 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
          * ผู้ใช้จึงเสียตัวกรองไปจนกว่าจะรีโหลดหน้าเอง
          */
         if (statusFilter) statusFilter.hidden = ! STATUS_FILTER_VIEWS.includes(view);
+        if (mineFilter) mineFilter.hidden = ! MINE_FILTER_VIEWS.includes(view);
         tabs.forEach((tab) => {
             const active = tab.dataset.view === view;
             tab.classList.toggle('active', active);

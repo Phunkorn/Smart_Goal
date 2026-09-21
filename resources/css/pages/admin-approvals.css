@@ -14,8 +14,8 @@
 .admin-approvals-eyebrow,
 .admin-approvals-queue__heading > div > span {
     color: var(--approvals-accent);
-    font-size: .72rem;
-    font-weight: 800;
+    font-size: .76rem;
+    font-weight: 600;
     letter-spacing: .08em;
 }
 
@@ -108,8 +108,8 @@
     border-bottom: 1px solid var(--approvals-line);
 }
 
-.admin-approvals-queue__heading h2 { margin: 3px 0 0; font-size: 1.15rem; font-weight: 800; }
-.admin-approvals-queue__heading p { margin: 4px 0 0; color: var(--approvals-muted); font-size: .82rem; }
+.admin-approvals-queue__heading h2 { margin: 3px 0 0; font-size: 1.18rem; font-weight: 600; line-height: 1.45; }
+.admin-approvals-queue__heading p { margin: 4px 0 0; color: var(--approvals-muted); font-size: .86rem; line-height: 1.65; }
 
 .admin-approvals-group + .admin-approvals-group { border-top: 1px solid var(--approvals-line); }
 .admin-approvals-group__heading {
@@ -120,7 +120,8 @@
     background: #f5f3ff;
     color: #5b21b6;
 }
-.admin-approvals-group__heading span { margin-left: auto; color: var(--approvals-muted); font-size: .8rem; font-weight: 700; }
+.admin-approvals-group__heading strong { font-weight: 600; }
+.admin-approvals-group__heading span { margin-left: auto; color: var(--approvals-muted); font-size: .82rem; font-weight: 500; }
 
 .admin-approvals-status {
     display: inline-flex;
@@ -130,8 +131,9 @@
     border-radius: 999px;
     background: #eff6ff;
     color: #1d4ed8;
-    font-size: .78rem;
-    font-weight: 700;
+    width: fit-content;
+    font-size: .8rem;
+    font-weight: 500;
 }
 .admin-approvals-status.is-purple { background: #f5f3ff; color: #6d28d9; }
 .admin-approvals-status.is-green { background: #ecfdf5; color: #047857; }
@@ -150,19 +152,58 @@
     padding: 11px 20px;
     background: var(--approvals-background);
     color: var(--approvals-muted);
-    font-size: .76rem;
-    font-weight: 800;
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1.5;
     text-transform: uppercase;
 }
 
-.admin-approvals-request { padding: 16px 20px; border-top: 1px solid var(--approvals-line); }
+.admin-approvals-request { padding: 16px 20px; border-top: 1px solid var(--approvals-line); line-height: 1.55; }
 .admin-approvals-list__header + .admin-approvals-request { border-top: 0; }
 .admin-approvals-request__cell strong,
-.admin-approvals-request__cell > span:not(.badge) { display: block; }
-.admin-approvals-request__cell strong { font-size: .92rem; }
-.admin-approvals-request__cell > span:not(.badge) { margin-top: 3px; color: var(--approvals-muted); font-size: .8rem; }
+.admin-approvals-request__cell > span:not(.badge, .admin-approvals-status) { display: block; }
+.admin-approvals-request__cell strong { font-size: .96rem; font-weight: 500; }
+.admin-approvals-request__cell > span:not(.badge, .admin-approvals-status) { margin-top: 3px; color: var(--approvals-muted); font-size: .83rem; }
 .admin-approvals-request__topic .badge { margin-top: 6px; }
 .admin-approvals-request__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.admin-approvals-request__actions .btn { font-size: .8rem; font-weight: 500; }
+
+.admin-approvals-list--outgoing .admin-approvals-list__header,
+.admin-approvals-list--outgoing .admin-approvals-request {
+    grid-template-columns: minmax(240px, 1.4fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(210px, 1.05fr) minmax(110px, .55fr);
+}
+
+.admin-approvals-list--outgoing .admin-approvals-list__header > :last-child {
+    text-align: right;
+}
+
+.admin-approvals-request__tracking {
+    display: grid;
+    gap: 7px;
+}
+
+.admin-approvals-request__schedule {
+    display: grid;
+    gap: 4px;
+    color: var(--approvals-muted);
+    font-size: .79rem;
+    line-height: 1.5;
+}
+
+.admin-approvals-request__schedule > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.admin-approvals-priority {
+    color: #475569;
+}
+
+.admin-approvals-priority.is-red { color: #b91c1c; }
+.admin-approvals-priority.is-amber { color: #b45309; }
+.admin-approvals-priority.is-green { color: #047857; }
+.admin-approvals-priority.is-blue { color: #1d4ed8; }
 
 /* รายละเอียดงานพับเก็บไว้ ผู้อนุมัติกางดูได้โดยไม่ทำให้แถวยาวขึ้นทุกแถว */
 .admin-approvals-request__details { margin-top: 6px; }
@@ -206,6 +247,9 @@
         border-radius: 12px;
         background: var(--approvals-surface);
     }
+    .admin-approvals-list--outgoing .admin-approvals-request {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .admin-approvals-request__cell::before {
         display: block;
         margin-bottom: 4px;
@@ -226,6 +270,7 @@
     .admin-approvals-summary__card strong { margin-top: 5px; font-size: 1.45rem; }
     .admin-approvals-queue__heading { align-items: flex-start; padding: 16px; }
     .admin-approvals-request { grid-template-columns: 1fr; }
+    .admin-approvals-list--outgoing .admin-approvals-request { grid-template-columns: 1fr; }
     .admin-approvals-request__topic,
     .admin-approvals-request__actions { grid-column: auto; }
     .admin-approvals-request__actions { display: grid; grid-template-columns: 1fr 1fr; }

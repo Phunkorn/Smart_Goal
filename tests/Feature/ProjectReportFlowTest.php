@@ -11,6 +11,7 @@ use App\Models\WorkOrderUpdate;
 use App\Models\WorkOrderUpdateAttachment;
 use App\Services\ProjectReportService;
 use App\Support\ReportMetrics;
+use App\Support\ReportPeriod;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -465,6 +466,46 @@ class ProjectReportFlowTest extends TestCase
         $this->assertFalse($ignored->viewData('hasActiveFilters'));
         $this->assertCount(3, $ignored->viewData('taskRows'));
         $this->assertSame('date_desc', $ignored->viewData('filters')['sort']);
+    }
+
+    public function test_project_filter_scopes_charts_for_department_head_and_admin_without_changing_kpis(): void
+    {
+        $selectedProject = WorkOrderList::create(['user_id' => $this->itMember->id, 'name' => 'โปรเจกต์ที่เลือก']);
+        $otherProject = WorkOrderList::create(['user_id' => $this->itMember->id, 'name' => 'โปรเจกต์อื่น']);
+        $this->task($this->itMember, 'งานในโปรเจกต์ที่เลือก', ['work_order_list_id' => $selectedProject->id]);
+        $this->task($this->itMember, 'งานในโปรเจกต์อื่น', [
+            'work_order_list_id' => $otherProject->id,
+            'job_status' => 4,
+            'job_completed_at' => '2026-08-15 09:00:00',
+        ]);
+
+        $queries = [
+            [$this->head, ['project' => (string) $selectedProject->id]],
+            [$this->admin, ['owner' => 'department-'.$this->it->id, 'project' => (string) $selectedProject->id]],
+        ];
+
+        foreach ($queries as [$viewer, $query]) {
+            $response = $this->actingAs($viewer)->get(route('reports.projects', $query))
+                ->assertOk()
+                ->assertSee('กราฟแสดงเฉพาะโปรเจกต์')
+                ->assertSee($selectedProject->name);
+            $charts = $response->viewData('chartData');
+
+            $this->assertSame(1, $charts['status']['total']);
+            $this->assertSame(1, $charts['status']['values'][1]);
+            $this->assertSame(1, $charts['trend']['created'][array_key_last($charts['trend']['created'])]);
+            $this->assertSame($selectedProject->name, $response->viewData('chartProjectLabel'));
+            $this->assertSame(2, collect($response->viewData('kpis'))->firstWhere('key', 'owned')['value']);
+        }
+    }
+
+    public function test_custom_period_is_the_first_option_but_the_current_month_stays_selected(): void
+    {
+        $response = $this->viewOf($this->itMember);
+
+        $this->assertSame(ReportPeriod::CUSTOM, array_key_first($response->viewData('monthOptions')));
+        $this->assertSame('2026-08', $response->viewData('monthKey'));
+        $response->assertSee('value="2026-08" selected', false);
     }
 
     public function test_the_main_table_previews_ten_rows_and_links_to_every_row_on_the_details_page(): void

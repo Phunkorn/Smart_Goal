@@ -1,3 +1,5 @@
+@import '../components/select-dropdown.css';
+
 .notification-center {
     --notification-border: var(--border, #e2e8f0);
     --notification-surface: var(--surface, #fff);
@@ -219,6 +221,52 @@
     max-width: 100%;
 }
 
+.notification-center__advanced-filters .sg-select {
+    width: 100%;
+}
+
+.notification-center__advanced-filters .sg-select__trigger {
+    min-height: 42px;
+    padding-inline: 12px;
+    border-color: #d8e1ee;
+    border-radius: 10px;
+    background: var(--notification-surface);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.notification-center__advanced-filters .sg-select__trigger:hover,
+.notification-center__advanced-filters .sg-select.is-open .sg-select__trigger {
+    border-color: var(--accent, #1e4fd6);
+    box-shadow: 0 0 0 3px rgb(30 79 214 / 10%);
+}
+
+.notification-center__advanced-filters .sg-select__panel {
+    z-index: 40;
+    width: 100%;
+    padding: 6px;
+    border-color: #d8e1ee;
+    border-radius: 11px;
+    box-shadow: 0 16px 34px -16px rgb(15 23 42 / 42%);
+}
+
+.notification-center__advanced-filters .sg-select__option {
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.notification-center__advanced-filters .sg-select__option.is-active {
+    background: var(--accent-dim, #e7edfc);
+}
+
+.notification-center__advanced-filters .sg-select__option[aria-selected='true'] {
+    background: #eef3ff;
+    color: var(--accent-strong, #16389e);
+    font-weight: 500;
+}
+
 .notification-center__filter-actions {
     display: flex;
     align-items: center;
@@ -251,6 +299,12 @@
 }
 
 .notification-center__item {
+    --notification-center-item-bg: var(--notification-surface);
+    --notification-center-item-border: var(--notification-border);
+    --notification-center-item-hover-bg: var(--surface-2, #f8fafc);
+    --notification-center-item-unread-bg: #f7f9ff;
+    --notification-center-item-unread-hover-bg: #eef2ff;
+    --notification-center-item-accent: var(--accent, #4f46e5);
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 40px;
@@ -258,8 +312,8 @@
     gap: 4px;
     min-width: 0;
     padding: 4px 8px 4px 6px;
-    border-bottom: 1px solid var(--notification-border);
-    background: var(--notification-surface);
+    border-bottom: 1px solid var(--notification-center-item-border);
+    background: var(--notification-center-item-bg);
     transition: background-color 160ms ease;
 }
 
@@ -277,12 +331,57 @@
 }
 
 .notification-center__item.is-unread {
-    background: #f7f9ff;
-    box-shadow: inset 3px 0 0 var(--accent, #4f46e5);
+    background: var(--notification-center-item-unread-bg);
+    box-shadow: inset 3px 0 0 var(--notification-center-item-accent);
 }
 
 .notification-center__item:hover {
-    background: var(--surface-2, #f8fafc);
+    background: var(--notification-center-item-hover-bg);
+}
+
+.notification-center__item--task {
+    --notification-center-item-bg: #FFFBEB;
+    --notification-center-item-border: #FDE68A;
+    --notification-center-item-hover-bg: #FEF3C7;
+    --notification-center-item-unread-bg: #FEF3C7;
+    --notification-center-item-unread-hover-bg: #FDE9A9;
+    --notification-center-item-accent: #CA8A04;
+}
+
+.notification-center__item--worklog {
+    --notification-center-item-bg: #EFF6FF;
+    --notification-center-item-border: #BFDBFE;
+    --notification-center-item-hover-bg: #DBEAFE;
+    --notification-center-item-unread-bg: #DBEAFE;
+    --notification-center-item-unread-hover-bg: #C9DDFB;
+    --notification-center-item-accent: #2563EB;
+}
+
+.notification-center__item--comment {
+    --notification-center-item-bg: #ECFEFF;
+    --notification-center-item-border: #A5F3FC;
+    --notification-center-item-hover-bg: #CFFAFE;
+    --notification-center-item-unread-bg: #CFFAFE;
+    --notification-center-item-unread-hover-bg: #B7F3F8;
+    --notification-center-item-accent: #0891B2;
+}
+
+.notification-center__item--review {
+    --notification-center-item-bg: #F0FDF4;
+    --notification-center-item-border: #BBF7D0;
+    --notification-center-item-hover-bg: #DCFCE7;
+    --notification-center-item-unread-bg: #DCFCE7;
+    --notification-center-item-unread-hover-bg: #C9F6D8;
+    --notification-center-item-accent: #16A34A;
+}
+
+.notification-center__item--meeting {
+    --notification-center-item-bg: #FFF7ED;
+    --notification-center-item-border: #FED7AA;
+    --notification-center-item-hover-bg: #FFEDD5;
+    --notification-center-item-unread-bg: #FFEDD5;
+    --notification-center-item-unread-hover-bg: #FFE1BD;
+    --notification-center-item-accent: #EA580C;
 }
 
 .notification-center__item-link {
@@ -308,17 +407,11 @@
     height: 40px;
     place-items: center;
     border-radius: 11px;
-    background: var(--surface-2, #f1f5f9);
-    color: var(--notification-muted);
+    border: 1px solid rgb(255 255 255 / 72%);
+    background: rgb(255 255 255 / 68%);
+    color: var(--notification-center-item-accent);
     font-size: 17px;
 }
-
-.notification-center__icon.category-review { color: #7250b5; }
-.notification-center__icon.category-comment { color: #286acb; }
-.notification-center__icon.category-deadline { color: #9a5a08; }
-.notification-center__icon.category-task { color: #08765a; }
-.notification-center__icon.category-meeting { color: #b0347c; }
-.notification-center__icon.category-worklog { color: #1f5f9e; }
 
 .notification-center__title-line {
     display: flex;
@@ -329,7 +422,7 @@
 .notification-center__title {
     min-width: 0;
     color: var(--text, #0f172a);
-    font-weight: 700;
+    font-weight: 400;
     line-height: 1.4;
     overflow-wrap: anywhere;
     text-decoration: none;
@@ -629,25 +722,18 @@
     }
 }
 
-/* ============================================================================
- * การแจ้งเตือนที่ยังไม่ได้อ่านต้องแยกออกจากพื้นหลังของหน้าให้เห็นชัด
- *
- * พื้นของหน้าคือ --bg (#F5F7FC) ส่วนการ์ดที่ยังไม่อ่านเคยใช้ #f7f9ff
- * ซึ่งต่างกันไม่ถึงหนึ่งขั้นของความสว่าง เมื่อวางเรียงกันจึงกลืนกันจนแยกไม่ออกว่า
- * รายการไหนยังไม่ได้อ่าน ทั้งที่นี่คือข้อมูลหลักที่หน้านี้ต้องสื่อ
- * ตอนนี้ใช้โทนฟ้าของ --accent-dim บวกเส้นสถานะที่หนาและเข้มขึ้น
- * ========================================================================== */
+/* รายการที่ยังไม่อ่านใช้พื้นและเส้น accent ของประเภทนั้น เพื่อรักษาทั้งสถานะและความหมายของสี */
 
 .notification-center__item.is-unread {
-    background: #E6EEFD;
-    box-shadow: inset 4px 0 0 var(--accent, #1E4FD6);
+    background: var(--notification-center-item-unread-bg);
+    box-shadow: inset 4px 0 0 var(--notification-center-item-accent);
 }
 
 .notification-center__item.is-unread:hover {
-    background: #DCE7FC;
+    background: var(--notification-center-item-unread-hover-bg);
 }
 
 .notification-center__item.is-unread .notification-center__title {
-    color: var(--accent-strong, #16389E);
-    font-weight: 700;
+    color: var(--text, #0f172a);
+    font-weight: 400;
 }

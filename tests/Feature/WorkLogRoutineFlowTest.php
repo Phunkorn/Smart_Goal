@@ -82,6 +82,13 @@ class WorkLogRoutineFlowTest extends TestCase
             $templates->pluck('weekday_mask')->map(fn ($mask) => (int) $mask)->all()
         );
         $templates->each(fn ($t) => $this->assertTrue($t->starts_on->isSameDay($t->ends_on)));
+
+        $this->actingAs($owner)
+            ->get(route('daily-logs.index', ['view' => 'calendar']))
+            ->assertOk()
+            ->assertSee('daily-plan-management__group', false)
+            ->assertSee('3 วัน')
+            ->assertSee('ดูวันที่และจัดการรายวัน');
     }
 
     public function test_editing_an_existing_weekly_template_without_active_field_preserves_its_state(): void

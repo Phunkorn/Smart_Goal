@@ -1,3 +1,6 @@
+import {initAutoSubmitFilters} from '../components/auto-submit-filter.js';
+import {initSelectDropdowns} from '../components/select-dropdown.js';
+
 const displayCount = (count) => count > 99 ? '99+' : String(count);
 
 const updateUnreadIndicators = (count) => {
@@ -160,9 +163,15 @@ export function initNotificationCenter({
 }
 
 if (typeof document !== 'undefined') {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => initNotificationCenter(), {once: true});
-    } else {
+    const initNotificationPage = () => {
+        initSelectDropdowns(document);
+        initAutoSubmitFilters(document);
         initNotificationCenter();
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initNotificationPage, {once: true});
+    } else {
+        initNotificationPage();
     }
 }

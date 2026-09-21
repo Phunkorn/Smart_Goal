@@ -240,6 +240,10 @@ class CrossDepartmentCollaborationTest extends TestCase
             ->assertSee('แผนกAccount')
             ->assertSee('ทดสอบข้ามแผนก')
             ->assertSee($this->itMember->name)
+            ->assertSee('พนักงานที่ไปร่วม')
+            ->assertSee('ผู้รับผิดชอบหลัก')
+            ->assertSee('กำหนดส่ง / สถานะ')
+            ->assertSee($task->job_due_at->timezone('Asia/Bangkok')->format('d/m/Y'))
             ->assertDontSee('งานภายใน IT')
             ->assertSee(route('work-board.member', [
                 $this->it->id,

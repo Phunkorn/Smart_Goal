@@ -2,6 +2,16 @@ const ACTIVE_INTERVAL = 3000;
 const MAX_BACKOFF = 60000;
 const MAX_DROPDOWN_ITEMS = 15;
 const REFRESH_EVENT = 'smartgoal:realtime-refresh';
+const NOTIFICATION_CATEGORIES = new Set(['task', 'worklog', 'comment', 'review', 'meeting', 'deadline', 'system']);
+const NOTIFICATION_ICONS = {
+    task: 'bi-clipboard-plus',
+    worklog: 'bi-arrow-repeat',
+    comment: 'bi-chat-dots',
+    review: 'bi-patch-check',
+    meeting: 'bi-calendar-event',
+    deadline: 'bi-alarm',
+    system: 'bi-bell',
+};
 const escapeSelector = (root, value) => root.defaultView.CSS?.escape
     ? root.defaultView.CSS.escape(String(value))
     : String(value).replace(/["\\]/g, '\\$&');
@@ -22,7 +32,16 @@ export function updateNotificationCount(root, count) {
 function notificationItem(root, event) {
     const item = root.createElement('div');
     item.className = 'p-2 mb-2 notification-item d-flex gap-2 align-items-start is-new';
+    const category = NOTIFICATION_CATEGORIES.has(event.category) ? event.category : 'system';
+    item.classList.add(`notification-item--${category}`);
     item.dataset.dropdownNotificationId = String(event.id);
+
+    const icon = root.createElement('span');
+    icon.className = 'notification-item__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    const iconGlyph = root.createElement('i');
+    iconGlyph.className = `bi ${NOTIFICATION_ICONS[category]}`;
+    icon.append(iconGlyph);
 
     const link = root.createElement('a');
     link.className = 'notification-body';
@@ -40,7 +59,7 @@ function notificationItem(root, event) {
     message.className = 'notification-meta notification-meta-tight';
     message.textContent = event.message || event.relative_time || '';
     link.append(title, message);
-    item.append(link);
+    item.append(icon, link);
     return item;
 }
 

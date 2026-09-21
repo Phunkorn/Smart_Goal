@@ -31,6 +31,8 @@ test('payload updates badges, dropdown, toast and emits a page event once', () =
     assert.equal(badge.hidden, false);
     assert.equal(badge.textContent, '3');
     assert.equal(ui.window.document.querySelectorAll('[data-dropdown-notification-id="11"]').length, 1);
+    assert.equal(ui.window.document.querySelector('[data-dropdown-notification-id="11"]').classList.contains('notification-item--comment'), true);
+    assert.equal(ui.window.document.querySelector('[data-dropdown-notification-id="11"] .notification-item__icon i').classList.contains('bi-chat-dots'), true);
     assert.equal(ui.window.document.querySelectorAll('.realtime-toast').length, 1);
     assert.equal(received.length, 1);
 });

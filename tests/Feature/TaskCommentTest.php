@@ -7,7 +7,9 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCommentRead;
+use App\Models\WorkOrderList;
 use App\Models\WorkOrderUpdate;
+use App\Services\NotificationService;
 use App\Services\TaskCommentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -78,6 +80,55 @@ class TaskCommentTest extends TestCase
         $notice = SystemNotification::first();
         $this->assertSame('task_comment', $notice->type);
         $this->assertSame($commentId, data_get($notice->data, 'comment_id'));
+    }
+
+    public function test_project_visibility_does_not_notify_members_of_a_different_task(): void
+    {
+        $author = $this->user();
+        $directMember = $this->user();
+        $siblingMember = $this->user();
+        $project = WorkOrderList::create(['user_id' => $author->id, 'name' => 'โปรเจกต์ร่วม']);
+
+        $siblingTask = $this->task($author, $author);
+        $siblingTask->update(['work_order_list_id' => $project->id]);
+        $siblingTask->collaborators()->attach($siblingMember->id, [
+            'status' => 'accepted',
+            'added_by' => $author->id,
+        ]);
+
+        $commentedTask = $this->task($directMember, $author);
+        $commentedTask->update(['work_order_list_id' => $project->id]);
+
+        app(NotificationService::class)->notifyAssignmentCreated(
+            $commentedTask,
+            $author,
+            $directMember,
+            true
+        );
+
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $directMember->id,
+            'work_order_id' => $commentedTask->job_id,
+            'type' => 'task_assigned',
+        ]);
+        $this->assertDatabaseMissing('system_notifications', [
+            'user_id' => $siblingMember->id,
+            'work_order_id' => $commentedTask->job_id,
+        ]);
+
+        SystemNotification::query()->delete();
+        app(TaskCommentService::class)->post($commentedTask, $author, 'อัปเดตเฉพาะงานใบนี้');
+
+        $this->assertDatabaseHas('system_notifications', [
+            'user_id' => $directMember->id,
+            'work_order_id' => $commentedTask->job_id,
+            'type' => 'task_comment',
+        ]);
+        $this->assertDatabaseMissing('system_notifications', [
+            'user_id' => $siblingMember->id,
+            'work_order_id' => $commentedTask->job_id,
+            'type' => 'task_comment',
+        ]);
     }
 
     public function test_unread_state_is_per_user_excludes_legacy_updates_and_syncs_notifications(): void

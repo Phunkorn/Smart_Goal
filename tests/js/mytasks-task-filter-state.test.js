@@ -17,11 +17,11 @@ test('task scope normalization only accepts the five supported values', () => {
 test('board filter state restores valid URL values and rejects invalid state', () => {
     assert.deepEqual(
         boardFilterStateFrom(new URLSearchParams('search=Printer&status=late&due_sort=desc')),
-        {search: 'Printer', status: 'late', dueSort: 'desc'},
+        {search: 'Printer', status: 'late', dueSort: 'desc', mine: false},
     );
     assert.deepEqual(
         boardFilterStateFrom(new URLSearchParams('status=99&due_sort=random')),
-        {search: '', status: '', dueSort: ''},
+        {search: '', status: '', dueSort: '', mine: false},
     );
 });
 
@@ -157,4 +157,90 @@ test('board search reads the explicit searchable text rendered for names hidden 
     assert.match(boardRow, /data-search-text=/);
     assert.match(boardRow, /\$collaborators->pluck\('name'\)/);
     assert.match(boardRow, /\$assigneeName/);
+});
+
+test('the mine flag round-trips through the url exactly like the other board filters', () => {
+    assert.equal(boardFilterStateFrom('mine=1').mine, true);
+
+    // ค่าเริ่มต้นต้องเป็นปิดเสมอ บอร์ดตอนโหลดหน้าจึงยังแสดงทั้งโปรเจกต์เหมือนเดิม
+    assert.equal(boardFilterStateFrom('').mine, false);
+    assert.equal(boardFilterStateFrom('mine=0').mine, false);
+    assert.equal(boardFilterStateFrom('mine=true').mine, false);
+    assert.equal(boardFilterStateFrom('mine=yes').mine, false);
+
+    const enabled = parametersForTaskWorkspace(
+        new URLSearchParams('open_task=42'),
+        {search: '', status: '', dueSort: '', mine: true},
+        'all',
+    );
+    assert.equal(enabled.get('mine'), '1');
+    assert.equal(enabled.get('open_task'), '42', 'พารามิเตอร์อื่นต้องไม่หายไป');
+
+    const disabled = parametersForTaskWorkspace(
+        new URLSearchParams('mine=1&open_task=42'),
+        {search: '', status: '', dueSort: '', mine: false},
+        'all',
+    );
+    assert.equal(disabled.has('mine'), false, 'ปิดปุ่มแล้วพารามิเตอร์ต้องหายจาก URL');
+    assert.equal(disabled.get('open_task'), '42');
+});
+
+test('the mine filter only narrows, never resurrects a row another filter removed', () => {
+    const mine = {searchable: 'งานของฉัน', status: '2', late: '1', participate: '1'};
+    const sibling = {searchable: 'งานของเพื่อนร่วมโปรเจกต์', status: '2', late: '1', participate: '0'};
+
+    // ปิดอยู่ = ไม่สนใจความเป็นเจ้าของเลย บอร์ดจึงเหมือนเดิมทุกประการ
+    assert.equal(boardTaskMatches(sibling, {search: '', status: '', mine: false}), true);
+    assert.equal(boardTaskMatches(sibling, {search: '', status: ''}), true);
+
+    // เปิดอยู่ = ตัดงานที่ไม่ได้ร่วมออก
+    assert.equal(boardTaskMatches(mine, {search: '', status: '', mine: true}), true);
+    assert.equal(boardTaskMatches(sibling, {search: '', status: '', mine: true}), false);
+
+    // ประกอบกับตัวกรองอื่นเป็น AND ได้ผลลัพธ์เป็นอินเตอร์เซกชันเสมอ
+    assert.equal(boardTaskMatches(mine, {search: '', status: 'late', mine: true}), true);
+    assert.equal(boardTaskMatches(mine, {search: '', status: '4', mine: true}), false);
+    assert.equal(boardTaskMatches(mine, {search: 'ของฉัน', status: '', mine: true}), true);
+    assert.equal(boardTaskMatches(mine, {search: 'ไม่มีคำนี้', status: '', mine: true}), false);
+
+    // แถวที่ไม่มี attribute เลยต้องไม่ถูกนับว่าเป็นงานของเรา
+    assert.equal(boardTaskMatches({searchable: 'x', status: '2'}, {search: '', status: '', mine: true}), false);
+});
+
+test('every board filter caller forwards the participation flag from the server', async () => {
+    const [boardScript, viewsScript, boardRow, subtaskRow, filterPartial, indexView] = await Promise.all([
+        readFile(new URL('../../resources/js/mytasks-project-board.js', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/js/mytasks-views.js', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/tasks/partials/project-board-card.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/tasks/components/task-detail-row.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/tasks/partials/mine-filter.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/tasks/index.blade.php', import.meta.url), 'utf8'),
+    ]);
+
+    // งานแม่และงานย่อยต้องส่ง flag เข้าตัวกรองทั้งคู่ ไม่งั้นงานย่อยของเราจะหายไปพร้อมงานแม่
+    assert.match(boardScript, /participate: hasOwnSubtask \? '1' : task\.dataset\.participate/);
+    assert.match(boardScript, /participate: subtask\.dataset\.participate/);
+    // การยกเว้นให้งานแม่ต้องผ่าน boardTaskMatches เสมอ ห้ามปลดเงื่อนไข task.hidden ทีหลัง
+    // ไม่งั้นงานแม่จะโผล่ข้ามตัวกรองสถานะและคำค้นที่ตัดมันทิ้งไปแล้ว
+    assert.match(boardScript, /task\.hidden = !taskMatches && reviewSubtasks\.length === 0;/);
+
+    // ความเป็นเจ้าของตัดสินที่ server ด้วย ability participate ที่เดียว
+    assert.match(boardRow, /can\('participate', \$task\)/);
+    assert.match(boardRow, /data-participate="\{\{ \$taskIsMine \? 1 : 0 \}\}"/);
+    assert.match(subtaskRow, /can\('participate', \$detail\)/);
+    assert.match(subtaskRow, /data-participate="\{\{ \$detailIsMine \? 1 : 0 \}\}"/);
+
+    // ปุ่มต้องเริ่มที่ "ปิด" เสมอ
+    assert.match(filterPartial, /aria-pressed="false"/);
+    assert.match(filterPartial, /data-board-mine-toggle/);
+
+    // และต้องอยู่ก่อนปุ่มคลังโปรเจกต์ ซึ่งเป็นตัวถือ margin-inline-start:auto ของแถว
+    assert.ok(
+        indexView.indexOf("tasks.partials.mine-filter") < indexView.indexOf('data-open-completed-projects'),
+        'ปุ่มเฉพาะงานของฉันต้องอยู่ก่อนปุ่มคลังโปรเจกต์',
+    );
+
+    // แสดงเฉพาะมุมมองบอร์ด และต้องคำนวณใหม่ทุกครั้งที่สลับมุมมอง ไม่ใช่เชื่อค่าจาก Blade
+    assert.match(viewsScript, /const MINE_FILTER_VIEWS = \['board'\];/);
+    assert.match(viewsScript, /mineFilter\.hidden = ! MINE_FILTER_VIEWS\.includes\(view\)/);
 });

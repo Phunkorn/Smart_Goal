@@ -325,10 +325,10 @@
             <i class="bi bi-list"></i>
         </button>
         {{-- ชื่อระบบอยู่ที่นี่ที่เดียว ไม่ซ้ำกับหัว Sidebar --}}
-        <a class="topbar-brand" href="{{ route('dashboard') }}">
+        <div class="topbar-brand">
             <span class="topbar-brand__name">Smart Goals</span>
             <span class="topbar-brand__subtitle">ระบบจัดการองค์กร</span>
-        </a>
+        </div>
         <div class="ms-auto d-flex align-items-center gap-2">
             @php
                 // ป้ายบทบาทมุมขวาบนเคยมีแค่สองสี (admin เป็นม่วง ที่เหลือเขียวหมด)
@@ -428,7 +428,10 @@
                     @if($systemNotifications->count() > 0)
                         <div class="px-2 pb-1 text-muted notification-section-title">การเปลี่ยนแปลงงาน</div>
                         @foreach($systemNotifications as $notice)
-                            <div class="p-2 mb-2 notification-item d-flex gap-2 align-items-start {{ $notice->read_at ? '' : 'is-new' }}" data-dropdown-notification-id="{{ $notice->id }}">
+                            <div class="p-2 mb-2 notification-item notification-item--{{ $notice->category }} d-flex gap-2 align-items-start {{ $notice->read_at ? '' : 'is-new' }}" data-dropdown-notification-id="{{ $notice->id }}">
+                                <span class="notification-item__icon" aria-hidden="true">
+                                    @include('notifications.components.category-icon', ['category' => $notice->category])
+                                </span>
                                 <a href="{{ route('notifications.open', $notice) }}" class="notification-body">
                                     <div class="notification-title">
                                         {{ $notice->title }}

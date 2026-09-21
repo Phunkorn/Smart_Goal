@@ -60,25 +60,20 @@ class TaskCommentService
 
     private function audienceIds(WorkOrder $task): Collection
     {
-        $tasks = WorkOrder::query()
-            ->with('collaborators')
-            ->where('approval_status', 'approved')
-            ->when(
-                $task->work_order_list_id,
-                fn ($query) => $query->where('work_order_list_id', $task->work_order_list_id),
-                fn ($query) => $query->whereKey($task->job_id)
-            )
-            ->get();
-
-        $participantIds = $tasks->flatMap(fn (WorkOrder $projectTask) => collect([
-            $projectTask->user_id,
-            $projectTask->created_by,
-            $projectTask->leader_user_id,
+        /*
+         * สิทธิ์เห็นงานระดับโปรเจกต์ไม่เท่ากับการเป็นผู้รับการแจ้งเตือนของทุกงานในโปรเจกต์
+         * แจ้งเฉพาะคนที่อยู่ในงานใบที่ถูกคอมเมนต์จริง เพื่อไม่รบกวนผู้ร่วมงานของใบอื่น
+         */
+        $task->loadMissing('collaborators');
+        $participantIds = collect([
+            $task->user_id,
+            $task->created_by,
+            $task->leader_user_id,
         ])->merge(
-            $projectTask->collaborators
+            $task->collaborators
                 ->filter(fn (User $user) => $user->pivot?->status === 'accepted')
                 ->pluck('id')
-        ));
+        );
 
         /*
          * ไม่รวม admin
