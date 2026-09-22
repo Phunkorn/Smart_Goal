@@ -73,6 +73,23 @@ final class TodayWorkspace
     }
 
     /**
+     * "เลยกำหนดส่งแล้วและยังไม่ปิดงาน" — นิยามเดียวที่หน้าบอร์ดใช้ทำแถวให้เป็นสีแดง
+     *
+     * ในโค้ดเดิมนิยามนี้ถูกพิมพ์ซ้ำเป็นนิพจน์เดียวกันสองที่ คือแถวงานแม่ใน
+     * project-board-card.blade.php และแถวงานย่อยใน task-detail-row.blade.php
+     * พอจะเพิ่มป้ายเตือน "มีงานย่อยเลยกำหนด" บนหัวข้องาน จึงต้องมีแหล่งความจริงเดียว
+     * มิฉะนั้นตัวเลขบนป้ายกับจำนวนแถวที่กางออกมาแล้วเป็นสีแดงจะไม่ตรงกัน
+     *
+     * ตั้งใจให้ต่างจากนิยามอื่นในระบบ ซึ่งตอบคนละคำถาม:
+     *   WorkBoardDesign::statusKey()  ปัดไปสิ้นวัน และให้ "พักงาน" ชนะ "ล่าช้า"
+     *   มุมมองตาราง/notion            ดูแค่ job_status === 6 ซึ่งเป็นสถานะที่เก็บไว้จริง
+     */
+    public static function isOverdue(WorkOrder $task): bool
+    {
+        return (int) $task->job_status !== self::DONE_STATUS && self::isLateBySchedule($task);
+    }
+
+    /**
      * Status 6 is derived from the schedule. If an authorized schedule edit
      * makes the task no longer overdue, restore the appropriate active state.
      */

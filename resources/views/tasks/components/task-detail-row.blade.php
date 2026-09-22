@@ -7,7 +7,9 @@
      * ของตัวเอง ตัวจัดการเหตุการณ์ใน mytasks-project-board.js จึงยิงไปที่งานย่อยใบนั้น
      * ไม่ใช่งานแม่ ส่วน data-board-subtask มีไว้ให้โค้ดที่ "ไล่รายการงาน" ข้ามแถวนี้ไป
      */
-    $detailIsLate = (int) $detail->job_status !== 4 && $detail->job_due_at?->isPast();
+    // นิยาม "เลยกำหนด" ต้องมาจากที่เดียวกับป้ายเตือนบนหัวข้องานแม่ (task-details.blade.php)
+    // ไม่งั้นเลขบนป้ายจะไม่เท่ากับจำนวนแถวที่เป็นสีแดงตรงนี้
+    $detailIsLate = \App\Support\TodayWorkspace::isOverdue($detail);
     $detailIsSoon = ! $detailIsLate && (int) $detail->job_status !== 4 && $detail->job_due_at && now()->diffInDays($detail->job_due_at, false) <= 3;
     $detailStatus = [2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused'],6=>['ล่าช้า','late']][(int) $detail->job_status] ?? ['สถานะไม่รองรับ','unsupported'];
     $detailPriority = [2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int) $detail->job_priority] ?? ['สำคัญไม่ด่วน','important'];

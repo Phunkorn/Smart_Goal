@@ -151,7 +151,7 @@
                             <div class="board-completed-group__rows">
                     @endif
                     @php
-                        $taskIsLate = (int) $task->job_status !== 4 && $task->job_due_at?->isPast();
+                        $taskIsLate = \App\Support\TodayWorkspace::isOverdue($task);
                         $taskIsSoon = ! $taskIsLate && (int) $task->job_status !== 4 && $task->job_due_at && now()->diffInDays($task->job_due_at, false) <= 3;
                         $taskStatus = [2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done'],5=>['พักงาน','paused'],6=>['ล่าช้า','late']][(int)$task->job_status] ?? ['สถานะไม่รองรับ','unsupported'];
                         $priority = [2=>['สำคัญไม่ด่วน','important'],3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']][(int)$task->job_priority] ?? ['สำคัญไม่ด่วน','important'];

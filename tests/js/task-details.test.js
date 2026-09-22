@@ -122,3 +122,73 @@ test('task detail module keeps drag, project drop, editing, deletion and keyboar
     assert.match(row, /data-board-subtask="1"/);
     assert.match(javascript, /\[data-board-task\]:not\(\[data-board-subtask\]\)/);
 });
+
+/**
+ * ป้ายเตือน "มีงานย่อยเลยกำหนด" บนหัวข้องาน
+ *
+ * ผู้ใช้อ่านชื่องานก่อนเสมอ ป้ายจึงอยู่หลังชื่องานพอดีระดับสายตา และต้องกดได้โดยไม่ต้อง
+ * เขียน JS เพิ่ม เพราะมันอยู่ในปุ่มกางแผงงานย่อยอยู่แล้ว
+ */
+test('ป้ายเตือนงานย่อยเลยกำหนดอยู่หลังชื่องาน และต้องไม่ใช่ปุ่มซ้อนปุ่ม', async () => {
+    const [blade, css] = await Promise.all([
+        read('resources/views/tasks/components/task-details.blade.php'),
+        read('resources/css/pages/mytasks/task-details.css'),
+    ]);
+
+    assert.match(blade, /data-task-details-late/);
+    // ไอคอนต้องเป็นตัวเดียวกับที่ WorkBoardDesign ใช้แทนสถานะ "ล่าช้า" ทั้งระบบ
+    assert.match(blade, /bi-exclamation-circle/);
+
+    // ลำดับต้องเป็น ชื่องาน → ป้ายเตือน → ตัวนับงานย่อย ตามที่ผู้ใช้กวาดสายตา
+    const title = blade.indexOf('board-reference-task__title');
+    const badge = blade.indexOf('board-task-details__late');
+    const progress = blade.indexOf('data-task-details-progress');
+    assert.ok(title < badge && badge < progress, 'ป้ายต้องอยู่ระหว่างชื่องานกับตัวนับงานย่อย');
+
+    // ป้ายต้องอยู่ในปุ่มกางแผงงานย่อย การคลิกจึงกางแผงให้เองผ่าน event delegation
+    const toggleStart = blade.indexOf('data-task-details-toggle');
+    const toggleEnd = blade.indexOf('</button>', toggleStart);
+    assert.ok(badge > toggleStart && badge < toggleEnd, 'ป้ายต้องอยู่ในปุ่มกางแผงงานย่อย');
+
+    // และห้ามเป็นตัวที่โฟกัสได้เอง ปุ่มซ้อนปุ่มเป็น HTML ที่ไม่ถูกต้อง เบราว์เซอร์จะดึงปุ่มในออกมา
+    const badgeMarkup = blade.slice(badge, blade.indexOf('</span>', badge) + 7);
+    assert.doesNotMatch(badgeMarkup, /<button|<a\s|tabindex/);
+
+    // ประกาศคอลัมน์ให้ครบทั้งสี่ ไม่ปล่อยให้ป้ายตกไปอยู่ใน implicit track
+    assert.match(css, /\.board-task-details__toggle\s*\{[^}]*grid-template-columns:\s*16px minmax\(0, 1fr\) auto auto/s);
+    // ใช้คู่สีเดียวกับป้ายสถานะล่าช้าของบอร์ด ไม่ใช่แดงเฉดใหม่
+    assert.match(css, /\.board-task-details__late\s*\{[^}]*background:\s*#fdebea[^}]*color:\s*#dc3d39/s);
+    // จอแคบคือที่ที่การกางทุกงานออกมาดูเจ็บที่สุด ป้ายจึงต้องอยู่แถวเดียวกับชื่องาน
+    assert.match(css, /\.board-task-details__late\s*\{\s*grid-column:\s*3;\s*grid-row:\s*1;/s);
+});
+
+test('กดที่ป้ายเตือนแล้วแผงงานย่อยกางออกมาเอง โดยไม่ต้องมี JS ของตัวเอง', async () => {
+    const dom = new JSDOM(`
+        <div data-toast></div>
+        <section data-project-board>
+            <article data-board-task data-task-id="12" data-project-key="p" data-project-name="P" data-topic="T">
+                <div data-task-details data-work-order-id="12">
+                    <button type="button" data-task-details-toggle aria-expanded="false">
+                        <span class="board-reference-task__title">งานทดสอบ</span>
+                        <span class="board-task-details__late" data-task-details-late><i></i><b>2</b></span>
+                    </button>
+                    <div data-task-details-panel hidden><ol data-task-details-list></ol></div>
+                </div>
+            </article>
+        </section>
+    `, {url: 'http://localhost/my-tasks?view=board'});
+
+    globalThis.window = dom.window;
+    globalThis.document = dom.window.document;
+
+    await import('../../resources/js/pages/mytasks/task-details.js?late-badge');
+
+    const badge = document.querySelector('[data-task-details-late]');
+    badge.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true, cancelable: true}));
+
+    const toggle = document.querySelector('[data-task-details-toggle]');
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true', 'กดป้ายแล้วต้องกางแผง');
+    assert.equal(document.querySelector('[data-task-details-panel]').hidden, false);
+
+    dom.window.close();
+});

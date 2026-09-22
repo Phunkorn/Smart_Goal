@@ -13,7 +13,10 @@
 
 .my-tasks-page .board-task-details__toggle {
     display: grid;
-    grid-template-columns: 16px minmax(0, 1fr) auto;
+    /* ลูกศร / ชื่องาน / ป้ายงานย่อยเลยกำหนด / ตัวนับงานย่อย
+       ประกาศให้ครบทั้งสี่ ไม่ปล่อยให้ป้ายตกไปอยู่ใน implicit track ที่ควบคุมไม่ได้
+       แถวที่ไม่มีงานย่อยล่าช้าจะไม่มีป้าย track ที่สามจึงยุบเหลือศูนย์ หน้าตาไม่เปลี่ยน */
+    grid-template-columns: 16px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 5px;
     min-width: 0;
@@ -242,6 +245,40 @@
     opacity: .65;
 }
 
+/*
+ * ป้ายเตือน "มีงานย่อยเลยกำหนด" บนหัวข้องานแม่
+ *
+ * คู่สีเดียวกับป้ายสถานะ "ล่าช้า" ของแถวบอร์ด (.board-status-pill.status-late)
+ * ผู้ใช้จึงอ่านออกทันทีว่าเป็นเรื่องเดียวกัน ไม่ใช่สีแดงใหม่อีกเฉดให้ต้องเรียนรู้
+ *
+ * ตัวเลขบนป้ายต้องเท่ากับจำนวนแถวที่กฎถัดไปทำให้เป็นสีแดงเสมอ ทั้งคู่ถูกเขียนจาก
+ * TodayWorkspace::isOverdue() รอบเดียวกันตอน render
+ */
+.my-tasks-page .board-task-details__late {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #fdebea;
+    color: #dc3d39;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.my-tasks-page .board-task-details__late > i {
+    font-size: 11px;
+    line-height: 1;
+}
+
+.my-tasks-page .board-task-details__late > b {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
 /* งานย่อยที่เลยกำหนดส่งต้องเห็นได้จากแถวโดยไม่ต้องเปิดโมดัล */
 .my-tasks-page .board-task-detail.is-late [data-task-detail-title] {
     color: #dc2626;
@@ -355,7 +392,17 @@
 
 @media (max-width: 760px) {
     .my-tasks-page .board-task-details__toggle {
-        grid-template-columns: 16px minmax(0, 1fr);
+        grid-template-columns: 16px minmax(0, 1fr) auto;
+    }
+
+    /*
+     * ป้ายเตือนต้องอยู่แถวเดียวกับชื่องานแม้บนจอแคบ เพราะจอแคบคือที่ที่การกางทุกงาน
+     * ออกมาดูเจ็บที่สุด ระบุ grid-row ไว้ด้วย ไม่งั้นการจัดวางอัตโนมัติจะกำกวม
+     * เมื่อ small ถูกกำหนดคอลัมน์เอง
+     */
+    .my-tasks-page .board-task-details__late {
+        grid-column: 3;
+        grid-row: 1;
     }
 
     .my-tasks-page .board-task-details__toggle > small {
