@@ -68,59 +68,57 @@
 
         <header class="admin-board-panel-header">
             <div>
-                <h2>รายการแผนกทั้งหมด</h2>
+                <span class="admin-board-panel-eyebrow">ภาพรวมองค์กร</span>
+                <h2>แผนกทั้งหมด</h2>
 
                 <p>
-                    {{ $departmentRows->count() }} แผนกในระบบ
+                    เลือกแผนกเพื่อดูสมาชิก งาน และสถานะการทำงานเชิงลึก
                 </p>
             </div>
+            <span class="admin-board-panel-count"><strong>{{ $departmentRows->count() }}</strong> แผนก</span>
         </header>
 
 
         <div class="admin-department-list">
 
-            <div class="admin-department-table-head">
-                <span>แผนก</span>
-                <span>สมาชิก</span>
-            </div>
-
-
             @forelse($departmentRows as $row)
                 <article class="admin-department-row">
-
-                    <div class="admin-department-identity">
-
+                    <header class="admin-department-identity">
+                        <span class="admin-department-code" aria-hidden="true">{{ $row['code'] }}</span>
                         <div>
                             <h3>{{ $row['name'] }}</h3>
-
-                            <p>
-                                ข้อมูลล่าสุดจากระบบ Smart Goal
-                            </p>
+                            <p>{{ $row['project_count'] }} โปรเจกต์ · {{ $row['total_jobs'] }} งานทั้งหมด</p>
                         </div>
+                        @if($row['overdue_count'] > 0)
+                            <span class="admin-department-alert">
+                                <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+                                {{ $row['overdue_count'] }} งานล่าช้า
+                            </span>
+                        @endif
+                    </header>
 
+                    <div class="admin-department-metrics" aria-label="สรุปแผนก {{ $row['name'] }}">
+                        <div class="admin-department-metric">
+                            <i class="bi bi-people" aria-hidden="true"></i>
+                            <span>สมาชิก</span>
+                            <strong>{{ $row['employee_count'] }}</strong>
+                        </div>
+                        <div class="admin-department-metric">
+                            <i class="bi bi-activity" aria-hidden="true"></i>
+                            <span>กำลังดำเนินการ</span>
+                            <strong>{{ $row['active_count'] }}</strong>
+                        </div>
+                        <div class="admin-department-metric">
+                            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                            <span>เสร็จแล้ว</span>
+                            <strong>{{ $row['done_count'] }}</strong>
+                        </div>
                     </div>
 
-
-                    <div class="admin-department-stat">
-                        <i class="bi bi-people"></i>
-
-                        <strong>
-                            {{ $row['employee_count'] }}
-                        </strong>
-
-                        <span>คน</span>
-                    </div>
-
-
-                    <div class="admin-department-action">
-
-                        <a href="{{ route('admin.work-board.department', $row['id']) }}">
-                            ดูรายละเอียด
-                            <i class="bi bi-arrow-right"></i>
-                        </a>
-
-                    </div>
-
+                    <a class="admin-department-action" href="{{ route('admin.work-board.department', $row['id']) }}">
+                        <span>เปิดบอร์ดแผนก</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
                 </article>
 
             @empty

@@ -41,8 +41,8 @@
     <div class="mytasks-view-controls">
         @php
             $workspaceViews = [
-                ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
-                ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
+                ['view' => 'table', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
+                ['view' => 'board', 'icon' => 'bi-table ', 'label' => 'ตาราง'],
                 ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทิน', 'controls' => 'mytasks-calendar'],
             ];
 

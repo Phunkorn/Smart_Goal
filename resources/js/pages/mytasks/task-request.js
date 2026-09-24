@@ -1,3 +1,24 @@
+import {initialTimeFor, joinDateTimeValue} from '../../components/date-picker.js';
+
+/**
+ * การแจ้งเตือน "มีคำขอเพิ่มงาน" พามาที่ ?task_request=<id> ซึ่ง server เปิดแผงคำขอ
+ * และไฮไลต์การ์ดไว้แล้ว แต่ถ้าโปรเจกต์อยู่ท้ายบอร์ด ผู้ใช้ต้องเลื่อนหาเอง
+ * จึงเลื่อนการ์ดที่ถูกขอมาให้อยู่กลางจอทันที ไม่ขึ้นกับว่าหน้านี้มีโมดัลขอเพิ่มงานหรือไม่
+ */
+export const revealRequestedTaskRequest = (root = document) => {
+    const target = root.querySelector('[data-project-task-request-target]');
+    if (!target) return false;
+
+    const panel = target.closest('details');
+    if (panel) panel.open = true;
+    target.scrollIntoView?.({block: 'center'});
+    target.focus({preventScroll: true});
+
+    return true;
+};
+
+revealRequestedTaskRequest();
+
 (() => {
     const modal = document.querySelector('[data-project-task-request-modal]');
     const form = modal?.querySelector('[data-project-task-request-form]');
@@ -111,8 +132,10 @@
         form.action = button.dataset.action;
         projectName.textContent = button.dataset.projectName || '';
         populateParentTasks(button);
-        form.elements.job_start_at.value = today;
-        form.elements.job_due_at.value = tomorrow;
+        // ช่องเป็น datetime-local ซึ่งเบราว์เซอร์ทิ้งค่าแบบวันที่ล้วน (YYYY-MM-DD) ทันที
+        // ช่องจึงว่างแล้ว required บล็อกการส่งฟอร์มเงียบ ๆ ต้องใส่เวลาที่ช่องประกาศไว้ด้วย
+        form.elements.job_start_at.value = joinDateTimeValue(today, initialTimeFor(form.elements.job_start_at));
+        form.elements.job_due_at.value = joinDateTimeValue(tomorrow, initialTimeFor(form.elements.job_due_at));
 
         Object.entries(values).forEach(([name, value]) => {
             const field = form.elements.namedItem(name);

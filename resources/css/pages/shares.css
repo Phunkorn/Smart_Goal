@@ -95,7 +95,7 @@
 
 .shares-card__body { display:flex; flex-direction:column; gap:5px; }
 .shares-card__project { display:inline-flex; align-items:center; gap:6px; color:#64748b; font-size:.78rem; font-weight:600; }
-.shares-card__title { margin:0; color:#0f172a; font-size:.97rem; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
+.shares-card__title { margin:0; color:#0f172a; font-size:.97rem; font-weight:400; line-height:1.45; overflow-wrap:anywhere; }
 .shares-card__note { margin:0; color:#475569; font-size:.85rem; font-style:italic; }
 .shares-card__due { display:inline-flex; align-items:center; gap:6px; margin:0; color:#64748b; font-size:.78rem; }
 
@@ -121,6 +121,7 @@
     display:inline-flex; align-items:center; gap:5px;
     padding:4px 11px; border-radius:999px; font-size:.74rem; font-weight:600; white-space:nowrap;
 }
+.shares-card__sharer > .shares-chip--dept { align-self:flex-start; margin-left:auto; }
 .shares-chip--dept { background:#eff5ff; color:#1d4ed8; }
 .shares-chip--org { background:#fff7ed; color:#c2410c; }
 .shares-chip--muted { background:#eef2f8; color:#64748b; }

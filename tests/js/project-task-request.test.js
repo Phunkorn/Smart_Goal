@@ -23,8 +23,8 @@ async function boot(t, feedback = {}, swalCalls = null) {
                 <input name="job_topic">
                 <div data-project-task-request-error="job_topic"></div>
                 <select name="job_priority"><option value="2">two</option><option value="3">three</option></select>
-                <input name="job_start_at" type="date">
-                <input name="job_due_at" type="date">
+                <input name="job_start_at" type="datetime-local" data-default-time="00:00">
+                <input name="job_due_at" type="datetime-local" data-default-time="17:00">
                 <div data-project-task-request-error="job_due_at"></div>
                 <div data-project-task-request-general-error hidden></div>
             </form>
@@ -55,7 +55,9 @@ test('request button opens the correct project form with Bangkok date defaults',
     assert.equal(modal.hidden, false);
     assert.equal(form.action, 'http://localhost/projects/7/task-requests');
     assert.equal(document.querySelector('[data-project-task-request-name]').textContent, 'Project A');
-    assert.match(form.elements.job_start_at.value, /^\d{4}-\d{2}-\d{2}$/);
+    // ต้องเป็นรูปแบบ datetime-local ถ้าใส่วันที่ล้วน เบราว์เซอร์จะทิ้งค่าแล้ว required บล็อกการส่ง
+    assert.match(form.elements.job_start_at.value, /^\d{4}-\d{2}-\d{2}T00:00$/);
+    assert.match(form.elements.job_due_at.value, /^\d{4}-\d{2}-\d{2}T17:00$/);
     assert.ok(form.elements.job_due_at.value >= form.elements.job_start_at.value);
     assert.equal(document.activeElement, form.elements.job_topic);
     assert.equal(form.elements.request_type.value, 'task');
@@ -98,7 +100,7 @@ test('validation feedback reopens the right modal and preserves old field values
     const {document} = await boot(t, {
         open_modal: true,
         list_id: 7,
-        old: {request_type: 'subtask', parent_job_id: '12', job_topic: 'Keep this title', job_priority: '3', job_start_at: '2026-08-28', job_due_at: '2026-08-27'},
+        old: {request_type: 'subtask', parent_job_id: '12', job_topic: 'Keep this title', job_priority: '3', job_start_at: '2026-08-28T00:00', job_due_at: '2026-08-27T17:00'},
         errors: {job_due_at: ['กำหนดส่งต้องไม่น้อยกว่าวันที่เริ่ม']},
     });
     const modal = document.querySelector('[data-project-task-request-modal]');
@@ -110,7 +112,7 @@ test('validation feedback reopens the right modal and preserves old field values
     assert.equal(form.elements.request_type.value, 'subtask');
     assert.equal(form.elements.parent_job_id.value, '12');
     assert.equal(document.querySelector('[data-project-task-request-parent]').hidden, false);
-    assert.equal(form.elements.job_due_at.value, '2026-08-27');
+    assert.equal(form.elements.job_due_at.value, '2026-08-27T17:00');
     assert.equal(form.elements.job_due_at.classList.contains('is-invalid'), true);
     assert.equal(document.querySelector('[data-project-task-request-error="job_due_at"]').textContent, 'กำหนดส่งต้องไม่น้อยกว่าวันที่เริ่ม');
     assert.equal(document.activeElement, form.elements.job_due_at);
@@ -167,4 +169,28 @@ test('request modal closes from its button and Escape and restores page scrollin
     assert.equal(modal.hidden, true);
     assert.equal(document.body.style.overflow, '');
     assert.equal(document.activeElement, open);
+});
+
+test('notification deep link opens the request panel and scrolls the requested card into view', async (t) => {
+    const env = mountDom(`<!doctype html><html><body>
+        <details class="project-task-requests">
+            <summary>requests</summary>
+            <article>other request</article>
+            <article class="is-highlighted" data-project-task-request-target tabindex="-1">requested</article>
+        </details>
+    </body></html>`);
+    t.after(env.cleanup);
+    const {document, window} = env;
+    const scrolled = [];
+    window.HTMLElement.prototype.scrollIntoView = function (options) {
+        scrolled.push([this.textContent, options]);
+    };
+
+    fixtureCount += 1;
+    await import(`../../resources/js/pages/mytasks/task-request.js?fixture=${fixtureCount}`);
+
+    const target = document.querySelector('[data-project-task-request-target]');
+    assert.equal(document.querySelector('.project-task-requests').open, true);
+    assert.deepEqual(scrolled, [['requested', {block: 'center'}]]);
+    assert.equal(document.activeElement, target);
 });

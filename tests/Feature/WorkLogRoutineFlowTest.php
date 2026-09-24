@@ -339,6 +339,31 @@ class WorkLogRoutineFlowTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_shared_single_day_routines_are_grouped_into_one_card_with_a_date_range(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department);
+        $mate = $this->user($department);
+
+        foreach (['2026-09-09', '2026-09-10', '2026-09-11'] as $date) {
+            $template = $this->template($owner, [
+                'title' => 'เช็คคอมพิวเตอร์',
+                'starts_on' => $date,
+                'ends_on' => $date,
+            ]);
+            $template->participants()->attach($mate->id, ['added_by' => $owner->id]);
+        }
+
+        $response = $this->actingAs($mate)
+            ->get(route('daily-logs.index', ['view' => 'calendar']))
+            ->assertOk()
+            ->assertSee('3 วัน')
+            ->assertSee('9 ก.ย. 2569 – 11 ก.ย. 2569')
+            ->assertSee('ดูรายละเอียดวันที่');
+
+        $this->assertSame(1, substr_count($response->getContent(), 'daily-plan-management__group--shared'));
+    }
+
     /**
      * คนนอกแผนกถูกตัดทิ้งเงียบ ๆ เพราะรายชื่อที่เลือกได้มาจากเซิร์ฟเวอร์อยู่แล้ว
      * การส่ง id ที่ใช้ไม่ได้มาจึงเป็นการเลี่ยงกติกา ไม่ใช่ความผิดพลาดของผู้ใช้

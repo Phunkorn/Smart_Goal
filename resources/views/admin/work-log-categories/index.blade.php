@@ -11,6 +11,17 @@
 @endpush
 
 @section('content')
+@php
+    $toneLabels = [
+        'blue' => 'น้ำเงิน',
+        'green' => 'เขียว',
+        'purple' => 'ม่วง',
+        'amber' => 'ส้ม',
+        'teal' => 'เขียวอมฟ้า',
+        'cyan' => 'ฟ้า',
+        'gray' => 'เทา',
+    ];
+@endphp
 {{--
     จัดการหมวดงานของบันทึกงานประจำวัน
 
@@ -63,7 +74,7 @@
                             <label class="visually-hidden" for="categoryTone{{ $category->id }}">โทนสี</label>
                             <select class="form-select category-row__tone" id="categoryTone{{ $category->id }}" name="tone">
                                 @foreach($tones as $tone)
-                                    <option value="{{ $tone }}" @selected($category->tone === $tone)>{{ $tone }}</option>
+                                    <option value="{{ $tone }}" @selected($category->tone === $tone)>{{ $toneLabels[$tone] }}</option>
                                 @endforeach
                             </select>
 
@@ -115,48 +126,75 @@
         </section>
 
         <aside class="routine-form-panel">
-            <form method="POST" action="{{ route('admin.work-log-categories.store') }}" class="routine-form">
+            <form method="POST" action="{{ route('admin.work-log-categories.store') }}"
+                class="routine-form category-create" data-category-create>
                 @csrf
 
-                <h2 class="routine-form__heading">เพิ่มหมวดงาน</h2>
+                <header class="category-create__header">
+                    <span class="category-create__header-icon" aria-hidden="true"><i class="bi bi-plus-lg"></i></span>
+                    <div>
+                        <h2 class="routine-form__heading">เพิ่มหมวดงานใหม่</h2>
+                        <p>ตั้งชื่อ เลือกรูป และสีที่พนักงานจำได้ง่าย</p>
+                    </div>
+                </header>
+
+                <div class="category-create__preview" aria-live="polite">
+                    <span>ตัวอย่างที่พนักงานจะเห็น</span>
+                    <strong class="log-chip log-chip--gray" data-category-preview>
+                        <i class="bi bi-briefcase" aria-hidden="true"></i>
+                        <span data-category-preview-name>ชื่อหมวดงาน</span>
+                    </strong>
+                </div>
 
                 <div class="log-field">
-                    <label class="form-label" for="newCategoryName">ชื่อหมวด <span aria-hidden="true">*</span></label>
+                    <label class="form-label" for="newCategoryName">ชื่อหมวดงาน <span aria-hidden="true">*</span></label>
                     <input type="text" class="form-control" id="newCategoryName" name="name"
-                        maxlength="60" required placeholder="เช่น Network">
+                        maxlength="60" required placeholder="เช่น สนับสนุนระบบ IT"
+                        value="{{ old('name') }}" data-category-name>
+                    <span class="log-field__hint">ใช้คำสั้น ๆ ที่พนักงานเข้าใจตรงกัน</span>
                     @error('name')<span class="log-field__hint">{{ $message }}</span>@enderror
                 </div>
 
-                <div class="log-field-row">
-                    <div class="log-field">
-                        <label class="form-label" for="newCategoryTone">โทนสี</label>
-                        <select class="form-select" id="newCategoryTone" name="tone">
-                            @foreach($tones as $tone)
-                                <option value="{{ $tone }}" @selected($tone === 'gray')>{{ $tone }}</option>
-                            @endforeach
-                        </select>
+                <fieldset class="category-create__choice">
+                    <legend>เลือกไอคอน</legend>
+                    <p>เลือกรูปที่สื่อความหมายใกล้กับงานมากที่สุด</p>
+                    <div class="category-icon-picker">
+                        @foreach($icons as $icon => $label)
+                            <label class="category-icon-choice" title="{{ $label }}">
+                                <input type="radio" name="icon" value="{{ $icon }}"
+                                    @checked(old('icon', 'bi-briefcase') === $icon) data-category-icon>
+                                <span><i class="bi {{ $icon }}" aria-hidden="true"></i><small>{{ $label }}</small></span>
+                            </label>
+                        @endforeach
                     </div>
-
-                    <div class="log-field">
-                        <label class="form-label" for="newCategoryOrder">ลำดับ</label>
-                        <input type="number" class="form-control" id="newCategoryOrder" name="sort_order"
-                            value="0" min="0" max="9999">
-                    </div>
-                </div>
-
-                <div class="log-field">
-                    <label class="form-label" for="newCategoryIcon">ไอคอน (Bootstrap Icons)</label>
-                    <input type="text" class="form-control" id="newCategoryIcon" name="icon"
-                        maxlength="40" placeholder="bi-headset">
                     @error('icon')<span class="log-field__hint">{{ $message }}</span>@enderror
-                </div>
+                </fieldset>
+
+                <fieldset class="category-create__choice">
+                    <legend>เลือกสี</legend>
+                    <p>สีช่วยให้แยกหมวดได้เร็วขึ้นในรายการประจำวัน</p>
+                    <div class="category-tone-picker">
+                        @foreach($tones as $tone)
+                            <label class="category-tone-choice">
+                                <input type="radio" name="tone" value="{{ $tone }}"
+                                    @checked(old('tone', 'gray') === $tone) data-category-tone>
+                                <span class="log-chip log-chip--{{ $tone }}">
+                                    <i class="bi bi-circle-fill" aria-hidden="true"></i>
+                                    {{ $toneLabels[$tone] }}
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                </fieldset>
+
+                <input type="hidden" name="sort_order" value="0">
 
                 <p class="routine-form__hint">
                     หมวดที่มีบันทึกงานใช้อยู่จะลบไม่ได้ — ให้ปิดใช้งานแทนเพื่อเก็บประวัติย้อนหลังไว้
                 </p>
 
                 <button type="submit" class="btn btn-primary routine-form__submit">
-                    <i class="bi bi-plus-lg" aria-hidden="true"></i> เพิ่มหมวดงาน
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i> สร้างหมวดงาน
                 </button>
             </form>
         </aside>

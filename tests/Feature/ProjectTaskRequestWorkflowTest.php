@@ -515,6 +515,88 @@ class ProjectTaskRequestWorkflowTest extends TestCase
             ->assertSee('project-task-requests__assignment-note', false);
     }
 
+    public function test_deciding_a_request_clears_the_owners_pending_request_notification(): void
+    {
+        [$owner, $collaborator, $project] = $this->collaborativeProject();
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), $this->payload('Approve me'))
+            ->assertCreated();
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), $this->payload('Reject me'))
+            ->assertCreated();
+        [$approveRequest, $rejectRequest] = $project->taskRequests()->orderBy('id')->get()->all();
+        $submitted = fn (WorkOrderListTaskRequest $taskRequest) => SystemNotification::where('user_id', $owner->id)
+            ->where('type', 'project_task_request_submitted')
+            ->get()
+            ->firstWhere(fn ($notice) => (int) $notice->data['task_request_id'] === (int) $taskRequest->id);
+        $this->assertSame(2, SystemNotification::forUser($owner)->unread()->count());
+
+        $this->actingAs($owner)
+            ->from(route('mytasks.index', ['view' => 'board', 'task_request' => $approveRequest->id]))
+            ->patch(route('mytasks.task-requests.approve', $approveRequest))
+            ->assertRedirect(route('mytasks.index', ['view' => 'board', 'task_request' => $approveRequest->id]));
+        $this->assertNotNull($submitted($approveRequest)->read_at);
+        $this->assertNull($submitted($rejectRequest)->read_at);
+
+        $this->actingAs($owner)
+            ->from(route('mytasks.index', ['view' => 'board']))
+            ->patch(route('mytasks.task-requests.reject', $rejectRequest), ['decision_reason' => ''])
+            ->assertRedirect(route('mytasks.index', ['view' => 'board']));
+        $this->assertNotNull($submitted($rejectRequest)->read_at);
+        $this->assertSame(0, SystemNotification::forUser($owner)->unread()->count());
+
+        $this->actingAs($owner)->get(route('mytasks.index', ['view' => 'board']))
+            ->assertOk()
+            ->assertDontSee('อนุมัติและเพิ่มงาน')
+            ->assertDontSee('project-task-requests__list', false);
+
+        // การแจ้งเตือนเก่าที่เปิดซ้ำต้องไม่พาไปหน้าที่ไม่มีคำขอให้พิจารณาแล้ว
+        $this->actingAs($owner)->get(route('notifications.open', $submitted($approveRequest)))
+            ->assertRedirect(route('notifications.index'))
+            ->assertSessionHas('warning');
+    }
+
+    public function test_notification_deep_link_marks_the_requested_card_as_the_scroll_target(): void
+    {
+        [$owner, $collaborator, $project] = $this->collaborativeProject();
+        $first = $this->request($collaborator, $project, 'First pending request');
+        $second = $this->request($collaborator, $project, 'Second pending request');
+
+        $html = $this->actingAs($owner)
+            ->get(route('mytasks.index', ['view' => 'board', 'task_request' => $second->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertSame(1, substr_count($html, 'data-project-task-request-target'));
+        $this->assertSame(1, preg_match(
+            '/<article\s+class="is-highlighted"\s+data-project-task-request-target\s+tabindex="-1"\s*>/',
+            $html,
+            $match,
+            PREG_OFFSET_CAPTURE
+        ));
+        $target = $match[0][1];
+        $this->assertLessThan($target, strpos($html, 'First pending request'));
+        $this->assertGreaterThan($target, strpos($html, 'Second pending request'));
+        $this->assertNotSame($first->id, $second->id);
+    }
+
+    public function test_subtask_request_notification_names_the_parent_task(): void
+    {
+        [$owner, $collaborator, $project, $anchor] = $this->collaborativeProject();
+
+        $this->actingAs($collaborator)
+            ->postJson(route('mytasks.lists.task-requests.store', $project), [
+                'request_type' => 'subtask',
+                'parent_job_id' => $anchor->job_id,
+            ] + $this->payload('Child request'))
+            ->assertCreated();
+
+        $notice = SystemNotification::where('user_id', $owner->id)
+            ->where('type', 'project_task_request_submitted')
+            ->firstOrFail();
+        $this->assertStringContainsString('งานย่อย “Child request” ภายใต้ “Anchor task”', $notice->message);
+    }
+
     private function collaborativeProject(): array
     {
         [$owner, $collaborator, $project, $anchor] = $this->projectFixture();

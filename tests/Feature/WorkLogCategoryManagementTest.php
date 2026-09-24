@@ -35,7 +35,13 @@ class WorkLogCategoryManagementTest extends TestCase
             ->assertOk()
             ->assertSee('หมวดงานประจำวัน')
             ->assertSee($category->name)
-            ->assertSee('ใช้อยู่ 1 รายการ');
+            ->assertSee('ใช้อยู่ 1 รายการ')
+            ->assertSee('data-category-create', false)
+            ->assertSee('data-category-preview', false)
+            ->assertSee('class="category-icon-picker"', false)
+            ->assertSee('name="icon" value="bi-headset"', false)
+            ->assertSee('name="tone" value="blue"', false)
+            ->assertDontSee('id="newCategoryIcon"', false);
     }
 
     public function test_admin_can_add_a_category_and_members_can_choose_it(): void

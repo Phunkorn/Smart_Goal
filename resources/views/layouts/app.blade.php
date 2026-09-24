@@ -64,16 +64,9 @@
         <div class="sidebar-nav">
             @if ($isAdmin)
                 {{--
-                    แถบข้างของ admin แบ่งตามบทบาทจริงสามอย่าง ไม่ใช่ตามชนิดของหน้า
-
-                      ภาพรวมองค์กร — สิ่งที่ admin "ดู" ทั้งองค์กร
-                      งานและการสื่อสาร — สิ่งที่ admin "ลงมือทำเอง"
-                      ดูแลระบบ — สิ่งที่ "มีแต่ admin ทำได้"
-
-                    เดิมหัวข้อ "ภาพรวม" ปนเครื่องมือทำงานส่วนตัว (แชร์งาน บันทึกงานประจำวัน
-                    กระดานไอเดีย) ไว้กับภาพรวมองค์กร ส่วน "งานและคำขอ" เหลือการแจ้งเตือน
-                    อันเดียวเกือบตลอดเวลาหลังจากคำขออนุมัติถูกซ่อนไปตามบทบาทใหม่ของ admin
-                    และ "องค์กร" กับ "ระบบ" ก็เป็นงานดูแลระบบเหมือนกันแต่ถูกแยกเป็นสองก้อนเล็ก
+                    แถบข้างของ admin แบ่งตามจังหวะการใช้งานสี่หมวด:
+                    ภาพรวมองค์กร / งานและการติดตาม / บุคลากรและแผนก / การตั้งค่าระบบ
+                    เพื่อให้เมนูข้อมูลคนไม่ปนกับบัญชี สิทธิ์ และเครื่องมือตรวจสอบระบบ
                 --}}
                 <div class="nav-section-label">ภาพรวมองค์กร</div>
 
@@ -177,7 +170,7 @@
 
             @php
                 $communicationLabel = match (true) {
-                    $isAdmin => 'งานและการสื่อสาร',
+                    $isAdmin => 'งานและการติดตาม',
                     $isDepartmentHead => 'งานและคำขอ',
                     default => 'การสื่อสาร',
                 };
@@ -243,9 +236,7 @@
             @endif
 
             @if ($isAdmin || $isViewer)
-                {{-- สำหรับ admin ทุกอย่างตั้งแต่ตรงนี้ลงไปคืองานดูแลระบบ จึงเป็นหัวข้อเดียว
-                     ไม่ต้องแยก "องค์กร" กับ "ระบบ" ออกเป็นสองก้อนเล็ก ๆ อีก --}}
-                <div class="nav-section-label">{{ $isAdmin ? 'ดูแลระบบ' : 'องค์กร' }}</div>
+                <div class="nav-section-label">{{ $isAdmin ? 'บุคลากรและแผนก' : 'องค์กร' }}</div>
 
                 <a href="{{ route('employees.index') }}"
                     class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
@@ -258,20 +249,18 @@
                         <i class="bi bi-diagram-3"></i>
                         <span class="nav-item__label">จัดการแผนก</span>
                     </a>
-                    <a href="{{ route('admin.accounts.index') }}"
-                        class="nav-item {{ request()->routeIs('admin.accounts.*') ? 'active' : '' }}">
-                        <i class="bi bi-person-gear"></i>
-                        <span class="nav-item__label">บัญชีระบบ</span>
-                    </a>
                 @endif
             @endif
 
-            {{-- admin รวมกลุ่มนี้เข้ากับ "ดูแลระบบ" ด้านบนแล้ว จึงไม่ต้องขึ้นหัวข้อใหม่ --}}
-            @unless ($isAdmin)
-                <div class="nav-section-label">ระบบ</div>
-            @endunless
+            <div class="nav-section-label">{{ $isAdmin ? 'การตั้งค่าระบบ' : 'ระบบ' }}</div>
 
             @if ($isAdmin)
+                <a href="{{ route('admin.accounts.index') }}"
+                    class="nav-item {{ request()->routeIs('admin.accounts.*') ? 'active' : '' }}">
+                    <i class="bi bi-person-gear"></i>
+                    <span class="nav-item__label">บัญชีระบบ</span>
+                </a>
+
                 {{-- หมวดงานของบันทึกงานประจำวันเป็นตาราง lookup ที่ admin แก้ได้เอง
                      จึงเป็นการตั้งค่าข้อมูล ไม่ใช่กลุ่มงาน --}}
                 <a href="{{ route('admin.work-log-categories.index') }}"

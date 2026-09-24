@@ -90,6 +90,11 @@
     box-shadow: 0 0 0 2px var(--sg-blue-soft);
 }
 
+/* การ์ดถูกโฟกัสด้วยโค้ดตอนเปิดจากการแจ้งเตือน กรอบไฮไลต์ด้านบนบอกตำแหน่งอยู่แล้ว */
+.my-tasks-page .project-task-requests__list article[data-project-task-request-target]:focus {
+    outline: none;
+}
+
 .my-tasks-page .project-task-requests__content { min-width: 0; }
 .my-tasks-page .project-task-requests__title {
     display: flex;
@@ -367,6 +372,37 @@
 
 .project-task-request-modal__parent-empty[hidden] {
     display: none;
+}
+
+/*
+ * ช่อง "เลือกงานหลัก" เลื่อนลงมาเมื่อเลือก "งานย่อย"
+ * JS สลับแค่ hidden ช่องจึงเปลี่ยนจาก display:none เป็นแสดงผล ซึ่งทำให้ keyframes เล่นใหม่ทุกครั้ง
+ * ไม่ต้องมีตัวจับ animationend หรือสถานะเพิ่มใน JS
+ */
+.project-task-request-modal [data-project-task-request-parent]:not([hidden]) {
+    animation: project-task-request-parent-slide .22s ease-out;
+}
+
+@keyframes project-task-request-parent-slide {
+    from {
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        max-height: 8rem;
+        overflow: hidden;
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .project-task-request-modal [data-project-task-request-parent]:not([hidden]) {
+        animation: none;
+    }
 }
 
 .project-task-request-modal__body > label > span,

@@ -24,6 +24,22 @@ class WorkLogCategoryController extends Controller
     /** โทนสีที่ใช้ได้ ต้องอยู่ในชุดเดียวกับที่ CSS ของระบบรองรับ */
     private const TONES = ['blue', 'green', 'purple', 'amber', 'teal', 'cyan', 'gray'];
 
+    /** ไอคอนที่ admin เลือกได้จาก UI — จำกัดชุดเพื่อไม่ต้องจำชื่อ Bootstrap Icon */
+    private const ICONS = [
+        'bi-briefcase' => 'งานทั่วไป',
+        'bi-headset' => 'บริการและสนับสนุน',
+        'bi-laptop' => 'คอมพิวเตอร์',
+        'bi-hdd-network' => 'ระบบและเครือข่าย',
+        'bi-tools' => 'ซ่อมบำรุง',
+        'bi-clipboard-check' => 'ตรวจสอบ',
+        'bi-people' => 'ประสานงาน',
+        'bi-truck' => 'จัดส่งและภาคสนาม',
+        'bi-building' => 'สำนักงาน',
+        'bi-shield-check' => 'ความปลอดภัย',
+        'bi-telephone' => 'ติดต่อสื่อสาร',
+        'bi-star' => 'หมวดพิเศษ',
+    ];
+
     public function index()
     {
         return view('admin.work-log-categories.index', [
@@ -33,6 +49,7 @@ class WorkLogCategoryController extends Controller
                 ->orderBy('name')
                 ->get(),
             'tones' => self::TONES,
+            'icons' => self::ICONS,
         ]);
     }
 

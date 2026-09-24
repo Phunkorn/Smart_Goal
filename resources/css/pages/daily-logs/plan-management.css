@@ -57,7 +57,7 @@
   background: linear-gradient(100deg, #f8fbff 0%, #fff 72%);
 }
 
-.daily-log .daily-plan-management__row--shared {
+.daily-log .daily-plan-management__group--shared .daily-plan-management__group-head {
   background: #f8faff;
 }
 
@@ -156,6 +156,20 @@
 }
 
 .daily-log .daily-plan-management__date i {
+  color: #5682c3;
+}
+
+.daily-log .daily-plan-management__shared-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 2px;
+  border-top: 1px solid #e8eef7;
+  color: #1c3356;
+  font-size: .78rem;
+}
+
+.daily-log .daily-plan-management__shared-day i {
   color: #5682c3;
 }
 

@@ -402,6 +402,10 @@
             text-align: center;
         }
 
+        .notification-more + .notification-more {
+            margin-top: .4rem;
+        }
+
         .notification-section-title {
             font-size: .68rem;
             font-weight: 600;

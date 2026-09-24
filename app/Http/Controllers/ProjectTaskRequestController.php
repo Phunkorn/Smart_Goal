@@ -84,11 +84,16 @@ class ProjectTaskRequestController extends Controller
                 'job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
             ]);
 
+            // บอกให้ชัดตั้งแต่ข้อความแจ้งเตือนว่าเป็นงานย่อยของงานไหน ผู้พิจารณาจะได้ไม่ต้องเดาจากชื่อ
+            $requestedItem = $taskRequest->parent_job_id
+                ? 'งานย่อย “'.$taskRequest->job_topic.'” ภายใต้ “'.($taskRequest->parentTask?->job_topic ?? '-').'”'
+                : 'งาน “'.$taskRequest->job_topic.'”';
+
             $notifications->notifyDetached(
                 [$lockedList->user_id],
                 'project_task_request_submitted',
                 'มีคำขอเพิ่มงานในโปรเจกต์',
-                $actor->name.' ขอเพิ่มงาน “'.$taskRequest->job_topic.'” ใน '.$lockedList->name,
+                $actor->name.' ขอเพิ่ม'.$requestedItem.' ใน '.$lockedList->name,
                 $actor,
                 ['task_request_id' => $taskRequest->id],
                 ['work_order_list_id' => $lockedList->id]
@@ -182,6 +187,7 @@ class ProjectTaskRequestController extends Controller
                 'decision_reason' => null,
                 'work_order_id' => $workOrder->job_id,
             ]);
+            $notifications->resolveProjectTaskRequest($locked);
 
             AuditTrail::log('project_task_request_approved', $workOrder, 'อนุมัติคำขอเพิ่มงาน: '.$workOrder->job_topic, [
                 'task_request_id' => $locked->id,
@@ -260,6 +266,7 @@ class ProjectTaskRequestController extends Controller
                 'decided_at' => now(),
                 'decision_reason' => $validated['decision_reason'] ?? null,
             ]);
+            $notifications->resolveProjectTaskRequest($locked);
 
             $notifications->notifyDetached(
                 [$locked->requester_id],

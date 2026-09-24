@@ -154,6 +154,10 @@
     white-space: nowrap;
 }
 
+.my-tasks-page .mytasks-calendar-day__card .calendar-table--day-task .calendar-table__head span:nth-child(5) {
+    font-weight: 400;
+}
+
 .my-tasks-page .calendar-table__row {
     min-height: 52px;
     margin: 0;
@@ -337,7 +341,7 @@
     border-radius: 999px;
     background: color-mix(in srgb, var(--calendar-priority-tone, #64748b) 10%, #fff);
     color: var(--calendar-priority-tone, #64748b);
-    font-weight: 700;
+    font-weight: 400;
 }
 
 /* ระดับความสำคัญ — ค่าตรงกับ WorkBoardDesign::PRIORITIES และตารางรายงาน */

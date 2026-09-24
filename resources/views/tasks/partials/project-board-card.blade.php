@@ -99,7 +99,7 @@
                     </summary>
                     <div class="project-task-requests__list">
                         @foreach($project->taskRequests as $pendingRequest)
-                            <article @if((int) request('task_request') === (int) $pendingRequest->id) class="is-highlighted" @endif>
+                            <article @if((int) request('task_request') === (int) $pendingRequest->id) class="is-highlighted" data-project-task-request-target tabindex="-1" @endif>
                                 @php
                                     $requesterName = $pendingRequest->requester?->name ?? 'ผู้ใช้ที่ถูกลบ';
                                 @endphp

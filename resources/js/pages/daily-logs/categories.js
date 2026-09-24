@@ -15,6 +15,27 @@ export function initCategoryPage({doc = document, swal = globalThis.Swal} = {}) 
 
     page.dataset.categoryReady = 'on';
 
+    const createForm = page.querySelector('[data-category-create]');
+    const preview = createForm?.querySelector('[data-category-preview]');
+    const previewName = createForm?.querySelector('[data-category-preview-name]');
+
+    const syncPreview = () => {
+        if (! createForm || ! preview || ! previewName) return;
+
+        const name = createForm.querySelector('[data-category-name]')?.value.trim();
+        const icon = createForm.querySelector('[data-category-icon]:checked')?.value || 'bi-briefcase';
+        const tone = createForm.querySelector('[data-category-tone]:checked')?.value || 'gray';
+        const previewIcon = preview.querySelector('i');
+
+        previewName.textContent = name || 'ชื่อหมวดงาน';
+        preview.className = `log-chip log-chip--${tone}`;
+        if (previewIcon) previewIcon.className = `bi ${icon}`;
+    };
+
+    createForm?.addEventListener('input', syncPreview);
+    createForm?.addEventListener('change', syncPreview);
+    syncPreview();
+
     page.addEventListener('submit', async (event) => {
         const form = event.target.closest('[data-category-delete]');
 
@@ -48,7 +69,7 @@ export function initCategoryPage({doc = document, swal = globalThis.Swal} = {}) 
         if (confirmed?.isConfirmed) form.submit();
     });
 
-    return {page};
+    return {page, createForm, syncPreview};
 }
 
 if (typeof document !== 'undefined') {

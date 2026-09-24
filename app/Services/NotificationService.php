@@ -509,6 +509,21 @@ class NotificationService
         return Str::replaceEnd('ก่อน', 'ที่แล้ว', $createdAt->copy()->locale('th')->diffForHumans($reference));
     }
 
+    /**
+     * คำขอเพิ่มงานที่ถูกอนุมัติหรือปฏิเสธแล้วไม่ใช่งานค้างของผู้พิจารณาอีกต่อไป
+     * ถ้าไม่ปิดการแจ้งเตือน "มีคำขอเพิ่มงาน" ตรงนี้ ตัวนับกระดิ่งยังค้างอยู่
+     * และผู้ใช้เข้าใจว่าคำขอยังรออนุมัติอยู่ทั้งที่กดพิจารณาไปแล้ว
+     */
+    public function resolveProjectTaskRequest(WorkOrderListTaskRequest $taskRequest): void
+    {
+        SystemNotification::query()
+            ->where('type', 'project_task_request_submitted')
+            ->where('work_order_list_id', $taskRequest->work_order_list_id)
+            ->where('data->task_request_id', $taskRequest->id)
+            ->unread()
+            ->update(['read_at' => now(), 'is_read' => true]);
+    }
+
     public function markRead(SystemNotification $notification, bool $read = true): void
     {
         $notification->update(['read_at' => $read ? now() : null, 'is_read' => $read]);
@@ -659,6 +674,8 @@ class NotificationService
                 || ! WorkOrderListTaskRequest::query()
                     ->whereKey($requestId)
                     ->where('work_order_list_id', $notification->work_order_list_id)
+                    // คำขอที่พิจารณาแล้วไม่มีการ์ดให้เจ้าของโปรเจกต์กดอีก ปลายทางจึงไม่มีอะไรให้ดู
+                    ->when($notification->type === 'project_task_request_submitted', fn ($query) => $query->where('status', 'pending'))
                     ->exists();
         }
 

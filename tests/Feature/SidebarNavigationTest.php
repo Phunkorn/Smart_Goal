@@ -72,30 +72,33 @@ class SidebarNavigationTest extends TestCase
             ->assertOk()
             ->assertDontSee('href="'.route('meetings.index').'"', false)
             ->assertDontSee('<span class="nav-item__label">การประชุม</span>', false)
-            // สามหัวข้อตามบทบาทจริง: ดูภาพรวม / ลงมือทำเอง / งานที่มีแต่ admin ทำได้
+            // สี่หัวข้อตามงานจริง: ดูภาพรวม / ติดตามงาน / ดูแลคน / ตั้งค่าระบบ
             ->assertSee('<div class="nav-section-label">ภาพรวมองค์กร</div>', false)
-            ->assertSee('<div class="nav-section-label">งานและการสื่อสาร</div>', false)
-            ->assertSee('<div class="nav-section-label">ดูแลระบบ</div>', false)
+            ->assertSee('<div class="nav-section-label">งานและการติดตาม</div>', false)
+            ->assertSee('<div class="nav-section-label">บุคลากรและแผนก</div>', false)
+            ->assertSee('<div class="nav-section-label">การตั้งค่าระบบ</div>', false)
             // หัวข้อเดิมที่ถูกยุบรวมต้องไม่เหลืออยู่ ไม่ใช่ว่างเปล่าแต่ยังขึ้นหัวข้อ
             ->assertDontSee('<div class="nav-section-label">ภาพรวม</div>', false)
             ->assertDontSee('<div class="nav-section-label">งานและคำขอ</div>', false)
             ->assertDontSee('<div class="nav-section-label">องค์กร</div>', false)
             ->assertDontSee('<div class="nav-section-label">ระบบ</div>', false)
             ->assertDontSee('<div class="nav-section-label">การสื่อสาร</div>', false)
+            ->assertDontSee('<div class="nav-section-label">ดูแลระบบ</div>', false)
             ->getContent();
 
         $positions = [
             // ภาพรวมองค์กร
             strpos($content, 'href="'.route('board.index').'"'),
             strpos($content, 'href="'.route('reports.index').'"'),
-            // งานและการสื่อสาร
+            // งานและการติดตาม
             strpos($content, 'href="'.route('notifications.index').'"'),
             strpos($content, 'href="'.route('shares.index').'"'),
             strpos($content, 'href="'.route('daily-logs.index').'"'),
             strpos($content, 'href="'.route('workspace.index').'"'),
-            // ดูแลระบบ
+            // บุคลากรและแผนก
             strpos($content, 'href="'.route('employees.index').'"'),
             strpos($content, 'href="'.route('admin.departments.index').'"'),
+            // การตั้งค่าระบบ
             strpos($content, 'href="'.route('admin.accounts.index').'"'),
             strpos($content, 'href="'.route('admin.work-log-categories.index').'"'),
             strpos($content, 'href="'.route('admin.audit.index').'"'),
