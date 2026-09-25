@@ -638,6 +638,58 @@ class WorkOrderShareTest extends TestCase
             ->assertDontSee('data-share-task', false);
     }
 
+    public function test_the_sidebar_counts_shared_tasks_open_to_the_viewer_without_notifying(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $hr = Department::create(['department_name' => 'HR']);
+        $owner = $this->member($it);
+        $colleague = $this->member($it);
+        $stranger = $this->member($hr);
+        $this->openShare($owner, $this->task($owner), 'department');
+        $this->openShare($owner, $this->task($owner, ['job_name' => 'ย้ายเครื่องแม่ข่าย']), 'department');
+        $notificationsBefore = SystemNotification::count();
+
+        $this->actingAs($colleague)->get(route('shares.index'))
+            ->assertOk()
+            ->assertSee('data-share-feed-count', false)
+            ->assertSee('งานที่แชร์เปิดรับ 2 งาน')
+            ->assertSee('aria-label="งานที่แชร์เปิดรับ 2 งาน">2</span>', false);
+
+        // ต่างแผนกมองไม่เห็นประกาศระดับแผนก และผู้แชร์ไม่นับงานของตัวเอง
+        $this->actingAs($stranger)->get(route('shares.index'))
+            ->assertDontSee('data-share-feed-count', false);
+        $this->actingAs($owner)->get(route('shares.index'))
+            ->assertDontSee('data-share-feed-count', false);
+
+        $this->assertSame($notificationsBefore, SystemNotification::count());
+    }
+
+    public function test_the_sidebar_keeps_the_request_badge_beside_the_shared_task_badge(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $owner = $this->member($it);
+        $colleague = $this->member($it);
+        $share = $this->openShare($owner, $this->task($owner), 'department');
+        $this->join($share, $colleague);
+
+        $this->actingAs($owner)->get(route('shares.index'))
+            ->assertOk()
+            ->assertSee('class="nav-item__count nav-item__count--request" data-share-request-count', false)
+            ->assertSee('คำขอร่วมงานรอคุณอนุมัติ 1 รายการ');
+    }
+
+    public function test_an_admin_sees_the_shared_task_badge_in_their_own_menu(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $owner = $this->member($it);
+        $admin = $this->member(null, 'admin');
+        $this->openShare($owner, $this->task($owner), 'organization');
+
+        $this->actingAs($admin)->get(route('shares.index'))
+            ->assertOk()
+            ->assertSee('งานที่แชร์เปิดรับ 1 งาน');
+    }
+
     private function openShare(User $owner, WorkOrder $task, string $scope): WorkOrderShare
     {
         return WorkOrderShare::create([

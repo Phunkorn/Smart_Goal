@@ -16,6 +16,7 @@ use App\Services\WorkLogParticipantService;
 use App\Services\WorkLogQueryService;
 use App\Services\WorkLogRoutineMaterializer;
 use App\Services\WorkLogService;
+use App\Support\ReportMonth;
 use App\Support\TodayWorkspace;
 use App\Support\WorkLogDesign;
 use App\Support\WorkLogPresenter;
@@ -181,10 +182,16 @@ class WorkLogController extends Controller
             'calendarSelectedDate' => $calendarSelectedDate,
             'calendarEntries' => $calendarEntries,
             'monthLogs' => $monthLogs,
+            'monthOptions' => $calendarView === 'monthly'
+                ? ReportMonth::recentOptions(24, $calendarMonth->format('Y-m'))
+                : [],
             'monthSummary' => $monthSummary,
             'monthDurationLabel' => WorkLogDesign::durationLabel($monthSummary['total_minutes']),
             'monthKindDurationLabels' => collect($monthSummary['by_kind'])
                 ->mapWithKeys(fn (array $kind, string $key): array => [$key => WorkLogDesign::durationLabel($kind['minutes'])])
+                ->all(),
+            'monthCategoryDurationLabels' => collect($monthSummary['by_category'])
+                ->map(fn (array $category): string => WorkLogDesign::durationLabel($category['minutes']))
                 ->all(),
             'calendarKind' => $calendarKind,
             'calendarCategory' => $calendarCategory,

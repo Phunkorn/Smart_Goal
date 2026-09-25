@@ -52,6 +52,27 @@
             </form>
         @endif
 
+        {{-- เลือกเดือนของสรุปรายเดือน — ดร็อปดาวน์ของระบบ (select-dropdown.js) เสริมบน <select> เดิม
+             เปลี่ยนค่าแล้วส่งฟอร์มทันทีผ่าน auto-submit-filter.js ปุ่มใน <noscript> มีไว้เมื่อ JS ไม่ทำงาน --}}
+        @if($calendarView === 'monthly')
+            <form method="GET" action="{{ route('daily-logs.index') }}" class="daily-log__month-form" data-daily-month-filter>
+                <input type="hidden" name="view" value="monthly">
+                @unless($isOwnDay)
+                    <input type="hidden" name="user" value="{{ $owner->id }}">
+                @endunless
+                <div class="daily-log__month-field" data-sg-select>
+                    <i class="bi bi-calendar3" aria-hidden="true"></i>
+                    <label for="dailyMonthSelect" class="visually-hidden">เลือกเดือน</label>
+                    <select id="dailyMonthSelect" name="month" data-auto-submit data-month-select>
+                        @foreach($monthOptions as $monthKey => $monthLabel)
+                            <option value="{{ $monthKey }}" @selected($monthKey === $calendarMonthValue)>{{ $monthLabel }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <noscript><button type="submit" class="btn btn-outline-secondary">ดู</button></noscript>
+            </form>
+        @endif
+
         {{--
             ปฏิทินเลือกวัน — ป้ายวันที่เป็นตัวเปิดปฏิทินในตัว
 

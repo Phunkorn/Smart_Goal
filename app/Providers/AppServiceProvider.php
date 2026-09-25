@@ -64,6 +64,14 @@ class AppServiceProvider extends ServiceProvider
                     : app(WorkOrderShareQuery::class)->pendingIncomingCount($user));
             }
 
+            /*
+             * ป้ายตัวเลขอีกอันของเมนู "แชร์งาน" — จำนวนงานที่แชร์อยู่และผู้ใช้กดขอเข้าร่วมได้
+             * (เท่ากับการ์ดในแท็บฟีด) เป็นแค่ตัวนับบนเมนู ไม่ได้สร้างการแจ้งเตือน
+             */
+            if (! array_key_exists('shareFeedCount', $view->getData())) {
+                $view->with('shareFeedCount', app(WorkOrderShareQuery::class)->feedCount($user));
+            }
+
             if ($user->role !== 'admin' && ! $user->isDepartmentHead()) {
                 return;
             }

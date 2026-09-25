@@ -32,21 +32,8 @@ class WorkOrderShareQuery
             return collect();
         }
 
-        return WorkOrderShare::query()
+        return $this->feedQuery($viewer)
             ->with($this->cardRelations())
-            ->open()
-            ->visibleTo($viewer)
-            ->where('shared_by', '!=', $viewer->id)
-            // งานที่ปิดแล้วรับคนเพิ่มไม่ได้ และงานที่ยังไม่ผ่านอนุมัติก็เช่นกัน
-            ->whereHas('workOrder', fn ($task) => $task
-                ->where('job_status', '!=', 4)
-                ->where('approval_status', 'approved'))
-            ->whereDoesntHave('workOrder.collaborators', fn ($user) => $user->where('users.id', $viewer->id))
-            ->whereDoesntHave('workOrder', fn ($task) => $task
-                ->where(fn ($owned) => $owned
-                    ->where('user_id', $viewer->id)
-                    ->orWhere('created_by', $viewer->id)
-                    ->orWhere('leader_user_id', $viewer->id)))
             ->latest('id')
             ->get()
             ->each(fn (WorkOrderShare $share) => $share->setAttribute(
@@ -185,6 +172,43 @@ class WorkOrderShareQuery
                     ->whereDoesntHave('user', fn ($owner) => $owner->whereIn('department_id', $covered)))
                 ->when($covered !== [], fn ($q) => $q->orWhereNotIn('department_id', $covered))
                 ->when($covered === [], fn ($q) => $q->orWhereNotNull('department_id'))));
+    }
+
+    /**
+     * จำนวนงานที่แชร์อยู่และผู้ใช้กดขอเข้าร่วมได้ — ป้ายตัวเลขบนแถบข้างของเมนู "แชร์งาน"
+     * ใช้เงื่อนไขเดียวกับ feedFor() จึงเท่ากับจำนวนการ์ดในแท็บฟีดเสมอ
+     * เป็นแค่ตัวนับบนเมนู ไม่ได้สร้างการแจ้งเตือน
+     */
+    public function feedCount(User $viewer): int
+    {
+        if ($viewer->role === 'viewer') {
+            return 0;
+        }
+
+        return $this->feedQuery($viewer)->count();
+    }
+
+    /**
+     * เงื่อนไขของฟีดที่ feedFor() และ feedCount() ใช้ร่วมกัน
+     *
+     * @return Builder<WorkOrderShare>
+     */
+    private function feedQuery(User $viewer): Builder
+    {
+        return WorkOrderShare::query()
+            ->open()
+            ->visibleTo($viewer)
+            ->where('shared_by', '!=', $viewer->id)
+            // งานที่ปิดแล้วรับคนเพิ่มไม่ได้ และงานที่ยังไม่ผ่านอนุมัติก็เช่นกัน
+            ->whereHas('workOrder', fn ($task) => $task
+                ->where('job_status', '!=', 4)
+                ->where('approval_status', 'approved'))
+            ->whereDoesntHave('workOrder.collaborators', fn ($user) => $user->where('users.id', $viewer->id))
+            ->whereDoesntHave('workOrder', fn ($task) => $task
+                ->where(fn ($owned) => $owned
+                    ->where('user_id', $viewer->id)
+                    ->orWhere('created_by', $viewer->id)
+                    ->orWhere('leader_user_id', $viewer->id)));
     }
 
     /** ตัวนับสำหรับป้ายบนแถบข้าง */

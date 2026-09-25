@@ -29,6 +29,7 @@ final class WorkLogSummary
             'total_count' => $counted->count(),
             'by_kind' => self::byKind($counted),
             'by_category' => self::byCategory($counted),
+            'by_status' => self::byStatus($counted),
             'open_count' => $counted->whereIn('status', ['open', 'in_progress'])->count(),
             'in_progress_count' => $counted->where('status', 'in_progress')->count(),
             'done_count' => $counted->where('status', 'done')->count(),
@@ -75,6 +76,35 @@ final class WorkLogSummary
         }
 
         return $result;
+    }
+
+    /**
+     * แยกตามสถานะที่บันทึกจริง เรียงตามลำดับใน WorkLogDesign::STATUSES
+     * คืนเฉพาะสถานะที่มีรายการ เพื่อให้กราฟโดนัทไม่มีชิ้นศูนย์ และมีสัดส่วน (percent)
+     * ที่คำนวณจากสูตรเดียวกับจำนวนรวม ฝั่งแสดงผลจะได้ไม่ต้องคิดเลขเอง
+     *
+     * @return array<string, array{label: string, tone: string, icon: string, count: int, percent: float}>
+     */
+    private static function byStatus(Collection $logs): array
+    {
+        $total = $logs->count();
+        $order = array_flip(WorkLogDesign::statusKeys());
+
+        return $logs
+            ->groupBy(fn (WorkLog $log): string => (string) $log->status)
+            ->sortBy(fn (Collection $group, string $key): int => $order[$key] ?? PHP_INT_MAX)
+            ->map(function (Collection $group, string $key) use ($total): array {
+                $status = WorkLogDesign::status($key);
+
+                return [
+                    'label' => $status['label'],
+                    'tone' => $status['tone'],
+                    'icon' => $status['icon'],
+                    'count' => $group->count(),
+                    'percent' => round($group->count() / $total * 100, 1),
+                ];
+            })
+            ->all();
     }
 
     /**

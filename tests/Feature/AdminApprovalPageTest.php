@@ -133,6 +133,14 @@ class AdminApprovalPageTest extends TestCase
         $pageQueries = DB::getQueryLog();
         DB::disableQueryLog();
 
+        // ป้ายจำนวนงานที่แชร์บนเมนู "แชร์งาน" (WorkOrderShareQuery::feedCount) เป็นตัวนับอีกเรื่อง
+        // ที่ตั้งใจให้ยิงทุกหน้า จึงยกเว้นเฉพาะ count ที่ตารางหลักคือ work_order_shares
+        $isShareFeedCount = fn (array $query): bool => str_starts_with(
+            strtolower($query['query']),
+            'select count(*) as aggregate from "work_order_shares"'
+        );
+        $pageQueries = collect($pageQueries)->reject($isShareFeedCount);
+
         $this->assertFalse(collect($pageQueries)->contains(fn (array $query): bool =>
             str_contains(strtolower($query['query']), 'count(')
             && (str_contains($query['query'], 'work_orders') || str_contains($query['query'], 'work_order_collaborators'))
@@ -143,7 +151,7 @@ class AdminApprovalPageTest extends TestCase
         $this->actingAs($requester)->get(route('notifications.index'))
             ->assertOk()
             ->assertDontSee('คำขออนุมัติ');
-        $nonAdminQueries = DB::getQueryLog();
+        $nonAdminQueries = collect(DB::getQueryLog())->reject($isShareFeedCount);
         DB::disableQueryLog();
 
         $this->assertFalse(collect($nonAdminQueries)->contains(fn (array $query): bool =>

@@ -159,6 +159,27 @@ class WorkLogDesignTest extends TestCase
     }
 
     /**
+     * กราฟโดนัทของหน้าสรุปรายเดือนอ่านค่าจาก by_status โดยตรง จึงต้องเรียงตาม
+     * WorkLogDesign::STATUSES ไม่มีชิ้นศูนย์ และเปอร์เซ็นต์รวมกันได้ 100
+     */
+    public function test_summary_splits_counts_by_status_in_design_order(): void
+    {
+        $summary = WorkLogSummary::fromLogs($this->logs([
+            ['status' => 'skipped'],
+            ['status' => 'done'],
+            ['status' => 'open'],
+            ['status' => 'done'],
+        ]));
+
+        $this->assertSame(['open', 'done', 'skipped'], array_keys($summary['by_status']));
+        $this->assertSame(2, $summary['by_status']['done']['count']);
+        $this->assertSame(50.0, $summary['by_status']['done']['percent']);
+        $this->assertSame('เสร็จแล้ว', $summary['by_status']['done']['label']);
+        $this->assertSame(100.0, array_sum(array_column($summary['by_status'], 'percent')));
+        $this->assertSame([], WorkLogSummary::fromLogs(collect())['by_status']);
+    }
+
+    /**
      * ฝั่งแสดงผลไม่ควรต้องเดาว่าคีย์ไหนหายไป จึงต้องคืนครบทุกประเภทเสมอ
      */
     public function test_summary_returns_every_kind_even_when_unused(): void

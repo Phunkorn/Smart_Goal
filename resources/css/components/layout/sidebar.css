@@ -169,6 +169,16 @@
             text-align: center;
         }
 
+        /* เมนูที่มีสองป้าย (แชร์งาน) — ป้ายที่สองชิดป้ายแรก ไม่ถูก margin-left:auto ดันแยกออกไป */
+        .nav-item__count + .nav-item__count {
+            margin-left: 4px;
+        }
+
+        /* คำขอที่รอเราอนุมัติ — สีต่างจากป้ายจำนวนงาน เพื่อให้แยกออกว่าเป็นคนละเรื่อง */
+        .nav-item__count--request {
+            background: #f59e0b;
+        }
+
         .sidebar-foot {
             border-top: 1px solid var(--border);
             padding: .8rem 1rem;
@@ -298,6 +308,11 @@
                 font-size: 0;
                 line-height: 0;
                 border: 2px solid var(--surface);
+            }
+
+            /* แถบข้างย่อ: ป้ายที่สองเป็นจุดถัดลงมา ไม่ทับจุดแรก */
+            body.sidebar-collapsed .nav-item__count + .nav-item__count {
+                top: 16px;
             }
 
             body.sidebar-collapsed .sidebar-foot {

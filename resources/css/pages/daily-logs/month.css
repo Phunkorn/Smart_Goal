@@ -1,24 +1,109 @@
 .daily-log .daily-month { display:grid; gap:20px; padding:22px; border:1px solid #e3ebf7; border-radius:12px; background:#fff; }
-.daily-log .daily-month__head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-.daily-log .daily-month__head h2 { margin:0; color:#172c51; font-size:1.12rem; font-weight:500; }
-.daily-log .daily-month__head p { margin:5px 0 0; color:#7d8ea7; font-size:.79rem; }
-.daily-log .daily-month__navigation { display:flex; align-items:center; gap:12px; white-space:nowrap; }
-.daily-log .daily-month__navigation a { display:grid; place-items:center; width:28px; height:28px; border:1px solid #e0e9f6; border-radius:50%; color:#38577f; }
-.daily-log .daily-month__navigation strong { color:#172c51; font-size:.83rem; font-weight:300; }
-.daily-log .daily-month__metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
-.daily-log .daily-month__metrics > div { display:grid; gap:5px; padding:16px; border-radius:9px; background:#f5f8fe; }
-.daily-log .daily-month__metrics small,
-.daily-log .daily-month__kinds small { color:#7b8ca7; font-size:.74rem; }
-.daily-log .daily-month__metrics strong { color:#1261dc; font-size:1.25rem; font-weight:300; }
-.daily-log .daily-month__kinds { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.daily-log .daily-month__kinds > div { display:flex; align-items:center; gap:10px; padding:14px; border:1px solid #e3ebf7; border-radius:9px; color:#365373; font-size:.82rem; }
-.daily-log .daily-month__kinds strong { margin-left:auto; color:#172c51; font-weight:300; }
-.daily-log .daily-month__empty { margin:0; padding:16px; color:#798ba5; text-align:center; font-size:.82rem; }
+
+/* สีประจำสถานะ — ใช้ร่วมกันระหว่างชิ้นโดนัทกับจุดสีในคำอธิบาย ให้มีแหล่งเดียว */
+.daily-log .daily-month [data-status] { --status-color:#c3cddb; }
+.daily-log .daily-month [data-status="done"] { --status-color:#17a589; }
+.daily-log .daily-month [data-status="in_progress"] { --status-color:#2f6fe4; }
+.daily-log .daily-month [data-status="open"] { --status-color:#f2a93b; }
+.daily-log .daily-month [data-status="overdue"] { --status-color:#e5534b; }
+.daily-log .daily-month [data-status="skipped"] { --status-color:#a3b1c4; }
+.daily-log .daily-month [data-status="not_started"] { --status-color:#d9434f; }
+.daily-log .daily-month [data-status="unfinished"] { --status-color:#e07b39; }
+.daily-log .daily-month [data-status="absent"] { --status-color:#b8437c; }
+.daily-log .daily-month [data-status="cancelled"] { --status-color:#6b7a90; }
+
+.daily-log .daily-month__overview { display:grid; grid-template-columns:minmax(260px,340px) minmax(0,1fr); gap:16px; align-items:stretch; }
+.daily-log .daily-month__card-title { margin:0; color:#172c51; font-size:.86rem; font-weight:500; }
+.daily-log .daily-month__status-card,
+.daily-log .daily-month__block { display:grid; gap:14px; margin:0; padding:18px; border:1px solid #e3ebf7; border-radius:10px; background:#fbfcff; }
+.daily-log .daily-month__status-card { align-content:start; justify-items:center; }
+.daily-log .daily-month__status-card .daily-month__card-title { justify-self:start; }
+
+/* โดนัท */
+.daily-log .daily-month__donut { position:relative; width:min(200px,100%); aspect-ratio:1; }
+.daily-log .daily-month__donut svg { display:block; width:100%; height:100%; transform:rotate(-90deg); overflow:visible; }
+.daily-log .daily-month__donut circle { fill:none; stroke-width:5.2; }
+.daily-log .daily-month__donut-track { stroke:#edf2fa; }
+.daily-log .daily-month__donut-segment {
+  stroke:var(--status-color);
+  stroke-linecap:butt;
+  transition:stroke-width .18s ease;
+  animation:daily-month-donut-draw .9s cubic-bezier(.22,.8,.3,1) both;
+  animation-delay:calc(var(--segment-index, 0) * .12s + .1s);
+}
+.daily-log .daily-month__donut-segment:hover { stroke-width:6.4; }
+.daily-log .daily-month__donut-center { position:absolute; inset:0; display:grid; place-content:center; justify-items:center; gap:2px; animation:daily-month-pop .5s ease-out .35s both; }
+.daily-log .daily-month__donut-center strong { color:#172c51; font-size:2rem; font-weight:500; line-height:1; }
+.daily-log .daily-month__donut-center small { color:#7b8ca7; font-size:.76rem; }
+
+/* คำอธิบายสี */
+.daily-log .daily-month__legend { display:grid; gap:6px; width:100%; margin:0; padding:0; list-style:none; }
+.daily-log .daily-month__legend li { display:grid; grid-template-columns:auto minmax(0,1fr) auto 3.4em; align-items:center; gap:9px; padding:7px 10px; border-radius:8px; background:#fff; color:#365373; font-size:.8rem; animation:daily-month-rise .4s ease-out both; animation-delay:calc(var(--legend-index, 0) * .07s + .45s); }
+.daily-log .daily-month__swatch { width:10px; height:10px; border-radius:3px; background:var(--status-color); }
+.daily-log .daily-month__legend-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .daily-month__legend strong { color:#172c51; font-weight:500; }
+.daily-log .daily-month__legend small { color:#7b8ca7; font-size:.74rem; text-align:right; }
+
+/* ตัวเลขหลัก */
+.daily-log .daily-month__details { display:grid; gap:16px; align-content:start; }
+.daily-log .daily-month__metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.daily-log .daily-month__metric { display:grid; gap:5px; align-content:start; padding:16px; border-radius:9px; background:#f5f8fe; animation:daily-month-rise .4s ease-out both; }
+.daily-log .daily-month__metric:nth-child(2) { animation-delay:.06s; }
+.daily-log .daily-month__metric:nth-child(3) { animation-delay:.12s; }
+.daily-log .daily-month__metric:nth-child(4) { animation-delay:.18s; }
+.daily-log .daily-month__metric small { display:flex; align-items:center; gap:6px; color:#7b8ca7; font-size:.74rem; }
+.daily-log .daily-month__metric strong { color:#1261dc; font-size:1.35rem; font-weight:400; }
+.daily-log .daily-month__metric em { color:#7b8ca7; font-size:.72rem; font-style:normal; }
+.daily-log .daily-month__metric--rate { background:#e9f7f3; }
+.daily-log .daily-month__metric--rate strong { color:#127a6c; }
+.daily-log .daily-month__metric--rate .daily-month__bar > span { background:#17a589; }
+
+/* แถบสัดส่วน */
+.daily-log .daily-month__bar { display:block; height:6px; overflow:hidden; border-radius:999px; background:#e6edf8; }
+.daily-log .daily-month__bar > span { display:block; width:100%; height:100%; border-radius:inherit; background:#2f6fe4; transform:scaleX(var(--bar-value, 0)); transform-origin:left center; animation:daily-month-bar .8s cubic-bezier(.22,.8,.3,1) .3s both; }
+.daily-log .daily-month__bar--teal > span { background:#17a589; }
+.daily-log .daily-month__bar--amber > span { background:#f2a93b; }
+
+/* รายการแยกประเภท / หมวด */
+.daily-log .daily-month__rows { display:grid; gap:12px; margin:0; padding:0; list-style:none; }
+.daily-log .daily-month__rows--grid { grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:24px; }
+.daily-log .daily-month__rows li { display:flex; align-items:center; gap:12px; color:#365373; font-size:.82rem; }
+.daily-log .daily-month__rows li > small { flex:none; min-width:4.5em; color:#7b8ca7; font-size:.74rem; text-align:right; }
+.daily-log .daily-month__row-icon { display:grid; flex:none; place-items:center; width:32px; height:32px; border-radius:9px; background:#eaf2ff; color:#1261d9; }
+.daily-log .daily-month__row-icon--teal { background:#e6f6f4; color:#127a6c; }
+.daily-log .daily-month__row-icon--amber { background:#fff4e5; color:#b0661b; }
+.daily-log .daily-month__row-main { display:grid; flex:1; gap:6px; min-width:0; }
+.daily-log .daily-month__row-line { display:flex; justify-content:space-between; gap:10px; }
+.daily-log .daily-month__row-line > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .daily-month__row-line strong { flex:none; color:#172c51; font-weight:400; }
+
+.daily-log .daily-month__empty { display:grid; justify-items:center; gap:8px; margin:0; padding:36px 16px; border:1px dashed #d8e3f3; border-radius:10px; color:#798ba5; text-align:center; font-size:.82rem; }
+.daily-log .daily-month__empty i { color:#b7c6dc; font-size:2rem; }
+.daily-log .daily-month__empty p { margin:0; }
+
+@keyframes daily-month-donut-draw { from { stroke-dasharray:0 100; } }
+@keyframes daily-month-pop { from { opacity:0; transform:scale(.8); } }
+@keyframes daily-month-rise { from { opacity:0; transform:translateY(6px); } }
+@keyframes daily-month-bar { from { transform:scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-log .daily-month__donut-segment,
+  .daily-log .daily-month__donut-center,
+  .daily-log .daily-month__legend li,
+  .daily-log .daily-month__metric,
+  .daily-log .daily-month__bar > span { animation:none; }
+}
+
 @media (max-width:900px) {
-  .daily-log .daily-month__metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .daily-log .daily-month__overview { grid-template-columns:minmax(0,1fr); }
+  .daily-log .daily-month__status-card { grid-template-columns:auto minmax(0,1fr); align-items:center; justify-items:stretch; column-gap:20px; }
+  .daily-log .daily-month__status-card .daily-month__card-title { grid-column:1 / -1; }
+  .daily-log .daily-month__donut { width:170px; }
 }
 @media (max-width:575px) {
-  .daily-log .daily-month__head { align-items:flex-start; flex-direction:column; }
-  .daily-log .daily-month__metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .daily-log .daily-month__kinds { grid-template-columns:minmax(0,1fr); }
+  .daily-log .daily-month { padding:16px; }
+  .daily-log .daily-month__status-card { grid-template-columns:minmax(0,1fr); justify-items:center; }
+  .daily-log .daily-month__donut { width:180px; }
+  .daily-log .daily-month__rows--grid { grid-template-columns:minmax(0,1fr); }
+  .daily-log .daily-month__metric { padding:13px; }
 }

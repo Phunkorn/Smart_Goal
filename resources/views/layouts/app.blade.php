@@ -133,16 +133,9 @@
                 {{--
                     แชร์งาน — งานที่เปิดรับผู้ร่วมงาน อยู่กลุ่มเดียวกับบอร์ดของทีม
                     เพราะเป็นการทำงานร่วมกับคนอื่น ไม่ใช่งานส่วนตัว
-                    ป้ายตัวเลขนับคำขอที่รอเราตัดสินในฐานะผู้แชร์ (AppServiceProvider)
+                    ป้ายตัวเลขทั้งสองอธิบายไว้ใน layouts/partials/share-nav-item
                 --}}
-                <a href="{{ route('shares.index') }}"
-                    class="nav-item {{ request()->routeIs('shares.*') ? 'active' : '' }}">
-                    <i class="bi bi-share"></i>
-                    <span class="nav-item__label">แชร์งาน</span>
-                    @if(($shareRequestCount ?? 0) > 0)
-                        <span class="nav-item__count" data-share-request-count>{{ $shareRequestCount }}</span>
-                    @endif
-                </a>
+                @include('layouts.partials.share-nav-item')
                 <a href="{{ route('workspace.index') }}"
                     class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
                     <i class="bi bi-easel"></i>
@@ -207,16 +200,9 @@
                     เครื่องมือที่ admin ลงมือใช้เอง อยู่กลุ่มเดียวกับการแจ้งเตือน เพราะเป็น
                     สิ่งที่ตอบคำถาม "วันนี้ฉันต้องทำอะไร" ไม่ใช่ภาพรวมขององค์กร
 
-                    ป้ายตัวเลขของแชร์งานนับคำขอที่รอเราตัดสินในฐานะผู้แชร์ (AppServiceProvider)
+                    ป้ายตัวเลขของแชร์งานอธิบายไว้ใน layouts/partials/share-nav-item
                 --}}
-                <a href="{{ route('shares.index') }}"
-                    class="nav-item {{ request()->routeIs('shares.*') ? 'active' : '' }}">
-                    <i class="bi bi-share"></i>
-                    <span class="nav-item__label">แชร์งาน</span>
-                    @if(($shareRequestCount ?? 0) > 0)
-                        <span class="nav-item__count" data-share-request-count>{{ $shareRequestCount }}</span>
-                    @endif
-                </a>
+                @include('layouts.partials.share-nav-item')
                 <a href="{{ route('daily-logs.index') }}" class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}">
                     <i class="bi bi-journal-check"></i>
                     <span class="nav-item__label">บันทึกงานประจำวัน</span>

@@ -5,7 +5,10 @@
   .daily-log__title { font-size:1.3rem; }
   .daily-log__controls { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
   .daily-log__member-form,
-  .daily-log__member-select { width:100%; }
+  .daily-log__member-select,
+  .daily-log__month-form { width:100%; }
+  .daily-log__month-field { flex:1; }
+  .daily-log__month-field .sg-select__panel { right:auto; left:-13px; width:calc(100% + 24px); }
   .daily-log__date-nav { justify-content:space-between; }
   .daily-log .log-launcher__button { width:100%; justify-content:center; }
   .daily-log .log-card__menu-trigger { margin-left:auto; }

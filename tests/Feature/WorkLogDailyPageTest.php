@@ -148,6 +148,69 @@ class WorkLogDailyPageTest extends TestCase
             ->assertSee('1 ชม.');
     }
 
+    public function test_monthly_tab_draws_a_status_donut_with_a_legend(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department);
+        $this->log($owner, $department, ['title' => 'งานเสร็จ', 'duration_minutes' => 30, 'status' => 'done']);
+        $this->log($owner, $department, ['title' => 'งานเสร็จอีกงาน', 'duration_minutes' => 30, 'status' => 'done']);
+        $this->log($owner, $department, ['title' => 'งานที่ข้าม', 'status' => 'skipped']);
+
+        $this->actingAs($owner)
+            ->get(route('daily-logs.index', ['view' => 'monthly']))
+            ->assertOk()
+            ->assertSee('class="daily-month__donut"', false)
+            ->assertSee('data-status="done"', false)
+            ->assertSee('data-status="skipped"', false)
+            ->assertDontSee('data-status="in_progress"', false)
+            ->assertSee('สัดส่วนสถานะงาน: เสร็จแล้ว 2 รายการ, ไม่ได้ทำวันนี้ 1 รายการ')
+            ->assertSee('66.7%')
+            ->assertSee('33.3%');
+    }
+
+    public function test_monthly_tab_picks_the_month_from_a_dropdown_instead_of_arrows(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department);
+        $current = TodayWorkspace::businessNow()->copy()->startOfMonth();
+        $previous = $current->copy()->subMonthNoOverflow();
+
+        $this->actingAs($owner)
+            ->get(route('daily-logs.index', ['view' => 'monthly', 'month' => $previous->format('Y-m')]))
+            ->assertOk()
+            ->assertViewHas('monthOptions', fn (array $options) => count($options) === 24
+                && array_key_first($options) === $current->format('Y-m'))
+            ->assertSee('data-daily-month-filter', false)
+            ->assertSee('id="dailyMonthSelect" name="month" data-auto-submit data-month-select', false)
+            ->assertSee('<option value="'.$previous->format('Y-m').'" selected', false)
+            ->assertDontSee('aria-label="เดือนก่อนหน้า"', false)
+            ->assertDontSee('aria-label="เดือนถัดไป"', false);
+    }
+
+    public function test_monthly_dropdown_keeps_the_viewed_members_id(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $admin = $this->user($department, false, 'admin');
+        $member = $this->user($department);
+
+        $this->actingAs($admin)
+            ->get(route('daily-logs.index', ['view' => 'monthly', 'user' => $member->id]))
+            ->assertOk()
+            ->assertSee('<input type="hidden" name="user" value="'.$member->id.'">', false);
+    }
+
+    public function test_monthly_tab_without_worklogs_shows_empty_state_instead_of_donut(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department);
+
+        $this->actingAs($owner)
+            ->get(route('daily-logs.index', ['view' => 'monthly']))
+            ->assertOk()
+            ->assertSee('ยังไม่มี WorkLog ในเดือนนี้')
+            ->assertDontSee('class="daily-month__donut"', false);
+    }
+
     public function test_member_sees_own_today_list_and_view_tabs(): void
     {
         $department = Department::create(['department_name' => 'IT']);
