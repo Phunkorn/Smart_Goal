@@ -17,6 +17,11 @@
 
     @vite('resources/css/components/layout.css')
 
+    {{-- สรุปประจำวันมีเฉพาะหน้าแรกของวันที่ยังไม่รับทราบ (AppServiceProvider ส่ง $dailyBrief) --}}
+    @if(! empty($dailyBrief))
+        @vite('resources/css/components/daily-brief.css')
+    @endif
+
     @stack('styles')
 </head>
 
@@ -193,6 +198,17 @@
                     @if($approvalCounts['total'] > 0)
                         <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
                     @endif
+                </a>
+            @endif
+            {{--
+                ประกาศถึงแผนก/ทุกแผนก เป็นเครื่องมือของหัวหน้าแผนกเท่านั้น (AnnouncementPolicy)
+                พนักงานเห็นประกาศในสรุปประจำวัน ส่วน admin ไม่มีสิทธิ์กับประกาศตามที่ตกลงไว้
+            --}}
+            @if ($isDepartmentHead)
+                <a href="{{ route('announcements.index') }}"
+                    class="nav-item {{ request()->routeIs('announcements.*') ? 'active' : '' }}">
+                    <i class="bi bi-megaphone"></i>
+                    <span class="nav-item__label">ประกาศ</span>
                 </a>
             @endif
             @if ($isAdmin)
@@ -447,6 +463,10 @@
         @yield('content')
     </main>
 
+    @if(! empty($dailyBrief))
+        @include('daily-brief.modal', ['brief' => $dailyBrief])
+    @endif
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         (() => {
@@ -527,6 +547,9 @@
     </script>
     @vite('resources/js/components/avatar-fallback.js')
     @vite('resources/js/components/realtime-sync.js')
+    @if(! empty($dailyBrief))
+        @vite('resources/js/components/daily-brief.js')
+    @endif
     @stack('scripts')
 </body>
 

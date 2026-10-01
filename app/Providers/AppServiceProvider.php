@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderListTaskRequest;
 use App\Services\AdminApprovalQuery;
+use App\Services\DailyBriefService;
 use App\Services\Telegram\TelegramOutbox;
 use App\Services\WorkOrderShareQuery;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -70,6 +71,16 @@ class AppServiceProvider extends ServiceProvider
              */
             if (! array_key_exists('shareFeedCount', $view->getData())) {
                 $view->with('shareFeedCount', app(WorkOrderShareQuery::class)->feedCount($user));
+            }
+
+            /*
+             * สรุปประจำวันแสดงบนหน้าแรกที่เปิดในวันนั้นจนกว่าจะกดรับทราบ จึงต้องอยู่ที่ layout
+             * ไม่ใช่ที่ controller ของหน้าใดหน้าหนึ่ง (ผู้ใช้อาจเข้ามาทาง deep link ของแจ้งเตือน)
+             * ช่วงที่รับทราบแล้ว isPending() เป็น query เดียว ส่วน build() ทำงานเฉพาะตอนต้องแสดง
+             */
+            if (! array_key_exists('dailyBrief', $view->getData())) {
+                $dailyBrief = app(DailyBriefService::class);
+                $view->with('dailyBrief', $dailyBrief->isPending($user) ? $dailyBrief->build($user) : null);
             }
 
             if ($user->role !== 'admin' && ! $user->isDepartmentHead()) {

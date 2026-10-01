@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AdminApprovalController;
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DailyBriefController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MeetingController;
@@ -194,6 +196,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::delete('/admin/audit/activity/prune', [AuditController::class, 'pruneActivity'])
         ->middleware('admin')
         ->name('admin.audit.activity.prune');
+
+    // ลบบันทึกกิจกรรมตามช่วงวันที่ที่แอดมินเลือกเอง — ทำลายข้อมูลถาวร จึงจำกัดที่ admin เช่นกัน
+    Route::delete('/admin/audit/activity/range', [AuditController::class, 'deleteActivityRange'])
+        ->middleware('admin')
+        ->name('admin.audit.activity.deleteRange');
 
     // เส้นทางเดิมยังใช้ได้ เพื่อไม่ให้ bookmark และลิงก์ในบันทึกเก่าพัง
     // ต้องพา query string เดิมไปด้วย มิฉะนั้นลิงก์ที่มีตัวกรองจะกลายเป็นหน้าเปล่า
@@ -431,10 +438,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/my-tasks/lists/{list}/task-requests', [ProjectTaskRequestController::class, 'store'])
         ->middleware('throttle:'.WorkOrderListTaskRequest::SUBMIT_RATE_LIMITER)
         ->name('mytasks.lists.task-requests.store');
-    Route::patch('/my-tasks/task-requests/{taskRequest}/approve', [ProjectTaskRequestController::class, 'approve'])
-        ->name('mytasks.task-requests.approve');
-    Route::patch('/my-tasks/task-requests/{taskRequest}/reject', [ProjectTaskRequestController::class, 'reject'])
-        ->name('mytasks.task-requests.reject');
 
     /*
      * แชร์งาน
@@ -571,6 +574,8 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
     Route::post('/tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->name('tasks.comments.read');
+    Route::post('/tasks/{task}/comments/{comment}/pin', [TaskCommentController::class, 'pin'])->name('tasks.comments.pin');
+    Route::post('/tasks/{task}/comments/{comment}/unpin', [TaskCommentController::class, 'unpin'])->name('tasks.comments.unpin');
 
     Route::get('/realtime/sync', RealtimeSyncController::class)
         ->middleware('throttle:120,1')
@@ -590,4 +595,18 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
     Route::delete('/notifications/read', [NotificationController::class, 'destroyRead'])->name('notifications.destroy-read');
     Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // สรุปประจำวัน (Daily Brief) — พนักงานและหัวหน้าแผนกเท่านั้น admin/viewer ไม่มีสรุปนี้
+    Route::post('/daily-brief/acknowledge', [DailyBriefController::class, 'acknowledge'])
+        ->middleware('role:user')
+        ->name('daily-brief.acknowledge');
+
+    // ศูนย์ประกาศของหัวหน้าแผนก — role:user กัน admin/viewer ชั้นแรก
+    // ส่วน AnnouncementPolicy เป็นผู้ตัดสินจริงว่าต้องเป็นหัวหน้าและเป็นเจ้าของประกาศ
+    Route::prefix('announcements')->name('announcements.')->middleware('role:user')->group(function (): void {
+        Route::get('/', [AnnouncementController::class, 'index'])->name('index');
+        Route::post('/', [AnnouncementController::class, 'store'])->name('store');
+        Route::patch('/{announcement}', [AnnouncementController::class, 'update'])->name('update');
+        Route::delete('/{announcement}', [AnnouncementController::class, 'destroy'])->name('destroy');
+    });
 });

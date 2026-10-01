@@ -1,0 +1,146 @@
+/*
+ * กล่องสร้าง/แก้ไขกระดาน — modal จริง (มีฉากหลัง ล็อกการเลื่อนหน้า)
+ *
+ * ต่างจาก .wsb-popover และ .wsb-menu ซึ่งเป็น popover ไม่ล็อกอะไรและไม่มีฉากหลัง
+ * ดู CLAUDE.md หัวข้อ "Modal and popover behavior"
+ */
+
+.ws-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1080;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+}
+
+/* ล็อกการเลื่อนหน้าเบื้องหลังขณะกล่องเปิด — เป็นพฤติกรรมของ modal ไม่ใช่ popover
+   คลาสนี้ถูกเพิ่ม/ถอดโดย board-settings.js ซึ่งเป็นเจ้าของสถานะเปิดปิดเพียงตัวเดียว */
+body.ws-modal-open {
+    overflow: hidden;
+}
+
+.ws-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.ws-modal__dialog {
+    position: relative;
+    width: min(30rem, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    border-radius: 0.9rem;
+    background: #ffffff;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
+}
+
+.ws-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.1rem 1.25rem 0.6rem;
+}
+
+.ws-modal__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ws-modal__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    padding: 0.6rem 1.25rem 1.1rem;
+}
+
+.ws-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.ws-modal__error {
+    margin: 0;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.5rem;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.83rem;
+}
+
+.ws-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.ws-field__label {
+    padding: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.ws-field__input {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.55rem;
+    font-size: 0.9rem;
+    color: #0f172a;
+}
+
+.ws-field__input:focus {
+    border-color: #2563eb;
+    outline: 2px solid rgba(37, 99, 235, 0.18);
+    outline-offset: 1px;
+}
+
+.ws-radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.6rem;
+    cursor: pointer;
+}
+
+.ws-radio:has(input:checked) {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+}
+
+.ws-radio input {
+    margin-top: 0.2rem;
+}
+
+.ws-radio__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.ws-radio__label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #0f172a;
+}
+
+.ws-radio__hint {
+    font-size: 0.78rem;
+    color: #64748b;
+}

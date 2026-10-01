@@ -116,6 +116,8 @@ class ProjectReportFlowTest extends TestCase
     {
         $this->task($this->itMember, 'งานของพนักงานไอที');
         $this->task($this->head, 'งานของหัวหน้าเอง');
+        // สรุปประจำวันของหัวหน้าแสดงงานของหัวหน้าเองโดยตั้งใจ test นี้ตรวจเฉพาะเนื้อหารายงาน
+        $this->acknowledgeDailyBrief($this->head);
 
         $member = $this->actingAs($this->head)->get(route('reports.projects', ['owner' => $this->itMember->id]))
             ->assertOk()

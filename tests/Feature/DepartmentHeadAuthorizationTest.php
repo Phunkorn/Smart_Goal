@@ -422,6 +422,8 @@ class DepartmentHeadAuthorizationTest extends TestCase
         $head = $this->user($it, true);
         $member = $this->user($it);
         $outsider = $this->user($sales);
+        // สรุปประจำวันมีหัวข้อ "ประกาศทุกแผนก" ของตัวเอง ไม่ใช่ตัวเลือกของหน้ารายงาน
+        $this->acknowledgeDailyBrief($head);
 
         // เมนูต้องชี้ไปหน้าเลือกประเภทรายงาน ไม่ใช่ /reports/organization
         $this->actingAs($head)->get(route('mytasks.index'))

@@ -71,44 +71,21 @@
         </div>
 
         <div class="ws-board__status">
-            <span class="wsb-save wsb-save--teal" data-workspace-save-state data-state="saved">
+            {{--
+                ป้ายสถานะการบันทึกซ่อนไว้ตามปกติ การบันทึกอัตโนมัติที่เป็นปกติไม่ต้อง
+                บอกใคร autosave.js เปิดป้ายเฉพาะตอนบันทึกไม่สำเร็จหรือมีคนบันทึกแทรก
+                role="status" ทำให้โปรแกรมอ่านจอประกาศข้อความตอนที่ป้ายโผล่ขึ้นมา
+            --}}
+            <span class="wsb-save wsb-save--teal" data-workspace-save-state data-state="saved"
+                role="status" hidden>
                 <i class="bi bi-cloud-check" aria-hidden="true"></i>
                 <span data-workspace-save-label>{{ \App\Support\WorkspaceDesign::SAVE_STATES['saved']['label'] }}</span>
             </span>
-
-            <button type="button" class="ws-btn ws-btn--ghost" data-workspace-refresh
-                title="โหลดฉบับล่าสุดจากเซิร์ฟเวอร์">
-                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                รีเฟรช
-            </button>
 
             <span class="ws-chip ws-chip--{{ $visibility['tone'] }}">
                 <i class="bi {{ $visibility['icon'] }}" aria-hidden="true"></i>
                 {{ $visibility['label'] }}
             </span>
-
-            {{--
-                ปุ่มจัดการกระดานอยู่บนหน้าวาดด้วย ไม่ใช่เฉพาะในหน้ารายการ
-                เพราะคนที่กำลังวาดอยู่คือคนที่รู้ว่าควรเปลี่ยนชื่อเมื่อไร
-                การบังคับให้ย้อนกลับไปหน้ารายการเพื่อเปลี่ยนชื่อเป็นการขัดจังหวะ
-
-                เงื่อนไขมาจาก policy ฝั่งเซิร์ฟเวอร์ ไม่ใช่การเช็ค role ใน Blade
-            --}}
-            @if ($capabilities['canManageSettings'])
-                <button type="button" class="ws-btn ws-btn--ghost" data-workspace-board-settings
-                    title="เปลี่ยนชื่อและการมองเห็น">
-                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                    แก้ไขชื่อ
-                </button>
-            @endif
-
-            @if ($capabilities['canDelete'])
-                <button type="button" class="ws-btn ws-btn--ghost ws-btn--danger" data-workspace-board-delete
-                    title="ลบกระดานนี้">
-                    <i class="bi bi-trash" aria-hidden="true"></i>
-                    ลบกระดาน
-                </button>
-            @endif
 
             @unless ($capabilities['canEdit'])
                 {{-- ป้ายนี้อธิบายว่าทำไมแถบเครื่องมือถึงใช้ไม่ได้ ผู้ใช้ที่มาจากแผนกอื่น
@@ -118,11 +95,67 @@
                     ดูอย่างเดียว
                 </span>
             @endunless
+
+            {{--
+                คำสั่งจัดการกระดานอยู่ในเมนูเดียว ไม่ใช่ปุ่มสามปุ่มเรียงกัน
+
+                สิ่งที่อยู่นอกเมนูคือ "สถานะ" (การบันทึก การมองเห็น สิทธิ์) ซึ่งต้อง
+                เห็นตลอด ส่วนสิ่งที่อยู่ในเมนูคือ "คำสั่ง" ที่ใช้นาน ๆ ครั้ง การวาง
+                ปุ่มลบกระดานไว้ข้างปุ่มรีเฟรชบนหัวเรื่องยังเสี่ยงกดโดนโดยไม่ตั้งใจด้วย
+
+                ปุ่มจัดการอยู่บนหน้าวาดด้วย ไม่ใช่เฉพาะในหน้ารายการ เพราะคนที่กำลัง
+                วาดอยู่คือคนที่รู้ว่าควรเปลี่ยนชื่อเมื่อไร การบังคับให้ย้อนกลับไป
+                หน้ารายการเพื่อเปลี่ยนชื่อเป็นการขัดจังหวะ
+
+                เงื่อนไขมาจาก policy ฝั่งเซิร์ฟเวอร์ ไม่ใช่การเช็ค role ใน Blade
+                และแผงเปิด/ปิดโดย menu.js ชุดเดียวกับเมนูบนแถบเครื่องมือ
+            --}}
+            <div class="wsb-menu-anchor" data-menu>
+                <button type="button" class="ws-btn ws-btn--ghost"
+                    data-menu-toggle
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                    aria-controls="wsbBoardMenu"
+                    title="จัดการกระดาน" aria-label="จัดการกระดาน">
+                    <i class="bi bi-three-dots" aria-hidden="true"></i>
+                </button>
+
+                <div class="wsb-menu" id="wsbBoardMenu" data-menu-panel hidden
+                    role="menu" aria-label="จัดการกระดาน">
+                    <button type="button" class="wsb-menu__item" role="menuitem" data-workspace-refresh
+                        title="โหลดฉบับล่าสุดจากเซิร์ฟเวอร์" aria-label="รีเฟรช">
+                        <i class="bi bi-arrow-clockwise wsb-menu__item-icon" aria-hidden="true"></i>
+                        <span class="wsb-menu__item-label">รีเฟรช</span>
+                    </button>
+
+                    @if ($capabilities['canManageSettings'])
+                        <button type="button" class="wsb-menu__item" role="menuitem" data-workspace-board-settings
+                            title="เปลี่ยนชื่อและการมองเห็น" aria-label="แก้ไขชื่อ">
+                            <i class="bi bi-pencil-square wsb-menu__item-icon" aria-hidden="true"></i>
+                            <span class="wsb-menu__item-label">แก้ไขชื่อ</span>
+                        </button>
+                    @endif
+
+                    @if ($capabilities['canDelete'])
+                        <div class="wsb-menu__separator" role="separator"></div>
+
+                        <button type="button" class="wsb-menu__item wsb-menu__item--danger" role="menuitem"
+                            data-workspace-board-delete
+                            title="ลบกระดานนี้" aria-label="ลบกระดาน">
+                            <i class="bi bi-trash wsb-menu__item-icon" aria-hidden="true"></i>
+                            <span class="wsb-menu__item-label">ลบกระดาน</span>
+                        </button>
+                    @endif
+                </div>
+            </div>
         </div>
     </header>
 
     @include('workspace.components.board-toolbar')
     @include('workspace.components.board-stage')
+
+    {{-- เมนูคลิกขวาของผืนผ้าใบ ซ่อนไว้จนกว่าจะมีการคลิกขวา (context-menu.js) --}}
+    @include('workspace.components.board-context-menu')
 
     {{-- กล่องใบเดียวกับหน้ารายการ ควบคุมโดย board-settings.js --}}
     @include('workspace.components.board-settings-modal')

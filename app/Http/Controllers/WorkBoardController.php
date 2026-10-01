@@ -218,6 +218,8 @@ class WorkBoardController extends Controller
                 'children.updates',
                 'updates.user.department',
                 'updates.attachments',
+                'updates.replyTo.user',
+                'updates.mentions',
                 'activityLogs.user.department',
                 'reviewSubmitter',
             ])

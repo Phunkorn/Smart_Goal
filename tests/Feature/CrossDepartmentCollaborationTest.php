@@ -135,9 +135,11 @@ class CrossDepartmentCollaborationTest extends TestCase
      * ผู้ร่วมงานข้ามแผนกไม่เห็นปุ่มที่กดแล้วได้ "This action is unauthorized"
      *
      * ช่องเพิ่มงานย่อย ปุ่มลาก เมนูย้าย/แก้ชื่อ/ลบงานย่อย ใช้ manageSubtasks ตัวเดียวกับ server
-     * ส่วน "ขอเพิ่มงาน" ถูกปิดที่ WorkOrderListPolicy::requestTask ทั้งหน้าจอและ endpoint
+     * ส่วน "ขอเพิ่มงาน" เปิดให้ผู้ร่วมงานข้ามแผนกใช้ได้แล้ว (กติกาเปลี่ยนตามที่เจ้าของระบบกำหนด
+     * — ดู WorkOrderListPolicy::requestTask()) เพราะงานที่ถูกสร้างยังเป็นของเจ้าของโปรเจกต์
+     * เหมือนเดิม ผู้ร่วมงานข้ามแผนกจึงไม่ได้สิทธิ์จัดการงานย่อยของงานอื่นในโปรเจกต์เพิ่มขึ้น
      */
-    public function test_cross_department_collaborator_gets_no_subtask_management_or_task_request_controls(): void
+    public function test_cross_department_collaborator_gets_no_subtask_management_controls_but_can_add_tasks(): void
     {
         $project = WorkOrderList::create(['user_id' => $this->accountOwner->id, 'name' => 'ทดสอบข้ามแผนก']);
         $parent = $this->accountTask('งานของบัญชี', ['work_order_list_id' => $project->id]);
@@ -153,16 +155,28 @@ class CrossDepartmentCollaborationTest extends TestCase
             ->assertDontSee('data-task-detail-move', false)
             ->assertDontSee('data-task-detail-edit', false)
             ->assertDontSee('data-task-detail-delete', false)
-            ->assertDontSee('data-open-project-task-request', false);
+            ->assertSee('data-open-project-task-request', false);
 
-        $this->actingAs($this->itMember)
+        $response = $this->actingAs($this->itMember)
             ->postJson(route('mytasks.lists.task-requests.store', $project), [
+                'request_type' => 'task',
                 'job_topic' => 'ขอเพิ่มข้ามแผนก',
                 'job_priority' => 2,
                 'job_start_at' => now()->addDay()->format('Y-m-d H:i'),
                 'job_due_at' => now()->addDays(2)->format('Y-m-d H:i'),
             ])
-            ->assertForbidden();
+            ->assertCreated();
+
+        $this->assertDatabaseHas('work_orders', [
+            'job_id' => $response->json('job_id'),
+            'job_topic' => 'ขอเพิ่มข้ามแผนก',
+            'user_id' => $this->accountOwner->id,
+        ]);
+        $this->assertDatabaseHas('work_order_collaborators', [
+            'work_order_id' => $response->json('job_id'),
+            'user_id' => $this->itMember->id,
+            'status' => 'accepted',
+        ]);
 
         // เจ้าของงานยังจัดการงานย่อยได้ครบเหมือนเดิม
         $this->actingAs($this->accountOwner)->get(route('mytasks.index', ['view' => 'board']))

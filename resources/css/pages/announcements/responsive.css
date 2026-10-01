@@ -1,0 +1,101 @@
+/* ศูนย์ประกาศบนจอเล็ก — ตารางเปลี่ยนเป็นการ์ดจากแถวชุดเดียวกัน (อ่านป้ายจาก data-label) */
+@media (max-width: 991.98px) {
+    .announcement-form__grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+
+    .announcement-form__side > .form-label:first-child {
+        margin-top: 12px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .announcements-page__header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .announcements-page__create {
+        justify-content: center;
+    }
+
+    .announcements-page__panel {
+        padding: 6px 12px 12px;
+    }
+
+    .announcements-page__search-field {
+        flex: 1 1 auto;
+    }
+
+    .announcements-table__scroll {
+        overflow: visible;
+    }
+
+    .announcements-table thead {
+        display: none;
+    }
+
+    .announcements-table,
+    .announcements-table tbody,
+    .announcements-table tr {
+        display: block;
+    }
+
+    .announcements-table tr {
+        position: relative;
+        padding: 12px 40px 12px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .announcements-table tr:last-child {
+        border-bottom: 0;
+    }
+
+    .announcements-table td,
+    .table-clean.announcements-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 4px 0;
+        border: 0;
+    }
+
+    .announcements-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: var(--text-muted);
+        font-size: .74rem;
+    }
+
+    .announcements-table td.announcements-table__title {
+        display: flex;
+        min-width: 0;
+        justify-content: flex-start;
+        padding-bottom: 8px;
+    }
+
+    .announcements-table td.announcements-table__title::before {
+        content: none;
+    }
+
+    .announcements-table__dates {
+        white-space: normal;
+        text-align: right;
+    }
+
+    .announcements-table__author {
+        min-width: 0;
+        text-align: right;
+    }
+
+    .announcements-table td.announcements-table__actions {
+        position: absolute;
+        top: 10px;
+        right: 0;
+        width: auto;
+        padding: 0;
+    }
+}

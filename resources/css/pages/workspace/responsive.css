@@ -1,0 +1,185 @@
+/*
+ * จุดเปลี่ยนตามขนาดจอของกระดานไอเดีย รวมไว้ที่ไฟล์เดียว
+ *
+ * ต้อง @import ไฟล์นี้เป็นตัวสุดท้ายจาก workspace.css เพราะกฎในนี้เป็นการปรับ
+ * ค่าที่ประกาศไว้ในไฟล์ก่อนหน้า ถ้ามาก่อนจะถูกกฎฐานเขียนทับ และโปรเจกต์นี้
+ * ห้ามใช้การบังคับลำดับความสำคัญของ CSS มาแก้ปัญหา cascade แบบลัด
+ */
+
+/*
+ * ที่ความกว้าง 991px ลงมา แถบบนของระบบเตี้ยลงเหลือ 58px (ดู
+ * resources/css/components/layout/responsive.css) สูตรความสูงจึงต้องเปลี่ยนตาม
+ * ไม่งั้นผืนผ้าใบจะสูงเกินไป 6px แล้วมีแถบเลื่อนโผล่มาทั้งที่ไม่มีอะไรให้เลื่อน
+ */
+@media (max-width: 991px) {
+    .ws-board {
+        height: calc(100vh - 58px - 3.5rem);
+        height: calc(100dvh - 58px - 3.5rem);
+    }
+}
+
+/* จอโทรศัพท์ .main เว้นขอบบนล่างเหลืออย่างละ 1rem (responsive.css) สูตรจึงหักแค่ 2rem */
+@media (max-width: 575.98px) {
+    .ws-board {
+        height: calc(100vh - 58px - 2rem);
+        height: calc(100dvh - 58px - 2rem);
+    }
+}
+
+/* ลดจำนวนคอลัมน์ทีละขั้น ไม่ให้การ์ดถูกบีบจนชื่อแผนกถูกตัดด้วย ellipsis */
+@media (max-width: 1280px) {
+    .ws-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 992px) {
+    .ws-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .ws-page {
+        padding: 1rem;
+        gap: 1.25rem;
+    }
+
+    .ws-grid,
+    .ws-grid--boards {
+        grid-template-columns: 1fr;
+    }
+
+    .ws-board__header {
+        padding: 0.9rem 1rem;
+    }
+
+    /* แถบเครื่องมือย้ายลงล่างเป็นแถบเลื่อนแนวนอน เพราะบนจอแคบมันจะกิน
+       ความสูงไปหลายแถวจนเหลือที่วาดนิดเดียว */
+    .ws-board {
+        position: relative;
+    }
+
+    /*
+     * .wsb-toolbar ไม่ใช่ flex item ของ .ws-board โดยตรง (อยู่ใน
+     * .wsb-toolbar-shell) ตำแหน่งปักด้านล่างและลำดับการ์ดจึงอยู่ที่เชลล์
+     * ส่วนหน้าตาแถบเลื่อนแนวนอนเป็นของ .wsb-toolbar เอง
+     */
+    .wsb-toolbar-shell {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        order: 2;
+    }
+
+    .wsb-toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding: 0.5rem 0.75rem;
+        border-top: 1px solid #e2e8f0;
+        border-bottom: 0;
+        box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
+        scrollbar-width: thin;
+    }
+
+    /*
+     * แถวรูปแบบซ้อนอยู่บนแถวหลัก จึงต้องไม่มีเงาซ้อนอีกชั้นและไม่มีเส้นขอบบน
+     * ซ้ำกับแถวหลัก ไม่งั้นบนโทรศัพท์จะเห็นเส้นคู่คาดขวางจอ
+     */
+    .wsb-toolbar--context {
+        border-top: 0;
+        box-shadow: none;
+    }
+
+    /* มือจับพับ/กางเป็นทางลัดสำหรับจอกว้างเท่านั้น จอแคบแถบเป็นแถบเลื่อน
+       แนวนอนแบบบางอยู่แล้ว ไม่ต้องมีมือจับอีกชั้น */
+    .wsb-toolbar-handle-row {
+        display: none;
+    }
+
+    .wsb-toolbar__group {
+        flex: 0 0 auto;
+    }
+
+    .wsb-stage {
+        order: 1;
+    }
+
+    /* เป้าหมายการแตะขั้นต่ำ 44px */
+    .wsb-tool,
+    .wsb-swatch,
+    .wsb-width,
+    .wsb-zoom,
+    .wsb-picker__toggle,
+    .wsb-menu__trigger {
+        min-width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    /* รายการในเมนูก็ต้องแตะได้ถนัดเท่ากัน เมนูคลิกขวาใช้ได้จากการกดค้างด้วย */
+    .wsb-menu__item {
+        min-height: 2.75rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .ws-page__header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ws-page__header .ws-btn {
+        justify-content: center;
+    }
+
+    /* เป้าหมายการแตะขั้นต่ำ 44px บนอุปกรณ์สัมผัส */
+    .ws-icon-btn {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    .ws-board-card__link {
+        padding-right: 1.1rem;
+    }
+
+    .ws-board-card__actions {
+        position: static;
+        justify-content: flex-end;
+        padding: 0 0.7rem 0.7rem;
+    }
+
+    /*
+     * ปุ่มบนหัวกระดานเหลือแค่ไอคอนบนโทรศัพท์ ไม่งั้นหัวกระดานกินสามสี่บรรทัด
+     * จนเหลือที่วาดนิดเดียว ชื่อปุ่มยังอยู่ใน aria-label และ title
+     */
+    .ws-board__status .ws-btn__text {
+        display: none;
+    }
+
+    .ws-board__status .ws-btn {
+        justify-content: center;
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+        padding: 0 0.6rem;
+    }
+
+    /* เมนูกว้างเต็มที่เท่าที่จอให้ได้ เพื่อไม่ให้ป้ายภาษาไทยถูกตัดกลางคำ */
+    .wsb-menu {
+        max-width: calc(100vw - 1.5rem);
+    }
+}
+
+/*
+ * เคารพการตั้งค่าลดการเคลื่อนไหวของผู้ใช้ — ทั้งไอคอนที่หมุนตอนบันทึกและ
+ * tooltip ที่ค่อย ๆ จาง
+ */
+@media (prefers-reduced-motion: reduce) {
+    .wsb-save[data-state="dirty"] i,
+    .wsb-save[data-state="saving"] i {
+        animation: none;
+    }
+
+    .wsb-toolbar [data-tooltip]::after {
+        transition: none;
+    }
+}

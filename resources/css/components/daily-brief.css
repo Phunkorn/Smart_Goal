@@ -1,0 +1,783 @@
+/* ============================================================================
+ * สรุปประจำวัน (Daily Brief) — resources/views/daily-brief/modal.blade.php
+ *
+ * modal-stack เป็นเจ้าของ z-index, backdrop และการล็อก body ไฟล์นี้วาดเฉพาะหน้าตา
+ * ([data-modal-backdrop="on"] ถูกตั้งโดย modal-stack บนชั้นบนสุดเท่านั้น)
+ *
+ * สีทั้งหมดอ่านจาก design token ใน resources/css/foundations/tokens.css และป้ายใช้
+ * .badge-soft ชุดเดิม หัวกล่องใช้ gradient จากสีหลักของธีมแทนภาพถ่ายในภาพอ้างอิง
+ * ========================================================================== */
+@import './member-card.css';
+
+.daily-brief {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.daily-brief[hidden] {
+    display: none !important;
+}
+
+.daily-brief[data-modal-backdrop="on"]::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .45);
+}
+
+.daily-brief__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(1040px, 100%);
+    max-height: calc(100vh - 48px);
+    max-height: calc(100dvh - 48px);
+    overflow: hidden;
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 30px 70px -30px rgba(15, 23, 42, .7);
+}
+
+/* ---------- หัวกล่อง ---------- */
+
+.daily-brief__hero {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 16px;
+    padding: 22px 64px 22px 24px;
+    background: linear-gradient(120deg, var(--accent-strong) 0%, var(--accent) 62%, #3d6fe8 100%);
+    color: #fff;
+}
+
+.daily-brief__sun {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .14);
+    color: var(--amber);
+    font-size: 2rem;
+}
+
+.daily-brief__heading {
+    min-width: 0;
+}
+
+.daily-brief__heading h2 {
+    margin: 0;
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.daily-brief__date {
+    margin: 2px 0 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.daily-brief__lead {
+    margin: 2px 0 0;
+    font-size: .82rem;
+    opacity: .85;
+}
+
+.daily-brief__close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .14);
+    color: #fff;
+}
+
+.daily-brief__close:hover,
+.daily-brief__close:focus-visible {
+    background: rgba(255, 255, 255, .26);
+}
+
+/* ---------- เนื้อหา ---------- */
+
+.daily-brief__body {
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    min-height: 0;
+    padding: 18px 20px;
+    overflow-y: auto;
+    background: var(--bg);
+}
+
+.daily-brief__column {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.daily-brief__card {
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.daily-brief__card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.daily-brief__card-head h3 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    color: var(--text);
+    font-size: .98rem;
+    font-weight: 700;
+}
+
+.daily-brief__card-icon {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.daily-brief__card--routine .daily-brief__card-icon {
+    background: var(--green-dim);
+    color: #00875A;
+}
+
+.daily-brief__card--department .daily-brief__card-icon {
+    background: var(--red-dim);
+    color: #C8264B;
+}
+
+.daily-brief__card--all .daily-brief__card-icon {
+    background: var(--blue-dim);
+    color: #1A66D6;
+}
+
+.daily-brief__list {
+    display: flex;
+    flex-direction: column;
+}
+
+.daily-brief__empty {
+    margin: 4px 0;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: .82rem;
+    text-align: center;
+}
+
+/* ---------- แถวงาน ---------- */
+
+.daily-brief__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 9px 6px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+}
+
+.daily-brief__row:last-child {
+    border-bottom: 0;
+}
+
+.daily-brief__row:hover,
+.daily-brief__row:focus-visible {
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.daily-brief__row-main {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.daily-brief__row-main strong {
+    overflow: hidden;
+    font-size: .86rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.daily-brief__row-main small {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: .72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.daily-brief__time {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-size: .76rem;
+    white-space: nowrap;
+}
+
+.daily-brief__time.is-late {
+    color: #C8264B;
+    font-weight: 600;
+}
+
+.daily-brief__chevron {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
+.daily-brief__more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.daily-brief__more:hover {
+    color: var(--accent-strong);
+}
+
+/* ---------- กล่อง "ดูทั้งหมด" (ชั้นบนของสรุป) ---------- */
+
+.daily-brief-list {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.daily-brief-list[hidden] {
+    display: none !important;
+}
+
+.daily-brief-list[data-modal-backdrop="on"]::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .35);
+    animation: daily-brief-fade .25s ease-out backwards;
+}
+
+.daily-brief-list__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(640px, 100%);
+    max-height: calc(100vh - 48px);
+    max-height: calc(100dvh - 48px);
+    overflow: hidden;
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 30px 70px -30px rgba(15, 23, 42, .7);
+    animation: daily-brief-enter .45s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+
+.daily-brief-list__head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.daily-brief-list__head h3 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.daily-brief-list__icon--routine {
+    background: var(--green-dim);
+    color: #00875A;
+}
+
+.daily-brief-list__close {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--text-muted);
+}
+
+.daily-brief-list__close:hover {
+    color: var(--text);
+}
+
+.daily-brief-list__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 8px 16px;
+    overflow-y: auto;
+}
+
+.daily-brief-list__footer {
+    display: flex;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+}
+
+/* ---------- ประกาศ ---------- */
+
+.daily-brief__announcement {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.daily-brief__announcement:first-child {
+    padding-top: 4px;
+}
+
+.daily-brief__announcement:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.daily-brief__author {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.daily-brief__author-text {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+    line-height: 1.35;
+}
+
+.daily-brief__author-text strong {
+    color: var(--text);
+    font-size: .9rem;
+}
+
+.daily-brief__author-text small,
+.daily-brief__author-text time {
+    color: var(--text-muted);
+    font-size: .74rem;
+}
+
+.daily-brief__audience {
+    flex: 0 0 auto;
+}
+
+.daily-brief__announcement-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 4px;
+    color: var(--text);
+    font-size: .9rem;
+    font-weight: 700;
+}
+
+.daily-brief__new {
+    padding: .1rem .45rem;
+    border-radius: 20px;
+    background: var(--brand-red);
+    color: #fff;
+    font-size: .64rem;
+    font-weight: 700;
+}
+
+.daily-brief__announcement-body {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: .84rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.daily-brief__announcement--department .daily-brief__announcement-body {
+    background: var(--red-dim);
+}
+
+.daily-brief__announcement--all .daily-brief__announcement-body {
+    background: var(--blue-dim);
+}
+
+/* ---------- ท้ายกล่อง ---------- */
+
+.daily-brief__footer {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.daily-brief__acknowledge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 240px;
+    min-height: 44px;
+}
+
+.daily-brief__acknowledge:disabled {
+    opacity: .7;
+}
+
+/*
+ * ปุ่มนี้มี autofocus และ modal-stack โฟกัสให้ทันทีที่กล่องเปิด เบราว์เซอร์จึงวาดเส้นขอบ
+ * โฟกัสสีดำรอบปุ่มตั้งแต่แรกเห็น ซึ่งเจ้าของระบบให้เอาออก คนที่ใช้คีย์บอร์ดยังเห็นว่าปุ่ม
+ * ถูกโฟกัสจากเงายกตัวแบบเดียวกับตอนชี้เมาส์ (กฎ :focus-visible ในส่วนการเข้าฉาก)
+ */
+.daily-brief__acknowledge:focus,
+.daily-brief__acknowledge:focus-visible {
+    outline: none;
+}
+
+.daily-brief__error {
+    flex: 1 0 100%;
+    margin: 0;
+    color: #C8264B;
+    font-size: .82rem;
+    text-align: center;
+}
+
+/* ---------- การเข้าฉาก ----------
+ *
+ * ใช้ภาษาเดียวกับหน้าเข้าสู่ระบบ (resources/css/components/auth/*): เส้นโค้ง
+ * cubic-bezier(.16, 1, .3, 1) การ์ดลอยขึ้น แสงวิ่งพาด และวงแสงเต้น
+ *
+ * modal-stack สลับ hidden ของกล่อง เมื่อกล่องกลับมาแสดง (display: none -> flex)
+ * เบราว์เซอร์เล่นแอนิเมชันใหม่ทุกครั้ง จึงไม่ต้องมี JS คอยสั่งเล่น
+ * ทุกอย่างปิดเมื่อผู้ใช้ตั้งค่าลดการเคลื่อนไหว (prefers-reduced-motion)
+ */
+
+.daily-brief[data-modal-backdrop="on"]::before {
+    animation: daily-brief-fade .35s ease-out backwards;
+}
+
+.daily-brief__panel {
+    animation: daily-brief-enter .65s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+
+/* หัวกล่อง: gradient ค่อย ๆ ไหล และมีแสงวิ่งพาดผ่านหนึ่งครั้งตอนเปิด */
+.daily-brief__hero {
+    overflow: hidden;
+    background-size: 180% 100%;
+    animation: daily-brief-shift 9s ease-in-out infinite;
+}
+
+.daily-brief__hero::after {
+    content: '';
+    position: absolute;
+    top: -60%;
+    left: -40%;
+    width: 35%;
+    height: 220%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .28), transparent);
+    pointer-events: none;
+    transform: rotate(14deg);
+    animation: daily-brief-sheen 1.6s .35s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+
+.daily-brief__heading,
+.daily-brief__close {
+    position: relative;
+    z-index: 1;
+}
+
+.daily-brief__heading > * {
+    animation: daily-brief-rise .7s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+
+.daily-brief__heading > :nth-child(1) { animation-delay: .15s; }
+.daily-brief__heading > :nth-child(2) { animation-delay: .23s; }
+.daily-brief__heading > :nth-child(3) { animation-delay: .31s; }
+
+/* ดวงอาทิตย์: หมุนขึ้นมาแล้วมีวงแสงเต้นเบา ๆ แบบจุดสถานะของหน้าเข้าสู่ระบบ */
+.daily-brief__sun {
+    position: relative;
+    z-index: 1;
+    animation: daily-brief-sunrise .9s .1s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+
+.daily-brief__sun::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(253, 171, 61, .35);
+    animation: daily-brief-pulse 2.8s 1s ease-out infinite;
+}
+
+.daily-brief__sun i {
+    position: relative;
+    z-index: 1;
+    display: inline-block;
+    animation: daily-brief-spin 24s linear infinite;
+}
+
+/* การ์ดทั้งสี่ลอยขึ้นทีละใบ ซ้ายก่อนขวา */
+.daily-brief__card {
+    animation: daily-brief-rise .7s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+
+.daily-brief__column:first-child .daily-brief__card:nth-child(1) { animation-delay: .28s; }
+.daily-brief__column:first-child .daily-brief__card:nth-child(2) { animation-delay: .38s; }
+.daily-brief__column:last-child .daily-brief__card:nth-child(1) { animation-delay: .34s; }
+.daily-brief__column:last-child .daily-brief__card:nth-child(2) { animation-delay: .44s; }
+
+.daily-brief__row,
+.daily-brief__announcement {
+    animation: daily-brief-slide .5s cubic-bezier(.16, 1, .3, 1) backwards;
+    animation-delay: .5s;
+}
+
+.daily-brief__row:nth-child(2), .daily-brief__announcement:nth-child(2) { animation-delay: .56s; }
+.daily-brief__row:nth-child(3), .daily-brief__announcement:nth-child(3) { animation-delay: .62s; }
+.daily-brief__row:nth-child(4), .daily-brief__announcement:nth-child(4) { animation-delay: .68s; }
+.daily-brief__row:nth-child(n + 5), .daily-brief__announcement:nth-child(n + 5) { animation-delay: .74s; }
+
+.daily-brief__row {
+    transition: background-color .2s, transform .25s cubic-bezier(.16, 1, .3, 1);
+}
+
+.daily-brief__row:hover {
+    transform: translateX(3px);
+}
+
+.daily-brief__row:hover .daily-brief__chevron {
+    color: var(--accent);
+}
+
+/* ป้าย "ใหม่" เด้งเข้ามาหลังการ์ดขึ้นครบ */
+.daily-brief__new {
+    display: inline-block;
+    animation: daily-brief-pop .45s .8s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+
+/* ปุ่มรับทราบขึ้นเป็นลำดับสุดท้าย ยกตัวเมื่อชี้ และมีแสงวิ่งผ่านตอนชี้ */
+.daily-brief__acknowledge {
+    position: relative;
+    overflow: hidden;
+    animation: daily-brief-rise .6s .55s cubic-bezier(.16, 1, .3, 1) backwards;
+    transition: transform .18s cubic-bezier(.16, 1, .3, 1), box-shadow .25s, background-color .2s;
+}
+
+.daily-brief__acknowledge::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent);
+    transform: skewX(-20deg);
+    transition: left .6s cubic-bezier(.16, 1, .3, 1);
+    pointer-events: none;
+}
+
+.daily-brief__acknowledge:hover:not(:disabled),
+.daily-brief__acknowledge:focus-visible:not(:disabled) {
+    box-shadow: 0 10px 22px -10px rgba(30, 79, 214, .6);
+}
+
+.daily-brief__acknowledge:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.daily-brief__acknowledge:hover:not(:disabled)::after {
+    left: 120%;
+}
+
+.daily-brief__acknowledge:active:not(:disabled) {
+    transform: translateY(0) scale(.98);
+}
+
+@keyframes daily-brief-fade {
+    from { opacity: 0; }
+}
+
+@keyframes daily-brief-enter {
+    from { opacity: 0; transform: translateY(28px) scale(.965); }
+}
+
+@keyframes daily-brief-rise {
+    from { opacity: 0; transform: translateY(16px); }
+}
+
+@keyframes daily-brief-slide {
+    from { opacity: 0; transform: translateX(-10px); }
+}
+
+@keyframes daily-brief-pop {
+    0% { opacity: 0; transform: scale(.4); }
+    70% { transform: scale(1.12); }
+}
+
+@keyframes daily-brief-sunrise {
+    from { opacity: 0; transform: translateY(18px) rotate(-90deg) scale(.6); }
+}
+
+@keyframes daily-brief-pulse {
+    0% { transform: scale(1); opacity: .8; }
+    100% { transform: scale(1.9); opacity: 0; }
+}
+
+@keyframes daily-brief-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes daily-brief-sheen {
+    from { left: -40%; }
+    to { left: 130%; }
+}
+
+@keyframes daily-brief-shift {
+    50% { background-position: 100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .daily-brief *,
+    .daily-brief *::before,
+    .daily-brief *::after,
+    .daily-brief[data-modal-backdrop="on"]::before,
+    .daily-brief-list *,
+    .daily-brief-list[data-modal-backdrop="on"]::before {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ---------- จอเล็ก ---------- */
+
+@media (max-width: 991.98px) {
+    .daily-brief__body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .daily-brief,
+    .daily-brief-list {
+        padding: 0;
+    }
+
+    .daily-brief-list__panel {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        border-radius: 0;
+    }
+
+    .daily-brief-list__footer {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+
+    .daily-brief-list__footer .btn-outline-line {
+        width: 100%;
+    }
+
+    .daily-brief__panel {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        border-radius: 0;
+    }
+
+    .daily-brief__hero {
+        padding: 16px 56px 16px 16px;
+        gap: 12px;
+    }
+
+    .daily-brief__sun {
+        width: 44px;
+        height: 44px;
+        font-size: 1.5rem;
+    }
+
+    .daily-brief__heading h2 {
+        font-size: 1.2rem;
+    }
+
+    .daily-brief__date {
+        font-size: .88rem;
+    }
+
+    .daily-brief__body {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .daily-brief__column {
+        gap: 12px;
+    }
+
+    .daily-brief__card {
+        padding: 12px;
+    }
+
+    .daily-brief__footer {
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    }
+
+    .daily-brief__acknowledge {
+        width: 100%;
+        min-width: 0;
+    }
+}

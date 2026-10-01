@@ -15,6 +15,7 @@ class SystemNotification extends Model
         'task_reopened' => 'review',
         'self_closed' => 'review',
         'task_comment' => 'comment',
+        'task_comment_mention' => 'comment',
         'deadline_due_today' => 'deadline',
         'deadline_overdue' => 'deadline',
         'task_assigned' => 'task',
@@ -29,6 +30,9 @@ class SystemNotification extends Model
         'collaborator_approval_request' => 'task',
         'collaborator_approved' => 'task',
         'collaborator_rejected' => 'task',
+        'project_task_added' => 'task',
+        // สามชนิดนี้ไม่ถูกสร้างใหม่แล้ว (แทนด้วย project_task_added เพราะเพิ่มงานเสร็จทันที
+        // ไม่ต้องรอเจ้าของโปรเจกต์อนุมัติอีกต่อไป) เก็บไว้ให้แจ้งเตือนเก่ายังจัดหมวด/เปิดลิงก์ได้
         'project_task_request_submitted' => 'task',
         'project_task_request_approved' => 'task',
         'project_task_request_rejected' => 'task',

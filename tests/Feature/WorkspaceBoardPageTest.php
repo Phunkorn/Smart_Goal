@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkspaceBoard;
 use App\Models\WorkspaceBoardDocument;
+use App\Support\WorkspaceDesign;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -86,6 +87,40 @@ class WorkspaceBoardPageTest extends TestCase
             ->assertOk()
             ->assertSee('"canEdit":false', false)
             ->assertSee('ดูอย่างเดียว', false);
+    }
+
+    /**
+     * หน้าวาดฝังเลขเวอร์ชันไว้ใน HTML ถ้าเบราว์เซอร์หยิบฉบับเก่าจาก cache มาแสดง
+     * (กดย้อนกลับ หรือเปิดจากประวัติ) การบันทึกครั้งแรกจะชนกับงานของตัวเอง
+     */
+    public function test_the_board_page_is_never_served_from_the_browser_cache(): void
+    {
+        $staff = $this->user('user', $this->it);
+        $board = $this->board($this->it, $staff, 'organization');
+
+        $cacheControl = $this->actingAs($staff)
+            ->get(route('workspace.boards.show', $board))
+            ->assertOk()
+            ->headers->get('Cache-Control');
+
+        $this->assertStringContainsString('no-store', $cacheControl);
+    }
+
+    /**
+     * จำนวนชิ้นงานบนการ์ดไม่ได้ช่วยให้ตัดสินใจเปิดกระดานไหน แต่ทำให้การ์ดรก
+     */
+    public function test_board_cards_do_not_show_the_element_count(): void
+    {
+        $staff = $this->user('user', $this->it);
+        $board = $this->board($this->it, $staff, 'organization');
+        $board->forceFill(['element_count' => 37])->save();
+
+        $this->actingAs($staff)
+            ->get(route('workspace.department', $this->it))
+            ->assertOk()
+            ->assertSee($board->title, false)
+            ->assertDontSee('37 ชิ้น', false)
+            ->assertDontSee('ws-board-card__count', false);
     }
 
     public function test_a_private_board_returns_403_for_other_departments(): void
@@ -218,6 +253,119 @@ class WorkspaceBoardPageTest extends TestCase
             ->assertSessionHasErrors('visibility');
 
         $this->assertSame(0, WorkspaceBoard::query()->count());
+    }
+
+    /*
+     * โครงเมนูบนแถบเครื่องมืออ้างถึงเครื่องมือด้วยคีย์ ไม่ได้ประกาศป้ายซ้ำ
+     * ถ้าคีย์ไม่มีใน TOOLS เทมเพลตจะพังตอนเรนเดอร์ด้วย undefined array key
+     * ซึ่งเป็นความผิดพลาดที่มองไม่เห็นจนกว่าจะเปิดหน้าจริง
+     */
+    public function test_toolbar_only_references_tools_that_exist(): void
+    {
+        $tools = array_keys(WorkspaceDesign::TOOLS);
+
+        foreach (WorkspaceDesign::PRIMARY_TOOLS as $tool) {
+            $this->assertContains($tool, $tools, 'แถบอ้างเครื่องมือ '.$tool.' ที่ไม่มีใน TOOLS');
+        }
+
+        foreach (WorkspaceDesign::PRIMARY_COMMANDS as $command => $tool) {
+            $this->assertContains($tool, $tools, $command.' ยืมป้ายจากเครื่องมือที่ไม่มีอยู่');
+        }
+
+        foreach (WorkspaceDesign::TOOL_MENUS as $key => $menu) {
+            $this->assertNotSame('', $menu['label'], $key);
+            $this->assertStringStartsWith('bi-', $menu['icon'], $key);
+
+            foreach ($menu['tools'] as $tool) {
+                $this->assertContains($tool, $tools, $key.' อ้างเครื่องมือ '.$tool.' ที่ไม่มีใน TOOLS');
+            }
+        }
+    }
+
+    /**
+     * ทุกเครื่องมือต้องเข้าถึงได้จากแถบ ไม่ใช่มีแต่ปุ่มลัด
+     *
+     * ถ้ามีคนเพิ่มเครื่องมือใหม่ใน TOOLS แล้วลืมใส่ในแถบหรือในเมนูรูปทรง
+     * เครื่องมือนั้นจะกดจากหน้าจอไม่ได้เลย
+     */
+    public function test_every_tool_is_reachable_from_the_toolbar(): void
+    {
+        $reachable = array_merge(
+            WorkspaceDesign::PRIMARY_TOOLS,
+            array_values(WorkspaceDesign::PRIMARY_COMMANDS),
+            ...array_values(array_map(fn (array $menu) => $menu['tools'], WorkspaceDesign::TOOL_MENUS)),
+        );
+
+        foreach (array_keys(WorkspaceDesign::TOOLS) as $tool) {
+            $this->assertContains($tool, $reachable, 'เครื่องมือ '.$tool.' เข้าถึงจากแถบเครื่องมือไม่ได้');
+        }
+    }
+
+    /**
+     * เครื่องมือที่ใช้บ่อยต้องกดถึงในคลิกเดียว ไม่ถูกยุบลงเมนู
+     *
+     * เคยยุบไว้ในเมนูแล้วผู้ใช้รายงานว่าหาไม่เจอและไม่รู้ว่ากำลังถืออะไรอยู่
+     */
+    public function test_frequent_tools_are_not_hidden_behind_a_menu(): void
+    {
+        $inMenus = array_merge(
+            ...array_values(array_map(fn (array $menu) => $menu['tools'], WorkspaceDesign::TOOL_MENUS)),
+        );
+
+        foreach (['select', 'hand', 'pen', 'eraser', 'sticky', 'text'] as $tool) {
+            $this->assertContains($tool, WorkspaceDesign::PRIMARY_TOOLS, $tool.' ต้องอยู่บนแถบ');
+            $this->assertNotContains($tool, $inMenus, $tool.' ต้องไม่ถูกซ่อนในเมนู');
+        }
+    }
+
+    /**
+     * เมนูคลิกขวาต้องแบนราบ คำสั่งจัดลำดับชั้นเคยอยู่ในเมนูย่อยแล้วกดไม่ติด
+     */
+    public function test_the_canvas_menu_is_flat(): void
+    {
+        foreach (WorkspaceDesign::CANVAS_MENU as $item) {
+            $this->assertArrayNotHasKey('submenu', $item);
+            $this->assertArrayNotHasKey('items', $item);
+        }
+
+        $commands = array_column(WorkspaceDesign::CANVAS_MENU, 'command');
+
+        foreach (['bring-to-front', 'bring-forward', 'send-backward', 'send-to-back'] as $command) {
+            $this->assertContains($command, $commands, $command.' ต้องอยู่ในเมนูชั้นบนสุด');
+        }
+    }
+
+    public function test_canvas_menu_items_declare_a_label_icon_and_scope(): void
+    {
+        $items = array_filter(
+            WorkspaceDesign::CANVAS_MENU,
+            fn (array $item) => ! isset($item['separator'])
+        );
+
+        $this->assertNotEmpty($items);
+
+        foreach ($items as $item) {
+            $name = $item['command'];
+
+            $this->assertNotSame('', $item['label'], $name);
+            $this->assertStringStartsWith('bi-', $item['icon'], $name);
+            $this->assertContains($item['needs'], ['selection', 'clipboard', 'always'], $name);
+            $this->assertIsBool($item['edit'], $name);
+        }
+    }
+
+    /**
+     * คีย์ของกลุ่มบนแถบรูปแบบต้องตรงกับ CONTEXT_GROUPS ฝั่ง JavaScript ซึ่งเป็น
+     * ผู้ตัดสินว่ากลุ่มไหนโผล่ ถ้าไม่ตรง กลุ่มนั้นจะไม่มีวันโผล่โดยไม่มี error
+     */
+    public function test_context_group_keys_match_the_javascript_source(): void
+    {
+        $source = file_get_contents(base_path('resources/js/pages/workspace/toolbar-context.js'));
+
+        preg_match("/CONTEXT_GROUPS = \[([^\]]*)\]/", $source, $matches);
+        preg_match_all("/'([a-z]+)'/", $matches[1], $keys);
+
+        $this->assertSame(array_keys(WorkspaceDesign::CONTEXT_GROUPS), $keys[1]);
     }
 
     private function board(Department $department, User $creator, string $visibility): WorkspaceBoard

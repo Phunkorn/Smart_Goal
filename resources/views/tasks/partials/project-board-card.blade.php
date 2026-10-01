@@ -48,8 +48,7 @@
                 ->values();
             $projectIsCompleted = $project
                 && (int) ($project->work_orders_count ?? 0) > 0
-                && ! (bool) ($project->has_incomplete_work_orders ?? true)
-                && $project->taskRequests->isEmpty();
+                && ! (bool) ($project->has_incomplete_work_orders ?? true);
         @endphp
             <header class="board-project-group__header project-tone-{{ $project ? $projectPriority[1] : 'neutral' }}" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}" data-detail-project-target="{{ $hasDetailDropTarget ? 1 : 0 }}">
                 <button type="button" class="board-project-collapse" data-board-collapse aria-label="ย่อหรือขยายโปรเจกต์"><i class="bi bi-caret-down-fill"></i></button>
@@ -85,64 +84,6 @@
                     @endif
                 </div>
             </header>
-
-            @if($project && auth()->user()->can('reviewTaskRequests', $project) && $project->taskRequests->isNotEmpty())
-                <details class="project-task-requests" @if((int) request('task_request') && $project->taskRequests->contains('id', (int) request('task_request'))) open @endif>
-                    <summary>
-                        <span class="project-task-requests__summary-icon" aria-hidden="true"><i class="bi bi-inbox-fill"></i></span>
-                        <span class="project-task-requests__summary-copy">
-                            <strong>คำขอเพิ่มงาน</strong>
-                            <small>ตรวจสอบรายละเอียดก่อนเพิ่มงานเข้าโปรเจกต์</small>
-                        </span>
-                        <span class="project-task-requests__count">{{ $project->taskRequests->count() }} รายการ</span>
-                        <i class="bi bi-chevron-down project-task-requests__chevron" aria-hidden="true"></i>
-                    </summary>
-                    <div class="project-task-requests__list">
-                        @foreach($project->taskRequests as $pendingRequest)
-                            <article @if((int) request('task_request') === (int) $pendingRequest->id) class="is-highlighted" data-project-task-request-target tabindex="-1" @endif>
-                                @php
-                                    $requesterName = $pendingRequest->requester?->name ?? 'ผู้ใช้ที่ถูกลบ';
-                                @endphp
-                                <div class="project-task-requests__content">
-                                    <div class="project-task-requests__title">
-                                        <span class="project-task-requests__task-icon" aria-hidden="true"><i class="bi bi-clipboard-check"></i></span>
-                                        <strong>{{ $pendingRequest->job_topic }}</strong>
-                                        <span class="project-task-requests__kind">{{ $pendingRequest->parent_job_id ? 'งานย่อย' : 'งานใหม่' }}</span>
-                                        <span class="project-task-requests__pending">รออนุมัติ</span>
-                                    </div>
-                                    @if($pendingRequest->parent_job_id)
-                                        <p class="project-task-requests__parent"><i class="bi bi-diagram-3" aria-hidden="true"></i> ภายใต้งาน {{ $pendingRequest->parentTask?->job_topic ?? 'งานหลักที่ถูกลบ' }}</p>
-                                    @endif
-                                    <div class="project-task-requests__meta">
-                                        <span><i class="bi bi-person" aria-hidden="true"></i> ขอโดย {{ $requesterName }}</span>
-                                        <span><i class="bi bi-calendar-event" aria-hidden="true"></i> กำหนดส่ง {{ $pendingRequest->job_due_at ? \App\Support\TodayWorkspace::businessMoment($pendingRequest->job_due_at)->format('d/m/Y H:i') : '-' }}</span>
-                                    </div>
-                                    @if($pendingRequest->job_details)<p class="project-task-requests__details">{{ $pendingRequest->job_details }}</p>@endif
-                                    <p class="project-task-requests__assignment-note">
-                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                        <span>เมื่ออนุมัติ คุณจะเป็นผู้รับผิดชอบ และ {{ $requesterName }} จะเป็นผู้ร่วมงาน</span>
-                                    </p>
-                                </div>
-                                <div class="project-task-requests__actions">
-                                    <form class="project-task-requests__approve-form" method="POST" action="{{ route('mytasks.task-requests.approve', $pendingRequest) }}">
-                                        @csrf @method('PATCH')
-                                        <button type="submit" class="btn project-task-requests__approve"><i class="bi bi-check-lg"></i> อนุมัติและเพิ่มงาน</button>
-                                    </form>
-                                    <form class="project-task-requests__reject-form" method="POST" action="{{ route('mytasks.task-requests.reject', $pendingRequest) }}">
-                                        @csrf @method('PATCH')
-                                        <label class="project-task-requests__reason">
-                                            <span class="visually-hidden">เหตุผลที่ปฏิเสธ</span>
-                                            <i class="bi bi-chat-left-text" aria-hidden="true"></i>
-                                            <input class="form-control form-control-sm" name="decision_reason" maxlength="1000" value="{{ (int) session('project_task_request_decision_id') === (int) $pendingRequest->id ? old('decision_reason') : '' }}" placeholder="เหตุผลที่ปฏิเสธ (ถ้ามี)">
-                                        </label>
-                                        <button type="submit" class="btn project-task-requests__reject"><i class="bi bi-x-lg"></i> ปฏิเสธ</button>
-                                    </form>
-                                </div>
-                            </article>
-                        @endforeach
-                    </div>
-                </details>
-            @endif
 
                 @foreach($projectTasks as $task)
                     @if((int) $task->job_status === 4 && (int) $task->job_id === (int) $firstCompletedId)

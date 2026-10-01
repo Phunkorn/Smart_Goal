@@ -1,0 +1,125 @@
+/*
+ * โครงหน้าวาด — กล่องเต็มความสูง หัวเรื่อง และป้ายสถานะการบันทึก
+ */
+
+/*
+ * หน้าวาดต้องสูงเต็มพื้นที่ที่เหลือจากแถบบน
+ *
+ * height: 100% ใช้ไม่ได้ เพราะ .main ซึ่งเป็นแม่ไม่ได้กำหนดความสูงไว้ ผลคือ
+ * กล่องยุบลงมาเท่าเนื้อหา แล้วผืนผ้าใบเหลือแค่ min-height ของตัวเอง (24rem)
+ * จึงคำนวณจากความสูงจอโดยตรง หักแถบบน 64px กับ padding ของ .main บนล่าง
+ * อย่างละ 1.75rem
+ *
+ * 100dvh ทำให้บนมือถือไม่โดนแถบที่อยู่ของเบราว์เซอร์กินพื้นที่ไปตอนเลื่อน
+ * โดยมี 100vh เป็นค่าสำรองสำหรับเบราว์เซอร์รุ่นเก่า
+ */
+.ws-board {
+    display: flex;
+    flex-direction: column;
+    min-height: 30rem;
+    height: calc(100vh - 64px - 3.5rem);
+    height: calc(100dvh - 64px - 3.5rem);
+}
+
+/*
+ * โหมดเต็มจอ กล่องหลุดออกจาก .main แล้ว จึงต้องกำหนดความสูงและพื้นหลังเอง
+ * ไม่งั้นจะได้พื้นหลังดำของเบราว์เซอร์รอบผืนผ้าใบ
+ */
+.ws-board:fullscreen {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    background: #ffffff;
+}
+
+/* หัวเรื่องกินที่ไปเปล่า ๆ ตอนเต็มจอ ซึ่งเป็นโหมดที่ผู้ใช้ต้องการพื้นที่วาดมากที่สุด */
+.ws-board:fullscreen .ws-board__header {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+}
+
+.ws-board:fullscreen .ws-breadcrumb {
+    display: none;
+}
+
+.ws-board__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.ws-board__title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+}
+
+.ws-board__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* ── ตัวบอกสถานะการบันทึก ────────────────────────────────────── */
+
+.wsb-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+/*
+ * ป้ายขึ้นเฉพาะตอนบันทึกไม่สำเร็จหรือชนเวอร์ชัน (autosave.js) display ด้านบน
+ * ชนะ attribute hidden ของเบราว์เซอร์ จึงต้องประกาศซ้ำ
+ */
+.wsb-save[hidden] {
+    display: none;
+}
+
+.wsb-save--teal {
+    background: #f0fdfa;
+    color: #0f766e;
+}
+
+.wsb-save--gray {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.wsb-save--blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.wsb-save--amber {
+    background: #fffbeb;
+    color: #b45309;
+}
+
+/*
+ * หมุนไอคอนตั้งแต่มีการแก้จนบันทึกเสร็จ (dirty กับ saving หน้าตาเดียวกัน ดูเหตุผล
+ * ที่ WorkspaceDesign::SAVE_STATES) การเคารพ prefers-reduced-motion อยู่ใน
+ * responsive.css ซึ่งเก็บ media query ทั้งหมดของหน้านี้ไว้ที่เดียว
+ */
+.wsb-save[data-state="dirty"] i,
+.wsb-save[data-state="saving"] i {
+    animation: wsb-spin 1s linear infinite;
+}
+
+@keyframes wsb-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

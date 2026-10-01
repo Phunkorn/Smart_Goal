@@ -515,6 +515,8 @@ class WorkOrderShareTest extends TestCase
         $department = Department::create(['department_name' => 'IT']);
         $sharer = $this->member($department);
         $task = $this->task($sharer, ['job_topic' => 'งานที่เคยแชร์']);
+        // สรุปประจำวันแสดงงานของผู้แชร์เองโดยตั้งใจ test นี้ตรวจเฉพาะรายการในหน้าแชร์งาน
+        $this->acknowledgeDailyBrief($sharer);
 
         $this->actingAs($sharer)
             ->postJson(route('shares.store', $task->job_id), ['scope' => 'department'])

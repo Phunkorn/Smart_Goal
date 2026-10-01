@@ -1,31 +1,44 @@
 /*
- * เครื่องมือเลือก - เลือก ย้าย ย่อขยาย และลากกรอบเลือกหลายชิ้น
+ * เครื่องมือเลือก - เลือก ย้าย ย่อขยาย หมุน และลากกรอบเลือกหลายชิ้น
  *
- * เป็นเครื่องมือที่ซับซ้อนที่สุด เพราะการกดลงหนึ่งครั้งอาจหมายถึงสามอย่าง
+ * เป็นเครื่องมือที่ซับซ้อนที่สุด เพราะการกดลงหนึ่งครั้งอาจหมายถึงหลายอย่าง
  * ขึ้นกับว่ากดตรงไหน จึงตัดสินโหมดตั้งแต่ตอน pointerdown แล้วเก็บไว้ใน draft
  * ไม่ตัดสินใหม่ทุกครั้งที่ขยับ ซึ่งจะทำให้โหมดสลับไปมาระหว่างลาก
  *
  * ลำดับการตัดสินสำคัญ: มือจับก่อน แล้วค่อยชิ้นงาน แล้วค่อยที่ว่าง เพราะมือจับ
  * วางอยู่บนขอบของกรอบซึ่งทับกับตัวชิ้นงานพอดี ถ้าเช็คชิ้นงานก่อนจะย่อขยายไม่ได้เลย
+ *
+ * ผู้ที่ดูอย่างเดียวใช้เครื่องมือนี้ได้เพื่อชี้ชิ้นงานให้เพื่อนดู แต่ย้าย ย่อขยาย
+ * หรือหมุนไม่ได้ เพราะการเปลี่ยนที่เกิดเฉพาะบนจอของเขาเองจะทำให้เข้าใจผิดว่า
+ * แก้กระดานได้ ทั้งที่ไม่มีทางบันทึก
  */
 
 import {
-    boundsOf,
+    HIT_TOLERANCE_PX,
     boundsFromPoints,
-    handleAtPoint,
     pickTopmost,
     pickWithin,
-    resizeBounds,
-    scaleElementToBounds,
+    rotateElement,
     translateElement,
-    unionBounds,
 } from '../geometry.js';
-
-/** ระยะผ่อนผันของการคลิกโดน หน่วยพิกเซลบนหน้าจอ */
-const HIT_TOLERANCE_PX = 6;
+import {angleAround, normalizeDegrees, snapDegrees} from '../rotation.js';
+import {
+    ROTATION_HANDLE_OFFSET_PX,
+    fitElementToFrame,
+    frameCenter,
+    frameOf,
+    frameTargetAt,
+    resizeFrame,
+} from '../selection-frame.js';
 
 /** ครึ่งหนึ่งของขนาดมือจับ หน่วยพิกเซลบนหน้าจอ */
 const HANDLE_RADIUS_PX = 7;
+
+/**
+ * รัศมีที่กดโดนมือจับหมุน กว้างกว่าวงกลมที่วาด (6px) โดยตั้งใจ มือจับนี้ลอยอยู่
+ * นอกกรอบโดยไม่มีอะไรทับ จึงให้พื้นที่กดเผื่อได้โดยไม่ไปแย่งการคลิกของใคร
+ */
+const ROTATION_HANDLE_RADIUS_PX = 11;
 
 /** ขนาดต่ำสุดของกรอบหลังย่อ กันไม่ให้ชิ้นงานหดจนคลิกกลับมาไม่ได้ */
 const MIN_SIZE = 4;
@@ -34,21 +47,41 @@ export const selectTool = {
     name: 'select',
     cursor: 'default',
 
-    onPointerDown({point, scene, selection, camera, additive}) {
+    onPointerDown({point, scene, selection, camera, additive, canEdit = true}) {
         const selected = scene.elements.filter((element) => selection.includes(element.id));
-        const bounds = unionBounds(selected);
+        const frame = frameOf(selected);
 
-        // 1) มือจับของกรอบที่เลือกอยู่
-        if (bounds) {
-            const handle = handleAtPoint(bounds, point, HANDLE_RADIUS_PX / camera.scale);
+        // 1) มือจับของกรอบที่เลือกอยู่ (หมุนหรือย่อขยาย)
+        if (frame && canEdit) {
+            const target = frameTargetAt(frame, point, {
+                handleRadius: HANDLE_RADIUS_PX / camera.scale,
+                rotationRadius: ROTATION_HANDLE_RADIUS_PX / camera.scale,
+                rotationOffset: ROTATION_HANDLE_OFFSET_PX / camera.scale,
+            });
 
-            if (handle) {
+            if (target === 'rotate') {
+                const pivot = frameCenter(frame);
+
+                return {
+                    draft: {
+                        mode: 'rotate',
+                        pivot,
+                        startAngle: angleAround(pivot, point),
+                        startFrame: frame,
+                        startElements: selected,
+                        liveFrame: frame,
+                        moved: false,
+                    },
+                };
+            }
+
+            if (target) {
                 return {
                     draft: {
                         mode: 'resize',
-                        handle,
+                        handle: target,
                         origin: point,
-                        startBounds: bounds,
+                        startFrame: frame,
                         startElements: selected,
                     },
                 };
@@ -60,6 +93,11 @@ export const selectTool = {
 
         if (hit) {
             const nextSelection = nextSelectionFor(selection, hit.id, additive);
+
+            if (! canEdit) {
+                return {selection: nextSelection};
+            }
+
             const moving = scene.elements.filter((element) => nextSelection.includes(element.id));
 
             return {
@@ -75,7 +113,7 @@ export const selectTool = {
         };
     },
 
-    onPointerMove({point, scene, draft, replaceElements}) {
+    onPointerMove({point, scene, draft, constrain, replaceElements}) {
         if (! draft) {
             return undefined;
         }
@@ -101,15 +139,13 @@ export const selectTool = {
             };
         }
 
-        const target = clampSize(resizeBounds(
-            draft.startBounds,
-            draft.handle,
-            point.x - draft.origin.x,
-            point.y - draft.origin.y
-        ));
+        if (draft.mode === 'rotate') {
+            return rotateSelection(draft, point, constrain, scene, replaceElements);
+        }
 
+        const target = resizeFrame(draft.startFrame, draft.handle, draft.origin, point, MIN_SIZE);
         const resized = draft.startElements.map(
-            (element) => scaleElementToBounds(element, draft.startBounds, target)
+            (element) => fitElementToFrame(element, draft.startFrame, target)
         );
 
         return {scene: replaceElements(scene, resized), draft: {...draft, moved: true}};
@@ -117,9 +153,40 @@ export const selectTool = {
 
     onPointerUp({draft}) {
         // กรอบเลือกไม่ได้เปลี่ยนเนื้อหา จึงไม่กินก้าว undo และการคลิกเลือกเฉย ๆ
-        // ก็เช่นกัน มีเฉพาะการย้ายหรือย่อขยายที่เกิดขึ้นจริงเท่านั้นที่บันทึก
+        // ก็เช่นกัน มีเฉพาะการย้าย ย่อขยาย หรือหมุนที่เกิดขึ้นจริงเท่านั้นที่บันทึก
         return {draft: null, preview: null, commit: Boolean(draft?.moved)};
     },
+};
+
+/**
+ * หมุนชิ้นที่เลือกตามมุมที่ลากมือจับไปรอบจุดกึ่งกลางของกรอบ
+ *
+ * หมุนจากสถานะตอนเริ่มลากเสมอ ไม่ใช่หมุนต่อจากเฟรมก่อน ความคลาดเคลื่อนจาก
+ * การปัดเศษจึงไม่สะสมไม่ว่าจะลากวนกี่รอบ
+ *
+ * Shift ล็อกมุมสุดท้ายของกรอบไว้ทีละ 15 องศา (ไม่ใช่ล็อกระยะที่หมุนเพิ่ม)
+ * ชิ้นที่เอียงอยู่ 7 องศาจึงยังกลับมาตั้งตรงพอดีได้
+ */
+const rotateSelection = (draft, point, constrain, scene, replaceElements) => {
+    const startRotation = draft.startFrame.rotation;
+    let delta = angleAround(draft.pivot, point) - draft.startAngle;
+
+    if (constrain) {
+        delta = snapDegrees(startRotation + delta) - startRotation;
+    }
+
+    const rotated = draft.startElements.map((element) => rotateElement(element, draft.pivot, delta));
+
+    return {
+        scene: replaceElements(scene, rotated),
+        draft: {
+            ...draft,
+            // กรอบหมุนตามไปด้วยระหว่างลาก ไม่ใช่คำนวณใหม่จากชิ้นงาน ไม่งั้นกรอบ
+            // ของกลุ่มหรือเส้นดินสอจะยืดหดทุกเฟรมจนผู้ใช้มองไม่ออกว่าหมุนไปเท่าไร
+            liveFrame: {...draft.startFrame, rotation: normalizeDegrees(startRotation + delta)},
+            moved: normalizeDegrees(delta) !== 0,
+        },
+    };
 };
 
 /**
@@ -138,15 +205,3 @@ const nextSelectionFor = (selection, id, additive) => {
 
     return selection.includes(id) ? selection : [id];
 };
-
-const clampSize = (bounds) => ({
-    ...bounds,
-    w: Math.max(MIN_SIZE, bounds.w),
-    h: Math.max(MIN_SIZE, bounds.h),
-});
-
-/** กรอบรวมของชิ้นที่เลือก ใช้โดยชั้นแสดงมือจับ */
-export const selectionBounds = (scene, selection) =>
-    unionBounds(scene.elements.filter((element) => selection.includes(element.id)));
-
-export {boundsOf};

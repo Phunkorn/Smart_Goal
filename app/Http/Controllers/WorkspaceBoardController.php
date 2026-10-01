@@ -78,13 +78,18 @@ class WorkspaceBoardController extends Controller
 
         $state = $this->documents->currentState($board);
 
-        return view('workspace.board', [
-            'board' => $board,
-            'design' => WorkspaceDesign::forClient(),
-            'document' => WorkspaceBoardPresenter::documentForClient($board, $state['document']),
-            'documentVersion' => $state['version'],
-            'capabilities' => $this->capabilities($board),
-        ]);
+        // หน้านี้ฝังเลขเวอร์ชันของเนื้อหาไว้ใน HTML ถ้าเบราว์เซอร์หยิบฉบับเก่าจาก
+        // cache มาแสดง (กดย้อนกลับ หรือเปิดจากประวัติ) การบันทึกครั้งแรกจะส่ง
+        // เวอร์ชันเก่าแล้วชนกับงานของตัวเอง no-store บังคับให้โหลดใหม่ทุกครั้ง
+        return response()
+            ->view('workspace.board', [
+                'board' => $board,
+                'design' => WorkspaceDesign::forClient(),
+                'document' => WorkspaceBoardPresenter::documentForClient($board, $state['document']),
+                'documentVersion' => $state['version'],
+                'capabilities' => $this->capabilities($board),
+            ])
+            ->header('Cache-Control', 'no-store, private');
     }
 
     public function store(Request $request)

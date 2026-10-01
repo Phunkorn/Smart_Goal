@@ -436,10 +436,17 @@ class NotificationService
 
         $hasMore = $items->count() > $limit;
         $items = $items->take($limit)->values();
-        $commentIds = $items->where('type', 'task_comment')
+        // ต้องรวม task_comment_mention ด้วย ไม่ใช่แค่ task_comment ธรรมดา — คนที่ถูก @กล่าวถึง
+        // ได้ notification คนละชนิดกับคนอื่นในงานเดียวกัน (ดู TaskCommentService::post()) ถ้าไม่รวม
+        // event ของเขาจะไม่มี comment ติดมาด้วยเลย ทำให้ Task Workspace ที่เปิดอยู่ไม่อัปเดตสด
+        // ต้องโหลดครบเท่ากับที่ TaskCommentPresenter::comment() ใช้ ไม่งั้นคนอื่นที่เห็นคอมเมนต์นี้
+        // ผ่าน realtime (ไม่ใช่คนโพสต์เอง ซึ่งได้ก้อนข้อมูลตรงจาก TaskCommentController::store())
+        // จะเห็นรูปหาย ข้อความที่ตอบกลับหาย หรือคนที่ถูก @กล่าวถึงหาย
+        $commentIds = $items->whereIn('type', ['task_comment', 'task_comment_mention'])
             ->pluck('data')->map(fn ($data) => (int) data_get($data, 'comment_id'))
             ->filter()->unique();
-        $comments = WorkOrderUpdate::with('user')->whereIn('id', $commentIds)
+        $comments = WorkOrderUpdate::with(['user', 'attachments', 'replyTo.user', 'mentions'])
+            ->whereIn('id', $commentIds)
             ->where('is_comment', true)->get()->keyBy('id');
 
         $events = $items->map(function (SystemNotification $notification) use ($comments, $user): array {

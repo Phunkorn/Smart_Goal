@@ -1,0 +1,6 @@
+/* ศูนย์ประกาศของหัวหน้าแผนก — resources/views/announcements/index.blade.php */
+@import '../components/member-card.css';
+@import '../components/date-picker.css';
+@import './announcements/index.css';
+@import './announcements/form.css';
+@import './announcements/responsive.css';

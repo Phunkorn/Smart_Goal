@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {mountDom, click} from './helpers/dom.js';
 import {drag, pointerDown, pointerUp, stubStageRect} from './helpers/pointer.js';
+import {workspaceCss} from './helpers/workspace-css.js';
+import {boardMarkup, overlayNodes, renderedNodes} from './helpers/workspace-board.js';
 import {
     applyOverlayCamera,
     initOverlayEditing,
@@ -29,6 +31,9 @@ const DESIGN = {
     defaultFontSize: 20,
     minFontSize: 8,
     maxFontSize: 96,
+    minLetterSpacing: -2,
+    maxLetterSpacing: 8,
+    defaultLetterSpacing: 0,
     maxTextLength: 20,
     minScale: 0.1,
     maxScale: 4,
@@ -42,9 +47,9 @@ const note = (id, overrides = {}) => ({
 /* ── ตัวเรนเดอร์ของชั้น overlay ─────────────────────────────── */
 
 const mountLayer = () => {
-    const dom = mountDom('<!doctype html><html><body><div data-workspace-overlay></div></body></html>');
+    const dom = mountDom('<!doctype html><html><body><div class="wsb-overlay"></div></body></html>');
 
-    return {dom, layer: dom.document.querySelector('[data-workspace-overlay]')};
+    return {dom, layer: dom.document.querySelector('.wsb-overlay')};
 };
 
 test('กระดาษโน้ตและกล่องข้อความถูกระบุว่าอยู่ในชั้น HTML', () => {
@@ -86,8 +91,51 @@ test('ข้อความที่มีแท็กถูกแสดงเ�
         const node = layer.firstElementChild;
 
         assert.equal(node.textContent, '<img src=x onerror=alert(1)>');
-        assert.equal(node.querySelector('img'), null, 'ต้องไม่มีโหนดลูกเกิดขึ้นเลย');
-        assert.equal(node.children.length, 0);
+        assert.equal(node.querySelector('img'), null, 'ต้องไม่มีโหนดลูก <img> เกิดขึ้นเลย');
+        // แต่ละบรรทัดถูกห่อด้วย <div> ของตัวเองเสมอ (ดู renderLines) หนึ่งบรรทัด
+        // จึงมีลูกได้หนึ่งใบพอดี ไม่ใช่ศูนย์ ประเด็นด้านความปลอดภัยที่เทสต์นี้
+        // ตรวจคือต้องไม่มี <img> โผล่ขึ้นมา ไม่ใช่ว่าต้องไม่มีลูกเลย
+        assert.equal(node.children.length, 1);
+        assert.equal(node.firstElementChild.tagName, 'DIV');
+        assert.equal(node.firstElementChild.textContent, '<img src=x onerror=alert(1)>');
+    } finally {
+        dom.cleanup();
+    }
+});
+
+test('ตัวหนา ตัวเอียง และระยะห่างตัวอักษรถูกแปลงเป็นสไตล์ของกล่อง', () => {
+    const {dom, layer} = mountLayer();
+
+    try {
+        renderOverlay(layer, [note('n1', {bold: true, italic: true, letterSpacing: 4})], {doc: dom.document});
+
+        const node = layer.firstElementChild;
+
+        assert.equal(node.style.fontWeight, '700');
+        assert.equal(node.style.fontStyle, 'italic');
+        assert.equal(node.style.letterSpacing, '4px');
+    } finally {
+        dom.cleanup();
+    }
+});
+
+/*
+ * โหนดถูกใช้ซ้ำตามรหัสชิ้นงานเมื่อเรนเดอร์รอบใหม่ (ดูเทสต์ "การเรนเดอร์ซ้ำใช้
+ * โหนดเดิม" ด้านล่าง) ถ้าปิดตัวหนาแล้วไม่รีเซ็ต fontWeight โหนดเก่าจะค้างค่า
+ * หนาไว้ต่อ ถึงแม้ element ที่ผูกกับมันจะไม่หนาแล้ว
+ */
+test('ปิดตัวหนา/ตัวเอียงแล้ว โหนดที่ถูกใช้ซ้ำต้องกลับเป็นค่าปกติ ไม่ค้างสไตล์เดิม', () => {
+    const {dom, layer} = mountLayer();
+
+    try {
+        renderOverlay(layer, [note('n1', {bold: true, italic: true, letterSpacing: 4})], {doc: dom.document});
+        renderOverlay(layer, [note('n1')], {doc: dom.document});
+
+        const node = layer.firstElementChild;
+
+        assert.equal(node.style.fontWeight, '400');
+        assert.equal(node.style.fontStyle, 'normal');
+        assert.equal(node.style.letterSpacing, 'normal');
     } finally {
         dom.cleanup();
     }
@@ -211,38 +259,10 @@ test('ข้อความถูกส่งกลับตอนกล่อ�
 
 /* ── เส้นทางจริงบนหน้าวาด ────────────────────────────────────── */
 
-const markup = (elements = []) => `<!doctype html><html><body>
-<div class="ws-board" data-workspace-board data-board-id="7">
-    <script type="application/json" id="workspace-design">${JSON.stringify(DESIGN)}</script>
-    <script type="application/json" id="workspace-board">${JSON.stringify({
-        id: 7, capabilities: {canEdit: true},
-    })}</script>
-    <script type="application/json" id="workspace-document">${JSON.stringify({schema: 1, elements})}</script>
-
-    <div class="wsb-toolbar" data-workspace-toolbar>
-        <button type="button" data-tool="select"></button>
-        <button type="button" data-tool="sticky" data-requires-edit></button>
-        <button type="button" data-tool="text" data-requires-edit></button>
-        <button type="button" data-sticky-color="#bfdbfe" data-requires-edit></button>
-        <button type="button" data-font-step="-2" data-requires-edit></button>
-        <input type="number" data-font-size-input data-requires-edit value="20" min="8" max="96">
-        <button type="button" data-font-step="2" data-requires-edit></button>
-        <button type="button" data-command="undo" data-requires-edit disabled></button>
-        <button type="button" data-command="delete" data-requires-edit disabled></button>
-        <span data-zoom-label>100%</span>
-    </div>
-
-    <div class="wsb-stage" data-workspace-stage>
-        <svg><g data-workspace-vector></g><g data-workspace-preview></g><g data-workspace-selection></g></svg>
-        <div class="wsb-overlay" data-workspace-overlay></div>
-    </div>
-</div>
-</body></html>`;
-
 let seed = 0;
 
 const mountEditor = (elements = []) => {
-    const dom = mountDom(markup(elements));
+    const dom = mountDom(boardMarkup({elements, design: DESIGN}));
     const stage = dom.document.querySelector('[data-workspace-stage]');
     stubStageRect(stage, {width: 800, height: 600});
 
@@ -256,9 +276,17 @@ const mountEditor = (elements = []) => {
         dom,
         stage,
         editor,
-        overlay: dom.document.querySelector('[data-workspace-overlay]'),
         toolbar: dom.document.querySelector('[data-workspace-toolbar]'),
-        vector: dom.document.querySelector('[data-workspace-vector]'),
+        // ตัวควบคุมกระจายหลายที่แล้ว (เครื่องมืออยู่ในเมนู รูปแบบอยู่แถวที่สอง)
+        control: (selector) => dom.document.querySelector(selector),
+        /*
+         * กล่องข้อความอยู่ในชั้น HTML ส่วนรูปทรงอยู่ในชั้น SVG และชั้นทั้งสอง
+         * ชนิดสลับกันได้หลายชั้นตามลำดับของเอกสาร (ดู layers.js) เทสต์จึงถาม
+         * จากทั้งกระดาน ไม่ใช่จากชั้นใดชั้นหนึ่ง
+         */
+        notes: () => overlayNodes(dom.document),
+        note: () => overlayNodes(dom.document)[0],
+        shapes: () => renderedNodes(dom.document, '.wsb-canvas [data-el-id]'),
     };
 };
 
@@ -266,7 +294,7 @@ test('แตะครั้งเดียวด้วยเครื่อง�
     const env = mountEditor();
 
     try {
-        click(env.toolbar.querySelector('[data-tool="sticky"]'));
+        click(env.control('[data-tool="sticky"]'));
         pointerDown(env.stage, {x: 200, y: 150});
         pointerUp(env.stage, {x: 200, y: 150});
 
@@ -275,8 +303,8 @@ test('แตะครั้งเดียวด้วยเครื่อง�
         assert.equal(created.type, 'sticky');
         assert.deepEqual({w: created.w, h: created.h}, {w: 180, h: 180});
         assert.equal(created.fill, '#fde68a');
-        assert.equal(env.overlay.children.length, 1, 'ต้องถูกวาดในชั้น HTML');
-        assert.equal(env.vector.children.length, 0, 'และต้องไม่โผล่ในชั้น SVG');
+        assert.equal(env.notes().length, 1, 'ต้องถูกวาดในชั้น HTML');
+        assert.equal(env.shapes().length, 0, 'และต้องไม่โผล่ในชั้น SVG');
     } finally {
         env.dom.cleanup();
     }
@@ -286,7 +314,7 @@ test('ลากกรอบด้วยเครื่องมือโน้�
     const env = mountEditor();
 
     try {
-        click(env.toolbar.querySelector('[data-tool="sticky"]'));
+        click(env.control('[data-tool="sticky"]'));
         drag(env.stage, {x: 100, y: 100}, {x: 400, y: 300}, {steps: 3});
 
         const created = env.editor.currentDocument().elements[0];
@@ -304,11 +332,11 @@ test('โน้ตที่เพิ่งสร้างเปิดให้�
     const env = mountEditor();
 
     try {
-        click(env.toolbar.querySelector('[data-tool="sticky"]'));
+        click(env.control('[data-tool="sticky"]'));
         pointerDown(env.stage, {x: 200, y: 150});
         pointerUp(env.stage, {x: 200, y: 150});
 
-        const node = env.overlay.firstElementChild;
+        const node = env.note();
 
         assert.equal(node.classList.contains('is-editing'), true);
         assert.equal(env.dom.document.activeElement, node);
@@ -325,7 +353,7 @@ test('ข้อความที่พิมพ์ถูกบันทึก�
             bubbles: true, cancelable: true, clientX: 150, clientY: 150,
         }));
 
-        const node = env.overlay.firstElementChild;
+        const node = env.note();
         node.textContent = 'ปรับขั้นตอนแจ้งซ่อม';
         node.dispatchEvent(new env.dom.window.FocusEvent('blur'));
 
@@ -357,13 +385,13 @@ test('ดับเบิลคลิกที่โน้ตเปิดกา�
     const env = mountEditor([note('n1', {x: 100, y: 100})]);
 
     try {
-        assert.equal(env.overlay.firstElementChild.classList.contains('is-editing'), false);
+        assert.equal(env.note().classList.contains('is-editing'), false);
 
         env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
             bubbles: true, cancelable: true, clientX: 150, clientY: 150,
         }));
 
-        assert.equal(env.overlay.firstElementChild.classList.contains('is-editing'), true);
+        assert.equal(env.note().classList.contains('is-editing'), true);
         assert.deepEqual(env.editor.state.selection, ['n1']);
     } finally {
         env.dom.cleanup();
@@ -375,10 +403,10 @@ test('การเลือกสีกระดาษโน้ตเปลี�
 
     try {
         drag(env.stage, {x: 150, y: 150}, {x: 150, y: 150});
-        click(env.toolbar.querySelector('[data-sticky-color="#bfdbfe"]'));
+        click(env.control('[data-sticky-color="#bfdbfe"]'));
 
         assert.equal(env.editor.currentDocument().elements[0].fill, '#bfdbfe');
-        assert.equal(env.overlay.firstElementChild.style.background, 'rgb(191, 219, 254)');
+        assert.equal(env.note().style.background, 'rgb(191, 219, 254)');
     } finally {
         env.dom.cleanup();
     }
@@ -388,8 +416,8 @@ test('การเลือกสีโดยไม่ได้เลือก�
     const env = mountEditor();
 
     try {
-        click(env.toolbar.querySelector('[data-sticky-color="#bfdbfe"]'));
-        click(env.toolbar.querySelector('[data-tool="sticky"]'));
+        click(env.control('[data-sticky-color="#bfdbfe"]'));
+        click(env.control('[data-tool="sticky"]'));
         pointerDown(env.stage, {x: 200, y: 150});
         pointerUp(env.stage, {x: 200, y: 150});
 
@@ -407,11 +435,11 @@ test('การแก้ข้อความนับเป็นก้าว�
             bubbles: true, cancelable: true, clientX: 150, clientY: 150,
         }));
 
-        const node = env.overlay.firstElementChild;
+        const node = env.note();
         node.textContent = 'ใหม่';
         node.dispatchEvent(new env.dom.window.FocusEvent('blur'));
 
-        click(env.toolbar.querySelector('[data-command="undo"]'));
+        click(env.control('[data-command="undo"]'));
 
         assert.equal(env.editor.currentDocument().elements[0].text, 'เดิม');
     } finally {
@@ -427,9 +455,9 @@ test('การคลิกเข้าออกกล่องโดยไม�
             bubbles: true, cancelable: true, clientX: 150, clientY: 150,
         }));
 
-        env.overlay.firstElementChild.dispatchEvent(new env.dom.window.FocusEvent('blur'));
+        env.note().dispatchEvent(new env.dom.window.FocusEvent('blur'));
 
-        assert.equal(env.toolbar.querySelector('[data-command="undo"]').disabled, true);
+        assert.equal(env.control('[data-command="undo"]').disabled, true);
     } finally {
         env.dom.cleanup();
     }
@@ -454,7 +482,7 @@ test('ชั้นข้อความไม่ใช้ innerHTML', () => {
  * ล้นกล่องออกไปทางขวาเป็นบรรทัดเดียว ตรวจจาก CSS โดยตรงเพราะ jsdom ไม่คำนวณ layout
  */
 test('CSS ของกล่องข้อความรองรับการตัดบรรทัดของภาษาไทย', () => {
-    const css = fs.readFileSync('resources/css/pages/workspace.css', 'utf8');
+    const css = workspaceCss();
     const block = css.slice(css.indexOf('.wsb-note,'), css.indexOf('.wsb-note {'));
 
     assert.match(block, /overflow-wrap:\s*anywhere/);
@@ -464,7 +492,7 @@ test('CSS ของกล่องข้อความรองรับกา�
 
 /** พิมพ์ขนาดลงในช่องกรอกแล้วยิงเหตุการณ์อย่างที่เบราว์เซอร์ทำ */
 const typeFontSize = (env, value) => {
-    const field = env.toolbar.querySelector('[data-font-size-input]');
+    const field = env.control('[data-font-size-input]');
     field.value = String(value);
     field.dispatchEvent(new env.dom.window.Event('input', {bubbles: true}));
 
@@ -480,12 +508,12 @@ test('กรอกขนาดเองได้ แล้วโน้ตใบ�
 
     try {
         typeFontSize(env, 16);
-        click(env.toolbar.querySelector('[data-tool="sticky"]'));
+        click(env.control('[data-tool="sticky"]'));
         pointerDown(env.stage, {x: 200, y: 150});
         pointerUp(env.stage, {x: 200, y: 150});
 
         assert.equal(env.editor.currentDocument().elements[0].fontSize, 16);
-        assert.equal(env.overlay.firstElementChild.style.fontSize, '16px');
+        assert.equal(env.note().style.fontSize, '16px');
     } finally {
         env.dom.cleanup();
     }
@@ -496,7 +524,7 @@ test('กล่องข้อความก็ใช้ขนาดที่�
 
     try {
         typeFontSize(env, 48);
-        click(env.toolbar.querySelector('[data-tool="text"]'));
+        click(env.control('[data-tool="text"]'));
         pointerDown(env.stage, {x: 200, y: 150});
         pointerUp(env.stage, {x: 200, y: 150});
 
@@ -514,7 +542,7 @@ test('การกรอกขนาดเปลี่ยนขนาดขอ�
         typeFontSize(env, 36);
 
         assert.equal(env.editor.currentDocument().elements[0].fontSize, 36);
-        assert.equal(env.overlay.firstElementChild.style.fontSize, '36px');
+        assert.equal(env.note().style.fontSize, '36px');
     } finally {
         env.dom.cleanup();
     }
@@ -545,7 +573,7 @@ test('ช่องว่างหรือค่าที่ไม่ใช่�
     const env = mountEditor();
 
     try {
-        const field = env.toolbar.querySelector('[data-font-size-input]');
+        const field = env.control('[data-font-size-input]');
         field.value = '';
         field.dispatchEvent(new env.dom.window.Event('change', {bubbles: true}));
 
@@ -562,10 +590,10 @@ test('ปุ่มเพิ่มและลดขนาดขยับที�
     try {
         typeFontSize(env, 20);
 
-        click(env.toolbar.querySelector('[data-font-step="2"]'));
+        click(env.control('[data-font-step="2"]'));
         assert.equal(env.editor.state.style.fontSize, 22);
 
-        click(env.toolbar.querySelector('[data-font-step="-2"]'));
+        click(env.control('[data-font-step="-2"]'));
         assert.equal(env.editor.state.style.fontSize, 20);
     } finally {
         env.dom.cleanup();
@@ -577,7 +605,7 @@ test('ปุ่มลดไม่พาขนาดต่ำกว่าค่�
 
     try {
         typeFontSize(env, 8);
-        click(env.toolbar.querySelector('[data-font-step="-2"]'));
+        click(env.control('[data-font-step="-2"]'));
 
         assert.equal(env.editor.state.style.fontSize, 8);
     } finally {
@@ -591,7 +619,7 @@ test('ช่องกรอกสะท้อนขนาดของกล่�
     try {
         typeFontSize(env, 44);
 
-        assert.equal(env.toolbar.querySelector('[data-font-size-input]').value, '44');
+        assert.equal(env.control('[data-font-size-input]').value, '44');
     } finally {
         env.dom.cleanup();
     }
@@ -608,6 +636,487 @@ test('ขนาดที่ใช้ได้อยู่ในช่วงท�
 
         // WorkspaceDocumentValidator หนีบไว้ที่ 8-96 ค่าที่หลุดช่วงจะถูกปรับเงียบ ๆ
         assert.equal(size >= 8 && size <= 96, true);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/* ── ตัวหนา ตัวเอียง และระยะห่างตัวอักษร ─────────────────────── */
+
+test('กดปุ่มตัวหนาสลับสถานะและปรับกล่องที่เลือกอยู่ทันที', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100})]);
+
+    try {
+        drag(env.stage, {x: 150, y: 150}, {x: 150, y: 150});
+
+        const button = env.control('[data-bold-toggle]');
+        click(button);
+
+        assert.equal(env.editor.state.style.bold, true);
+        assert.equal(env.editor.currentDocument().elements[0].bold, true);
+        assert.equal(button.getAttribute('aria-pressed'), 'true');
+        assert.equal(button.classList.contains('is-active'), true);
+
+        click(button);
+
+        assert.equal(env.editor.state.style.bold, false);
+        assert.equal(env.editor.currentDocument().elements[0].bold, false);
+        assert.equal(button.getAttribute('aria-pressed'), 'false');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('กดปุ่มตัวเอียงสลับสถานะและปรับกล่องที่เลือกอยู่ทันที', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100})]);
+
+    try {
+        drag(env.stage, {x: 150, y: 150}, {x: 150, y: 150});
+
+        const button = env.control('[data-italic-toggle]');
+        click(button);
+
+        assert.equal(env.editor.state.style.italic, true);
+        assert.equal(env.editor.currentDocument().elements[0].italic, true);
+        assert.equal(button.getAttribute('aria-pressed'), 'true');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('เปิดตัวหนาไว้ก่อนสร้างโน้ตใหม่ ทำให้โน้ตใบใหม่หนาตั้งแต่แรก', () => {
+    const env = mountEditor();
+
+    try {
+        click(env.control('[data-bold-toggle]'));
+        click(env.control('[data-tool="sticky"]'));
+        pointerDown(env.stage, {x: 200, y: 150});
+        pointerUp(env.stage, {x: 200, y: 150});
+
+        assert.equal(env.editor.currentDocument().elements[0].bold, true);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/** พิมพ์ระยะห่างลงในช่องกรอกแล้วยิงเหตุการณ์อย่างที่เบราว์เซอร์ทำ */
+const typeLetterSpacing = (env, value) => {
+    const field = env.control('[data-letter-spacing-input]');
+    field.value = String(value);
+    field.dispatchEvent(new env.dom.window.Event('input', {bubbles: true}));
+
+    return field;
+};
+
+test('พิมพ์ระยะห่างตัวอักษรอัปเดตกล่องที่เลือกอยู่ทันที', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100})]);
+
+    try {
+        drag(env.stage, {x: 150, y: 150}, {x: 150, y: 150});
+        typeLetterSpacing(env, 3);
+
+        assert.equal(env.editor.currentDocument().elements[0].letterSpacing, 3);
+        assert.equal(env.note().style.letterSpacing, '3px');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('ปุ่มเพิ่มและลดระยะห่างขยับทีละขั้นจากค่าปัจจุบัน', () => {
+    const env = mountEditor();
+
+    try {
+        typeLetterSpacing(env, 0);
+
+        click(env.control('[data-letter-spacing-step="1"]'));
+        assert.equal(env.editor.state.style.letterSpacing, 1);
+
+        click(env.control('[data-letter-spacing-step="-1"]'));
+        assert.equal(env.editor.state.style.letterSpacing, 0);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('ค่าระยะห่างนอกช่วงถูกบีบเมื่อออกจากช่อง ไม่ใช่ระหว่างพิมพ์', () => {
+    const env = mountEditor();
+
+    try {
+        const field = typeLetterSpacing(env, 999);
+
+        assert.equal(env.editor.state.style.letterSpacing, 0, 'ค่านอกช่วงระหว่างพิมพ์ต้องยังไม่ถูกใช้');
+
+        field.dispatchEvent(new env.dom.window.Event('change', {bubbles: true}));
+
+        assert.equal(field.value, '8');
+        assert.equal(env.editor.state.style.letterSpacing, 8);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('ระยะห่างที่ใช้ได้อยู่ในช่วงที่ตัวกรองฝั่งเซิร์ฟเวอร์ยอมรับ', () => {
+    const env = mountEditor();
+
+    try {
+        const field = typeLetterSpacing(env, -999);
+        field.dispatchEvent(new env.dom.window.Event('change', {bubbles: true}));
+
+        const spacing = env.editor.state.style.letterSpacing;
+
+        // WorkspaceDocumentValidator หนีบไว้ที่ -2..8 ค่าที่หลุดช่วงจะถูกปรับเงียบ ๆ
+        assert.equal(spacing >= -2 && spacing <= 8, true);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/* ── การจัดบรรทัด: ชิดซ้าย กึ่งกลาง ชิดขวา ────────────────────── */
+
+/**
+ * วางเคอร์เซอร์ไว้ในบรรทัดที่ระบุของกล่องที่กำลังแก้ไขอยู่ แล้วจำลองเหตุการณ์
+ * selectionchange ที่เบราว์เซอร์จริงจะยิงตามมา (jsdom ไม่ยิงให้เองหลัง addRange)
+ */
+const placeCaretInLine = (env, node, lineIndex) => {
+    const block = node.children[lineIndex];
+    const range = env.dom.document.createRange();
+    range.selectNodeContents(block);
+    range.collapse(true);
+
+    const selection = env.dom.document.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    env.dom.document.dispatchEvent(new env.dom.window.Event('selectionchange'));
+};
+
+/**
+ * กดปุ่มอย่างที่เบราว์เซอร์จริงทำ คือย้ายโฟกัสไปที่ปุ่มตั้งแต่ mousedown
+ *
+ * jsdom ไม่ย้ายโฟกัสให้เอง เทสต์ที่กดด้วย click() เฉย ๆ จึงมองไม่เห็นผลข้างเคียง
+ * ที่ทำให้เกิดบั๊กจริง: กล่องข้อความ blur แล้วปิดโหมดแก้ไขก่อนที่คำสั่งจะทำงาน
+ * จนคำสั่งจัดบรรทัดตกไปที่ทางเลือกสำรอง "จัดทั้งกล่อง"
+ */
+const clickLikeBrowser = (env, button) => {
+    const down = new env.dom.window.MouseEvent('mousedown', {bubbles: true, cancelable: true});
+
+    button.dispatchEvent(down);
+
+    if (! down.defaultPrevented) {
+        env.dom.document.activeElement?.blur?.();
+        button.focus();
+    }
+
+    click(button);
+};
+
+/**
+ * นี่คือเรื่องที่ผู้ใช้รายงานซ้ำเป็นรอบที่สอง: ตั้งบรรทัดแรกกึ่งกลางไว้แล้ว
+ * พอสั่งบรรทัดที่สองให้ชิดขวา บรรทัดแรกก็ย้ายไปชิดขวาตามไปด้วยทั้งกล่อง
+ *
+ * ต้นเหตุคือปุ่มบนแถบแย่งโฟกัสไปจากกล่องข้อความตั้งแต่ mousedown กล่องจึง blur
+ * แล้วปิดโหมดแก้ไขก่อนที่ click จะมาถึง คำสั่งเลยไม่รู้ว่าเคอร์เซอร์อยู่บรรทัดไหน
+ * เทสต์นี้กดปุ่มแบบเดียวกับเบราว์เซอร์จริงเพื่อให้ครอบอาการนั้นได้จริง
+ */
+test('กดปุ่มจัดบรรทัดแบบเดียวกับเบราว์เซอร์จริง ไม่ดึงเคอร์เซอร์ออกจากกล่องและไม่ลามไปบรรทัดอื่น', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2'})]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+
+        placeCaretInLine(env, node, 0);
+        clickLikeBrowser(env, env.control('[data-align="center"]'));
+
+        assert.equal(env.dom.document.activeElement, node, 'เคอร์เซอร์ต้องยังอยู่ในกล่อง');
+        assert.equal(node.classList.contains('is-editing'), true, 'ต้องยังอยู่ในโหมดแก้ไข');
+
+        placeCaretInLine(env, node, 1);
+        clickLikeBrowser(env, env.control('[data-align="right"]'));
+
+        assert.equal(node.children[0].style.textAlign, 'center', 'บรรทัดแรกต้องยังกึ่งกลาง');
+        assert.equal(node.children[1].style.textAlign, 'right');
+
+        node.dispatchEvent(new env.dom.window.FocusEvent('blur'));
+
+        assert.deepEqual(
+            env.editor.currentDocument().elements[0].lineAligns,
+            {0: 'center', 1: 'right'}
+        );
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/*
+ * ปุ่มลัดจัดบรรทัดต้องทำงานระหว่างพิมพ์ ซึ่งเป็นข้อยกเว้นเดียวของกติกา
+ * "ปุ่มลัดต้องเงียบขณะพิมพ์" ถ้าเงียบตามกติกาไปด้วยก็ไม่เหลือประโยชน์อะไรเลย
+ */
+test('ปุ่มลัด Ctrl+Shift+R ระหว่างพิมพ์ จัดเฉพาะบรรทัดที่เคอร์เซอร์อยู่', () => {
+    const env = mountEditor([note('n1', {
+        x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2', lineAligns: {0: 'center'},
+    })]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+
+        placeCaretInLine(env, node, 1);
+
+        const event = new env.dom.window.KeyboardEvent('keydown', {
+            key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true,
+        });
+
+        node.dispatchEvent(event);
+
+        assert.equal(event.defaultPrevented, true, 'ปุ่มลัดต้องทำงาน ไม่ใช่ถูกปล่อยผ่าน');
+        assert.equal(node.children[0].style.textAlign, 'center', 'บรรทัดแรกต้องไม่ถูกแตะ');
+        assert.equal(node.children[1].style.textAlign, 'right');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/*
+ * ตัว r เปล่า ๆ ยังต้องเป็นตัวอักษรในโน้ต ไม่ใช่เครื่องมือสี่เหลี่ยม
+ * การเปิดทางให้ปุ่มลัดจัดบรรทัดต้องไม่เปิดประตูให้ปุ่มลัดอื่นตามเข้ามาด้วย
+ */
+test('พิมพ์ตัวอักษรของปุ่มลัดเครื่องมือในโน้ต ยังไม่เปลี่ยนเครื่องมือ', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'บรรทัด1'})]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        env.note().dispatchEvent(new env.dom.window.KeyboardEvent('keydown', {
+            key: 'r', code: 'KeyR', bubbles: true, cancelable: true,
+        }));
+
+        assert.notEqual(env.editor.state.tool, 'rect');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('เลือกกล่องทั้งใบ (ไม่ได้เปิดแก้ไข) แล้วกดกึ่งกลาง จัดทุกบรรทัดในกล่องเหมือนกันหมดทันที', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2'})]);
+
+    try {
+        drag(env.stage, {x: 150, y: 150}, {x: 150, y: 150});
+
+        const center = env.control('[data-align="center"]');
+        click(center);
+
+        assert.equal(env.editor.state.style.align, 'center');
+        assert.deepEqual(env.editor.currentDocument().elements[0].lineAligns, {0: 'center', 1: 'center'});
+        assert.equal(center.getAttribute('aria-pressed'), 'true');
+        assert.equal(env.control('[data-align="left"]').getAttribute('aria-pressed'), 'false');
+
+        click(env.control('[data-align="right"]'));
+
+        assert.deepEqual(env.editor.currentDocument().elements[0].lineAligns, {0: 'right', 1: 'right'});
+        assert.equal(center.getAttribute('aria-pressed'), 'false');
+        assert.equal(env.control('[data-align="right"]').getAttribute('aria-pressed'), 'true');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('เปิดจัดกึ่งกลางไว้ก่อนสร้างกล่องข้อความใหม่ ทำให้กล่องใหม่กึ่งกลางตั้งแต่แรก', () => {
+    const env = mountEditor();
+
+    try {
+        click(env.control('[data-align="center"]'));
+        click(env.control('[data-tool="text"]'));
+        pointerDown(env.stage, {x: 200, y: 150});
+        pointerUp(env.stage, {x: 200, y: 150});
+
+        assert.deepEqual(env.editor.currentDocument().elements[0].lineAligns, {0: 'center'});
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('ชิดซ้ายเป็นค่าปริยาย ไม่ถูกเก็บลงเอกสาร', () => {
+    const env = mountEditor();
+
+    try {
+        click(env.control('[data-tool="sticky"]'));
+        pointerDown(env.stage, {x: 200, y: 150});
+        pointerUp(env.stage, {x: 200, y: 150});
+
+        assert.equal('lineAligns' in env.editor.currentDocument().elements[0], false);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/*
+ * นี่คือเรื่องที่ผู้ใช้รายงานโดยตรง: จัดบรรทัดแรกกึ่งกลางแล้วบรรทัดถัดมาก็โดน
+ * บังคับตามไปด้วย เพราะของเดิมการจัดบรรทัดเป็นคุณสมบัติเดียวของทั้งกล่อง
+ * เทสต์นี้ยืนยันว่าตอนนี้กดปุ่มขณะเคอร์เซอร์อยู่ที่บรรทัดหนึ่ง มีผลกับบรรทัด
+ * นั้นบรรทัดเดียว บรรทัดอื่นในกล่องเดียวกันต้องไม่ถูกแตะเลย
+ */
+test('กดปุ่มจัดบรรทัดขณะเคอร์เซอร์อยู่ที่บรรทัดหนึ่ง มีผลเฉพาะบรรทัดนั้น บรรทัดอื่นไม่ถูกแตะ', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2\nบรรทัด3'})]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+        assert.equal(node.classList.contains('is-editing'), true);
+        assert.equal(node.children.length, 3, 'ต้องมีบล็อกลูกสามใบ หนึ่งใบต่อบรรทัด');
+
+        placeCaretInLine(env, node, 1);
+        click(env.control('[data-align="right"]'));
+
+        assert.equal(node.children[0].style.textAlign, '', 'บรรทัดแรกต้องไม่ถูกแตะ');
+        assert.equal(node.children[1].style.textAlign, 'right');
+        assert.equal(node.children[2].style.textAlign, '', 'บรรทัดสามต้องไม่ถูกแตะ');
+
+        node.dispatchEvent(new env.dom.window.FocusEvent('blur'));
+
+        const saved = env.editor.currentDocument().elements[0];
+
+        assert.equal(saved.text, 'บรรทัด1\nบรรทัด2\nบรรทัด3', 'เนื้อความต้องไม่เปลี่ยน');
+        assert.deepEqual(saved.lineAligns, {1: 'right'});
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('เลือกข้อความคร่อมสองบรรทัดแล้วกดจัดบรรทัด มีผลกับทั้งสองบรรทัดที่คร่อมอยู่', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2\nบรรทัด3'})]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+        const range = env.dom.document.createRange();
+        range.setStart(node.children[0].firstChild, 0);
+        range.setEnd(node.children[1].firstChild, 1);
+
+        const selection = env.dom.document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        click(env.control('[data-align="center"]'));
+
+        assert.equal(node.children[0].style.textAlign, 'center');
+        assert.equal(node.children[1].style.textAlign, 'center');
+        assert.equal(node.children[2].style.textAlign, '', 'บรรทัดสามอยู่นอกตัวเลือก ต้องไม่ถูกแตะ');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('ปุ่มจัดบรรทัดบนแถบเครื่องมือไฮไลต์ตามบรรทัดจริงที่เคอร์เซอร์อยู่ ไม่ใช่ค่าที่กดครั้งล่าสุด', () => {
+    const env = mountEditor([note('n1', {
+        x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2', lineAligns: {0: 'center'},
+    })]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+
+        placeCaretInLine(env, node, 0);
+        assert.equal(env.control('[data-align="center"]').getAttribute('aria-pressed'), 'true');
+
+        placeCaretInLine(env, node, 1);
+        assert.equal(env.control('[data-align="left"]').getAttribute('aria-pressed'), 'true');
+        assert.equal(env.control('[data-align="center"]').getAttribute('aria-pressed'), 'false');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('การจัดบรรทัดต่อบรรทัดถูกส่งไปเซิร์ฟเวอร์เป็น lineAligns และคงอยู่ข้ามการเปิดแก้ไขใหม่', () => {
+    const env = mountEditor([note('n1', {
+        x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2', lineAligns: {1: 'right'},
+    })]);
+
+    try {
+        assert.equal(env.editor.currentDocument().elements[0].lineAligns[1], 'right');
+
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+
+        assert.equal(node.children[0].style.textAlign, '');
+        assert.equal(node.children[1].style.textAlign, 'right');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/* ── ลากเลือกข้อความในกล่องที่กำลังแก้ไข ต้องไม่ลากย้ายกล่องไปด้วย ────── */
+
+/*
+ * ก่อนแก้ไข การลากเมาส์เพื่อเลือกข้อความในกล่องที่เปิดแก้ไขอยู่ทำให้ทั้งกล่อง
+ * (หรือทั้งกลุ่มที่เลือกอยู่) ขยับตามไปด้วย เพราะ pointerdown บนกล่องยังคง
+ * ไหลขึ้นไปถึง stage แล้วเครื่องมือเลือกเริ่มท่าลากย้ายควบคู่ไปกับที่เบราว์เซอร์
+ * กำลังลากเลือกข้อความอยู่ในเวลาเดียวกัน ดู pointer.js ว่าทำไมต้องกันไว้
+ */
+test('ลากเมาส์ในกล่องที่กำลังแก้ไขอยู่ ไม่ทำให้กล่องขยับ', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'ทดสอบลากเลือกข้อความ'})]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+        assert.equal(node.classList.contains('is-editing'), true);
+
+        drag(node, {x: 110, y: 150}, {x: 250, y: 150}, {steps: 3});
+
+        const element = env.editor.currentDocument().elements[0];
+
+        assert.deepEqual({x: element.x, y: element.y}, {x: 100, y: 100});
+        assert.equal(env.editor.state.draft, null, 'เครื่องมือเลือกต้องไม่เริ่มท่าลากย้ายเลย');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/*
+ * ตัวกันนี้ต้องดูจาก event.target จริง ๆ ว่าคลิกโดนกล่องที่แก้ไขอยู่หรือไม่
+ * ไม่ใช่ปิดกั้นทุกการลากบนผืนผ้าใบเพียงเพราะมี editingId ค้างอยู่ ไม่งั้นผู้ใช้
+ * ที่เปิดกล่องหนึ่งแก้ไขค้างไว้จะลากย้ายชิ้นงานอื่นบนกระดานไม่ได้เลย
+ */
+test('มีกล่องกำลังแก้ไขอยู่ก็ตาม การลากที่ผืนผ้าใบ (ไม่ใช่ตัวกล่อง) ยังลากย้ายชิ้นงานได้ตามปกติ', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'a'})]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        assert.equal(env.note().classList.contains('is-editing'), true);
+
+        // dispatch ที่ stage เอง ไม่ใช่ที่ตัวโหนดกล่อง จำลองการคลิกที่ผืนผ้าใบ
+        // ใต้กล่อง (ระบบตรวจการชนจากตัวแบบข้อมูล ไม่ใช่ DOM hit-test ของเบราว์เซอร์)
+        drag(env.stage, {x: 150, y: 150}, {x: 250, y: 200}, {steps: 3});
+
+        const element = env.editor.currentDocument().elements[0];
+
+        assert.deepEqual({x: element.x, y: element.y}, {x: 200, y: 150});
     } finally {
         env.dom.cleanup();
     }

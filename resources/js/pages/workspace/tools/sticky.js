@@ -73,6 +73,12 @@ export const textElementTool = (type) => ({
             ...box,
             text: '',
             fontSize: style.fontSize,
+            ...(style.bold ? {bold: true} : {}),
+            ...(style.italic ? {italic: true} : {}),
+            ...(style.letterSpacing ? {letterSpacing: style.letterSpacing} : {}),
+            // กล่องใหม่มีบรรทัดเดียวเสมอ (ข้อความว่าง) การจัดบรรทัดตั้งต้นจึงมีผล
+            // กับบรรทัดที่ 0 บรรทัดเดียว ดู uniformLineAligns ใน overlay-text.js
+            ...(style.align && style.align !== 'left' ? {lineAligns: {0: style.align}} : {}),
             ...(type === 'sticky'
                 ? {fill: style.stickyColor || '#fde68a'}
                 : {color: style.stroke}),

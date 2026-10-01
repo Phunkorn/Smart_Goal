@@ -36,6 +36,29 @@ export const refreshMobileKanbanStatusTabs = (panel) => {
     });
 };
 
+/*
+ * แท็บที่มือถือเปิดมาเจอ
+ *
+ * Blade เลือก "กำลังทำ" ไว้ก่อนเสมอ แต่ถ้าคอลัมน์นั้นว่าง ผู้ใช้เห็นบอร์ดเปล่าทั้งที่มีงาน
+ * ล่าช้าอยู่ในแท็บที่เลื่อนหลุดขวาจอ จึงย้ายไปคอลัมน์แรกที่มีงาน โดยเรียงจากสิ่งที่ต้อง
+ * ลงมือก่อน: ล่าช้า → รอตรวจสอบ → พักงาน → เสร็จแล้ว ถ้าทุกคอลัมน์ว่างก็คงแท็บเดิมไว้
+ */
+const MOBILE_STATUS_FALLBACK_ORDER = ['6', '3', '5', '4'];
+
+export const pickInitialMobileStatus = (preferred, counts) => {
+    const value = String(preferred);
+    if ((counts[value] ?? 0) > 0) return value;
+
+    return MOBILE_STATUS_FALLBACK_ORDER.find((status) => (counts[status] ?? 0) > 0) ?? value;
+};
+
+const visibleCardCounts = (panel) => Object.fromEntries(
+    [...panel.querySelectorAll('[data-kanban-column]')].map((column) => [
+        column.dataset.kanbanColumn,
+        column.hidden ? 0 : [...column.querySelectorAll('[data-kanban-card]')].filter((card) => !card.hidden).length,
+    ]),
+);
+
 export const initializeMobileKanbanStatusTabs = (panel) => {
     const tablist = panel.querySelector('[data-kanban-status-tabs]');
     const tabs = [...panel.querySelectorAll('[data-kanban-status-tab]')];
@@ -60,10 +83,10 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
         selectMobileKanbanStatus(panel, tabs[nextIndex].dataset.kanbanStatusTab, {focus: true});
     });
 
-    const initial = panel.dataset.mobileKanbanStatus
+    const preferred = panel.dataset.mobileKanbanStatus
         || tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.dataset.kanbanStatusTab
         || tabs[0].dataset.kanbanStatusTab;
-    selectMobileKanbanStatus(panel, initial);
+    selectMobileKanbanStatus(panel, pickInitialMobileStatus(preferred, visibleCardCounts(panel)));
     refreshMobileKanbanStatusTabs(panel);
 };
 

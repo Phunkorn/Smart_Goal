@@ -95,6 +95,8 @@ class MyTasksTaskScopeTest extends TestCase
         ]);
         $calendarOnlyList = $this->list($actor);
         $selfAssigned = $this->task($actor, $actor, $calendarOnlyList, 'Calendar only self task');
+        // สรุปประจำวันแสดงงานที่ตัวเองรับผิดชอบโดยตั้งใจ test นี้ตรวจเฉพาะตัวกรองของหน้างาน
+        $this->acknowledgeDailyBrief($actor);
 
         $response = $this->actingAs($actor)
             ->get(route('mytasks.index', ['task_scope' => 'assigned_by_me']))

@@ -1,50 +1,81 @@
 .settings-page {
     --settings-card-radius: 14px;
     --settings-control-radius: 10px;
-    max-width: 1040px;
+    max-width: 1080px;
     margin: 0 auto;
-    padding-bottom: 40px;
+    padding-bottom: 32px;
 }
 
-.settings-page__header { margin-bottom: 22px; }
+.settings-page__header { margin-bottom: 18px; }
 .settings-page__header .eyebrow { font-size: .74rem; font-weight: 500; letter-spacing: .01em; }
-.settings-page__header h1 { margin: 2px 0 0; color: var(--text); font-size: clamp(1.65rem, 3vw, 1.95rem); font-weight: 600; line-height: 1.25; }
-.settings-page__header p { margin: 6px 0 0; color: var(--text-muted); font-size: .88rem; font-weight: 400; line-height: 1.6; }
-.settings-page__layout { display: grid; gap: 16px; }
+.settings-page__header h1 { margin: 2px 0 0; color: var(--text); font-size: clamp(1.55rem, 3vw, 1.85rem); font-weight: 600; line-height: 1.25; }
+.settings-page__header p { margin: 4px 0 0; color: var(--text-muted); font-size: .86rem; font-weight: 400; line-height: 1.6; }
+
+/* ฟอร์มกินพื้นที่มากกว่า ส่วนความปลอดภัยและ Telegram เป็นการ์ดเล็กเรียงซ้อนทางขวา */
+.settings-page__layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr); align-items: start; gap: 16px; }
+.settings-page__side { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 
 .settings-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--settings-card-radius); background: var(--surface); box-shadow: 0 5px 18px rgb(15 23 42 / 5%); }
-.settings-card__header { padding: 20px 22px; border-bottom: 1px solid var(--border); }
+.settings-card__header { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.settings-card__header:last-child { border-bottom: 0; }
 .settings-card__eyebrow { display: block; margin-bottom: 3px; color: var(--accent-strong); font-size: .72rem; font-weight: 500; letter-spacing: .01em; }
-.settings-card__header h2 { margin: 0; color: var(--text); font-size: 1.06rem; font-weight: 600; line-height: 1.35; }
-.settings-card__header p { margin: 4px 0 0; color: var(--text-muted); font-size: .82rem; font-weight: 400; line-height: 1.55; }
+.settings-card__header h2 { margin: 0; color: var(--text); font-size: 1.02rem; font-weight: 600; line-height: 1.35; }
+.settings-card__header p { margin: 4px 0 0; color: var(--text-muted); font-size: .8rem; font-weight: 400; line-height: 1.55; }
 
-.settings-profile { display: flex; align-items: center; gap: 14px; }
-.settings-profile__avatar { display: grid; width: 64px; height: 64px; flex: 0 0 auto; place-items: center; overflow: hidden; border-radius: 16px; background: var(--accent-dim); color: var(--accent-strong); font-size: 1.15rem; font-weight: 600; }
+/* แถบสรุปบัญชี: ตัวตนทางซ้าย สิทธิ์และแผนกทางขวา */
+.settings-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; margin-bottom: 16px; padding: 18px 20px; }
+.settings-profile { display: flex; min-width: 0; flex: 1 1 260px; align-items: center; gap: 14px; }
+.settings-profile__avatar { display: grid; width: 60px; height: 60px; flex: 0 0 auto; place-items: center; overflow: hidden; border-radius: 16px; background: var(--accent-dim); color: var(--accent-strong); font-size: 1.1rem; font-weight: 600; }
 .settings-profile__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .settings-profile__identity { min-width: 0; }
-.settings-profile__identity p { overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+.settings-profile__identity h2 { overflow: hidden; margin: 0; color: var(--text); font-size: 1.12rem; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.settings-profile__identity p { overflow: hidden; margin: 3px 0 0; color: var(--text-muted); font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
 
-.settings-account-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 18px 22px 0; }
-.settings-account-meta__item { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--settings-control-radius); background: var(--surface-2); }
-.settings-account-meta__item > i { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--surface); color: var(--accent-strong); }
+.settings-summary__meta { display: flex; min-width: 0; flex: 0 1 auto; flex-direction: column; align-items: flex-end; gap: 6px; }
+.settings-summary__note { margin: 0; color: var(--text-muted); font-size: .72rem; line-height: 1.5; }
+.settings-account-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.settings-account-meta__item { display: flex; min-width: 0; max-width: 260px; align-items: center; gap: 10px; padding: 7px 14px 7px 7px; border: 1px solid var(--border); border-radius: var(--settings-control-radius); background: var(--surface-2); }
+.settings-account-meta__item > i { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: var(--surface); color: var(--accent-strong); font-size: .9rem; }
+.settings-account-meta__item > div { min-width: 0; }
 .settings-account-meta__item span, .settings-account-meta__item strong { display: block; }
-.settings-account-meta__item span { margin-bottom: 2px; color: var(--text-muted); font-size: .71rem; font-weight: 400; }
-.settings-account-meta__item strong { overflow: hidden; color: var(--text); font-size: .84rem; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.settings-account-meta__item span { color: var(--text-muted); font-size: .68rem; font-weight: 400; line-height: 1.35; }
+.settings-account-meta__item strong { overflow: hidden; color: var(--text); font-size: .82rem; font-weight: 500; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 
-.settings-form { padding: 20px 22px 22px; }
-.settings-form .row { --bs-gutter-x: 14px; --bs-gutter-y: 14px; }
+.settings-form { padding: 18px 20px 20px; }
+.settings-form .row { --bs-gutter-x: 14px; --bs-gutter-y: 16px; }
 .settings-page .form-label { margin-bottom: 6px; color: var(--text); font-size: .8rem; font-weight: 500; }
 .settings-page .form-control { min-height: 42px; border-color: var(--border); border-radius: var(--settings-control-radius); color: var(--text); font-size: .87rem; font-weight: 400; }
 .settings-page .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 .settings-form__help { margin: 7px 0 0; color: var(--text-muted); font-size: .73rem; font-weight: 400; line-height: 1.55; }
-.settings-card__actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+.settings-card__actions { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .settings-primary-button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; border-radius: var(--settings-control-radius); padding-inline: 16px; font-weight: 500; }
 
+/* กล่องเลือกรูป: input ไฟล์ตัวจริงโปร่งใสคลุมทั้งกล่อง รับทั้งคลิก คีย์บอร์ด และการลากวาง */
+.settings-upload { position: relative; display: flex; min-height: 60px; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed var(--border); border-color: color-mix(in srgb, var(--accent) 18%, var(--border)); border-radius: var(--settings-control-radius); background: var(--surface-2); color: var(--text-muted); transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+.settings-upload:hover, .settings-upload.is-dragover { border-color: var(--accent); background: var(--accent-dim); }
+.settings-upload:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.settings-upload.is-invalid { border-color: var(--red); }
+.settings-upload__input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.settings-upload__icon { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--surface); color: var(--accent-strong); font-size: 1rem; }
+.settings-upload__text { overflow: hidden; min-width: 0; font-size: .82rem; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.settings-upload.has-file .settings-upload__text { color: var(--text); font-weight: 500; }
+
+@media (max-width: 991.98px) {
+    .settings-page__layout { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 700px) {
-    .settings-page { padding-bottom: 28px; }
-    .settings-page__header { margin-bottom: 18px; }
-    .settings-card__header, .settings-form { padding: 17px; }
-    .settings-account-meta { grid-template-columns: 1fr; padding: 16px 17px 0; }
-    .settings-profile { align-items: flex-start; }
+    .settings-page { padding-bottom: 24px; }
+    .settings-page__header { margin-bottom: 14px; }
+    .settings-card__header, .settings-form, .settings-summary { padding: 16px; }
+    .settings-summary { flex-direction: column; align-items: stretch; gap: 14px; }
+    .settings-profile { flex-basis: auto; }
+    .settings-summary__meta { align-items: stretch; }
+    .settings-account-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .settings-account-meta__item { max-width: none; }
     .settings-card__actions, .settings-primary-button { width: 100%; }
+}
+
+@media (max-width: 420px) {
+    .settings-account-meta { grid-template-columns: minmax(0, 1fr); }
 }

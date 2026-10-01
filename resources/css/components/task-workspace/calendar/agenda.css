@@ -468,6 +468,46 @@
     }
 }
 
+/*
+ * จอโทรศัพท์: คู่ป้าย/ค่าเรียงเป็นสองคอลัมน์ ป้ายอยู่บนค่า
+ *
+ * แบบ flex-wrap ข้างบนปล่อยให้แต่ละคู่ไหลต่อกันตามความยาวข้อความ ป้ายอย่าง "เจ้าของ"
+ * จึงไปตกท้ายบรรทัดแล้วค่าของมันขึ้นบรรทัดใหม่ อ่านแล้วไม่รู้ว่าค่าไหนเป็นของป้ายไหน
+ *
+ * ช่องที่ 3 คือ "โปรเจกต์ / สถานที่" ซึ่งเป็นข้อความยาว จึงกินเต็มแถว ลำดับช่องนี้ถูกตรึงไว้
+ * ที่ calendar.js (today/due columns) และมี test ตรวจลำดับอยู่แล้ว
+ */
+@media (max-width: 575.98px) {
+    .my-tasks-page .calendar-table__row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        gap: 8px 12px;
+    }
+
+    .my-tasks-page .calendar-table__cell {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+    }
+
+    .my-tasks-page .calendar-table__cell.is-index,
+    .my-tasks-page .calendar-table__cell.is-title,
+    .my-tasks-page .calendar-table__cell:nth-child(3) {
+        grid-column: 1 / -1;
+    }
+
+    .my-tasks-page .calendar-table__cell.is-index {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 6px;
+    }
+
+    .my-tasks-page .calendar-table__cell > span {
+        max-width: 100%;
+    }
+}
+
 /* ============================================================================
  * ตัวเปลี่ยนหน้าของการ์ดสรุป
  *

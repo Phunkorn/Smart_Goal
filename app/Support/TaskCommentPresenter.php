@@ -9,6 +9,7 @@ use App\Models\WorkOrderUpdate;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 class TaskCommentPresenter
 {
@@ -38,6 +39,18 @@ class TaskCommentPresenter
                     'url' => route('media.comment-attachments.show', $image),
                     'name' => $image->original_name,
                 ])->values()->all()
+                : [],
+            'pinned' => $comment->pinned_at !== null,
+            'pinned_at' => $this->timestamp($comment->pinned_at),
+            'reply_to' => $comment->relationLoaded('replyTo') && $comment->replyTo
+                ? [
+                    'id' => $comment->replyTo->id,
+                    'author' => $comment->replyTo->user?->name ?? 'ไม่ระบุ',
+                    'note' => Str::limit((string) $comment->replyTo->note, 140),
+                ]
+                : null,
+            'mentions' => $comment->relationLoaded('mentions')
+                ? $comment->mentions->map(fn ($user) => ['id' => $user->id, 'name' => $user->name])->values()->all()
                 : [],
         ];
     }

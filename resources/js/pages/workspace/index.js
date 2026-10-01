@@ -4,11 +4,11 @@
  * โมดูลอื่นทั้งหมดเป็นฟังก์ชันของอินพุต ที่นี่คือที่เดียวที่มีตัวแปรที่เปลี่ยนค่าได้
  * และเป็นที่เดียวที่ต่อสายระหว่างเหตุการณ์จากผู้ใช้ ตรรกะบริสุทธิ์ และ DOM
  *
- *      pointer.js / toolbar.js   (รับเหตุการณ์)
+ *      pointer.js / toolbar.js / keyboard.js   (รับเหตุการณ์)
  *                 |
  *              index.js          (สถานะ + apply)
  *          /      |      \
- *   tools/*   history.js   camera.js      (ตรรกะบริสุทธิ์)
+ *   tools/*   history.js   camera.js   clipboard.js   selection-frame.js   (ตรรกะบริสุทธิ์)
  *                 |
  *   renderer.js / selection-ui.js         (วาดลง DOM)
  *
@@ -17,6 +17,7 @@
  */
 
 import {
+    centerOnBounds,
     clampScale,
     createCamera,
     fitToBounds,
@@ -24,23 +25,34 @@ import {
     screenToWorld,
     zoomAt,
 } from './camera.js';
-import {pickTopmost, unionBounds} from './geometry.js';
+import {HIT_TOLERANCE_PX, pickTopmost, unionBounds} from './geometry.js';
 import {fitInitialSize, initAttachments} from './attachments.js';
 import {initAutosave} from './autosave.js';
 import {confirmDeleteBoard, createBoardModal} from './board-settings.js';
+import {PASTE_OFFSET, copyElements, duplicateElements, pasteFromClipboard} from './clipboard.js';
+import {initClipboardEvents} from './clipboard-events.js';
 import {createClient} from './client.js';
 import * as history from './history.js';
+import {initContextMenu} from './context-menu.js';
+import {initKeyboardShortcuts, toolShortcutsFrom} from './keyboard.js';
+import {layerRuns, syncLayers} from './layers.js';
+import {initMenus} from './menu.js';
 import {initPointer} from './pointer.js';
 import {
+    alignOfSelection,
+    applyAlignToSelection,
     applyOverlayCamera,
     initOverlayEditing,
     isOverlayType,
     renderOverlay,
+    uniformLineAligns,
 } from './overlay-text.js';
 import {applyCamera, renderElements, renderPreview} from './renderer.js';
 import * as scene from './scene.js';
+import {frameOf} from './selection-frame.js';
 import {renderSelection} from './selection-ui.js';
-import {initToolbar} from './toolbar.js';
+import {disableEditControls, initToolbar, initToolbarCollapse} from './toolbar.js';
+import {initToolCursor} from './tool-cursor.js';
 import {isReadOnlyTool, toolFor} from './tools/index.js';
 
 /** อ่าน JSON island คืนค่าปริยายเมื่อไม่มีหรืออ่านไม่ออก */
@@ -79,15 +91,34 @@ export const initBoardEditor = ({
     const initialVersion = Number(boardData.version ?? 1);
 
     const stage = root.querySelector('[data-workspace-stage]');
-    const vectorLayer = root.querySelector('[data-workspace-vector]');
+    // ชั้นเนื้อหาถูกสร้างตามลำดับของเอกสาร ไม่ได้เขียนตายตัวไว้ใน Blade (ดู layers.js)
+    const layersRoot = root.querySelector('[data-workspace-layers]');
     const previewLayer = root.querySelector('[data-workspace-preview]');
     const selectionLayer = root.querySelector('[data-workspace-selection]');
-    const overlayLayer = root.querySelector('[data-workspace-overlay]');
     const toolbarRoot = root.querySelector('[data-workspace-toolbar]');
+    const contextToolbarRoot = root.querySelector('[data-workspace-context-toolbar]');
+    const contextMenuRoot = root.querySelector('[data-workspace-context-menu]');
 
-    if (! stage || ! vectorLayer) {
+    if (! stage || ! layersRoot) {
         return null;
     }
+
+    /*
+     * ไอคอนเครื่องมือที่ลอยตามเมาส์ บอกว่ากำลังถือดินสอหรือยางลบอยู่
+     *
+     * ชื่อไอคอนกับรายชื่อเครื่องมือมาจาก WorkspaceDesign ผ่าน JSON island
+     * ไม่ได้เขียนซ้ำไว้ในไฟล์ .js (ดู tool-cursor.js ว่าทำไมไม่ใช้ cursor ของ CSS)
+     */
+    const toolCursor = initToolCursor(stage, root.querySelector('[data-workspace-tool-cursor]'), {
+        tools: design.pointerTools || [],
+        icons: Object.fromEntries(
+            Object.entries(design.tools || {}).map(([name, tool]) => [name, tool.icon])
+        ),
+    });
+
+    // มือจับพับ/กางแถบเครื่องมือใช้ได้กับทุกคนรวมผู้ดูอย่างเดียว จึงผูกแยก
+    // จาก initToolbar ซึ่งด้านล่างต้องรอ capabilities ก่อน
+    initToolbarCollapse(toolbarRoot);
 
     const capabilities = boardData.capabilities || {};
     const limits = {
@@ -107,15 +138,38 @@ export const initBoardEditor = ({
             strokeWidth: design.defaultStrokeWidth || 4,
             stickyColor: design.defaultStickyColor || '#fde68a',
             fontSize: design.defaultFontSize || 20,
+            bold: false,
+            italic: false,
+            letterSpacing: design.defaultLetterSpacing ?? 0,
+            align: 'left',
         },
         preview: null,
         draft: null,
         gestureStart: null,
         // กล่องข้อความที่กำลังแก้อยู่ (มีได้ทีละกล่อง) ดู overlay-text.js ว่าทำไม
         editingId: null,
+        // ชิ้นงานที่คัดลอกไว้ (ดู clipboard.js) ไม่อยู่ในประวัติ undo เพราะไม่ใช่เนื้อหา
+        clipboard: null,
     };
 
     let past = history.createHistory(state.scene);
+
+    /*
+     * การจัดบรรทัดของย่อหน้าที่เคอร์เซอร์อยู่ตอนนี้ ระหว่างเปิดแก้ไขกล่องข้อความ
+     *
+     * แยกออกจาก state.style.align โดยตั้งใจ เพราะ style.align มีอีกหน้าที่คือ
+     * "ค่าตั้งต้นของกล่องใหม่ที่จะสร้าง" ถ้าใช้ตัวเดียวกัน แค่ขยับเคอร์เซอร์ไป
+     * อ่านบรรทัดที่จัดกึ่งกลางไว้ก็จะเปลี่ยนค่าตั้งต้นของกล่องถัดไปโดยไม่ตั้งใจ
+     * ตัวนี้จึงมีไว้ให้แถบเครื่องมือไฮไลต์ปุ่มให้ตรงกับบรรทัดจริงเท่านั้น และถูก
+     * ล้างกลับเป็น null ทุกครั้งที่เลิกแก้ไข (ดู apply() ที่ patch.editingId)
+     */
+    let editingAlign = null;
+
+    /*
+     * เมนู (บนแถบเครื่องมือ บนหัวเรื่อง และเมนูคลิกขวา) ถูกสร้างหลัง toolbar
+     * เพราะทั้งสองฝ่ายต้องปิดอีกฝ่ายก่อนเปิดตัวเอง การต่อสายไขว้อยู่ที่นี่จุดเดียว
+     */
+    let menus = null;
 
     /*
      * ตะขอสามตัวที่ถูกเติมค่าหลังจากตั้งการบันทึกอัตโนมัติเสร็จ
@@ -133,34 +187,44 @@ export const initBoardEditor = ({
     });
 
     const draw = () => {
-        applyCamera(vectorLayer, state.camera);
-
         if (previewLayer) {
             applyCamera(previewLayer, state.camera);
         }
 
-        // กระดาษโน้ตและกล่องข้อความอยู่ในชั้น HTML ส่วนที่เหลืออยู่ในชั้น SVG
-        // การแบ่งอยู่ที่ isOverlayType จุดเดียว ทั้งสองชั้นจึงไม่มีทางวาดชิ้นเดียวกันซ้อนกัน
-        renderElements(
-            vectorLayer,
-            state.scene.elements.filter((element) => ! isOverlayType(element.type)),
-            doc
-        );
+        /*
+         * ชั้นเนื้อหา: หนึ่งชั้นต่อหนึ่งช่วงของชิ้นงานที่วาดด้วยเทคโนโลยีเดียวกัน
+         * เรียงตามลำดับในเอกสาร ลำดับใน DOM จึงเท่ากับลำดับชั้นที่ผู้ใช้เห็น
+         * เส้นที่สั่ง "ขึ้นบนสุด" จึงขึ้นไปอยู่เหนือกระดาษโน้ตได้จริง (ดู layers.js)
+         */
+        syncLayers(layersRoot, layerRuns(state.scene.elements), doc).forEach((layer) => {
+            if (layer.kind === 'overlay') {
+                applyOverlayCamera(layer.node, state.camera);
+                renderOverlay(layer.node, layer.elements, {
+                    doc,
+                    editable: capabilities.canEdit === true,
+                    editingId: state.editingId,
+                });
+
+                return;
+            }
+
+            applyCamera(layer.node, state.camera);
+            renderElements(layer.node, layer.elements, doc);
+        });
+
         renderPreview(previewLayer, state.preview, doc);
 
-        if (overlayLayer) {
-            applyOverlayCamera(overlayLayer, state.camera);
-            renderOverlay(
-                overlayLayer,
-                state.scene.elements.filter((element) => isOverlayType(element.type)),
-                {doc, editable: capabilities.canEdit === true, editingId: state.editingId}
-            );
-        }
+        // เคอร์เซอร์มาตรฐานของแต่ละเครื่องมืออยู่ใน workspace/stage.css
+        // ที่นี่บอกแค่ว่าเครื่องมือไหน ส่วนดินสอกับยางลบได้ไอคอนลอยตามเมาส์เพิ่ม
+        stage.dataset.tool = state.tool;
+        toolCursor?.update(state.tool);
 
         if (selectionLayer) {
+            // ระหว่างหมุน เครื่องมือถือกรอบที่หมุนตามไว้ใน draft (ดู tools/select.js)
             renderSelection(
                 selectionLayer,
-                unionBounds(state.scene.elements.filter((el) => state.selection.includes(el.id))),
+                state.draft?.liveFrame
+                    ?? frameOf(state.scene.elements.filter((el) => state.selection.includes(el.id))),
                 state.camera,
                 {editable: capabilities.canEdit === true}
             );
@@ -172,8 +236,13 @@ export const initBoardEditor = ({
             canUndo: history.canUndo(past),
             canRedo: history.canRedo(past),
             hasSelection: state.selection.length > 0,
+            // ชนิดของสิ่งที่เลือกเป็นตัวตัดสินว่าแถบรูปแบบต้องโผล่กลุ่มไหน
+            // (ดู toolbar-context.js) ส่งเป็นชนิด ไม่ใช่ตัวชิ้นงาน เพราะกฎนั้น
+            // ไม่ต้องรู้อะไรเกี่ยวกับชิ้นงานมากกว่าชนิดของมัน
+            selectedTypes: selectedElements().map((element) => element.type),
             scale: state.camera.scale,
             isFullscreen: doc.fullscreenElement === root,
+            activeAlign: editingAlign,
         });
 
         root.dispatchEvent(new doc.defaultView.CustomEvent('workspace:changed', {
@@ -214,6 +283,10 @@ export const initBoardEditor = ({
 
         if (patch.editingId !== undefined) {
             state.editingId = patch.editingId;
+
+            if (! patch.editingId) {
+                editingAlign = null;
+            }
         }
 
         if (patch.commit) {
@@ -246,6 +319,7 @@ export const initBoardEditor = ({
         camera: state.camera,
         style: state.style,
         draft: state.draft,
+        canEdit: capabilities.canEdit === true,
         idFactory,
         addElement: (current, element) =>
             scene.addElement(current, {...element, z: scene.nextZ(current)}),
@@ -254,6 +328,27 @@ export const initBoardEditor = ({
     });
 
     const canUseCurrentTool = () => capabilities.canEdit === true || isReadOnlyTool(state.tool);
+
+    /**
+     * เปลี่ยนเครื่องมือ ทางเดียวของทั้งปุ่มบนแถบและปุ่มลัด คืน false เมื่อเปลี่ยนไม่ได้
+     *
+     * ต้องตรวจสิทธิ์ที่นี่ด้วย ไม่ใช่พึ่งปุ่มที่ถูกปิดบนแถบ เพราะปุ่มลัดไม่ผ่านปุ่มนั้น
+     * ผู้ที่ดูอย่างเดียวกด P แล้วต้องไม่ได้ดินสอขึ้นมาแม้จะวาดไม่ได้ก็ตาม
+     */
+    const chooseTool = (name) => {
+        if (capabilities.canEdit !== true && ! isReadOnlyTool(name)) {
+            return false;
+        }
+
+        state.tool = name;
+        // การเปลี่ยนเครื่องมือกลางท่าลากต้องล้างสถานะร่างทิ้ง ไม่งั้นเครื่องมือ
+        // ใหม่จะได้รับ draft ที่มีรูปร่างของเครื่องมือเก่า
+        state.draft = null;
+        state.preview = null;
+        draw();
+
+        return true;
+    };
 
     /**
      * ใช้ค่าสไตล์กับชิ้นที่เลือกอยู่ และจำไว้เป็นค่าตั้งต้นของชิ้นถัดไป
@@ -289,20 +384,69 @@ export const initBoardEditor = ({
 
     const isTextBox = (element) => element.type === 'sticky' || element.type === 'text';
 
+    /**
+     * กล่องข้อความที่ "กำลังพิมพ์อยู่จริง" ในขณะนี้ คืน null เมื่อไม่ได้พิมพ์อยู่
+     *
+     * ต้องเป็นทั้งกล่องที่เปิดโหมดแก้ไขไว้และกล่องที่ถือโฟกัสอยู่ แค่อย่างใด
+     * อย่างหนึ่งไม่พอ เพราะการจัดบรรทัด "เฉพาะย่อหน้าที่เคอร์เซอร์อยู่" ต้องมี
+     * เคอร์เซอร์จริง ๆ ถึงจะรู้ว่าย่อหน้าไหน
+     */
+    const editingTextNode = () => {
+        if (! state.editingId) {
+            return null;
+        }
+
+        const node = layersRoot.querySelector(`[data-el-id="${CSS.escape(state.editingId)}"]`);
+
+        return node && doc.activeElement === node ? node : null;
+    };
+
+    /**
+     * จัดบรรทัด — ทางเดียวของทั้งปุ่มบนแถบรูปแบบและปุ่มลัด Ctrl+Shift+L/E/R
+     *
+     * กำลังพิมพ์อยู่ในกล่อง -> จัดเฉพาะย่อหน้าที่เคอร์เซอร์หรือตัวเลือกแตะอยู่
+     * เหมือนโปรแกรมประมวลผลคำทั่วไป บรรทัดอื่นในกล่องเดียวกันไม่ถูกแตะเลย
+     *
+     * แค่เลือกกล่องไว้เฉย ๆ ด้วยเครื่องมือเลือก -> จัดทุกบรรทัดในกล่องให้เหมือน
+     * กันหมด และจำไว้เป็นค่าตั้งต้นของกล่องถัดไป (applyStyle ตั้ง style.align ให้)
+     */
+    const chooseAlign = (align) => {
+        const node = editingTextNode();
+
+        if (node) {
+            if (! applyAlignToSelection(doc, node, align)) {
+                return false;
+            }
+
+            editingAlign = align;
+            draw();
+
+            return true;
+        }
+
+        applyStyle(
+            {align},
+            isTextBox,
+            (element) => ({...element, lineAligns: uniformLineAligns(element.text, align)})
+        );
+
+        return true;
+    };
+
     const toolbar = initToolbar(toolbarRoot, {
         capabilities,
+        contextToolbar: contextToolbarRoot,
+        // เมนูต้องปิดก่อนแผงค่าจะเปิด ไม่งั้นทั้งสองลอยค้างทับกัน
+        onBeforeOpen: () => menus?.close(),
         fontSizeRange: {
             min: design.minFontSize ?? 8,
             max: design.maxFontSize ?? 96,
         },
-        onSelectTool: (name) => {
-            state.tool = name;
-            // การเปลี่ยนเครื่องมือกลางท่าลากต้องล้างสถานะร่างทิ้ง ไม่งั้นเครื่องมือ
-            // ใหม่จะได้รับ draft ที่มีรูปร่างของเครื่องมือเก่า
-            state.draft = null;
-            state.preview = null;
-            draw();
+        letterSpacingRange: {
+            min: design.minLetterSpacing ?? -2,
+            max: design.maxLetterSpacing ?? 8,
         },
+        onSelectTool: chooseTool,
         onSelectColor: (color) => {
             // สีเดียวกันใช้ได้กับทั้งเส้นและตัวอักษร แต่คนละคุณสมบัติ
             // เส้นใช้ stroke ส่วนกล่องข้อความใช้ color
@@ -325,68 +469,156 @@ export const initBoardEditor = ({
         onSelectFontSize: (size) => {
             applyStyle({fontSize: size}, isTextBox, (element) => ({...element, fontSize: size}));
         },
+        onToggleBold: () => {
+            const next = ! state.style.bold;
+
+            applyStyle({bold: next}, isTextBox, (element) => ({...element, bold: next}));
+        },
+        onToggleItalic: () => {
+            const next = ! state.style.italic;
+
+            applyStyle({italic: next}, isTextBox, (element) => ({...element, italic: next}));
+        },
+        onSelectLetterSpacing: (spacing) => {
+            applyStyle({letterSpacing: spacing}, isTextBox, (element) => ({...element, letterSpacing: spacing}));
+        },
+        onSelectAlign: chooseAlign,
         onSelectWidth: (width) => {
             applyStyle({strokeWidth: width}, hasStroke, (element) => ({...element, strokeWidth: width}));
         },
         onCommand: (command) => runCommand(command),
     });
 
+    /**
+     * ทำคำสั่งจากแถบเครื่องมือหรือปุ่มลัด
+     *
+     * คืน true เมื่อคำสั่งมีผลจริง keyboard.js ใช้ค่านี้ตัดสินว่าจะยกเลิกพฤติกรรม
+     * เดิมของเบราว์เซอร์หรือไม่ เช่น Backspace ที่ไม่มีอะไรให้ลบต้องปล่อยผ่านไป
+     */
     const runCommand = (command) => {
+        const canEdit = capabilities.canEdit === true;
+
         switch (command) {
             case 'undo':
-                past = history.undo(past);
-                state.scene = history.current(past);
-                state.selection = [];
-                notifyDirty();
-                draw();
-                break;
-
             case 'redo':
-                past = history.redo(past);
-                state.scene = history.current(past);
-                state.selection = [];
-                notifyDirty();
-                draw();
-                break;
-
-            case 'delete':
-                if (capabilities.canEdit && state.selection.length) {
-                    apply({
-                        scene: scene.removeElements(state.scene, state.selection),
-                        selection: [],
-                        commit: true,
-                    });
+                if (! canEdit) {
+                    return false;
                 }
 
-                break;
+                past = command === 'undo' ? history.undo(past) : history.redo(past);
+                state.scene = history.current(past);
+                state.selection = [];
+                notifyDirty();
+                draw();
+
+                return true;
+
+            case 'delete':
+                if (! canEdit || ! state.selection.length) {
+                    return false;
+                }
+
+                apply({
+                    scene: scene.removeElements(state.scene, state.selection),
+                    selection: [],
+                    commit: true,
+                });
+
+                return true;
+
+            case 'copy':
+                if (! state.selection.length) {
+                    return false;
+                }
+
+                state.clipboard = copyElements(state.scene, state.selection, idFactory());
+
+                return true;
+
+            case 'paste': {
+                if (! canEdit || ! state.clipboard) {
+                    return false;
+                }
+
+                const pasted = pasteFromClipboard(state.scene, state.clipboard, idFactory);
+
+                state.clipboard = pasted.clipboard;
+                apply({scene: pasted.scene, selection: pasted.selection, commit: true});
+
+                return true;
+            }
+
+            case 'duplicate': {
+                // ยกเลิก Ctrl+D (บุ๊กมาร์กของเบราว์เซอร์) ทุกครั้งที่แก้กระดานได้
+                // แม้ยังไม่ได้เลือกอะไร เพราะผู้ใช้ที่กดบนกระดานตั้งใจทำสำเนาเสมอ
+                if (! canEdit) {
+                    return false;
+                }
+
+                const duplicated = duplicateElements(state.scene, state.selection, idFactory);
+
+                if (duplicated) {
+                    apply({scene: duplicated.scene, selection: duplicated.selection, commit: true});
+                }
+
+                return true;
+            }
+
+            case 'escape':
+                apply({selection: [], draft: null, preview: null, editingId: null});
+
+                return true;
+
+            /*
+             * จัดบรรทัดด้วยปุ่มลัด ใช้ทางเดียวกับปุ่มบนแถบรูปแบบทุกประการ
+             *
+             * ปุ่มลัดกลุ่มนี้ต่างจากกลุ่มอื่นตรงที่ต้องทำงานได้ "ระหว่างพิมพ์"
+             * ไม่งั้นก็ไม่มีประโยชน์ keyboard.js จึงปล่อยผ่านให้เฉพาะกลุ่มนี้
+             * เมื่อเคอร์เซอร์อยู่ในกล่องข้อความของกระดานเท่านั้น
+             */
+            case 'align-left':
+            case 'align-center':
+            case 'align-right':
+                if (! canEdit) {
+                    return false;
+                }
+
+                return chooseAlign(command.replace('align-', ''));
 
             case 'zoom-in':
                 apply({camera: zoomAt(state.camera, center(), 1.2, limits)});
-                break;
+
+                return true;
 
             case 'zoom-out':
                 apply({camera: zoomAt(state.camera, center(), 1 / 1.2, limits)});
-                break;
+
+                return true;
 
             case 'zoom-reset':
                 apply({camera: {...state.camera, scale: clampScale(1, limits)}});
-                break;
+
+                return true;
 
             case 'fullscreen':
                 toggleFullscreen();
-                break;
+
+                return true;
 
             case 'save':
                 autosave?.saveNow?.();
-                break;
+
+                return true;
 
             case 'refresh':
                 autosave?.refresh?.();
-                break;
+
+                return true;
 
             case 'attach-image':
                 attachments?.open();
-                break;
+
+                return true;
 
             case 'fit':
                 apply({
@@ -397,12 +629,70 @@ export const initBoardEditor = ({
                         limits
                     ),
                 });
-                break;
+
+                return true;
+
+            /*
+             * เลื่อนกล้องไปหาสิ่งที่เลือกไว้ โดยไม่แตะระดับซูมและไม่แตะเอกสาร
+             *
+             * ต่างจาก fit ที่คำนวณซูมใหม่ให้เห็นงานทั้งกระดาน อันนี้ไว้ตามหาของที่
+             * หลงไปไกลจากกรอบสายตา ผู้ใช้จึงต้องได้ระดับซูมเดิมกลับมา
+             *
+             * ไม่ gate ด้วย canEdit เพราะเป็นคำสั่งมุมมอง ผู้ที่ดูอย่างเดียวต้องใช้ได้
+             * และ patch ไม่มี scene กับ commit จึงไม่กินก้าวย้อนกลับและไม่ทำให้
+             * การบันทึกอัตโนมัติคิดว่ามีอะไรเปลี่ยน
+             */
+            case 'center': {
+                const bounds = unionBounds(selectedElements());
+
+                if (! bounds) {
+                    return false;
+                }
+
+                apply({camera: centerOnBounds(state.camera, bounds, viewport())});
+
+                return true;
+            }
+
+            /*
+             * จัดลำดับชั้นของสิ่งที่เลือก ตรรกะอยู่ใน scene.js ทั้งหมด
+             *
+             * scene.js คืนฉากตัวเดิมเมื่อขยับไม่ได้ (ชนขอบอยู่แล้ว) จึงเทียบด้วย ===
+             * แล้วคืน false ไป ไม่ต้องกินก้าวย้อนกลับและไม่ต้องบันทึกใหม่
+             */
+            case 'bring-to-front':
+            case 'bring-forward':
+            case 'send-backward':
+            case 'send-to-back': {
+                if (! canEdit || ! state.selection.length) {
+                    return false;
+                }
+
+                const reorder = {
+                    'bring-to-front': scene.bringToFront,
+                    'bring-forward': scene.bringForward,
+                    'send-backward': scene.sendBackward,
+                    'send-to-back': scene.sendToBack,
+                }[command];
+
+                const next = reorder(state.scene, state.selection);
+
+                if (next === state.scene) {
+                    return false;
+                }
+
+                apply({scene: next, commit: true});
+
+                return true;
+            }
 
             default:
-                break;
+                return false;
         }
     };
+
+    const selectedElements = () =>
+        state.scene.elements.filter((element) => state.selection.includes(element.id));
 
     const center = () => {
         const size = viewport();
@@ -410,7 +700,7 @@ export const initBoardEditor = ({
         return {x: size.width / 2, y: size.height / 2};
     };
 
-    const overlay = initOverlayEditing(overlayLayer, {
+    const overlay = initOverlayEditing(layersRoot, {
         maxLength: design.maxTextLength || 2000,
         onFocus: (id) => {
             if (id && ! state.selection.includes(id)) {
@@ -418,23 +708,47 @@ export const initBoardEditor = ({
                 draw();
             }
         },
-        onCommit: (id, text) => {
+        onCommit: (id, text, lineAligns) => {
             const element = scene.findById(state.scene, id);
 
-            // บันทึกลงประวัติเฉพาะเมื่อข้อความเปลี่ยนจริง การคลิกเข้าออกกล่อง
-            // เฉย ๆ ไม่ควรกินก้าว undo
-            if (! element || element.text === text) {
+            // บันทึกลงประวัติเฉพาะเมื่อข้อความหรือการจัดบรรทัดเปลี่ยนจริง การคลิก
+            // เข้าออกกล่องเฉย ๆ ไม่ควรกินก้าว undo
+            const unchanged = element
+                && element.text === text
+                && JSON.stringify(element.lineAligns || {}) === JSON.stringify(lineAligns || {});
+
+            if (! element || unchanged) {
                 apply({editingId: null});
 
                 return;
             }
 
             apply({
-                scene: scene.updateElement(state.scene, id, {text}),
+                scene: scene.updateElement(state.scene, id, {text, lineAligns}),
                 editingId: null,
                 commit: true,
             });
         },
+    });
+
+    /*
+     * ตามเคอร์เซอร์ระหว่างแก้ไขกล่องข้อความ เพื่อให้ปุ่มจัดบรรทัดบนแถบเครื่องมือ
+     * ไฮไลต์ตรงกับย่อหน้าที่เคอร์เซอร์อยู่จริง ไม่ใช่ค้างค่าที่กดครั้งล่าสุด
+     * ผู้ใช้จะได้รู้ว่าบรรทัดที่กำลังจะพิมพ์ต่อถูกจัดไว้แบบไหนก่อนเลือกปุ่มใหม่
+     */
+    doc.addEventListener('selectionchange', () => {
+        const node = editingTextNode();
+
+        if (! node) {
+            return;
+        }
+
+        const align = alignOfSelection(doc, node);
+
+        if (editingAlign !== align) {
+            editingAlign = align;
+            draw();
+        }
     });
 
     /**
@@ -472,36 +786,52 @@ export const initBoardEditor = ({
      */
     const attachments = initAttachments({
         root,
-        stage,
         doc,
         uploadUrl: routes.attachments,
         canEdit: capabilities.canEdit === true,
-        onInsert: (attachment) => {
-            const size = fitInitialSize(attachment.width, attachment.height);
+        onInsert: (uploaded) => {
             const view = viewport();
-            const topLeft = screenToWorld(state.camera, {
-                x: view.width / 2 - (size.w * state.camera.scale) / 2,
-                y: view.height / 2 - (size.h * state.camera.scale) / 2,
+            let next = state.scene;
+
+            // วางกลางจอ รูปถัดไปเลื่อนเฉียงลงทีละขั้นเท่าระยะของการวางซ้ำ
+            // หลายรูปพร้อมกันจึงไม่ทับกันสนิทจนดูเหมือนมีรูปเดียว
+            const images = uploaded.map((attachment, index) => {
+                const size = fitInitialSize(attachment.width, attachment.height);
+                const topLeft = screenToWorld(state.camera, {
+                    x: view.width / 2 - (size.w * state.camera.scale) / 2,
+                    y: view.height / 2 - (size.h * state.camera.scale) / 2,
+                });
+                const element = {
+                    id: idFactory(),
+                    type: 'image',
+                    z: scene.nextZ(next),
+                    x: Math.round(topLeft.x) + index * PASTE_OFFSET,
+                    y: Math.round(topLeft.y) + index * PASTE_OFFSET,
+                    w: size.w,
+                    h: size.h,
+                    attachmentId: attachment.id,
+                    src: attachment.src,
+                };
+
+                next = scene.addElement(next, element);
+
+                return element;
             });
 
-            const element = {
-                id: idFactory(),
-                type: 'image',
-                z: scene.nextZ(state.scene),
-                x: Math.round(topLeft.x),
-                y: Math.round(topLeft.y),
-                w: size.w,
-                h: size.h,
-                attachmentId: attachment.id,
-                src: attachment.src,
-            };
-
-            apply({
-                scene: scene.addElement(state.scene, element),
-                selection: [element.id],
-                commit: true,
-            });
+            apply({scene: next, selection: images.map((image) => image.id), commit: true});
         },
+    });
+
+    /*
+     * Ctrl+C / Ctrl+V ผ่านเหตุการณ์ copy/paste ของเบราว์เซอร์ (ดู clipboard-events.js)
+     * การวางชิ้นงานและการวางรูปจึงใช้ runCommand และ attachments ตัวเดียวกับปุ่มบนแถบ
+     */
+    initClipboardEvents(doc, {
+        canEdit: capabilities.canEdit === true,
+        onCopy: () => (runCommand('copy') ? state.clipboard.token : null),
+        getClipboard: () => state.clipboard,
+        onPasteBoard: () => runCommand('paste'),
+        onPasteImages: (files) => attachments?.upload(files),
     });
 
     initPointer(stage, {
@@ -564,28 +894,45 @@ export const initBoardEditor = ({
         },
     });
 
+    /**
+     * ชิ้นงานที่อยู่ใต้พิกัดบนหน้าจอ (พิกัดของเหตุการณ์เมาส์ ไม่ใช่พิกัดโลก)
+     *
+     * ใช้ระบบตรวจการชนจากตัวแบบข้อมูล ไม่ใช่ event.target เพราะชิ้นงานส่วนใหญ่
+     * เป็น SVG ชั้นเดียวและกล่องข้อความถูกตั้ง pointer-events: none ไว้ตอนไม่ได้
+     * แก้ไข เหตุการณ์จึงไม่เคยไปถึงตัวชิ้นงานเอง
+     *
+     * @param {number} clientX
+     * @param {number} clientY
+     * ใช้ระยะผ่อนผันตัวเดียวกับเครื่องมือเลือก (HIT_TOLERANCE_PX) ไม่ใช่ศูนย์
+     * ไม่งั้นการคลิกขวาบนเส้นบาง ๆ จะต้องเล็งให้ตรงเป๊ะจนแทบกดไม่ติด ทั้งที่
+     * คลิกซ้ายที่จุดเดียวกันเลือกได้สบาย ๆ
+     *
+     * @param {Function} [filter] กรองชนิดที่สนใจ (ปริยายคือทุกชนิด)
+     */
+    const hitAt = (clientX, clientY, filter = () => true) => {
+        const rect = stage.getBoundingClientRect();
+        const point = screenToWorld(state.camera, {
+            x: clientX - rect.left,
+            y: clientY - rect.top,
+        });
+
+        return pickTopmost(
+            state.scene.elements.filter(filter),
+            point,
+            HIT_TOLERANCE_PX / state.camera.scale
+        );
+    };
+
     /*
      * ดับเบิลคลิกเปิดการแก้ไขของกระดาษโน้ตหรือกล่องข้อความที่อยู่ใต้เคอร์เซอร์
-     *
-     * ต้องผูกที่ stage ไม่ใช่ที่ตัวกล่อง เพราะตอนยังไม่ได้แก้ไข กล่องถูกตั้ง
-     * pointer-events: none ไว้ เหตุการณ์จึงไม่มีทางไปถึงตัวมันเอง การหาว่ากด
-     * โดนกล่องไหนใช้ระบบตรวจการชนจากตัวแบบข้อมูลตัวเดียวกับการเลือก
+     * (สนใจเฉพาะชนิดที่มีข้อความให้พิมพ์ ดับเบิลคลิกบนสี่เหลี่ยมไม่ต้องทำอะไร)
      */
     stage.addEventListener('dblclick', (event) => {
         if (capabilities.canEdit !== true) {
             return;
         }
 
-        const rect = stage.getBoundingClientRect();
-        const point = screenToWorld(state.camera, {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-        });
-
-        const hit = pickTopmost(
-            state.scene.elements.filter((element) => isOverlayType(element.type)),
-            point
-        );
+        const hit = hitAt(event.clientX, event.clientY, (element) => isOverlayType(element.type));
 
         if (hit) {
             apply({selection: [hit.id], editingId: hit.id});
@@ -593,50 +940,54 @@ export const initBoardEditor = ({
         }
     });
 
-    doc.addEventListener('keydown', (event) => {
-        // ปล่อยให้ undo ของเบราว์เซอร์ทำงานเมื่อโฟกัสอยู่ในช่องข้อความ ไม่งั้น
-        // ผู้ใช้จะแก้คำผิดในกระดาษโน้ตไม่ได้เลย (สำคัญมากเมื่อชั้นข้อความเข้ามา)
-        if (doc.activeElement?.isContentEditable || isFormField(doc.activeElement)) {
-            return;
-        }
+    /*
+     * เมนูบนแถบเครื่องมือ บนหัวเรื่อง และเมนูคลิกขวา ใช้ menu.js ตัวเดียวกันทั้งหมด
+     * ผูกที่ root ครั้งเดียวจึงครอบทุกเมนูบนหน้านี้
+     *
+     * เมนูกับแผงค่าต้องไม่เปิดค้างพร้อมกัน ต่อสายไขว้กันที่นี่จุดเดียว: เมนูจะเปิด
+     * ก็สั่งปิดแผงค่า และแผงค่าจะเปิดก็สั่งปิดเมนู (ดู onBeforeOpen ของ initToolbar)
+     */
+    menus = initMenus(root, {onBeforeOpen: () => toolbar?.closePickers()});
 
-        const ctrl = event.ctrlKey || event.metaKey;
+    /*
+     * เมนูคลิกขวาเป็นทางเข้าเดียวของคำสั่งจัดลำดับชั้นและ "เลื่อนไปหา" ซึ่งไม่มี
+     * ปุ่มบนแถบ (ใช้นาน ๆ ครั้ง และเป็นคำสั่งที่ทำกับชิ้นที่คลิกโดยตรง)
+     *
+     * ปิดรายการที่แก้เนื้อหาสำหรับผู้ที่ดูอย่างเดียวด้วยตัวเดียวกับแถบเครื่องมือ
+     * ส่วนด่านจริงคือ runCommand ซึ่งตรวจ canEdit ทุกคำสั่งอยู่แล้ว
+     */
+    if (capabilities.canEdit !== true) {
+        disableEditControls(contextMenuRoot);
+    }
 
-        if (ctrl && event.key.toLowerCase() === 'z') {
-            event.preventDefault();
-            runCommand(event.shiftKey ? 'redo' : 'undo');
+    initContextMenu(stage, contextMenuRoot, {
+        menus,
+        hitAt: (clientX, clientY) => hitAt(clientX, clientY),
+        getSelection: () => state.selection,
+        onSelect: (selection) => apply({selection}),
+        onCommand: runCommand,
+        canEdit: capabilities.canEdit === true,
+        hasClipboard: () => Boolean(state.clipboard),
+        // ถามฉากจริงว่าชิ้นที่เลือกยังขยับชั้นได้อีกไหม เพื่อปิดปุ่มที่กดแล้วไม่เกิดอะไร
+        canReorder: () => scene.canReorder(state.scene, state.selection),
+        isGestureActive: () => Boolean(state.draft),
+    });
 
-            return;
-        }
-
-        if (ctrl && event.key.toLowerCase() === 'y') {
-            event.preventDefault();
-            runCommand('redo');
-
-            return;
-        }
-
-        if (event.key === 'Delete' || event.key === 'Backspace') {
-            if (state.selection.length) {
-                event.preventDefault();
-                runCommand('delete');
-            }
-
-            return;
-        }
-
-        // F = เต็มจอ ปุ่มเดียวไม่มีตัวช่วย จึงต้องไม่ชนกับการพิมพ์ ซึ่งถูกกัน
-        // ไปแล้วด้านบนด้วยการตรวจว่าโฟกัสอยู่ในช่องข้อความหรือไม่
-        if (! ctrl && event.key.toLowerCase() === 'f') {
-            event.preventDefault();
-            runCommand('fullscreen');
-
-            return;
-        }
-
-        if (event.key === 'Escape') {
-            apply({selection: [], draft: null, preview: null, editingId: null});
-        }
+    /*
+     * ปุ่มลัดวิ่งผ่าน chooseTool และ runCommand ตัวเดียวกับปุ่มบนแถบเครื่องมือ
+     * การตรวจสิทธิ์จึงอยู่ที่เดียว และไม่มีทางที่ปุ่มลัดจะทำสิ่งที่ปุ่มทำไม่ได้
+     *
+     * keyboard.js ปล่อยผ่านทุกการกดที่เกิดขณะพิมพ์อยู่ในช่องกรอกหรือกล่องข้อความ
+     * ไม่งั้นผู้ใช้จะแก้คำผิด คัดลอก หรือวางข้อความในกระดาษโน้ตไม่ได้เลย
+     */
+    initKeyboardShortcuts(doc, {
+        toolShortcuts: toolShortcutsFrom(design.tools),
+        onSelectTool: chooseTool,
+        onCommand: runCommand,
+        isGestureActive: () => Boolean(state.draft),
+        // ปุ่มลัดจัดบรรทัดต้องใช้ได้ระหว่างพิมพ์ ต่างจากปุ่มลัดอื่นทั้งหมด
+        // ด่านนี้แคบไว้ที่กล่องข้อความของกระดานเท่านั้น ไม่รวมช่องกรอกอื่นบนหน้า
+        isTextEditing: () => Boolean(editingTextNode()),
     });
 
     /*
@@ -722,9 +1073,6 @@ export const initBoardEditor = ({
         currentDocument: () => scene.serialize(state.scene),
     };
 };
-
-const isFormField = (node) =>
-    Boolean(node) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName);
 
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {

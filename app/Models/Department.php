@@ -25,4 +25,9 @@ class Department extends Model
     {
         return $this->hasMany(WorkspaceBoard::class, 'department_id');
     }
+
+    public function announcements(): HasMany
+    {
+        return $this->hasMany(Announcement::class, 'department_id');
+    }
 }

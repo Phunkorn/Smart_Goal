@@ -13,6 +13,16 @@
 
 import {createSaveScheduler} from './save-state.js';
 
+/**
+ * สถานะที่ผู้ใช้ต้องเห็น
+ *
+ * การบันทึกอัตโนมัติที่เป็นปกติไม่ต้องบอกใคร ป้ายที่เปลี่ยนทุกครั้งที่ขีดเส้นเป็น
+ * แค่เสียงรบกวน (เจ้าของระบบขอให้เอาออก) จึงแสดงเฉพาะตอนที่ผู้ใช้ต้องรู้หรือ
+ * ต้องทำอะไรต่อ คือบันทึกไม่สำเร็จ และมีคนอื่นบันทึกแทรก ส่วนงานค้างตอนปิดหน้า
+ * ยังมีกล่องเตือนของเบราว์เซอร์ (beforeunload) คุ้มครองอยู่
+ */
+const VISIBLE_SAVE_STATES = ['error', 'conflict'];
+
 export const initAutosave = ({
     root,
     doc = root?.ownerDocument || globalThis.document,
@@ -49,6 +59,7 @@ export const initAutosave = ({
 
         indicator.dataset.state = state;
         indicator.className = `wsb-save wsb-save--${meta.tone}`;
+        indicator.hidden = ! VISIBLE_SAVE_STATES.includes(state);
 
         // เขียนด้วย textContent เท่านั้น ไอคอนเป็นโหนดแยกที่สลับคลาสเอา
         const icon = indicator.querySelector('i');
@@ -164,10 +175,55 @@ export const initAutosave = ({
 
     paint('saved');
 
+    /**
+     * ตามฉบับล่าสุดให้ทันเมื่อกลับมาที่หน้านี้ โดยไม่ถามอะไร
+     *
+     * ผู้ใช้คนเดียวที่เปิดกระดานไว้สองแท็บ หรือทิ้งแท็บไว้แล้วไปแก้ที่อื่น จะกลับ
+     * มาเจอหน้าที่ถือเวอร์ชันเก่า การแก้ครั้งแรกจะชนกับงานของตัวเองทันที การโหลด
+     * ฉบับล่าสุดตอนกลับมาปิดช่องนี้ได้ก่อนเกิด
+     *
+     * ทำเฉพาะตอนที่ไม่มีงานค้างเท่านั้น (ตรวจทั้งก่อนและหลังรอคำตอบ) เพราะไม่มี
+     * อะไรให้ทิ้ง กติกาข้อ 3 ด้านบนจึงไม่ถูกละเมิด ถ้ามีงานค้าง ปล่อยให้กลไกชน
+     * เวอร์ชันเดิมถามผู้ใช้ตามปกติ
+     */
+    let catchingUp = false;
+
+    const catchUp = async () => {
+        if (catchingUp || scheduler.state() !== 'saved') {
+            return;
+        }
+
+        catchingUp = true;
+
+        try {
+            const payload = await client.load();
+
+            if (Number(payload?.version) > version && scheduler.state() === 'saved') {
+                adopt(payload);
+            }
+        } catch {
+            // ออฟไลน์ชั่วคราวไม่ใช่เรื่องที่ต้องรบกวนผู้ใช้ การบันทึกครั้งถัดไปจะบอกเอง
+        } finally {
+            catchingUp = false;
+        }
+    };
+
     // สลับแท็บออกไปคือจังหวะที่คนมักปิดหน้าต่อ ต้องรีบบันทึกให้ทัน
+    // และตอนกลับมาคือจังหวะที่คนอื่น (หรือแท็บอื่น) อาจบันทึกแทรกไปแล้ว
     doc.addEventListener('visibilitychange', () => {
         if (doc.visibilityState === 'hidden') {
             scheduler.flushNow();
+
+            return;
+        }
+
+        catchUp();
+    });
+
+    // หน้าที่กู้คืนจาก back/forward cache ถือสถานะเดิมทั้งหมดไว้ ต้องตามให้ทันเช่นกัน
+    doc.defaultView?.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            catchUp();
         }
     });
 
@@ -201,6 +257,9 @@ export const initAutosave = ({
 
         /** บันทึกทันที (ปุ่มบันทึก) การชนเวอร์ชันถูกจัดการผ่าน onState */
         saveNow: () => scheduler.flushNow(),
+
+        /** ใช้โดยเทสต์ เส้นทางจริงเรียกผ่าน visibilitychange และ pageshow */
+        catchUp,
 
         handleConflict,
     };

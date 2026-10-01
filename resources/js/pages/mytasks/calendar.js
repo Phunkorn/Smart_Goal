@@ -9,7 +9,9 @@ import {
     buildMonthCalendar,
     calendarMonthForDate,
     calendarMonthKey,
+    COMPACT_CALENDAR_QUERY,
     daysUntilDue,
+    defaultCalendarMode,
     monthsNeedingFetch,
     moveCalendarMonth,
     parseCalendarDate,
@@ -86,7 +88,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     let selectedMonth = initialSelection.month;
     let monthData = null;
     let activeDayKey = null;
-    let calendarMode = 'timeline';
+    const startingCalendarMode = () => defaultCalendarMode(window.matchMedia?.(COMPACT_CALENDAR_QUERY).matches === true);
+    let calendarMode = startingCalendarMode();
     const datePoints = {start: true, due: true};
 
     const ensureYearOption = (year) => {
@@ -933,7 +936,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const resetCalendar = () => {
         // Keep Calendar-only reset behavior centralized so future filters can join this action.
         if (searchInput) searchInput.value = '';
-        calendarMode = 'timeline';
+        calendarMode = startingCalendarMode();
         datePoints.start = true;
         datePoints.due = true;
         const target = resetCalendarMonth(initialSelection);

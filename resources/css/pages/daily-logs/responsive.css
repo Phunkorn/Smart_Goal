@@ -19,4 +19,9 @@
   .daily-log .log-modal__header,
   .daily-log .log-modal__footer { padding-left:16px; padding-right:16px; }
   .daily-log .log-attachments { padding-left:16px; padding-right:16px; border-radius:0; }
+  /* แท็บสามใบแบ่งความกว้างเท่ากัน ไม่ให้ "สรุปรายเดือน" หลุดขอบแล้วต้องปัดหา */
+  .daily-log__tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; overflow:visible; }
+  .daily-log__tabs a { min-width:0; padding:10px 4px; }
+  /* ปุ่ม "…" ของการ์ดบันทึกงานเดิม 25px เล็กกว่าปลายนิ้ว */
+  .daily-log .log-card__menu-trigger { min-width:36px; min-height:36px; }
 }

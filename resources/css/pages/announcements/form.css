@@ -1,0 +1,107 @@
+/* ฟอร์มสร้าง/แก้ไขประกาศ — components/form-modal.blade.php */
+.announcement-form-modal .modal-content {
+    border: 0;
+    border-radius: 16px;
+}
+
+.announcement-form-modal .modal-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.announcement-form-modal .modal-title i {
+    color: var(--accent);
+}
+
+.announcement-form-modal .form-label {
+    margin: 12px 0 6px;
+    font-size: .84rem;
+    font-weight: 600;
+}
+
+.announcement-form__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 20px;
+}
+
+.announcement-form__main > .form-label:first-child,
+.announcement-form__side > .form-label:first-child {
+    margin-top: 0;
+}
+
+.announcement-form__audience {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.announcement-form__audience legend {
+    float: none;
+    width: auto;
+}
+
+.announcement-form__choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: .88rem;
+    cursor: pointer;
+}
+
+.announcement-form__choice .form-check-input {
+    margin: 0;
+}
+
+.announcement-form__hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    font-size: .76rem;
+}
+
+.announcement-form__audience .announcement-form__hint {
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.announcement-form__end {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.announcement-form__clear {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-muted);
+}
+
+.announcement-form__clear:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.announcement-form__errors ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: .84rem;
+}
+
+.announcement-form-modal .modal-footer {
+    gap: 8px;
+}

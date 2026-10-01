@@ -274,7 +274,9 @@ test('the month grid supports a responsive four-lane timeline and the priority s
     assert.match(blade, /data-calendar-mode-option="summary" aria-pressed="false"/);
     assert.match(blade, /data-calendar-date-point="start" aria-pressed="true"/);
     assert.match(blade, /data-calendar-date-point="due" aria-pressed="true"/);
-    assert.match(script, /let calendarMode = 'timeline'/);
+    // จอกว้างเริ่มที่เส้นช่วงงาน จอโทรศัพท์เริ่มที่ภาพรวมสี (defaultCalendarMode ใน calendar-model.js)
+    assert.match(script, /let calendarMode = startingCalendarMode\(\)/);
+    assert.match(script, /calendarMode = startingCalendarMode\(\);\s*datePoints\.start = true/);
     assert.match(script, /maxTimelineLanes: 4/);
     assert.doesNotMatch(source, /mytasks-calendar__popover/);
 

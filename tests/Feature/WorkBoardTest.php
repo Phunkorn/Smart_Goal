@@ -97,6 +97,8 @@ class WorkBoardTest extends TestCase
         $department = Department::create(['department_name' => 'Callcenter']);
         $viewer = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
         $teammate = User::factory()->create(['role' => 'user', 'department_id' => $department->id]);
+        // สรุปประจำวันมีหัวข้อ "งานโปรเจกต์วันนี้" ของตัวเอง ไม่ใช่เนื้อหาของรายการแผนก
+        $this->acknowledgeDailyBrief($viewer);
         $project = WorkOrderList::create(['user_id' => $teammate->id, 'name' => 'โปรเจกต์ที่ต้องไม่โผล่']);
         WorkOrder::create([
             'user_id' => $teammate->id,

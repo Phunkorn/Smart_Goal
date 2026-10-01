@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     addElement,
+    bringForward,
     bringToFront,
+    canReorder,
     createScene,
     deserialize,
     elementCount,
@@ -11,6 +13,7 @@ import {
     nextZ,
     removeElements,
     replaceElements,
+    sendBackward,
     sendToBack,
     sequentialIdFactory,
     serialize,
@@ -96,6 +99,90 @@ test('การย้ายไปบนสุดหรือล่างสุ�
     const back = sendToBack(scene, ['c']);
     assert.deepEqual(back.elements.map((e) => e.id), ['c', 'a', 'b']);
     assert.deepEqual(back.elements.map((e) => e.z), [1, 2, 3]);
+});
+
+/* ── ขยับทีละชั้น ─────────────────────────────────────────────── */
+
+const ids = (scene) => scene.elements.map((element) => element.id);
+
+test('ขยับขึ้นหรือลงหนึ่งชั้นสลับกับชิ้นที่อยู่ติดกันเท่านั้น', () => {
+    const scene = createScene([el('a'), el('b'), el('c'), el('d')]);
+
+    assert.deepEqual(ids(bringForward(scene, ['b'])), ['a', 'c', 'b', 'd']);
+    assert.deepEqual(ids(sendBackward(scene, ['c'])), ['a', 'c', 'b', 'd']);
+});
+
+/*
+ * ถ้าไม่มีกำแพงกันไว้ ชิ้นล่างของกลุ่มจะกระโดดข้ามเพื่อนในกลุ่มเดียวกัน
+ * แล้วลำดับภายในกลุ่มจะสลับกันเองทุกครั้งที่กดขยับ
+ */
+test('ขยับกลุ่มที่เลือกพร้อมกันโดยลำดับภายในกลุ่มไม่สลับ', () => {
+    const scene = createScene([el('a'), el('b'), el('c'), el('d')]);
+
+    assert.deepEqual(ids(bringForward(scene, ['b', 'c'])), ['a', 'd', 'b', 'c']);
+    assert.deepEqual(ids(sendBackward(scene, ['b', 'c'])), ['b', 'c', 'a', 'd']);
+});
+
+test('ชิ้นที่เลือกแบบไม่ต่อเนื่องกันขยับเป็นอิสระต่อกัน', () => {
+    const scene = createScene([el('a'), el('b'), el('c'), el('d')]);
+
+    assert.deepEqual(ids(bringForward(scene, ['a', 'c'])), ['b', 'a', 'd', 'c']);
+});
+
+/*
+ * คืนฉากตัวเดิมเมื่อขยับไม่ได้ ไม่ใช่สำเนาที่หน้าตาเหมือนกัน เพราะ index.js
+ * เทียบด้วย === เพื่อตัดสินว่าจะบันทึกลงประวัติและแจ้งว่ามีอะไรเปลี่ยนหรือไม่
+ */
+test('ชิ้นที่ชนขอบอยู่แล้วไม่ขยับ และคืนฉากตัวเดิมเพื่อไม่ให้กินก้าวย้อนกลับ', () => {
+    const scene = createScene([el('a'), el('b'), el('c')]);
+
+    assert.equal(bringForward(scene, ['c']), scene);
+    assert.equal(bringForward(scene, ['b', 'c']), scene);
+    assert.equal(sendBackward(scene, ['a']), scene);
+    assert.equal(sendBackward(scene, ['a', 'b']), scene);
+    assert.equal(bringForward(scene, []), scene);
+    assert.equal(sendBackward(scene, ['ไม่มีจริง']), scene);
+});
+
+test('การขยับทีละชั้นเรียงค่า z ใหม่ให้ตรงกับลำดับในอาร์เรย์เสมอ', () => {
+    const scene = createScene([el('a', {z: 7}), el('b', {z: 9}), el('c', {z: 40})]);
+    const moved = bringForward(scene, ['a']);
+
+    assert.deepEqual(ids(moved), ['b', 'a', 'c']);
+    assert.deepEqual(moved.elements.map((element) => element.z), [1, 2, 3]);
+});
+
+/*
+ * เมนูใช้ค่านี้ปิดปุ่มที่กดแล้วไม่เกิดอะไร ซึ่งจำเป็นเพราะชิ้นงานที่ไม่ได้ทับกับใคร
+ * จะไม่มีอะไรเปลี่ยนบนจอเลยเมื่อสลับลำดับชั้น ผู้ใช้จะคิดว่าปุ่มพัง
+ */
+test('บอกได้ว่าชิ้นที่เลือกยังขยับขึ้นหรือลงได้อีกไหม', () => {
+    const scene = createScene([el('a'), el('b'), el('c')]);
+
+    assert.deepEqual(canReorder(scene, ['b']), {forward: true, backward: true});
+    assert.deepEqual(canReorder(scene, ['c']), {forward: false, backward: true});
+    assert.deepEqual(canReorder(scene, ['a']), {forward: true, backward: false});
+    assert.deepEqual(canReorder(scene, ['a', 'b', 'c']), {forward: false, backward: false});
+    assert.deepEqual(canReorder(scene, []), {forward: false, backward: false});
+});
+
+test('คำตอบของ canReorder ตรงกับผลของการขยับจริงเสมอ', () => {
+    const scene = createScene([el('a'), el('b'), el('c')]);
+
+    ['a', 'b', 'c'].forEach((id) => {
+        const answer = canReorder(scene, [id]);
+
+        assert.equal(answer.forward, bringForward(scene, [id]) !== scene, id);
+        assert.equal(answer.backward, sendBackward(scene, [id]) !== scene, id);
+    });
+});
+
+test('การขยับทีละชั้นไม่แก้ฉากเดิมในที่', () => {
+    const scene = createScene([el('a'), el('b')]);
+
+    bringForward(scene, ['a']);
+
+    assert.deepEqual(ids(scene), ['a', 'b']);
 });
 
 test('ค้นหาตามรหัส และนับจำนวนชิ้นงาน', () => {

@@ -32,6 +32,37 @@
         </form>
 </div>
 
+{{--
+    ลบบันทึกกิจกรรมตามช่วงวันที่ที่แอดมินเลือกเอง
+
+    ต่างจากปุ่ม "ล้างบันทึกเก่า" ด้านบนตรงที่ปุ่มนั้นลบตามนโยบายอายุอัตโนมัติเท่านั้น
+    ส่วนนี้ให้แอดมินเลือกช่วงวันที่เองตรง ๆ (เวลาไทย ต้นวันถึงสิ้นวัน) และลบทุกเหตุการณ์
+    ในช่วงนั้นรวมถึงเหตุการณ์สำคัญด้วย เพราะเป็นการตัดสินใจที่แอดมินยืนยันเองแบบเจาะจง
+
+    ค่าเริ่มต้นของวันที่ดึงจากตัวกรองที่กำลังใช้อยู่ด้านบน (ถ้ามี) เพื่อให้แอดมินที่กรอง
+    ช่วงวันที่ไว้ดูอยู่แล้วไม่ต้องกรอกซ้ำ การยืนยันเป็นหน้าที่ของ audit.js ผ่าน SweetAlert
+--}}
+<form method="POST" action="{{ route('admin.audit.activity.deleteRange') }}"
+      class="audit-range-delete" data-audit-delete-range>
+    @csrf
+    @method('DELETE')
+
+    <label class="audit-field">
+        <span>ลบตั้งแต่วันที่</span>
+        <input type="date" name="from" value="{{ request('from') }}" required>
+    </label>
+
+    <label class="audit-field">
+        <span>ถึงวันที่</span>
+        <input type="date" name="to" value="{{ request('to') }}" required>
+    </label>
+
+    <button class="audit-btn audit-btn--danger" type="submit">
+        <i class="bi bi-calendar-x" aria-hidden="true"></i>
+        ลบตามช่วงวันที่
+    </button>
+</form>
+
 <section class="audit-card">
     @if ($logs->isEmpty())
         <div class="audit-empty">

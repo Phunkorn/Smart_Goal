@@ -265,9 +265,12 @@
 }
 
 @media (max-width: 575.98px) {
-    .admin-approvals-summary { grid-template-columns: 1fr; gap: 10px; }
-    .admin-approvals-summary__card { min-height: 78px; padding: 12px 14px; }
-    .admin-approvals-summary__card strong { margin-top: 5px; font-size: 1.45rem; }
+    /* สองคอลัมน์ ไม่ใช่ทีละใบ — สี่ใบเรียงตั้งกินจอแรกเกือบ 350px ทั้งที่มีแค่ตัวเลข */
+    .admin-approvals-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .admin-approvals-summary__card { min-height: 72px; padding: 10px 12px; }
+    .admin-approvals-summary__card span { font-size: .78rem; line-height: 1.3; }
+    .admin-approvals-summary__card strong { margin-top: 5px; font-size: 1.35rem; }
+    .admin-approvals-summary__card i { display: none; }
     .admin-approvals-queue__heading { align-items: flex-start; padding: 16px; }
     .admin-approvals-request { grid-template-columns: 1fr; }
     .admin-approvals-list--outgoing .admin-approvals-request { grid-template-columns: 1fr; }

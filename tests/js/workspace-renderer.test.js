@@ -18,7 +18,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const mountLayers = () => {
     const dom = mountDom(`<!doctype html><html><body>
         <svg>
-            <g data-workspace-vector></g>
+            <g data-test-vector></g>
             <g data-workspace-preview></g>
             <g data-workspace-selection></g>
         </svg>
@@ -26,7 +26,7 @@ const mountLayers = () => {
 
     return {
         dom,
-        vector: dom.document.querySelector('[data-workspace-vector]'),
+        vector: dom.document.querySelector('[data-test-vector]'),
         preview: dom.document.querySelector('[data-workspace-preview]'),
         selection: dom.document.querySelector('[data-workspace-selection]'),
     };

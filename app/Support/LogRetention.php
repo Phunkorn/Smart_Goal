@@ -7,6 +7,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * อายุการเก็บบันทึกกิจกรรม
@@ -51,6 +52,7 @@ class LogRetention
         'restore',
         'reverted',
         'activity_pruned',
+        'activity_range_deleted',
     ];
 
     /**
@@ -111,6 +113,51 @@ class LogRetention
                 'critical_days' => self::CRITICAL_DAYS,
                 'routine_days' => self::ROUTINE_DAYS,
                 'pruned_by' => $actor?->id,
+            ]);
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * ลบบันทึกกิจกรรมตามช่วงวันที่ที่แอดมินเลือกเอง
+     *
+     * ต่างจาก pruneActivity() ตรงที่นี่เป็นการลบตามช่วงวันที่ที่แอดมินระบุเอง ไม่ใช่ตาม
+     * นโยบายอายุ จึงลบทุกเหตุการณ์ในช่วงนั้นรวมถึงเหตุการณ์สำคัญด้วย เพราะเป็นการตัดสินใจ
+     * ที่แอดมินยืนยันเองแบบเจาะจงช่วงเวลา ไม่ใช่การล้างอัตโนมัติ
+     *
+     * รับวันที่แบบเวลาไทย (Y-m-d) แล้วขยายเป็นทั้งวันเหมือน AuditLogQuery::applyDateRange()
+     * เพื่อให้ช่วงที่ลบตรงกับช่วงที่ตัวกรองบนหน้าแสดงผลเป๊ะ
+     */
+    public static function deleteActivityRange(string $from, string $to, ?User $actor = null): int
+    {
+        $timezone = TodayWorkspace::BUSINESS_TIMEZONE;
+
+        try {
+            $start = CarbonImmutable::parse($from, $timezone)->startOfDay()->utc();
+            $end = CarbonImmutable::parse($to, $timezone)->endOfDay()->utc();
+        } catch (Throwable) {
+            throw new \InvalidArgumentException('ช่วงวันที่ไม่ถูกต้อง');
+        }
+
+        $deleted = 0;
+
+        ActivityLog::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->select('id')
+            ->orderBy('id')
+            ->chunkById(500, function ($rows) use (&$deleted) {
+                DB::transaction(function () use ($rows, &$deleted) {
+                    $deleted += ActivityLog::whereIn('id', $rows->pluck('id'))->delete();
+                });
+            });
+
+        if ($deleted > 0) {
+            AuditTrail::log('activity_range_deleted', null, "ลบบันทึกกิจกรรมระหว่างวันที่ {$from} ถึง {$to} จำนวน {$deleted} รายการ", [
+                'deleted' => $deleted,
+                'from' => $from,
+                'to' => $to,
+                'deleted_by' => $actor?->id,
             ]);
         }
 

@@ -1,24 +1,5 @@
 import {initialTimeFor, joinDateTimeValue} from '../../components/date-picker.js';
 
-/**
- * การแจ้งเตือน "มีคำขอเพิ่มงาน" พามาที่ ?task_request=<id> ซึ่ง server เปิดแผงคำขอ
- * และไฮไลต์การ์ดไว้แล้ว แต่ถ้าโปรเจกต์อยู่ท้ายบอร์ด ผู้ใช้ต้องเลื่อนหาเอง
- * จึงเลื่อนการ์ดที่ถูกขอมาให้อยู่กลางจอทันที ไม่ขึ้นกับว่าหน้านี้มีโมดัลขอเพิ่มงานหรือไม่
- */
-export const revealRequestedTaskRequest = (root = document) => {
-    const target = root.querySelector('[data-project-task-request-target]');
-    if (!target) return false;
-
-    const panel = target.closest('details');
-    if (panel) panel.open = true;
-    target.scrollIntoView?.({block: 'center'});
-    target.focus({preventScroll: true});
-
-    return true;
-};
-
-revealRequestedTaskRequest();
-
 (() => {
     const modal = document.querySelector('[data-project-task-request-modal]');
     const form = modal?.querySelector('[data-project-task-request-form]');

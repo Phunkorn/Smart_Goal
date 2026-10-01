@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, unreadCountAfterRead, withoutTaskDeepLink} from '../../resources/js/pages/mytasks/task-comments-model.js';
+import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from '../../resources/js/pages/mytasks/task-comments-model.js';
 import {click, pressKey} from './helpers/dom.js';
 import {mountTaskWorkspace} from './helpers/task-workspace-fixture.js';
 
 let timelineFixture = 0;
 
-async function bootTimeline(t, url, taskId = 7) {
-    const ui = await mountTaskWorkspace({taskId}, {url});
+async function bootTimeline(t, url, taskId = 7, mentionable = [], extra = {}) {
+    const ui = await mountTaskWorkspace({taskId, mentionable, ...extra}, {url});
     t.after(ui.cleanup);
     timelineFixture += 1;
     await import(`../../resources/js/pages/mytasks/task-timeline.js?fixture=${timelineFixture}`);
@@ -501,4 +501,306 @@ test('เกินสี่รูปต้องถูกตัดออก ไ�
     chooseImages(ui, ['1.png', '2.png', '3.png', '4.png', '5.png']);
 
     assert.equal(ui.previews().querySelectorAll('.task-timeline__preview').length, 4);
+});
+
+/*
+ * ตอบกลับแบบ quote — เลือกข้อความหนึ่งแล้วพิมพ์ตอบกลับข้อความนั้นโดยเฉพาะ
+ */
+test('กดตอบกลับแสดงแถบอ้างอิงและแนบ reply_to_id ไปกับคอมเมนต์ที่ส่ง', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 700,
+        category: 'comment',
+        task_id: 7,
+        comment: {id: 950, author: 'หัวหน้าโครงการ', note: 'ข้อความต้นทาง', at: 'ตอนนี้', is_comment: true},
+    }}));
+
+    click(ui.replyButton(950));
+    assert.equal(ui.replyPreview().hidden, false);
+    assert.match(ui.replyPreview().textContent, /หัวหน้าโครงการ/);
+    assert.match(ui.replyPreview().textContent, /ข้อความต้นทาง/);
+
+    const fetches = captureFetch();
+    ui.compose().value = 'ตอบกลับตรงนี้ครับ';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    assert.equal(fetches.commentPosts().length, 1);
+    assert.equal(fetches.commentPosts()[0].options.body.get('reply_to_id'), '950');
+    assert.equal(ui.replyPreview().hidden, true, 'ส่งสำเร็จต้องล้างแถบตอบกลับ');
+});
+
+test('ยกเลิกการตอบกลับซ่อนแถบและไม่แนบ reply_to_id', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 701,
+        category: 'comment',
+        task_id: 7,
+        comment: {id: 951, author: 'เพื่อนร่วมงาน', note: 'ข้อความ', at: 'ตอนนี้', is_comment: true},
+    }}));
+
+    click(ui.replyButton(951));
+    click(ui.replyPreview().querySelector('[data-cancel-comment-reply]'));
+    assert.equal(ui.replyPreview().hidden, true);
+
+    const fetches = captureFetch();
+    ui.compose().value = 'ข้อความใหม่ ไม่ใช่การตอบกลับ';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    assert.equal(fetches.commentPosts()[0].options.body.get('reply_to_id'), null);
+});
+
+/*
+ * ฉบับร่างที่พิมพ์ค้างไว้ยังไม่ส่งต้องแยกตามงาน — บั๊กจริงที่ผู้ใช้รายงาน: พิมพ์ในงานหนึ่งแล้วยังไม่ส่ง
+ * เปิดงานอื่นต่อ ข้อความเดิมไปโผล่ในกล่องพิมพ์ของงานใหม่ เพราะ textarea เป็น DOM ตัวเดียวที่ใช้ซ้ำ
+ * ทุกงาน (ดู switchComposeDraft ใน task-timeline.js)
+ */
+test('พิมพ์ข้อความค้างไว้ในงานหนึ่งแล้วเปิดงานอื่นโดยยังไม่ส่ง ต้องไม่เห็นข้อความเดิมของงานก่อนหน้า', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board', 7, [], {secondTaskId: 8});
+
+    click(ui.boardTitleFor(7));
+    ui.compose().value = 'สวัสดี';
+
+    click(ui.boardTitleFor(8));
+    assert.equal(ui.compose().value, '', 'ข้อความที่พิมพ์ไว้ในงานก่อนหน้าต้องไม่รั่วมาที่งานอื่น');
+
+    click(ui.boardTitleFor(7));
+    assert.equal(ui.compose().value, 'สวัสดี', 'กลับมางานเดิมต้องเห็นฉบับร่างที่พิมพ์ไว้คืนมาให้พิมพ์ต่อได้');
+});
+
+test('สลับไปงานอื่นต้องล้างการ์ดตอบกลับและรูปที่เลือกไว้ของงานก่อนหน้าไปด้วย', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board', 7, [], {secondTaskId: 8});
+    click(ui.boardTitleFor(7));
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 800,
+        category: 'comment',
+        task_id: 7,
+        comment: {id: 970, author: 'เพื่อนร่วมงาน', note: 'ข้อความต้นทาง', at: 'ตอนนี้', is_comment: true},
+    }}));
+
+    click(ui.replyButton(970));
+    assert.equal(ui.replyPreview().hidden, false);
+    chooseImages(ui, ['หน้าจอ.png']);
+    assert.equal(ui.previews().hidden, false);
+
+    click(ui.boardTitleFor(8));
+
+    assert.equal(ui.replyPreview().hidden, true, 'การ์ดตอบกลับของงานก่อนต้องไม่ค้างอยู่ในงานใหม่');
+    assert.equal(ui.previews().hidden, true, 'รูปที่เลือกไว้ในงานก่อนต้องไม่ค้างอยู่ในงานใหม่');
+});
+
+/*
+ * ปักหมุด — ปักได้ทีละ 1 ข้อความต่องาน แสดงเป็นแถบด้านบนของไทม์ไลน์
+ */
+test('ปักหมุดคอมเมนต์แสดงแถบปักหมุด และเลิกปักหมุดซ่อนแถบ', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 710,
+        category: 'comment',
+        task_id: 7,
+        comment: {id: 960, author: 'หัวหน้าแผนก', note: 'ข้อความสำคัญ', at: 'ตอนนี้', is_comment: true, pinned: false},
+    }}));
+
+    assert.equal(ui.pinnedBanner().hidden, true);
+
+    globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => ({ok: true, comment: {id: 960, pinned: true, pinned_at: 'ตอนนี้'}}),
+    });
+
+    click(ui.pinButton(960));
+    await flush();
+
+    assert.equal(ui.pinnedBanner().hidden, false);
+    assert.match(ui.pinnedBanner().textContent, /หัวหน้าแผนก/);
+    assert.match(ui.pinnedBanner().textContent, /ข้อความสำคัญ/);
+
+    globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => ({ok: true, comment: {id: 960, pinned: false, pinned_at: null}}),
+    });
+
+    click(ui.pinnedBanner().querySelector('[data-comment-pinned-unpin]'));
+    await flush();
+
+    assert.equal(ui.pinnedBanner().hidden, true);
+});
+
+/*
+ * @mention — จำกัดเฉพาะคนในงานนี้ (mentionable ที่ฉีดผ่าน data-mentionable-data)
+ */
+test('พิมพ์ @ เปิดเมนูกล่าวถึงเฉพาะคนในงานนี้ เลือกชื่อแทรกลงข้อความ และส่งพร้อม mentions[]', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board', 7, [
+        {id: 21, name: 'สมชาย ใจดี', avatar_url: null},
+        {id: 22, name: 'สมหญิง รักงาน', avatar_url: null},
+    ]);
+    click(ui.boardTitle());
+
+    const input = ui.compose();
+    input.value = 'ฝากดูงานนี้ด้วยครับ @สม';
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(new ui.window.Event('input', {bubbles: true}));
+
+    const menu = ui.mentionMenu();
+    assert.equal(menu.hidden, false);
+    assert.equal(menu.querySelectorAll('[data-mention-option]').length, 2);
+
+    click(menu.querySelector('[data-mention-option="21"]'));
+
+    assert.equal(input.value, 'ฝากดูงานนี้ด้วยครับ @สมชาย ใจดี ');
+    assert.equal(menu.hidden, true);
+
+    const fetches = captureFetch();
+    pressKey(input, 'Enter');
+    await flush();
+
+    assert.equal(fetches.commentPosts().length, 1);
+    assert.deepEqual(fetches.commentPosts()[0].options.body.getAll('mentions[]'), ['21']);
+});
+
+test('Escape ปิดเมนูกล่าวถึงโดยไม่แทรกชื่อและไม่ส่งข้อความ', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board', 7, [
+        {id: 21, name: 'สมชาย ใจดี', avatar_url: null},
+    ]);
+    click(ui.boardTitle());
+
+    const input = ui.compose();
+    input.value = '@สม';
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(new ui.window.Event('input', {bubbles: true}));
+    assert.equal(ui.mentionMenu().hidden, false);
+
+    const fetches = captureFetch();
+    pressKey(input, 'Escape');
+
+    assert.equal(ui.mentionMenu().hidden, true);
+    assert.equal(input.value, '@สม');
+    assert.equal(fetches.commentPosts().length, 0);
+});
+
+test('mentionQueryAt จับคำค้นหลัง @ เฉพาะตอนกำลังพิมพ์คำนั้นอยู่จริง', () => {
+    const typing = 'สวัสดี @สม';
+    assert.deepEqual(mentionQueryAt(typing, typing.length), {start: typing.indexOf('@'), query: 'สม'});
+
+    const email = 'อีเมลของฉันคือ user@example.com';
+    assert.equal(mentionQueryAt(email, email.length), null, '@ กลางคำอย่างอีเมลต้องไม่เปิดเมนู');
+
+    const finishedTyping = 'พิมพ์เสร็จแล้ว @สม ';
+    assert.equal(mentionQueryAt(finishedTyping, finishedTyping.length), null, 'เคาะจบคำไปแล้วต้องไม่เปิดเมนูอีก');
+
+    assert.deepEqual(mentionQueryAt('@', 1), {start: 0, query: ''});
+});
+
+test('filterMentionCandidates กรองตามชื่อและจำกัดไม่เกิน 8 รายการ', () => {
+    const people = Array.from({length: 10}, (_, index) => ({id: index, name: `คน ${index}`}));
+    assert.equal(filterMentionCandidates(people, '').length, 8);
+    assert.deepEqual(filterMentionCandidates(people, '5').map((person) => person.id), [5]);
+    assert.deepEqual(filterMentionCandidates(people, 'ไม่มีจริง'), []);
+});
+
+test('insertMention แทรก @ชื่อ ทับคำค้นและคืนตำแหน่ง caret ต่อจากชื่อ', () => {
+    const text = 'ดูงานนี้ด้วย @สม ครับ';
+    const start = text.indexOf('@');
+    const end = start + '@สม'.length;
+
+    const result = insertMention(text, {name: 'สมชาย ใจดี'}, start, end);
+
+    assert.equal(result.text, 'ดูงานนี้ด้วย @สมชาย ใจดี  ครับ');
+    assert.equal(result.caret, start + '@สมชาย ใจดี '.length);
+});
+
+test('extractMentionIds หาเฉพาะชื่อที่ปรากฏจริงและเป็นคนในรายชื่อที่อนุญาตเท่านั้น', () => {
+    const candidates = [{id: 1, name: 'สมชาย'}, {id: 2, name: 'สมหญิง'}];
+    assert.deepEqual(extractMentionIds('เชิญ @สมชาย และ @สมหญิง มาดูงานนี้', candidates), [1, 2]);
+    assert.deepEqual(extractMentionIds('อีเมล user@สมชาย.com ไม่ใช่การกล่าวถึง', candidates), []);
+    assert.deepEqual(extractMentionIds('ไม่มีใครถูกกล่าวถึงเลย', candidates), []);
+});
+
+test('splitMentionSegments แยกช่วง @ชื่อ ออกจากข้อความปกติโดยไม่ทำลายข้อความเดิม', () => {
+    const segments = splitMentionSegments('เชิญ @สมชาย มาดูงานนี้ครับ', ['สมชาย']);
+    assert.deepEqual(segments, [
+        {text: 'เชิญ ', mention: false},
+        {text: '@สมชาย', mention: true},
+        {text: ' มาดูงานนี้ครับ', mention: false},
+    ]);
+});
+
+/*
+ * @all — กล่าวถึงทุกคนในงานนี้ ทั้งใน UI (ตัวเลือกในเมนู @) และผลลัพธ์ที่ส่งไปเซิร์ฟเวอร์
+ */
+test('mentionsEveryone ตรวจจับ "@all" เป็นคำสำรอง ไม่ปนกับคำอื่นที่ขึ้นต้นด้วย all', () => {
+    assert.equal(mentionsEveryone('ประกาศ @all ช่วยดูด้วยครับ'), true);
+    assert.equal(mentionsEveryone('@ALL ทุกคนโปรดทราบ'), true, 'ไม่สนตัวพิมพ์เล็กใหญ่');
+    assert.equal(mentionsEveryone('งานนี้ @allowance เกินกำหนด'), false, 'คำอื่นที่ขึ้นต้นด้วย all ต้องไม่โดน');
+    assert.equal(mentionsEveryone('ไม่มี mention เลย'), false);
+});
+
+test('splitMentionSegments ไฮไลต์ "@all" เป็น mention เสมอแม้ไม่มีชื่อจริงมาด้วย', () => {
+    const segments = splitMentionSegments('ประกาศ @all ด่วน', []);
+    assert.deepEqual(segments, [
+        {text: 'ประกาศ ', mention: false},
+        {text: '@all', mention: true},
+        {text: ' ด่วน', mention: false},
+    ]);
+});
+
+test('พิมพ์ @ เห็นตัวเลือกกล่าวถึงทุกคนในงานนี้ เลือกแล้วแทรก "@all" และส่งพร้อม mention_all', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board', 7, [
+        {id: 21, name: 'สมชาย ใจดี', avatar_url: null},
+    ]);
+    click(ui.boardTitle());
+
+    const input = ui.compose();
+    input.value = 'ประกาศ @';
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(new ui.window.Event('input', {bubbles: true}));
+
+    const menu = ui.mentionMenu();
+    assert.equal(menu.hidden, false);
+    const allOption = menu.querySelector('[data-mention-option="all"]');
+    assert.ok(allOption, 'ต้องมีตัวเลือกกล่าวถึงทุกคนในงานนี้ในเมนู @');
+    assert.match(allOption.textContent, /ทุกคนในงานนี้/);
+
+    click(allOption);
+    assert.equal(input.value, 'ประกาศ @all ');
+    assert.equal(menu.hidden, true);
+
+    const fetches = captureFetch();
+    pressKey(input, 'Enter');
+    await flush();
+
+    assert.equal(fetches.commentPosts().length, 1);
+    assert.equal(fetches.commentPosts()[0].options.body.get('mention_all'), '1');
+});
+
+test('ไม่มีใครอื่นในงานนี้ให้กล่าวถึง เมนู @ ต้องไม่เสนอตัวเลือกกล่าวถึงทุกคน', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board', 7, []);
+    click(ui.boardTitle());
+
+    const input = ui.compose();
+    input.value = '@';
+    input.setSelectionRange(1, 1);
+    input.dispatchEvent(new ui.window.Event('input', {bubbles: true}));
+
+    assert.equal(ui.mentionMenu().hidden, true);
+});
+
+test('ข้อความปกติที่ไม่มี @all ต้องไม่ส่ง mention_all ไปด้วย', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    const fetches = captureFetch();
+
+    ui.compose().value = 'ข้อความปกติ';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    assert.equal(fetches.commentPosts()[0].options.body.get('mention_all'), null);
 });

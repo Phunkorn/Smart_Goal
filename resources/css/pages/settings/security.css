@@ -1,7 +1,8 @@
-.settings-security__header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.settings-security__summary { display: flex; align-items: center; gap: 12px; min-width: 0; }
+/* การ์ดอยู่ในคอลัมน์ขวาที่แคบ จึงวางคำอธิบายไว้บนและปุ่มชิดขวาด้านล่าง */
+.settings-security__header { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.settings-security__summary { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .settings-security__icon { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: var(--accent-dim); color: var(--accent-strong); font-size: 1.05rem; }
-.settings-security__trigger { display: inline-flex; min-height: 40px; flex: 0 0 auto; align-items: center; gap: 8px; border-radius: var(--settings-control-radius); font-size: .82rem; font-weight: 500; }
+.settings-security__trigger { display: inline-flex; min-height: 40px; flex: 0 0 auto; align-self: flex-end; align-items: center; justify-content: center; gap: 8px; border-radius: var(--settings-control-radius); font-size: .82rem; font-weight: 500; }
 .settings-security__notice { display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--settings-control-radius); background: var(--surface-2); color: var(--text-muted); font-size: .76rem; font-weight: 400; line-height: 1.55; }
 .settings-security__notice i { flex: 0 0 auto; color: var(--accent-strong); }
 .settings-password-modal .modal-content { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -14,8 +15,7 @@
 .settings-password-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 
 @media (max-width: 700px) {
-    .settings-security__header { align-items: stretch; flex-direction: column; }
-    .settings-security__trigger { width: 100%; justify-content: center; }
+    .settings-security__trigger { width: 100%; }
     .settings-password-grid { grid-template-columns: 1fr; }
     .settings-password-modal .modal-dialog { margin: 12px; }
     .settings-password-modal__header { align-items: flex-start; padding: 18px; }

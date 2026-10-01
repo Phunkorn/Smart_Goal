@@ -1,0 +1,271 @@
+/*
+ * หัวหน้า แท็บ และตาราง ใช้ขนาดเดียวกับหน้าศูนย์การแจ้งเตือน (notifications.css)
+ * สีจาก design token และป้ายจาก .badge-soft ชุดเดิม
+ */
+.announcements-page {
+    padding: 4px 0 24px;
+}
+
+.announcements-page__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 18px;
+}
+
+.announcements-page__heading {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.announcements-page__icon {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 1.4rem;
+}
+
+.announcements-page__heading h1 {
+    margin: 0;
+    font-size: clamp(22px, 3vw, 28px);
+    line-height: 1.25;
+}
+
+.announcements-page__heading p {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.announcements-page__create {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+}
+
+.announcements-page__panel {
+    padding: 8px 16px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.announcements-page__tabs {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 12px;
+    padding: 6px 0;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: thin;
+}
+
+.announcements-page__tab {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: .86rem;
+    white-space: nowrap;
+}
+
+.announcements-page__tab span {
+    font-size: .78rem;
+}
+
+.announcements-page__tab:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.announcements-page__tab.is-active {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-weight: 700;
+}
+
+.announcements-page__tab:focus-visible,
+.announcements-table__menu:focus-visible {
+    outline: 3px solid rgb(59 130 246 / 28%);
+    outline-offset: 2px;
+}
+
+.announcements-page__search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.announcements-page__search-field {
+    display: flex;
+    flex: 0 1 360px;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.announcements-page__search-field:focus-within {
+    border-color: var(--accent);
+}
+
+.announcements-page__search-field i {
+    color: var(--text-muted);
+}
+
+.announcements-page__search-field input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text);
+    font-size: .86rem;
+}
+
+.announcements-page__clear {
+    color: var(--accent);
+    font-size: .82rem;
+    white-space: nowrap;
+}
+
+.announcements-page__empty {
+    padding: 40px 12px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.announcements-page__empty i {
+    font-size: 2rem;
+}
+
+.announcements-page__empty p {
+    margin: 8px 0 0;
+}
+
+.announcements-page__pagination {
+    margin-top: 12px;
+}
+
+/* ---------- ตาราง ---------- */
+
+.announcements-table__scroll {
+    overflow-x: auto;
+}
+
+.announcements-table th {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: .76rem;
+}
+
+.announcements-table__title {
+    min-width: 240px;
+    white-space: nowrap;
+}
+
+.announcements-table__author {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.announcements-table__author > span:last-child {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.announcements-table__title strong,
+.announcements-table__author strong {
+    color: var(--text);
+    font-size: .86rem;
+    font-weight: 600;
+}
+
+.announcements-table__title small,
+.announcements-table__author small,
+.announcements-table__dates small {
+    color: var(--text-muted);
+    font-size: .74rem;
+}
+
+.announcements-table__title small {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+}
+
+.announcements-table__audience-icon {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+    border-radius: 10px;
+    vertical-align: middle;
+}
+
+.announcements-table__audience-icon--department {
+    background: var(--red-dim);
+    color: #C8264B;
+}
+
+.announcements-table__audience-icon--all {
+    background: var(--blue-dim);
+    color: #1A66D6;
+}
+
+.announcements-table__title-text {
+    display: inline-flex;
+    max-width: calc(100% - 46px);
+    flex-direction: column;
+    vertical-align: middle;
+    white-space: normal;
+}
+
+.announcements-table__dates {
+    white-space: nowrap;
+}
+
+.announcements-table__dates small {
+    display: block;
+}
+
+.announcements-table__actions {
+    width: 48px;
+    text-align: right;
+}
+
+.announcements-table__menu {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+}
+
+.announcements-table__menu:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}

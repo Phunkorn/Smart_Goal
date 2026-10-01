@@ -146,6 +146,8 @@ class AdminApprovalPageTest extends TestCase
             && (str_contains($query['query'], 'work_orders') || str_contains($query['query'], 'work_order_collaborators'))
         ), 'The approval page should reuse list-derived counts instead of querying counts again.');
 
+        // สรุปประจำวันมี query งานของตัวเองที่กรอง approval_status ซึ่งไม่ใช่ตัวนับคำขออนุมัติ
+        $this->acknowledgeDailyBrief($requester);
         DB::flushQueryLog();
         DB::enableQueryLog();
         $this->actingAs($requester)->get(route('notifications.index'))

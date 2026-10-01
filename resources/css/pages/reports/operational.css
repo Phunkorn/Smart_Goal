@@ -404,6 +404,13 @@
 }
 
 @media (max-width: 991.98px) {
+    /*
+     * หัวตารางมี <span class="visually-hidden"> ซึ่งเป็น position:absolute
+     * ถ้ากรอบเลื่อนไม่ใช่ containing block มันจะหลุดออกจากกรอบไปยืดความกว้างทั้งหน้า
+     * (ที่ 768px หน้ากว้าง 837px เลื่อนแนวนอนได้ทั้งหน้า)
+     */
+    .operational-table-scroll { position: relative; }
+
     .operational-grid--charts,
     .operational-grid--tops,
     .operational-grid--detail { grid-template-columns: minmax(0, 1fr); }
@@ -426,6 +433,8 @@
 
     .operational-card { padding: 14px; }
     .operational-card__heading { flex-wrap: wrap; }
+    /* ลิงก์ "ดูรายบุคคล" สูงแค่ 19px เท่าบรรทัดตัวอักษร ขยายพื้นที่แตะโดยไม่เปลี่ยนหน้าตา */
+    .operational-card__link { min-height: 36px; }
 
     /* ตารางกลายเป็นการ์ดทีละรายการ ป้ายคอลัมน์มาจาก data-label */
     .operational-table--daily,
@@ -487,6 +496,9 @@
     .operational-table tbody td.operational-table__empty::before { content: none; }
 }
 
+/* เหตุผลเดียวกับรายงานโปรเจกต์: หกใบเรียงทีละใบกินจอแรกทั้งจอ จึงคงสองคอลัมน์ไว้ */
 @media (max-width: 430px) {
-    .operational-kpis { grid-template-columns: minmax(0, 1fr); }
+    .operational-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .operational-kpi { flex-direction: column; gap: 6px; padding: 10px 12px; }
+    .operational-kpi__icon { width: 30px; height: 30px; flex-basis: 30px; border-radius: 9px; font-size: .9rem; }
 }

@@ -120,6 +120,8 @@ class MyTaskController extends Controller
                 'children.updates',
                 'updates.user.department',
                 'updates.attachments',
+                'updates.replyTo.user',
+                'updates.mentions',
                 'activityLogs.user.department',
                 'reviewSubmitter',
             ])
@@ -799,7 +801,6 @@ class MyTaskController extends Controller
         $this->authorize('manage', $list);
         abort_if($list->archived_at !== null, 422, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว');
         abort_unless($this->listIsCompleted($list), 422, 'ต้องทำงานและงานย่อยทั้งหมดให้เสร็จก่อนจัดเก็บโปรเจกต์');
-        abort_if($list->taskRequests()->where('status', 'pending')->exists(), 422, 'ยังมีคำขอเพิ่มงานที่รอพิจารณา จึงยังจัดเก็บโปรเจกต์ไม่ได้');
 
         $before = $list->attributesToArray();
         $list->update(['archived_at' => now()]);
@@ -1188,10 +1189,6 @@ class MyTaskController extends Controller
         return WorkOrderList::with([
             'user',
             'attachments',
-            'taskRequests' => fn ($query) => $query
-                ->where('status', 'pending')
-                ->with(['requester', 'parentTask'])
-                ->oldest(),
         ])
             ->withCount(['workOrders', 'attachments'])
             ->withExists([

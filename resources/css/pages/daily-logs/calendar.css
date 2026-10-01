@@ -115,12 +115,22 @@
 .daily-log .daily-plan-modal__body .daily-plan__item-owner { max-width:180px; }
 .daily-log .daily-plan--expanded .daily-plan__day { min-height:106px; font-size:.84rem; }
 .daily-log .daily-plan--expanded .daily-plan__day-list { max-height:300px; overflow:auto; }
+/*
+ * จอที่ไม่มี Sidebar กาง: ทั้งเจ็ดวันต้องอยู่ในกรอบเดียว
+ *
+ * เดิมบังคับคอลัมน์ละ 96px รวม 672px บนจอ 375px กรอบปฏิทินกว้างเพียง 259px
+ * เห็นแค่ จ อ พ แล้วต้องปัดในการ์ดเพื่อหาวันที่เหลือ ตอนนี้ทุกคอลัมน์หดได้
+ * รายละเอียดของวันยังอยู่ที่รายการใต้ปฏิทินและ modal รายวันเหมือนเดิม
+ */
+@media (max-width: 991px) {
+    .daily-log .daily-plan__weekdays,
+    .daily-log .daily-plan__grid { grid-template-columns:repeat(7,minmax(0,1fr)); min-width:0; }
+}
 @media (max-width: 760px) {
     .daily-log .daily-plan__scope { display:grid; gap:10px; }
     .daily-log .daily-plan__scope-actions { width:100%; justify-content:space-between; }
     .daily-log .daily-plan__scope-tabs { justify-self:start; }
-    .daily-log .daily-plan__weekdays,
-    .daily-log .daily-plan__grid { grid-template-columns:repeat(7,96px); min-width:672px; }
+    .daily-log .daily-plan__filter-menu > summary { white-space:nowrap; }
     .daily-log .daily-plan--expanded .daily-plan__day { min-height:92px; }
     .daily-log .daily-plan__item { grid-template-columns:38px minmax(0,1fr); }
     .daily-log .daily-plan__item-people { grid-column:2; justify-content:flex-start; max-width:none; }
@@ -128,4 +138,19 @@
 @media (prefers-reduced-motion: reduce) {
     .daily-log .daily-plan__filter-popover { animation:none; }
     .daily-log .daily-plan__filter-chevron { transition:none; }
+}
+/*
+ * จอโทรศัพท์: ช่องวันกว้างราว 45px ใส่ avatar สามใบซ้อนกัน (~54px) ไม่ได้
+ * จึงเหลือเลขวันกับจำนวนงาน ส่วนใครทำอะไรดูได้จากรายการของวันที่แตะ
+ */
+@media (max-width: 640px) {
+    .daily-log .daily-plan { padding:12px; }
+    .daily-log .daily-plan__weekdays span { padding:8px 2px; }
+    .daily-log .daily-plan__day,
+    .daily-log .daily-plan--expanded .daily-plan__day {
+        justify-items:center; gap:2px; min-height:58px; padding:5px 2px; font-size:.74rem; text-align:center;
+    }
+    .daily-log .daily-plan__day > span:first-child { width:26px; height:26px; }
+    .daily-log .daily-plan__day-avatars { display:none; }
+    .daily-log .daily-plan__day-count { align-self:end; font-size:.62rem; white-space:nowrap; }
 }

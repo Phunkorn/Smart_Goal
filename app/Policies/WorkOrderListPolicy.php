@@ -55,34 +55,26 @@ class WorkOrderListPolicy
         return $user->role === 'admin' || (int) $list->user_id === (int) $user->id;
     }
 
+    /**
+     * กติกาเปลี่ยนตามที่เจ้าของระบบกำหนด: ผู้ร่วมงาน (รวมถึงผู้ร่วมงานข้ามแผนก) ที่ได้รับ
+     * การตอบรับเข้าโปรเจกต์แล้วสามารถเพิ่มงานหรืองานย่อยในโปรเจกต์นั้นได้ทันที โดยไม่ต้องรอ
+     * เจ้าของโปรเจกต์อนุมัติ — เดิมเคยปิดกั้นผู้ร่วมงานข้ามแผนกไว้ที่นี่ (ดูประวัติ git)
+     *
+     * ทำได้อย่างปลอดภัยเพราะ ProjectTaskRequestController::store() ยังสร้างงานใหม่โดยให้
+     * เจ้าของโปรเจกต์เป็น user_id/leader ของงานเสมอ (เหมือนเดิม) แล้วให้ผู้ขอเข้าร่วมเป็น
+     * collaborator สถานะ accepted ทันที — WorkOrderApprovalResolver::resolve() มองว่านี่คือ
+     * เจ้าของโปรเจกต์ "มอบหมายงานให้ตัวเอง" จึง approved ทันทีเสมอ ไม่ว่าผู้ขอจะต่างแผนก
+     * หรือไม่ก็ตาม จึงไม่มีคิวอนุมัติข้ามแผนกที่ต้องรออีกต่อไป
+     */
     public function requestTask(User $user, WorkOrderList $list): bool
     {
         $owner = $list->relationLoaded('user') ? $list->user : $list->user()->first();
-
-        /*
-         * ผู้ร่วมงานข้ามแผนกขอเพิ่มงานในโปรเจกต์ของแผนกอื่นไม่ได้
-         *
-         * เขาถูกเชิญมาทำงานเฉพาะใบ งานใหม่ในโปรเจกต์ของแผนกอื่นเป็นหน้าที่ของเจ้าของโปรเจกต์
-         * ซึ่งสร้างงานแล้วเพิ่มคนเข้าร่วมเองได้ ถ้าเปิดให้ขอข้ามแผนก ผู้ใช้จะสับสนว่าใครกำหนดงาน
-         *
-         * "ข้ามแผนก" คือทั้งสองฝั่งมีแผนกและเป็นคนละแผนก — นิยามเดียวกับ CrossDepartmentWork::marker()
-         * ผู้ใช้ที่ยังไม่ถูกจัดเข้าแผนกจึงไม่ถูกนับเป็นข้ามแผนก
-         */
-        $crossDepartment = $owner?->department_id !== null
-            && $user->department_id !== null
-            && (int) $owner->department_id !== (int) $user->department_id;
 
         return $user->role !== 'viewer'
             && (int) $list->user_id !== (int) $user->id
             && $owner?->is_active
             && $owner->role !== 'viewer'
-            && ! $crossDepartment
             && in_array((int) $list->id, $this->acceptedProjectIds($user), true);
-    }
-
-    public function reviewTaskRequests(User $user, WorkOrderList $list): bool
-    {
-        return $user->role !== 'viewer' && (int) $list->user_id === (int) $user->id;
     }
 
     /** @return array<int> */

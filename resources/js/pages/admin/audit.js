@@ -148,6 +148,41 @@
     });
 
     /**
+     * ลบบันทึกกิจกรรมตามช่วงวันที่ — ต่างจากการล้างตามนโยบายอายุตรงที่ลบทุกเหตุการณ์
+     * ในช่วงนั้นรวมถึงเหตุการณ์สำคัญด้วย จึงบังคับให้พิมพ์คำยืนยันแทนแค่กดตกลง
+     */
+    const confirmDeleteRange = (form) => {
+        const from = form.querySelector('input[name="from"]')?.value || '';
+        const to = form.querySelector('input[name="to"]')?.value || '';
+
+        return window.Swal.fire({
+            icon: 'warning',
+            title: 'ลบบันทึกกิจกรรมตามช่วงวันที่',
+            html: 'บันทึกกิจกรรมทั้งหมดตั้งแต่ <strong data-audit-range-from></strong>'
+                + ' ถึง <strong data-audit-range-to></strong> จะถูกลบถาวร'
+                + '<br>รวมถึงเหตุการณ์สำคัญ เช่น การเข้าออกระบบและการลบข้อมูล'
+                + '<br>พิมพ์ "ลบ" เพื่อยืนยัน',
+            input: 'text',
+            inputPlaceholder: 'ลบ',
+            inputAttributes: { autocomplete: 'off', 'aria-label': 'พิมพ์ ลบ เพื่อยืนยันการลบตามช่วงวันที่' },
+            showCancelButton: true,
+            confirmButtonText: 'ลบตามช่วงวันที่',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#dc2626',
+            reverseButtons: true,
+            // เทียบแบบ trim เพราะผู้ใช้พิมพ์เผลอเว้นวรรคท้ายได้ง่าย
+            inputValidator: (value) => ((value || '').trim() === 'ลบ' ? undefined : 'พิมพ์ "ลบ" ให้ตรงเพื่อยืนยัน'),
+            didOpen: (popup) => {
+                // ใส่วันที่ด้วย textContent ไม่ใช่ต่อสตริงเข้า html ตรง ๆ เหมือนจุดอื่นในไฟล์นี้
+                const fromSlot = popup.querySelector('[data-audit-range-from]');
+                const toSlot = popup.querySelector('[data-audit-range-to]');
+                if (fromSlot) fromSlot.textContent = from;
+                if (toSlot) toSlot.textContent = to;
+            },
+        });
+    };
+
+    /**
      * จำนวนรายการที่คำสั่งแบบชุดจะทำงานด้วย
      *
      * ถ้าติ๊ก "เลือกทั้งหมดที่กรองอยู่" จำนวนจริงคือจำนวนตามตัวกรองทั้งหมด ไม่ใช่
@@ -210,7 +245,8 @@
     document.addEventListener('submit', async (event) => {
         const form = event.target.closest(
             '[data-audit-restore], [data-audit-purge], [data-audit-purge-expired],'
-            + ' [data-audit-revert], [data-audit-prune-activity], [data-audit-bulk]'
+            + ' [data-audit-revert], [data-audit-prune-activity], [data-audit-delete-range],'
+            + ' [data-audit-bulk]'
         );
         if (!form) return;
 
@@ -243,6 +279,8 @@
                 : await confirmBulkRestore(form);
         } else if (form.matches('[data-audit-prune-activity]')) {
             result = await confirmPruneActivity(form);
+        } else if (form.matches('[data-audit-delete-range]')) {
+            result = await confirmDeleteRange(form);
         } else if (form.matches('[data-audit-purge]')) {
             result = await confirmPurge(form);
         } else if (form.matches('[data-audit-purge-expired]')) {

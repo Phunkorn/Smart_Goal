@@ -95,8 +95,10 @@ class DepartmentController extends Controller
             // จะถูกฐานข้อมูลปฏิเสธเป็น QueryException ที่ผู้ใช้อ่านไม่รู้เรื่อง
             // จึงดักไว้ที่นี่เพื่อคืนข้อความภาษาไทย
             $hasWorkspaceBoards = $lockedDepartment->workspaceBoards()->withTrashed()->exists();
+            // ประกาศผูกกับแผนกด้วย FK แบบ restrict เช่นเดียวกับกระดานไอเดีย
+            $hasAnnouncements = $lockedDepartment->announcements()->withTrashed()->exists();
 
-            if ($hasUsers || $hasJobs || $hasWorkspaceBoards) {
+            if ($hasUsers || $hasJobs || $hasWorkspaceBoards || $hasAnnouncements) {
                 return false;
             }
 

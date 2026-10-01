@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WorkOrder;
+use App\Models\WorkOrderUpdate;
 use App\Services\NotificationService;
 use App\Services\TaskCommentService;
 use App\Support\Concerns\ValidatesAttachments;
@@ -51,7 +52,22 @@ class TaskCommentController extends Controller
                 'mimes:'.implode(',', self::IMAGE_EXTENSIONS),
                 'max:'.self::IMAGE_MAX_KILOBYTES,
             ],
+            'reply_to_id' => ['nullable', 'integer'],
+            'mentions' => ['nullable', 'array'],
+            'mentions.*' => ['integer'],
+            // "@all" กล่าวถึงทุกคนในงานนี้ — เซิร์ฟเวอร์คำนวณรายชื่อผู้รับเองจาก mentionCandidates()
+            // เสมอ ไม่เชื่อรายชื่อจาก client จึงรับแค่ true/false ไม่รับ id ตรงมา
+            'mention_all' => ['sometimes', 'boolean'],
         ]);
+
+        // ข้อความต้นทางต้องเป็นคอมเมนต์จริงของงานใบเดียวกัน ไม่งั้นถือว่าไม่มีการตอบกลับ
+        // (เงียบ ไม่ error เพราะเป็นการป้องกันข้อมูลเพี้ยนจาก client ไม่ใช่ความผิดของผู้ใช้)
+        $replyTo = isset($validated['reply_to_id'])
+            ? WorkOrderUpdate::query()
+                ->where('work_order_id', $task->job_id)
+                ->where('is_comment', true)
+                ->find($validated['reply_to_id'])
+            : null;
 
         // การ์ดเดิมของระบบ ตรวจว่านามสกุลกับ MIME ที่อ่านจากเนื้อไฟล์เข้าคู่กัน
         $this->assertAllowedAttachments($request, 'images');
@@ -73,7 +89,10 @@ class TaskCommentController extends Controller
                 $task,
                 $request->user(),
                 (string) ($validated['message'] ?? ''),
-                $stored
+                $stored,
+                $replyTo,
+                array_map('intval', $validated['mentions'] ?? []),
+                (bool) ($validated['mention_all'] ?? false)
             );
         } catch (Throwable $exception) {
             foreach ($stored as $file) {
@@ -121,5 +140,35 @@ class TaskCommentController extends Controller
             'unread_count' => $notifications->unreadCount($request->user()),
             'receipts' => $presenter->receipts($task),
         ]);
+    }
+
+    /**
+     * ปักหมุด/เลิกปักหมุด — สิทธิ์เดียวกับการคอมเมนต์ (ตกลงกับผู้ใช้แล้วว่าใครคอมเมนต์ได้ก็ปักได้)
+     * จึงไม่มี ability ใหม่แยกใน WorkOrderPolicy เพราะขอบเขตเหมือนกันทุกประการ
+     */
+    public function pin(Request $request, WorkOrder $task, WorkOrderUpdate $comment, TaskCommentService $comments, TaskCommentPresenter $presenter): JsonResponse
+    {
+        $this->authorizeCommentTarget($task, $comment);
+        $comment = $comments->pin($task, $comment, $request->user());
+
+        return response()->json(['ok' => true, 'comment' => $presenter->comment($comment, $request->user())]);
+    }
+
+    public function unpin(Request $request, WorkOrder $task, WorkOrderUpdate $comment, TaskCommentService $comments, TaskCommentPresenter $presenter): JsonResponse
+    {
+        $this->authorizeCommentTarget($task, $comment);
+        $comment = $comments->unpin($comment);
+
+        return response()->json(['ok' => true, 'comment' => $presenter->comment($comment, $request->user())]);
+    }
+
+    /**
+     * {task}/{comment} ผูกกันด้วย implicit route model binding ธรรมดา ไม่ได้ scope กับ WorkOrder
+     * จึงต้องเช็คเองว่าคอมเมนต์ที่ขอปักเป็นของงานใบนี้จริง ไม่งั้นส่ง id คอมเมนต์ของงานอื่นมาปักได้
+     */
+    private function authorizeCommentTarget(WorkOrder $task, WorkOrderUpdate $comment): void
+    {
+        abort_if((int) $comment->work_order_id !== (int) $task->job_id || ! $comment->is_comment, 404);
+        $this->authorize('comment', $task);
     }
 }

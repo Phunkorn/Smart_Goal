@@ -118,12 +118,20 @@ final class WorkspaceDocumentValidator
         }
 
         // ชิ้นงานที่เหลือทั้งหมดอธิบายด้วยกรอบสี่เหลี่ยม (x, y, w, h) เหมือนกัน
+        // ยกเว้นเส้นตรงและลูกศรที่ w, h คือระยะถึงจุดปลาย จึงต้องเก็บเครื่องหมายไว้
+        // ถ้าบีบเป็นศูนย์ เส้นที่ลากไปทางซ้ายหรือขึ้นบนจะหดหายไปหลังโหลดใหม่
+        $directional = in_array($type, WorkspaceDesign::DIRECTIONAL_ELEMENT_TYPES, true);
+
         $clean += [
             'x' => self::coordinate($element['x'] ?? null),
             'y' => self::coordinate($element['y'] ?? null),
-            'w' => self::size($element['w'] ?? null),
-            'h' => self::size($element['h'] ?? null),
+            'w' => $directional ? self::extent($element['w'] ?? null) : self::size($element['w'] ?? null),
+            'h' => $directional ? self::extent($element['h'] ?? null) : self::size($element['h'] ?? null),
         ];
+
+        if (in_array($type, WorkspaceDesign::ROTATABLE_ELEMENT_TYPES, true)) {
+            $clean += self::rotation($element['rotation'] ?? null);
+        }
 
         return match ($type) {
             'rect', 'ellipse', 'line', 'arrow' => $clean + [
@@ -135,12 +143,20 @@ final class WorkspaceDocumentValidator
                 'text' => self::text($element['text'] ?? null),
                 'fill' => self::color($element['fill'] ?? null, WorkspaceDesign::DEFAULT_STICKY_COLOR),
                 'fontSize' => self::integer($element['fontSize'] ?? 16, 8, 96),
-            ],
+            ]
+                + self::bold($element['bold'] ?? null)
+                + self::italic($element['italic'] ?? null)
+                + self::letterSpacing($element['letterSpacing'] ?? null)
+                + self::lineAligns($element['lineAligns'] ?? null),
             'text' => $clean + [
                 'text' => self::text($element['text'] ?? null),
                 'color' => self::color($element['color'] ?? null, WorkspaceDesign::DEFAULT_STROKE),
                 'fontSize' => self::integer($element['fontSize'] ?? 18, 8, 96),
-            ],
+            ]
+                + self::bold($element['bold'] ?? null)
+                + self::italic($element['italic'] ?? null)
+                + self::letterSpacing($element['letterSpacing'] ?? null)
+                + self::lineAligns($element['lineAligns'] ?? null),
             'image' => $clean + [
                 'attachmentId' => self::attachmentId($element['attachmentId'] ?? null, $allowedAttachmentIds),
             ],
@@ -251,6 +267,139 @@ final class WorkspaceDocumentValidator
 
         // ขนาดติดลบทำให้กรอบพลิกด้าน การเลือกและการย่อขยายจะคำนวณผิด
         return round(max(0.0, min((float) WorkspaceDesign::WORLD_BOUND, (float) $value)), 2);
+    }
+
+    /**
+     * ระยะจากจุดต้นถึงจุดปลายของเส้นตรงและลูกศร ติดลบได้ แต่ไม่เกินขอบผืนผ้าใบ
+     */
+    private static function extent(mixed $value): float
+    {
+        if (! is_numeric($value) || ! is_finite((float) $value)) {
+            self::reject('ขนาดของชิ้นงานบนกระดานไม่ถูกต้อง');
+        }
+
+        $bound = (float) WorkspaceDesign::WORLD_BOUND;
+
+        return round(max(-$bound, min($bound, (float) $value)), 2);
+    }
+
+    /**
+     * มุมหมุนเป็นองศา บีบให้อยู่ในช่วง [0, 360)
+     *
+     * มุม 0 ไม่ถูกเก็บเลย เอกสารที่ไม่มีอะไรหมุนจึงมีหน้าตาเหมือนก่อนมีฟีเจอร์นี้
+     * และเอกสารเก่าที่ไม่มีคีย์ rotation ก็อ่านได้เป็นมุม 0 โดยไม่ต้องย้ายข้อมูล
+     *
+     * @return array{rotation?: float}
+     */
+    private static function rotation(mixed $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if (! is_numeric($value) || ! is_finite((float) $value)) {
+            self::reject('มุมหมุนของชิ้นงานบนกระดานไม่ถูกต้อง');
+        }
+
+        $degrees = fmod((float) $value, 360.0);
+        $degrees = round($degrees < 0 ? $degrees + 360.0 : $degrees, 2);
+
+        // 359.999 ปัดแล้วกลายเป็น 360 ซึ่งคือมุมเดียวกับ 0
+        if ($degrees >= 360.0 || $degrees == 0.0) {
+            return [];
+        }
+
+        return ['rotation' => $degrees];
+    }
+
+    /**
+     * ตัวหนา - เก็บเฉพาะเมื่อเป็น true เท่านั้น ค่าอื่นที่ไม่ใช่ boolean (เช่น
+     * สตริง "true" หรือ 1) ถือเป็นค่าปริยาย (ไม่หนา) และไม่ถูกเก็บ เอกสารเก่าที่
+     * ไม่มีคีย์นี้เลยจึงอ่านได้เป็น "ไม่หนา" โดยไม่ต้องย้ายข้อมูล
+     *
+     * @return array{bold?: true}
+     */
+    private static function bold(mixed $value): array
+    {
+        return $value === true ? ['bold' => true] : [];
+    }
+
+    /**
+     * @return array{italic?: true}
+     */
+    private static function italic(mixed $value): array
+    {
+        return $value === true ? ['italic' => true] : [];
+    }
+
+    /**
+     * การจัดบรรทัดของแต่ละบรรทัดในกล่องข้อความ - แผนที่แบบเบาบาง (sparse) จาก
+     * ลำดับบรรทัด (นับจาก 0 ตามการแบ่งด้วย \n ในคีย์ text) ไปยังการจัดบรรทัด
+     * ที่ไม่ใช่ค่าปริยาย
+     *
+     * เป็นแผนที่ต่อบรรทัด ไม่ใช่ค่าเดียวของทั้งกล่อง เพราะผู้ใช้ต้องจัดแต่ละ
+     * บรรทัดในกล่องเดียวกันต่างกันได้ (บรรทัดแรกกึ่งกลาง บรรทัดถัดมาชิดขวา)
+     * เหมือนโปรแกรมประมวลผลคำทั่วไป
+     *
+     * รายการที่คีย์ไม่ใช่เลขจำนวนเต็มไม่ติดลบ หรือค่าที่ไม่อยู่ในชุดปิดตาย หรือ
+     * เป็นค่าปริยาย (ชิดซ้าย) ถูกตัดทิ้งทีละรายการเงียบ ๆ ไม่ทำให้ทั้งเอกสารถูก
+     * ปฏิเสธ เพราะเป็นข้อมูลตกแต่งที่ขาดไปได้โดยไม่กระทบเนื้อหา ขนาดโดยรวมยัง
+     * ถูกจำกัดด้วยเพดานไบต์ของทั้งเอกสารใน sanitize() อยู่แล้ว
+     *
+     * @return array{lineAligns?: array<string, string>}
+     */
+    private static function lineAligns(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $clean = [];
+
+        foreach ($value as $key => $align) {
+            if (! is_string($key) && ! is_int($key)) {
+                continue;
+            }
+
+            $index = (string) $key;
+
+            if (preg_match('/^(0|[1-9]\d*)$/', $index) !== 1) {
+                continue;
+            }
+
+            if (! is_string($align) || $align === WorkspaceDesign::DEFAULT_TEXT_ALIGN
+                || ! in_array($align, WorkspaceDesign::TEXT_ALIGNS, true)) {
+                continue;
+            }
+
+            $clean[$index] = $align;
+        }
+
+        return $clean === [] ? [] : ['lineAligns' => $clean];
+    }
+
+    /**
+     * ระยะห่างตัวอักษรเป็นพิกเซล บีบให้อยู่ในช่วงที่หน้าจอยอมรับ ค่า 0 (ปกติ)
+     * ไม่ถูกเก็บ ด้วยเหตุผลเดียวกับ rotation() ข้างบน
+     *
+     * @return array{letterSpacing?: int}
+     */
+    private static function letterSpacing(mixed $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if (! is_numeric($value) || ! is_finite((float) $value)) {
+            self::reject('ระยะห่างตัวอักษรของชิ้นงานบนกระดานไม่ถูกต้อง');
+        }
+
+        $spacing = (int) round(max(
+            WorkspaceDesign::MIN_LETTER_SPACING,
+            min(WorkspaceDesign::MAX_LETTER_SPACING, (float) $value)
+        ));
+
+        return $spacing === 0 ? [] : ['letterSpacing' => $spacing];
     }
 
     private static function integer(mixed $value, int $min, int $max): int

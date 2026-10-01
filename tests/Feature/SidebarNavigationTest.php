@@ -365,6 +365,36 @@ class SidebarNavigationTest extends TestCase
             ->assertDontSee('<div class="nav-section-label">งานของทีม</div>', false);
     }
 
+    /**
+     * เมนู "ประกาศ" เป็นเครื่องมือของหัวหน้าแผนก อยู่ในกลุ่มงานและคำขอถัดจากคำขออนุมัติ
+     * พนักงานเห็นประกาศในสรุปประจำวันแทน ส่วน admin ไม่มีสิทธิ์กับประกาศ
+     */
+    public function test_announcement_menu_belongs_to_department_heads_after_approvals(): void
+    {
+        $head = $this->userWithRole('user');
+        $head->forceFill(['is_department_head' => true])->save();
+        $announcementLink = 'href="'.route('announcements.index').'"';
+
+        $content = $this->actingAs($head)
+            ->get(route('mytasks.index'))
+            ->assertOk()
+            ->getContent();
+
+        $positions = [
+            strpos($content, 'href="'.route('notifications.index').'"'),
+            strpos($content, 'href="'.route('admin.approvals.index').'"'),
+            strpos($content, $announcementLink),
+            strpos($content, 'href="'.route('settings.index').'"'),
+        ];
+
+        $this->assertNotContains(false, $positions);
+        $this->assertSame($positions, collect($positions)->sort()->values()->all());
+
+        $this->actingAs($this->userWithRole('user'))->get(route('mytasks.index'))->assertDontSee($announcementLink, false);
+        $this->actingAs($this->userWithRole('admin'))->get(route('board.index'))->assertDontSee($announcementLink, false);
+        $this->actingAs($this->userWithRole('viewer'))->get(route('board.index'))->assertDontSee($announcementLink, false);
+    }
+
     private function userWithRole(string $role): User
     {
         $department = Department::create(['department_name' => 'Sidebar '.uniqid()]);

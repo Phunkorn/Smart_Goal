@@ -7,20 +7,59 @@
  * ด้วยเหตุผลสองข้อ (1) jsdom ที่ใช้ทดสอบไม่มีทั้งสามอย่างและไม่คำนวณ layout
  * เลย ถ้าพึ่งมันจะเหลือโค้ดเส้นทางที่ไม่เคยถูกทดสอบ (2) การคำนวณจากตัวแบบทำให้
  * ผลลัพธ์เหมือนกันทุกเบราว์เซอร์ ไม่ขึ้นกับว่าเรนเดอร์ไปแล้วหรือยัง
+ *
+ * ชิ้นที่หมุนอยู่ถูกตรวจการชนโดยหมุนจุดที่คลิกกลับเข้าไปในพิกัดของชิ้นงานก่อน
+ * สิ่งที่ตาเห็นกับสิ่งที่คลิกโดนจึงเป็นรูปร่างเดียวกันเสมอ
  */
 
-/** กรอบสี่เหลี่ยมที่ล้อมชิ้นงานหนึ่งชิ้น */
+import {rotatePoint, rotationOf, withRotation} from './rotation.js';
+
+/**
+ * กรอบของชิ้นงานก่อนหมุน (ยังไม่รวม rotation) ใช้กับชิ้นที่อธิบายด้วยกรอบ
+ *
+ * เส้นตรงกับลูกศรเก็บ w และ h ติดลบได้เพราะต้องจำทิศทาง และระหว่างลากสร้าง
+ * ค่าชั่วคราวก็ติดลบได้ จึงทำให้กรอบเป็นบวกเสมอที่นี่
+ */
+export const localBoxOf = (element) => ({
+    x: element.w < 0 ? element.x + element.w : element.x,
+    y: element.h < 0 ? element.y + element.h : element.y,
+    w: Math.abs(element.w),
+    h: Math.abs(element.h),
+});
+
+export const centerOf = (box) => ({x: box.x + box.w / 2, y: box.y + box.h / 2});
+
+/** มุมทั้งสี่ของกรอบหลังหมุนรอบจุดกึ่งกลางของตัวเอง */
+export const cornersOf = (box, rotation = 0) => {
+    const center = centerOf(box);
+
+    return [
+        {x: box.x, y: box.y},
+        {x: box.x + box.w, y: box.y},
+        {x: box.x + box.w, y: box.y + box.h},
+        {x: box.x, y: box.y + box.h},
+    ].map((corner) => rotatePoint(corner, center, rotation));
+};
+
+/** กรอบสี่เหลี่ยมตั้งตรงที่ล้อมชิ้นงานหนึ่งชิ้น (รวมผลของการหมุนแล้ว) */
 export const boundsOf = (element) => {
     if (element.type === 'pen') {
         return strokeBounds(element);
     }
 
-    // ขนาดติดลบไม่ควรมี (ตัวกรองฝั่งเซิร์ฟเวอร์บีบเป็นศูนย์แล้ว) แต่ระหว่างลากสร้าง
-    // ฝั่งหน้าจอยังเป็นค่าชั่วคราวได้ จึงทำให้กรอบเป็นบวกเสมอที่นี่
-    const x = element.w < 0 ? element.x + element.w : element.x;
-    const y = element.h < 0 ? element.y + element.h : element.y;
+    const box = localBoxOf(element);
+    const rotation = rotationOf(element);
 
-    return {x, y, w: Math.abs(element.w), h: Math.abs(element.h)};
+    return rotation ? boundsOfPoints(cornersOf(box, rotation)) : box;
+};
+
+const boundsOfPoints = (points) => {
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+
+    return {x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY};
 };
 
 const strokeBounds = (element) => {
@@ -98,12 +137,24 @@ export const distanceToSegment = (point, a, b) => {
 };
 
 /**
+ * ระยะผ่อนผันของการคลิกโดน หน่วยพิกเซลบนหน้าจอ
+ *
+ * อยู่ที่นี่เพราะทุกทางที่ "ชี้ไปที่ชิ้นงาน" ต้องผ่อนผันเท่ากัน ทั้งการคลิกเลือก
+ * การดับเบิลคลิกเปิดกล่องข้อความ และการคลิกขวา ถ้าแต่ละทางถือค่าของตัวเอง
+ * (หรือไม่ผ่อนผันเลย) ผู้ใช้จะเจอว่าคลิกซ้ายโดนเส้นแต่คลิกขวาที่จุดเดียวกัน
+ * กลับไม่โดน ซึ่งอธิบายไม่ได้เลยจากมุมของคนใช้
+ */
+export const HIT_TOLERANCE_PX = 6;
+
+/**
  * จุดนี้อยู่บนชิ้นงานหรือไม่
  *
  * tolerance เป็นระยะผ่อนผันในหน่วยพิกัดโลก ผู้เรียกต้องหารด้วยระดับซูมมาก่อน
  * เพื่อให้ "แตะพลาดได้กี่พิกเซลบนหน้าจอ" คงที่ไม่ว่าจะซูมเข้าหรือออก
  */
-export const hitTest = (element, point, tolerance = 0) => {
+export const hitTest = (element, worldPoint, tolerance = 0) => {
+    const point = toLocalPoint(element, worldPoint);
+
     switch (element.type) {
         case 'pen':
             return hitStroke(element, point, tolerance);
@@ -120,8 +171,15 @@ export const hitTest = (element, point, tolerance = 0) => {
             return hitRect(element, point, tolerance);
         default:
             // กระดาษโน้ต ข้อความ และรูปภาพเป็นพื้นทึบ คลิกที่ไหนก็โดน
-            return boundsContain(inflate(boundsOf(element), tolerance), point);
+            return boundsContain(inflate(localBoxOf(element), tolerance), point);
     }
+};
+
+/** หมุนจุดที่คลิกกลับเข้าไปในพิกัดของชิ้นงานที่ยังไม่หมุน */
+const toLocalPoint = (element, point) => {
+    const rotation = rotationOf(element);
+
+    return rotation ? rotatePoint(point, centerOf(localBoxOf(element)), -rotation) : point;
 };
 
 const hitStroke = (element, point, tolerance) => {
@@ -145,7 +203,7 @@ const hitStroke = (element, point, tolerance) => {
 };
 
 const hitRect = (element, point, tolerance) => {
-    const box = boundsOf(element);
+    const box = localBoxOf(element);
 
     // รูปทรงที่ไม่ได้เติมสีต้องคลิกโดนเฉพาะที่เส้นขอบ ไม่งั้นสี่เหลี่ยมใหญ่ ๆ
     // จะบังทุกอย่างที่อยู่ข้างใต้จนเลือกไม่ได้
@@ -160,7 +218,7 @@ const hitRect = (element, point, tolerance) => {
 };
 
 const hitEllipse = (element, point, tolerance) => {
-    const box = boundsOf(element);
+    const box = localBoxOf(element);
     const rx = box.w / 2;
     const ry = box.h / 2;
 
@@ -343,4 +401,73 @@ export const scaleElementToBounds = (element, from, to) => {
         w: element.w * scaleX,
         h: element.h * scaleY,
     };
+};
+
+/**
+ * หมุนชิ้นงานรอบจุดหมุนที่กำหนด คืนชิ้นใหม่ ไม่แก้ของเดิม
+ *
+ * จุดหมุนเป็นของกลุ่ม ไม่ใช่ของแต่ละชิ้น การเลือกหลายชิ้นแล้วหมุนจึงพาทุกชิ้น
+ * วนรอบจุดกึ่งกลางของกลุ่มไปด้วยกัน ไม่ใช่ต่างคนต่างหมุนอยู่กับที่
+ *
+ * ชิ้นที่อธิบายด้วยจุดถูกหมุนที่ตัวพิกัด ส่วนชิ้นที่อธิบายด้วยกรอบถูกเลื่อนจุด
+ * กึ่งกลางไปตามวงแล้วบวกมุมเพิ่ม (ดูเหตุผลที่ rotation.js)
+ */
+export const rotateElement = (element, pivot, degrees) => {
+    const turn = (x, y) => rotatePoint({x, y}, pivot, degrees);
+
+    if (element.type === 'pen') {
+        return {
+            ...element,
+            points: element.points.map(([x, y]) => {
+                const point = turn(x, y);
+
+                return [point.x, point.y];
+            }),
+        };
+    }
+
+    if (element.type === 'line' || element.type === 'arrow') {
+        const start = turn(element.x, element.y);
+        const end = turn(element.x + element.w, element.y + element.h);
+
+        return {...element, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y};
+    }
+
+    const box = localBoxOf(element);
+    const center = rotatePoint(centerOf(box), pivot, degrees);
+
+    return withRotation(
+        {...element, x: center.x - box.w / 2, y: center.y - box.h / 2, w: box.w, h: box.h},
+        rotationOf(element) + degrees
+    );
+};
+
+/*
+ * ทิศทั้งแปดที่ Shift ล็อกเส้นตรงไว้ เรียงตามมุมทีละ 45 องศา
+ *
+ * ใช้เวกเตอร์จำนวนเต็มแทน cos/sin เพราะ Math.cos(π/4) กับ Math.sin(π/4) ต่างกัน
+ * ที่หลักสุดท้าย เส้นทแยงที่ได้จะเอียง 44.99999 องศา แล้ว w กับ h ไม่เท่ากันพอดี
+ */
+const OCTANT_DIRECTIONS = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+
+/**
+ * จุดปลายของเส้นที่ถูกล็อกให้อยู่ในแนวนอน แนวตั้ง หรือแนวทแยง 45 องศา
+ *
+ * ใช้การฉายจุดของเคอร์เซอร์ลงบนทิศที่ใกล้ที่สุด ไม่ใช่รักษาความยาวเดิม
+ * ปลายเส้นแนวนอนจึงอยู่ใต้เคอร์เซอร์พอดีในแกน x ซึ่งรู้สึกเป็นธรรมชาติกว่า
+ * การให้ปลายเส้นเลยเคอร์เซอร์ออกไปเมื่อเคอร์เซอร์ไม่ได้อยู่บนแกนพอดี
+ */
+export const constrainToAngle = (origin, point) => {
+    const dx = point.x - origin.x;
+    const dy = point.y - origin.y;
+
+    if (dx === 0 && dy === 0) {
+        return point;
+    }
+
+    const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+    const [ux, uy] = OCTANT_DIRECTIONS[(octant + 8) % 8];
+    const distance = (dx * ux + dy * uy) / (ux * ux + uy * uy);
+
+    return {x: origin.x + distance * ux, y: origin.y + distance * uy};
 };

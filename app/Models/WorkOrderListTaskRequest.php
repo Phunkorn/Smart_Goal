@@ -5,12 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * เดิมคือคำขอที่ต้องรอเจ้าของโปรเจกต์อนุมัติ แต่ตอนนี้ ProjectTaskRequestController::store()
+ * สร้าง WorkOrder ทันทีโดยไม่ผ่านตารางนี้แล้ว (ดูเหตุผลที่ WorkOrderListPolicy::requestTask())
+ * โมเดล/ตารางนี้ยังอยู่เพื่อให้แถวประวัติเก่า (pending/approved/rejected) และการแจ้งเตือนเก่า
+ * ที่อ้างถึงแถวเหล่านั้นยังใช้งานได้ตามปกติ
+ */
 class WorkOrderListTaskRequest extends Model
 {
-    /** จำนวนคำขอที่ผู้ใช้หนึ่งคนเปิดค้างได้ต่อหนึ่งโปรเจกต์ */
-    public const MAX_PENDING_PER_REQUESTER_PROJECT = 5;
-
-    /** จำนวนครั้งสูงสุดที่ผู้ใช้หนึ่งคนยิง endpoint ส่งคำขอได้ในหนึ่งนาที */
+    /** จำนวนครั้งสูงสุดที่ผู้ใช้หนึ่งคนยิง endpoint เพิ่มงานได้ในหนึ่งนาที */
     public const SUBMIT_RATE_LIMIT_PER_MINUTE = 10;
 
     public const SUBMIT_RATE_LIMITER = 'project-task-requests';

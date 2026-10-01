@@ -14,6 +14,7 @@
  */
 
 import {screenToWorld, zoomAt} from './camera.js';
+import {isEditableNode} from './keyboard.js';
 
 /** ระยะที่ล้อเมาส์หนึ่งหน่วยแปลงเป็นตัวคูณการซูม */
 const WHEEL_ZOOM_STEP = 0.0015;
@@ -31,19 +32,30 @@ export const initPointer = (stage, {
     const active = new Map();
     let pinch = null;
 
+    // เหตุการณ์ตัวชี้ล่าสุดของท่าลาก ใช้ส่งการขยับซ้ำเมื่อผู้ใช้กดหรือปล่อย Shift
+    // ขณะที่เมาส์นิ่งอยู่ (ดู handleShiftChange)
+    let lastPointerEvent = null;
+
     const stagePoint = (event) => {
         const rect = stage.getBoundingClientRect();
 
         return {x: event.clientX - rect.left, y: event.clientY - rect.top};
     };
 
-    const contextFor = (event) => {
+    /*
+     * Shift ถูกส่งออกไปสองชื่อตามเจตนา ไม่ใช่ตามปุ่ม
+     *   additive  - ตอนคลิก: เพิ่ม/ถอนชิ้นนั้นออกจากกลุ่มที่เลือก
+     *   constrain - ตอนลาก: ล็อกมุมของเส้นหรือของการหมุน
+     * เครื่องมือแต่ละตัวอ่านเฉพาะชื่อที่ตรงกับสิ่งที่มันทำ ทั้งสองจึงไม่ชนกัน
+     */
+    const contextFor = (event, shiftKey = event.shiftKey === true) => {
         const screenPoint = stagePoint(event);
 
         return {
             screenPoint,
             point: screenToWorld(getCamera(), screenPoint),
-            additive: event.shiftKey === true,
+            additive: shiftKey,
+            constrain: shiftKey,
             pointerId: event.pointerId,
         };
     };
@@ -51,6 +63,15 @@ export const initPointer = (stage, {
     const handleDown = (event) => {
         // ปุ่มขวาและปุ่มกลางไม่ควรเริ่มการวาด ปล่อยให้เมนูของเบราว์เซอร์ทำงานไป
         if (event.button !== undefined && event.button !== 0) {
+            return;
+        }
+
+        // กดลงในกล่องข้อความที่กำลังแก้ไขอยู่ (contenteditable) ต้องปล่อยให้
+        // เบราว์เซอร์ลากเลือกข้อความเองทั้งหมด ไม่ใช่ตามด้วย setPointerCapture
+        // ของเรา เพราะการจับพอยน์เตอร์ไว้ที่ stage จะแย่งพอยน์เตอร์ไปจากกล่อง
+        // กลางท่าลาก ทำให้ลากเลือกข้อความไม่ได้ และเครื่องมือเลือกจะเริ่มลาก
+        // ย้ายทั้งกล่อง (หรือทั้งกลุ่มที่เลือกอยู่) แทนไปพร้อมกัน
+        if (isEditableNode(event.target)) {
             return;
         }
 
@@ -71,6 +92,7 @@ export const initPointer = (stage, {
         }
 
         stage.setPointerCapture?.(event.pointerId);
+        lastPointerEvent = event;
         onDown?.(contextFor(event));
     };
 
@@ -87,7 +109,20 @@ export const initPointer = (stage, {
             return;
         }
 
+        lastPointerEvent = event;
         onMove?.(contextFor(event));
+    };
+
+    /*
+     * กดหรือปล่อย Shift กลางท่าลากโดยไม่ขยับเมาส์ ต้องเห็นเส้นล็อกหรือปลดทันที
+     * ไม่ใช่รอจนกว่าจะขยับเมาส์อีกนิด ซึ่งทำให้ผู้ใช้คิดว่า Shift ไม่ทำงาน
+     */
+    const handleShiftChange = (event) => {
+        if (event.key !== 'Shift' || pinch || active.size !== 1 || ! lastPointerEvent) {
+            return;
+        }
+
+        onMove?.(contextFor(lastPointerEvent, event.type === 'keydown'));
     };
 
     const handleUp = (event) => {
@@ -97,6 +132,10 @@ export const initPointer = (stage, {
 
         active.delete(event.pointerId);
         stage.releasePointerCapture?.(event.pointerId);
+
+        if (active.size === 0) {
+            lastPointerEvent = null;
+        }
 
         if (pinch) {
             // ยังไม่กลับไปวาดต่อจนกว่านิ้วจะยกหมด ไม่งั้นนิ้วที่เหลือค้างอยู่
@@ -134,9 +173,13 @@ export const initPointer = (stage, {
     stage.addEventListener('pointercancel', handleUp);
     stage.addEventListener('pointerleave', handleUp);
     stage.addEventListener('wheel', handleWheel, {passive: false});
+    stage.ownerDocument.addEventListener('keydown', handleShiftChange);
+    stage.ownerDocument.addEventListener('keyup', handleShiftChange);
 
     return {
         destroy() {
+            stage.ownerDocument.removeEventListener('keydown', handleShiftChange);
+            stage.ownerDocument.removeEventListener('keyup', handleShiftChange);
             stage.removeEventListener('pointerdown', handleDown);
             stage.removeEventListener('pointermove', handleMove);
             stage.removeEventListener('pointerup', handleUp);

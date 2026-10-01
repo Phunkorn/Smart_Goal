@@ -92,6 +92,29 @@ class AuditController extends Controller
     }
 
     /**
+     * ลบบันทึกกิจกรรมตามช่วงวันที่ที่แอดมินเลือกเอง
+     *
+     * ต่างจากปุ่ม "ล้างบันทึกเก่า" ด้านบนซึ่งลบตามนโยบายอายุอัตโนมัติเท่านั้น ปุ่มนี้ให้
+     * แอดมินกำหนดช่วงวันที่เองตรง ๆ จึงลบได้ทุกเหตุการณ์ในช่วงนั้น รวมถึงเหตุการณ์สำคัญ
+     * ด้วย หน้าเว็บบังคับให้พิมพ์คำยืนยันก่อนส่งฟอร์มนี้เสมอ
+     */
+    public function deleteActivityRange(Request $request)
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $validated = $request->validate([
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date', 'after_or_equal:from'],
+        ]);
+
+        $count = LogRetention::deleteActivityRange($validated['from'], $validated['to'], Auth::user());
+
+        return back()->with('success', $count > 0
+            ? 'ลบบันทึกกิจกรรมระหว่างวันที่เลือกแล้ว '.$count.' รายการ'
+            : 'ไม่มีบันทึกกิจกรรมในช่วงวันที่เลือก');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function overviewData(Request $request): array

@@ -120,6 +120,40 @@ class WorkspaceBoardDocumentSaveTest extends TestCase
         $this->assertSame(2, WorkspaceBoardDocument::query()->findOrFail($this->board->id)->content_version);
     }
 
+    /**
+     * บันทึกแล้วโหลดใหม่ มุมหมุนและทิศทางของเส้นต้องอยู่ครบ ผ่านเส้นทางจริง
+     * ตั้งแต่ endpoint บันทึก ตัวกรอง ฐานข้อมูล จนถึง endpoint อ่าน
+     */
+    public function test_rotation_and_line_direction_survive_a_save_and_reload(): void
+    {
+        $this->actingAs($this->staff)
+            ->putJson(route('workspace.boards.document.save', $this->board), [
+                'base_version' => 1,
+                'document' => $this->document([
+                    [
+                        'id' => 'note-1', 'type' => 'sticky', 'z' => 1,
+                        'x' => 100, 'y' => 100, 'w' => 180, 'h' => 180,
+                        'text' => 'หมุน', 'fill' => '#fde68a', 'fontSize' => 20, 'rotation' => 30,
+                    ],
+                    [
+                        'id' => 'line-1', 'type' => 'line', 'z' => 2,
+                        'x' => 300, 'y' => 300, 'w' => -80, 'h' => -80,
+                        'stroke' => '#1f2937', 'strokeWidth' => 4,
+                    ],
+                ]),
+            ])
+            ->assertOk();
+
+        $elements = $this->actingAs($this->staff)
+            ->getJson(route('workspace.boards.document', $this->board))
+            ->assertOk()
+            ->json('document.elements');
+
+        $this->assertEquals(30, $elements[0]['rotation']);
+        $this->assertEquals(-80, $elements[1]['w']);
+        $this->assertEquals(-80, $elements[1]['h']);
+    }
+
     public function test_reading_the_document_is_allowed_for_read_only_visitors(): void
     {
         app(WorkspaceBoardDocumentService::class)

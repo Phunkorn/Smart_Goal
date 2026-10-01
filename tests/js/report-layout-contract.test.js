@@ -58,14 +58,16 @@ test('the operational overview grid follows the monthly layout and stacks on tab
 });
 
 /*
- * รายงานโปรเจกต์ประจำเดือน — KPI หกใบเต็มแถวบนจอกว้าง ลดเป็นสาม สอง และหนึ่งคอลัมน์
+ * รายงานโปรเจกต์ประจำเดือน — KPI เต็มแถวบนจอกว้าง ลดเป็นสี่ แล้วคงสองคอลัมน์บนจอโทรศัพท์
  * ตารางกว้างเลื่อนแนวนอนในกรอบของตัวเอง หน้าไม่เลื่อนแนวนอนตาม
  */
 test('the project report keeps seven kpis per row (4 + 3 below 1600px) and scrolls only its table sideways', () => {
     assert.match(projectsCss, /\.project-report__kpis \{[^}]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);
     assert.match(mediaBlock(projectsCss, 'max-width: 1599px'), /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
     assert.match(mediaBlock(projectsCss, 'max-width: 760px'), /\.project-report__kpis \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-    assert.match(mediaBlock(projectsCss, 'max-width: 430px'), /grid-template-columns: minmax\(0, 1fr\)/);
+    // จอโทรศัพท์คงสองคอลัมน์ (ไอคอนขึ้นไปอยู่บนข้อความ) ไม่ยุบเหลือคอลัมน์เดียว
+    assert.match(mediaBlock(projectsCss, 'max-width: 430px'), /\.project-report__kpis \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+    assert.match(mediaBlock(projectsCss, 'max-width: 430px'), /\.project-report__kpi \{[^}]*flex-direction: column/);
     assert.match(projectsCss, /\.project-report__table-scroll \{[^}]*overflow-x: auto/);
     assert.match(projectsCss, /\.project-report__table \{[^}]*min-width: 1340px/);
 });

@@ -49,3 +49,12 @@
 @media(max-width:1250px){.my-tasks-page{width:calc(100% - 36px)}.notion-summary{grid-template-columns:170px minmax(430px,1fr) 220px}.overview-states{padding-inline:10px}.notion-toolbar{flex-wrap:wrap}.notion-search{width:100%;max-width:430px}.notion-group{margin-left:0}}
 @media(max-width:991px){.main:has(> .my-tasks-page[data-context=user]){min-height:calc(100vh - 58px);min-height:calc(100dvh - 58px)}}
 @media(max-width:760px){.my-tasks-page{width:calc(100% - 24px);padding-top:20px}.notion-heading{display:grid;align-items:start}.notion-heading-copy{align-items:flex-start}.notion-heading h1{font-size:27px}.notion-summary{grid-template-columns:1fr}.overview-total{border-right:0}.overview-states{grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}.notion-toolbar{align-items:stretch;flex-direction:column}.notion-search{width:100%;max-width:none}.notion-group,.notion-filter,.notion-toolbar>button{justify-content:space-between}.notion-modal .modal-body,.modal-team{grid-template-columns:1fr}.notion-modal .modal-body .full{grid-column:auto}.team-modal{padding:10px;align-items:flex-end}.team-modal-card{max-height:92vh;border-radius:14px 14px 0 0}.team-owner-card>div{flex-wrap:wrap}.team-owner-card b{margin-left:47px}}
+
+/*
+ * จอโทรศัพท์: คำโปรยใต้ "งานของฉัน" ยาวสองบรรทัดและไม่มีข้อมูลที่ต้องใช้
+ * แต่ดันปฏิทิน/บอร์ดลงไปอีก ~50px จึงเก็บไว้เฉพาะจอที่กว้างพอ
+ */
+@media (max-width: 575.98px) {
+    .notion-heading { margin-bottom: 14px; }
+    .notion-heading-copy p { display: none; }
+}

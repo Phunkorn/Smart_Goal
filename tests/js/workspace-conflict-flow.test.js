@@ -396,3 +396,184 @@ test('การเตือนก่อนออกจากหน้าใช�
     assert.doesNotMatch(code, /(^|[^.\w])(alert|confirm|prompt)\s*\(/m);
     assert.match(code, /beforeunload/);
 });
+
+/* ── ตามฉบับล่าสุดให้ทันเมื่อกลับมาที่หน้า ──────────────────────── */
+
+/*
+ * ผู้ใช้คนเดียวที่เปิดกระดานไว้สองแท็บ หรือทิ้งแท็บไว้แล้วไปแก้ที่อื่น จะกลับมา
+ * เจอหน้าที่ถือเวอร์ชันเก่า ก่อนแก้ การขีดเส้นแรกจะชนกับงานของตัวเองทันที
+ */
+const noTimers = {setTimeoutImpl: () => 1, clearTimeoutImpl: () => {}};
+
+const setVisibility = (dom, state) => {
+    Object.defineProperty(dom.document, 'visibilityState', {configurable: true, get: () => state});
+    dom.document.dispatchEvent(new dom.window.Event('visibilitychange'));
+};
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test('กลับมาที่แท็บโดยไม่มีงานค้าง โหลดฉบับที่ใหม่กว่าเงียบ ๆ แล้วบันทึกต่อจากเวอร์ชันนั้น', async () => {
+    const env = mount();
+    const client = fakeClient();
+
+    try {
+        const autosave = env.build(client, noTimers);
+
+        setVisibility(env.dom, 'visible');
+        await settle();
+
+        assert.equal(client.calls.load, 1);
+        assert.equal(env.replaced.length, 1, 'เนื้อหาต้องถูกแทนด้วยฉบับล่าสุด');
+        assert.equal(env.swalCalls.length, 0, 'ไม่มีงานให้ทิ้ง จึงไม่ต้องถามอะไร');
+        assert.equal(autosave.currentVersion(), 9);
+
+        await autosave.saveNow();
+        assert.equal(client.calls.save[0].baseVersion, 9, 'การบันทึกถัดไปต้องไม่ชนกับเวอร์ชันเก่า');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('กลับมาที่แท็บขณะมีงานค้าง ไม่แตะงานนั้น ปล่อยให้การชนเวอร์ชันถามผู้ใช้ตามเดิม', async () => {
+    const env = mount();
+    const client = fakeClient();
+
+    try {
+        const autosave = env.build(client, noTimers);
+
+        autosave.markDirty();
+        setVisibility(env.dom, 'visible');
+        await settle();
+
+        assert.equal(client.calls.load, 0);
+        assert.equal(env.replaced.length, 0, 'งานที่ยังไม่ได้บันทึกต้องไม่ถูกทิ้ง');
+        assert.equal(autosave.currentVersion(), 5);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('ถ้าผู้ใช้เริ่มแก้ระหว่างรอคำตอบ ไม่เอาฉบับจากเซิร์ฟเวอร์มาทับ', async () => {
+    const env = mount();
+    let release;
+    const client = {
+        ...fakeClient(),
+        load: () => new Promise((resolve) => {
+            release = () => resolve({version: 9, document: {schema: 1, elements: []}});
+        }),
+    };
+
+    try {
+        const autosave = env.build(client, noTimers);
+        const pending = autosave.catchUp();
+
+        autosave.markDirty();
+        release();
+        await pending;
+
+        assert.equal(env.replaced.length, 0);
+        assert.equal(autosave.currentVersion(), 5);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('เวอร์ชันบนเซิร์ฟเวอร์ยังเท่าเดิม ไม่แทนเนื้อหาและไม่ล้างประวัติ undo', async () => {
+    const env = mount();
+
+    try {
+        const autosave = env.build(fakeClient({loadResult: {version: 5, document: {schema: 1, elements: []}}}), noTimers);
+
+        await autosave.catchUp();
+
+        assert.equal(env.replaced.length, 0);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('หน้าที่กู้คืนจาก back/forward cache ตามฉบับล่าสุดให้ทันเช่นกัน', async () => {
+    const env = mount();
+    const client = fakeClient();
+
+    try {
+        env.build(client, noTimers);
+
+        const event = new env.dom.window.Event('pageshow');
+        Object.defineProperty(event, 'persisted', {value: true});
+        env.dom.window.dispatchEvent(event);
+        await settle();
+
+        assert.equal(client.calls.load, 1);
+        assert.equal(env.replaced.length, 1);
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('ออฟไลน์ตอนกลับมาที่แท็บไม่รบกวนผู้ใช้', async () => {
+    const env = mount();
+    const client = {...fakeClient(), load: async () => { throw new Error('offline'); }};
+
+    try {
+        const autosave = env.build(client, noTimers);
+
+        await autosave.catchUp();
+
+        assert.equal(env.swalCalls.length, 0);
+        assert.equal(env.indicator.dataset.state, 'saved');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/* ── ป้ายสถานะขึ้นเฉพาะตอนที่ผู้ใช้ต้องรู้ ──────────────────────── */
+
+test('บันทึกตามปกติไม่แสดงป้ายสถานะให้รก', async () => {
+    const env = mount();
+
+    try {
+        const autosave = env.build(fakeClient(), noTimers);
+
+        assert.equal(env.indicator.hidden, true, 'ตอนเปิดหน้า');
+
+        autosave.markDirty();
+        assert.equal(env.indicator.hidden, true, 'ระหว่างรอบันทึก');
+
+        await autosave.saveNow();
+        assert.equal(env.indicator.hidden, true, 'หลังบันทึกเสร็จ');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('บันทึกไม่สำเร็จ ป้ายโผล่ขึ้นมาบอกผู้ใช้', async () => {
+    const env = mount();
+
+    try {
+        const autosave = env.build(fakeClient({saveResult: new Error('offline')}), noTimers);
+
+        await autosave.saveNow();
+
+        assert.equal(env.indicator.hidden, false);
+        assert.equal(env.indicator.dataset.state, 'error');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('มีคนบันทึกแทรก ป้ายโผล่ขึ้นมาค้างไว้จนกว่าจะรีเฟรช', async () => {
+    const env = mount({confirmDialog: false});
+
+    try {
+        const autosave = env.build(fakeClient({saveResult: conflictError()}), noTimers);
+
+        await autosave.saveNow();
+        await Promise.resolve();
+
+        assert.equal(env.indicator.hidden, false);
+        assert.equal(env.indicator.dataset.state, 'conflict');
+    } finally {
+        env.dom.cleanup();
+    }
+});

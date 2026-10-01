@@ -112,6 +112,78 @@ class AuditLogRetentionTest extends TestCase
         $this->assertDatabaseMissing('activity_logs', ['id' => $stale->id]);
     }
 
+    public function test_admin_can_delete_activity_by_date_range_and_others_cannot(): void
+    {
+        $admin = $this->user('admin');
+        $inRangeStart = $this->activityAt($admin, 'updated', '2026-09-05 09:00:00');
+        $inRangeEnd = $this->activityAt($admin, 'updated', '2026-09-06 23:30:00');
+        $outsideRange = $this->activityAt($admin, 'updated', '2026-09-10 09:00:00');
+
+        foreach (['user', 'viewer'] as $role) {
+            $this->actingAs($this->user($role))
+                ->delete(route('admin.audit.activity.deleteRange'), ['from' => '2026-09-05', 'to' => '2026-09-06'])
+                ->assertForbidden();
+        }
+
+        $this->actingAs($admin)
+            ->delete(route('admin.audit.activity.deleteRange'), ['from' => '2026-09-05', 'to' => '2026-09-06'])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('activity_logs', ['id' => $inRangeStart->id]);
+        $this->assertDatabaseMissing('activity_logs', ['id' => $inRangeEnd->id]);
+        $this->assertDatabaseHas('activity_logs', ['id' => $outsideRange->id]);
+    }
+
+    /**
+     * ต่างจาก pruneActivity() ตรงที่นี่แอดมินยืนยันช่วงวันที่เองแบบเจาะจง จึงลบเหตุการณ์
+     * สำคัญอย่างการเข้าสู่ระบบได้ด้วย ไม่ถูกกันไว้เหมือนการล้างตามนโยบายอายุอัตโนมัติ
+     */
+    public function test_delete_range_removes_critical_events_within_the_chosen_range(): void
+    {
+        $admin = $this->user('admin');
+        $login = $this->activityAt($admin, 'login', '2026-09-05 09:00:00');
+
+        $this->actingAs($admin)
+            ->delete(route('admin.audit.activity.deleteRange'), ['from' => '2026-09-05', 'to' => '2026-09-05'])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('activity_logs', ['id' => $login->id]);
+    }
+
+    public function test_delete_range_rejects_a_to_date_before_the_from_date(): void
+    {
+        $admin = $this->user('admin');
+        $kept = $this->activityAt($admin, 'updated', '2026-09-05 09:00:00');
+
+        $this->actingAs($admin)
+            ->delete(route('admin.audit.activity.deleteRange'), ['from' => '2026-09-10', 'to' => '2026-09-05'])
+            ->assertSessionHasErrors('to');
+
+        $this->assertDatabaseHas('activity_logs', ['id' => $kept->id]);
+    }
+
+    public function test_range_delete_writes_one_summary_row_that_survives_immediate_pruning(): void
+    {
+        $admin = $this->user('admin');
+        $this->activityAt($admin, 'updated', '2026-09-05 09:00:00');
+        $this->activityAt($admin, 'updated', '2026-09-06 09:00:00');
+
+        $this->actingAs($admin)
+            ->delete(route('admin.audit.activity.deleteRange'), ['from' => '2026-09-05', 'to' => '2026-09-06'])
+            ->assertRedirect();
+
+        $summary = ActivityLog::where('action', 'activity_range_deleted')->get();
+
+        $this->assertCount(1, $summary);
+        $this->assertSame(2, $summary->first()->changes['deleted']);
+        $this->assertSame($admin->id, $summary->first()->changes['deleted_by']);
+        $this->assertContains('activity_range_deleted', LogRetention::CRITICAL_ACTIONS);
+
+        // ล้างตามนโยบายทันทีต้องไม่ลบแถวสรุปที่เพิ่งเขียน
+        $this->assertSame(0, LogRetention::pruneActivity($admin));
+        $this->assertDatabaseHas('activity_logs', ['id' => $summary->first()->id]);
+    }
+
     public function test_activity_tab_reports_how_many_rows_can_be_pruned(): void
     {
         $admin = $this->user('admin');
@@ -258,6 +330,24 @@ class AuditLogRetentionTest extends TestCase
             'changes' => [],
             'ip_address' => '127.0.0.1',
             'created_at' => now()->subDays($daysAgo),
+        ]);
+    }
+
+    /**
+     * สร้างบันทึกกิจกรรมด้วยเวลาไทยที่ระบุตรง ๆ ต่างจาก activity() ที่นับถอยหลังจาก "วันนี้"
+     * เพราะเทสต์ของช่วงวันที่ต้องคุมได้ว่าวันเวลานั้นตกอยู่ฝั่งไหนของเส้นแบ่งวัน
+     */
+    private function activityAt(User $actor, string $action, string $bangkokDateTime): ActivityLog
+    {
+        return ActivityLog::create([
+            'user_id' => $actor->id,
+            'action' => $action,
+            'subject_type' => WorkOrder::class,
+            'subject_id' => 1,
+            'description' => $action.' เมื่อ '.$bangkokDateTime,
+            'changes' => [],
+            'ip_address' => '127.0.0.1',
+            'created_at' => Carbon::parse($bangkokDateTime, 'Asia/Bangkok')->utc(),
         ]);
     }
 

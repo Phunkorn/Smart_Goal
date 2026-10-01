@@ -14,7 +14,8 @@
  */
 
 import {svgTransform} from './camera.js';
-import {boundsOf} from './geometry.js';
+import {centerOf, localBoxOf} from './geometry.js';
+import {rotationOf} from './rotation.js';
 import {pointsToPathData} from './simplify.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -91,7 +92,7 @@ const applyAttributes = (node, element) => {
             break;
 
         case 'rect': {
-            const box = boundsOf(element);
+            const box = localBoxOf(element);
             node.setAttribute('x', String(box.x));
             node.setAttribute('y', String(box.y));
             node.setAttribute('width', String(box.w));
@@ -99,11 +100,12 @@ const applyAttributes = (node, element) => {
             node.setAttribute('fill', element.fill || 'none');
             node.setAttribute('stroke', element.stroke);
             node.setAttribute('stroke-width', String(element.strokeWidth));
+            applyRotation(node, element, box);
             break;
         }
 
         case 'ellipse': {
-            const box = boundsOf(element);
+            const box = localBoxOf(element);
             node.setAttribute('cx', String(box.x + box.w / 2));
             node.setAttribute('cy', String(box.y + box.h / 2));
             node.setAttribute('rx', String(box.w / 2));
@@ -111,6 +113,7 @@ const applyAttributes = (node, element) => {
             node.setAttribute('fill', element.fill || 'none');
             node.setAttribute('stroke', element.stroke);
             node.setAttribute('stroke-width', String(element.strokeWidth));
+            applyRotation(node, element, box);
             break;
         }
 
@@ -137,12 +140,13 @@ const applyAttributes = (node, element) => {
             break;
 
         case 'image': {
-            const box = boundsOf(element);
+            const box = localBoxOf(element);
             node.setAttribute('x', String(box.x));
             node.setAttribute('y', String(box.y));
             node.setAttribute('width', String(box.w));
             node.setAttribute('height', String(box.h));
             node.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+            applyRotation(node, element, box);
 
             // src มาจาก WorkspaceBoardPresenter ซึ่งสร้างจาก route ของ
             // MediaController ฉากไม่เคยเก็บ path จริงของไฟล์
@@ -156,6 +160,26 @@ const applyAttributes = (node, element) => {
         default:
             break;
     }
+};
+
+/**
+ * หมุนโหนดรอบจุดกึ่งกลางของกรอบ ตรงกับที่ geometry.js ใช้ตรวจการคลิก
+ *
+ * ต้องลบ attribute ทิ้งเมื่อมุมกลับเป็นศูนย์ โหนดถูกใช้ซ้ำข้ามการเรนเดอร์
+ * ถ้าปล่อยค่าเดิมค้างไว้ ชิ้นที่ undo กลับมาตั้งตรงจะยังเอียงอยู่บนจอ
+ */
+const applyRotation = (node, element, box) => {
+    const rotation = rotationOf(element);
+
+    if (! rotation) {
+        node.removeAttribute('transform');
+
+        return;
+    }
+
+    const center = centerOf(box);
+
+    node.setAttribute('transform', `rotate(${rotation} ${round(center.x)} ${round(center.y)})`);
 };
 
 /** เส้นทางของลูกศร: ก้านหนึ่งเส้น บวกปีกสองข้างที่ปลาย */

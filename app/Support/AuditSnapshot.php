@@ -179,6 +179,8 @@ class AuditSnapshot
             'collaborator_accepted' => 'ตอบรับเป็นผู้ร่วมงาน',
             'collaborator_rejected' => 'ปฏิเสธการเป็นผู้ร่วมงาน',
             'project_leader_assigned' => 'กำหนดหัวหน้าโปรเจกต์',
+            'project_task_added' => 'เพิ่มงานในโปรเจกต์',
+            // ไม่ถูกสร้างใหม่แล้ว (แทนด้วย project_task_added) เก็บไว้ให้ประวัติเก่ายังแสดงป้ายได้
             'project_task_request_approved' => 'อนุมัติคำขอเพิ่มงาน',
         ];
     }

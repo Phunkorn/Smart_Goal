@@ -1,0 +1,198 @@
+/*
+ * หน้ารายการของกระดานไอเดีย — หน้าเลือกแผนก และหน้ารายการกระดานในแผนก
+ *
+ * ไม่เกี่ยวกับหน้าวาดเลย แยกไฟล์ไว้เพื่อให้คนที่มาแก้แถบเครื่องมือไม่ต้องเลื่อน
+ * ผ่านการ์ดแผนกหลายร้อยบรรทัดก่อน
+ */
+
+.ws-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+    padding: 1.5rem;
+}
+
+.ws-page__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.ws-page__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ws-page__subtitle {
+    margin: 0.35rem 0 0;
+    max-width: 46rem;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: #64748b;
+}
+
+/* ── ส่วนย่อยของหน้า ─────────────────────────────────────────── */
+
+.ws-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.ws-section__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+/*
+ * การ์ดแผนกเรียงสี่คอลัมน์เต็มความกว้าง
+ *
+ * ของเดิมเป็น auto-fill minmax(15rem, 1fr) บนจอกว้างจึงได้หกถึงเจ็ดคอลัมน์
+ * การ์ดแต่ละใบเล็กจนชื่อแผนกกับจำนวนกระดานดูจมหายไปในหน้าที่ว่างทั้งหน้า
+ * ตรึงไว้สี่คอลัมน์แล้วลดจำนวนลงตามความกว้างจริงใน responsive.css
+ */
+.ws-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.15rem;
+}
+
+.ws-empty {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 2.5rem 1rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 0.85rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #94a3b8;
+}
+
+/* ── การ์ดแผนก ───────────────────────────────────────────────── */
+
+.ws-dept-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.15rem;
+    min-height: 7.5rem;
+    padding: 1.6rem 1.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.05rem;
+    background: #ffffff;
+    text-decoration: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.ws-dept-card:hover,
+.ws-dept-card:focus-visible {
+    border-color: #bfdbfe;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
+}
+
+.ws-dept-card--own {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+}
+
+.ws-dept-card__icon {
+    display: grid;
+    place-items: center;
+    width: 3.4rem;
+    height: 3.4rem;
+    flex: 0 0 auto;
+    border-radius: 0.85rem;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 1.5rem;
+}
+
+.ws-dept-card__body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.ws-dept-card__name {
+    overflow: hidden;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-dept-card__count {
+    font-size: 0.88rem;
+    color: #64748b;
+}
+
+/* ── การ์ดกระดาน ─────────────────────────────────────────────── */
+
+.ws-grid--boards {
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+}
+
+.ws-board-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    background: #ffffff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ws-board-card:hover,
+.ws-board-card:focus-within {
+    border-color: #bfdbfe;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.ws-board-card__link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    /* เว้นที่ด้านขวาให้ปุ่มจัดการ ไม่ให้ชื่อกระดานยาว ๆ วิ่งไปอยู่ใต้ปุ่ม */
+    padding: 1.1rem 4.5rem 1.1rem 1.1rem;
+    text-decoration: none;
+}
+
+.ws-board-card__title {
+    font-weight: 600;
+    color: #0f172a;
+    /* ชื่อกระดานเป็นข้อความไทยที่ไม่มีเว้นวรรคระหว่างคำ ต้องบังคับให้ตัดกลางคำได้
+       ไม่งั้นชื่อยาวคำเดียวจะดันการ์ดจนล้นกริด */
+    overflow-wrap: anywhere;
+}
+
+.ws-board-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.ws-board-card__footer {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    overflow-wrap: anywhere;
+}
+
+.ws-board-card__actions {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+    display: flex;
+    gap: 0.25rem;
+}

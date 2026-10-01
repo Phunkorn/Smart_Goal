@@ -1,0 +1,148 @@
+/*
+ * ชิ้นส่วนที่ทั้งหน้ารายการและหน้าวาดใช้ร่วมกัน — breadcrumb, ป้าย, ปุ่ม
+ *
+ * ทุกรูปแบบของ .ws-btn อยู่ในไฟล์นี้ทั้งหมด ของเดิมสองรูปแบบ (--danger กับ
+ * --ghost) หลุดไปอยู่กลางและท้ายไฟล์ก้อนเดียว ห่างจากกฎหลักหลายร้อยบรรทัด
+ * จนคนแก้มองไม่เห็นว่ามีอยู่แล้วเลยประกาศทับซ้อนกันอีก
+ */
+
+.ws-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.ws-breadcrumb a {
+    color: #64748b;
+    text-decoration: none;
+}
+
+.ws-breadcrumb a:hover,
+.ws-breadcrumb a:focus-visible {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+/* ── ป้าย ────────────────────────────────────────────────────── */
+
+.ws-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.ws-chip--blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.ws-chip--amber {
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.ws-chip--gray {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.ws-badge--own {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+/* ── ปุ่ม ────────────────────────────────────────────────────── */
+
+.ws-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.95rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.6rem;
+    background: #ffffff;
+    color: #334155;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.ws-btn:hover:not(:disabled) {
+    border-color: #94a3b8;
+}
+
+.ws-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.ws-btn--primary {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.ws-btn--primary:hover:not(:disabled) {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+}
+
+.ws-btn--ghost {
+    border-color: transparent;
+    background: transparent;
+    color: #475569;
+}
+
+.ws-btn--ghost:hover:not(:disabled) {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
+
+.ws-btn--danger {
+    color: #b91c1c;
+}
+
+.ws-btn--danger:hover:not(:disabled) {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.ws-icon-btn {
+    display: grid;
+    place-items: center;
+    /* 2.25rem = 36px ยังต่ำกว่าเป้าหมาย 44px ของการแตะบนมือถือ จึงขยายใน
+       responsive.css แทนการทำให้การ์ดบนจอใหญ่ดูหนา */
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.ws-icon-btn:hover {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.ws-icon-btn--danger:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}

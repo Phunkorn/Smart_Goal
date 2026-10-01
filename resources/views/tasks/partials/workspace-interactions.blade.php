@@ -89,6 +89,22 @@
 ?>
 <script type="application/json" data-timeline-data>@json($timelineData)</script>
 <?php
+    /*
+     * รายชื่อที่ @กล่าวถึงได้ในแต่ละงาน — ชุดเดียวกับผู้รับแจ้งเตือนคอมเมนต์ของงานใบนั้น
+     * (TaskCommentService::mentionCandidates()) ไม่ใช่ TaskCollaboratorOptions ซึ่งเป็นรายชื่อ
+     * ทั่วทั้งระบบสำหรับหน้าเพิ่มผู้ร่วมงาน คนละขอบเขตกัน
+     */
+    $taskCommentService = app(\App\Services\TaskCommentService::class);
+    $mentionableData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id =>
+        $taskCommentService->mentionCandidates($task)->map(fn ($person) => [
+            'id' => $person->id,
+            'name' => $person->name,
+            'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
+        ])->values(),
+    ]);
+?>
+<script type="application/json" data-mentionable-data>@json($mentionableData)</script>
+<?php
     $readOnlyTransitions = fn ($task) => [
         'can_edit' => false,
         'can_admin_override' => false,
@@ -126,6 +142,9 @@
         'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
         'comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
         'read_comments_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.read', $task) : null,
+        // __COMMENT__ ถูกแทนที่ด้วย id จริงฝั่ง client เหมือนรูปแบบ remove_url ของทีมด้านบน
+        'pin_comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.pin', [$task, '__COMMENT__']) : null,
+        'unpin_comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.unpin', [$task, '__COMMENT__']) : null,
         'unread_comments' => (int) ($unreadCommentCounts[$task->job_id] ?? 0),
     ]]);
 ?>
@@ -381,12 +400,38 @@
                     <button type="button" class="active" role="tab" aria-selected="true" data-timeline-tab="updates">อัปเดต</button>
                     <button type="button" role="tab" aria-selected="false" data-timeline-tab="activity">กิจกรรม</button>
                 </nav>
+                {{--
+                    แถบข้อความที่ปักหมุดไว้ — ปักได้ทีละ 1 ข้อความต่องาน กดที่ข้อความเพื่อเลื่อนไปดู
+                    ต้นฉบับ หรือกด × เพื่อเลิกปักหมุด (คนที่คอมเมนต์ได้ก็ปักหมุดได้เหมือนกัน)
+                --}}
+                <div class="task-timeline__pinned" data-comment-pinned hidden>
+                    <i class="bi bi-pin-angle-fill" aria-hidden="true"></i>
+                    <button type="button" class="task-timeline__pinned-body" data-comment-pinned-jump>
+                        <strong data-comment-pinned-author></strong>
+                        <span data-comment-pinned-note></span>
+                    </button>
+                    <button type="button" class="task-timeline__pinned-unpin" data-comment-pinned-unpin title="เลิกปักหมุด" aria-label="เลิกปักหมุด"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                </div>
                 <div class="task-workspace__timeline-items" data-timeline-items></div>
                 {{--
                     แถบพรีวิวอยู่เหนือช่องพิมพ์ ผู้ใช้จึงเห็นว่ากำลังจะส่งรูปอะไรไปก่อนกดส่ง
                     และเอาออกทีละใบได้ ไม่ใช่ต้องล้างทั้งหมดแล้วเลือกใหม่
                 --}}
                 <div class="task-timeline__previews" data-comment-image-preview hidden></div>
+                {{--
+                    แถบข้อความที่กำลังตอบกลับแบบ quote คล้าย Facebook กด × เพื่อยกเลิก
+
+                    ต้องมีป้าย "กำลังตอบกลับ" ชัดเจน ไม่ใช่แค่ชื่อคนกับข้อความลอย ๆ
+                    ไม่งั้นผู้พิมพ์จะไม่แน่ใจว่าแถบนี้คือข้อความที่กำลังตอบกลับอยู่
+                --}}
+                <div class="task-timeline__reply-preview" data-comment-reply-preview hidden>
+                    <i class="bi bi-reply-fill" aria-hidden="true"></i>
+                    <div class="task-timeline__reply-preview-body">
+                        <small>กำลังตอบกลับ</small>
+                        <span><strong data-comment-reply-author></strong> <span data-comment-reply-note></span></span>
+                    </div>
+                    <button type="button" class="task-timeline__reply-cancel" data-cancel-comment-reply title="ยกเลิกการตอบกลับ" aria-label="ยกเลิกการตอบกลับ"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                </div>
                 <div class="task-timeline__compose">
                     {{-- accept จำกัดที่หน้าจอเพื่อความสะดวก สิทธิ์และชนิดไฟล์จริงตรวจที่ TaskCommentController --}}
                     <label class="task-timeline__attach" title="แนบรูปภาพ">
@@ -394,8 +439,12 @@
                         <i class="bi bi-image" aria-hidden="true"></i>
                         <span class="visually-hidden">แนบรูปภาพ</span>
                     </label>
-                    {{-- rows=4 เพื่อให้สูงพอเห็นสิ่งที่พิมพ์ไปแล้วตั้งแต่ก่อน CSS โหลด --}}
-                    <textarea data-task-update-note maxlength="2000" rows="4" placeholder="เขียนอัปเดต..." aria-label="เขียนอัปเดต"></textarea>
+                    <div class="task-timeline__note-wrap">
+                        {{-- rows=4 เพื่อให้สูงพอเห็นสิ่งที่พิมพ์ไปแล้วตั้งแต่ก่อน CSS โหลด --}}
+                        <textarea data-task-update-note maxlength="2000" rows="4" placeholder="เขียนอัปเดต... พิมพ์ @ เพื่อกล่าวถึงเพื่อนร่วมงาน" aria-label="เขียนอัปเดต"></textarea>
+                        {{-- popover ไม่ใช่ modal: ไม่ล็อก scroll ของหน้า ปิดด้วย Escape/คลิกนอกกล่อง --}}
+                        <ul class="task-timeline__mention-menu" data-comment-mention-menu hidden role="listbox" aria-label="เลือกคนที่จะกล่าวถึง"></ul>
+                    </div>
                     <button type="button" data-submit-task-update aria-label="ส่งอัปเดต"><i class="bi bi-send-fill" aria-hidden="true"></i></button>
                 </div>
                 <p class="task-workspace__locked-notice task-workspace__locked-notice--comment" data-comment-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i><span>งานนี้ปิดแล้ว ไม่สามารถเพิ่มคอมเมนต์ได้ หากต้องการคอมเมนต์ กรุณาเปิดงานอีกครั้ง</span></p>

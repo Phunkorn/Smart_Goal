@@ -54,9 +54,9 @@
                     <label><span>วันที่เริ่ม</span><input class="form-control" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}" name="job_start_at" required><div class="invalid-feedback" data-project-task-request-error="job_start_at"></div></label>
                     <label><span>กำหนดส่ง</span><input class="form-control" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" name="job_due_at" required><div class="invalid-feedback" data-project-task-request-error="job_due_at"></div></label>
                 </div>
-                <p><i class="bi bi-info-circle"></i> ระบบจะสร้างงานเมื่อเจ้าของโปรเจกต์อนุมัติเท่านั้น</p>
+                <p><i class="bi bi-info-circle"></i> ระบบจะเพิ่มงานนี้ในโปรเจกต์ทันที และแจ้งเตือนเจ้าของโปรเจกต์ให้ทราบ</p>
             </div>
-            <footer><button type="button" class="btn btn-light" data-close-project-task-request>ยกเลิก</button><button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> ส่งคำขอ</button></footer>
+            <footer><button type="button" class="btn btn-light" data-close-project-task-request>ยกเลิก</button><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> เพิ่มงาน</button></footer>
         </form>
     </section>
 </div>

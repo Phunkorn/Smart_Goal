@@ -8,9 +8,13 @@
  * ข้อต่างที่แท้จริงมีข้อเดียว เส้นตรงกับลูกศรจำทิศทางจริง (w และ h ติดลบได้)
  * เพราะหัวลูกศรต้องรู้ว่าปลายอยู่ข้างไหน ส่วนสี่เหลี่ยมกับวงกลมทำให้กรอบเป็นบวก
  * ได้เพราะรูปร่างเหมือนกันทุกทิศ
+ *
+ * กด Shift ค้างระหว่างลากเส้นตรงหรือลูกศร ปลายเส้นจะถูกล็อกไว้ที่แนวนอน แนวตั้ง
+ * หรือแนวทแยง 45 องศา ค่า constrain มาจาก pointer.js ทุกครั้งที่ขยับหรือกด/ปล่อย
+ * Shift จึงล็อกและปลดได้กลางท่าลากโดยไม่ต้องเริ่มใหม่
  */
 
-import {boundsFromPoints} from '../geometry.js';
+import {boundsFromPoints, constrainToAngle} from '../geometry.js';
 
 /** ขนาดต่ำสุดที่นับว่าผู้ใช้ตั้งใจสร้างรูปทรง ไม่ใช่แค่คลิกพลาด (พิกเซลบนหน้าจอ) */
 const MIN_DRAG_PX = 4;
@@ -28,20 +32,20 @@ export const shapeTool = (type) => ({
         };
     },
 
-    onPointerMove({point, draft}) {
+    onPointerMove({point, draft, constrain}) {
         if (! draft) {
             return undefined;
         }
 
-        return {preview: shapeOf(type, draft, point)};
+        return {preview: shapeOf(type, draft, endPointFor(type, draft, point, constrain))};
     },
 
-    onPointerUp({point, draft, camera, scene, idFactory, addElement}) {
+    onPointerUp({point, draft, constrain, camera, scene, idFactory, addElement}) {
         if (! draft) {
             return {draft: null};
         }
 
-        const shape = shapeOf(type, draft, point);
+        const shape = shapeOf(type, draft, endPointFor(type, draft, point, constrain));
         const threshold = MIN_DRAG_PX / camera.scale;
 
         // คลิกเปล่าโดยไม่ลากต้องไม่ทิ้งรูปทรงขนาดศูนย์ไว้บนกระดาน ซึ่งมองไม่เห็น
@@ -61,6 +65,9 @@ export const shapeTool = (type) => ({
         };
     },
 });
+
+const endPointFor = (type, draft, point, constrain) =>
+    (constrain && isDirectional(type) ? constrainToAngle(draft.origin, point) : point);
 
 const shapeOf = (type, draft, point) => {
     const box = isDirectional(type)

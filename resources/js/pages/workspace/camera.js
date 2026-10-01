@@ -84,6 +84,25 @@ export const fitToBounds = (camera, bounds, viewport, limits, padding = 48) => {
     };
 };
 
+/**
+ * เลื่อนกล้องให้กรอบที่กำหนดมาอยู่กึ่งกลางจอ โดยไม่แตะระดับซูม
+ *
+ * ต่างจาก fitToBounds ที่คำนวณระดับซูมใหม่ให้พอดีจอด้วย ตัวนี้มีไว้สำหรับคำสั่ง
+ * "เลื่อนไปหาวัตถุ" ซึ่งผู้ใช้ต้องการหาของที่หลงทางโดยไม่เสียระดับซูมที่ตั้งไว้
+ * ถ้าซูมเปลี่ยนไปด้วย ผู้ใช้จะต้องมาไล่ปรับซูมกลับทุกครั้ง
+ */
+export const centerOnBounds = (camera, bounds, viewport) => {
+    if (! bounds) {
+        return camera;
+    }
+
+    return {
+        ...camera,
+        x: viewport.width / 2 - (bounds.x + bounds.w / 2) * camera.scale,
+        y: viewport.height / 2 - (bounds.y + bounds.h / 2) * camera.scale,
+    };
+};
+
 /** ค่า transform สำหรับกลุ่ม <g> ของชั้น SVG */
 export const svgTransform = (camera) =>
     `translate(${camera.x} ${camera.y}) scale(${camera.scale})`;

@@ -1,4 +1,4 @@
-import {canComposeComment, commentDeepLink, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
+import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
 import {modalStack} from '../../components/modal-stack.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
 
@@ -12,8 +12,32 @@ import {shouldSendUpdate} from './task-workspace-model.js';
 
     const timeline = JSON.parse(timelineNode.textContent || '{}');
     const management = JSON.parse(managementNode.textContent || '{}');
+    const mentionable = JSON.parse(document.querySelector('[data-mentionable-data]')?.textContent || '{}');
     let taskId = null;
     let tab = 'updates';
+    let pendingReply = null;
+    let mentionState = null;
+
+    /*
+     * ข้อความที่พิมพ์ค้างไว้ยังไม่ส่ง แยกเก็บตามงาน (taskId -> ข้อความ)
+     *
+     * panel และ textarea เป็น DOM ชุดเดียวที่ถูกใช้ซ้ำกับทุกงาน (ดู taskId ด้านบน)
+     * ถ้าสลับงานโดยไม่ย้ายค่าเดิมออกก่อน ข้อความที่พิมพ์ค้างไว้ของงานก่อนหน้าจะไปโผล่
+     * ในกล่องพิมพ์ของงานที่เพิ่งเปิด เหมือนเป็นฉบับร่างของงานใหม่ทั้งที่ยังไม่ได้พิมพ์เลย
+     */
+    const drafts = {};
+
+    const switchComposeDraft = (nextTaskId) => {
+        const input = panel.querySelector('[data-task-update-note]');
+        if (input && taskId) drafts[taskId] = input.value;
+
+        // รูปที่เลือกไว้และการ์ดตอบกลับผูกกับงานก่อนหน้าเสมอ พกไปงานอื่นไม่ได้ ต้องล้างทุกครั้งที่สลับ
+        clearImages();
+        cancelReply();
+        closeMentionMenu();
+
+        if (input) input.value = drafts[nextTaskId] || '';
+    };
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -40,14 +64,67 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         return `<div class="task-timeline-entry__images" data-comment-images>${images.map((image) => `<button type="button" class="task-timeline-entry__image" data-open-comment-image="${escapeHtml(image.url)}" data-image-name="${escapeHtml(image.name)}" title="ดูรูป ${escapeHtml(image.name)}"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name)}" loading="lazy"></button>`).join('')}</div>`;
     };
 
+    /**
+     * ไฮไลต์ @ชื่อ ในข้อความ — แยกช่วงจาก splitMentionSegments() (pure function ไม่รู้จัก DOM)
+     * แล้วค่อย escape ทีละชิ้นที่นี่ เพื่อไม่ให้ข้อความของผู้ใช้ปนกับ HTML ที่ห่อ mention
+     */
+    const noteHtml = (item) => {
+        const note = String(item.note ?? '');
+        if (!note.trim()) return '';
+
+        const names = (Array.isArray(item.mentions) ? item.mentions : []).map((mention) => mention.name);
+        const html = splitMentionSegments(note, names)
+            .map((segment) => segment.mention
+                ? `<span class="task-timeline-mention">${escapeHtml(segment.text)}</span>`
+                : escapeHtml(segment.text))
+            .join('');
+
+        return `<p>${html}</p>`;
+    };
+
+    // ข้อความต้นทางที่กำลังตอบกลับ กดแล้วเลื่อนไปดูต้นฉบับในไทม์ไลน์
+    const replyQuote = (item) => item.reply_to
+        ? `<button type="button" class="task-timeline-entry__quote" data-jump-to-comment="${escapeHtml(item.reply_to.id)}"><strong>${escapeHtml(item.reply_to.author)}</strong><span>${escapeHtml(item.reply_to.note)}</span></button>`
+        : '';
+
+    // ปุ่มตอบกลับ/ปักหมุด แสดงเฉพาะคนที่คอมเมนต์ได้ (สิทธิ์เดียวกัน ตามที่ตกลงไว้)
+    const commentActions = (item, taskManagement) => {
+        if (item.is_comment !== true || !canComposeComment(taskManagement)) return '';
+
+        const pinAttr = item.pinned ? 'data-unpin-comment' : 'data-pin-comment';
+        const pinLabel = item.pinned ? 'เลิกปักหมุด' : 'ปักหมุด';
+        const pinIcon = item.pinned ? 'bi-pin-angle-fill' : 'bi-pin-angle';
+
+        return `<div class="task-timeline-entry__actions">
+            <button type="button" data-reply-comment="${escapeHtml(item.id)}" title="ตอบกลับ" aria-label="ตอบกลับ"><i class="bi bi-reply-fill" aria-hidden="true"></i></button>
+            <button type="button" ${pinAttr}="${escapeHtml(item.id)}" title="${pinLabel}" aria-label="${pinLabel}"><i class="bi ${pinIcon}" aria-hidden="true"></i></button>
+        </div>`;
+    };
+
     // ฟองที่มีแต่รูปไม่ต้องมีย่อหน้าข้อความว่างมาดันความสูง
-    const entry = (item) => `<article class="task-timeline-entry${item.is_comment === true && item.is_mine ? ' is-mine' : ''}" data-comment-id="${escapeHtml(item.id)}"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div class="task-timeline-entry__content"><strong>${escapeHtml(item.author)}</strong><div class="task-timeline-entry__bubble">${String(item.note ?? '').trim() ? `<p>${escapeHtml(item.note)}</p>` : ''}${commentImages(item)}</div><small>${escapeHtml(item.at)}</small>${readReceipts(item)}</div></article>`;
+    const entry = (item) => `<article class="task-timeline-entry${item.is_comment === true && item.is_mine ? ' is-mine' : ''}${item.pinned ? ' is-pinned' : ''}" data-comment-id="${escapeHtml(item.id)}"><span class="task-timeline-entry__avatar">${item.avatar_url ? `<img src="${escapeHtml(item.avatar_url)}" alt="">` : escapeHtml(Array.from(item.author || '?')[0] || '?')}</span><div class="task-timeline-entry__content"><strong>${escapeHtml(item.author)}</strong><div class="task-timeline-entry__bubble">${item.pinned ? '<span class="task-timeline-entry__pin-flag"><i class="bi bi-pin-angle-fill" aria-hidden="true"></i> ปักหมุดไว้</span>' : ''}${replyQuote(item)}${noteHtml(item)}${commentImages(item)}</div><small>${escapeHtml(item.at)}</small>${commentActions(item, management[String(taskId)])}${readReceipts(item)}</div></article>`;
     const compose = panel.querySelector('.task-timeline__compose');
     const lockedNotice = panel.querySelector('[data-comment-locked]');
 
     const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม' : 'ยังไม่มีรายการอัปเดต';
 
     const isNearBottom = (items) => items.scrollHeight - items.scrollTop - items.clientHeight <= 48;
+
+    const pinnedBanner = () => panel.querySelector('[data-comment-pinned]');
+
+    const renderPinnedBanner = () => {
+        const banner = pinnedBanner();
+        if (!banner) return;
+
+        const pinned = (timeline[String(taskId)]?.updates || []).find((item) => item.pinned === true);
+        banner.hidden = !pinned;
+        if (!pinned) return;
+
+        banner.querySelector('[data-comment-pinned-author]').textContent = pinned.author;
+        banner.querySelector('[data-comment-pinned-note]').textContent = String(pinned.note || '').slice(0, 140);
+        banner.querySelector('[data-comment-pinned-jump]').dataset.jumpToComment = pinned.id;
+        banner.querySelector('[data-comment-pinned-unpin]').dataset.unpinComment = pinned.id;
+    };
 
     const render = ({scroll = 'preserve'} = {}) => {
         const entries = timeline[String(taskId)]?.[tab] || [];
@@ -76,6 +153,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
                 || canCompose
                 || taskManagement?.transitions?.is_final !== true;
         }
+        if (tab === 'updates') renderPinnedBanner();
     };
 
     const clearBadges = () => {
@@ -147,10 +225,15 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         || trigger?.closest('[data-board-task]')?.dataset.taskId;
 
     document.addEventListener('click', (event) => {
+        // popover ของ @mention ปิดเมื่อคลิกนอกช่องพิมพ์และนอกตัวเมนูเอง
+        if (mentionState && !event.target.closest('.task-timeline__note-wrap')) closeMentionMenu();
+
         const trigger = event.target.closest('[data-open-task-modal]');
         const openedTaskId = triggerTaskId(trigger);
         if (openedTaskId) {
-            taskId = String(openedTaskId);
+            const nextTaskId = String(openedTaskId);
+            if (nextTaskId !== taskId) switchComposeDraft(nextTaskId);
+            taskId = nextTaskId;
             // ปุ่มคอลัมน์คอมเมนต์ประกาศแท็บที่ต้องการไว้ที่ตัวมันเอง เปิดจากชื่องานยังเป็นการเปิดงานเฉย ๆ
             selectUpdates(trigger.dataset.taskTab === 'updates' ? 'comment-icon' : 'modal');
         }
@@ -161,6 +244,82 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         render({scroll: tab === 'updates' ? 'bottom' : 'preserve'});
         if (shouldMarkCommentsRead('tab', tab)) markRead();
     });
+
+    const replyPreviewNode = () => panel.querySelector('[data-comment-reply-preview]');
+
+    const startReply = (source) => {
+        pendingReply = {id: source.id, author: source.author, note: source.note};
+        const box = replyPreviewNode();
+        if (box) {
+            box.hidden = false;
+            box.querySelector('[data-comment-reply-author]').textContent = source.author;
+            box.querySelector('[data-comment-reply-note]').textContent = String(source.note || '').slice(0, 140);
+        }
+        panel.querySelector('[data-task-update-note]')?.focus();
+    };
+
+    const cancelReply = () => {
+        pendingReply = null;
+        const box = replyPreviewNode();
+        if (box) box.hidden = true;
+    };
+
+    const scrollToComment = (id) => {
+        const target = panel.querySelector(`[data-comment-id="${CSS.escape(String(id))}"]`);
+        if (!target) return;
+        target.scrollIntoView({block: 'center', behavior: 'smooth'});
+        target.classList.add('is-flash');
+        setTimeout(() => target.classList.remove('is-flash'), 1200);
+    };
+
+    /** อัปเดตสถานะปักหมุดใน state ฝั่ง client ให้ตรงกับสิ่งที่ server ยืนยันกลับมา (ปักได้ทีละ 1 ข้อความ) */
+    const applyPinResult = (comment) => {
+        (timeline[String(taskId)]?.updates || []).forEach((item) => {
+            if (item.is_comment !== true) return;
+            item.pinned = comment.pinned === true && String(item.id) === String(comment.id);
+            if (String(item.id) === String(comment.id)) item.pinned_at = comment.pinned_at;
+        });
+    };
+
+    const togglePin = async (commentId, pin) => {
+        const template = pin ? management[String(taskId)]?.pin_comment_url : management[String(taskId)]?.unpin_comment_url;
+        const url = template?.replace('__COMMENT__', commentId);
+        if (!url) return;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+            });
+            if (!response.ok) throw new Error();
+            const payload = await response.json();
+            applyPinResult(payload.comment);
+            render();
+        } catch (_) {
+            window.Swal?.fire({icon: 'error', title: pin ? 'ปักหมุดไม่สำเร็จ' : 'เลิกปักหมุดไม่สำเร็จ'});
+        }
+    };
+
+    panel.addEventListener('click', (event) => {
+        const replyButton = event.target.closest('[data-reply-comment]');
+        if (replyButton) {
+            const source = (timeline[String(taskId)]?.updates || [])
+                .find((item) => String(item.id) === String(replyButton.dataset.replyComment));
+            if (source) startReply(source);
+            return;
+        }
+
+        const pinButton = event.target.closest('[data-pin-comment]');
+        if (pinButton) { togglePin(pinButton.dataset.pinComment, true); return; }
+
+        const unpinButton = event.target.closest('[data-unpin-comment]');
+        if (unpinButton) { togglePin(unpinButton.dataset.unpinComment, false); return; }
+
+        const jumpButton = event.target.closest('[data-jump-to-comment]');
+        if (jumpButton) { scrollToComment(jumpButton.dataset.jumpToComment); return; }
+    });
+
+    panel.querySelector('[data-cancel-comment-reply]')?.addEventListener('click', cancelReply);
 
     /**
      * ปุ่มส่งและปุ่ม Enter ใช้เส้นทางเดียวกันทั้งหมด รวมถึงการกันกดซ้ำ
@@ -337,6 +496,11 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             const body = new FormData();
             body.append('message', message);
             pendingImages.forEach((file) => body.append('images[]', file));
+            if (pendingReply) body.append('reply_to_id', pendingReply.id);
+            extractMentionIds(message, mentionable[String(taskId)] || [])
+                .forEach((id) => body.append('mentions[]', id));
+            // "@all" คือคำสำรอง ไม่ใช่ผู้ใช้จริง เซิร์ฟเวอร์คำนวณรายชื่อผู้รับใหม่เองจาก mention_all
+            if (mentionsEveryone(message)) body.append('mention_all', '1');
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -348,6 +512,8 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             prependComment(timeline, taskId, payload.comment);
             input.value = '';
             clearImages();
+            cancelReply();
+            closeMentionMenu();
             tab = 'updates';
             render({scroll: 'bottom'});
             markRead();
@@ -360,8 +526,125 @@ import {shouldSendUpdate} from './task-workspace-model.js';
 
     panel.querySelector('[data-submit-task-update]')?.addEventListener('click', sendUpdate);
 
+    /*
+     * @mention — popover เดียว ปิดด้วย Escape/คลิกนอกกล่อง ไม่ล็อก scroll ของหน้า
+     * ตำแหน่งอิงกับ .task-timeline__note-wrap (CSS) ไม่ใช้พิกัด caret จริงเพราะ
+     * textarea ธรรมดาไม่มี API อ่านตำแหน่ง caret เป็นพิกเซลได้โดยตรง
+     */
+    const mentionMenu = () => panel.querySelector('[data-comment-mention-menu]');
+
+    const closeMentionMenu = () => {
+        mentionState = null;
+        const menu = mentionMenu();
+        if (menu) { menu.hidden = true; menu.innerHTML = ''; }
+    };
+
+    /*
+     * ตัวเลือกกล่าวถึงทุกคนในงานนี้ — "all" เป็นคำสำรอง ไม่ใช่ชื่อผู้ใช้จริง ใช้ label
+     * แสดงในเมนูแทน name เพื่อไม่ให้ข้อความที่แทรกจริง (@all) มีคำอธิบายยาวปนไปด้วย
+     * แสดงเฉพาะตอนมีคนอื่นในงานให้กล่าวถึงจริง ๆ (ไม่งั้นกล่าวถึงทุกคนก็คือกล่าวถึงตัวเองคนเดียว)
+     */
+    const ALL_MENTION = {id: 'all', name: 'all', label: 'ทุกคนในงานนี้'};
+
+    const renderMentionMenu = (matches) => {
+        const menu = mentionMenu();
+        if (!menu) return;
+        if (!matches.length) { menu.hidden = true; menu.innerHTML = ''; return; }
+
+        menu.innerHTML = matches.map((person, index) => {
+            const label = person.label ?? person.name;
+            return `<li role="option" class="${index === 0 ? 'is-active' : ''}" data-mention-option="${escapeHtml(person.id)}" data-mention-name="${escapeHtml(person.name)}">${person.avatar_url ? `<img src="${escapeHtml(person.avatar_url)}" alt="">` : `<span class="task-timeline-mention-fallback">${escapeHtml(Array.from(label || '?')[0] || '?')}</span>`}<span>${escapeHtml(label)}</span></li>`;
+        }).join('');
+        menu.hidden = false;
+    };
+
+    const refreshMentionMenu = () => {
+        const input = panel.querySelector('[data-task-update-note]');
+        if (!input) return;
+
+        const found = mentionQueryAt(input.value, input.selectionStart);
+        if (!found) { closeMentionMenu(); return; }
+
+        mentionState = found;
+        const candidates = mentionable[String(taskId)] || [];
+        const withAll = candidates.length ? [ALL_MENTION, ...candidates] : candidates;
+        renderMentionMenu(filterMentionCandidates(withAll, found.query));
+    };
+
+    const selectMention = (person) => {
+        const input = panel.querySelector('[data-task-update-note]');
+        if (!input || !mentionState) return;
+
+        const {text, caret} = insertMention(input.value, person, mentionState.start, input.selectionStart);
+        input.value = text;
+        input.setSelectionRange(caret, caret);
+        closeMentionMenu();
+        input.focus();
+    };
+
+    panel.addEventListener('input', (event) => {
+        if (!event.target.matches('[data-task-update-note]')) return;
+        refreshMentionMenu();
+    });
+
+    // mousedown (ไม่ใช่ click) กัน blur ของ textarea ปิดเมนูไปก่อนที่ click จะทันลงทะเบียน
+    panel.addEventListener('mousedown', (event) => {
+        if (event.target.closest('[data-mention-option]')) event.preventDefault();
+    });
+
+    panel.addEventListener('click', (event) => {
+        const option = event.target.closest('[data-mention-option]');
+        if (!option) return;
+        selectMention({id: Number(option.dataset.mentionOption), name: option.dataset.mentionName});
+    });
+
+    /** true = ปุ่มถูกใช้นำทาง/เลือกใน mention popover แล้ว ไม่ต้องตกไปเป็น Enter-ส่งข้อความต่อ */
+    const handleMentionKeydown = (event) => {
+        const menu = mentionMenu();
+        if (!mentionState || !menu || menu.hidden) return false;
+
+        const options = [...menu.querySelectorAll('[data-mention-option]')];
+        if (!options.length) return false;
+
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const activeIndex = options.findIndex((option) => option.classList.contains('is-active'));
+            const nextIndex = event.key === 'ArrowDown'
+                ? (activeIndex + 1) % options.length
+                : (activeIndex - 1 + options.length) % options.length;
+            options.forEach((option, index) => option.classList.toggle('is-active', index === nextIndex));
+            return true;
+        }
+
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            const activeIndex = options.findIndex((option) => option.classList.contains('is-active'));
+            const active = options[activeIndex] || options[0];
+            event.preventDefault();
+            selectMention({id: Number(active.dataset.mentionOption), name: active.dataset.mentionName});
+            return true;
+        }
+
+        return false;
+    };
+
+    /*
+     * Escape ของเมนู @mention ต้องปิดเฉพาะเมนู ไม่ใช่ทั้ง Task Workspace
+     *
+     * modalStack ดัก Escape ที่ document ในเฟส capture เพื่อปิดโมดัลชั้นบนสุดเสมอ (เหตุผลเดียวกับ
+     * components/date-picker.js) ถ้าเราฟังแค่ที่ textarea ตามปกติ (bubble phase) เหตุการณ์จะไม่มีวัน
+     * ไปถึงเลย เพราะ modalStack เห็นก่อนระหว่างเดินลงมา ฟังที่ window ในเฟส capture จึงมาก่อน
+     * document แน่นอนไม่ว่าจะผูก listener ก่อนหรือหลัง แล้ว stopPropagation กันไม่ให้ modalStack เห็น
+     */
+    document.defaultView?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || !mentionState) return;
+        event.stopPropagation();
+        event.preventDefault();
+        closeMentionMenu();
+    }, true);
+
     // ผูกที่ textarea ตัวเดียว ไม่ดัก Enter ระดับ document เพื่อไม่ให้กระทบช่องกรอกอื่นในโมดัล
     panel.querySelector('[data-task-update-note]')?.addEventListener('keydown', (event) => {
+        if (handleMentionKeydown(event)) return;
         if (!shouldSubmitOnEnter(event)) return;
         // Shift+Enter ไม่เข้าเงื่อนไขนี้ จึงตกไปเป็นการขึ้นบรรทัดใหม่ตามปกติของเบราว์เซอร์
         event.preventDefault();

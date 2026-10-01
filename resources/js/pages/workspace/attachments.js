@@ -73,12 +73,13 @@ const firstErrorMessage = (payload) => {
  * ใช้ input ที่ซ่อนไว้แทน dropzone เต็มหน้า เพราะผืนผ้าใบต้องรับ pointer event
  * ทั้งหมดไว้เอง การวาง overlay รับไฟล์ทับไว้จะไปขวางการวาด
  *
- * รองรับการวางรูปจากคลิปบอร์ดด้วย ซึ่งเป็นวิธีที่คนใช้บ่อยที่สุดตอนระดมสมอง
- * (แคปหน้าจอแล้ววางเลย)
+ * การวางรูปจากคลิปบอร์ด (แคปหน้าจอแล้ว Ctrl+V) ไม่ได้ฟังที่นี่ clipboard-events.js
+ * เป็นผู้ฟังและเรียก upload() ตัวเดียวกับปุ่มแนบรูป
+ *
+ * onInsert ได้รับรูปทั้งชุดในครั้งเดียว การแนบหลายรูปพร้อมกันจึงย้อนกลับได้ในก้าวเดียว
  */
 export const initAttachments = ({
     root,
-    stage,
     doc = root?.ownerDocument || globalThis.document,
     uploadUrl,
     fetchImpl = globalThis.fetch,
@@ -100,7 +101,9 @@ export const initAttachments = ({
         try {
             const attachments = await uploadImages(uploadUrl, files, {fetchImpl, doc});
 
-            attachments.forEach((attachment) => onInsert?.(attachment));
+            if (attachments.length) {
+                onInsert?.(attachments);
+            }
         } catch (error) {
             await swal?.fire({icon: 'error', title: 'แนบรูปไม่สำเร็จ', text: error.message});
         }
@@ -116,20 +119,13 @@ export const initAttachments = ({
         });
     }
 
-    // วางรูปจากคลิปบอร์ดลงบนผืนผ้าใบ
-    stage?.addEventListener('paste', async (event) => {
-        const files = Array.from(event.clipboardData?.files || []);
-
-        if (files.length) {
-            event.preventDefault();
-            await handleFiles(files);
-        }
-    });
-
     return {
         /** เปิดหน้าต่างเลือกไฟล์ (เรียกจากปุ่มบนแถบเครื่องมือ) */
         open() {
             input?.click();
         },
+
+        /** อัปโหลดแล้ววางรูป (ใช้โดยการวางจากคลิปบอร์ด) */
+        upload: (files) => handleFiles(files),
     };
 };

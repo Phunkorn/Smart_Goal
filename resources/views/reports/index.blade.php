@@ -30,12 +30,5 @@
         @endforeach
     </section>
 
-    <aside class="report-landing__note" aria-label="คำแนะนำการใช้งาน">
-        <i class="bi bi-lightbulb" aria-hidden="true"></i>
-        <div>
-            <strong>คำแนะนำ</strong>
-            <p>รายงานปฏิบัติงานตอบคำถามว่างานประจำของวันนี้ตรวจไปแล้วหรือยัง ส่วนรายงานอื่นใช้ดูผลงานย้อนหลัง</p>
-        </div>
-    </aside>
 </div>
 @endsection

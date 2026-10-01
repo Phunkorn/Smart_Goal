@@ -1,16 +1,18 @@
-.settings-telegram__header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.settings-telegram__summary { display: flex; align-items: center; gap: 12px; min-width: 0; }
+/* การ์ดอยู่ในคอลัมน์ขวาที่แคบ จึงวางคำอธิบายไว้บนและปุ่มชิดขวาด้านล่าง */
+.settings-telegram__header { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.settings-telegram__summary { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .settings-telegram__icon { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: var(--accent-dim); color: var(--accent-strong); font-size: 1.05rem; }
-.settings-telegram__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
-.settings-telegram__actions .btn { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; border-radius: var(--settings-control-radius); font-size: .82rem; font-weight: 500; }
+.settings-telegram__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }.settings-telegram__actions .btn { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; border-radius: var(--settings-control-radius); font-size: .82rem; font-weight: 500; }
 
-.settings-telegram__state { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+/* กล่องสถานะและประกาศอยู่ใต้หัวการ์ด ต้องเว้นขอบให้เท่ากับหัวการ์ด */
+.settings-telegram > .settings-security__notice { margin: 16px 20px 20px; }
+.settings-telegram__state { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin: 16px 20px 20px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
 .settings-telegram__badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .73rem; font-weight: 500; }
 .settings-telegram__badge--on { background: var(--accent-dim); color: var(--accent-strong); }
 .settings-telegram__badge--off { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); }
 .settings-telegram__account { min-width: 0; color: var(--text-muted); font-size: .8rem; }
 .settings-telegram__account strong { color: var(--text); font-weight: 500; }
-.settings-telegram__toggle { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.settings-telegram__toggle { display: flex; width: 100%; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
 .settings-telegram__toggle .form-check-input { margin: 0; cursor: pointer; }
 .settings-telegram__toggle .form-check-label { color: var(--text-muted); font-size: .8rem; font-weight: 400; cursor: pointer; }
 
@@ -32,10 +34,9 @@
 .settings-telegram-waiting { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-muted); font-size: .8rem; }
 
 @media (max-width: 700px) {
-    .settings-telegram__header { align-items: stretch; flex-direction: column; }
-    .settings-telegram__actions { flex-direction: column; }
-    .settings-telegram__actions .btn { width: 100%; justify-content: center; }
-    .settings-telegram__toggle { margin-left: 0; width: 100%; }
+    .settings-telegram > .settings-security__notice, .settings-telegram__state { margin: 14px 16px 16px; }
+    .settings-telegram__actions { flex-direction: column; align-items: stretch; }
+    .settings-telegram__actions form, .settings-telegram__actions .btn { width: 100%; justify-content: center; }
     .settings-telegram-modal .modal-dialog { margin: 12px; }
     .settings-telegram-modal__header { align-items: flex-start; padding: 18px; }
     .settings-telegram-modal .modal-body { padding: 18px; }

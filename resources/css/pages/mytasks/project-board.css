@@ -792,82 +792,58 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
 }
 
 /*
- * ปิด Horizontal Scrollbar เฉพาะมุมมองบอร์ดของหน้า "งานของฉัน"
+ * บอร์ดเคยปิด scrollbar แนวนอนแล้วให้ทุกคอลัมน์ (ยกเว้นชื่องาน) เป็น minmax(0, Xpx)
+ * เพื่อยุบพอดีจอแทนการเลื่อน แต่คอลัมน์ชื่องานเป็น minmax(0, 1fr) ไม่มีขั้นต่ำ
+ * พอพื้นที่จริงแคบกว่าผลรวมที่คอลัมน์อื่นต้องการ (เช่นตอน Sidebar กางบนจอ ~992-1300px)
+ * คอลัมน์ชื่องานจึงถูกบีบจนเหลือ 0 ชื่องานหายไปทั้งแถว
  *
- * ประกาศไว้ท้ายไฟล์เพราะกฎ overflow-x:auto เดิมมี specificity เท่ากัน (บรรทัด 285)
- * และสูงกว่าเมื่อ Sidebar กางอยู่ (บรรทัด 432) จึงต้องอาศัยทั้ง selector และลำดับ source
- *
- * ไม่แตะ overflow ของ html/body และไม่แตะ .notion-table-scroll ของมุมมองอื่น
- * ตาราง ปฏิทิน ประชุม และ Kanban ยังใช้กฎเดิมทุกประการ
+ * เปลี่ยนมาเลื่อนแนวนอนได้เหมือนมุมมองตาราง (table.css) แทน: คอลัมน์อื่นกลับไปเป็น
+ * ความกว้างคงที่ (ไม่ยุบอีกต่อไป) คอลัมน์ชื่องานมีขั้นต่ำ 140px กันไม่ให้หายไป
+ * ผลรวมของแถวจึงมีขั้นต่ำจริงที่ .board-reference-list ประกาศเป็น min-width และ
+ * .notion-table-scroll ทำหน้าที่เลื่อนเมื่อผลรวมนั้นกว้างกว่าพื้นที่จริง
  */
 .my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
-    overflow-x: hidden;
+    overflow-x: auto;
 }
 
-.my-tasks-page .notion-database[data-view="board"] .project-board,
-.my-tasks-page .notion-database[data-view="board"] .board-reference-list {
-    max-width: 100%;
-    min-width: 0;
-}
-
-/*
- * เมื่อไม่มี scrollbar แล้ว ส่วนที่กว้างเกินกรอบจะถูกตัดทิ้งจากขวาสุด ซึ่งคือคอลัมน์ปุ่มจัดการ
- * กริดเดิมต้องการอย่างน้อย 1068px (คอลัมน์ชื่องาน 300px + คอลัมน์คงที่ 768px)
- * ขณะที่พื้นที่จริงคือ viewport - sidebar(252px หรือ 0) - padding ของ .main (56px)
- * จึงขาดในช่วง 761-823px และช่วง 992-1005px ตอน Sidebar กาง
- *
- * แก้โดยให้คอลัมน์ชื่องานและคอลัมน์กลางยุบได้ (ขอบล่าง 0) แต่คงคอลัมน์ปุ่มไว้เท่าเดิม
- * ผลรวม fixed tracks คงเดิม โดยย้ายพื้นที่บางส่วนจากความสำคัญให้ผู้รับผิดชอบอ่านได้หนึ่งบรรทัด
- */
-/*
- * คอลัมน์ "ผู้ร่วมงาน" ต้องกว้างเท่าเนื้อหาที่กว้างที่สุดที่มันวาดได้จริง
- *
- * เนื้อหาสูงสุดคือ avatar 2 ใบซ้อนกัน + ป้าย "+N" + ปุ่มจัดการผู้ร่วมงาน รวมประมาณ 96px
- * บวก padding ของช่องอีก 16px เป็น 112px แต่ของเดิมกันไว้เพียง 92px
- * grid item ไม่ตัดเนื้อหาที่ล้นให้เอง กลุ่ม avatar จึงยื่นไปทับคอลัมน์ "ไฟล์แนบ" ที่อยู่ถัดไป
- * จนไอคอนคลิปหนีบถูกบังและกดไม่ได้
- *
- * พื้นที่ที่เพิ่มให้มาจากคอลัมน์วันที่ (ป้ายยาวสุดคือ "3 ก.ย. 2569") และคอลัมน์ความสำคัญ
- * ผลรวมของ track คงที่จึงแคบลงกว่าเดิม คอลัมน์ชื่องานได้พื้นที่คืนไปด้วย
- */
 .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
 .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
     --board-columns:
-        minmax(0, 1fr)
-        minmax(0, 122px)
-        minmax(0, 144px)
-        minmax(0, 105px)
-        minmax(0, 105px)
-        minmax(0, 105px)
-        minmax(0, 87px)
-        minmax(0, 129px)
-        minmax(0, 76px)
-        minmax(0, 81px)
+        minmax(140px, 1fr)
+        122px
+        144px
+        105px
+        105px
+        105px
+        87px
+        129px
+        76px
+        81px
         38px;
+}
+
+.my-tasks-page .notion-database[data-view="board"] .board-reference-list {
+    min-width: 1140px;
 }
 
 @media (min-width: 992px) {
     body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
-        overflow-x: hidden;
-    }
-
-    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
-        min-width: 0;
+        overflow-x: auto;
     }
 
     body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
 body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
         --board-columns:
-        minmax(0, 1fr)
-        minmax(0, 113px)
-        minmax(0, 135px)
-        minmax(0, 100px)
-        minmax(0, 100px)
-        minmax(0, 100px)
-        minmax(0, 83px)
-        minmax(0, 124px)
-        minmax(0, 72px)
-        minmax(0, 76px)
+        minmax(140px, 1fr)
+        113px
+        135px
+        100px
+        100px
+        100px
+        83px
+        124px
+        72px
+        76px
         34px;
     }
 }

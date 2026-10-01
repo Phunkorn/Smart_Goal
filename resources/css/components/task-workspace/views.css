@@ -384,6 +384,27 @@
     white-space: nowrap;
 }
 
+/*
+ * แท็บเล็ต/จอแคบกว่าเดสก์ท็อปกว้าง: แถบมุมมองขึ้นแถวของตัวเอง ตัวกรองและปุ่มลงแถวที่สอง
+ *
+ * ค่า 1199.98px เดิมประเมินว่าแถวเดียวต้องการแค่ราว 1,000px แต่ความยาวจริงของ
+ * "ทุกสถานะ" + "เฉพาะงานของฉัน" + "โปรเจกต์ที่เสร็จแล้ว N" + "สร้างงาน" รวมกับแถบมุมมอง
+ * เกินกว่านั้น ทำให้ที่ ~1200-1350px (Sidebar กาง) ปุ่ม "สร้างงาน" ยังหลุดขวาจอ
+ *
+ * ยกเพดานให้กว้างขึ้นมากพร้อมเผื่อระยะปลอดภัย เพราะพื้นที่จริงยังขึ้นกับสถานะ Sidebar
+ * (กาง 252px / ย่อ 72px) ซึ่ง media query ตาม viewport เพียงอย่างเดียวคำนวณแทนไม่ได้แม่นยำ
+ * เลือกใช้ค่าที่กว้างเกินพอสำหรับทั้งสองสถานะ Sidebar แทนการคำนวณจุดตัดที่แม่นยำที่สุด
+ */
+@media (min-width: 761px) and (max-width: 1749.98px) {
+    .my-tasks-page .mytasks-view-controls {
+        flex-wrap: wrap;
+    }
+
+    .my-tasks-page .mytasks-view-controls > .notion-viewbar {
+        flex: 1 0 100%;
+    }
+}
+
 @media (max-width: 760px) {
     .my-tasks-page .mytasks-view-controls {
         align-items: stretch;
@@ -394,6 +415,30 @@
     .my-tasks-page .mytasks-view-controls__create,
     .my-tasks-page .mytasks-view-controls__archive {
         margin-inline-start: 0;
+    }
+
+    /*
+     * kanban.css ให้ .mytasks-kanban__button เป็น flex:1 บนจอแคบ (ไว้แบ่งแถวปุ่มในบอร์ด)
+     * แต่ในแถวที่เรียงเป็นคอลัมน์ flex-basis 0 ชนะ height:40px ปุ่มจึงยุบเหลือ 25px
+     * เป็นเส้นบาง ๆ กดยาก คืนความสูงเดิมโดยไม่ให้ปุ่มยืดหดตามแกนตั้ง
+     * (ต้องมี > นำหน้าเพื่อให้ specificity ชนะ kanban.css ซึ่งโหลดทีหลังด้วยน้ำหนักเท่ากัน)
+     */
+    .my-tasks-page .mytasks-view-controls > .mytasks-view-controls__create,
+    .my-tasks-page .mytasks-view-controls > .mytasks-view-controls__archive {
+        flex: none;
+    }
+
+    /* ปุ่มเต็มความกว้างสองใบหน้าตาเหมือนกัน "สร้างงาน" ซึ่งเป็นการกระทำหลักจึงใช้สีเดียวกับ --task */
+    .my-tasks-page .mytasks-view-controls__create {
+        border-color: #2563eb;
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, .16);
+    }
+
+    .my-tasks-page .mytasks-view-controls__create:hover {
+        border-color: #1d4ed8;
+        background: #1d4ed8;
     }
 
     .my-tasks-page .mytasks-scope__menu > summary {

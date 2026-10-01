@@ -21,7 +21,6 @@
                 <i class="bi {{ $visibility['icon'] }}" aria-hidden="true"></i>
                 {{ $visibility['label'] }}
             </span>
-            <span class="ws-board-card__count">{{ $board->element_count }} ชิ้น</span>
         </span>
 
         <span class="ws-board-card__footer">

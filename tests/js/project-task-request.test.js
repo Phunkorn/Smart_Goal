@@ -137,20 +137,20 @@ test('rate-limit feedback is shown inline while preserving the request form', as
 
 test('successful request feedback uses SweetAlert2', async (t) => {
     const successCalls = [];
-    const {document} = await boot(t, {success: 'ส่งคำขอเพิ่มงานแล้ว'}, successCalls);
+    const {document} = await boot(t, {success: 'เพิ่มงานแล้ว'}, successCalls);
 
     assert.equal(successCalls[0].icon, 'success');
-    assert.equal(successCalls[0].text, 'ส่งคำขอเพิ่มงานแล้ว');
+    assert.equal(successCalls[0].text, 'เพิ่มงานแล้ว');
     assert.equal(document.querySelector('[data-project-task-request-modal]').hidden, true);
     assert.equal(document.querySelector('[data-task-modal]').hidden, true);
 });
 
-test('stale-decision feedback uses SweetAlert2 instead of a raw error page', async (t) => {
+test('error feedback uses SweetAlert2 instead of a raw error page', async (t) => {
     const errorCalls = [];
-    await boot(t, {error: 'คำขอนี้ถูกพิจารณาโดยผู้ใช้อื่นแล้ว'}, errorCalls);
+    await boot(t, {error: 'โปรเจกต์นี้ถูกจัดเก็บแล้ว กรุณาเปิดโปรเจกต์อีกครั้งก่อนเพิ่มงาน'}, errorCalls);
 
     assert.equal(errorCalls[0].icon, 'error');
-    assert.equal(errorCalls[0].text, 'คำขอนี้ถูกพิจารณาโดยผู้ใช้อื่นแล้ว');
+    assert.equal(errorCalls[0].text, 'โปรเจกต์นี้ถูกจัดเก็บแล้ว กรุณาเปิดโปรเจกต์อีกครั้งก่อนเพิ่มงาน');
 });
 
 test('request modal closes from its button and Escape and restores page scrolling', async (t) => {
@@ -169,28 +169,4 @@ test('request modal closes from its button and Escape and restores page scrollin
     assert.equal(modal.hidden, true);
     assert.equal(document.body.style.overflow, '');
     assert.equal(document.activeElement, open);
-});
-
-test('notification deep link opens the request panel and scrolls the requested card into view', async (t) => {
-    const env = mountDom(`<!doctype html><html><body>
-        <details class="project-task-requests">
-            <summary>requests</summary>
-            <article>other request</article>
-            <article class="is-highlighted" data-project-task-request-target tabindex="-1">requested</article>
-        </details>
-    </body></html>`);
-    t.after(env.cleanup);
-    const {document, window} = env;
-    const scrolled = [];
-    window.HTMLElement.prototype.scrollIntoView = function (options) {
-        scrolled.push([this.textContent, options]);
-    };
-
-    fixtureCount += 1;
-    await import(`../../resources/js/pages/mytasks/task-request.js?fixture=${fixtureCount}`);
-
-    const target = document.querySelector('[data-project-task-request-target]');
-    assert.equal(document.querySelector('.project-task-requests').open, true);
-    assert.deepEqual(scrolled, [['requested', {block: 'center'}]]);
-    assert.equal(document.activeElement, target);
 });

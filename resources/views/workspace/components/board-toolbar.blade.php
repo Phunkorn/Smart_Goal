@@ -1,176 +1,158 @@
 {{--
-    แถบเครื่องมือของกระดาน
+    แถบเครื่องมือของกระดาน — แถวหลัก
 
-    ทุกป้ายชื่อ สี และความหนามาจาก App\Support\WorkspaceDesign แหล่งเดียว
+    เครื่องมือทุกตัววางบนแถบตรง ๆ เห็นไอคอนจริงและเห็นว่าตัวไหนถูกเลือกอยู่
+    เหลือดรอปดาวน์เดียวคือรูปทรง ซึ่งปุ่มของมันเปลี่ยนไอคอนตามรูปทรงที่เลือก
+
+    เคยยุบเครื่องมือลงเมนู "วาด" กับ "สร้าง" มาก่อน แล้วพบจากการใช้งานจริงว่ายากกว่าเดิม
+    ปุ่มเมนูแสดงไอคอนของกลุ่ม (ดินสอ กับ +) ไม่ใช่ของเครื่องมือที่ถืออยู่ ผู้ใช้จึงไม่รู้
+    ว่ากำลังถือยางลบอยู่หรือเปล่า ไม่รู้ว่าเครื่องมือที่ต้องการซ่อนในเมนูไหน และรูปทรง
+    ที่ซ้อนอยู่ในเมนูย่อยอีกชั้นต้องกดสามครั้งกว่าจะได้ใช้
+
+    ส่วนรูปแบบ (สี ขนาดตัวอักษร การจัดบรรทัด) อยู่ในแถวที่สอง
+    board-toolbar-context.blade.php ซึ่งโผล่เฉพาะเมื่อมีอะไรให้ปรับ
+
+    ทุกป้ายชื่อ ไอคอน และปุ่มลัดมาจาก App\Support\WorkspaceDesign แหล่งเดียว
     ห้ามพิมพ์ข้อความไทยซ้ำในไฟล์ .js
 
     ปุ่มที่แก้เนื้อหาถูกทำเครื่องหมาย data-requires-edit ไว้ toolbar.js จะปิด
     ทั้งชุดเมื่อ $capabilities['canEdit'] เป็นเท็จ การซ่อนปุ่มเป็นเรื่องของหน้าจอ
     เท่านั้น การบังคับใช้จริงอยู่ที่ WorkspaceBoardPolicy ฝั่งเซิร์ฟเวอร์
+
+    ปุ่มหลักใช้ tooltip ของ CSS (data-tooltip + data-shortcut) แทน title เพราะ
+    title ของเบราว์เซอร์ขึ้นช้าราวหนึ่งวินาทีและไม่ขึ้นเลยเมื่อโฟกัสด้วยคีย์บอร์ด
+    ชื่อยังอยู่ใน aria-label และปุ่มลัดอยู่ใน aria-keyshortcuts สำหรับโปรแกรมอ่านจอ
 --}}
 @php
     $design = \App\Support\WorkspaceDesign::class;
-    $readOnlyTools = ['hand', 'select'];
+    $readOnlyTools = ['select', 'hand'];
 @endphp
 
-<div class="wsb-toolbar" data-workspace-toolbar role="toolbar" aria-label="เครื่องมือวาด">
+{{--
+    ห่อแถบเครื่องมือไว้ในเชลล์เพื่อวางมือจับพับ/กางไว้นอกแถว
+    ถ้ามือจับอยู่ในแถวแล้วพับ มือจับจะหายไปพร้อมแถวจนกางกลับไม่ได้อีก
+--}}
+<div class="wsb-toolbar-shell" data-workspace-toolbar-shell>
+<div class="wsb-toolbar wsb-toolbar--primary" data-workspace-toolbar id="wsbToolbar"
+    role="toolbar" aria-label="เครื่องมือวาด">
+    {{-- เลือกกับเลื่อนกระดานใช้ได้กับผู้ที่ดูอย่างเดียว จึงไม่มี data-requires-edit --}}
     <div class="wsb-toolbar__group" role="group" aria-label="เครื่องมือ">
-        @foreach ($design::TOOLS as $key => $tool)
-            {{--
-                รูปภาพไม่ใช่ "เครื่องมือ" ที่ค้างสถานะไว้เหมือนดินสอ แต่เป็นคำสั่ง
-                ที่เปิดหน้าต่างเลือกไฟล์แล้วจบ จึงใช้ data-command ไม่ใช่ data-tool
-            --}}
-            @if ($key === 'image')
-                <button type="button"
-                    class="wsb-tool"
-                    data-command="attach-image"
-                    data-requires-edit
-                    title="{{ $tool['label'] }}"
-                    aria-label="{{ $tool['label'] }}">
-                    <i class="bi {{ $tool['icon'] }}" aria-hidden="true"></i>
-                </button>
-                @continue
-            @endif
-
+        @foreach ($design::PRIMARY_TOOLS as $key)
+            @php $tool = $design::TOOLS[$key]; @endphp
             <button type="button"
                 class="wsb-tool"
                 data-tool="{{ $key }}"
                 @unless (in_array($key, $readOnlyTools, true)) data-requires-edit @endunless
                 aria-pressed="false"
-                title="{{ $tool['label'] }}{{ $tool['shortcut'] ? ' ('.$tool['shortcut'].')' : '' }}"
+                data-tooltip="{{ $tool['label'] }}"
+                @if ($tool['shortcut'])
+                    data-shortcut="{{ $tool['shortcut'] }}"
+                    aria-keyshortcuts="{{ $tool['shortcut'] }}"
+                @endif
+                aria-label="{{ $tool['label'] }}">
+                <i class="bi {{ $tool['icon'] }}" aria-hidden="true"></i>
+            </button>
+        @endforeach
+
+        {{--
+            รูปทรง: ปุ่มเดียวที่แสดงรูปทรงที่เลือกอยู่ กดแล้วเลือกจากแผงแถวเดียว
+            แบบเดียวกับความหนาเส้น ไม่ใช่เมนูซ้อนเมนู
+
+            ไอคอนของแต่ละตัวเลือกถูกส่งมาใน data-tool-icon ด้วย เพื่อให้ toolbar.js
+            สลับไอคอนบนปุ่มได้โดยไม่ต้องรู้จักชื่อไอคอนเอง (ไอคอนมาจาก WorkspaceDesign
+            ที่เดียว) ผู้ใช้จึงเห็นจากปุ่มได้ทันทีว่ากำลังถือสี่เหลี่ยมหรือลูกศรอยู่
+        --}}
+        @foreach ($design::TOOL_MENUS as $menuKey => $menu)
+            @php $panelId = 'wsbMenu'.ucfirst($menuKey); @endphp
+            <div class="wsb-menu-anchor" data-menu>
+                <button type="button"
+                    class="wsb-menu__trigger"
+                    data-menu-toggle
+                    data-requires-edit
+                    data-menu-tools="{{ implode(' ', $menu['tools']) }}"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                    aria-controls="{{ $panelId }}"
+                    aria-label="{{ $menu['label'] }}"
+                    data-tooltip="{{ $menu['label'] }}">
+                    <i class="bi {{ $menu['icon'] }} wsb-menu__icon" data-menu-icon
+                        data-default-icon="bi {{ $menu['icon'] }}" aria-hidden="true"></i>
+                    <i class="bi bi-chevron-down wsb-menu__caret" aria-hidden="true"></i>
+                </button>
+
+                <div class="wsb-menu wsb-menu--row" id="{{ $panelId }}" data-menu-panel hidden
+                    role="menu" aria-label="{{ $menu['label'] }}">
+                    @foreach ($menu['tools'] as $key)
+                        @php $tool = $design::TOOLS[$key]; @endphp
+                        <button type="button"
+                            class="wsb-tool"
+                            role="menuitem"
+                            data-tool="{{ $key }}"
+                            data-tool-icon="bi {{ $tool['icon'] }}"
+                            data-requires-edit
+                            aria-pressed="false"
+                            @if ($tool['shortcut'])
+                                data-shortcut="{{ $tool['shortcut'] }}"
+                                aria-keyshortcuts="{{ $tool['shortcut'] }}"
+                            @endif
+                            aria-label="{{ $tool['label'] }}"
+                            title="{{ $tool['label'] }}">
+                            <i class="bi {{ $tool['icon'] }}" aria-hidden="true"></i>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+        @endforeach
+
+        {{-- คำสั่งที่อยู่ข้างเครื่องมือสร้าง เพราะผู้ใช้มองหามันที่นั่น --}}
+        @foreach ($design::PRIMARY_COMMANDS as $command => $key)
+            @php $tool = $design::TOOLS[$key]; @endphp
+            <button type="button"
+                class="wsb-tool"
+                data-command="{{ $command }}"
+                data-requires-edit
+                data-tooltip="{{ $tool['label'] }}"
                 aria-label="{{ $tool['label'] }}">
                 <i class="bi {{ $tool['icon'] }}" aria-hidden="true"></i>
             </button>
         @endforeach
     </div>
 
-    {{--
-        จานสีจัดเป็นกริดสองแถว แถวบนสีเข้มสำหรับเส้นและตัวอักษร แถวล่างเฉดอ่อน
-        สำหรับไฮไลต์ วางเป็นกริดแทนแถวเดียวยาว ๆ เพื่อไม่ให้แถบเครื่องมือ
-        กว้างจนดันกลุ่มอื่นตกขอบ
-
-        ชุดสีนี้เป็นทางลัด ช่องเลือกสีเองอยู่ท้ายกลุ่มสำหรับสีที่ไม่มีในชุด
-    --}}
-    <div class="wsb-toolbar__group" role="group" aria-label="สีเส้นและตัวอักษร">
-        <div class="wsb-palette" style="--wsb-palette-cols: {{ $design::PALETTE_COLUMNS }}">
-            @foreach ($design::PALETTE as $color)
-                <button type="button"
-                    class="wsb-swatch"
-                    data-color="{{ $color }}"
-                    data-requires-edit
-                    aria-pressed="false"
-                    style="--wsb-swatch: {{ $color }}"
-                    aria-label="สี {{ $color }}"
-                    title="สี {{ $color }}">
-                    <span class="wsb-swatch__dot" aria-hidden="true"></span>
-                </button>
-            @endforeach
-        </div>
-
-        {{--
-            ช่องเลือกสีของเบราว์เซอร์ ให้สีได้ไม่จำกัด ค่าที่คืนมาเป็น #rrggbb
-            ซึ่งผ่าน WorkspaceDocumentValidator อยู่แล้ว
-        --}}
-        <label class="wsb-custom-color" title="{{ $design::CUSTOM_COLOR_HINT }}">
-            <input type="color" data-custom-color data-requires-edit
-                value="{{ $design::DEFAULT_STROKE }}"
-                aria-label="{{ $design::CUSTOM_COLOR_HINT }}">
-            <i class="bi bi-eyedropper" aria-hidden="true"></i>
-        </label>
-    </div>
-
-    <div class="wsb-toolbar__group" role="group" aria-label="สีกระดาษโน้ต">
-        <div class="wsb-palette" style="--wsb-palette-cols: {{ $design::PALETTE_COLUMNS }}">
-            @foreach ($design::STICKY_COLORS as $color)
-                <button type="button"
-                    class="wsb-swatch wsb-swatch--sticky"
-                    data-sticky-color="{{ $color }}"
-                    data-requires-edit
-                    aria-pressed="false"
-                    style="--wsb-swatch: {{ $color }}"
-                    aria-label="สีกระดาษโน้ต {{ $color }}"
-                    title="สีกระดาษโน้ต {{ $color }}">
-                    <span class="wsb-swatch__dot" aria-hidden="true"></span>
-                </button>
-            @endforeach
-        </div>
-    </div>
-
-    {{--
-        ขนาดตัวอักษรของกระดาษโน้ตและกล่องข้อความ
-
-        เป็นช่องกรอกตัวเลข ไม่ใช่ปุ่มสำเร็จรูป เพราะผู้ใช้ต้องการระบุขนาดเองได้
-        เช่น 16 พอดี ๆ ปุ่มลัดข้าง ๆ ไว้กดเพิ่มลดทีละขั้นโดยไม่ต้องพิมพ์
-
-        min/max ต้องตรงกับช่วงที่ WorkspaceDocumentValidator ยอมรับ ไม่งั้นค่าที่
-        กรอกจะถูกเซิร์ฟเวอร์ปัดทิ้งเงียบ ๆ แล้วเด้งกลับหลังรีเฟรช
-    --}}
-    <div class="wsb-toolbar__group" role="group" aria-label="ขนาดตัวอักษร">
-        <button type="button" class="wsb-tool" data-font-step="-2" data-requires-edit
-            aria-label="ลดขนาดตัวอักษร" title="ลดขนาดตัวอักษร">
-            <i class="bi bi-dash-lg" aria-hidden="true"></i>
-        </button>
-
-        <label class="wsb-fontfield" title="ขนาดตัวอักษร (พิกเซล)">
-            <input type="number" class="wsb-fontfield__input"
-                data-font-size-input data-requires-edit
-                value="{{ $design::DEFAULT_FONT_SIZE }}"
-                min="{{ $design::MIN_FONT_SIZE }}"
-                max="{{ $design::MAX_FONT_SIZE }}"
-                step="1"
-                inputmode="numeric"
-                aria-label="ขนาดตัวอักษรเป็นพิกเซล">
-            <span class="wsb-fontfield__unit" aria-hidden="true">px</span>
-        </label>
-
-        <button type="button" class="wsb-tool" data-font-step="2" data-requires-edit
-            aria-label="เพิ่มขนาดตัวอักษร" title="เพิ่มขนาดตัวอักษร">
-            <i class="bi bi-plus-lg" aria-hidden="true"></i>
-        </button>
-    </div>
-
-    <div class="wsb-toolbar__group" role="group" aria-label="ความหนาเส้น">
-        @foreach ($design::STROKE_WIDTHS as $width)
-            <button type="button"
-                class="wsb-width"
-                data-stroke-width="{{ $width }}"
-                data-requires-edit
-                aria-pressed="false"
-                aria-label="ความหนา {{ $width }}"
-                title="ความหนา {{ $width }}">
-                <span class="wsb-width__bar" style="--wsb-width: {{ min($width, 12) }}px" aria-hidden="true"></span>
-            </button>
-        @endforeach
-    </div>
-
     <div class="wsb-toolbar__group" role="group" aria-label="แก้ไข">
         <button type="button" class="wsb-tool" data-command="undo" data-requires-edit
-            aria-label="ย้อนกลับ" title="ย้อนกลับ (Ctrl+Z)" disabled>
+            aria-label="ย้อนกลับ" data-tooltip="ย้อนกลับ" data-shortcut="Ctrl+Z"
+            aria-keyshortcuts="Control+Z" disabled>
             <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
         </button>
         <button type="button" class="wsb-tool" data-command="redo" data-requires-edit
-            aria-label="ทำซ้ำ" title="ทำซ้ำ (Ctrl+Shift+Z)" disabled>
+            aria-label="ทำซ้ำ" data-tooltip="ทำซ้ำ" data-shortcut="Ctrl+Shift+Z"
+            aria-keyshortcuts="Control+Shift+Z Control+Y" disabled>
             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         </button>
         <button type="button" class="wsb-tool" data-command="delete" data-requires-edit
-            aria-label="ลบที่เลือก" title="ลบที่เลือก (Delete)" disabled>
+            aria-label="ลบที่เลือก" data-tooltip="ลบที่เลือก" data-shortcut="Delete"
+            aria-keyshortcuts="Delete Backspace" disabled>
             <i class="bi bi-trash" aria-hidden="true"></i>
         </button>
     </div>
 
-    {{-- ปุ่มมุมมองใช้ได้กับทุกคน รวมผู้ที่ดูอย่างเดียว จึงไม่มี data-requires-edit --}}
+    {{--
+        ปุ่มมุมมองใช้ได้กับทุกคน รวมผู้ที่ดูอย่างเดียว จึงไม่มี data-requires-edit
+        และต้องเป็นกลุ่มสุดท้ายของไฟล์นี้ (เทสต์สัญญาตรวจว่าไม่มี data-requires-edit
+        หลังกลุ่มนี้)
+    --}}
     <div class="wsb-toolbar__group" role="group" aria-label="มุมมอง">
-        <button type="button" class="wsb-tool" data-command="zoom-out" aria-label="ซูมออก" title="ซูมออก">
+        <button type="button" class="wsb-tool" data-command="zoom-out" aria-label="ซูมออก" data-tooltip="ซูมออก">
             <i class="bi bi-zoom-out" aria-hidden="true"></i>
         </button>
         <button type="button" class="wsb-zoom" data-command="zoom-reset"
-            aria-label="กลับไปขนาดจริง" title="กลับไปขนาดจริง">
+            aria-label="กลับไปขนาดจริง" data-tooltip="กลับไปขนาดจริง">
             <span data-zoom-label>100%</span>
         </button>
-        <button type="button" class="wsb-tool" data-command="zoom-in" aria-label="ซูมเข้า" title="ซูมเข้า">
+        <button type="button" class="wsb-tool" data-command="zoom-in" aria-label="ซูมเข้า" data-tooltip="ซูมเข้า">
             <i class="bi bi-zoom-in" aria-hidden="true"></i>
         </button>
-        <button type="button" class="wsb-tool" data-command="fit" aria-label="จัดให้พอดีจอ" title="จัดให้พอดีจอ">
+        <button type="button" class="wsb-tool" data-command="fit" aria-label="จัดให้พอดีจอ" data-tooltip="จัดให้พอดีจอ">
             <i class="bi bi-bounding-box" aria-hidden="true"></i>
         </button>
 
@@ -181,8 +163,28 @@
         --}}
         <button type="button" class="wsb-tool" data-command="fullscreen"
             data-workspace-fullscreen aria-pressed="false"
-            aria-label="เต็มจอ" title="เต็มจอ (F)">
+            aria-label="เต็มจอ" data-tooltip="เต็มจอ" data-shortcut="F" aria-keyshortcuts="F">
             <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
         </button>
     </div>
+</div>
+
+@include('workspace.components.board-toolbar-context')
+
+{{--
+    มือจับพับ/กางแถบเครื่องมือ เพื่อให้เห็นกระดานโล่ง ๆ เวลาไม่ได้ใช้เครื่องมือ
+    เป็นปุ่มมุมมองเหมือนปุ่มซูม ใช้ได้แม้เป็นผู้ดูอย่างเดียว ไม่ตัดสิทธิ์แก้ไขใด ๆ
+    และไม่ผูกกับ capabilities ใด ๆ สถานะไม่ถูกจำข้ามการโหลดหน้าใหม่โดยตั้งใจ
+    เปิดกระดานใหม่ทุกครั้งจึงเห็นแถบเครื่องมือเต็มเสมอ
+
+    พับทีเดียวซ่อนทั้งสองแถว จึงประกาศ aria-controls ทั้งสอง id
+--}}
+<div class="wsb-toolbar-handle-row">
+    <button type="button" class="wsb-toolbar-handle" data-workspace-toolbar-toggle
+        aria-expanded="true" aria-controls="wsbToolbar wsbContextToolbar"
+        data-label-expanded="ซ่อนแถบเครื่องมือ" data-label-collapsed="แสดงแถบเครื่องมือ"
+        aria-label="ซ่อนแถบเครื่องมือ">
+        <i class="bi bi-chevron-up" aria-hidden="true"></i>
+    </button>
+</div>
 </div>

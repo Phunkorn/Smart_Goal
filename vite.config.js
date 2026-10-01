@@ -7,6 +7,7 @@ export default defineConfig({
         laravel({
             input: [
                 'resources/css/components/layout.css',
+                'resources/css/components/daily-brief.css',
                 'resources/css/pages/admin-audit.css',
                 'resources/css/pages/admin-departments.css',
                 'resources/css/pages/auth-login.css',
@@ -17,6 +18,7 @@ export default defineConfig({
                 'resources/css/pages/daily-logs.css',
                 'resources/css/pages/board-admin.css',
                 'resources/css/pages/admin-approvals.css',
+                'resources/css/pages/announcements.css',
                 'resources/css/pages/work-board.css',
                 'resources/css/pages/work-board-admin.css',
                 'resources/css/pages/employees.css',
@@ -32,6 +34,7 @@ export default defineConfig({
                 'resources/css/pages/workspace.css',
                 'resources/js/app.js',
                 'resources/js/components/avatar-fallback.js',
+                'resources/js/components/daily-brief.js',
                 'resources/js/components/realtime-sync.js',
                 'resources/js/pages/board/admin-assignment.js',
                 'resources/js/pages/daily-logs/index.js',
@@ -39,6 +42,7 @@ export default defineConfig({
                 'resources/js/pages/employees/index.js',
                 'resources/js/pages/admin/approvals.js',
                 'resources/js/pages/admin/audit.js',
+                'resources/js/pages/announcements/index.js',
                 'resources/js/pages/mytasks/index.js',
                 'resources/js/pages/work-board/department.js',
                 'resources/js/pages/meetings/index.js',

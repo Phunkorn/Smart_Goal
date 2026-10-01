@@ -238,6 +238,27 @@
         /* ปิดอยู่ก็ไม่ควรกินพื้นที่เลื่อนหรือดักคลิก แม้จะยังเป็น display:block */
         .dropdown-menu.topbar-slide-menu:not(.show) { overflow: hidden; pointer-events: none; }
 
+        /*
+         * จอโทรศัพท์: เมนูยึดกับขอบจอ ไม่ใช่ขอบปุ่ม
+         *
+         * right:0 ยึดขอบขวาของปุ่มกระดิ่ง/นาฬิกา ซึ่งอยู่ห่างขอบจอขวาอีกหลายสิบพิกเซล
+         * เมนูกว้าง 360px จึงเลยขอบซ้ายของจอ 375px ไปราว 43px หัวข้อ "การแจ้งเตือน" ถูกตัด
+         * position:fixed + left/right ทั้งคู่ทำให้เมนูพอดีจอเสมอ และยังคงเป็นค่าคงที่
+         * ตลอดทั้งตอนเปิดและตอนเฟดปิด (Bootstrap ถอด data-bs-popper ตอนปิด ตามคอมเมนต์ด้านบน)
+         */
+        @media (max-width: 575.98px) {
+            .dropdown-menu.dropdown-menu-end.topbar-slide-menu {
+                position: fixed;
+                top: 62px;
+                right: 8px;
+                left: 8px;
+                width: auto;
+                max-height: min(480px, calc(100dvh - 76px));
+                margin-top: 0;
+                overflow-y: auto;
+            }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             .dropdown-menu.topbar-slide-menu,
             .dropdown-menu.topbar-slide-menu.show {

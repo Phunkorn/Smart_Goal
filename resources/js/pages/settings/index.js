@@ -1,3 +1,4 @@
+import {initializeProfileImagePicker} from './profile-image.js';
 import {initializeTelegramSettings} from './telegram.js';
 
 export function openPasswordModal(root = document, bootstrapApi = globalThis.window?.bootstrap) {
@@ -10,6 +11,7 @@ export function openPasswordModal(root = document, bootstrapApi = globalThis.win
 export function initializeSettingsPage(root = document, bootstrapApi = globalThis.window?.bootstrap) {
     if (! root.querySelector('[data-settings-page]')) return false;
     openPasswordModal(root, bootstrapApi);
+    initializeProfileImagePicker(root);
     initializeTelegramSettings(root, {bootstrapApi});
     return true;
 }

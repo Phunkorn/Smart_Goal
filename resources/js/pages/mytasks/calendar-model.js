@@ -9,6 +9,18 @@ export const calendarMonthForDate = (date = new Date()) => ({year: date.getFullY
 
 export const resetCalendarMonth = (initialSelection) => ({year: Number(initialSelection.year), month: Number(initialSelection.month)});
 
+/*
+ * โหมดเริ่มต้นของปฏิทินเดือน
+ *
+ * ช่องวันบนจอโทรศัพท์กว้างราว 45px เส้นช่วงงานถูกตัดเหลือ "PM…" และชิป "+9 งาน"
+ * ทับเส้นงาน อ่านไม่ออก ขณะที่ "ภาพรวมสี" แสดงจุดสีกับจำนวนงานต่อวันได้ครบในช่องแคบ
+ * จอโทรศัพท์จึงเริ่มที่ภาพรวมสี จอที่กว้างกว่ายังเริ่มที่เส้นช่วงงานเหมือนเดิม
+ * ผู้ใช้ยังสลับโหมดเองได้ทุกขนาดจอ
+ */
+export const COMPACT_CALENDAR_QUERY = '(max-width: 575.98px)';
+
+export const defaultCalendarMode = (isCompactScreen = false) => (isCompactScreen ? 'summary' : 'timeline');
+
 export const buddhistYear = (gregorianYear) => Number(gregorianYear) + 543;
 
 export const parseCalendarDate = (value) => {

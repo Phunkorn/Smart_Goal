@@ -12,6 +12,10 @@ export function taskWorkspaceMarkup({
     people = [],
     departments = [],
     team = {},
+    mentionable = [],
+    // งานที่สองสำหรับเทสต์ที่ต้องสลับระหว่างสองงาน (เช่น ตรวจว่าฉบับร่างไม่รั่วข้ามงาน)
+    secondTaskId = null,
+    secondMentionable = [],
 } = {}) {
     const teamData = {
         [String(taskId)]: {
@@ -38,10 +42,44 @@ export function taskWorkspaceMarkup({
             status: 2,
             comment_url: `/tasks/${taskId}/comments`,
             read_comments_url: `/tasks/${taskId}/comments/read`,
+            pin_comment_url: `/tasks/${taskId}/comments/__COMMENT__/pin`,
+            unpin_comment_url: `/tasks/${taskId}/comments/__COMMENT__/unpin`,
             unread_comments: 0,
             ...(team.management || {}),
         },
     };
+
+    const mentionableData = {[String(taskId)]: mentionable};
+
+    if (secondTaskId) {
+        teamData[String(secondTaskId)] = {
+            id: secondTaskId,
+            topic: 'งานทดสอบที่สอง',
+            locked: false,
+            can_manage: true,
+            add_url: `/tasks/${secondTaskId}/collaborators`,
+            remove_url: `/tasks/${secondTaskId}/collaborators/__USER__`,
+            assignee: {id: 99, name: 'เจ้าของงาน', department: 'ไอที'},
+            protected_ids: [99],
+            collaborators: [],
+        };
+
+        managementData[String(secondTaskId)] = {
+            transitions: {},
+            can_work: true,
+            can_comment: true,
+            can_manage_team: true,
+            project: 'โปรเจกต์ทดสอบ',
+            status: 2,
+            comment_url: `/tasks/${secondTaskId}/comments`,
+            read_comments_url: `/tasks/${secondTaskId}/comments/read`,
+            pin_comment_url: `/tasks/${secondTaskId}/comments/__COMMENT__/pin`,
+            unpin_comment_url: `/tasks/${secondTaskId}/comments/__COMMENT__/unpin`,
+            unread_comments: 0,
+        };
+
+        mentionableData[String(secondTaskId)] = secondMentionable;
+    }
 
     return `
 <meta name="csrf-token" content="test-token">
@@ -68,6 +106,14 @@ export function taskWorkspaceMarkup({
             <button type="button" class="board-comments has-comments has-unread" data-open-task-modal data-task-id="${taskId}" data-task-tab="updates" data-unread-comments="${taskId}" data-unread-persistent data-comment-label="ดูคอมเมนต์ 2 รายการ" aria-label="ดูคอมเมนต์ 2 รายการ และมีคอมเมนต์ใหม่ที่ยังไม่ได้อ่าน"><i></i><strong>2</strong></button>
             <span aria-hidden="true"></span>
         </article>
+        ${secondTaskId ? `<article class="board-reference-row" data-board-task data-task-id="${secondTaskId}" data-topic="งานทดสอบที่สอง">
+            <div class="board-reference-task">
+                <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="${secondTaskId}"><span class="board-reference-task__title">งานทดสอบที่สอง</span></button>
+            </div>
+            <button type="button" class="board-attachments" data-board-open-attachments="${secondTaskId}"><i></i><strong>-</strong></button>
+            <button type="button" class="board-comments" data-open-task-modal data-task-id="${secondTaskId}" data-task-tab="updates" data-unread-comments="${secondTaskId}" data-unread-persistent data-comment-label="ดูคอมเมนต์" aria-label="ดูคอมเมนต์"><i></i><strong>0</strong></button>
+            <span aria-hidden="true"></span>
+        </article>` : ''}
     </div>
     <div class="notion-toast" data-toast></div>
 </div>
@@ -90,6 +136,7 @@ export function taskWorkspaceMarkup({
 <script type="application/json" data-attachment-data>{}</script>
 <script type="application/json" data-timeline-data>{}</script>
 <script type="application/json" data-task-management-data>${JSON.stringify(managementData)}</script>
+<script type="application/json" data-mentionable-data>${JSON.stringify(mentionableData)}</script>
 
 <div class="team-modal notion-modal" data-team-modal hidden>
     <section class="team-modal-card" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
@@ -172,9 +219,24 @@ export function taskWorkspaceMarkup({
             </section>
             <section class="task-timeline" data-task-timeline>
                 <nav><button type="button" data-timeline-tab="updates">อัปเดต</button><button type="button" data-timeline-tab="activity">กิจกรรม</button></nav>
+                <div class="task-timeline__pinned" data-comment-pinned hidden>
+                    <button type="button" class="task-timeline__pinned-body" data-comment-pinned-jump><strong data-comment-pinned-author></strong><span data-comment-pinned-note></span></button>
+                    <button type="button" data-comment-pinned-unpin>x</button>
+                </div>
                 <div data-timeline-items></div>
                 <div class="task-timeline__previews" data-comment-image-preview hidden></div>
-                <div class="task-timeline__compose"><label class="task-timeline__attach"><input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden data-comment-image-input></label><textarea data-task-update-note></textarea><button type="button" data-submit-task-update>ส่ง</button></div>
+                <div class="task-timeline__reply-preview" data-comment-reply-preview hidden>
+                    <div class="task-timeline__reply-preview-body"><small>กำลังตอบกลับ</small><span><strong data-comment-reply-author></strong> <span data-comment-reply-note></span></span></div>
+                    <button type="button" data-cancel-comment-reply>x</button>
+                </div>
+                <div class="task-timeline__compose">
+                    <label class="task-timeline__attach"><input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden data-comment-image-input></label>
+                    <div class="task-timeline__note-wrap">
+                        <textarea data-task-update-note></textarea>
+                        <ul class="task-timeline__mention-menu" data-comment-mention-menu hidden role="listbox"></ul>
+                    </div>
+                    <button type="button" data-submit-task-update>ส่ง</button>
+                </div>
             </section>
         </div>
         <footer class="task-workspace__footer">
@@ -223,11 +285,18 @@ export async function mountTaskWorkspace(options = {}, {url = 'http://localhost/
         boardRow: () => env.document.querySelector('[data-board-task]'),
         boardTitle: () => env.document.querySelector('.board-reference-task__open'),
         boardComment: () => env.document.querySelector('.board-comments'),
+        boardTitleFor: (id) => env.document.querySelector(`.board-reference-task__open[data-task-id="${id}"]`),
         compose: () => env.document.querySelector('[data-task-update-note]'),
         imageInput: () => env.document.querySelector('[data-comment-image-input]'),
         previews: () => env.document.querySelector('[data-comment-image-preview]'),
         imageModal: () => env.document.querySelector('[data-comment-image-modal]'),
         sendUpdate: () => env.document.querySelector('[data-submit-task-update]'),
         manageTeam: () => env.document.querySelector('.task-workspace__cell-action[data-manage-team]'),
+        pinnedBanner: () => env.document.querySelector('[data-comment-pinned]'),
+        replyPreview: () => env.document.querySelector('[data-comment-reply-preview]'),
+        mentionMenu: () => env.document.querySelector('[data-comment-mention-menu]'),
+        replyButton: (id) => env.document.querySelector(`[data-reply-comment="${id}"]`),
+        pinButton: (id) => env.document.querySelector(`[data-pin-comment="${id}"]`),
+        unpinButton: (id) => env.document.querySelector(`[data-unpin-comment="${id}"]`),
     };
 }

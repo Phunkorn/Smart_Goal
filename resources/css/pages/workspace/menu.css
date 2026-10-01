@@ -1,0 +1,132 @@
+/*
+ * เมนูคำสั่ง — ใช้ทั้งเมนูบนแถบเครื่องมือ (วาด/สร้าง/รูปทรง), เมนูจัดการกระดาน
+ * บนหัวเรื่อง และเมนูคลิกขวาบนผืนผ้าใบ
+ *
+ * เป็น popover ไม่ใช่ modal: ไม่มีฉากหลัง ไม่ล็อกการเลื่อนหน้า ปิดเมื่อกดข้างนอก
+ * หรือกด Escape (ดู menu.js ซึ่งเป็นเจ้าของสถานะเปิดปิดเพียงตัวเดียว)
+ *
+ * ต่างจาก .wsb-popover ที่เป็นตะแกรงให้เลือก "ค่า" (สี ความหนา) ตัวนี้เป็นรายการ
+ * "คำสั่ง" เรียงลงมาเป็นแนวตั้ง มีป้ายกำกับและปุ่มลัด จึงเป็นคนละคอมโพเนนต์
+ */
+
+/*
+ * กล่องครอบปุ่มกับแผง ให้ทั้งคู่เป็นหน่วยเดียวในเลย์เอาต์ของแถบหรือหัวเรื่อง
+ * ตัวแผงเป็น position: fixed อยู่แล้ว จึงไม่ต้องอาศัยกล่องนี้ในการวางตำแหน่ง
+ */
+.wsb-menu-anchor {
+    display: inline-flex;
+}
+
+.wsb-menu {
+    position: fixed;
+    z-index: 45;
+    display: flex;
+    min-width: 12rem;
+    max-width: 16rem;
+    flex-direction: column;
+    gap: 1px;
+    padding: 0.3rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.6rem;
+    background: #ffffff;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+}
+
+/* display: flex ด้านบนชนะ attribute hidden ของเบราว์เซอร์ จึงต้องประกาศซ้ำ */
+.wsb-menu[hidden] {
+    display: none;
+}
+
+.wsb-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: #334155;
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* display: flex ด้านบนชนะ attribute hidden ของเบราว์เซอร์ จึงต้องประกาศซ้ำ
+   (context-menu.js ซ่อนรายการที่ไม่เกี่ยวข้องกับสิ่งที่คลิกขวาโดน) */
+.wsb-menu__item[hidden] {
+    display: none;
+}
+
+.wsb-menu__item:hover:not(:disabled),
+.wsb-menu__item:focus-visible {
+    background: #f1f5f9;
+    color: #0f172a;
+    outline: none;
+}
+
+/*
+ * รายการที่ใช้ไม่ได้ในสถานะนี้ถูกปิด ไม่ใช่ซ่อน ตำแหน่งของรายการอื่นจะได้ไม่ขยับ
+ * ไปมาระหว่างการเปิดเมนูแต่ละครั้ง ผู้ใช้จึงจำตำแหน่งได้
+ */
+.wsb-menu__item:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.wsb-menu__item-icon {
+    flex: 0 0 auto;
+    width: 1.15rem;
+    color: #64748b;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.wsb-menu__item:hover:not(:disabled) .wsb-menu__item-icon {
+    color: #2563eb;
+}
+
+.wsb-menu__item-label {
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+}
+
+/* คำสั่งที่ลบของทิ้งต้องดูต่างจากคำสั่งอื่นก่อนกด ไม่ใช่รู้ตัวตอนกล่องยืนยันขึ้น */
+.wsb-menu__item--danger,
+.wsb-menu__item--danger .wsb-menu__item-icon {
+    color: #b91c1c;
+}
+
+.wsb-menu__item--danger:hover:not(:disabled) {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.wsb-menu__item--danger:hover:not(:disabled) .wsb-menu__item-icon {
+    color: #b91c1c;
+}
+
+.wsb-menu__item-shortcut {
+    flex: 0 0 auto;
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.wsb-menu__separator {
+    height: 1px;
+    margin: 0.2rem 0.25rem;
+    background: #e2e8f0;
+}
+
+/*
+ * แผงที่เรียงตัวเลือกเป็นแถวเดียว (รูปทรง) — ตัวเลือกเป็นไอคอนล้วนไม่มีป้ายข้อความ
+ * จึงไม่ต้องกว้างเท่าเมนูคำสั่ง ใช้ลวดลายเดียวกับแผงความหนาเส้น (.wsb-popover--row)
+ */
+.wsb-menu--row {
+    flex-direction: row;
+    min-width: 0;
+    gap: 0.25rem;
+    padding: 0.35rem;
+}
