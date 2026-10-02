@@ -69,6 +69,29 @@ class MeetingController extends Controller
         return view('meetings.show', $meetings->detailData($request, $request->user(), $meeting));
     }
 
+    /**
+     * ฟอร์มแก้ไขแบบ fragment ให้ปุ่มแก้ไขในรายการประชุม (การ์ด) เปิดเป็น modal ได้ทันที
+     * โดยไม่ต้อง navigate ออกจากหน้าเดิม — เดิมปุ่มนี้เป็น <a href> พาไปหน้า meetings.show
+     * ซึ่งพาผู้ใช้ออกจาก Workspace ที่ฝังอยู่โดยไม่จำเป็น (ดู JS: initializeMeetingEditTriggers)
+     */
+    public function editForm(Request $request, Meeting $meeting, MeetingQueryService $meetings): View
+    {
+        Gate::authorize('update', $meeting);
+
+        $detail = $meetings->detailData($request, $request->user(), $meeting);
+
+        return view('meetings.components.form-modal', [
+            'formMeeting' => $meeting,
+            'attendeeOptions' => $detail['attendeeOptions'],
+            'attendeeDepartments' => $detail['attendeeDepartments'],
+            'projectOptions' => $detail['projectOptions'],
+            'meetingContextQuery' => array_filter([
+                'employee' => $request->input('employee'),
+                'from' => $request->input('from') === 'workspace' ? 'workspace' : null,
+            ]),
+        ]);
+    }
+
     public function update(Request $request, Meeting $meeting, MeetingQueryService $meetings): RedirectResponse
     {
         Gate::authorize('update', $meeting);
@@ -179,6 +202,8 @@ class MeetingController extends Controller
             'location' => ['nullable', 'string', 'max:255'],
             'attendees' => ['nullable', 'array'],
             'attendees.*' => ['integer'],
+            'work_order_list_id' => ['nullable', 'integer', 'exists:work_order_lists,id'],
+            'work_order_id' => ['nullable', 'integer', 'exists:work_orders,job_id'],
         ], [
             'title.required' => 'กรุณาระบุชื่อการประชุม',
             'starts_at.required' => 'กรุณาระบุเวลาเริ่มประชุม',
@@ -186,18 +211,22 @@ class MeetingController extends Controller
             'ends_at.required' => 'กรุณาระบุเวลาสิ้นสุดประชุม',
             'ends_at.after' => 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มประชุม',
             'ends_at.date_format' => 'รูปแบบเวลาสิ้นสุดประชุมไม่ถูกต้อง',
+            'work_order_list_id.exists' => 'ไม่พบโปรเจกต์ที่เลือก',
+            'work_order_id.exists' => 'ไม่พบงานที่เลือก',
         ]);
 
         $validator->after(function ($validator) use ($request, $meetings): void {
             $attendeeIds = $request->input('attendees', []);
 
-            if (! is_array($attendeeIds)) {
-                return;
+            if (is_array($attendeeIds)) {
+                [, $errors] = $this->attendeeEligibility($attendeeIds, $meetings);
+
+                foreach ($errors as $key => $message) {
+                    $validator->errors()->add($key, $message);
+                }
             }
 
-            [, $errors] = $this->attendeeEligibility($attendeeIds, $meetings);
-
-            foreach ($errors as $key => $message) {
+            foreach ($this->projectLinkErrors($request, $meetings) as $key => $message) {
                 $validator->errors()->add($key, $message);
             }
         });
@@ -235,6 +264,29 @@ class MeetingController extends Controller
         return [$eligibleIds, $errors];
     }
 
+    /**
+     * ค่า work_order_list_id / work_order_id จากฟอร์มต้องอยู่ในขอบเขตที่ผู้ใช้เห็นได้จริง
+     * ห้ามเชื่อค่าที่ client ส่งมาตรง ๆ เหมือน attendeeEligibility() ด้านบน
+     *
+     * @return array<string, string>
+     */
+    private function projectLinkErrors(Request $request, MeetingQueryService $meetings): array
+    {
+        $workOrderListId = $request->filled('work_order_list_id') ? (int) $request->input('work_order_list_id') : null;
+        $workOrderId = $request->filled('work_order_id') ? (int) $request->input('work_order_id') : null;
+        $errors = [];
+
+        if ($workOrderListId && ! $meetings->isMeetingProjectSelectable($request->user(), $workOrderListId)) {
+            $errors['work_order_list_id'] = 'ไม่สามารถผูกโปรเจกต์นี้กับการประชุมได้';
+        }
+
+        if ($workOrderId && ! $meetings->isMeetingTaskSelectable($request->user(), $workOrderId, $workOrderListId)) {
+            $errors['work_order_id'] = 'ไม่สามารถผูกงานนี้กับการประชุมได้';
+        }
+
+        return $errors;
+    }
+
     private function persistenceFailure(
         PDOException $exception,
         string $operation,
@@ -267,6 +319,8 @@ class MeetingController extends Controller
             'starts_at' => $this->toUtc($data['starts_at']),
             'ends_at' => $this->toUtc($data['ends_at']),
             'location' => filled($data['location'] ?? null) ? trim($data['location']) : null,
+            'work_order_list_id' => $data['work_order_list_id'] ?? null,
+            'work_order_id' => $data['work_order_id'] ?? null,
         ];
     }
 
@@ -284,6 +338,8 @@ class MeetingController extends Controller
             'ends_at' => $meeting->ends_at?->toIso8601String(),
             'location' => $meeting->location,
             'created_by' => $meeting->created_by,
+            'work_order_list_id' => $meeting->work_order_list_id,
+            'work_order_id' => $meeting->work_order_id,
             'attendee_ids' => collect($attendeeIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all(),
         ];
     }

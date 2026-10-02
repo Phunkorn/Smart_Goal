@@ -42,11 +42,10 @@ class ProjectCollaboratorPermissionTest extends TestCase
                 ->assertDontSee($hiddenTask->job_topic);
         }
 
-        $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $secondTask))->assertOk();
+        $this->actingAs($collaborator)->get(route('tasks.show', $secondTask))->assertRedirect();
         // ลิงก์เปิดงานต้องพาไปเปิดงานใบนั้นจริง ไม่ใช่แค่เด้งไปหน้างานของฉันเปล่า ๆ
         $this->actingAs($collaborator)->get(route('tasks.show', $thirdTask))
             ->assertRedirect(route('mytasks.index', ['open_task' => $thirdTask->job_id]));
-        $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $hiddenTask))->assertForbidden();
         $this->actingAs($collaborator)->get(route('tasks.show', $hiddenTask))->assertForbidden();
     }
 
@@ -73,8 +72,7 @@ class ProjectCollaboratorPermissionTest extends TestCase
             // งานพี่น้องในโปรเจกต์เดียวกันต้องไม่หลุดมาให้เห็น
             ->assertDontSee($sibling->job_topic);
 
-        $this->actingAs($outsider)->get(route('mytasks.quickview.task', $joined))->assertOk();
-        $this->actingAs($outsider)->get(route('mytasks.quickview.task', $sibling))->assertForbidden();
+        $this->actingAs($outsider)->get(route('tasks.show', $joined))->assertRedirect();
         $this->actingAs($outsider)->get(route('tasks.show', $sibling))->assertForbidden();
     }
 
@@ -89,7 +87,6 @@ class ProjectCollaboratorPermissionTest extends TestCase
             ->assertOk()
             ->assertDontSee($project->name)
             ->assertDontSee($task->job_topic);
-        $this->actingAs($unrelated)->get(route('mytasks.quickview.task', $task))->assertForbidden();
         $this->actingAs($unrelated)->get(route('tasks.show', $task))->assertForbidden();
     }
 
@@ -107,7 +104,7 @@ class ProjectCollaboratorPermissionTest extends TestCase
                 ->assertOk()
                 ->assertDontSee('data-project-name="'.$project->name.'"', false)
                 ->assertDontSee($other->job_topic);
-            $this->actingAs($collaborator)->get(route('mytasks.quickview.task', $other))->assertForbidden();
+            $this->actingAs($collaborator)->get(route('tasks.show', $other))->assertForbidden();
         }
 
         $owner = $this->user();
@@ -116,13 +113,13 @@ class ProjectCollaboratorPermissionTest extends TestCase
         $anchor = $this->task($owner, $project, 'Removed anchor');
         $other = $this->task($owner, $project, 'Removed private');
         $anchor->collaborators()->attach($removed->id, ['status' => 'accepted']);
-        $this->actingAs($removed)->get(route('mytasks.quickview.task', $other))->assertOk();
+        $this->actingAs($removed)->get(route('tasks.show', $other))->assertRedirect();
         $anchor->collaborators()->detach($removed->id);
         $this->actingAs($removed)->get(route('mytasks.index', ['view' => 'calendar']))
             ->assertOk()
             ->assertDontSee('data-project-name="'.$project->name.'"', false)
             ->assertDontSee($other->job_topic);
-        $this->actingAs($removed)->get(route('mytasks.quickview.task', $other))->assertForbidden();
+        $this->actingAs($removed)->get(route('tasks.show', $other))->assertForbidden();
     }
 
     public function test_sibling_task_is_read_only_and_cannot_be_commented_on(): void
@@ -377,7 +374,7 @@ class ProjectCollaboratorPermissionTest extends TestCase
             'user_id' => $candidate->id,
             'status' => 'pending',
         ]);
-        $this->actingAs($candidate)->get(route('mytasks.quickview.task', $task))->assertForbidden();
+        $this->actingAs($candidate)->get(route('tasks.show', $task))->assertForbidden();
     }
 
     /**

@@ -128,7 +128,7 @@ class CrossDepartmentCollaborationTest extends TestCase
             ->assertSee('งานย่อยของ IT')
             ->assertDontSee('งานย่อยภายในบัญชี');
 
-        $this->actingAs($this->itMember)->get(route('mytasks.quickview.task', $hidden))->assertForbidden();
+        $this->actingAs($this->itMember)->get(route('tasks.show', $hidden))->assertForbidden();
     }
 
     /**

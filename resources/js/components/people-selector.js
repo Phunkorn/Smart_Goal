@@ -115,6 +115,7 @@ export function initializePeopleSelector(root) {
     const stage = root.querySelector('[data-people-stage]');
     const chipsEmptyLabel = root.querySelector('[data-people-chips-empty]')?.textContent || 'ยังไม่ได้เลือก';
     const isTeamManager = root.dataset.peopleVariant === 'team-manager';
+    const showAvatar = root.dataset.showAvatar === 'true';
     const isReadOnly = () => root.dataset.readonly === 'true';
     let activeDepartment = '';
 
@@ -172,21 +173,11 @@ export function initializePeopleSelector(root) {
             icon.setAttribute('aria-hidden', 'true');
             remove.append(icon);
 
-            if (isTeamManager) {
-                const avatar = chips.ownerDocument.createElement('span');
-                const copy = chips.ownerDocument.createElement('span');
-                const label = chips.ownerDocument.createElement('strong');
-                const detail = chips.ownerDocument.createElement('small');
-                const department = chips.ownerDocument.createElement('span');
+            // avatar ใช้ร่วมกันได้ไม่ว่าจะเป็น team-manager หรือแค่เปิด showAvatar เฉย ๆ (เช่นผู้เข้าร่วมประชุม)
+            const buildAvatar = () => {
                 const avatarUrl = checkbox.dataset.personAvatarUrl || '';
-                const departmentName = checkbox.dataset.personDepartment || 'ไม่ระบุแผนก';
-
+                const avatar = chips.ownerDocument.createElement('span');
                 avatar.className = 'people-selector__chip-avatar';
-                copy.className = 'people-selector__chip-copy';
-                department.className = 'people-selector__chip-department';
-                label.textContent = name;
-                detail.textContent = checkbox.dataset.personEmail || departmentName;
-                department.textContent = departmentName;
                 if (avatarUrl) {
                     const image = chips.ownerDocument.createElement('img');
                     image.src = avatarUrl;
@@ -195,12 +186,27 @@ export function initializePeopleSelector(root) {
                 } else {
                     avatar.textContent = Array.from(name || '?')[0] || '?';
                 }
+                return avatar;
+            };
+
+            if (isTeamManager) {
+                const copy = chips.ownerDocument.createElement('span');
+                const label = chips.ownerDocument.createElement('strong');
+                const detail = chips.ownerDocument.createElement('small');
+                const department = chips.ownerDocument.createElement('span');
+                const departmentName = checkbox.dataset.personDepartment || 'ไม่ระบุแผนก';
+
+                copy.className = 'people-selector__chip-copy';
+                department.className = 'people-selector__chip-department';
+                label.textContent = name;
+                detail.textContent = checkbox.dataset.personEmail || departmentName;
+                department.textContent = departmentName;
                 copy.append(label, detail);
-                chip.append(avatar, copy, department, remove);
+                chip.append(buildAvatar(), copy, department, remove);
             } else {
                 const label = chips.ownerDocument.createElement('span');
                 label.textContent = name;
-                chip.append(label, remove);
+                chip.append(...(showAvatar ? [buildAvatar()] : []), label, remove);
             }
             chips.append(chip);
         });

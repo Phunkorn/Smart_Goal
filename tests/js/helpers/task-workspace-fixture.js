@@ -226,6 +226,7 @@ export function taskWorkspaceMarkup({
                 <div data-timeline-items></div>
                 <div class="task-timeline__previews" data-comment-image-preview hidden></div>
                 <div class="task-timeline__reply-preview" data-comment-reply-preview hidden>
+                    <span class="task-timeline__reply-preview-thumb" data-comment-reply-thumb hidden></span>
                     <div class="task-timeline__reply-preview-body"><small>กำลังตอบกลับ</small><span><strong data-comment-reply-author></strong> <span data-comment-reply-note></span></span></div>
                     <button type="button" data-cancel-comment-reply>x</button>
                 </div>

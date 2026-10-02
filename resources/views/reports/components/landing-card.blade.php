@@ -6,11 +6,13 @@
     <div class="report-choice__content">
         <h2>{{ $title }}</h2>
         <p>{{ $description }}</p>
-        <ul>
-            @foreach($features as $feature)
-                <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>{{ $feature }}</span></li>
-            @endforeach
-        </ul>
+        @if(count($features))
+            <ul>
+                @foreach($features as $feature)
+                    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>{{ $feature }}</span></li>
+                @endforeach
+            </ul>
+        @endif
     </div>
     <a href="{{ $route }}" class="report-choice__cta">
         <span>{{ $cta }}</span><i class="bi bi-arrow-right" aria-hidden="true"></i>

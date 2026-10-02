@@ -193,6 +193,31 @@
     white-space: nowrap;
 }
 
+/*
+ * avatar แบบกลาง ใช้ token เดียวกับไฟล์นี้ทั้งไฟล์ จึงพกไปหน้าไหนก็ได้
+ * (ต่างจาก .team-modal .people-selector__avatar ใน task-workspace/dialogs.css ที่ผูกกับ token
+ * เฉพาะหน้า Task Workspace — selector ที่นี่ specificity ต่ำกว่า จึงไม่ชนกับของเดิม)
+ */
+.people-selector__avatar {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    overflow: hidden;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+.people-selector__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .people-selector__empty {
     margin: 0;
     padding: 14px 8px;
@@ -259,6 +284,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.people-selector__chip-avatar {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    overflow: hidden;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-size: .6rem;
+    font-weight: 700;
+}
+
+.people-selector__chip-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .people-selector__chip button {

@@ -22,7 +22,7 @@
 
     <main class="auth-layout">
         @include('auth.partials.brand', [
-            'heading' => "Smart Goal\nBy PremiumCare",
+            'heading' => "Smart Goal",
             'tagline' => 'พื้นที่ทำงานของคุณพร้อมแล้ว เริ่มจากงานที่ได้รับมอบหมายวันนี้',
         ])
 

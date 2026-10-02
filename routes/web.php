@@ -105,6 +105,9 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::resource('meetings', MeetingController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy']);
+    // ฟอร์มแก้ไขแบบ fragment ให้ปุ่มแก้ไขในรายการเปิดเป็น modal ได้โดยไม่ต้องเปลี่ยนหน้า
+    Route::get('/meetings/{meeting}/edit-form', [MeetingController::class, 'editForm'])
+        ->name('meetings.edit-form');
 
     // หน้าหลักและบอร์ดภาพรวม
     Route::redirect('/dashboard', '/board')
@@ -468,13 +471,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     // ปฏิทินขอประชุมทีละช่วงเดือน สิทธิ์ถูกบังคับที่ SQL ผ่าน MeetingQueryService::visibleQuery()
     Route::get('/my-tasks/calendar/meetings', [MyTaskController::class, 'calendarMeetings'])
         ->name('mytasks.calendar.meetings');
-
-    // Quick View ของปฏิทิน — โหลดตอนคลิกเท่านั้น และตรวจสิทธิ์ด้วย Policy เดิมทุกครั้ง
-    Route::get('/my-tasks/calendar/quick-view/task/{id}', [MyTaskController::class, 'taskQuickView'])
-        ->name('mytasks.quickview.task');
-
-    Route::get('/my-tasks/calendar/quick-view/meeting/{meeting}', [MyTaskController::class, 'meetingQuickView'])
-        ->name('mytasks.quickview.meeting');
 
     Route::get('/my-tasks', [MyTaskController::class, 'index'])
         ->name('mytasks.index');

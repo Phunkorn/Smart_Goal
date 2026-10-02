@@ -85,7 +85,7 @@
         {{-- ปุ่มเดียวที่เปิด modal สร้างโปรเจกต์ ต้องอยู่นอก <nav role="tablist"> เพื่อไม่ให้ปน role="tab" --}}
         @if($showCreateActions)
             <button type="button" class="mytasks-kanban__button mytasks-kanban__button--project mytasks-view-controls__create" data-open-user-task-create>
-                <i class="bi bi-plus-lg" aria-hidden="true"></i> สร้างงาน
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> สร้างโปรเจกต์ใหม่
             </button>
         @endif
     </div>

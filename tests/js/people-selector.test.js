@@ -298,3 +298,46 @@ test('โหมดอ่านอย่างเดียวยังแสด�
     assert.deepEqual(ui.chipIds(), ['2'], 'readOnly ต่างจาก excluded ต้องยังเห็นของเดิม');
     assert.deepEqual(selectedIdsOf(ui.root), [2]);
 });
+
+/* ---------- showAvatar แยกอิสระจาก team-manager (เช่น ผู้เข้าร่วมประชุม) ---------- */
+
+test('showAvatar=true โดยไม่มี variant team-manager แสดง avatar ได้ แต่ไม่พ่วงฟีเจอร์อื่นของ team-manager', (t) => {
+    const peopleWithAvatar = [
+        {...PEOPLE[0], avatarUrl: 'https://example.test/avatar/1.jpg'},
+        PEOPLE[1],
+        PEOPLE[2],
+    ];
+    const ui = mountSelector({people: peopleWithAvatar, showAvatar: true});
+    t.after(ui.cleanup);
+
+    // แถวตัวเลือก: คนมีรูปได้ <img>, คนไม่มีรูปได้ตัวอักษรย่อ
+    const rowOne = ui.root.querySelector('[data-people-option][data-person-id="1"]');
+    const rowTwo = ui.root.querySelector('[data-people-option][data-person-id="2"]');
+    assert.equal(rowOne.querySelector('.people-selector__avatar img')?.getAttribute('src'), 'https://example.test/avatar/1.jpg');
+    assert.equal(rowTwo.querySelector('.people-selector__avatar img'), null);
+    assert.ok(rowTwo.querySelector('.people-selector__avatar')?.textContent.length > 0, 'ไม่มีรูปต้องเห็นตัวอักษรย่อแทน');
+
+    // chip ก็ต้องมี avatar เช่นกัน
+    clickCheckbox(ui.checkbox(1));
+    clickCheckbox(ui.checkbox(2));
+    const chipOne = ui.root.querySelector('[data-people-chip][data-person-id="1"]');
+    const chipTwo = ui.root.querySelector('[data-people-chip][data-person-id="2"]');
+    assert.equal(chipOne.querySelector('.people-selector__chip-avatar img')?.getAttribute('src'), 'https://example.test/avatar/1.jpg');
+    assert.ok(chipTwo.querySelector('.people-selector__chip-avatar')?.textContent.length > 0);
+
+    // ฟีเจอร์เฉพาะ team-manager ต้องไม่ถูกเปิดตามมาด้วย
+    assert.equal(ui.root.querySelector('[data-people-department-select]'), null);
+    assert.equal(ui.root.querySelector('[data-people-summary-count]'), null);
+    assert.equal(ui.root.querySelector('.people-selector__department-badge'), null);
+    assert.equal(chipOne.tagName.toLowerCase(), 'span', 'chip ของ showAvatar เฉย ๆ ยังเป็นแท็กเดิม ไม่ใช่ article แบบ team-manager');
+});
+
+test('ไม่เปิด showAvatar แล้วไม่มี avatar โผล่ในแถวหรือ chip', (t) => {
+    const ui = mountSelector();
+    t.after(ui.cleanup);
+
+    clickCheckbox(ui.checkbox(1));
+
+    assert.equal(ui.root.querySelector('.people-selector__avatar'), null);
+    assert.equal(ui.root.querySelector('.people-selector__chip-avatar'), null);
+});

@@ -2,7 +2,7 @@
 .my-tasks-page .notion-viewbar a[aria-selected="true"] {
     color: var(--sg-ink);
     border-bottom-color: var(--sg-blue);
-    font-weight: 650;
+    font-weight: 400;
 }
 
 /* มุมมองที่ต้องโหลดหน้าใหม่ถูก render เป็น <a> จึงต้องได้รูปลักษณ์เดียวกับปุ่มมุมมองอื่น */
@@ -28,7 +28,7 @@
 .my-tasks-page .notion-viewbar a.active {
     background: #fff;
     color: var(--sg-ink);
-    font-weight: 650;
+    font-weight: 400;
     box-shadow: 0 2px 7px rgba(30, 55, 90, .1);
 }
 

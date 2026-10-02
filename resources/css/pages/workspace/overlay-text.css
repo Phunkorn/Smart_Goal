@@ -49,6 +49,10 @@
 .wsb-note.is-editing,
 .wsb-textbox.is-editing {
     pointer-events: auto;
+    /* ผืนผ้าใบปิดการลากคลุมข้อความไว้ทั้งผืน (ดู stage.css) กล่องที่กำลังพิมพ์
+       อยู่ต้องได้คืน ไม่งั้นลากเลือกข้อความเพื่อแก้หรือคัดลอกไม่ได้เลย */
+    user-select: text;
+    -webkit-user-select: text;
     outline: 2px solid #2563eb;
     outline-offset: 1px;
     cursor: text;

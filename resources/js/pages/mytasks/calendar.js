@@ -1,6 +1,5 @@
 import {statusMeta, taskPriorityMeta, unsupportedStatusMeta} from './priority-meta.js';
 import {modalStack} from '../../components/modal-stack.js';
-import {createCalendarQuickView} from './calendar-quick-view.js';
 import {attachmentStore} from './attachment-store.js';
 import {readSubtasks} from '../../components/subtask-modal.js';
 import {
@@ -53,9 +52,14 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const dayMeetingList = dayModal?.querySelector('[data-calendar-day-meeting-list]');
     const dayMeetingCount = dayModal?.querySelector('[data-calendar-day-meeting-count]');
     const detail = workspace.querySelector('[data-calendar-detail]');
+    const agendaModal = workspace.querySelector('[data-calendar-agenda-modal]');
+    const agendaModalTitle = agendaModal?.querySelector('[data-calendar-agenda-modal-title]');
+    const agendaModalList = agendaModal?.querySelector('[data-calendar-agenda-modal-list]');
+    const agendaModalEmpty = agendaModal?.querySelector('[data-calendar-agenda-modal-empty]');
+    const agendaModalCount = agendaModal?.querySelector('[data-calendar-agenda-modal-count]');
     const monthSelect = calendar?.querySelector('[data-calendar-month]');
     const yearSelect = calendar?.querySelector('[data-calendar-year]');
-    if (!calendar || !source || !grid || !title || !dayModal || !dayTitle || !dayTaskList || !dayMeetingList || !detail || !monthSelect || !yearSelect) return;
+    if (!calendar || !source || !grid || !title || !dayModal || !dayTitle || !dayTaskList || !dayMeetingList || !detail || !agendaModal || !agendaModalList || !monthSelect || !yearSelect) return;
 
     const json = (selector) => { const node = document.querySelector(selector); return node ? JSON.parse(node.textContent || '{}') : {}; };
     const teamData = json('[data-team-data]');
@@ -88,6 +92,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     let selectedMonth = initialSelection.month;
     let monthData = null;
     let activeDayKey = null;
+    let agendaViewAllSection = null;
     const startingCalendarMode = () => defaultCalendarMode(window.matchMedia?.(COMPACT_CALENDAR_QUERY).matches === true);
     let calendarMode = startingCalendarMode();
     const datePoints = {start: true, due: true};
@@ -149,10 +154,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         if (loadingIndicator) loadingIndicator.hidden = !isLoading;
     };
 
-    const quickViewTemplate = calendar.dataset.taskQuickviewTemplate || '';
-    const taskDetailTemplate = calendar.dataset.taskDetailTemplate || '';
-    const quickView = createCalendarQuickView(document);
-
     /*
      * ปฏิทินคือ "งานที่ยังต้องทำ" ไม่ใช่คลังงานทั้งหมด
      *
@@ -208,8 +209,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 taskId: row.dataset.id,
                 type: 'task',
                 entityId: Number(row.dataset.id),
-                quickViewUrl: quickViewTemplate.replace('__ID__', row.dataset.id),
-                detailUrl: taskDetailTemplate.replace('__ID__', row.dataset.id),
                 title: row.dataset.topic || 'ไม่มีชื่องาน',
                 project: row.dataset.project || 'งานทั่วไป',
                 assignee: row.dataset.assignee || '',
@@ -326,14 +325,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         else node.type = 'button';
         node.dataset.calendarTask = event.id;
         node.dataset.calendarEventType = event.type;
-        if (event.quickViewUrl) node.dataset.calendarQuickView = event.quickViewUrl;
-        if (event.detailUrl) node.dataset.calendarDetailUrl = event.detailUrl;
         node.setAttribute('aria-label', eventAriaLabel(event));
-        if (event.quickViewUrl) {
-            node.setAttribute('aria-haspopup', 'dialog');
-            node.setAttribute('aria-expanded', 'false');
-            node.setAttribute('aria-controls', 'calendar-quick-view-popover');
-        }
         return node;
     };
 
@@ -655,7 +647,57 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         paintAgenda();
 
         if (monthAgendaTitle) monthAgendaTitle.textContent = `กำหนดส่งและนัดหมายใน${monthLabel}`;
+
+        // modal "ดูทั้งหมด" ไม่มีชุดข้อมูลเป็นของตัวเอง จึงต้องตามเนื้อหาของการ์ดที่เพิ่งคำนวณใหม่นี้เสมอ
+        if (agendaViewAllSection) fillAgendaViewAll(agendaViewAllSection);
     };
+
+    /* ---------- modal "ดูทั้งหมด" ของการ์ดสรุปใต้ปฏิทิน ---------- */
+
+    /**
+     * เนื้อหาของ modal มาจากชุดเดียวกับการ์ด (lastAgenda) ไม่ใช่ query ใหม่
+     * "ดูทั้งหมด" จึงแปลว่าไม่แบ่งหน้า ไม่ใช่ข้อมูลคนละชุดกับที่การ์ดกำลังแสดงอยู่
+     */
+    const fillAgendaViewAll = (section) => {
+        if (!lastAgenda) return;
+        const items = section === 'today' ? lastAgenda.todayEvents : lastAgenda.monthEvents;
+        const variant = section === 'today' ? 'today' : 'due';
+
+        if (agendaModalTitle) {
+            agendaModalTitle.textContent = section === 'today'
+                ? 'งานและการประชุมวันนี้'
+                : (monthAgendaTitle?.textContent || 'กำหนดส่งและนัดหมายในเดือนนี้');
+        }
+        if (agendaModalCount) agendaModalCount.textContent = `${items.length} รายการ`;
+        if (agendaModalList) agendaModalList.replaceChildren(...items.map((item, index) => agendaRow(variant)(item, index + 1)));
+        if (agendaModalEmpty) agendaModalEmpty.hidden = items.length > 0;
+
+        const table = agendaModalList?.closest('.calendar-table');
+        if (table) table.hidden = items.length === 0;
+    };
+
+    const openAgendaViewAll = (section) => {
+        agendaViewAllSection = section;
+        fillAgendaViewAll(section);
+        modalStack(document).open(agendaModal);
+    };
+
+    const closeAgendaViewAll = () => {
+        if (agendaModal.hidden) return;
+        modalStack(document).close(agendaModal);
+        agendaViewAllSection = null;
+    };
+
+    agendaModal.addEventListener('click', (event) => {
+        if (event.target.closest('[data-calendar-agenda-modal-close]')) {
+            closeAgendaViewAll();
+            return;
+        }
+
+        const chip = event.target.closest('[data-calendar-task]');
+        if (chip) activateEvent(chip, event);
+    });
+    agendaModal.addEventListener('modalstack:dismiss', closeAgendaViewAll);
 
     calendar.addEventListener('click', (event) => {
         const pager = event.target.closest('[data-calendar-agenda-pager]');
@@ -836,12 +878,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const render = () => {
-        // ห้ามปิด Quick View ตรงนี้ — render() ถูกเรียกจาก ensureMeetingsForSelectedMonth()
-        // ทุกครั้งที่ fetch ประชุมพื้นหลังเสร็จ (ทุกครั้งที่เปิดหน้า/เปลี่ยนเดือน) ถ้าปิดที่นี่
-        // Quick View ที่เพิ่งเปิดจะถูกปิดทิ้งเองทันทีที่ fetch นั้นตอบกลับ ทำให้ดูเหมือนคลิก
-        // Event ไม่ได้ผลเลย จุดที่ต้องปิดจริงคือตอน "เปลี่ยนเดือน" (goToMonth) และตอนข้อมูล
-        // ถูก invalidate จริง (mytasks:viewchange / mytasks:changed) เท่านั้น
-        // modal รายวันก็เช่นกัน: เติมเนื้อใหม่ให้แทนการปิดทิ้ง
+        // render() ถูกเรียกจาก ensureMeetingsForSelectedMonth() ทุกครั้งที่ fetch ประชุมพื้นหลังเสร็จ
+        // (ทุกครั้งที่เปิดหน้า/เปลี่ยนเดือน) โดยเดือนที่กำลังดูอยู่ไม่จำเป็นต้องเปลี่ยน
+        // modal รายวันและ modal ดูทั้งหมดที่เปิดค้างอยู่จึงแค่เติมเนื้อหาใหม่ ไม่ปิดทิ้ง
         const events = visibleEvents();
         monthData = buildMonthCalendar(events, selectedYear, selectedMonth, 3, {
             datePoints,
@@ -918,9 +957,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const goToMonth = (year, month) => {
-        // เดือนใหม่รื้อช่องวันที่เดิมทั้งหมด anchor ของ Quick View ที่เปิดอยู่จะหลุดออกจาก DOM
-        // ต้องปิดก่อนเสมอ ต่างจาก render() เฉย ๆ ที่อาจถูกเรียกจาก fetch พื้นหลังโดยเดือนไม่เปลี่ยน
-        quickView?.close();
         closeDayModal();
         selectedYear = year;
         selectedMonth = month;
@@ -945,7 +981,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     /**
      * เปิดรายการหนึ่งรายการ — เส้นทางเดียวกันทั้งจากการ์ดใต้ปฏิทินและ modal รายวัน
-     * สิทธิ์ยังถูกตรวจที่ server ทุกครั้งผ่าน quick-view endpoint และ Task Workspace เดิม
+     * สิทธิ์ยังถูกตรวจที่ server ทุกครั้งผ่าน Task Workspace หรือ MeetingPolicy เดิม
      */
     const activateEvent = (chip, domEvent) => {
         // เปิดในแท็บใหม่ด้วย Ctrl/Cmd/Shift ยังต้องทำงานตามปกติของลิงก์
@@ -953,24 +989,10 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
         domEvent.preventDefault();
 
-        // Quick View วางตำแหน่งจาก rect ของ anchor แถวที่อยู่ใน modal รายวันจึงใช้เป็น anchor ไม่ได้
-        // เพราะ modal ถูกปิดไปก่อน (z-index ของ Quick View เท่ากับชั้นล่างสุดของ modal stack)
-        // จุดยึดที่ยังมองเห็นอยู่จริงคือช่องวันที่บนปฏิทินซึ่งเป็นที่มาของแถวนั้นเอง
-        const anchor = dayModal.contains(chip)
-            ? (calendar.querySelector(`[data-calendar-day="${activeDayKey}"]`) || chip)
-            : chip;
-
-        // modal รายวันเป็นชั้นทึบ ต้องปิดก่อนเปิดชั้นถัดไป ไม่ให้ Quick View ไปอยู่ใต้ backdrop
+        // modal รายวันและ modal ดูทั้งหมดเป็นชั้นทึบ ต้องปิดก่อนเปิดชั้นถัดไป (Task Workspace หรือกล่องอ่านอย่างเดียว)
         closeDayModal();
+        if (agendaModal.contains(chip)) closeAgendaViewAll();
 
-        const quickViewUrl = chip.dataset.calendarQuickView;
-        if (quickView && quickViewUrl) {
-            // detailUrl มาจาก event ที่ระบบสร้างเอง ไม่ใช่จาก HTML ที่ endpoint ตอบกลับ
-            quickView.open(quickViewUrl, anchor, chip.dataset.calendarDetailUrl || '');
-            return true;
-        }
-
-        // ไม่มี Quick View (เช่นหน้าที่ไม่ได้ฝัง shell) จึงค่อยตกไปใช้เส้นทางเดิม
         if (chip.dataset.calendarEventType === 'meeting') {
             if (chip.href) window.location.assign(chip.href);
             return true;
@@ -985,7 +1007,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         const modeTrigger = event.target.closest('[data-calendar-mode-option]');
         if (modeTrigger) {
             calendarMode = modeTrigger.dataset.calendarModeOption === 'summary' ? 'summary' : 'timeline';
-            quickView?.close();
             render();
             return;
         }
@@ -997,13 +1018,18 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
             // ต้องเหลือวันเริ่มหรือวันสิ้นสุดอย่างน้อยหนึ่งตัว เพื่อไม่ให้ปฏิทินว่างโดยไม่รู้สาเหตุ
             if (nextDatePoints.start === datePoints.start && nextDatePoints.due === datePoints.due) return;
             Object.assign(datePoints, nextDatePoints);
-            quickView?.close();
             closeDayModal();
             render();
             return;
         }
 
-        // ช่องงานย่อยมีเจ้าของเป็นกล่องงานย่อย (components/subtask-modal.js) แถวจึงต้องไม่ชิงไปเปิด quick view
+        const viewAllTrigger = event.target.closest('[data-calendar-agenda-viewall]');
+        if (viewAllTrigger) {
+            openAgendaViewAll(viewAllTrigger.dataset.calendarAgendaViewall);
+            return;
+        }
+
+        // ช่องงานย่อยมีเจ้าของเป็นกล่องงานย่อย (components/subtask-modal.js) แถวจึงต้องไม่ชิงไปเปิดงาน
         if (event.target.closest('[data-subtask-open]')) return;
 
         const chip = event.target.closest('[data-calendar-task]');
@@ -1046,10 +1072,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            quickView?.close();
-            render();
-        });
+        searchInput.addEventListener('input', render);
         // Enter ในช่องค้นหาไม่ควร submit ฟอร์มใด ๆ ที่อาจครอบอยู่
         searchInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') event.preventDefault();
@@ -1066,19 +1089,15 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
     calendar.addEventListener('keydown', activateWithSpace);
     dayModal.addEventListener('keydown', activateWithSpace);
+    agendaModal.addEventListener('keydown', activateWithSpace);
 
     detail.addEventListener('modalstack:dismiss', closeDetail);
 
     document.addEventListener('mytasks:viewchange', (event) => {
-        quickView?.close();
         if (event.detail?.view === 'calendar') render();
         else closeDayModal();
     });
-    document.addEventListener('mytasks:changed', () => {
-        // ข้อมูลงานถูกแก้จากที่อื่น (เช่น Task Workspace) เนื้อหาที่ Quick View แสดงอยู่อาจไม่ตรงแล้ว
-        quickView?.close();
-        render();
-    });
+    document.addEventListener('mytasks:changed', render);
 
     render();
     ensureMeetingsForSelectedMonth();

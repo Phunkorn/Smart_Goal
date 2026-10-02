@@ -5,9 +5,12 @@ namespace App\Services;
 use App\Models\Department;
 use App\Models\Meeting;
 use App\Models\User;
+use App\Models\WorkOrder;
+use App\Models\WorkOrderList;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -24,7 +27,10 @@ final class MeetingQueryService
         'this_month' => 'เดือนนี้',
         'past' => 'ที่ผ่านมา',
         'all' => 'ทั้งหมด',
+        'custom' => 'กำหนดช่วงวันที่เอง',
     ];
+
+    public const CUSTOM_PERIOD = 'custom';
 
     /**
      * @param  User|null  $scopedEmployee  บังคับให้รายการเป็นของสมาชิกคนนี้เท่านั้น
@@ -65,9 +71,10 @@ final class MeetingQueryService
             });
         }
 
-        $this->applyPeriod($query, $filters['period'], $now);
+        $this->applyPeriod($query, $filters['period'], $now, $filters['date_from'], $filters['date_to']);
 
         $meetings = $query
+            ->with(['project:id,name', 'task:job_id,job_topic'])
             ->orderBy('starts_at', in_array($filters['period'], ['past', 'all'], true) ? 'desc' : 'asc')
             ->orderBy('id')
             ->paginate(20)
@@ -80,8 +87,9 @@ final class MeetingQueryService
             // บริบทที่ถูกล็อกไว้กับสมาชิกคนเดียวต้องไม่มีตัวเลือกสลับไปดูคนอื่น
             // partial ซ่อน <select name="employee"> เองเมื่อรายการนี้ว่าง
             'employeeOptions' => $scopedEmployee ? collect() : $this->employeeOptions($viewer),
-            'attendeeOptions' => $viewer->can('create', Meeting::class) ? $this->attendeeOptions() : collect(),
+            'attendeeOptions' => $viewer->can('create', Meeting::class) ? $this->attendeeOptions(old('attendees', [])) : collect(),
             'attendeeDepartments' => $viewer->can('create', Meeting::class) ? $this->attendeeDepartments() : collect(),
+            'projectOptions' => $viewer->can('create', Meeting::class) ? $this->meetingProjectOptions($viewer) : collect(),
             'inspectedEmployee' => $scopedEmployee
                 ? $scopedEmployee->loadMissing('department')
                 : ($filters['employee_id'] ? User::with('department')->find($filters['employee_id']) : null),
@@ -94,6 +102,8 @@ final class MeetingQueryService
         $meeting->load([
             'creator.department',
             'attendees.department',
+            'project:id,name',
+            'task:job_id,job_topic',
         ]);
         $employeeId = $this->normalizeEmployeeId($request, $viewer);
         $employeeIsRelated = $employeeId
@@ -101,8 +111,9 @@ final class MeetingQueryService
 
         return [
             'meeting' => $meeting,
-            'attendeeOptions' => $viewer->can('update', $meeting) ? $this->attendeeOptions() : collect(),
+            'attendeeOptions' => $viewer->can('update', $meeting) ? $this->attendeeOptions($meeting->attendees->pluck('id')->all()) : collect(),
             'attendeeDepartments' => $viewer->can('update', $meeting) ? $this->attendeeDepartments() : collect(),
+            'projectOptions' => $viewer->can('update', $meeting) ? $this->meetingProjectOptions($viewer) : collect(),
             'inspectedEmployee' => $employeeIsRelated ? User::with('department')->find($employeeId) : null,
             'nowBangkok' => CarbonImmutable::now(self::BUSINESS_TIMEZONE),
         ];
@@ -168,10 +179,7 @@ final class MeetingQueryService
                     'due' => $endsAt->format('Y-m-d'),
                     'startTime' => $startsAt->format('H:i'),
                     'endTime' => $endsAt->format('H:i'),
-                    // ปฏิทินต้องรู้ปลายทางทั้งสองแบบตั้งแต่ต้น: ดูย่อในหน้าเดิม และเปิดหน้าเต็ม
                     'entityId' => $meeting->id,
-                    'quickViewUrl' => route('mytasks.quickview.meeting', $meeting),
-                    'detailUrl' => route('meetings.show', $meeting),
                     'url' => route('meetings.show', $meeting),
                 ];
             })
@@ -222,11 +230,57 @@ final class MeetingQueryService
         $period = $request->string('period')->toString();
         $period = array_key_exists($period, self::PERIODS) ? $period : 'upcoming';
 
+        $customRange = $period === self::CUSTOM_PERIOD
+            ? $this->parseCustomRange($request->query('date_from'), $request->query('date_to'))
+            : null;
+
+        // ช่วงกำหนดเองที่ไม่ผ่านการตรวจ (รูปแบบผิด, from หลัง to) ถูกทิ้งทั้งคู่แล้วกลับไปใช้ค่าเริ่มต้น
+        // ไม่ใช่แก้ให้ครึ่งเดียว เหมือนหลักการเดียวกับ App\Support\ReportPeriod::custom()
+        if ($period === self::CUSTOM_PERIOD && $customRange === null) {
+            $period = 'upcoming';
+        }
+
         return [
             'search' => mb_substr(trim($request->string('search')->toString()), 0, 100),
             'period' => $period,
+            'date_from' => $customRange !== null ? $customRange[0]->format('Y-m-d') : null,
+            'date_to' => $customRange !== null ? $customRange[1]->format('Y-m-d') : null,
             'employee_id' => $this->normalizeEmployeeId($request, $viewer),
         ];
+    }
+
+    /**
+     * ช่วงวันที่ที่ผู้ใช้กำหนดเองสำหรับตัวกรองรายการประชุม — ต้องเป็นวันที่จริงรูปแบบ Y-m-d
+     * ทั้งคู่ และ date_from ไม่หลัง date_to มิฉะนั้นถือว่าทั้งคู่ใช้ไม่ได้
+     *
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}|null
+     */
+    private function parseCustomRange(mixed $from, mixed $to): ?array
+    {
+        $start = $this->parseDay($from);
+        $end = $this->parseDay($to);
+
+        if ($start === null || $end === null || $start->gt($end)) {
+            return null;
+        }
+
+        return [$start, $end];
+    }
+
+    private function parseDay(mixed $value): ?CarbonImmutable
+    {
+        if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
+            return null;
+        }
+
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value, self::BUSINESS_TIMEZONE);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        // วันที่ไม่มีจริงเช่น 2569-02-30 ถูก Carbon เลื่อนไปต้นเดือนถัดไปเงียบ ๆ จึงต้องเทียบกลับกับข้อความเดิม
+        return $date instanceof CarbonImmutable && $date->format('Y-m-d') === $value ? $date : null;
     }
 
     private function normalizeEmployeeId(Request $request, User $viewer): ?int
@@ -262,9 +316,26 @@ final class MeetingQueryService
             ->get(['id', 'name', 'department_id']);
     }
 
-    private function attendeeOptions()
+    /**
+     * รายชื่อที่แสดงในตัวเลือก "ผู้เข้าร่วม" — จำกัดเฉพาะพนักงาน/หัวหน้าแผนก (role = user)
+     *
+     * admin และ viewer ยังคง "เลือกได้" ในทางเทคนิคผ่าน attendeeEligibilityQuery()
+     * (ดู MeetingManagementTest::test_create_normalizes_duplicate_attendees_and_accepts_active_organizational_roles)
+     * แต่ต้องไม่ปรากฏเป็นตัวเลือกให้เลือกใหม่ในรายการเรียกดู เพราะไม่ใช่ผู้ถูกเชิญปกติ
+     *
+     * $includeIds คือผู้เข้าร่วมที่ถูกผูกไว้แล้ว (เช่น admin ที่ถูกเชิญไว้ก่อนหน้านี้) ต้องยังแสดง
+     * ต่อไปแม้ไม่ใช่ role = user มิฉะนั้นการบันทึกฟอร์มซ้ำจะทำให้คนเหล่านั้นหลุดออกจากที่ประชุมเงียบ ๆ
+     *
+     * @param  array<int>  $includeIds
+     */
+    private function attendeeOptions(array $includeIds = [])
     {
+        $includeIds = collect($includeIds)->map(fn ($id) => (int) $id)->filter()->unique()->all();
+
         return $this->attendeeEligibilityQuery()
+            ->where(fn (Builder $query) => $query
+                ->where('role', 'user')
+                ->when($includeIds !== [], fn (Builder $q) => $q->orWhereIn('id', $includeIds)))
             ->with('department:id,department_name')
             ->orderBy('name')
             ->get(['id', 'name', 'role', 'department_id', 'profile_image']);
@@ -285,7 +356,77 @@ final class MeetingQueryService
             ->whereIn('role', self::ATTENDEE_ROLES);
     }
 
-    private function applyPeriod(Builder $query, string $period, CarbonImmutable $now): void
+    /**
+     * ตัวเลือกโปรเจกต์ + งานหลักสำหรับผูกกับการประชุมแบบไม่บังคับ
+     *
+     * โปรเจกต์ที่เลือกได้ต้อง "เห็นได้" ตามเกณฑ์เดียวกับ WorkOrderListPolicy::view() เป๊ะ ๆ
+     * (เจ้าของ, admin/viewer, หรือมีงานที่ involving() อยู่ในนั้น) ไม่ใช่แค่โปรเจกต์ที่มีงาน
+     * เพราะโปรเจกต์เพิ่งสร้างยังไม่มีงานเลยก็ต้องผูกกับประชุมได้ (เช่น ประชุม kickoff โปรเจกต์ใหม่)
+     *
+     * ส่วนงานหลักที่เสนอในแต่ละโปรเจกต์ยังกรองผ่าน WorkOrder::visibleInProjectsFor() ตัวเดียวกับ
+     * ที่ MyTaskController ใช้ตัดสินว่าสมาชิกเห็นงานใบไหนได้บ้าง เพื่อไม่ให้ผู้ร่วมงานข้ามแผนก
+     * เห็นงานพี่น้องที่ตัวเองไม่มีสิทธิ์เห็นอยู่ดี แม้จะเห็นชื่อโปรเจกต์ได้ก็ตาม
+     *
+     * คืนเฉพาะงานระดับบนสุด (ไม่มีงานย่อย) ตามที่ต้องการ
+     *
+     * @return Collection<int, array{id:int, name:string, tasks: array<int, array{id:int, name:string}>}>
+     */
+    public function meetingProjectOptions(User $viewer): Collection
+    {
+        return $this->meetingVisibleProjectsQuery($viewer)
+            ->with(['workOrders' => fn (HasMany $query) => $query
+                ->topLevel()
+                ->whereNull('deleted_at')
+                ->visibleInProjectsFor($viewer)
+                ->orderBy('job_topic')
+                ->select(['job_id', 'job_topic', 'work_order_list_id'])])
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (WorkOrderList $list) => [
+                'id' => $list->id,
+                'name' => $list->name,
+                'tasks' => $list->workOrders->map(fn (WorkOrder $task) => [
+                    'id' => $task->job_id,
+                    'name' => $task->job_topic,
+                ])->values()->all(),
+            ]);
+    }
+
+    /**
+     * ตรวจว่า work_order_list_id / work_order_id ที่ส่งมาผูกกับประชุมอยู่ในขอบเขตที่ผู้ใช้
+     * เห็นได้จริงหรือไม่ — ห้ามเชื่อค่าที่ client ส่งมาตรง ๆ เหมือน attendeeEligibility()
+     */
+    public function isMeetingTaskSelectable(User $viewer, int $workOrderId, ?int $workOrderListId): bool
+    {
+        return WorkOrder::query()
+            ->topLevel()
+            ->visibleInProjectsFor($viewer)
+            ->whereNull('deleted_at')
+            ->whereKey($workOrderId)
+            ->when($workOrderListId, fn (Builder $query) => $query->where('work_order_list_id', $workOrderListId))
+            ->exists();
+    }
+
+    public function isMeetingProjectSelectable(User $viewer, int $workOrderListId): bool
+    {
+        return $this->meetingVisibleProjectsQuery($viewer)->whereKey($workOrderListId)->exists();
+    }
+
+    /**
+     * เกณฑ์ต้องตรงกับ WorkOrderListPolicy::view() ทุกประการ: เจ้าของ, admin/viewer,
+     * หรือมีงานในโปรเจกต์นั้นที่ involving() ผู้ใช้อยู่
+     */
+    private function meetingVisibleProjectsQuery(User $viewer): Builder
+    {
+        return WorkOrderList::query()
+            ->when(! in_array($viewer->role, ['admin', 'viewer'], true), fn (Builder $query) => $query
+                ->where(function (Builder $list) use ($viewer): void {
+                    $list->where('user_id', $viewer->id)
+                        ->orWhereHas('workOrders', fn (Builder $workOrders) => $workOrders->involving($viewer));
+                }));
+    }
+
+    private function applyPeriod(Builder $query, string $period, CarbonImmutable $now, ?string $dateFrom = null, ?string $dateTo = null): void
     {
         if ($period === 'past') {
             $query->where('ends_at', '<', $now->utc());
@@ -303,11 +444,18 @@ final class MeetingQueryService
             return;
         }
 
-        [$windowStart, $windowEnd] = match ($period) {
-            'today' => [$now->startOfDay(), $now->endOfDay()],
-            'next_7_days' => [$now, $now->addDays(7)->endOfDay()],
-            default => [$now->startOfMonth(), $now->endOfMonth()],
-        };
+        if ($period === self::CUSTOM_PERIOD) {
+            // normalizeFilters() รับประกันแล้วว่าถึงตรงนี้ date_from/date_to เป็นวันที่จริงรูปแบบ Y-m-d ทั้งคู่
+            // และ date_from ไม่หลัง date_to มิฉะนั้น period จะถูกเปลี่ยนเป็น 'upcoming' ไปแล้วตั้งแต่ชั้นนั้น
+            $windowStart = CarbonImmutable::createFromFormat('!Y-m-d', $dateFrom, self::BUSINESS_TIMEZONE);
+            $windowEnd = CarbonImmutable::createFromFormat('!Y-m-d', $dateTo, self::BUSINESS_TIMEZONE)->endOfDay();
+        } else {
+            [$windowStart, $windowEnd] = match ($period) {
+                'today' => [$now->startOfDay(), $now->endOfDay()],
+                'next_7_days' => [$now, $now->addDays(7)->endOfDay()],
+                default => [$now->startOfMonth(), $now->endOfMonth()],
+            };
+        }
 
         $query->where('starts_at', '<=', $windowEnd->utc())
             ->where('ends_at', '>=', $windowStart->utc());

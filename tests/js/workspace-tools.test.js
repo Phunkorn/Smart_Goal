@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isReadOnlyTool, toolFor} from '../../resources/js/pages/workspace/tools/index.js';
+import {isReadOnlyTool, isViewportTool, toolFor} from '../../resources/js/pages/workspace/tools/index.js';
 import {
     addElement,
     createScene,
@@ -108,6 +108,47 @@ test('ลูกศรและเส้นตรงเก็บทิศทา�
     const shape = tool.onPointerUp(contextFor({draft, point: {x: 20, y: 40}})).scene.elements[0];
 
     assert.deepEqual({x: shape.x, y: shape.y, w: shape.w, h: shape.h}, {x: 100, y: 100, w: -80, h: -60});
+});
+
+/*
+ * Shift ระหว่างลากสี่เหลี่ยม/วงรี = จัตุรัส/วงกลมพอดี เหมือน Canva และ Figma
+ *
+ * เดิม constrain มีผลเฉพาะเส้นตรงกับลูกศร การกด Shift ตอนลากสี่เหลี่ยมจึงเงียบสนิท
+ */
+test('กด Shift ระหว่างลากสี่เหลี่ยมได้จัตุรัสพอดี', () => {
+    const tool = toolFor('rect');
+    const draft = tool.onPointerDown(contextFor({point: {x: 10, y: 10}})).draft;
+
+    const shape = tool.onPointerUp(contextFor({draft, point: {x: 110, y: 40}, constrain: true})).scene.elements[0];
+
+    assert.deepEqual(
+        {x: shape.x, y: shape.y, w: shape.w, h: shape.h},
+        {x: 10, y: 10, w: 100, h: 100},
+        'ด้านที่ลากไกลกว่าเป็นตัวกำหนดขนาด'
+    );
+});
+
+test('วงกลมที่ลากขึ้นซ้ายพร้อม Shift ยังคงทิศทางที่ลาก', () => {
+    const tool = toolFor('ellipse');
+    const draft = tool.onPointerDown(contextFor({point: {x: 200, y: 200}})).draft;
+
+    const shape = tool.onPointerUp(contextFor({draft, point: {x: 140, y: 100}, constrain: true})).scene.elements[0];
+
+    // ลากขึ้นซ้าย 100 คือด้านที่ยาวกว่า กรอบจึงเป็น 100x100 โดยมุมตรงข้ามยังอยู่ที่เดิม
+    assert.deepEqual(
+        {x: shape.x, y: shape.y, w: shape.w, h: shape.h},
+        {x: 100, y: 100, w: 100, h: 100}
+    );
+});
+
+/* เส้นกับลูกศรต้องไม่เปลี่ยนพฤติกรรม — Shift ของมันยังคือการล็อกมุมทีละ 45 องศา */
+test('Shift กับเส้นตรงยังล็อกมุมเหมือนเดิม ไม่กลายเป็นการล็อกสัดส่วน', () => {
+    const tool = toolFor('line');
+    const draft = tool.onPointerDown(contextFor({point: {x: 0, y: 0}})).draft;
+
+    const shape = tool.onPointerUp(contextFor({draft, point: {x: 100, y: 12}, constrain: true})).scene.elements[0];
+
+    assert.deepEqual({w: shape.w, h: shape.h}, {w: 100, h: 0}, 'เกือบแนวนอนต้องถูกดึงเข้าแนวนอนพอดี');
 });
 
 test('การคลิกเปล่าโดยไม่ลากไม่ทิ้งรูปทรงขนาดศูนย์ไว้', () => {
@@ -276,6 +317,20 @@ test('เครื่องมือที่ไม่แก้เนื้อ�
     assert.equal(isReadOnlyTool('select'), true);
     assert.equal(isReadOnlyTool('pen'), false);
     assert.equal(isReadOnlyTool('eraser'), false);
+});
+
+/*
+ * แคบกว่า isReadOnlyTool หนึ่งชั้น เครื่องมือเลือกไม่แก้เนื้อหาด้วยตัวเองแต่ยัง
+ * ทำงานกับชิ้นงาน (เลือก ลากย้าย ดับเบิลคลิกเปิดพิมพ์) ส่วนมือเลื่อนกระดานไม่
+ * แตะชิ้นงานเลย ถ้าสองอย่างนี้ปนกัน การดับเบิลคลิกตอนเลื่อนกระดานจะเปิดโหมดพิมพ์
+ * ขึ้นมาโดยไม่ได้ตั้งใจ แล้วกล่องนั้นจะดูดการลากไปจนเลื่อนกระดานไม่ได้
+ */
+test('เครื่องมือที่ทำงานกับมุมมองอย่างเดียวถูกแยกออกจากเครื่องมือที่ไม่แก้เนื้อหา', () => {
+    assert.equal(isViewportTool('hand'), true);
+    assert.equal(isViewportTool('select'), false, 'เครื่องมือเลือกยังทำงานกับชิ้นงาน');
+    assert.equal(isViewportTool('pen'), false);
+    assert.equal(isViewportTool('sticky'), false);
+    assert.equal(isViewportTool('ไม่มีอยู่จริง'), false);
 });
 
 test('ชื่อเครื่องมือที่ไม่รู้จักถอยไปใช้เครื่องมือเลือก', () => {

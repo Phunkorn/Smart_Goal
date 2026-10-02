@@ -185,6 +185,8 @@ const linesOf = (text) => (text ?? '').split('\n');
  */
 const renderLines = (doc, node, text, lineAligns = {}) => {
     node.textContent = '';
+    // การจัดบรรทัดเป็นของบล็อกเท่านั้น ค่าที่ค้างที่ตัวกล่องจะสืบทอดทับทุกบรรทัด
+    node.style.removeProperty('text-align');
 
     linesOf(text).forEach((line, index) => {
         const div = doc.createElement('div');
@@ -202,6 +204,29 @@ const renderLines = (doc, node, text, lineAligns = {}) => {
 
         node.appendChild(div);
     });
+};
+
+/**
+ * ย้ายเนื้อหาทั้งหมดของกล่องเข้าไปอยู่ในบล็อกเดียว แล้วคืนบล็อกนั้นกลับไป
+ *
+ * ย้ายโหนดตัวเดิม ไม่ได้สร้างใหม่จากข้อความ เพราะ Range ของเคอร์เซอร์ชี้ไปที่
+ * text node เดิม การย้ายโหนดเดิมจึงรักษาตำแหน่งเคอร์เซอร์ไว้ได้ ถ้าโคลนแล้วลบของเดิม
+ * เคอร์เซอร์จะกระโดดกลับไปต้นข้อความกลางคัน
+ */
+const wrapContentInBlock = (doc, node) => {
+    const block = doc.createElement('div');
+
+    while (node.firstChild) {
+        block.appendChild(node.firstChild);
+    }
+
+    if (! block.firstChild) {
+        block.appendChild(doc.createElement('br'));
+    }
+
+    node.appendChild(block);
+
+    return block;
 };
 
 /**
@@ -354,18 +379,35 @@ export const applyAlignToSelection = (doc, node, align) => {
         return false;
     }
 
+    /*
+     * เขียนค่าลงไปตรง ๆ ทุกค่า รวมทั้ง left — ห้ามใช้ removeProperty
+     *
+     * เดิม left แปลว่า "ลบค่าทิ้งแล้วสืบทอดจากแม่" ซึ่งไม่เท่ากับ "ชิดซ้าย" เลย
+     * ถ้ากล่องแม่ถูกจัดกึ่งกลางไว้ การสั่งชิดซ้ายให้บรรทัดเดียวจะกลายเป็นการคืนไป
+     * กึ่งกลางตามกล่อง นี่คืออาการหนึ่งที่ผู้ใช้รายงานว่า "กดชิดซ้ายแล้วบางทีไม่ทำงาน"
+     * การเขียนค่าตรง ๆ ทำให้บล็อกเป็นเจ้าของตัวเองเสมอ ไม่ขึ้นกับสิ่งที่ครอบมันอยู่
+     * (readEditableContent กรอง left ออกตอนบันทึกอยู่แล้ว ข้อมูลที่เก็บจึงไม่บวมขึ้น)
+     */
     const setAlign = (el) => {
-        if (align === 'left') {
-            el.style.removeProperty('text-align');
-        } else {
-            el.style.textAlign = align;
-        }
+        el.style.textAlign = align;
     };
+
+    /*
+     * การจัดบรรทัดต้องลงที่บล็อกของบรรทัดเสมอ ห้ามลงที่ตัวกล่อง
+     *
+     * บั๊กจริงที่ผู้ใช้รายงาน: กล่องที่ยังไม่เคยกด Enter เลยจะยังไม่มีบล็อกลูกสักใบ
+     * โค้ดเดิมจึงไปตั้ง text-align ไว้ที่ตัวกล่องแทน ค่านั้นไม่มีใครล้างอีกเลย (applyStyles
+     * ไม่ได้แตะ และ renderLines ล้างแค่ลูก) พอผู้ใช้กด Enter ขึ้นบรรทัดใหม่
+     * ทุกบรรทัดจึงสืบทอดค่านั้นไปหมด และสั่งให้บรรทัดใดกลับมาชิดซ้ายก็ไม่ได้ผล
+     * ที่ร้ายกว่านั้นคือ readEditableContent อ่านเฉพาะ align ของบล็อก ค่าที่ค้างอยู่
+     * บนตัวกล่องจึงหายไปตอนบันทึก พอวาดใหม่ทุกบรรทัดจึงเด้งกลับมาชิดซ้ายพร้อมกันหมด
+     */
+    node.style.removeProperty('text-align');
 
     const blocks = Array.from(node.childNodes).filter((child) => child.nodeType === 1);
 
     if (! blocks.length) {
-        setAlign(node);
+        setAlign(wrapContentInBlock(doc, node));
 
         return true;
     }
@@ -381,18 +423,6 @@ export const applyAlignToSelection = (doc, node, align) => {
     }
 
     return true;
-};
-
-/**
- * ค่าการจัดบรรทัดของทุกบรรทัดในข้อความนี้ ใช้ตอนกดปุ่มจัดบรรทัดขณะที่ "เลือก"
- * กล่องทั้งใบอยู่ (ไม่ได้เปิดแก้ไข) ซึ่งควรมีผลกับทุกบรรทัดเหมือนเดิมทั้งกล่อง
- */
-export const uniformLineAligns = (text, align) => {
-    if (align === 'left') {
-        return {};
-    }
-
-    return Object.fromEntries(linesOf(text).map((_, index) => [index, align]));
 };
 
 /** กล่องที่เหตุการณ์นี้เกิดขึ้นข้างใน คืน null เมื่อไม่ได้เกิดในกล่องไหนเลย */

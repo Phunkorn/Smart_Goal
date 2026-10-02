@@ -314,7 +314,7 @@ class TaskCollaboratorNotificationTest extends TestCase
         $this->assertSame('accepted', $pivot->status);
         $this->assertSame($admin->id, $pivot->decided_by);
         $this->assertNotNull($pivot->responded_at);
-        $this->actingAs($candidate)->get(route('mytasks.quickview.task', $task))->assertOk();
+        $this->actingAs($candidate)->get(route('tasks.show', $task))->assertRedirect();
         $this->actingAs($candidate)
             ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2])
             ->assertOk();

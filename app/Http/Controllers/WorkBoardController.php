@@ -219,6 +219,10 @@ class WorkBoardController extends Controller
                 'updates.user.department',
                 'updates.attachments',
                 'updates.replyTo.user',
+                // ต้องดึงไฟล์แนบของข้อความต้นทางด้วย ไม่งั้น TaskCommentPresenter::comment()
+                // จะเห็นว่า relation ยังไม่โหลดแล้วคืน images เป็นอาร์เรย์ว่างเงียบ ๆ
+                // ทำให้บล็อก "กำลังตอบกลับ" ของคอมเมนต์ที่มีแต่รูปกลายเป็นกล่องเปล่า
+                'updates.replyTo.attachments',
                 'updates.mentions',
                 'activityLogs.user.department',
                 'reviewSubmitter',

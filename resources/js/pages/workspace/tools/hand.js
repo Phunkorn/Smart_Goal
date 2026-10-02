@@ -8,6 +8,8 @@
 export const handTool = {
     name: 'hand',
     cursor: 'grab',
+    // ทำงานกับมุมมองเท่านั้น ไม่แตะชิ้นงานบนกระดานเลย (ดู isViewportTool)
+    viewportOnly: true,
 
     onPointerDown({camera}) {
         return {draft: {camera}};

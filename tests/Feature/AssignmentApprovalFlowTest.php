@@ -93,7 +93,6 @@ class AssignmentApprovalFlowTest extends TestCase
             ->assertOk()
             ->assertDontSee('Private pending assignment');
         $this->actingAs($assignee)->get(route('tasks.show', $job))->assertForbidden();
-        $this->actingAs($assignee)->get(route('mytasks.quickview.task', $job))->assertForbidden();
 
         $this->assertFalse(Gate::forUser($assignee)->allows('update', $job));
         $this->assertFalse(Gate::forUser($assignee)->allows('comment', $job));
@@ -308,8 +307,8 @@ class AssignmentApprovalFlowTest extends TestCase
         $this->assertSame('pending', $job->fresh()->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
         $this->assertNotificationCount($sameAsTask, $job, 'collaborator_added', 1);
         $this->assertNotificationCount($admin, $job, 'collaborator_approval_request', 1);
-        $this->actingAs($sameAsTask)->get(route('mytasks.quickview.task', $job))->assertOk();
-        $this->actingAs($crossDepartment)->get(route('mytasks.quickview.task', $job))->assertForbidden();
+        $this->actingAs($sameAsTask)->get(route('tasks.show', $job))->assertRedirect();
+        $this->actingAs($crossDepartment)->get(route('tasks.show', $job))->assertForbidden();
     }
 
     public function test_department_head_collaborator_joins_when_pending_assignment_is_approved(): void

@@ -316,6 +316,62 @@ class WorkLogRoutineFlowTest extends TestCase
     }
 
     /**
+     * แผนที่เลยวันสิ้นสุดไปแล้วต้องหายไปจาก "แผนงานประจำของฉัน"
+     *
+     * อาการที่รายงานเข้ามา: ขึ้นเดือนใหม่แล้วแผนรายวันของเดือนก่อนยังค้างอยู่ในกล่อง
+     * จัดการแผน ทั้งที่แม่แบบนั้นไม่สร้างรายการให้อีกแล้ว (WorkLogRoutineMaterializer
+     * ตัดทิ้งด้วย ends_on อยู่แล้ว แต่กล่องจัดการแผนดึงแม่แบบทั้งหมดมาแสดง)
+     */
+    public function test_the_plan_management_card_hides_routines_whose_date_window_has_passed(): void
+    {
+        $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
+        $department = Department::create(['department_name' => 'IT']);
+        $owner = $this->user($department);
+        $mate = $this->user($department);
+
+        $this->template($owner, [
+            'title' => 'แผนเดือนที่แล้วของฉัน',
+            'starts_on' => '2026-08-05',
+            'ends_on' => '2026-08-05',
+        ]);
+        $this->template($owner, [
+            'title' => 'แผนวันนี้ของฉัน',
+            'starts_on' => '2026-09-07',
+            'ends_on' => '2026-09-07',
+        ]);
+        $this->template($owner, [
+            'title' => 'แผนวันข้างหน้าของฉัน',
+            'starts_on' => '2026-09-09',
+            'ends_on' => '2026-09-09',
+        ]);
+        $this->template($owner, ['title' => 'แผนประจำทุกสัปดาห์ของฉัน']);
+
+        $expiredShared = $this->template($mate, [
+            'title' => 'แผนเดือนที่แล้วของเพื่อน',
+            'starts_on' => '2026-08-05',
+            'ends_on' => '2026-08-05',
+        ]);
+        $expiredShared->participants()->attach($owner->id, ['added_by' => $mate->id]);
+
+        $liveShared = $this->template($mate, [
+            'title' => 'แผนวันข้างหน้าของเพื่อน',
+            'starts_on' => '2026-09-09',
+            'ends_on' => '2026-09-09',
+        ]);
+        $liveShared->participants()->attach($owner->id, ['added_by' => $mate->id]);
+
+        $this->actingAs($owner)
+            ->get(route('daily-logs.index', ['view' => 'calendar']))
+            ->assertOk()
+            ->assertSee('แผนวันนี้ของฉัน')
+            ->assertSee('แผนวันข้างหน้าของฉัน')
+            ->assertSee('แผนประจำทุกสัปดาห์ของฉัน')
+            ->assertSee('แผนวันข้างหน้าของเพื่อน')
+            ->assertDontSee('แผนเดือนที่แล้วของฉัน')
+            ->assertDontSee('แผนเดือนที่แล้วของเพื่อน');
+    }
+
+    /**
      * คนที่ถูกเพิ่มเห็นแผนร่วมในปฏิทิน แต่แก้ไม่ได้
      * เจ้าของแม่แบบเป็นคนเดียวที่แก้การตั้งค่าได้
      */
@@ -341,6 +397,7 @@ class WorkLogRoutineFlowTest extends TestCase
 
     public function test_shared_single_day_routines_are_grouped_into_one_card_with_a_date_range(): void
     {
+        $this->travelTo(CarbonImmutable::parse(self::MONDAY_MORNING_UTC, 'UTC'));
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
         $mate = $this->user($department);

@@ -1767,3 +1767,103 @@ test('ผืนผ้าใบประกาศเครื่องมือ�
         env.dom.cleanup();
     }
 });
+
+/* ── มือเลื่อนกระดานกับกล่องข้อความ ──────────────────────────── */
+
+/*
+ * อาการที่ผู้ใช้รายงาน: ถือมือเลื่อนกระดานแล้วเลื่อนไปโดนกระดาษโน้ต กระดานก็
+ * เลื่อนไม่ได้อีก ต้องไปคลิกที่อื่นก่อนทุกครั้ง
+ *
+ * ต้นเหตุคือการเลื่อนกระดานมักเป็นการลากสั้น ๆ ติดกันหลายครั้งที่จุดเดิม
+ * เบราว์เซอร์นับเป็นดับเบิลคลิก โน้ตใต้เมาส์จึงเปิดโหมดพิมพ์ แล้วกล่องที่เปิด
+ * โหมดพิมพ์ถือ pointer-events: auto ไว้เอง การลากครั้งต่อไปจึงไม่ถึงผืนผ้าใบ
+ */
+test('ถือมือเลื่อนกระดานแล้วดับเบิลคลิกโน้ต ต้องไม่เปิดโหมดพิมพ์', () => {
+    const env = mount({elements: [sticky('note', {x: 100, y: 100, w: 180, h: 180})]});
+
+    try {
+        click(env.control('[data-tool="hand"]'));
+        dblclick(env.stage, {x: 150, y: 150});
+
+        const note = env.node('note');
+
+        assert.equal(note.classList.contains('is-editing'), false, 'โน้ตต้องไม่เข้าโหมดพิมพ์');
+        assert.equal(note.getAttribute('contenteditable'), null);
+        assert.equal(env.editor.state.editingId, null);
+        assert.notEqual(env.dom.document.activeElement, note, 'โฟกัสต้องไม่ย้ายไปที่โน้ต');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+test('เปลี่ยนไปถือมือเลื่อนกระดานกลางการพิมพ์ แล้วลากเลื่อนจากบนกล่องนั้นได้ทันที', () => {
+    const env = mount({elements: [sticky('note', {x: 100, y: 100, w: 180, h: 180})]});
+
+    try {
+        dblclick(env.stage, {x: 150, y: 150});
+        click(env.control('[data-tool="hand"]'));
+
+        /*
+         * ยิงเหตุการณ์ที่ตัวกล่องเอง ซึ่งคือสิ่งที่เบราว์เซอร์ส่งมาจริงเมื่อกล่อง
+         * ยังเปิดโหมดพิมพ์อยู่ (CSS ให้ pointer-events: auto เฉพาะกล่องที่กำลังแก้)
+         * jsdom ไม่คำนวณ CSS จึงต้องเลือกเป้าหมายเองแทนการพึ่งการทดสอบการชน
+         */
+        const note = env.node('note');
+
+        drag(note, {x: 150, y: 150}, {x: 210, y: 180}, {steps: 2});
+
+        assert.deepEqual(
+            {x: env.editor.state.camera.x, y: env.editor.state.camera.y},
+            {x: 60, y: 30},
+            'ไม่ต้องไปคลิกที่อื่นก่อนจึงจะเลื่อนกระดานได้'
+        );
+        assert.equal(elementById(env, 'note').x, 100, 'โน้ตต้องไม่ขยับ');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/*
+ * เครื่องมือเลือกยังต้องเปิดพิมพ์ด้วยดับเบิลคลิกได้เหมือนเดิม ด่านด้านบนกันเฉพาะ
+ * เครื่องมือที่ทำงานกับมุมมองเท่านั้น ไม่ใช่ปิดการเปิดพิมพ์ไปทั้งหน้า
+ */
+test('เครื่องมือเลือกยังเปิดโหมดพิมพ์ด้วยดับเบิลคลิกได้ตามเดิม', () => {
+    const env = mount({elements: [sticky('note', {x: 100, y: 100, w: 180, h: 180})]});
+
+    try {
+        dblclick(env.stage, {x: 150, y: 150});
+
+        assert.equal(env.node('note').classList.contains('is-editing'), true);
+        assert.equal(env.editor.state.editingId, 'note');
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
+/*
+ * เปลี่ยนเครื่องมือต้องจบการพิมพ์ด้วย ไม่ใช่ปล่อยให้กล่องเปิดโหมดพิมพ์ค้างไว้
+ * ข้ามเครื่องมือ และต้องบันทึกข้อความที่พิมพ์ไว้ด้วยเส้นทางเดียวกับการคลิกออก
+ */
+test('เปลี่ยนเครื่องมือจบการพิมพ์ในโน้ตและบันทึกข้อความที่พิมพ์ไว้', () => {
+    const env = mount({elements: [sticky('note', {x: 100, y: 100, w: 180, h: 180})]});
+
+    try {
+        dblclick(env.stage, {x: 150, y: 150});
+
+        const note = env.node('note');
+
+        assert.equal(env.dom.document.activeElement, note, 'โน้ตต้องได้โฟกัสหลังดับเบิลคลิก');
+
+        note.textContent = 'ปรับขั้นตอนแจ้งซ่อม';
+
+        click(env.control('[data-tool="hand"]'));
+
+        assert.equal(env.editor.state.editingId, null);
+        assert.equal(env.node('note').getAttribute('contenteditable'), null,
+            'กล่องต้องไม่เปิดโหมดพิมพ์ค้างข้ามเครื่องมือ');
+        assert.equal(elementById(env, 'note').text, 'ปรับขั้นตอนแจ้งซ่อม',
+            'ข้อความที่พิมพ์ไว้ต้องถูกบันทึก ไม่ใช่หายไปพร้อมการเปลี่ยนเครื่องมือ');
+    } finally {
+        env.dom.cleanup();
+    }
+});

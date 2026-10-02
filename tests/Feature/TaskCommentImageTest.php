@@ -198,6 +198,79 @@ class TaskCommentImageTest extends TestCase
         $this->assertNull(ProtectedMedia::attachmentAbsolutePath($path));
     }
 
+    /**
+     * บั๊กจริงที่ผู้ใช้รายงาน: กดตอบกลับคอมเมนต์ที่มีแต่รูป แล้วบล็อก "กำลังตอบกลับ"
+     * กลายเป็นกล่องที่มีแต่ชื่อคน เพราะ TaskCommentPresenter::comment() ส่ง reply_to มาแค่
+     * id/author/note โดยไม่มีรูป และ note ของคอมเมนต์รูปล้วนก็ว่างอยู่แล้ว
+     */
+    public function test_replying_to_an_image_only_comment_carries_the_image_into_the_quoted_block(): void
+    {
+        $owner = $this->user();
+        $task = $this->task($owner);
+
+        $original = $this->actingAs($owner)
+            ->postJson(route('tasks.comments.store', $task), [
+                'images' => [$this->png('หน้าจอ.png')],
+            ])
+            ->assertCreated();
+
+        $this->assertSame('', $original->json('comment.note'), 'คอมเมนต์รูปล้วนไม่มีข้อความให้อ้าง');
+
+        $reply = $this->actingAs($owner)
+            ->postJson(route('tasks.comments.store', $task), [
+                'message' => 'รูปนี้ถูกแล้วครับ',
+                'reply_to_id' => $original->json('comment.id'),
+            ])
+            ->assertCreated();
+
+        $attachment = WorkOrderUpdateAttachment::firstOrFail();
+
+        $this->assertCount(1, $reply->json('comment.reply_to.images'));
+        $this->assertSame(
+            route('media.comment-attachments.show', $attachment),
+            $reply->json('comment.reply_to.images.0.url')
+        );
+        $this->assertSame('หน้าจอ.png', $reply->json('comment.reply_to.images.0.name'));
+
+        // รูปในบล็อกอ้างถึงก็ต้องเสิร์ฟผ่าน MediaController เหมือนกัน ห้ามหลุด path จริง
+        $this->assertStringNotContainsString($attachment->file_path, $reply->getContent());
+    }
+
+    /**
+     * เส้นทาง realtime ใช้ eager load คนละชุดกับ response ของ store()
+     * จึงต้องมีเทสต์แยก ไม่งั้นผู้อ่านคนอื่นจะเห็นบล็อกอ้างถึงเป็นกล่องเปล่าเหมือนเดิม
+     */
+    public function test_the_quoted_image_also_reaches_other_participants_through_the_realtime_feed(): void
+    {
+        $owner = $this->user();
+        $collaborator = $this->user();
+        $task = $this->task($owner);
+        $task->collaborators()->attach($collaborator->id, ['status' => 'accepted', 'added_by' => $owner->id]);
+
+        $original = $this->actingAs($collaborator)
+            ->postJson(route('tasks.comments.store', $task), [
+                'images' => [$this->png('หน้าจอ.png')],
+            ])
+            ->assertCreated();
+
+        $this->actingAs($owner)->postJson(route('tasks.comments.store', $task), [
+            'message' => 'รูปนี้ถูกแล้วครับ',
+            'reply_to_id' => $original->json('comment.id'),
+        ])->assertCreated();
+
+        $response = $this->actingAs($collaborator)
+            ->getJson(route('realtime.sync', ['after' => 0]))
+            ->assertOk();
+
+        $event = collect($response->json('events'))->firstWhere('type', 'task_comment');
+        $this->assertNotNull($event, 'ผู้ร่วมงานต้องเห็น event ของคอมเมนต์ใหม่');
+        $this->assertCount(1, $event['comment']['reply_to']['images'] ?? []);
+        $this->assertSame(
+            route('media.comment-attachments.show', WorkOrderUpdateAttachment::firstOrFail()),
+            $event['comment']['reply_to']['images'][0]['url'] ?? null
+        );
+    }
+
     private function png(string $name): UploadedFile
     {
         // UploadedFile::fake()->image() ต้องใช้ส่วนขยาย GD ซึ่งเครื่องนี้ไม่ได้ติดตั้ง

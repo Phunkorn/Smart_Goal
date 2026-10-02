@@ -445,7 +445,7 @@ class NotificationService
         $commentIds = $items->whereIn('type', ['task_comment', 'task_comment_mention'])
             ->pluck('data')->map(fn ($data) => (int) data_get($data, 'comment_id'))
             ->filter()->unique();
-        $comments = WorkOrderUpdate::with(['user', 'attachments', 'replyTo.user', 'mentions'])
+        $comments = WorkOrderUpdate::with(['user', 'attachments', 'replyTo.user', 'replyTo.attachments', 'mentions'])
             ->whereIn('id', $commentIds)
             ->where('is_comment', true)->get()->keyBy('id');
 

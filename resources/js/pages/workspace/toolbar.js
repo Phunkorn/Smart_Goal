@@ -274,7 +274,7 @@ export const initToolbar = (toolbar, {
         closePickers: () => pickers?.close(),
 
         /** สะท้อนสถานะปัจจุบันกลับมาที่ปุ่ม */
-        sync({tool, style, canUndo, canRedo, hasSelection, selectedTypes = [], scale, isFullscreen, activeAlign}) {
+        sync({tool, style, canUndo, canRedo, hasSelection, selectedTypes = [], scale, isFullscreen, activeAlign, editingText = false}) {
             setActive(findAll('[data-tool]'), (node) => node.dataset.tool === tool);
 
             /*
@@ -325,6 +325,23 @@ export const initToolbar = (toolbar, {
             // แก้ไขอยู่ (เป็น null) ถอยไปใช้ style.align ซึ่งคือค่าตั้งต้นของ
             // กล่องที่เลือกอยู่/กล่องถัดไปที่จะสร้าง
             setActive(findAll('[data-align]'), (node) => node.dataset.align === (activeAlign ?? style.align ?? 'left'));
+
+            /*
+             * จัดบรรทัดกดได้เฉพาะขณะพิมพ์อยู่ในกล่องเท่านั้น
+             *
+             * เดิมกดได้ตอนที่แค่เลือกกล่องด้วย แล้วคำสั่งจะกลายเป็น "จัดทุกบรรทัดให้เหมือนกัน"
+             * ซึ่งลบการจัดรายบรรทัดที่ผู้ใช้ตั้งไว้ทิ้งทั้งหมด ปุ่มเดียวกันจึงทำสองอย่างโดย
+             * หน้าจอไม่บอกว่าตอนนี้อยู่โหมดไหน (ผู้ใช้รายงานว่า "กดแล้วมันไปทั้งบรรทัดเลย")
+             *
+             * ปิดปุ่มไว้แทนการซ่อน ตำแหน่งปุ่มอื่นจะได้ไม่ขยับ และ title บอกวิธีเปิดใช้งาน
+             * ตามกติกาเดิมของแถบนี้ (ดู toggle() ข้างล่าง) การบังคับจริงอยู่ที่ chooseAlign ใน index.js
+             */
+            findAll('[data-align]').forEach((button) => {
+                toggle(button, editable && editingText);
+                button.title = editingText
+                    ? button.dataset.tooltip ?? ''
+                    : 'ดับเบิลคลิกที่กล่องเพื่อพิมพ์ก่อน จึงจัดบรรทัดได้';
+            });
 
             if (spacingField && toolbar.ownerDocument.activeElement !== spacingField) {
                 spacingField.value = String(style.letterSpacing ?? 0);

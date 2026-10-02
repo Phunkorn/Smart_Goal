@@ -6,11 +6,15 @@
      *
      * $instanceId   คำนำหน้าของ id ทุกตัวในอินสแตนซ์นี้ ต้องไม่ซ้ำกันในหน้าเดียว
      * $inputName    ชื่อ input ที่จะถูกส่งไป backend เช่น attendees[] หรือ collaborators[]
+     * $formId       id ของ <form> ที่ checkbox ต้องผูกกลับไปด้วย attribute form="..."
+     *                ใช้เมื่อตัวเลือกนี้ไม่ได้เป็นลูกของ <form> โดยตรง (เช่นอยู่ใน modal แยก)
      * $people       รายชื่อที่เลือกได้ (ต้องมี id, name, department)
      * $departments  ตัวเลือกปุ่มกรองแผนก
      * $selectedIds  id ที่ถูกเลือกไว้ล่วงหน้า
      * $excludeIds   id ที่ต้องไม่ปรากฏในรายการเลย เช่น คนที่อยู่ในทีมแล้ว
      *                (ห้ามแสดงเป็น disabled สีจาง เพราะจะกลายเป็นข้อมูลซ้ำกับรายการทีม)
+     * $showAvatar   แสดงรูปโปรไฟล์/ตัวอักษรย่อในแถวและชิป โดยไม่ต้องเปิดฟีเจอร์อื่นของ team-manager
+     *                (ค่าเริ่มต้นตาม variant team-manager แต่กำหนดแยกได้)
      * $sidePanel    view ที่จะแทรกไว้เหนือรายการ "ที่เลือกไว้" ในคอลัมน์ขวา
      * $readOnly     ปิดการแก้ไขทั้งชุด (ผู้ที่ไม่มีสิทธิ์จัดการทีม)
      * $notice       ข้อความอธิบายเมื่อแก้ไขไม่ได้
@@ -18,6 +22,7 @@
      */
     $instanceId = $instanceId ?? 'people';
     $inputName = $inputName ?? 'people[]';
+    $formId = $formId ?? null;
     $people = $people ?? collect();
     $departments = $departments ?? collect();
     $selectedIds = collect($selectedIds ?? [])->map(fn ($id) => (int) $id)->unique();
@@ -27,6 +32,7 @@
     $notice = $notice ?? null;
     $variant = $variant ?? null;
     $isTeamManager = $variant === 'team-manager';
+    $showAvatar = (bool) ($showAvatar ?? $isTeamManager);
     $labels = array_merge([
         'title' => 'เลือกบุคคล',
         'hint' => 'คลิกเลือกได้หลายคน',
@@ -48,6 +54,7 @@
     data-people-selector
     data-instance="{{ $instanceId }}"
     @if($variant) data-people-variant="{{ $variant }}" @endif
+    data-show-avatar="{{ $showAvatar ? 'true' : 'false' }}"
     @if($readOnly) data-readonly="true" @endif>
     @unless($isTeamManager)
         <div class="people-selector-field__head">
@@ -116,13 +123,14 @@
                             id="{{ $instanceId }}-person-{{ $person->id }}"
                             name="{{ $inputName }}"
                             value="{{ $person->id }}"
+                            @if($formId) form="{{ $formId }}" @endif
                             data-people-checkbox
                             data-person-name="{{ $person->name }}"
                             data-person-email="{{ $email }}"
                             data-person-department="{{ $departmentName }}"
                             data-person-avatar-url="{{ $avatarUrl }}"
                             @checked($isSelected) @disabled($readOnly || $isExcluded)>
-                        @if($isTeamManager)
+                        @if($showAvatar)
                             <span class="people-selector__avatar" aria-hidden="true">
                                 @if($avatarUrl)
                                     <img src="{{ $avatarUrl }}" alt="">

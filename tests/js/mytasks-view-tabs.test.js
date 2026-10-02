@@ -20,7 +20,7 @@ const nowClock = () => {
 /**
  * Regression: ปฏิทินคลิกอะไรไม่ได้เลย เพราะ "ตัวครอบ panel" ถูกนับเป็นปุ่มสลับมุมมอง
  *
- * Root cause จริง (พิสูจน์บนเบราว์เซอร์ด้วย stack trace ของ popover.hidden):
+ * Root cause จริง (พิสูจน์บนเบราว์เซอร์ด้วย stack trace ตอนพบบั๊ก):
  *   attribute `data-view` ถูกใช้สองความหมายในหน้า Task Workspace
  *     1) ปุ่มสลับมุมมองบนแถบ .notion-viewbar  → <button role="tab" data-view="calendar">
  *     2) สถานะมุมมองปัจจุบันของตัวครอบ panel → <section class="notion-database" data-view="calendar">
@@ -28,12 +28,15 @@ const nowClock = () => {
  *   แต่ไปจับ (2) มาด้วย แล้วผูก click listener ของ "ปุ่มสลับมุมมอง" ไว้กับ section ที่ครอบ
  *   ปฏิทินทั้งอัน ผลคือคลิกอะไรก็ตามข้างใน (chip งาน/ประชุม, ปุ่มเปลี่ยนเดือน, ช่องวันที่)
  *   จะ bubble ขึ้นไปโดน listener นั้น → selectView() → applyView() → dispatch
- *   'mytasks:viewchange' ทุกครั้ง ซึ่ง calendar.js ตอบสนองด้วยการ re-render + ปิด Quick View
- *   Quick View ที่เพิ่งเปิดจากคลิกเดียวกันจึงถูกปิดทิ้งทันทีในเฟรมเดียวกัน
+ *   'mytasks:viewchange' ทุกครั้ง ซึ่ง calendar.js ตอบสนองด้วยการ re-render ทั้งที่ไม่มีมุมมองไหนเปลี่ยนจริง
  *
  * เหตุผลที่ test เดิมไม่จับ: ทุก fixture ของปฏิทินโหลดเฉพาะ calendar.js และไม่เคยมี
  * <section class="notion-database" data-view> ครอบ ทั้งไม่เคยโหลด mytasks-views.js
  * ซึ่งเป็นตัวผูก listener ที่ผิด — บั๊กจึงอยู่นอกขอบเขตของ fixture เดิมทั้งหมด
+ *
+ * หมายเหตุ: ตอนพบบั๊กครั้งแรก อาการที่สังเกตได้คือ Quick View popover ที่เพิ่งเปิดถูกปิดทิ้ง
+ * ทันทีในเฟรมเดียวกัน แต่ Quick View ถูกถอดออกจากระบบไปแล้ว การตรวจตอนนี้จึงจับที่ต้นเหตุ
+ * โดยตรง (จำนวนครั้งที่ mytasks:viewchange ยิง) แทนการอิงผลข้างเคียงของฟีเจอร์ที่ไม่มีอยู่แล้ว
  */
 
 const VIEWBAR = `
@@ -44,22 +47,7 @@ const VIEWBAR = `
     <a href="/meetings" data-view="meeting" data-view-navigate role="tab" aria-selected="false">ประชุม</a>
 </nav>`;
 
-const POPOVER_SHELL = `
-<div class="calendar-quick-view-popover" id="calendar-quick-view-popover" data-quick-view-popover hidden>
-    <span data-quick-view-caret></span>
-    <section role="dialog" aria-modal="false" aria-labelledby="calendar-quick-view-title">
-        <header>
-            <span data-quick-view-kicker>ดูอย่างย่อ</span>
-            <strong id="calendar-quick-view-title" data-quick-view-title>กำลังโหลด...</strong>
-            <button type="button" data-close-quick-view aria-label="ปิด">x</button>
-        </header>
-        <div data-quick-view-body aria-live="polite"></div>
-        <a data-quick-view-detail href="#" hidden>ดูรายละเอียดทั้งหมด</a>
-    </section>
-</div>`;
-
 const months = Array.from({length: 12}, (_, i) => `<option value="${i}">${i + 1}</option>`).join('');
-const TASK_HTML = '<article data-quick-view-type="task" data-quick-view-title-text="งานทดสอบ" data-quick-view-kicker-text="โปรเจกต์"><p>x</p></article>';
 
 let fixtureCount = 0;
 
@@ -76,7 +64,7 @@ async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHid
     const meeting = {
         id: 'meeting-1', type: 'meeting', title: 'ประชุมทดสอบ', location: 'ห้องประชุม', organizer: 'ผู้จัด',
         start: iso, due: iso, startTime: nowClock(), endTime: '23:59', entityId: 1,
-        quickViewUrl: '/my-tasks/calendar/quick-view/meeting/1', detailUrl: '/meetings/1', url: '/meetings/1',
+        url: '/meetings/1',
     };
 
     env.document.body.innerHTML = `
@@ -92,10 +80,7 @@ async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHid
                 </div>
                 <div data-view-panel="table"></div>
                 <div data-view-panel="calendar">
-                    <section data-calendar
-                             data-task-quickview-template="/my-tasks/calendar/quick-view/task/__ID__"
-                             data-task-detail-template="/my-tasks?view=calendar&open_task=__ID__"
-                             data-meetings-endpoint="/my-tasks/calendar/meetings">
+                    <section data-calendar data-meetings-endpoint="/my-tasks/calendar/meetings">
                         <h2 data-calendar-title></h2>
                         <button type="button" data-calendar-today>วันนี้</button>
                         <button type="button" data-calendar-previous>ก่อนหน้า</button>
@@ -116,7 +101,19 @@ async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHid
                         </div>
                         <script type="application/json" data-calendar-meetings>${JSON.stringify([meeting])}</script>
                     </section>
-                    <div data-calendar-detail hidden></div>
+                    <!-- ต้องมีครบทุก data-calendar-detail-* เพราะไม่มี Quick View แล้ว คลิก chip งานจึงเปิดกล่องนี้ตรง ๆ -->
+                    <div data-calendar-detail hidden>
+                        <h2 data-calendar-detail-title></h2>
+                        <small data-calendar-detail-project></small>
+                        <dd data-calendar-detail-status></dd>
+                        <dd data-calendar-detail-priority></dd>
+                        <dd data-calendar-detail-start></dd>
+                        <dd data-calendar-detail-due></dd>
+                        <dd data-calendar-detail-assignee></dd>
+                        <dd data-calendar-detail-collaborators></dd>
+                        <div data-calendar-detail-attachments></div>
+                        <button type="button" data-calendar-detail-close></button>
+                    </div>
                     <div data-calendar-day-modal hidden>
                         <h2 data-calendar-day-title></h2>
                         <button type="button" data-calendar-day-close></button>
@@ -124,7 +121,7 @@ async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHid
                         <section data-calendar-day-meetings hidden><b data-calendar-day-meeting-count></b><div data-calendar-day-meeting-list></div></section>
                         <small data-calendar-day-count></small>
                     </div>
-                    ${POPOVER_SHELL}
+                    <div data-calendar-agenda-modal hidden><div data-calendar-agenda-modal-list></div></div>
                 </div>
             </section>
         </div>
@@ -135,7 +132,7 @@ async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHid
         if (href.includes('/calendar/meetings')) {
             return Promise.resolve({ok: true, json: async () => ({meetings: [meeting]}), text: async () => ''});
         }
-        return Promise.resolve({ok: true, text: async () => TASK_HTML, json: async () => ({})});
+        return Promise.resolve({ok: true, text: async () => '', json: async () => ({})});
     };
     t.after(() => { delete globalThis.fetch; });
 
@@ -147,10 +144,12 @@ async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHid
         ...env,
         database: env.document.querySelector('.notion-database'),
         statusFilter: env.document.querySelector('[data-board-status-filter]'),
-        popover: env.document.querySelector('[data-quick-view-popover]'),
+        detail: env.document.querySelector('[data-calendar-detail]'),
         title: () => env.document.querySelector('[data-calendar-title]').textContent,
         // ช่องวันที่สรุปเป็นจำนวนงานต่อความสำคัญแล้ว แถวที่คลิกได้อยู่ในการ์ดสรุปใต้ปฏิทิน
         chip: () => env.document.querySelector('[data-calendar-agenda] [data-calendar-task]'),
+        // เจาะจง chip ของงาน (ไม่ใช่ประชุม) เพราะลำดับการ์ดขึ้นกับการจัดเรียงของวาระวันนี้
+        taskChip: () => env.document.querySelector('[data-calendar-agenda] [data-calendar-task="task-1"]'),
         click: (node) => {
             const el = typeof node === 'string' ? env.document.querySelector(node) : node;
             assert.ok(el, `ไม่พบ element: ${node}`);
@@ -199,33 +198,35 @@ test('กดปุ่มสลับมุมมองจริงบนแถ�
     assert.equal(ui.database.dataset.view, 'table');
 });
 
-test('root cause: คลิก chip บนปฏิทินต้องเปิด Quick View แล้วค้างอยู่ ไม่ถูกปิดทิ้งในเฟรมเดียวกัน', async (t) => {
+test('root cause: คลิก chip บนปฏิทินต้องไม่ถูกเข้าใจผิดว่าเป็นปุ่มสลับมุมมอง', async (t) => {
     const ui = await boot(t);
     await flush(50);
 
-    const chip = ui.chip();
-    assert.ok(chip, 'ต้องมี chip บนปฏิทิน');
+    const chip = ui.taskChip();
+    assert.ok(chip, 'ต้องมี chip ของงานบนปฏิทิน');
+
+    let viewchanges = 0;
+    ui.document.addEventListener('mytasks:viewchange', () => { viewchanges += 1; });
 
     ui.click(chip);
     await flush(50);
 
-    assert.equal(ui.popover.hidden, false,
-        'Quick View ต้องยังเปิดอยู่ — บั๊กเดิมคือถูก mytasks:viewchange ที่ยิงผิดปิดทิ้งทันที');
-    assert.equal(chip.getAttribute('aria-expanded'), 'true');
+    assert.equal(viewchanges, 0,
+        'คลิก chip ต้องไม่ถูกเข้าใจผิดว่าเป็นปุ่มสลับมุมมอง — บั๊กเดิมคือ mytasks:viewchange ยิงผิดแล้วลบสถานะที่เพิ่งเปิดทิ้งในเฟรมเดียวกัน');
+    assert.equal(ui.detail.hidden, false, 'คลิก chip ของงานต้องเปิดกล่องรายละเอียดงานจริง ๆ (ไม่มี Quick View แล้ว)');
 });
 
-test('ปุ่มควบคุมปฏิทินยังทำงานครบหลังแก้ และปิด Quick View ที่เปิดอยู่ในคลิกเดียวกัน', async (t) => {
+test('ปุ่มควบคุมปฏิทินยังทำงานครบหลังคลิก chip', async (t) => {
     const ui = await boot(t);
     await flush(50);
 
     const before = ui.title();
-    ui.click(ui.chip());
+    ui.click(ui.taskChip());
     await flush(50);
-    assert.equal(ui.popover.hidden, false, 'เปิด Quick View ก่อน');
+    assert.equal(ui.detail.hidden, false, 'เปิดกล่องรายละเอียดงานก่อน');
 
     ui.click('[data-calendar-next]');
-    assert.equal(ui.popover.hidden, true, 'คลิกเปลี่ยนเดือนต้องปิด Quick View');
-    assert.notEqual(ui.title(), before, 'และปุ่มเปลี่ยนเดือนต้องทำงานในคลิกเดียวกันนั้นเอง');
+    assert.notEqual(ui.title(), before, 'ปุ่มเปลี่ยนเดือนต้องยังทำงานได้ตามปกติหลังเปิดกล่องรายละเอียดงาน');
 
     ui.click('[data-calendar-today]');
     assert.equal(ui.title(), before, 'ปุ่มวันนี้ต้องกลับมาเดือนปัจจุบัน');

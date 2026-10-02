@@ -80,7 +80,7 @@ class TaskCommentService
                     $task, $author, ['comment_id' => $comment->id]);
             }
 
-            return $comment->load(['user', 'attachments', 'replyTo.user', 'mentions']);
+            return $comment->load(['user', 'attachments', 'replyTo.user', 'replyTo.attachments', 'mentions']);
         });
     }
 
@@ -99,7 +99,7 @@ class TaskCommentService
 
             $comment->update(['pinned_at' => now(), 'pinned_by' => $actor->id]);
 
-            return $comment->fresh(['user', 'attachments', 'replyTo.user', 'mentions']);
+            return $comment->fresh(['user', 'attachments', 'replyTo.user', 'replyTo.attachments', 'mentions']);
         });
     }
 
@@ -107,7 +107,7 @@ class TaskCommentService
     {
         $comment->update(['pinned_at' => null, 'pinned_by' => null]);
 
-        return $comment->fresh(['user', 'attachments', 'replyTo.user', 'mentions']);
+        return $comment->fresh(['user', 'attachments', 'replyTo.user', 'replyTo.attachments', 'mentions']);
     }
 
     /**

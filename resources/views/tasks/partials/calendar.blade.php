@@ -8,13 +8,6 @@
     $calendarMeetingRange = $calendarMeetingRange ?? null;
     $calendarMeetingSubject = $calendarMeetingSubject ?? null;
 
-    /**
-     * ปลายทางของลิงก์ "ดูทั้งหมด" ต้องอยู่บนหน้าปัจจุบันเสมอ
-     * fullUrlWithQuery จึงพา Admin ไปมุมมองตาราง/ประชุมของ Member Workspace ที่กำลังดูอยู่
-     * ไม่ใช่ /my-tasks ของตัวเอง
-     */
-    $calendarTableUrl = request()->fullUrlWithQuery(['view' => 'table']);
-
     // ลำดับและป้ายกำกับของโทนสี ต้องตรงกับ CALENDAR_PRIORITY_ORDER ใน calendar-model.js
     $calendarPriorityLegend = [
         'urgent' => 'สำคัญด่วน',
@@ -25,14 +18,6 @@
 @endphp
 
 <section class="mytasks-calendar" id="mytasks-calendar" data-calendar data-view-panel="calendar" role="tabpanel" aria-hidden="true" aria-labelledby="mytasks-calendar-title"
-    data-task-quickview-template="{{ route('mytasks.quickview.task', ['id' => '__ID__']) }}"
-    {{--
-        รายละเอียดเต็มของงานคือ Task Workspace ที่เปิดผ่าน deep link บน "หน้าปัจจุบัน"
-        fullUrlWithQuery รักษา query เดิมไว้ (view=calendar ฯลฯ) และแทนค่า open_task เดิมถ้ามีอยู่แล้ว
-        ห้ามให้ quick-view endpoint สร้าง URL นี้ เพราะ current URL ของ AJAX คือตัว endpoint เอง
-        ไม่ใช่หน้า Calendar ต้นทาง — Admin ที่เปิดจาก Member Workspace จะถูกพาไป /my-tasks ผิดหน้า
-    --}}
-    data-task-detail-template="{{ request()->fullUrlWithQuery(['open_task' => '__ID__']) }}"
     @if($calendarShowsMeetings)
         data-meetings-endpoint="{{ route('mytasks.calendar.meetings') }}"
         @if($calendarMeetingSubject)
@@ -179,7 +164,8 @@
                     <span data-calendar-agenda-page role="status" aria-live="polite"></span>
                     <button type="button" data-calendar-agenda-next aria-label="หน้าถัดไป"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
                 </nav>
-                <a href="{{ $calendarTableUrl }}">ดูทั้งหมด <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                {{-- เปิด modal รายการทั้งหมดแทนการนำทางไปหน้าตาราง calendar.js เป็นผู้เติมเนื้อหาจากข้อมูลชุดเดียวกับการ์ดนี้ --}}
+                <button type="button" data-calendar-agenda-viewall="today">ดูทั้งหมด <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
             </footer>
         </section>
 
@@ -219,7 +205,8 @@
                     <span data-calendar-agenda-page role="status" aria-live="polite"></span>
                     <button type="button" data-calendar-agenda-next aria-label="หน้าถัดไป"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
                 </nav>
-                <a href="{{ $calendarTableUrl }}">ดูทั้งหมด <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                {{-- เปิด modal รายการทั้งหมดแทนการนำทางไปหน้าตาราง calendar.js เป็นผู้เติมเนื้อหาจากข้อมูลชุดเดียวกับการ์ดนี้ --}}
+                <button type="button" data-calendar-agenda-viewall="month">ดูทั้งหมด <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
             </footer>
         </section>
 
@@ -296,6 +283,50 @@
     </section>
 </div>
 
+{{--
+    modal "ดูทั้งหมด" ของการ์ดสรุปใต้ปฏิทิน — แทนที่การนำทางไปหน้า ?view=table เดิม
+    ใบเดียวใช้ร่วมกันทั้งการ์ด "วันนี้" และ "เดือนนี้" calendar.js เป็นผู้เติมหัวเรื่องและแถว
+    จากชุดข้อมูลเดียวกับการ์ด (lastAgenda) จึงไม่มี query หรือ endpoint ใหม่เกิดขึ้น
+--}}
+<div class="notion-modal mytasks-calendar-viewall" data-calendar-agenda-modal hidden>
+    <section class="mytasks-calendar-viewall__card" role="dialog" aria-modal="true" aria-labelledby="calendar-agenda-modal-title">
+        <header>
+            <div>
+                <span>ดูทั้งหมด</span>
+                <h2 id="calendar-agenda-modal-title" data-calendar-agenda-modal-title></h2>
+            </div>
+            <button type="button" data-calendar-agenda-modal-close aria-label="ปิดรายการทั้งหมด"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+        </header>
+
+        <div class="mytasks-calendar-viewall__body">
+            <div class="calendar-table calendar-table--today" role="table" aria-labelledby="calendar-agenda-modal-title">
+                <div class="calendar-table__head" role="row">
+                    <span role="columnheader">ลำดับที่</span>
+                    <span role="columnheader">งาน / การประชุม</span>
+                    <span role="columnheader">โปรเจกต์ / สถานที่</span>
+                    <span role="columnheader">งานย่อย</span>
+                    <span role="columnheader">ผู้รับผิดชอบ</span>
+                    <span role="columnheader">ผู้ร่วมงาน</span>
+                    <span role="columnheader">ความสำคัญ</span>
+                    <span role="columnheader">เวลา</span>
+                    <span role="columnheader">เวลากำหนดส่ง</span>
+                    <span role="columnheader">ผลการปิดงาน</span>
+                </div>
+                <div class="calendar-table__body" role="rowgroup" data-calendar-agenda-modal-list></div>
+            </div>
+            <p class="mytasks-calendar-agenda__empty" data-calendar-agenda-modal-empty hidden>
+                <i class="bi bi-calendar2" aria-hidden="true"></i>
+                <span>ไม่มีรายการ</span>
+            </p>
+        </div>
+
+        <footer>
+            <small data-calendar-agenda-modal-count></small>
+            <button type="button" class="task-secondary" data-calendar-agenda-modal-close>ปิด</button>
+        </footer>
+    </section>
+</div>
+
 <div class="notion-modal mytasks-calendar-detail" data-calendar-detail hidden>
         <section class="mytasks-calendar-detail__card" role="dialog" aria-modal="true" aria-labelledby="calendar-detail-title">
             <header><div><span>CALENDAR TASK</span><h2 id="calendar-detail-title" data-calendar-detail-title></h2><small data-calendar-detail-project></small></div><button type="button" data-calendar-detail-close aria-label="ปิดข้อมูลงาน"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header>
@@ -307,5 +338,3 @@
             <footer><button type="button" class="task-secondary" data-calendar-detail-close>ปิด</button></footer>
         </section>
     </div>
-
-@include('calendar.quick-view-modal')

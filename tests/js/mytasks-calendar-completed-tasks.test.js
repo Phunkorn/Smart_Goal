@@ -35,9 +35,7 @@ async function bootCalendar(t, meetings = []) {
                 <div data-row data-id="2" data-topic="งานที่ปิดแล้ว" data-project="โปรเจกต์"
                      data-status="4" data-priority="2" data-start="${today}" data-due="${today}"></div>
             </div>
-            <section data-calendar
-                     data-task-quickview-template="/my-tasks/calendar/quick-view/task/__ID__"
-                     data-task-detail-template="/my-tasks?view=calendar&amp;open_task=__ID__">
+            <section data-calendar>
                 <h2 data-calendar-title></h2>
                 <p data-calendar-display-note></p>
                 <input type="search" data-calendar-search>
@@ -64,6 +62,7 @@ async function bootCalendar(t, meetings = []) {
                 <section data-calendar-day-meetings hidden><b data-calendar-day-meeting-count></b><div data-calendar-day-meeting-list></div></section>
                 <small data-calendar-day-count></small>
             </div>
+            <div data-calendar-agenda-modal hidden><div data-calendar-agenda-modal-list></div></div>
         </div>`;
 
     globalThis.fetch = () => Promise.resolve({ok: true, json: async () => ({meetings: []}), text: async () => ''});
@@ -155,8 +154,6 @@ const meetingAt = (id, title, startsInMinutes, endsInMinutes) => {
         startTime: clock(startsAt),
         endTime: clock(endsAt),
         entityId: id,
-        quickViewUrl: `/my-tasks/calendar/quick-view/meeting/${id}`,
-        detailUrl: `/meetings/${id}`,
         url: `/meetings/${id}`,
     };
 };

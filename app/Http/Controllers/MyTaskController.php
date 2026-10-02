@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Meeting;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
@@ -32,7 +31,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
@@ -121,6 +119,10 @@ class MyTaskController extends Controller
                 'updates.user.department',
                 'updates.attachments',
                 'updates.replyTo.user',
+                // ต้องดึงไฟล์แนบของข้อความต้นทางด้วย ไม่งั้น TaskCommentPresenter::comment()
+                // จะเห็นว่า relation ยังไม่โหลดแล้วคืน images เป็นอาร์เรย์ว่างเงียบ ๆ
+                // ทำให้บล็อก "กำลังตอบกลับ" ของคอมเมนต์ที่มีแต่รูปกลายเป็นกล่องเปล่า
+                'updates.replyTo.attachments',
                 'updates.mentions',
                 'activityLogs.user.department',
                 'reviewSubmitter',
@@ -292,49 +294,6 @@ class MyTaskController extends Controller
 
         return response()->json([
             'meetings' => app(MeetingQueryService::class)->calendarMeetings($user, $from, $to, $subject),
-        ]);
-    }
-
-    /**
-     * Quick View ของงานบนปฏิทิน — คืน HTML ของ partial เพื่อ reuse formatter ของ Blade
-     *
-     * โหลดตอนคลิกเท่านั้น ไม่ฝังมากับหน้าปฏิทิน และตรวจสิทธิ์ด้วย WorkOrderPolicy::view
-     * ทุกครั้ง การซ่อนปุ่มฝั่ง client ไม่ถือเป็นการป้องกัน
-     */
-    public function taskQuickView(Request $request, int $id): View
-    {
-        $task = WorkOrder::with([
-            'taskList',
-            'user.department',
-            'creator',
-            'collaborators.department',
-            'updates.user',
-            'updates.attachments',
-        ])->withCount('images')->findOrFail($id);
-
-        $this->authorize('view', $task);
-
-        return view('calendar.quick-view.task', [
-            'task' => $task,
-            // ผู้ใช้คลิกที่หมุด "วันเริ่ม" หรือ "กำหนดส่ง" ให้บอกกลับว่ามาจากหมุดไหน
-            'milestone' => in_array($request->query('milestone'), ['start', 'end', 'single'], true)
-                ? $request->query('milestone')
-                : 'single',
-        ]);
-    }
-
-    /**
-     * Quick View ของการประชุม — ใช้ MeetingPolicy::view ตัวเดียวกับหน้ารายละเอียดเดิม
-     */
-    public function meetingQuickView(Meeting $meeting): View
-    {
-        Gate::authorize('view', $meeting);
-
-        $meeting->load(['creator.department', 'attendees.department']);
-
-        return view('calendar.quick-view.meeting', [
-            'meeting' => $meeting,
-            'nowBangkok' => CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE),
         ]);
     }
 

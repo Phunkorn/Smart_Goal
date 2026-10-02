@@ -6,7 +6,10 @@ use App\Models\ActivityLog;
 use App\Models\Department;
 use App\Models\Meeting;
 use App\Models\User;
+use App\Models\WorkOrder;
+use App\Models\WorkOrderList;
 use App\Services\MeetingQueryService;
+use App\Support\RoleLabel;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -228,6 +231,75 @@ class MeetingManagementTest extends TestCase
         $this->assertDatabaseMissing('meeting_attendees', ['meeting_id' => $meeting->id, 'user_id' => $attendeeB->id]);
     }
 
+    public function test_meeting_can_be_created_and_updated_with_a_visible_project_and_task(): void
+    {
+        $creator = $this->user();
+        $list = $this->project($creator, 'Website revamp');
+        $task = $this->task($creator, $list, 'Design review');
+
+        /*
+         * ตัวเลือก "งาน" ของฟอร์มอ่านรายการงานจาก data-tasks ของ option โปรเจกต์ที่ server ฝังมา
+         * ถ้า payload นี้หาย ตัวเลือกงานจะว่างทั้งที่โปรเจกต์มีงานอยู่
+         */
+        $createFormHtml = $this->actingAs($creator)->get(route('meetings.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('data-meeting-project-select', $createFormHtml);
+        $this->assertStringContainsString('"id":'.$task->job_id, $createFormHtml);
+
+        $response = $this->actingAs($creator)->post(route('meetings.store'), $this->meetingPayload([
+            'title' => 'Project sync',
+            'work_order_list_id' => $list->id,
+            'work_order_id' => $task->job_id,
+        ]));
+
+        $meeting = Meeting::where('title', 'Project sync')->firstOrFail();
+        $response->assertRedirect(route('meetings.show', $meeting));
+        $this->assertSame($list->id, $meeting->work_order_list_id);
+        $this->assertSame($task->job_id, $meeting->work_order_id);
+
+        $this->actingAs($creator)->get(route('meetings.show', $meeting))
+            ->assertOk()
+            ->assertSee('Website revamp')
+            ->assertSee('Design review');
+
+        $otherList = $this->project($creator, 'Rebrand');
+
+        $this->actingAs($creator)->patch(route('meetings.update', $meeting), $this->meetingPayload([
+            'title' => 'Project sync',
+            'work_order_list_id' => $otherList->id,
+            'work_order_id' => '',
+        ]))->assertRedirect(route('meetings.show', $meeting));
+
+        $meeting->refresh();
+        $this->assertSame($otherList->id, $meeting->work_order_list_id);
+        $this->assertNull($meeting->work_order_id);
+    }
+
+    public function test_meeting_project_link_rejects_ids_outside_the_creators_visible_scope(): void
+    {
+        $creator = $this->user();
+        $stranger = $this->user();
+        $strangerList = $this->project($stranger, 'Private project');
+        $strangerTask = $this->task($stranger, $strangerList, 'Not yours');
+
+        $this->actingAs($creator)->post(route('meetings.store'), $this->meetingPayload([
+            'title' => 'Snooping meeting',
+            'work_order_list_id' => $strangerList->id,
+            'work_order_id' => $strangerTask->job_id,
+        ]))->assertSessionHasErrors(['work_order_list_id', 'work_order_id']);
+        $this->assertDatabaseMissing('meetings', ['title' => 'Snooping meeting']);
+
+        // admin ไม่ถูกจำกัดสโคปนี้ ตาม WorkOrder::visibleInProjectsFor() ที่ยกเว้น admin ไว้
+        $admin = $this->user('admin');
+        $adminResponse = $this->actingAs($admin)->post(route('meetings.store'), $this->meetingPayload([
+            'title' => 'Admin cross-project meeting',
+            'work_order_list_id' => $strangerList->id,
+            'work_order_id' => $strangerTask->job_id,
+        ]));
+        $adminMeeting = Meeting::where('title', 'Admin cross-project meeting')->firstOrFail();
+        $adminResponse->assertRedirect(route('meetings.show', $adminMeeting));
+        $this->assertSame($strangerList->id, $adminMeeting->work_order_list_id);
+    }
+
     public function test_attendee_selector_uses_real_departments_checkboxes_and_backend_eligibility(): void
     {
         $creator = $this->user();
@@ -260,6 +332,255 @@ class MeetingManagementTest extends TestCase
         $this->assertSame(0, preg_match('/<select[^>]*name="attendees\[\]"[^>]*multiple/i', $html));
     }
 
+    public function test_attendee_selector_shows_avatars_without_the_rest_of_team_manager_features(): void
+    {
+        $creator = $this->user();
+        $withPhoto = User::factory()->create([
+            'role' => 'user',
+            'department_id' => $this->department->id,
+            'must_change_password' => false,
+            'is_active' => true,
+            'profile_image' => 'profiles/avatar-test.jpg',
+        ]);
+        $withoutPhoto = $this->user();
+
+        $html = $this->actingAs($creator)
+            ->get(route('meetings.index', ['period' => 'all']))
+            ->assertOk()
+            ->getContent();
+
+        // ผู้เข้าร่วมต้องเห็นรูปโปรไฟล์ตอนค้นหา
+        $this->assertStringContainsString('data-show-avatar="true"', $html);
+        $this->assertMatchesRegularExpression(
+            '/value="'.$withPhoto->id.'"[^>]*data-person-avatar-url="'.preg_quote(route('media.profile', $withPhoto), '/').'"/',
+            $html
+        );
+        // ไม่มีรูปต้องไม่ได้ url ปลอม
+        $this->assertMatchesRegularExpression('/value="'.$withoutPhoto->id.'"[^>]*data-person-avatar-url=""/', $html);
+
+        // แต่ต้องไม่พ่วงฟีเจอร์อื่นของ team-manager เข้ามาด้วย (นี่คือตัวเลือกผู้เข้าร่วมประชุม ไม่ใช่ทีมของงาน)
+        $this->assertStringNotContainsString('data-people-variant="team-manager"', $html);
+        $this->assertStringNotContainsString('data-people-department-select', $html);
+    }
+
+    public function test_attendee_picker_renders_as_its_own_modal_opened_from_a_button(): void
+    {
+        $creator = $this->user();
+        $candidate = $this->user();
+
+        $html = $this->actingAs($creator)
+            ->get(route('meetings.index', ['period' => 'all']))
+            ->assertOk()
+            ->getContent();
+
+        // ฟอร์มหลักต้องมีแค่ปุ่มเปิดกับตัวสรุปจำนวน ไม่ใช่รายการค้นหาเต็มรูปแบบฝังอยู่ในฟอร์มอีกต่อไป
+        $this->assertStringContainsString('data-meeting-attendees-field="createMeetingModalAttendees"', $html);
+        $this->assertStringContainsString('เพิ่มผู้ร่วมประชุม', $html);
+
+        // modal ที่สองต้องมีอยู่จริงในหน้าเดียวกัน
+        $this->assertSame(1, substr_count($html, 'id="createMeetingModalAttendees"'));
+        $this->assertStringContainsString('meeting-attendees-modal', $html);
+
+        /*
+         * modal ผู้เข้าร่วมต้องอยู่นอก <form> ของ modal หลักจริง ๆ ไม่ใช่แค่ไม่มีรายการเต็มฝังอยู่ในฟอร์มอีกต่อไป
+         * เคยลอง nest ไว้ข้างในแล้วพัง: พอ modal หลักถูกสั่งซ่อนด้วย display:none (ตอนสลับไปเปิด modal นี้)
+         * ลูกของมันก็มองไม่เห็นไปด้วยไม่ว่าตัวเองจะมีคลาส show หรือไม่ เห็นแต่ backdrop มืด ๆ ไม่มีเนื้อหา
+         * checkbox จึงต้องผูกกลับไปฟอร์มหลักด้วย attribute form="..." แทนการเป็นลูกของ <form> โดยตรง
+         */
+        preg_match('/<form[^>]*id="(createMeetingModalForm)"[\s\S]*?<\/form>/', $html, $formMatch);
+        $this->assertNotEmpty($formMatch, 'ต้องเจอ <form id="createMeetingModalForm"> ในหน้า');
+        $this->assertStringNotContainsString('meeting-attendees-modal', $formMatch[0], 'modal ผู้เข้าร่วมต้องไม่ซ้อนอยู่ใน <form> ของ modal หลัก');
+        $this->assertMatchesRegularExpression(
+            '/value="'.$candidate->id.'"[^>]*form="createMeetingModalForm"/',
+            $html,
+            'checkbox นอก <form> ต้องผูกกลับด้วย attribute form เพื่อให้ attendees[] ยังส่งไปพร้อมฟอร์มหลัก'
+        );
+
+        // ต้องไม่เปิดด้วย data-bs-toggle ตรง ๆ เพราะ modal ของ Bootstrap สองใบซ้อนกันพร้อมกันไม่ได้
+        $this->assertStringNotContainsString('data-bs-toggle="modal"', $html);
+    }
+
+    public function test_attendee_browser_excludes_admin_and_viewer_from_browsable_options(): void
+    {
+        $creator = $this->user();
+        $admin = $this->user('admin');
+        $viewer = $this->user('viewer');
+        $employee = $this->user();
+
+        $html = $this->actingAs($creator)
+            ->get(route('meetings.index', ['period' => 'all']))
+            ->assertOk()
+            ->getContent();
+
+        // พนักงาน/หัวหน้าแผนก (role = user) ต้องเลือกได้ในรายการเรียกดูตามปกติ
+        $this->assertMatchesRegularExpression('/value="'.$employee->id.'"[^>]*data-people-checkbox/', $html);
+        // แต่ admin และ viewer ต้องไม่โผล่เป็นตัวเลือกให้เลือกใหม่ แม้ backend จะยังยอมรับถ้าถูกส่งมาตรง ๆ
+        $this->assertDoesNotMatchRegularExpression('/value="'.$admin->id.'"[^>]*data-people-checkbox/', $html);
+        $this->assertDoesNotMatchRegularExpression('/value="'.$viewer->id.'"[^>]*data-people-checkbox/', $html);
+    }
+
+    public function test_editing_a_meeting_keeps_an_already_invited_admin_visible_in_the_attendee_browser(): void
+    {
+        $creator = $this->user();
+        $admin = $this->user('admin');
+        $meeting = $this->meeting($creator);
+        $meeting->attendees()->attach($admin);
+
+        $html = $this->actingAs($creator)
+            ->get(route('meetings.show', $meeting))
+            ->assertOk()
+            ->getContent();
+
+        // admin ที่ถูกเชิญไว้ก่อนหน้านี้ต้องยังแสดงและติ๊กไว้ ไม่เช่นนั้นบันทึกซ้ำจะทำให้หลุดออกจากที่ประชุมเงียบ ๆ
+        $this->assertMatchesRegularExpression('/value="'.$admin->id.'"[^>]*data-people-checkbox[^>]*checked/', $html);
+    }
+
+    /**
+     * หัวหน้าแผนกไม่ใช่ค่าใน users.role แต่เป็นธง users.is_department_head แยกต่างหาก (ดู RoleLabel)
+     * ถ้า MeetingQueryService::detailData() ไม่ได้ดึงธงนี้มาด้วย ป้ายจะเงียบ ๆ กลายเป็น "พนักงาน" แทน
+     * โดยไม่มีอะไรพัง — ทดสอบตรงนี้กันการถดถอยแบบเดียวกับ WorkBoardMemberRoleLabelTest
+     */
+    public function test_full_attendee_panel_shows_position_and_department_but_the_compact_card_does_not(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $creator = $this->user();
+        $head = User::factory()->create([
+            'name' => 'พันกร หัวหน้าไอที',
+            'role' => 'user',
+            'department_id' => $it->id,
+            'is_department_head' => true,
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+        $meeting = $this->meeting($creator);
+        $meeting->attendees()->attach($head);
+
+        $detailHtml = $this->actingAs($creator)
+            ->get(route('meetings.show', $meeting))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(RoleLabel::withDepartment($head->fresh()), $detailHtml);
+        $this->assertStringContainsString('หัวหน้าแผนก', $detailHtml);
+
+        $cardHtml = $this->actingAs($creator)
+            ->get(route('meetings.index', ['period' => 'all']))
+            ->assertOk()
+            ->getContent();
+
+        // ป้ายย่อบนการ์ดมีที่จำกัด ยังแสดงแค่ชื่อเหมือนเดิม ไม่ต้องมีตำแหน่ง/แผนกแถมมาด้วย
+        $this->assertStringNotContainsString('หัวหน้าแผนก', $cardHtml);
+    }
+
+    /**
+     * ตัวกรองแผนกมีประโยชน์เฉพาะตอนมีคนข้ามแผนกเข้าร่วมจริง ถ้าทุกคนอยู่แผนกเดียวกันต้องไม่โชว์
+     * ปุ่มกรองที่ไม่มีความหมาย (เลือกแล้วก็ได้ผลลัพธ์เดิม) — รกจอเปล่า ๆ
+     */
+    public function test_attendee_department_filter_only_appears_when_attendees_span_more_than_one_department(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $account = Department::create(['department_name' => 'Account']);
+        $creator = $this->user();
+        $deptUser = fn (string $name, Department $department) => User::factory()->create([
+            'name' => $name,
+            'role' => 'user',
+            'department_id' => $department->id,
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+
+        $sameDepartmentOnly = $this->meeting($creator, ['title' => 'IT only']);
+        $sameDepartmentOnly->attendees()->attach([
+            $deptUser('IT One', $it)->id,
+            $deptUser('IT Two', $it)->id,
+        ]);
+
+        $html = $this->actingAs($creator)->get(route('meetings.show', $sameDepartmentOnly))->assertOk()->getContent();
+        $this->assertStringNotContainsString('data-attendee-department-filter', $html);
+
+        $crossDepartment = $this->meeting($creator, ['title' => 'Cross department']);
+        $crossDepartment->attendees()->attach([
+            $deptUser('IT Person', $it)->id,
+            $deptUser('Account Person', $account)->id,
+        ]);
+
+        $html = $this->actingAs($creator)->get(route('meetings.show', $crossDepartment))->assertOk()->getContent();
+        $this->assertStringContainsString('data-attendee-department-filter', $html);
+        // "ทั้งหมด" ต้องเป็นตัวเลือกที่ active อยู่ตั้งแต่เปิดหน้ามา (ฟิกไว้เสมอ ผู้ใช้กดเลือกเองทีหลัง)
+        $this->assertMatchesRegularExpression('/<button type="button" class="is-active" data-attendee-department="" aria-pressed="true">ทั้งหมด<\/button>/', $html);
+        $this->assertStringContainsString('data-attendee-department="IT"', $html);
+        $this->assertStringContainsString('data-attendee-department="Account"', $html);
+    }
+
+    /**
+     * "ไม่ระบุแผนก" เป็นค่า fallback ของคนที่ไม่มีแผนกจริง (เช่น admin/viewer) ไม่ใช่แผนกที่กรอง
+     * ดูแล้วมีความหมาย จึงต้องไม่มีปุ่มกรองให้เลือก — คนกลุ่มนี้ยังต้องเห็นปกติใต้ "ทั้งหมด"
+     */
+    public function test_attendees_without_a_department_never_get_their_own_filter_chip(): void
+    {
+        $it = Department::create(['department_name' => 'IT']);
+        $creator = $this->user();
+        $itUser = User::factory()->create([
+            'name' => 'IT Person',
+            'role' => 'user',
+            'department_id' => $it->id,
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+        $admin = $this->user('admin');
+
+        // แผนกเดียว (IT) บวกคนไม่มีแผนก (admin) ต้องยังนับเป็น "แผนกจริงแค่หนึ่งแผนก" จึงไม่โชว์ตัวกรองเลย
+        $singleRealDepartment = $this->meeting($creator, ['title' => 'IT plus admin']);
+        $singleRealDepartment->attendees()->attach([$itUser->id, $admin->id]);
+
+        $html = $this->actingAs($creator)->get(route('meetings.show', $singleRealDepartment))->assertOk()->getContent();
+        $this->assertStringNotContainsString('data-attendee-department-filter', $html);
+        $this->assertStringContainsString($admin->name, $html, 'admin ต้องยังแสดงในรายชื่อตามปกติ');
+
+        // สองแผนกจริง (IT, Account) บวกคนไม่มีแผนก (admin) ต้องโชว์ตัวกรอง แต่มีแค่ปุ่ม IT กับ Account เท่านั้น
+        $account = Department::create(['department_name' => 'Account']);
+        $accountUser = User::factory()->create([
+            'name' => 'Account Person',
+            'role' => 'user',
+            'department_id' => $account->id,
+            'is_active' => true,
+            'must_change_password' => false,
+        ]);
+        $crossDepartmentWithAdmin = $this->meeting($creator, ['title' => 'Cross department plus admin']);
+        $crossDepartmentWithAdmin->attendees()->attach([$itUser->id, $accountUser->id, $admin->id]);
+
+        $html = $this->actingAs($creator)->get(route('meetings.show', $crossDepartmentWithAdmin))->assertOk()->getContent();
+        $this->assertStringContainsString('data-attendee-department-filter', $html);
+        $this->assertStringContainsString('data-attendee-department="IT"', $html);
+        $this->assertStringContainsString('data-attendee-department="Account"', $html);
+        // แถวของ admin ยังติดป้าย "ไม่ระบุแผนก" ไว้ได้ตามปกติ (ไว้กรองออกเวลาเลือกแผนกจริง) แค่ต้องไม่มี
+        // ปุ่มกรองของค่านี้โดยเฉพาะ — แยกสองกรณีนี้ด้วย regex หาปุ่ม ไม่ใช่เช็คว่าข้อความไม่โผล่เลยทั้งหน้า
+        $this->assertDoesNotMatchRegularExpression(
+            '/<button type="button"[^>]*data-attendee-department="ไม่ระบุแผนก"/',
+            $html
+        );
+        $this->assertStringContainsString($admin->name, $html, 'admin ต้องยังแสดงในรายชื่อตามปกติแม้ไม่มีปุ่มกรองของตัวเอง');
+    }
+
+    /**
+     * ผู้เข้าร่วมถูกย้ายมารวมในการ์ดเดียวกับรายละเอียด ไม่ใช่การ์ดแยกคนละคอลัมน์อีกต่อไป
+     */
+    public function test_attendee_section_lives_inside_the_same_card_as_meeting_details(): void
+    {
+        $creator = $this->user();
+        $meeting = $this->meeting($creator);
+        $meeting->attendees()->attach($this->user());
+
+        $html = $this->actingAs($creator)->get(route('meetings.show', $meeting))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('meetings-page__detail-grid', $html);
+        $this->assertStringNotContainsString('<aside class="meetings-page__panel meetings-page__detail-people"', $html);
+
+        preg_match('/<main class="meetings-page__panel meetings-page__detail-main">([\s\S]*)<\/main>/', $html, $mainMatch);
+        $this->assertNotEmpty($mainMatch, 'ต้องเจอ <main class="meetings-page__panel meetings-page__detail-main"> ในหน้า');
+        $this->assertStringContainsString('class="meetings-page__detail-people"', $mainMatch[0], 'ผู้เข้าร่วมต้องอยู่ข้างในการ์ดเดียวกับรายละเอียด');
+    }
+
     public function test_creator_and_admin_can_update_delete_but_attendee_and_unrelated_user_cannot(): void
     {
         $creator = $this->user();
@@ -285,6 +606,30 @@ class MeetingManagementTest extends TestCase
         $creatorOwned = $this->meeting($creator, ['title' => 'Creator deletes']);
         $this->actingAs($creator)->delete(route('meetings.destroy', $creatorOwned))->assertRedirect(route('meetings.index'));
         $this->assertDatabaseMissing('meetings', ['id' => $creatorOwned->id]);
+    }
+
+    public function test_edit_form_fragment_is_authorized_and_returns_only_the_modal_markup(): void
+    {
+        $creator = $this->user();
+        $attendee = $this->user();
+        $meeting = $this->meeting($creator, ['title' => 'ทดสอบ']);
+        $meeting->attendees()->attach($attendee);
+
+        // ผู้ที่แก้ไขไม่ได้ (เป็นแค่ผู้เข้าร่วม) ต้องโดนปฏิเสธ ไม่ใช่ได้ฟอร์มที่ส่งแล้วพังตอน submit
+        $this->actingAs($attendee)->get(route('meetings.edit-form', $meeting))->assertForbidden();
+
+        $html = $this->actingAs($creator)
+            ->get(route('meetings.edit-form', $meeting))
+            ->assertOk()
+            ->getContent();
+
+        // ต้องเป็น fragment ของ modal ล้วน ๆ ไม่ใช่หน้าเต็มที่มี layout/head/body ห่ออยู่
+        // (ปุ่มแก้ไขบนการ์ดโหลดด้วย AJAX มาเติมลง slot ตรง ๆ ไม่ผ่าน DOMParser)
+        $this->assertStringNotContainsString('<html', $html);
+        $this->assertStringNotContainsString('@extends', $html);
+        $this->assertStringContainsString('id="editMeetingModal"', $html);
+        $this->assertStringContainsString('value="ทดสอบ"', $html, 'ต้องพรีฟิลข้อมูลของการประชุมนั้นจริง ไม่ใช่ฟอร์มเปล่า');
+        $this->assertStringContainsString('action="'.route('meetings.update', $meeting).'"', $html);
     }
 
     public function test_search_and_employee_filter_combine_without_leaking_rows(): void
@@ -339,6 +684,50 @@ class MeetingManagementTest extends TestCase
         $upcomingIds = $this->idsFor($admin, 'upcoming');
         $this->assertContains($sevenDayBoundary->id, $upcomingIds);
         $this->assertNotContains($todayOverlap->id, $upcomingIds);
+    }
+
+    public function test_custom_period_filters_by_the_requested_date_range(): void
+    {
+        $admin = $this->user('admin');
+        $owner = $this->user();
+        $inside = $this->meetingLocal($owner, 'Inside range', '2026-08-10 09:00', '2026-08-10 10:00');
+        $outside = $this->meetingLocal($owner, 'Outside range', '2026-08-20 09:00', '2026-08-20 10:00');
+
+        $html = $this->actingAs($admin)
+            ->get(route('meetings.index', ['period' => 'custom', 'date_from' => '2026-08-05', 'date_to' => '2026-08-15']))
+            ->assertOk()
+            ->getContent();
+
+        $ids = $this->idsFor($admin, 'custom', ['date_from' => '2026-08-05', 'date_to' => '2026-08-15']);
+        $this->assertContains($inside->id, $ids);
+        $this->assertNotContains($outside->id, $ids);
+
+        // ดร็อปดาวน์ต้องเลือก "กำหนดช่วงวันที่เอง" ค้างไว้ และช่องวันที่ต้องคงค่าที่ผู้ใช้กรอกไว้
+        $this->assertMatchesRegularExpression('/<option value="custom"[^>]*selected/', $html);
+        $this->assertStringContainsString('value="2026-08-05"', $html);
+        $this->assertStringContainsString('value="2026-08-15"', $html);
+    }
+
+    /**
+     * ช่วงกำหนดเองที่ใช้ไม่ได้ (รูปแบบผิด, from อยู่หลัง to, หรือไม่ได้กรอกเลย) ต้องทิ้งทั้งคู่
+     * แล้วกลับไปใช้ค่าเริ่มต้นเงียบ ๆ ไม่ใช่ error 500 และไม่ใช่กรองด้วยค่าครึ่งเดียว
+     */
+    public function test_invalid_custom_period_falls_back_to_upcoming_without_erroring(): void
+    {
+        $admin = $this->user('admin');
+        $owner = $this->user();
+        $upcoming = $this->meetingLocal($owner, 'Upcoming', '2026-08-25 09:00', '2026-08-25 10:00');
+
+        foreach ([
+            ['date_from' => '2026-08-15', 'date_to' => '2026-08-05'], // from หลัง to
+            ['date_from' => 'not-a-date', 'date_to' => '2026-08-15'],
+            ['date_from' => '2026-08-05'], // ไม่มี to
+            [],
+        ] as $extra) {
+            $response = $this->actingAs($admin)->get(route('meetings.index', ['period' => 'custom', ...$extra]));
+            $response->assertOk();
+            $this->assertContains($upcoming->id, $response->viewData('meetings')->getCollection()->pluck('id')->all());
+        }
     }
 
     public function test_meeting_list_query_count_does_not_grow_per_row(): void
@@ -539,6 +928,33 @@ class MeetingManagementTest extends TestCase
         ], $attributes));
     }
 
+    private function project(User $owner, string $name): WorkOrderList
+    {
+        return WorkOrderList::create([
+            'user_id' => $owner->id,
+            'name' => $name,
+            'is_visible' => true,
+            'sort_order' => WorkOrderList::count() + 1,
+        ]);
+    }
+
+    private function task(User $owner, WorkOrderList $list, string $topic): WorkOrder
+    {
+        return WorkOrder::create([
+            'user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'assigned_by' => $owner->id,
+            'leader_user_id' => $owner->id,
+            'work_order_list_id' => $list->id,
+            'job_topic' => $topic,
+            'job_priority' => 2,
+            'job_status' => 2,
+            'approval_status' => 'approved',
+            'job_start_at' => now()->subDay(),
+            'job_due_at' => now()->addDay(),
+        ]);
+    }
+
     private function meetingLocal(User $creator, string $title, string $start, string $end): Meeting
     {
         return $this->meeting($creator, [
@@ -570,9 +986,9 @@ class MeetingManagementTest extends TestCase
         return new QueryException('sqlite', 'meeting persistence', [], new PDOException('database unavailable'));
     }
 
-    private function idsFor(User $viewer, string $period): array
+    private function idsFor(User $viewer, string $period, array $extra = []): array
     {
-        $response = $this->actingAs($viewer)->get(route('meetings.index', ['period' => $period]));
+        $response = $this->actingAs($viewer)->get(route('meetings.index', ['period' => $period, ...$extra]));
         $response->assertOk();
 
         return $response->viewData('meetings')->getCollection()->pluck('id')->all();

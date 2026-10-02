@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -131,5 +132,22 @@ class WorkLogTemplate extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * แม่แบบที่ยังไม่หมดอายุ ณ วันทำการที่ส่งเข้ามา
+     *
+     * แม่แบบที่ ends_on ผ่านไปแล้วจะไม่ถูกสร้างเป็นรายการอีกเลย
+     * (ดูเงื่อนไขเดียวกันใน WorkLogRoutineMaterializer::dueTemplates และ
+     * WorkLogQueryService) ถ้ายังปล่อยให้แสดงใน "แผนงานประจำของฉัน"
+     * แผนของเดือนที่ปิดไปแล้วจะค้างอยู่ในเดือนใหม่โดยไม่มีวันหายไปเอง
+     */
+    public function scopeNotEndedBefore(Builder $query, CarbonInterface $businessDay): Builder
+    {
+        $day = $businessDay->format('Y-m-d');
+
+        return $query->where(fn (Builder $window) => $window
+            ->whereNull('ends_on')
+            ->orWhereDate('ends_on', '>=', $day));
     }
 }

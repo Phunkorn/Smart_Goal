@@ -1744,7 +1744,7 @@ Failed asserting that '&lt;!DOCTYPE html&gt;\n
 \n
         \n
                     &lt;button type="button" class="mytasks-kanban__button mytasks-kanban__button--project mytasks-view-controls__create" data-open-user-task-create&gt;\n
-                &lt;i class="bi bi-plus-lg" aria-hidden="true"&gt;&lt;/i&gt; สร้างงาน\n
+                &lt;i class="bi bi-plus-lg" aria-hidden="true"&gt;&lt;/i&gt; สร้างงานโปรเจกต์ใหม่\n
             &lt;/button&gt;\n
             &lt;/div&gt;\n
 \n
@@ -2695,7 +2695,7 @@ Failed asserting that '&lt;!DOCTYPE html&gt;\n
         &lt;input type="hidden" name="_token" value="M9itD7Y01umO5JW6KoQ54mSVfOcAT0LFIgenAtbi" autocomplete="off"&gt;        &lt;header class='user-task-create__header'&gt;\n
             &lt;div&gt;\n
                 &lt;span class='task-edit-kicker'&gt;CREATE TASK&lt;/span&gt;\n
-                &lt;strong&gt;สร้างงาน&lt;/strong&gt;\n
+                &lt;strong&gt;สร้างงานโปรเจกต์ใหม่&lt;/strong&gt;\n
                 &lt;small&gt;เลือกโปรเจกต์เดิม หรือสร้างโปรเจกต์ใหม่พร้อมงานได้ในครั้งเดียว&lt;/small&gt;\n
             &lt;/div&gt;\n
             &lt;button type='button' class='task-modal-close' data-close-user-task-create aria-label='ปิด'&gt;&lt;i class='bi bi-x-lg' aria-hidden='true'&gt;&lt;/i&gt;&lt;/button&gt;\n
@@ -2778,7 +2778,7 @@ Failed asserting that '&lt;!DOCTYPE html&gt;\n
             &lt;p&gt;&lt;i class='bi bi-info-circle' aria-hidden='true'&gt;&lt;/i&gt; ยังใช้ปุ่ม “เพิ่มรายการ” ภายในโปรเจกต์ได้ตามเดิม&lt;/p&gt;\n
             &lt;div&gt;\n
                 &lt;button type='button' class='task-secondary' data-close-user-task-create&gt;ยกเลิก&lt;/button&gt;\n
-                &lt;button type='submit' class='notion-primary'&gt;&lt;i class='bi bi-plus-lg' aria-hidden='true'&gt;&lt;/i&gt; สร้างงาน&lt;/button&gt;\n
+                &lt;button type='submit' class='notion-primary'&gt;&lt;i class='bi bi-plus-lg' aria-hidden='true'&gt;&lt;/i&gt; สร้างงานโปรเจกต์ใหม่&lt;/button&gt;\n
             &lt;/div&gt;\n
         &lt;/footer&gt;\n
     &lt;/form&gt;\n

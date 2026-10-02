@@ -143,7 +143,10 @@ export const selectTool = {
             return rotateSelection(draft, point, constrain, scene, replaceElements);
         }
 
-        const target = resizeFrame(draft.startFrame, draft.handle, draft.origin, point, MIN_SIZE);
+        // Shift ระหว่างย่อขยาย = คงสัดส่วนเดิม สี่เหลี่ยมกับวงกลมจึงไม่เสียทรง (เหมือน Canva)
+        const target = resizeFrame(draft.startFrame, draft.handle, draft.origin, point, MIN_SIZE, {
+            lockAspect: Boolean(constrain),
+        });
         const resized = draft.startElements.map(
             (element) => fitElementToFrame(element, draft.startFrame, target)
         );

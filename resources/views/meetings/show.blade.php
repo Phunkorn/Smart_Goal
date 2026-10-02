@@ -31,20 +31,28 @@
         <div class="meetings-page__actions">@can('update', $meeting)<button class="meetings-page__button" type="button" data-meeting-modal-trigger="editMeetingModal" aria-controls="editMeetingModal" aria-haspopup="dialog" data-meeting-edit><i class="bi bi-pencil" aria-hidden="true"></i> แก้ไข</button>@endcan @can('delete', $meeting)<form method="POST" action="{{ route('meetings.destroy', $meeting) }}" data-meeting-delete data-meeting-title="{{ $meeting->title }}">@csrf @method('DELETE')<button class="meetings-page__button meetings-page__button--danger" type="submit"><i class="bi bi-trash3" aria-hidden="true"></i> ลบ</button></form>@endcan</div>
     </header>
 
-    <div class="meetings-page__detail-grid">
-        <main class="meetings-page__panel meetings-page__detail-main">
-            <section><h2>รายละเอียดการประชุม</h2><p>{{ $meeting->description ?: 'ไม่มีรายละเอียดเพิ่มเติม' }}</p></section>
-            <dl class="meetings-page__detail-meta">
-                <div><dt><i class="bi bi-calendar3" aria-hidden="true"></i> วันที่</dt><dd>@if($start->isSameDay($end)){{ $start->locale('th')->isoFormat('dddd D MMMM YYYY') }}@else{{ $start->locale('th')->isoFormat('D MMM YYYY') }} – {{ $end->locale('th')->isoFormat('D MMM YYYY') }}@endif</dd></div>
-                <div><dt><i class="bi bi-clock" aria-hidden="true"></i> เวลา</dt><dd>{{ $start->format('H:i') }}–{{ $end->format('H:i') }} น.</dd></div>
-                <div><dt><i class="bi bi-geo-alt" aria-hidden="true"></i> สถานที่</dt><dd>{{ $meeting->location ?: 'ไม่ระบุสถานที่' }}</dd></div>
-                <div><dt><i class="bi bi-person" aria-hidden="true"></i> ผู้สร้าง</dt><dd>{{ $meeting->creator?->name ?? 'บัญชีที่ถูกลบ' }}</dd></div>
-            </dl>
-        </main>
-        <aside class="meetings-page__panel meetings-page__detail-people"><div class="meetings-page__panel-head"><div><h2>ผู้เข้าร่วม</h2><p>รายชื่อทั้งหมดในการประชุมนี้</p></div><span>{{ $meeting->attendees->count() }} คน</span></div>@include('meetings.components.attendee-list', ['meeting' => $meeting])</aside>
-    </div>
+    {{--
+        รายละเอียดกับผู้เข้าร่วมรวมอยู่ในการ์ดใบเดียวกันแล้ว (เดิมแยกเป็นสองคอลัมน์)
+        ผู้เข้าร่วมอยู่ด้านล่างสุด เปิดหน้ามาต้องเห็น "ทั้งหมด" เสมอ ผู้ใช้กรองดูเฉพาะแผนกเองได้
+        ถ้าต้องการ เพราะการประชุมหนึ่งอาจมีคนข้ามแผนกเข้าร่วม (ดู initializeAttendeeDepartmentFilter
+        ใน meetings/index.js — กรองแค่ซ่อน/แสดงฝั่ง client ไม่กระทบจำนวนที่ระบุไว้)
+    --}}
+    <main class="meetings-page__panel meetings-page__detail-main">
+        <section><h2>รายละเอียดการประชุม</h2><p>{{ $meeting->description ?: 'ไม่มีรายละเอียดเพิ่มเติม' }}</p></section>
+        <dl class="meetings-page__detail-meta">
+            <div><dt><i class="bi bi-calendar3" aria-hidden="true"></i> วันที่</dt><dd>@if($start->isSameDay($end)){{ $start->locale('th')->isoFormat('dddd D MMMM YYYY') }}@else{{ $start->locale('th')->isoFormat('D MMM YYYY') }} – {{ $end->locale('th')->isoFormat('D MMM YYYY') }}@endif</dd></div>
+            <div><dt><i class="bi bi-clock" aria-hidden="true"></i> เวลา</dt><dd>{{ $start->format('H:i') }}–{{ $end->format('H:i') }} น.</dd></div>
+            <div><dt><i class="bi bi-geo-alt" aria-hidden="true"></i> สถานที่</dt><dd>{{ $meeting->location ?: 'ไม่ระบุสถานที่' }}</dd></div>
+            <div><dt><i class="bi bi-person" aria-hidden="true"></i> ผู้สร้าง</dt><dd>{{ $meeting->creator?->name ?? 'บัญชีที่ถูกลบ' }}</dd></div>
+            @if($meeting->project)<div><dt><i class="bi bi-folder2-open" aria-hidden="true"></i> โปรเจกต์</dt><dd>{{ $meeting->project->name }}@if($meeting->task) · {{ $meeting->task->job_topic }}@endif</dd></div>@endif
+        </dl>
+        <section class="meetings-page__detail-people">
+            <div class="meetings-page__panel-head"><div><h2>ผู้เข้าร่วม</h2><p>รายชื่อทั้งหมดในการประชุมนี้</p></div><span>{{ $meeting->attendees->count() }} คน</span></div>
+            @include('meetings.components.attendee-list', ['meeting' => $meeting])
+        </section>
+    </main>
 
-    @can('update', $meeting) @include('meetings.components.form-modal', ['formMeeting' => $meeting, 'attendeeOptions' => $attendeeOptions, 'attendeeDepartments' => $attendeeDepartments, 'meetingContextQuery' => array_filter(['employee' => request('employee'), 'from' => $fromWorkspace ? 'workspace' : null])]) @endcan
+    @can('update', $meeting) @include('meetings.components.form-modal', ['formMeeting' => $meeting, 'attendeeOptions' => $attendeeOptions, 'attendeeDepartments' => $attendeeDepartments, 'projectOptions' => $projectOptions, 'meetingContextQuery' => array_filter(['employee' => request('employee'), 'from' => $fromWorkspace ? 'workspace' : null])]) @endcan
     <script type="application/json" data-meeting-feedback>@json($meetingFeedback)</script>
 </div>
 @endsection

@@ -15,6 +15,8 @@ class Meeting extends Model
         'ends_at',
         'location',
         'created_by',
+        'work_order_list_id',
+        'work_order_id',
     ];
 
     protected function casts(): array
@@ -33,5 +35,15 @@ class Meeting extends Model
     public function attendees(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'meeting_attendees')->withTimestamps();
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(WorkOrderList::class, 'work_order_list_id');
+    }
+
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(WorkOrder::class, 'work_order_id', 'job_id');
     }
 }

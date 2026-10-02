@@ -9,12 +9,13 @@
  * เพราะหัวลูกศรต้องรู้ว่าปลายอยู่ข้างไหน ส่วนสี่เหลี่ยมกับวงกลมทำให้กรอบเป็นบวก
  * ได้เพราะรูปร่างเหมือนกันทุกทิศ
  *
- * กด Shift ค้างระหว่างลากเส้นตรงหรือลูกศร ปลายเส้นจะถูกล็อกไว้ที่แนวนอน แนวตั้ง
+ * กด Shift ค้างระหว่างลากสี่เหลี่ยมหรือวงรี กรอบจะถูกล็อกให้เป็นจัตุรัสพอดี
+ * ได้สี่เหลี่ยมจัตุรัสกับวงกลมกลม เหมือน Canva ส่วนการลากเส้นตรงหรือลูกศร ปลายเส้นจะถูกล็อกไว้ที่แนวนอน แนวตั้ง
  * หรือแนวทแยง 45 องศา ค่า constrain มาจาก pointer.js ทุกครั้งที่ขยับหรือกด/ปล่อย
  * Shift จึงล็อกและปลดได้กลางท่าลากโดยไม่ต้องเริ่มใหม่
  */
 
-import {boundsFromPoints, constrainToAngle} from '../geometry.js';
+import {boundsFromPoints, constrainToAngle, constrainToSquare} from '../geometry.js';
 
 /** ขนาดต่ำสุดที่นับว่าผู้ใช้ตั้งใจสร้างรูปทรง ไม่ใช่แค่คลิกพลาด (พิกเซลบนหน้าจอ) */
 const MIN_DRAG_PX = 4;
@@ -66,8 +67,22 @@ export const shapeTool = (type) => ({
     },
 });
 
-const endPointFor = (type, draft, point, constrain) =>
-    (constrain && isDirectional(type) ? constrainToAngle(draft.origin, point) : point);
+/*
+ * Shift ระหว่างลาก — ความหมายต่างกันตามชนิดของรูปทรง
+ *
+ * เส้นกับลูกศรคือการล็อก "มุม" ไว้ที่ละ 45 องศา ส่วนสี่เหลี่ยมกับวงรีคือการล็อก
+ * "สัดส่วน" ให้เป็นจัตุรัสกับวงกลม เป็นคนละเรื่องกัน ถ้าใช้ constrainToAngle กับสี่เหลี่ยม
+ * ด้วย การลากที่ไม่ได้เฉียงมุม 45 องศาจะยุบรูปให้แบนหรือหายไปเลย แทนที่จะกลายเป็นสี่เหลี่ยมจัตุรัส
+ */
+const endPointFor = (type, draft, point, constrain) => {
+    if (! constrain) {
+        return point;
+    }
+
+    return isDirectional(type)
+        ? constrainToAngle(draft.origin, point)
+        : constrainToSquare(draft.origin, point);
+};
 
 const shapeOf = (type, draft, point) => {
     const box = isDirectional(type)

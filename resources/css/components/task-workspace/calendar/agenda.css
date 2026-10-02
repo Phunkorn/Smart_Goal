@@ -95,17 +95,21 @@
     padding: 10px 16px 14px;
 }
 
-.my-tasks-page .mytasks-calendar-agenda__footer a {
+.my-tasks-page .mytasks-calendar-agenda__footer [data-calendar-agenda-viewall] {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    border: 0;
+    background: transparent;
     color: #2f6fe4;
+    font: inherit;
     font-size: 12px;
     font-weight: 650;
     text-decoration: none;
+    cursor: pointer;
 }
 
-.my-tasks-page .mytasks-calendar-agenda__footer a:hover {
+.my-tasks-page .mytasks-calendar-agenda__footer [data-calendar-agenda-viewall]:hover {
     color: #1d4ed8;
     text-decoration: underline;
 }
@@ -512,7 +516,7 @@
  * ตัวเปลี่ยนหน้าของการ์ดสรุป
  *
  * การ์ดแสดงครั้งละ 10 แถว เดือนที่ยุ่งจึงไม่ทำให้การ์ดสูงกว่าตัวปฏิทินเอง
- * ตัวเปลี่ยนหน้าอยู่ซ้าย ส่วนลิงก์ "ดูทั้งหมด" อยู่ขวา เพราะเป็นทางออกไปหน้าอื่น
+ * ตัวเปลี่ยนหน้าอยู่ซ้าย ส่วนปุ่ม "ดูทั้งหมด" ชิดขวาเสมอ (เปิด modal รายการทั้งหมด)
  * ========================================================================== */
 
 .my-tasks-page .mytasks-calendar-agenda__footer {
@@ -569,7 +573,7 @@
     white-space: nowrap;
 }
 
-/* การ์ดที่มีหน้าเดียวยังต้องวางลิงก์ "ดูทั้งหมด" ไว้กลางเหมือนเดิม */
+/* ปุ่ม "ดูทั้งหมด" ชิดขวาเสมอ ไม่ว่าการ์ดจะมีตัวเปลี่ยนหน้าหรือไม่ก็ตาม */
 .my-tasks-page .mytasks-calendar-agenda__footer:has(.mytasks-calendar-agenda__pager[hidden]) {
-    justify-content: center;
+    justify-content: flex-end;
 }

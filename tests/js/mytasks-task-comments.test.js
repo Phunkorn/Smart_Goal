@@ -532,6 +532,80 @@ test('กดตอบกลับแสดงแถบอ้างอิงแ�
     assert.equal(ui.replyPreview().hidden, true, 'ส่งสำเร็จต้องล้างแถบตอบกลับ');
 });
 
+/*
+ * บั๊กจริงที่ผู้ใช้รายงาน: ตอบกลับคอมเมนต์ที่มีแต่รูป แล้วแถบ "กำลังตอบกลับ"
+ * เห็นแค่ชื่อคน ไม่มีทั้งรูปและคำบรรยาย เพราะคอมเมนต์รูปล้วนมี note เป็นค่าว่างได้
+ */
+test('ตอบกลับคอมเมนต์รูปล้วน แถบอ้างถึงต้องมีรูปย่อและคำว่า รูปภาพ', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 702,
+        category: 'comment',
+        task_id: 7,
+        comment: {
+            id: 960,
+            author: 'พันกร ศรีทอน',
+            note: '',
+            at: 'ตอนนี้',
+            is_comment: true,
+            images: [{url: '/media/comment-attachments/11', name: 'หน้าจอ.png'}],
+        },
+    }}));
+
+    click(ui.replyButton(960));
+
+    const preview = ui.replyPreview();
+    assert.equal(preview.hidden, false);
+
+    const thumb = preview.querySelector('[data-comment-reply-thumb] img');
+    assert.ok(thumb, 'แถบอ้างถึงต้องมีรูปย่อของคอมเมนต์ต้นทาง');
+    assert.match(thumb.getAttribute('src'), /comment-attachments\/11/);
+    assert.equal(preview.querySelector('[data-comment-reply-thumb]').hidden, false);
+
+    // คอมเมนต์รูปล้วนไม่มีข้อความ จึงต้องมีคำแทน ไม่ใช่ปล่อยว่าง
+    assert.match(preview.textContent, /รูปภาพ/);
+
+    click(preview.querySelector('[data-cancel-comment-reply]'));
+    assert.equal(preview.querySelector('[data-comment-reply-thumb]').hidden, true, 'ยกเลิกแล้วรูปย่อต้องไม่ค้างไว้ให้การตอบกลับครั้งถัดไป');
+    assert.equal(preview.querySelector('[data-comment-reply-thumb] img'), null);
+});
+
+/* ฟองที่ส่งไปแล้วก็ต้องเห็นรูปที่ถูกอ้างถึง ไม่ใช่เฉพาะแถบขณะพิมพ์ */
+test('ฟองของการตอบกลับแสดงรูปย่อของข้อความต้นทางในบล็อกอ้างถึง', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        id: 703,
+        category: 'comment',
+        task_id: 7,
+        comment: {
+            id: 961,
+            author: 'เพื่อนร่วมงาน',
+            note: 'รูปนี้ถูกแล้วครับ',
+            at: 'ตอนนี้',
+            is_comment: true,
+            reply_to: {
+                id: 960,
+                author: 'พันกร ศรีทอน',
+                note: '',
+                images: [{url: '/media/comment-attachments/11', name: 'หน้าจอ.png'}],
+            },
+        },
+    }}));
+
+    const quote = ui.document.querySelector('[data-comment-id="961"] .task-timeline-entry__quote');
+    assert.ok(quote, 'ฟองตอบกลับต้องมีบล็อกอ้างถึง');
+
+    const thumb = quote.querySelector('.task-timeline-entry__quote-thumb');
+    assert.ok(thumb, 'บล็อกอ้างถึงต้องแสดงรูปย่อของข้อความต้นทาง');
+    assert.match(thumb.getAttribute('src'), /comment-attachments\/11/);
+    assert.match(quote.textContent, /รูปภาพ/);
+    assert.equal(quote.dataset.jumpToComment, '960', 'กดรูปย่อต้องเลื่อนไปต้นฉบับได้เหมือนเดิม');
+});
+
 test('ยกเลิกการตอบกลับซ่อนแถบและไม่แนบ reply_to_id', async (t) => {
     const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
     click(ui.boardTitle());

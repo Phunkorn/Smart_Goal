@@ -81,15 +81,19 @@ export function pressKey(target, key, options = {}) {
  * markup ของ people-selector ที่ตรงกับ resources/views/components/people-selector.blade.php
  * ถ้า Blade เปลี่ยน hook ต้องแก้ที่นี่ด้วย test จึงจะยังสะท้อนของจริง
  */
-export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]', people = [], departments = [], selected = [], disabled = [], readOnly = false, variant = null} = {}) {
+export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]', people = [], departments = [], selected = [], disabled = [], readOnly = false, variant = null, showAvatar = null} = {}) {
     const selectedSet = new Set(selected.map(String));
     const disabledSet = new Set(disabled.map(String));
     const isTeamManager = variant === 'team-manager';
+    const hasAvatar = showAvatar ?? isTeamManager;
 
     const options = people.map((person) => {
         const isSelected = selectedSet.has(String(person.id));
         const isDisabled = readOnly || disabledSet.has(String(person.id));
         const search = `${person.name} ${person.email || ''} ${person.department || ''}`.toLowerCase();
+        const avatar = hasAvatar
+            ? `<span class="people-selector__avatar" aria-hidden="true">${person.avatarUrl ? `<img src="${person.avatarUrl}" alt="">` : `<span>${(person.name || '?')[0]}</span>`}</span>`
+            : '';
 
         return `<label class="people-selector__option${isSelected ? ' is-selected' : ''}" data-people-option
             data-person-id="${person.id}" data-department-id="${person.departmentId ?? ''}" data-search="${search}">
@@ -97,6 +101,7 @@ export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]
                 data-people-checkbox data-person-name="${person.name}" data-person-email="${person.email || ''}"
                 data-person-department="${person.department || ''}" data-person-avatar-url="${person.avatarUrl || ''}"
                 ${isSelected ? ' checked' : ''}${isDisabled ? ' disabled' : ''}>
+            ${avatar}
             <span><strong>${person.name}</strong><small>${person.department || ''}</small></span>
         </label>`;
     }).join('');
@@ -117,7 +122,7 @@ export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]
     const stageClose = isTeamManager ? '</section>' : '';
 
     return `<div class="people-selector-field${isTeamManager ? ' people-selector-field--team-manager' : ''}"
-        data-people-selector data-instance="${instanceId}"${variant ? ` data-people-variant="${variant}"` : ''}${readOnly ? ' data-readonly="true"' : ''}>
+        data-people-selector data-instance="${instanceId}"${variant ? ` data-people-variant="${variant}"` : ''} data-show-avatar="${hasAvatar ? 'true' : 'false'}"${readOnly ? ' data-readonly="true"' : ''}>
         <div class="people-selector">
             <div class="people-selector__browser">
                 <div class="people-selector__search-tools">

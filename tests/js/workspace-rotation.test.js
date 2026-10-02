@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
     boundsOf,
     constrainToAngle,
+    constrainToSquare,
     hitTest,
     pickTopmost,
     rotateElement,
@@ -238,6 +239,55 @@ test('ย่อขยายกรอบตั้งตรงให้ผลเ�
         resizeFrame(frame, 'se', {x: 100, y: 50}, {x: 150, y: 70}, 4),
         {x: 0, y: 0, w: 150, h: 70, rotation: 0}
     );
+});
+
+/*
+ * Shift ระหว่างย่อขยาย — คงสัดส่วนเดิมไว้ สี่เหลี่ยมจัตุรัสจึงไม่เสียทรง
+ *
+ * มุมจับใช้ด้านที่เปลี่ยนไปมากกว่าเป็นตัวนำ ส่วนขอบด้านใช้แกนของมันเอง แล้วกึ่งกลาง
+ * อีกแกนหนึ่งไว้กับที่ รูปจึงโตออกสองข้างเท่ากัน ไม่เอียงไปข้างใดข้างหนึ่ง
+ */
+test('ลากมุมพร้อม Shift กรอบคงสัดส่วนเดิมและมุมตรงข้ามอยู่กับที่', () => {
+    const frame = {x: 0, y: 0, w: 100, h: 50, rotation: 0};
+
+    const resized = resizeFrame(frame, 'se', {x: 100, y: 50}, {x: 200, y: 60}, 4, {lockAspect: true});
+
+    assert.deepEqual(resized, {x: 0, y: 0, w: 200, h: 100, rotation: 0});
+});
+
+test('ลากมุม nw พร้อม Shift มุม se ต้องอยู่กับที่', () => {
+    const frame = {x: 100, y: 100, w: 100, h: 50, rotation: 0};
+
+    const resized = resizeFrame(frame, 'nw', {x: 100, y: 100}, {x: 60, y: 90}, 4, {lockAspect: true});
+
+    assert.equal(resized.w / resized.h, 2, 'สัดส่วนต้องเท่าเดิม');
+    assert.equal(resized.x + resized.w, 200, 'ขอบขวาต้องไม่ขยับ');
+    assert.equal(resized.y + resized.h, 150, 'ขอบล่างต้องไม่ขยับ');
+});
+
+/* มือจับกลางขอบ: ด้านที่ไม่ได้ลากต้องโตออกสองข้างเท่ากัน รูปจึงไม่เอียงออกข้าง */
+test('ลากขอบขวาพร้อม Shift ความสูงโตตามสัดส่วนโดยกึ่งกลางแนวตั้งอยู่ที่เดิม', () => {
+    const frame = {x: 0, y: 0, w: 100, h: 50, rotation: 0};
+
+    const resized = resizeFrame(frame, 'e', {x: 100, y: 25}, {x: 200, y: 25}, 4, {lockAspect: true});
+
+    assert.deepEqual(resized, {x: 0, y: -25, w: 200, h: 100, rotation: 0});
+});
+
+test('ไม่กด Shift การย่อขยายยังอิสระสองแกนเหมือนเดิม', () => {
+    const frame = {x: 0, y: 0, w: 100, h: 50, rotation: 0};
+
+    assert.deepEqual(
+        resizeFrame(frame, 'se', {x: 100, y: 50}, {x: 200, y: 60}, 4),
+        {x: 0, y: 0, w: 200, h: 60, rotation: 0}
+    );
+});
+
+test('จุดปลายที่ถูกล็อกเป็นจัตุรัสใช้ด้านที่ยาวกว่า และคงทิศทางที่ลาก', () => {
+    assert.deepEqual(constrainToSquare({x: 0, y: 0}, {x: 100, y: 40}), {x: 100, y: 100});
+    assert.deepEqual(constrainToSquare({x: 0, y: 0}, {x: 30, y: -90}), {x: 90, y: -90});
+    assert.deepEqual(constrainToSquare({x: 10, y: 10}, {x: -40, y: 30}), {x: -40, y: 60});
+    assert.deepEqual(constrainToSquare({x: 5, y: 5}, {x: 5, y: 5}), {x: 5, y: 5});
 });
 
 test('ชิ้นที่เอียงรับขนาดของกรอบใหม่ไปตรง ๆ และคงมุมไว้', () => {

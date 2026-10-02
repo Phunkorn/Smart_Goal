@@ -26,14 +26,14 @@
             <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
             <span>เปิดพื้นที่งานของสมาชิก</span>
         </a>
-    @else
+    {{-- @else
         <div class="wb-member-preview__readonly" data-preview-readonly>
             <i class="bi bi-lock" aria-hidden="true"></i>
             <div>
                 <strong>ดูแบบอ่านอย่างเดียว</strong>
                 <span>ข้อมูลนี้เป็นภาพรวมงาน ไม่สามารถแก้ไขหรือเปิดพื้นที่งานของผู้อื่นได้</span>
             </div>
-        </div>
+        </div> --}}
     @endif
 
     {{-- งานปฏิบัติวันนี้ (งานประจำ/นอกสถานที่) — null เมื่อผู้ดูไม่มีสิทธิ์ตาม WorkLogPolicy::viewDay --}}

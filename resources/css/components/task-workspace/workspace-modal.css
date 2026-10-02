@@ -764,6 +764,26 @@
     font-size: 13px;
 }
 
+/* รูปย่อในแถบ "กำลังตอบกลับ" — ขนาดเดียวกับรูปย่อใน quote ของฟองที่ส่งไปแล้ว */
+.task-workspace .task-timeline__reply-preview-thumb {
+    display: block;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    overflow: hidden;
+    border-radius: 6px;
+}
+
+.task-workspace .task-timeline__reply-preview-thumb[hidden] {
+    display: none;
+}
+
+.task-workspace .task-timeline__reply-preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .task-workspace .task-timeline__reply-preview-body {
     display: flex;
     flex: 1;
@@ -1384,8 +1404,8 @@
  */
 .task-workspace .task-timeline-entry__quote {
     display: flex;
-    flex-direction: column;
-    gap: 0;
+    align-items: center;
+    gap: 8px;
     width: 100%;
     margin-bottom: 4px;
     padding: 0;
@@ -1395,8 +1415,17 @@
     cursor: pointer;
 }
 
+/* ชื่อคนกับข้อความยังวางซ้อนสองบรรทัดเหมือนเดิม รูปย่อมายืนข้างกันไม่ใช่แทรกกลางบรรทัด */
+.task-workspace .task-timeline-entry__quote-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+}
+
 .task-workspace .task-timeline-entry__quote:hover strong,
-.task-workspace .task-timeline-entry__quote:hover span {
+.task-workspace .task-timeline-entry__quote:hover .task-timeline-entry__quote-text {
     opacity: .8;
 }
 
@@ -1410,7 +1439,7 @@
     color: rgb(255 255 255 / 92%);
 }
 
-.task-workspace .task-timeline-entry__quote span {
+.task-workspace .task-timeline-entry__quote-text {
     overflow: hidden;
     color: #6b7a90;
     font-size: 11px;
@@ -1419,12 +1448,21 @@
     white-space: nowrap;
 }
 
-.task-workspace .task-timeline-entry.is-mine .task-timeline-entry__quote span {
-    color: rgb(255 255 255 / 75%);
+.task-workspace .task-timeline-entry.is-mine .task-timeline-entry__quote-text {
+    color: rgb(255 255 255 / 85%);
 }
 
-.task-workspace .task-timeline-entry.is-mine .task-timeline-entry__quote span {
-    color: rgb(255 255 255 / 85%);
+/*
+ * รูปย่อของข้อความต้นทาง — ขนาดเล็กกว่ารูปในฟองแชท (.task-timeline-entry__image)
+ * มาก เพราะมันคือการอ้างถึง ไม่ใช่เนื้อหาหลัก ถ้าใหญ่กว่านี้จะแย่งความสนใจกับรูปจริง
+ * ใช้ border-radius 6px ตามสัดส่วนของ 8px ที่รูปใหญ่ใช้ เพื่อให้มุมดูสมมาตรส่วนกัน
+ */
+.task-workspace .task-timeline-entry__quote-thumb {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 6px;
+    object-fit: cover;
 }
 
 /*

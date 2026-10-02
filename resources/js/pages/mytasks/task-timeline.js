@@ -82,10 +82,36 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         return `<p>${html}</p>`;
     };
 
+    /*
+     * ข้อความต้นทางอาจเป็นรูปล้วน ๆ ก็ได้ เพราะ TaskCommentController ยอมให้คอมเมนต์ไม่มีข้อความ
+     * ได้ (required_without:images) ถ้าเรนเดอร์แค่ note บล็อกอ้างถึงจะกลายเป็นกล่องเปล่า
+     * ที่มีแต่ชื่อคน ผู้อ่านจึงไม่รู้ว่ากำลังพูดถึงรูปไหน
+     */
+    const replyImages = (source) => Array.isArray(source?.images) ? source.images : [];
+
+    /** คำแทนข้อความเมื่อต้นทางมีแต่รูป เลียนแบบ LINE/Messenger คือบอกชนิดของสิ่งที่ถูกอ้างถึง */
+    const replyLabel = (source) => {
+        const note = String(source?.note || '').trim();
+        if (note) return note;
+
+        const count = replyImages(source).length;
+        if (!count) return '';
+
+        return count > 1 ? `รูปภาพ ${count} รูป` : 'รูปภาพ';
+    };
+
     // ข้อความต้นทางที่กำลังตอบกลับ กดแล้วเลื่อนไปดูต้นฉบับในไทม์ไลน์
-    const replyQuote = (item) => item.reply_to
-        ? `<button type="button" class="task-timeline-entry__quote" data-jump-to-comment="${escapeHtml(item.reply_to.id)}"><strong>${escapeHtml(item.reply_to.author)}</strong><span>${escapeHtml(item.reply_to.note)}</span></button>`
-        : '';
+    const replyQuote = (item) => {
+        if (!item.reply_to) return '';
+
+        const [thumb] = replyImages(item.reply_to);
+        // รูปย่อเป็นส่วนประกอบของปุ่ม jump ไม่ใช่ปุ่มซ้อน จึงเป็น alt="" ตามมาตรฐาน ARIA
+        const thumbHtml = thumb
+            ? `<img class="task-timeline-entry__quote-thumb" src="${escapeHtml(thumb.url)}" alt="" loading="lazy">`
+            : '';
+
+        return `<button type="button" class="task-timeline-entry__quote" data-jump-to-comment="${escapeHtml(item.reply_to.id)}">${thumbHtml}<span class="task-timeline-entry__quote-body"><strong>${escapeHtml(item.reply_to.author)}</strong><span class="task-timeline-entry__quote-text">${escapeHtml(replyLabel(item.reply_to))}</span></span></button>`;
+    };
 
     // ปุ่มตอบกลับ/ปักหมุด แสดงเฉพาะคนที่คอมเมนต์ได้ (สิทธิ์เดียวกัน ตามที่ตกลงไว้)
     const commentActions = (item, taskManagement) => {
@@ -253,7 +279,25 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         if (box) {
             box.hidden = false;
             box.querySelector('[data-comment-reply-author]').textContent = source.author;
-            box.querySelector('[data-comment-reply-note]').textContent = String(source.note || '').slice(0, 140);
+            box.querySelector('[data-comment-reply-note]').textContent = replyLabel(source).slice(0, 140);
+
+            /*
+             * ช่องรูปย่อถูกเติมและล้างที่นี่ที่เดียว การตอบกลับครั้งถัดไปต้องไม่เห็นรูปเก่าค้าง
+             * จึงล้างทุกครั้งก่อน ไม่ใช่เฉพาะตอนมีรูป
+             */
+            const thumbBox = box.querySelector('[data-comment-reply-thumb]');
+            if (thumbBox) {
+                const [thumb] = replyImages(source);
+                thumbBox.textContent = '';
+                thumbBox.hidden = !thumb;
+                if (thumb) {
+                    const image = document.createElement('img');
+                    image.src = thumb.url;
+                    image.alt = '';
+                    image.loading = 'lazy';
+                    thumbBox.append(image);
+                }
+            }
         }
         panel.querySelector('[data-task-update-note]')?.focus();
     };
@@ -261,7 +305,15 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     const cancelReply = () => {
         pendingReply = null;
         const box = replyPreviewNode();
-        if (box) box.hidden = true;
+        if (!box) return;
+
+        box.hidden = true;
+        // ล้างรูปทิ้งด้วย ไม่งั้นการตอบกลับครั้งถัดไปจะเห็นรูปเก่าค้างอยู่ในกรอบก่อน DOM จะถูกเขียนทับ
+        const thumbBox = box.querySelector('[data-comment-reply-thumb]');
+        if (thumbBox) {
+            thumbBox.textContent = '';
+            thumbBox.hidden = true;
+        }
     };
 
     const scrollToComment = (id) => {

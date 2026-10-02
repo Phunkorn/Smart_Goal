@@ -47,6 +47,17 @@ class TaskCommentPresenter
                     'id' => $comment->replyTo->id,
                     'author' => $comment->replyTo->user?->name ?? 'ไม่ระบุ',
                     'note' => Str::limit((string) $comment->replyTo->note, 140),
+                    /*
+                     * รูปของข้อความต้นทางต้องมาด้วย ไม่งั้นการตอบกลับคอมเมนต์ที่มีแต่รูป
+                     * จะได้บล็อกอ้างถึงที่มีแค่ชื่อคน ผู้อ่านไม่รู้ว่ากำลังพูดถึงรูปไหน
+                     * ใช้ route เดียวกับรูปในฟองแชท จึงผ่านการตรวจสิทธิ์ของ MediaController เหมือนกัน
+                     */
+                    'images' => $comment->replyTo->relationLoaded('attachments')
+                        ? $comment->replyTo->attachments->map(fn ($image) => [
+                            'url' => route('media.comment-attachments.show', $image),
+                            'name' => $image->original_name,
+                        ])->values()->all()
+                        : [],
                 ]
                 : null,
             'mentions' => $comment->relationLoaded('mentions')

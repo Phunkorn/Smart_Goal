@@ -1,7 +1,9 @@
 /*
- * ฟอร์มตัวกรองแบบ GET ที่ส่งทันทีเมื่อเปลี่ยนค่า — ใช้ร่วมกันทุกหน้ารายงาน
+ * ฟอร์มตัวกรองแบบ GET ที่ส่งทันทีเมื่อเปลี่ยนค่า — ใช้ร่วมกันทุกหน้ารายงาน (และหน้าประชุม)
  *
  * <select data-auto-submit> ภายในฟอร์มที่ตรงกับ selector ส่งฟอร์มเมื่อ change
+ * <input data-auto-submit-debounce> ส่งฟอร์มหลังพิมพ์หยุดไปชั่วครู่ แทนที่จะรอ blur หรือกดปุ่ม
+ * (ปรับหน่วงเวลาได้ด้วย data-auto-submit-debounce="ms" ถ้าไม่ใส่ตัวเลขใช้ค่าเริ่มต้น)
  * ดร็อปดาวน์ของระบบ (select-dropdown.js) ยิง change บน <select> เดิม จึงทำงานร่วมกันได้ทันที
  * ปุ่ม "แสดงผล" ใน <noscript> ยังอยู่ให้ใช้เมื่อ JavaScript ไม่ทำงาน
  *
@@ -9,6 +11,13 @@
  *
  * ผูกได้ครั้งเดียวต่อฟอร์ม (ตรวจด้วย data-auto-submit-ready) เรียกซ้ำจึงไม่ซ้อน listener
  */
+const DEFAULT_DEBOUNCE_MS = 400;
+
+function submitForm(form) {
+    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+    else form.submit();
+}
+
 export function initAutoSubmitFilters(root, formSelector = '[data-auto-submit-form]') {
     root.querySelectorAll(formSelector).forEach((form) => {
         if (form.dataset.autoSubmitReady === '1') return;
@@ -18,8 +27,17 @@ export function initAutoSubmitFilters(root, formSelector = '[data-auto-submit-fo
             select.addEventListener('change', () => {
                 if (select.selectedOptions[0]?.hasAttribute('data-auto-submit-skip')) return;
 
-                if (typeof form.requestSubmit === 'function') form.requestSubmit();
-                else form.submit();
+                submitForm(form);
+            });
+        });
+
+        form.querySelectorAll('input[data-auto-submit-debounce]').forEach((input) => {
+            let timer = null;
+            const delay = Number(input.dataset.autoSubmitDebounce) || DEFAULT_DEBOUNCE_MS;
+
+            input.addEventListener('input', () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => submitForm(form), delay);
             });
         });
     });

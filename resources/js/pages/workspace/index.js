@@ -45,7 +45,6 @@ import {
     initOverlayEditing,
     isOverlayType,
     renderOverlay,
-    uniformLineAligns,
 } from './overlay-text.js';
 import {applyCamera, renderElements, renderPreview} from './renderer.js';
 import * as scene from './scene.js';
@@ -53,7 +52,7 @@ import {frameOf} from './selection-frame.js';
 import {renderSelection} from './selection-ui.js';
 import {disableEditControls, initToolbar, initToolbarCollapse} from './toolbar.js';
 import {initToolCursor} from './tool-cursor.js';
-import {isReadOnlyTool, toolFor} from './tools/index.js';
+import {isReadOnlyTool, isViewportTool, toolFor} from './tools/index.js';
 
 /** อ่าน JSON island คืนค่าปริยายเมื่อไม่มีหรืออ่านไม่ออก */
 const readIsland = (doc, id, fallback = {}) => {
@@ -243,6 +242,15 @@ export const initBoardEditor = ({
             scale: state.camera.scale,
             isFullscreen: doc.fullscreenElement === root,
             activeAlign: editingAlign,
+            /*
+             * ปุ่มจัดบรรทัดกดได้เฉพาะขณะเปิดกล่องไว้พิมพ์ เพราะมันทำงานทีละย่อหน้า ไม่ใช่ทั้งกล่อง
+             *
+             * ใช้ state.editingId ไม่ใช่ editingTextNode() ที่เข้มกว่า เพราะการโฟกัสกล่อง
+             * เกิดหลัง draw() รอบที่เปิดโหมดแก้ไข ถ้าเช็ค activeElement ที่นี่ ปุ่มจะถูกปิด
+             * ค้างไว้จนกว่าจะมีเหตุการณ์ถัดไปมาสั่ง draw() อีกรอบ ผู้ใช้จึงเจอปุ่มที่กดไม่ได้ทั้งที่พิมพ์อยู่
+             * ส่วนการตรวจว่ามีเคอร์เซอร์จริงหรือไม่ ยังคงอยู่ที่ chooseAlign ซึ่งเป็นตัวบังคับจริง
+             */
+            editingText: Boolean(state.editingId),
         });
 
         root.dispatchEvent(new doc.defaultView.CustomEvent('workspace:changed', {
@@ -341,11 +349,22 @@ export const initBoardEditor = ({
         }
 
         state.tool = name;
+
+        /*
+         * จบการพิมพ์ก่อนเปลี่ยนเครื่องมือ ผ่านการ blur ซึ่งเป็นทางเดียวกับการ
+         * คลิกออกจากกล่อง ข้อความที่พิมพ์ไว้จึงถูกบันทึกด้วยเส้นทางเดิมทั้งหมด
+         * (ดู initOverlayEditing) ไม่ใช่ล้าง editingId ทิ้งเฉย ๆ แล้วหวังว่า
+         * การถอด contenteditable ออกจาก DOM จะยิง blur ตามมาให้เอง
+         *
+         * ถ้าไม่จบให้ กล่องที่ยังเปิดโหมดแก้ไขค้างไว้จะถือ pointer-events: auto
+         * ต่อไปแม้ผู้ใช้เปลี่ยนไปถือมือเลื่อนกระดานแล้ว แล้วการลากที่เริ่มลงบน
+         * กล่องนั้นจะไม่เลื่อนกระดานเลย (ดู pointer.js: claimsEditableTarget)
+         */
+        editingTextNode()?.blur();
+
         // การเปลี่ยนเครื่องมือกลางท่าลากต้องล้างสถานะร่างทิ้ง ไม่งั้นเครื่องมือ
         // ใหม่จะได้รับ draft ที่มีรูปร่างของเครื่องมือเก่า
-        state.draft = null;
-        state.preview = null;
-        draw();
+        apply({draft: null, preview: null, editingId: null});
 
         return true;
     };
@@ -404,31 +423,25 @@ export const initBoardEditor = ({
     /**
      * จัดบรรทัด — ทางเดียวของทั้งปุ่มบนแถบรูปแบบและปุ่มลัด Ctrl+Shift+L/E/R
      *
-     * กำลังพิมพ์อยู่ในกล่อง -> จัดเฉพาะย่อหน้าที่เคอร์เซอร์หรือตัวเลือกแตะอยู่
-     * เหมือนโปรแกรมประมวลผลคำทั่วไป บรรทัดอื่นในกล่องเดียวกันไม่ถูกแตะเลย
+     * มีผลเฉพาะขณะพิมพ์อยู่ในกล่องเท่านั้น และจัดเฉพาะย่อหน้าที่เคอร์เซอร์หรือ
+     * ตัวเลือกแตะอยู่ เหมือนโปรแกรมประมวลผลคำทั่วไป
      *
-     * แค่เลือกกล่องไว้เฉย ๆ ด้วยเครื่องมือเลือก -> จัดทุกบรรทัดในกล่องให้เหมือน
-     * กันหมด และจำไว้เป็นค่าตั้งต้นของกล่องถัดไป (applyStyle ตั้ง style.align ให้)
+     * เดิมการกดขณะที่แค่ "เลือก" กล่องไว้จะจัดทุกบรรทัดให้เหมือนกันหมด ซึ่งกลืน
+     * การจัดรายบรรทัดที่ผู้ใช้ตั้งใจตั้งไว้ทั้งหมดโดยไม่เตือน ผู้ใช้รายงานว่าปุ่มเดียวกัน
+     * ทำสองอย่างโดยหน้าจอไม่บอกว่าตอนนี้อยู่โหมดไหน จึงเหลือความหมายเดียวคือ "ทีละบรรทัด" เสมอ
+     * ปุ่มบนแถบถูกปิดไว้จนกว่าจะดับเบิลคลิกเข้าโหมดพิมพ์ (ดู toolbar.js: editingText)
      */
     const chooseAlign = (align) => {
         const node = editingTextNode();
 
-        if (node) {
-            if (! applyAlignToSelection(doc, node, align)) {
-                return false;
-            }
-
-            editingAlign = align;
-            draw();
-
-            return true;
+        if (! node || ! applyAlignToSelection(doc, node, align)) {
+            return false;
         }
 
-        applyStyle(
-            {align},
-            isTextBox,
-            (element) => ({...element, lineAligns: uniformLineAligns(element.text, align)})
-        );
+        // จำค่าล่าสุดไว้เป็นค่าตั้งต้นของกล่องถัดไป (sticky.js อ่าน style.align ตอนสร้าง)
+        state.style = {...state.style, align};
+        editingAlign = align;
+        draw();
 
         return true;
     };
@@ -837,6 +850,10 @@ export const initBoardEditor = ({
     initPointer(stage, {
         getCamera: () => state.camera,
 
+        // มือเลื่อนกระดานต้องได้ท่าลากนี้แม้เริ่มลงบนกล่องข้อความที่เปิดโหมด
+        // แก้ไขค้างอยู่ เพราะมันไม่ได้แตะเนื้อหาในกล่องเลย แค่เลื่อนกล้อง
+        claimsEditableTarget: () => isViewportTool(state.tool),
+
         onDown: (event) => {
             if (! canUseCurrentTool()) {
                 return;
@@ -929,6 +946,19 @@ export const initBoardEditor = ({
      */
     stage.addEventListener('dblclick', (event) => {
         if (capabilities.canEdit !== true) {
+            return;
+        }
+
+        /*
+         * มือเลื่อนกระดานต้องไม่เปิดโหมดพิมพ์ แม้ดับเบิลคลิกตรงกล่องข้อความพอดี
+         *
+         * ผู้ใช้ที่เลื่อนกระดานมักลากสั้น ๆ ติดกันหลายครั้งที่จุดเดิม และเพราะ
+         * พอยน์เตอร์ถูกจับไว้ที่ผืนผ้าใบ (pointer.js) เบราว์เซอร์จึงนับการลาก
+         * เป็นคลิกทุกครั้ง ลากสองครั้งเร็ว ๆ จึงกลายเป็นดับเบิลคลิกโดยไม่ตั้งใจ
+         * ผลคือกระดาษโน้ตใต้เมาส์เปิดโหมดพิมพ์ขึ้นมา แล้วการลากครั้งถัดไปก็
+         * เลื่อนกระดานไม่ได้อีกจนกว่าจะไปคลิกที่อื่น (อาการที่ผู้ใช้รายงาน)
+         */
+        if (isViewportTool(state.tool)) {
             return;
         }
 

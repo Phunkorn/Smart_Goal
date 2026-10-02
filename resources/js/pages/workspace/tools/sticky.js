@@ -77,7 +77,7 @@ export const textElementTool = (type) => ({
             ...(style.italic ? {italic: true} : {}),
             ...(style.letterSpacing ? {letterSpacing: style.letterSpacing} : {}),
             // กล่องใหม่มีบรรทัดเดียวเสมอ (ข้อความว่าง) การจัดบรรทัดตั้งต้นจึงมีผล
-            // กับบรรทัดที่ 0 บรรทัดเดียว ดู uniformLineAligns ใน overlay-text.js
+            // กับบรรทัดที่ 0 บรรทัดเดียว ค่า style.align มาจากการจัดบรรทัดครั้งล่าสุดขณะพิมพ์ (index.js: chooseAlign)
             ...(style.align && style.align !== 'left' ? {lineAligns: {0: style.align}} : {}),
             ...(type === 'sticky'
                 ? {fill: style.stickyColor || '#fde68a'}

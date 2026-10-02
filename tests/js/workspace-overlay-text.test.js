@@ -851,6 +851,69 @@ test('กดปุ่มจัดบรรทัดแบบเดียวก�
     }
 });
 
+/**
+ * บั๊กจริงรอบที่สามของการจัดบรรทัด: "กดชิดซ้ายแล้วบรรทัดแรกชิดซ้ายตาม บางทีก็ทำได้ บางทีก็ไม่"
+ *
+ * คนละต้นเหตุกับเรื่อง mousedown ข้างบน อันนี้เกิดกับกล่องที่ "ยังไม่เคยกด Enter"
+ * ซึ่งเนื้อหาเป็น text node ล้วน ยังไม่มีบล็อกลูกสักใบ โค้ดเดิมจึงไปตั้ง
+ * text-align ไว้ที่ "ตัวกล่อง" แทน แล้วไม่มีโค้ดส่วนไหนล้างค่านั้นอีกเลย
+ * พอกด Enter ขึ้นบรรทัดใหม่ ทุกบรรทัดจึงสืบทอดกึ่งกลางมาจากกล่อง และการสั่ง
+ * "ชิดซ้าย" ให้บรรทัดเดียวก็ไม่มีผล เพราะของเดิมลบ text-align ทิ้งแล้วสืบทอดกึ่งกลางคืนมา
+ */
+test('กล่องที่ยังไม่มีบรรทัด การจัดกึ่งกลางต้องลงที่บล็อก ไม่ใช่ที่ตัวกล่อง', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'บรรทัดแรก'})]);
+
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
+
+        const node = env.note();
+
+        // สภาพจริงของกล่องที่พิมพ์สด ๆ โดยยังไม่กด Enter: มีแต่ text node ไม่มีบล็อก
+        node.textContent = 'บรรทัดแรก';
+
+        const range = env.dom.document.createRange();
+        range.selectNodeContents(node);
+        range.collapse(false);
+        const selection = env.dom.document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        clickLikeBrowser(env, env.control('[data-align="center"]'));
+
+        assert.equal(node.style.textAlign, '', 'ห้ามตั้ง text-align ที่ตัวกล่อง เพราะจะสืบทอดไปทุกบรรทัดตลอดกาล');
+        assert.equal(node.children.length, 1, 'เนื้อหาต้องถูกห่อเข้าบล็อกของตัวเอง');
+        assert.equal(node.children[0].style.textAlign, 'center');
+        assert.equal(node.children[0].textContent, 'บรรทัดแรก');
+
+        /*
+         * ผู้ใช้กด Enter — เบราว์เซอร์จริงคัดลอกบล็อกเดิมพร้อมสไตล์ของมันมาเป็น
+         * บรรทัดใหม่ บรรทัดที่สองจึงเริ่มต้นด้วย center ติดมาด้วย
+         */
+        const second = env.dom.document.createElement('div');
+        second.style.textAlign = 'center';
+        second.textContent = 'บรรทัดสอง';
+        node.appendChild(second);
+
+        placeCaretInLine(env, node, 1);
+        clickLikeBrowser(env, env.control('[data-align="left"]'));
+
+        assert.equal(node.children[0].style.textAlign, 'center', 'บรรทัดแรกต้องยังกึ่งกลาง');
+        assert.equal(node.children[1].style.textAlign, 'left', 'บรรทัดสองต้องชิดซ้ายจริง ไม่ใช่ค่าว่างที่แปลว่าสืบทอด');
+
+        node.dispatchEvent(new env.dom.window.FocusEvent('blur'));
+
+        assert.deepEqual(
+            env.editor.currentDocument().elements[0].lineAligns,
+            {0: 'center'},
+            'บันทึกแล้วบรรทัดแรกต้องยังเป็น center ส่วนบรรทัดชิดซ้ายไม่ต้องเก็บ'
+        );
+    } finally {
+        env.dom.cleanup();
+    }
+});
+
 /*
  * ปุ่มลัดจัดบรรทัดต้องทำงานระหว่างพิมพ์ ซึ่งเป็นข้อยกเว้นเดียวของกติกา
  * "ปุ่มลัดต้องเงียบขณะพิมพ์" ถ้าเงียบตามกติกาไปด้วยก็ไม่เหลือประโยชน์อะไรเลย
@@ -905,40 +968,64 @@ test('พิมพ์ตัวอักษรของปุ่มลัดเ�
     }
 });
 
-test('เลือกกล่องทั้งใบ (ไม่ได้เปิดแก้ไข) แล้วกดกึ่งกลาง จัดทุกบรรทัดในกล่องเหมือนกันหมดทันที', () => {
-    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2'})]);
+/**
+ * เจ้าของโครงการสั่งใหม่: การจัดบรรทัดทำงานทีละบรรทัดเสมอ
+ *
+ * เดิมการเลือกกล่องไว้เฉย ๆ แล้วกดจัดบรรทัดจะล้างการจัดรายบรรทัดที่ตั้งไว้ทั้งหมด
+ * ผู้ใช้รายงานว่า "ตอนแรกพอกดแล้วมันไปทั้งบรรทัดเลย" เพราะปุ่มเดียวกันทำสองความหมาย
+ * โดยหน้าจอไม่บอกว่าตอนนี้อยู่โหมดไหน ปุ่มจึงถูกปิดจนกว่าจะดับเบิลคลิกเข้าโหมดพิมพ์
+ */
+test('เลือกกล่องทั้งใบโดยไม่เปิดพิมพ์ ปุ่มจัดบรรทัดกดไม่ได้ และการจัดรายบรรทัดเดิมไม่ถูกแตะ', () => {
+    const env = mountEditor([note('n1', {
+        x: 100, y: 100, text: 'บรรทัด1\nบรรทัด2', lineAligns: {0: 'center'},
+    })]);
 
     try {
         drag(env.stage, {x: 150, y: 150}, {x: 150, y: 150});
 
         const center = env.control('[data-align="center"]');
-        click(center);
+        const right = env.control('[data-align="right"]');
 
-        assert.equal(env.editor.state.style.align, 'center');
-        assert.deepEqual(env.editor.currentDocument().elements[0].lineAligns, {0: 'center', 1: 'center'});
-        assert.equal(center.getAttribute('aria-pressed'), 'true');
-        assert.equal(env.control('[data-align="left"]').getAttribute('aria-pressed'), 'false');
+        assert.equal(center.disabled, true, 'แค่เลือกกล่องยังกดจัดบรรทัดไม่ได้');
+        assert.equal(right.disabled, true);
+        assert.match(center.title, /ดับเบิลคลิก/, 'ต้องบอกวิธีเปิดใช้งาน ไม่ใช่ปิดเฉย ๆ');
 
-        click(env.control('[data-align="right"]'));
+        click(right);
 
-        assert.deepEqual(env.editor.currentDocument().elements[0].lineAligns, {0: 'right', 1: 'right'});
-        assert.equal(center.getAttribute('aria-pressed'), 'false');
-        assert.equal(env.control('[data-align="right"]').getAttribute('aria-pressed'), 'true');
+        assert.deepEqual(
+            env.editor.currentDocument().elements[0].lineAligns,
+            {0: 'center'},
+            'การจัดรายบรรทัดที่ตั้งไว้ต้องคงเดิมทุกประการ'
+        );
     } finally {
         env.dom.cleanup();
     }
 });
 
-test('เปิดจัดกึ่งกลางไว้ก่อนสร้างกล่องข้อความใหม่ ทำให้กล่องใหม่กึ่งกลางตั้งแต่แรก', () => {
-    const env = mountEditor();
+/*
+ * ค่าตั้งต้นของกล่องถัดไปมาจากการจัดบรรทัดครั้งล่าสุดขณะพิมพ์ ไม่ใช่การกดปุ่มลอย ๆ
+ * ตอนที่ยังไม่ได้เลือกอะไร เพราะปุ่มกลุ่มนี้ถูกปิดนอกโหมดพิมพ์แล้ว
+ */
+test('กล่องใหม่รับการจัดบรรทัดล่าสุดที่ใช้ขณะพิมพ์เป็นค่าตั้งต้น', () => {
+    const env = mountEditor([note('n1', {x: 100, y: 100, text: 'เดิม'})]);
 
     try {
-        click(env.control('[data-align="center"]'));
-        click(env.control('[data-tool="text"]'));
-        pointerDown(env.stage, {x: 200, y: 150});
-        pointerUp(env.stage, {x: 200, y: 150});
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick', {
+            bubbles: true, cancelable: true, clientX: 150, clientY: 150,
+        }));
 
-        assert.deepEqual(env.editor.currentDocument().elements[0].lineAligns, {0: 'center'});
+        placeCaretInLine(env, env.note(), 0);
+        clickLikeBrowser(env, env.control('[data-align="center"]'));
+
+        assert.equal(env.editor.state.style.align, 'center', 'ค่าล่าสุดต้องถูกจำไว้');
+
+        env.note().dispatchEvent(new env.dom.window.FocusEvent('blur'));
+
+        click(env.control('[data-tool="text"]'));
+        pointerDown(env.stage, {x: 400, y: 350});
+        pointerUp(env.stage, {x: 400, y: 350});
+
+        assert.deepEqual(env.editor.currentDocument().elements.at(-1).lineAligns, {0: 'center'});
     } finally {
         env.dom.cleanup();
     }

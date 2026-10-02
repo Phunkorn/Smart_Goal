@@ -442,6 +442,67 @@ export const rotateElement = (element, pivot, degrees) => {
     );
 };
 
+/**
+ * จุดปลายที่ถูกล็อกให้กรอบเป็นจัตุรัส — Shift ขณะลากสร้างสี่เหลี่ยมหรือวงกลม
+ *
+ * ใช้ด้านที่ลากไปไกลกว่าเป็นตัวกำหนดขนาด แล้วคงทิศทางของแต่ละแกนไว้ การลากขึ้นซ้ายจึง
+ * ยังได้สี่เหลี่ยมที่มุมซ้ายบนเหมือนเดิม ไม่ใช่กระโดดข้ามไปอยู่มุมตรงข้าม
+ *
+ * ต่างจาก constrainToAngle ที่ใช้กับเส้นและลูกศร ซึ่งฉายจุดลงบนแกนที่ใกล้ที่สุด
+ * เส้นแนวนอนต้องอยู่แนวนอนจริง แต่สี่เหลี่ยมจัตุรัสต้องกว้างเท่าสูงเสมอ แม้เคอร์เซอร์
+ * จะอยู่เยื้องมุมก็ตาม จึงเป็นคนละสูตรกับการฉายจุดลงเส้นทแยง
+ */
+export const constrainToSquare = (origin, point) => {
+    const dx = point.x - origin.x;
+    const dy = point.y - origin.y;
+    const size = Math.max(Math.abs(dx), Math.abs(dy));
+
+    return {
+        x: origin.x + (dx < 0 ? -size : size),
+        y: origin.y + (dy < 0 ? -size : size),
+    };
+};
+
+/**
+ * บีบกรอบให้กลับไปมีสัดส่วนเดิม — Shift ขณะย่อขยายชิ้นที่เลือกไว้
+ *
+ * มือจับตรงข้ามใช้ด้านที่เปลี่ยนไปมากกว่าเป็นตัวนำ ส่วนมือจับกลางขอบใช้แกนของมันเอง
+ * เป็นตัวนำแล้วให้อีกแกนไหลตาม เหมือน Canva และ Figma
+ *
+ * มุมหรือขอบด้านตรงข้ามกับมือจับต้องอยู่กับที่เสมอ ส่วนแกนที่ไม่ได้ถูกลากโตออกสองข้าง
+ * เท่ากัน รูปจึงโตออกจากกึ่งกลางของด้านนั้น ไม่เอียงไปข้างใดข้างหนึ่ง
+ *
+ * @param {number} ratio สัดส่วน w/h เดิมที่ต้องรักษาไว้
+ */
+export const lockBoundsAspect = (bounds, handle, ratio) => {
+    if (! Number.isFinite(ratio) || ratio <= 0) {
+        return bounds;
+    }
+
+    const horizontal = handle.includes('w') || handle.includes('e');
+    const vertical = handle.includes('n') || handle.includes('s');
+    let {w, h} = bounds;
+
+    if (horizontal && vertical) {
+        if (w / ratio >= h) {
+            h = w / ratio;
+        } else {
+            w = h * ratio;
+        }
+    } else if (horizontal) {
+        h = w / ratio;
+    } else if (vertical) {
+        w = h * ratio;
+    }
+
+    return {
+        x: handle.includes('w') ? bounds.x + bounds.w - w : (horizontal ? bounds.x : bounds.x + (bounds.w - w) / 2),
+        y: handle.includes('n') ? bounds.y + bounds.h - h : (vertical ? bounds.y : bounds.y + (bounds.h - h) / 2),
+        w,
+        h,
+    };
+};
+
 /*
  * ทิศทั้งแปดที่ Shift ล็อกเส้นตรงไว้ เรียงตามมุมทีละ 45 องศา
  *

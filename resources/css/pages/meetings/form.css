@@ -7,5 +7,64 @@
 .meeting-form-modal .form-control { border-color: var(--border); border-radius: var(--radius-sm); }
 .meeting-form-modal .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 
+/*
+ * ส่วน "โปรเจกต์ที่เกี่ยวข้อง" — ไม่บังคับ หัวข้อสไตล์อ้างอิงจาก .user-task-create__section-heading
+ * (resources/css/pages/mytasks/user-task-create.css) แต่แยกคลาสเป็นของ meeting-form-modal เอง
+ * เพราะเป็นฟอร์มคนละชุดกัน ห้ามแก้ไฟล์ user-task-create
+ *
+ * ตัวเลือกโปรเจกต์/งานใช้ดร็อปดาวน์กลางของระบบ (components/select-dropdown.js, data-sg-select)
+ * ตัวเดียวกับตัวกรองรายงานและหน้าอื่น ๆ ไม่สร้างดร็อปดาวน์ใหม่ซ้ำ
+ */
+.meeting-form-modal__section-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.meeting-form-modal__section-heading > span { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: var(--radius-sm); background: var(--accent-dim); color: var(--accent); }
+.meeting-form-modal__section-heading > div { display: grid; gap: 1px; }
+.meeting-form-modal__section-heading strong { color: var(--text); font-size: .85rem; font-weight: 800; }
+.meeting-form-modal__section-heading small { color: var(--text-muted); font-size: .7rem; }
+.meeting-form-modal__project-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.meeting-form-modal__project-grid [data-sg-select] { display: grid; gap: 6px; min-width: 0; }
+.meeting-form-modal__project-grid [data-sg-select] label { color: var(--text); font-size: .72rem; font-weight: 700; }
+
+.meetings-page__project-chip { display: inline-flex; align-items: center; gap: 6px; width: max-content; max-width: 100%; margin-bottom: 10px; padding: 4px 10px; border-radius: 999px; background: var(--accent-dim); color: var(--accent-strong); font-size: .75rem; font-weight: 700; }
+.meetings-page__project-chip i { flex: 0 0 auto; }
+
+/*
+ * ผู้เข้าร่วมถูกย้ายไปเลือกใน modal แยก (ดู meeting-attendees-modal ใน form-modal.blade.php)
+ * ส่วนนี้ในฟอร์มหลักจึงเหลือแค่สรุปจำนวนกับปุ่มเปิด ไม่ต้องมีรายการค้นหาเต็มรูปแบบอีก
+ */
+.meeting-form-modal__attendees { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.meeting-form-modal__attendees-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.meeting-form-modal__attendees-head strong { color: var(--text); font-size: .8rem; font-weight: 700; }
+.meeting-form-modal__attendees-count { color: var(--text-muted); font-size: .76rem; }
+.meeting-form-modal__attendees-trigger { justify-self: start; }
+
+/*
+ * modal เลือกผู้เข้าร่วมเป็นหน้าจอเฉพาะ ไม่ต้องแบ่งที่ว่างกับฟอร์มหลักอีกต่อไป จึงขยายทุกจุดที่ต้องกด/อ่าน
+ * ให้ใหญ่ขึ้นเพื่อให้ใช้ง่าย — scope ด้วย .meeting-attendees-modal เหมือนที่ task-workspace/dialogs.css
+ * ทำกับ .team-modal .people-selector__avatar ไว้แล้ว เพื่อไม่ให้กระทบตัวเลือกผู้ร่วมงานของงาน
+ */
+.meeting-attendees-modal .modal-header,
+.meeting-attendees-modal .modal-footer { padding: 16px 24px; }
+.meeting-attendees-modal .modal-body { padding: 20px 24px; }
+.meeting-attendees-modal .people-selector-field__head span { font-size: .78rem; }
+.meeting-attendees-modal .people-selector__search input { min-height: 48px; padding-left: 42px; font-size: .92rem; }
+.meeting-attendees-modal .people-selector__search i { font-size: 1.05rem; left: 14px; }
+.meeting-attendees-modal .people-selector__departments { gap: 8px; padding: 2px 2px 4px; }
+.meeting-attendees-modal .people-selector__department { min-height: 42px; padding: 0 18px; font-size: .82rem; }
+.meeting-attendees-modal .people-selector__options { min-height: 320px; max-height: 440px; padding: 8px; gap: 2px; }
+.meeting-attendees-modal .people-selector__option { min-height: 64px; gap: 14px; padding: 10px 12px; }
+.meeting-attendees-modal .people-selector__option .form-check-input { width: 1.3rem; height: 1.3rem; }
+.meeting-attendees-modal .people-selector__avatar { width: 44px; height: 44px; flex: 0 0 44px; font-size: .88rem; }
+.meeting-attendees-modal .people-selector__option strong { font-size: .94rem; }
+.meeting-attendees-modal .people-selector__option small { font-size: .8rem; }
+.meeting-attendees-modal .people-selector__selected { padding: 16px; }
+.meeting-attendees-modal .people-selector__selected-head strong { font-size: .9rem; }
+.meeting-attendees-modal .people-selector__selected-head span { font-size: .74rem; }
+.meeting-attendees-modal .people-selector__chips { gap: 8px; max-height: 380px; }
+.meeting-attendees-modal .people-selector__chip { padding: 6px 8px 6px 12px; font-size: .8rem; }
+.meeting-attendees-modal .people-selector__chip-avatar { width: 26px; height: 26px; flex: 0 0 26px; font-size: .72rem; }
+.meeting-attendees-modal .people-selector__chip button { width: 28px; height: 28px; }
+.meeting-attendees-modal .people-selector-field__help { font-size: .76rem; }
+
 @media (max-width: 767.98px) {
+    .meeting-form-modal__project-grid { grid-template-columns: 1fr; }
 }

@@ -18,6 +18,7 @@ import {
     handleAtPoint,
     handlePositions,
     localBoxOf,
+    lockBoundsAspect,
     resizeBounds,
     scaleElementToBounds,
     unionBounds,
@@ -81,14 +82,27 @@ export const frameTargetAt = (frame, point, {handleRadius, rotationRadius = hand
 /**
  * กรอบใหม่หลังลากมือจับย่อขยายจาก origin ไปถึง point
  *
+ * lockAspect (มาจากการกด Shift ค้าง) รักษาสัดส่วนเดิมของกรอบไว้ สี่เหลี่ยมจัตุรัส
+ * กับวงกลมจึงย่อขยายแล้วยังคงรูป ดู lockBoundsAspect ใน geometry.js
+ *
  * ระยะที่ลากถูกหมุนกลับเข้าไปในพิกัดของกรอบก่อน การลากมุมขวาล่างของโน้ตที่
  * เอียงอยู่จึงขยายโน้ตไปตามแนวของมันเอง และมุมตรงข้ามอยู่กับที่บนจอ ไม่ไหลหนี
  */
-export const resizeFrame = (frame, handle, origin, point, minSize = 0) => {
+export const resizeFrame = (frame, handle, origin, point, minSize = 0, {lockAspect = false} = {}) => {
     const from = toFrameSpace(frame, origin);
     const to = toFrameSpace(frame, point);
     const resized = resizeBounds(frame, handle, to.x - from.x, to.y - from.y);
-    const box = {...resized, w: Math.max(minSize, resized.w), h: Math.max(minSize, resized.h)};
+
+    /*
+     * ล็อกสัดส่วนก่อนบีบด้วยขนาดต่ำสุด ไม่ใช่หลัง
+     *
+     * ถ้าบีบขนาดต่ำสุดทีหลัง ด้านที่ถูกบีบจะหลุดออกจากสัดส่วนทันที รูปที่ย่อจน
+     * เกือบสุดแล้วกด Shift ค้างอยู่จึงจะค่อย ๆ ผิดสัดส่วนไปทีละนิด
+     */
+    const shaped = lockAspect
+        ? lockBoundsAspect(resized, handle, frame.h === 0 ? 0 : frame.w / frame.h)
+        : resized;
+    const box = {...shaped, w: Math.max(minSize, shaped.w), h: Math.max(minSize, shaped.h)};
 
     if (! frame.rotation) {
         return {...box, rotation: 0};

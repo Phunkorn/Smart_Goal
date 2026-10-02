@@ -424,6 +424,10 @@ class WorkLogController extends Controller
     /**
      * งานประจำที่ผู้ใช้คนนี้เป็นเจ้าของ
      *
+     * ตัดแผนที่เลยวันสิ้นสุดไปแล้วออก เพราะแผนเหล่านั้นจะไม่สร้างรายการใหม่อีก
+     * (เงื่อนไขเดียวกับ WorkLogRoutineMaterializer) ถ้ายังแสดงอยู่ แผนของเดือน
+     * ที่ปิดไปแล้วจะค้างอยู่ในหน้าของเดือนใหม่ตลอดไป
+     *
      * @return Collection<int, WorkLogTemplate>
      */
     private function routineTemplatesOf(User $owner): Collection
@@ -431,6 +435,7 @@ class WorkLogController extends Controller
         return WorkLogTemplate::query()
             ->with(['participants:id,name', 'category:id,name'])
             ->where('user_id', $owner->id)
+            ->notEndedBefore(TodayWorkspace::businessNow())
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -441,6 +446,8 @@ class WorkLogController extends Controller
      *
      * ต้องเห็นได้เหมือนกัน ไม่งั้นจะไม่มีทางรู้ว่าตัวเองมีงานอะไรต้องทำทุกเช้าบ้าง
      *
+     * ตัดแผนที่หมดอายุแล้วออกด้วยเหตุผลเดียวกับ routineTemplatesOf()
+     *
      * @return Collection<int, WorkLogTemplate>
      */
     private function sharedRoutinesFor(User $owner): Collection
@@ -448,6 +455,7 @@ class WorkLogController extends Controller
         return WorkLogTemplate::query()
             ->with('user:id,name')
             ->whereHas('participants', fn ($person) => $person->where('users.id', $owner->id))
+            ->notEndedBefore(TodayWorkspace::businessNow())
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();

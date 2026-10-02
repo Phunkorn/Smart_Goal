@@ -426,6 +426,8 @@
                 --}}
                 <div class="task-timeline__reply-preview" data-comment-reply-preview hidden>
                     <i class="bi bi-reply-fill" aria-hidden="true"></i>
+                    {{-- รูปย่อของข้อความต้นทาง ถูกเติมโดย JS เมื่อคอมเมนต์ที่ตอบกลับมีรูป --}}
+                    <span class="task-timeline__reply-preview-thumb" data-comment-reply-thumb hidden></span>
                     <div class="task-timeline__reply-preview-body">
                         <small>กำลังตอบกลับ</small>
                         <span><strong data-comment-reply-author></strong> <span data-comment-reply-note></span></span>

@@ -33,7 +33,7 @@ async function bootCalendar(t, {phone}) {
     env.document.body.innerHTML = `
         <div data-workspace>
             <div data-workspace-task-source hidden></div>
-            <section data-calendar data-task-quickview-template="/q/__ID__" data-task-detail-template="/d/__ID__">
+            <section data-calendar>
                 <div role="group">
                     <button type="button" data-calendar-mode-option="timeline" aria-pressed="true">เส้นช่วงงาน</button>
                     <button type="button" data-calendar-mode-option="summary" aria-pressed="false">ภาพรวมสี</button>
@@ -60,6 +60,7 @@ async function bootCalendar(t, {phone}) {
                 <section data-calendar-day-meetings hidden><b data-calendar-day-meeting-count></b><div data-calendar-day-meeting-list></div></section>
                 <small data-calendar-day-count></small>
             </div>
+            <div data-calendar-agenda-modal hidden><div data-calendar-agenda-modal-list></div></div>
         </div>`;
 
     globalThis.fetch = () => Promise.resolve({ok: true, json: async () => ({meetings: []}), text: async () => ''});

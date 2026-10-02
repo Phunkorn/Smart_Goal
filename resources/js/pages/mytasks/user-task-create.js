@@ -155,8 +155,12 @@ if (modal && form) {
         form.elements.job_topic.focus();
     };
 
+    /*
+     * ป้ายปุ่มเป็นของ Blade เท่านั้น ห้ามเขียน innerHTML ทับลงไปตอน init
+     * ของเดิมเขียนทับ ทำให้แก้ข้อความใน Blade แล้ว UI ไม่เปลี่ยน เพราะ JS เป็นคนเขียนหลัง
+     * ข้อความปุ่มมีแหล่งเดียวคือ resources/views/tasks/index.blade.php ที่นี่ผูกแค่ handler เท่านั้น
+     */
     openButtons.forEach((button) => {
-        button.innerHTML = '<i class=\'bi bi-plus-lg\' aria-hidden=\'true\'></i> สร้างงาน';
         button.onclick = () => open();
     });
     document.addEventListener('mytasks:create-task', (event) => open(event.detail?.listId));
