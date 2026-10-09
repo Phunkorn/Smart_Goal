@@ -18,7 +18,6 @@ use App\Support\TaskScopeOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
 use App\Support\WorkOrderAssignee;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -184,7 +183,9 @@ class WorkBoardController extends Controller
 
         $workspaceView = $this->resolveMemberWorkspaceView($request);
 
-        $memberJobsQuery = $this->memberWorkloads->forMember($user);
+        // ชุดที่ "วาด" ต้องมีงานแม่ของงานย่อยที่สมาชิกทำติดมาด้วย ไม่งั้นงานย่อยไม่มีที่ยืน
+        // ส่วนตัวเลขภาระงานด้านล่างยังนับจากงานที่เป็นภาระตรงของเขาเท่านั้น
+        $memberJobsQuery = $this->memberWorkloads->forMemberWorkspace($user);
         $memberJobsQuery->where(function ($query) {
             $query->whereNull('work_order_list_id')
                 ->orWhereHas('taskList', fn ($listQuery) => $listQuery->whereNull('archived_at'));
@@ -211,6 +212,8 @@ class WorkBoardController extends Controller
                 'openShare',
                 'images',
                 'children.user.department',
+                // หัวหน้าโปรเจกต์ของงานย่อย (ProjectRoles::leader) ถูกอ่านใน workspace-interactions
+                'children.creator.department',
                 'children.taskList',
                 'children.collaborators.department',
                 'children.openShare',
@@ -237,6 +240,15 @@ class WorkBoardController extends Controller
         // งานย่อยแสดงใต้งานแม่ ไม่ใช่แถวของตัวเอง — กติกาเดียวกับ MyTaskController::index()
         $childJobs = $allJobs->filter(fn (WorkOrder $job) => $job->parent_job_id !== null)->values();
         $allJobs = $allJobs->filter(fn (WorkOrder $job) => $job->parent_job_id === null)->values();
+        /*
+         * งานแม่ที่ติดมาเพื่อเป็นบริบทของงานย่อย ไม่ใช่ภาระงานของสมาชิก
+         *
+         * มันต้องถูกวาดในบอร์ด (ไม่งั้นงานย่อยของเขาไม่มีที่ยืน) แต่ต้องไม่ถูกนับใน KPI
+         * ของสมาชิกและไม่เข้าตัวเลขของตัวกรอง — "เห็นงานแม่" ไม่เท่ากับ "ทำงานแม่"
+         */
+        $directJobs = $allJobs
+            ->filter(fn (WorkOrder $job) => $this->memberWorkloads->isDirectWorkload($job, $user))
+            ->values();
         /*
          * ตัวกรองขอบเขตงานชุดเดียวกับหน้า "งานของฉัน" แต่ผูกกับสมาชิกที่กำลังถูกดู
          *
@@ -304,16 +316,6 @@ class WorkBoardController extends Controller
             Gate::authorize('viewAny', Meeting::class);
             $meetingData = app(MeetingQueryService::class)->indexData($request, $request->user(), $user);
         }
-        $calendarNow = CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE);
-        $calendarFrom = $calendarNow->subMonthNoOverflow()->startOfMonth();
-        $calendarTo = $calendarNow->addMonthNoOverflow()->endOfMonth();
-        $calendarMeetings = app(MeetingQueryService::class)->calendarMeetings(
-            $request->user(),
-            $calendarFrom,
-            $calendarTo,
-            $user
-        );
-
         return view('work-board.admin.member', [
             'workspaceView' => $workspaceView,
             'isReadOnlyWorkspace' => $isReadOnlyWorkspace,
@@ -322,12 +324,6 @@ class WorkBoardController extends Controller
             // middleware กัน (admin เข้ากลุ่ม role:user ไม่ได้)
             'viaDepartmentHead' => $viaDepartmentHead,
             'meetingData' => $meetingData,
-            'calendarMeetings' => $calendarMeetings,
-            'calendarMeetingRange' => [
-                'start' => $calendarFrom->format('Y-m-d'),
-                'end' => $calendarTo->format('Y-m-d'),
-            ],
-            'calendarMeetingSubject' => $user,
             'department' => $department,
             'departmentTone' => WorkBoardDesign::departmentTone($department),
             'departmentCode' => WorkBoardDesign::departmentCode($department),
@@ -347,7 +343,9 @@ class WorkBoardController extends Controller
             'taskScope' => $taskScope,
             'taskScopeOptions' => $taskScopeOptions,
             'taskScopeActive' => $taskScopeActive,
-            'taskScopeCount' => $scopedJobs->count(),
+            'taskScopeCount' => $scopedJobs
+                ->filter(fn (WorkOrder $job) => $this->memberWorkloads->isDirectWorkload($job, $user))
+                ->count(),
             'unreadCommentCounts' => $unreadCommentCounts,
             'projectCreatorMeta' => ProjectCreatorSummary::forListIds($taskLists->pluck('id')),
             'projects' => $taskLists->sortBy('name')->values(),
@@ -357,9 +355,9 @@ class WorkBoardController extends Controller
             'departments' => $isReadOnlyWorkspace ? collect() : Department::orderBy('department_name')->get(),
             'totals' => [
                 'projects' => $taskLists->count(),
-                'tasks' => $allJobs->count(),
+                'tasks' => $directJobs->count(),
             ],
-            'statusCounts' => WorkBoardDesign::statusCounts($allJobs),
+            'statusCounts' => WorkBoardDesign::statusCounts($directJobs),
             'statusMeta' => WorkBoardDesign::STATUSES,
         ]);
     }

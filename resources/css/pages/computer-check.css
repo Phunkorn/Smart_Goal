@@ -1,0 +1,15 @@
+/*
+ * ตรวจเช็กคอมพิวเตอร์ประจำวัน — จุดรวม import ของหน้านี้
+ *
+ * ไฟล์แบน (flat entry) นี้เท่านั้นที่ลงทะเบียนใน vite.config.js ตามธรรมเนียมเดิม
+ * ส่วนย่อยแยกตามบล็อกของหน้าเพื่อให้แก้เฉพาะจุดได้โดยไม่ต้องเลื่อนหาในไฟล์ยาว
+ *
+ * token สี/เงา/รัศมีมาจาก foundations/tokens.css ซึ่งถูกโหลดโดย layout ของแอป
+ * อยู่แล้ว หน้านี้จึงไม่ import ซ้ำ (ต่างจากแบบตรวจ A4 ที่ไม่ได้ใช้ layout เดียวกัน)
+ */
+@import './computer-check/layout.css';
+@import './computer-check/plan.css';
+@import './computer-check/panel.css';
+@import './computer-check/tables.css';
+@import './computer-check/report-modal.css';
+@import './computer-check/responsive.css';

@@ -27,6 +27,11 @@ class SystemNotification extends Model
         'admin_approval' => 'task',
         'collaborator_added' => 'task',
         'collaborator_removed' => 'task',
+        // หัวหน้าแผนกต้นสังกัดรับทราบว่าลูกทีมเข้าร่วมโปรเจกต์ของแผนกอื่น — แจ้งเพื่อติดตาม
+        // ไม่ใช่คำขอ ไม่มีปุ่มอนุมัติหรือปฏิเสธ (CollaboratorInvitationService)
+        'cross_department_participation' => 'task',
+        // สามชนิดนี้ไม่ถูกสร้างใหม่แล้ว การเพิ่มผู้เข้าร่วมโปรเจกต์เสร็จทันทีโดยไม่ต้องอนุมัติ
+        // เก็บไว้ให้แจ้งเตือนเก่ายังจัดหมวดได้
         'collaborator_approval_request' => 'task',
         'collaborator_approved' => 'task',
         'collaborator_rejected' => 'task',
@@ -45,6 +50,15 @@ class SystemNotification extends Model
         'delete_request_rejected' => 'task',
         'task_deleted' => 'task',
         'meeting_scheduled' => 'meeting',
+        // การตอบรับเข้าร่วมประชุม — ชื่อบอกได้เองว่าเกิดอะไรขึ้นกับใคร ไม่ใช่ meeting_update ลอย ๆ
+        'meeting_attendee_accepted' => 'meeting',
+        'meeting_attendee_declined' => 'meeting',
+        'meeting_attendee_reinvited' => 'meeting',
+        // นัดหมาย — หมวดของตัวเอง เพราะเป็นคนละ domain กับการประชุมและมีหน้าปลายทางคนละหน้า
+        'appointment_scheduled' => 'appointment',
+        'appointment_attendee_accepted' => 'appointment',
+        'appointment_attendee_declined' => 'appointment',
+        'appointment_attendee_reinvited' => 'appointment',
         // บันทึกงานประจำวัน — แยกหมวดของตัวเองเพราะไม่ผูกกับ WorkOrder เลย
         // การยัดไว้ในหมวด task จะทำให้ตัวกรอง "เกี่ยวกับงาน" ปนงานสองระบบเข้าด้วยกัน
         'work_log_participant_added' => 'worklog',

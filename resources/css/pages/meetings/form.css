@@ -38,6 +38,31 @@
 .meeting-form-modal__attendees-trigger { justify-self: start; }
 
 /*
+ * ขอบเขตการมองเห็นของนัดหมาย ("ส่วนตัว" / "แผนก")
+ *
+ * ยืมเรขาคณิตและโทเคนจาก .meeting-form-modal__attendees ด้านบนทุกค่า เพราะทั้งคู่
+ * เป็นกล่องตั้งค่าหนึ่งเรื่องในฟอร์มเดียวกัน ถ้าขอบหรือมุมโค้งไม่ตรงกันจะอ่านเป็น
+ * ของแปลกปลอม ไม่ใช่กล่องพี่น้อง
+ */
+/*
+ * auto-fit + minmax: สองตัวเลือกยืนคู่กันเมื่อที่พอ และซ้อนกันเองเมื่อแคบ
+ * จึงไม่ต้องมี media query ของตัวเอง (ดู meetings/responsive.css ที่คุมส่วนอื่น)
+ * legend กินทั้งแถวเพื่อให้คำถามอยู่เหนือตัวเลือกเสมอ
+ */
+.meeting-form-modal__visibility { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.meeting-form-modal__visibility > legend { grid-column: 1 / -1; float: none; width: auto; margin: 0; padding: 0; font-size: .8rem; font-weight: 700; }
+.meeting-form-modal__visibility > .meeting-rsvp__error { grid-column: 1 / -1; margin: 0; }
+
+.meeting-form-modal__visibility-option { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); cursor: pointer; }
+.meeting-form-modal__visibility-option > input { margin-top: 3px; flex: none; }
+.meeting-form-modal__visibility-option > span { display: grid; min-width: 0; gap: 2px; }
+.meeting-form-modal__visibility-option strong { color: var(--text); font-size: .8rem; font-weight: 700; }
+.meeting-form-modal__visibility-option small { color: var(--text-muted); font-size: .74rem; line-height: 1.4; }
+.meeting-form-modal__visibility-option:hover { border-color: var(--accent); }
+.meeting-form-modal__visibility-option:has(> input:checked) { border-color: var(--accent); background: var(--accent-dim); }
+.meeting-form-modal__visibility-option:has(> input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/*
  * modal เลือกผู้เข้าร่วมเป็นหน้าจอเฉพาะ ไม่ต้องแบ่งที่ว่างกับฟอร์มหลักอีกต่อไป จึงขยายทุกจุดที่ต้องกด/อ่าน
  * ให้ใหญ่ขึ้นเพื่อให้ใช้ง่าย — scope ด้วย .meeting-attendees-modal เหมือนที่ task-workspace/dialogs.css
  * ทำกับ .team-modal .people-selector__avatar ไว้แล้ว เพื่อไม่ให้กระทบตัวเลือกผู้ร่วมงานของงาน

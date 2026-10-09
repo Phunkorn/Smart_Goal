@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Meeting;
 use App\Models\User;
+use App\Services\MeetingAttendeeResponseService;
 use App\Services\MeetingQueryService;
 use App\Services\NotificationService;
 use App\Support\AuditTrail;
@@ -27,19 +28,24 @@ class MeetingController extends Controller
         return view('meetings.index', $meetings->indexData($request, $request->user()));
     }
 
-    public function store(Request $request, MeetingQueryService $meetings, NotificationService $notifications): RedirectResponse
-    {
+    public function store(
+        Request $request,
+        MeetingQueryService $meetings,
+        NotificationService $notifications,
+        MeetingAttendeeResponseService $attendeeResponses
+    ): RedirectResponse {
         Gate::authorize('create', Meeting::class);
 
         try {
             $data = $this->validatedMeeting($request, $meetings);
-            [$meeting, $attendeeIds] = DB::transaction(function () use ($data, $request, $meetings): array {
+            [$meeting, $attendeeIds] = DB::transaction(function () use ($data, $request, $meetings, $attendeeResponses): array {
                 $attendeeIds = $this->eligibleAttendeeIdsOrFail($data['attendees'] ?? [], $meetings);
                 $meeting = Meeting::create([
                     ...$this->meetingAttributes($data),
                     'created_by' => $request->user()->id,
                 ]);
                 $meeting->attendees()->sync($attendeeIds);
+                $attendeeResponses->recordInvitations($meeting, $attendeeIds, $request->user());
                 AuditTrail::log('created', $meeting, 'สร้างการประชุม: '.$meeting->title, [
                     'after' => $this->auditPayload($meeting, $attendeeIds),
                 ]);
@@ -92,17 +98,24 @@ class MeetingController extends Controller
         ]);
     }
 
-    public function update(Request $request, Meeting $meeting, MeetingQueryService $meetings): RedirectResponse
-    {
+    public function update(
+        Request $request,
+        Meeting $meeting,
+        MeetingQueryService $meetings,
+        MeetingAttendeeResponseService $attendeeResponses
+    ): RedirectResponse {
         Gate::authorize('update', $meeting);
 
         try {
             $data = $this->validatedMeeting($request, $meetings);
-            DB::transaction(function () use ($meeting, $data, $meetings): void {
+            DB::transaction(function () use ($meeting, $data, $meetings, $request, $attendeeResponses): void {
                 $attendeeIds = $this->eligibleAttendeeIdsOrFail($data['attendees'] ?? [], $meetings);
                 $before = $this->auditPayload($meeting, $meeting->attendees()->pluck('users.id')->all());
                 $meeting->update($this->meetingAttributes($data));
-                $meeting->attendees()->sync($attendeeIds);
+                // sync() ไม่แตะแถวของผู้เข้าร่วมเดิม คำตอบที่ตอบไว้แล้วจึงไม่ถูกรีเซ็ตเพราะการแก้ไขประชุม
+                // ส่วนคนที่เพิ่งถูกเพิ่มเข้ามาต้องมีแถวประวัติ "ถูกเชิญ" ของตัวเองเหมือนตอนสร้างประชุม
+                $attendeeChanges = $meeting->attendees()->sync($attendeeIds);
+                $attendeeResponses->recordInvitations($meeting, $attendeeChanges['attached'], $request->user());
                 AuditTrail::log('updated', $meeting, 'แก้ไขการประชุม: '.$meeting->title, [
                     'before' => $before,
                     'after' => $this->auditPayload($meeting->fresh(), $attendeeIds),
@@ -200,6 +213,8 @@ class MeetingController extends Controller
             'starts_at' => ['required', 'date_format:Y-m-d\TH:i'],
             'ends_at' => ['required', 'date_format:Y-m-d\TH:i', 'after:starts_at'],
             'location' => ['nullable', 'string', 'max:255'],
+            // url:http,https ไม่ใช่ url เปล่า — url เปล่ายอมรับ javascript: ซึ่งจะกลายเป็น XSS ใน href
+            'map_url' => ['nullable', 'url:http,https', 'max:2048'],
             'attendees' => ['nullable', 'array'],
             'attendees.*' => ['integer'],
             'work_order_list_id' => ['nullable', 'integer', 'exists:work_order_lists,id'],
@@ -211,6 +226,7 @@ class MeetingController extends Controller
             'ends_at.required' => 'กรุณาระบุเวลาสิ้นสุดประชุม',
             'ends_at.after' => 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มประชุม',
             'ends_at.date_format' => 'รูปแบบเวลาสิ้นสุดประชุมไม่ถูกต้อง',
+            'map_url.url' => 'ลิงก์แผนที่ต้องเป็นที่อยู่เว็บที่ขึ้นต้นด้วย http หรือ https',
             'work_order_list_id.exists' => 'ไม่พบโปรเจกต์ที่เลือก',
             'work_order_id.exists' => 'ไม่พบงานที่เลือก',
         ]);
@@ -319,6 +335,7 @@ class MeetingController extends Controller
             'starts_at' => $this->toUtc($data['starts_at']),
             'ends_at' => $this->toUtc($data['ends_at']),
             'location' => filled($data['location'] ?? null) ? trim($data['location']) : null,
+            'map_url' => filled($data['map_url'] ?? null) ? trim($data['map_url']) : null,
             'work_order_list_id' => $data['work_order_list_id'] ?? null,
             'work_order_id' => $data['work_order_id'] ?? null,
         ];
@@ -337,6 +354,7 @@ class MeetingController extends Controller
             'starts_at' => $meeting->starts_at?->toIso8601String(),
             'ends_at' => $meeting->ends_at?->toIso8601String(),
             'location' => $meeting->location,
+            'map_url' => $meeting->map_url,
             'created_by' => $meeting->created_by,
             'work_order_list_id' => $meeting->work_order_list_id,
             'work_order_id' => $meeting->work_order_id,

@@ -1,0 +1,311 @@
+/*
+ * ปฏิทินประชุมและนัดหมาย
+ *
+ * ใช้โทเคนและปุ่มชุดเดียวกับหน้าประชุม (.meetings-page__button, pages/meetings/*)
+ * ไม่ประกาศปุ่มหรือชุดสีใหม่ และใช้สีพื้นทึบเท่านั้น
+ *
+ * ประเภทเหตุการณ์ต้องอ่านออกโดยไม่พึ่งสี ชิปแต่ละใบจึงมีไอคอน เวลา และชื่อเรื่องครบ
+ * สีเป็นเพียงตัวช่วยอ่านเร็ว ไม่ใช่ตัวสื่อความหมายเดียว
+ */
+.meeting-calendar { display: grid; gap: 16px; color: var(--text); }
+
+.meeting-calendar__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.meeting-calendar__head h2 { margin: 0 0 3px; font-size: clamp(1.3rem, 2.1vw, 1.7rem); font-weight: 700; letter-spacing: -.02em; }
+.meeting-calendar__head p { margin: 0; color: var(--text-muted); font-size: .85rem; }
+.meeting-calendar__head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.meeting-calendar__controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* ตัวกรองประเภทแบบ segmented — รูปแบบปุ่มเดียวกับตัวกรองแผนกของผู้เข้าร่วมประชุม */
+.meeting-calendar__types { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.meeting-calendar__types button { min-height: 34px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font-size: .78rem; font-weight: 700; }
+.meeting-calendar__types button:hover { color: var(--accent-strong); }
+.meeting-calendar__types button.is-active { background: var(--accent-dim); color: var(--accent-strong); }
+
+/*
+ * แถบเดือนเป็นชุดควบคุมเดียว ไม่ใช่ปุ่มสี่ตัวที่ลอยอยู่ข้างกัน
+ *
+ * ของเดิมปุ่มย้อน/ถัดไปมีขอบของตัวเอง ป้ายเดือนลอยอยู่กลาง และปุ่ม "วันนี้"
+ * เป็นปุ่มอีกแบบ รวมกันอ่านเป็นของสี่ชิ้นที่ไม่เกี่ยวกัน ทั้งที่ทำเรื่องเดียวกัน
+ * คือเลือกเดือนที่จะดู จึงใส่ขอบครั้งเดียวรอบชุด แล้วคั่นภายในด้วยเส้นบาง
+ */
+.meeting-calendar__month-nav {
+    display: inline-flex;
+    align-items: stretch;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.meeting-calendar__month-nav strong {
+    display: grid;
+    min-width: 158px;
+    place-items: center;
+    padding: 0 6px;
+    font-size: .88rem;
+    font-weight: 800;
+}
+
+.meeting-calendar__month-step { display: grid; width: 38px; place-items: center; border: 0; background: transparent; color: var(--text-muted); }
+.meeting-calendar__month-step:hover { background: var(--surface-2); color: var(--accent); }
+.meeting-calendar__month-step:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* "วันนี้" เป็นการกระทำคนละอย่างกับการเลื่อนทีละเดือน จึงถูกคั่นด้วยเส้น */
+.meeting-calendar__month-nav .meetings-page__button {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+    font-size: .78rem;
+}
+
+.meeting-calendar__month-nav .meetings-page__button:hover { background: var(--surface-2); color: var(--accent); }
+
+/*
+ * แผงปฏิทินหนึ่งผืน — ขอบและมุมโค้งมีครั้งเดียวที่รอบนอก
+ *
+ * overflow: hidden ให้ช่องวันมุมบน-ล่างถูกตัดตามมุมโค้งของแผง จึงไม่ต้องไปใส่
+ * border-radius ให้ช่องมุมทีละช่อง (ซึ่งต้องรู้ว่าช่องไหนอยู่มุมไหน — JS ไม่ได้บอก)
+ */
+.meeting-calendar__board {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.meeting-calendar__weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.meeting-calendar__weekdays span { padding: 9px 0; color: var(--text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .02em; text-align: center; }
+
+/*
+ * เส้นแบ่งช่องมาจากพื้นสีของตารางที่โผล่ผ่านช่องไฟ 1px ระหว่างช่อง
+ * ไม่ใช่ border ของทุกช่อง — วิธี border จะได้เส้นคู่ตรงรอยต่อ
+ * และต้องไปตัดเส้นซ้าย/บนของช่องริมทีละช่องซึ่ง JS ไม่ได้ติดคลาสบอกไว้
+ */
+.meeting-calendar__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border); }
+.meeting-calendar.is-loading .meeting-calendar__grid { opacity: .55; }
+.meeting-calendar__loading { grid-column: 1 / -1; margin: 0; padding: 40px 0; background: var(--surface); color: var(--text-muted); font-size: .85rem; text-align: center; }
+
+.meeting-calendar__day {
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    min-height: 112px;
+    padding: 7px 7px 9px;
+    background: var(--surface);
+    transition: background .14s ease;
+}
+
+.meeting-calendar__day:hover { background: var(--surface-2); }
+
+/* วันของเดือนอื่นจางลงทั้งช่อง แต่ยังกดได้ ไม่ใช่ช่องตาย */
+.meeting-calendar__day.is-other-month { background: var(--gray-dim); }
+.meeting-calendar__day.is-other-month .meeting-calendar__day-number { color: var(--text-muted); font-weight: 600; }
+.meeting-calendar__day.is-other-month .meeting-calendar__event { opacity: .62; }
+
+/*
+ * "วันนี้" กับ "วันที่เลือก" ต้องแยกออกจากกันด้วยตา ไม่ใช่ด้วยการเดา
+ *
+ * วันนี้      = เลขวันเป็นวงกลมทึบสีหลัก — จุดเล็กแต่เห็นทันทีว่าอยู่ตรงไหนของเดือน
+ *               และไม่กินพื้นทั้งช่อง เพราะเป็นข้อเท็จจริงที่อยู่ตรงนั้นตลอด
+ *               ไม่ใช่สิ่งที่ผู้ใช้เพิ่งทำ
+ * วันที่เลือก = พื้นช่องเปลี่ยน + วงแหวนรอบช่อง — เป็นผลของการกด จึงต้องดังกว่า
+ *
+ * สองอย่างนี้ใช้ "พื้นที่" ต่างกัน (เลขวัน กับ ทั้งช่อง) จึงซ้อนกันได้โดยยังอ่าน
+ * ออกทั้งคู่ ของเดิมทั้งคู่แย่งใช้ var(--accent-dim) กับขอบช่อง เลยแยกกันไม่ออก
+ */
+.meeting-calendar__day.is-selected {
+    background: var(--accent-dim);
+    /* วงแหวนด้านในแทน border เพราะช่องไม่มี border แล้ว (เส้นแบ่งมาจากพื้นตาราง) */
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.meeting-calendar__day.is-selected:hover { background: var(--accent-dim); }
+
+/* เลขวันเป็นวงกลมขนาดคงที่ เลขหลักเดียวกับสองหลักจึงไม่ทำให้แถวบนขยับ */
+.meeting-calendar__day-number {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border-radius: 999px;
+    font-size: .76rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.meeting-calendar__day.is-today .meeting-calendar__day-number {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 800;
+}
+
+/*
+ * "+X รายการ" — ตัวเปิด modal ของวันนั้น ไม่ใช่เหตุการณ์อีกใบ
+ * จึงไม่ยืมหน้าตาของ .meeting-calendar__event มาใช้ (ไม่มีพื้นสี ไม่มีไอคอน)
+ */
+.meeting-calendar__day-more {
+    padding: 2px 5px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--accent-strong);
+    font: inherit;
+    font-size: .68rem;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+}
+
+.meeting-calendar__day-more:hover { background: var(--accent-dim); }
+.meeting-calendar__day-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/*
+ * คำอธิบายสี — ใช้สีชุดเดียวกับชิปเป๊ะ ๆ ผ่านคลาส --meeting / --appointment
+ * ถ้าแก้สีชิปต้องแก้ที่เดียวแล้วคำอธิบายตามเอง จึงยืมพื้นและสีตัวอักษรจากกฎของชิป
+ */
+.meeting-calendar__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; list-style: none; }
+.meeting-calendar__legend-item { display: inline-flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: .74rem; font-weight: 700; }
+.meeting-calendar__legend-swatch { width: 22px; height: 11px; border-left: 3px solid currentColor; border-radius: 0 3px 3px 0; }
+.meeting-calendar__legend-item--meeting .meeting-calendar__legend-swatch { background: var(--accent-dim); color: var(--accent-strong); }
+.meeting-calendar__legend-item--appointment .meeting-calendar__legend-swatch { background: var(--amber-dim); color: #8a5a06; }
+
+/* รายการทั้งหมดของวันหนึ่งใน modal — ชิปใบเดียวกับในตาราง แต่ได้ที่เต็มบรรทัด */
+.meeting-calendar__day-modal-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+
+/* หนึ่งรายการ = แถวหัว (ชิป + ประเภท) แล้วบรรทัดรายชื่อข้างใต้ จึงเป็นคอลัมน์ */
+.meeting-calendar__day-modal-item { display: grid; gap: 4px; }
+.meeting-calendar__day-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.meeting-calendar__day-modal-item .meeting-calendar__event { min-width: 0; flex: 1; padding: 7px 9px; font-size: .78rem; }
+.meeting-calendar__day-modal-item .meeting-calendar__event-title { white-space: normal; }
+.meeting-calendar__day-modal-type { flex: none; color: var(--text-muted); font-size: .72rem; font-weight: 700; }
+
+/*
+ * บรรทัดรายชื่อผู้เข้าร่วม — ย่อหน้าให้ตรงกับเนื้อหาของชิปด้านบน
+ * ไม่ตัดด้วย ellipsis เพราะ modal มีที่พอให้ขึ้นบรรทัดใหม่ และชื่อคนที่ถูกตัดครึ่ง
+ * อ่านไม่ออกว่าเป็นใคร ซึ่งขัดกับเหตุผลที่ใส่บรรทัดนี้มาตั้งแต่ต้น
+ */
+.meeting-calendar__day-modal-people {
+    padding-left: 10px;
+    color: var(--text-muted);
+    font-size: .74rem;
+    line-height: 1.5;
+}
+
+/* ชิปเหตุการณ์ต้องไม่ดันความสูงช่องวันจนตารางพัง ชื่อเรื่องจึงถูกตัดด้วย ellipsis */
+.meeting-calendar__day-events { display: grid; gap: 4px; min-width: 0; }
+
+/*
+ * ชิปเป็นสี่เหลี่ยมมุมมน ไม่ใช่แคปซูล
+ *
+ * ของเดิม border-radius: 999px ทำให้ปลายโค้งสองข้างกินที่ไปราว 14px ของความกว้าง
+ * ช่องวันที่แคบอยู่แล้ว ชื่อเรื่องจึงถูกตัดเร็วกว่าที่ควร และแคปซูลหลายใบเรียงกัน
+ * ในช่องเดียวอ่านเป็นก้อนกลม ๆ ไม่เป็นรายการ
+ *
+ * แถบสีด้านซ้ายบอกประเภทโดยไม่ต้องย้อมพื้นทั้งใบให้เข้ม จึงอ่านชื่อเรื่องง่ายขึ้น
+ */
+.meeting-calendar__event {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    padding: 3px 6px 3px 5px;
+    border-left: 3px solid currentColor;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: .7rem;
+    line-height: 1.45;
+    text-decoration: none;
+}
+
+.meeting-calendar__event--meeting { background: var(--accent-dim); color: var(--accent-strong); }
+.meeting-calendar__event--appointment { background: var(--amber-dim); color: #8a5a06; }
+
+/* hover ยกชิปด้วยเงา ไม่ใช่ outline ที่เพิ่มเส้นซ้อนขอบเดิม */
+.meeting-calendar__event:hover { box-shadow: var(--shadow-sm); filter: brightness(.97); }
+.meeting-calendar__event:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.meeting-calendar__event i { font-size: .7rem; opacity: .85; }
+.meeting-calendar__event-time { font-weight: 800; font-variant-numeric: tabular-nums; }
+.meeting-calendar__event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+
+/*
+ * การ์ดเลือกประเภทใน "+ เพิ่ม" — ยืมรูปทรงจากตัวเลือกประเภทงานของบันทึกประจำวัน
+ * (.log-modal__type-grid) แต่ใช้โทเคนสีของระบบและอยู่ในเปลือก modal ของ Bootstrap
+ * ชุดเดียวกับฟอร์มประชุม เพื่อให้หน้านี้มีเจ้าของสถานะ overlay คนเดียว
+ */
+.meeting-calendar__type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.meeting-calendar__type-grid button { display: grid; min-height: 136px; justify-items: center; align-content: center; gap: 7px; padding: 20px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
+.meeting-calendar__type-grid button:hover,
+.meeting-calendar__type-grid button:focus-visible { border-color: var(--accent); background: var(--accent-dim); }
+.meeting-calendar__type-grid i { color: var(--accent); font-size: 1.6rem; }
+.meeting-calendar__type-grid strong { font-size: .92rem; font-weight: 800; }
+.meeting-calendar__type-grid small { color: var(--text-muted); font-size: .74rem; text-align: center; }
+
+.meeting-calendar__export-types { margin-bottom: 14px; padding: 0; border: 0; }
+.meeting-calendar__export-types legend { float: none; width: auto; }
+.meeting-calendar__export-type { display: inline-flex; align-items: center; gap: 7px; margin-right: 16px; color: var(--text); font-size: .82rem; }
+
+@media (max-width: 991.98px) {
+    .meeting-calendar__controls { flex-direction: column; align-items: stretch; }
+    .meeting-calendar__types { justify-content: space-between; }
+    .meeting-calendar__types button { flex: 1 1 0; padding: 0 8px; }
+    /* ชุดเลือกเดือนยืดเต็มความกว้าง ป้ายเดือนรับที่ว่างที่เหลือ */
+    .meeting-calendar__month-nav { justify-content: space-between; }
+    .meeting-calendar__month-nav strong { min-width: 0; flex: 1 1 auto; }
+}
+
+@media (max-width: 767.98px) {
+    .meeting-calendar__type-grid { grid-template-columns: minmax(0, 1fr); }
+    .meeting-calendar__type-grid button { min-height: 108px; }
+}
+
+/*
+ * มือถือ: ช่องวันเตี้ยลงและชิปเหลือไอคอน + เวลา ชื่อเรื่องถูกซ่อนเพื่อไม่ให้ตารางพัง
+ * ชื่อเต็มยังอ่านได้จาก aria-label ของชิป และจากหน้ารายละเอียดเมื่อกด
+ */
+@media (max-width: 575.98px) {
+    /* เส้นแบ่งยังเป็น 1px เท่าเดิม — ช่องไฟที่กว้างขึ้นบนจอแคบจะกินที่ของเนื้อหา */
+    .meeting-calendar__day { min-height: 74px; padding: 4px 4px 6px; }
+    .meeting-calendar__weekdays span { padding: 7px 0; font-size: .66rem; }
+
+    /* วงกลมเลขวันเล็กลงตามช่อง ไม่งั้นเหลือที่ให้ชิปแค่แถวเดียว */
+    .meeting-calendar__day-number { width: 20px; height: 20px; font-size: .7rem; }
+
+    .meeting-calendar__event { grid-template-columns: auto minmax(0, 1fr); padding: 3px 5px; font-size: .64rem; }
+    .meeting-calendar__event-title { display: none; }
+    .meeting-calendar__day-more { font-size: .62rem; }
+    .meeting-calendar__head-actions { width: 100%; }
+    .meeting-calendar__head-actions .meetings-page__button { flex: 1 1 0; }
+}
+
+/*
+ * รายการที่จะ Export — กล่องเลือกรายการใน modal Export
+ *
+ * ยืมเรขาคณิตและโทเคนจาก .meeting-form-modal__attendees (meetings/form.css)
+ * ซึ่งเป็นแพตเทิร์น "กล่องตั้งค่าหนึ่งเรื่องในฟอร์ม" ที่หน้านี้ใช้อยู่แล้ว
+ * แต่ไม่ใช้คลาสเดิมซ้ำ เพราะ selector ชุดนั้นผูกกับตัวเลือกผู้เข้าร่วม
+ */
+.meeting-calendar__export-list { display: grid; gap: 10px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.meeting-calendar__export-list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.meeting-calendar__export-list-head strong { color: var(--text); font-size: .8rem; font-weight: 700; }
+.meeting-calendar__export-list-head span { color: var(--text-muted); font-size: .76rem; text-align: right; }
+
+.meeting-calendar__export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* เพดานความสูงเพื่อให้ปุ่ม Export ยังอยู่ในสายตาเมื่อช่วงวันที่กว้างและรายการยาว */
+.meeting-calendar__export-items { display: grid; gap: 2px; max-height: 260px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+
+.meeting-calendar__export-item > label { display: flex; align-items: flex-start; gap: 9px; padding: 6px 7px; border-radius: var(--radius-sm); cursor: pointer; }
+.meeting-calendar__export-item > label:hover { background: var(--surface-2); }
+.meeting-calendar__export-item input { margin-top: 3px; flex: none; }
+.meeting-calendar__export-item-label { min-width: 0; flex: 1; color: var(--text); font-size: .78rem; line-height: 1.45; }
+.meeting-calendar__export-item-type { flex: none; color: var(--text-muted); font-size: .72rem; font-weight: 700; }
+
+.meeting-calendar__export-empty { padding: 12px 7px; color: var(--text-muted); font-size: .78rem; }
+
+/* ระหว่างโหลดรายการ กันการกดซ้ำโดยไม่ย้ายตำแหน่งอะไรในกล่อง */
+[data-calendar-export-form].is-loading .meeting-calendar__export-items { opacity: .55; pointer-events: none; }

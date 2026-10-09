@@ -60,6 +60,14 @@
                                 id="{{ $modalId }}Location" name="location" maxlength="255"
                                 placeholder="เช่น ห้องประชุมชั้น 2 หรือ ออนไลน์"
                                 value="{{ old('location', $formMeeting?->location ?? '') }}"></div>
+                        <div class="col-12"><label class="form-label"
+                                for="{{ $modalId }}MapUrl">ลิงก์แผนที่ (Google Maps)</label><input
+                                class="form-control @error('map_url') is-invalid @enderror" type="url"
+                                id="{{ $modalId }}MapUrl" name="map_url" maxlength="2048"
+                                placeholder="วางลิงก์จากปุ่ม แชร์ ใน Google Maps"
+                                value="{{ old('map_url', $formMeeting?->map_url ?? '') }}">
+                            @error('map_url')<p class="meeting-rsvp__error">{{ $message }}</p>@enderror
+                        </div>
                         <div class="col-12" data-meeting-project-link>
                             <div class="meeting-form-modal__section-heading">
                                 <span><i class="bi bi-folder2-open" aria-hidden="true"></i></span>

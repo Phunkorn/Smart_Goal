@@ -34,7 +34,7 @@
     @forelse($projectGroups as $group)
         <section class="wb-project-card">
             <header><div><span class="wb-project-icon"><i class="bi bi-folder2-open"></i></span><h2>{{ $group['project']?->name ?? 'งานทั่วไป' }}</h2><span class="wb-count-chip">{{ $group['jobs']->count() }} งาน</span></div></header>
-            <div class="wb-task-table__head"><span>งาน</span><span>รายละเอียด</span><span>สถานะ</span><span>ความสำคัญ</span><span>กำหนดส่ง</span><span>ผู้ร่วมงาน</span><span>ไฟล์แนบ</span><span>การดำเนินการ</span></div>
+            <div class="wb-task-table__head"><span>งาน</span><span>รายละเอียด</span><span>สถานะ</span><span>ความสำคัญ</span><span>กำหนดส่ง</span><span>ผู้เข้าร่วม</span><span>ไฟล์แนบ</span><span>การดำเนินการ</span></div>
             @foreach($group['jobs'] as $job)
                 @php($status = \App\Support\WorkBoardDesign::status($job))
                 @php($priority = \App\Support\WorkBoardDesign::taskPriority((int) $job->job_priority))

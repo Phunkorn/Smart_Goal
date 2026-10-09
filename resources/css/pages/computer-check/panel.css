@@ -1,0 +1,77 @@
+/*
+ * แผงตรวจรายเครื่อง — มาร์กอัปชุดเดียว สองพฤติกรรมตามขนาดจอ
+ *
+ * เดสก์ท็อป  — คอลัมน์ขวาของผัง อยู่กับที่ ไม่มีฉากหลัง ไม่ล็อกการเลื่อนของหน้า
+ * มือถือ     — bottom sheet เลื่อนขึ้นจากขอบล่าง ไม่ใช่กล่องเต็มจอ (ดู responsive.css)
+ *
+ * แผงนี้ไม่ใช่ modal: ไม่ล็อก body ไม่ดัก Tab และไม่ปิดทั้งหน้า จึงไม่ได้ลงทะเบียน
+ * กับ modal-stack ตามกติกาใน CLAUDE.md ที่แยก modal กับ popover ออกจากกัน
+ * ปิดได้ด้วย Escape ปุ่มปิด และการแตะนอกแผง แล้วคืนโฟกัสให้โต๊ะที่กดมา
+ */
+.cc-panel { display:block; min-width:0; }
+.cc-panel[hidden] { display:none; }
+
+.cc-panel__scrim { display:none; }
+.cc-panel__grip { display:none; }
+
+.cc-panel__surface { display:grid; align-content:start; gap:0; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm); }
+
+.cc-panel__head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border); }
+.cc-panel__title { margin:0 0 2px; color:var(--text); font-size:1rem; font-weight:600; }
+.cc-panel__subtitle { margin:0; color:var(--text-muted); font-size:.78rem; }
+.cc-panel__close { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border:0; border-radius:50%; background:var(--surface-2); color:var(--text-muted); }
+.cc-panel__close:hover { background:var(--red-dim); color:#a52236; }
+
+.cc-panel__body { display:grid; gap:12px; padding:14px 16px; }
+.cc-panel__body[hidden] { display:none; }
+
+/* ---------- รายการอุปกรณ์ ---------- */
+
+.cc-checklist { display:grid; gap:10px; margin:0; padding:0; list-style:none; }
+.cc-checklist__item { display:grid; gap:6px; }
+.cc-checklist__label { display:inline-flex; align-items:center; gap:8px; color:var(--text); font-size:.86rem; }
+.cc-checklist__label i { color:var(--text-muted); }
+
+/*
+ * สามสถานะในแถวเดียว — ปุ่มละประมาณหนึ่งในสาม
+ * ความสูง 44px เพื่อให้กดด้วยนิ้วโป้งบนมือถือได้จริงตาม design contract
+ */
+.cc-tristate { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; margin:0; padding:0; border:0; }
+.cc-tristate__option { position:relative; }
+.cc-tristate__option input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+.cc-tristate__option span { display:flex; align-items:center; justify-content:center; gap:5px; min-height:44px; padding:0 6px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); color:var(--text-muted); font-size:.78rem; text-align:center; }
+.cc-tristate__option input:focus-visible + span { outline:2px solid var(--accent); outline-offset:2px; }
+.cc-tristate__option input:disabled + span { opacity:.55; }
+
+.cc-tristate__option--pending input:checked + span { border-color:#b4bfd2; background:var(--gray-dim); color:#55617a; }
+.cc-tristate__option--normal input:checked + span { border-color:#8fdcb8; background:var(--green-dim); color:#06694a; }
+.cc-tristate__option--issue input:checked + span { border-color:#eda0ad; background:var(--red-dim); color:#a52236; }
+
+.cc-panel__bulk { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px; border:1px dashed var(--accent); border-radius:var(--radius-sm); background:var(--accent-dim); color:var(--accent-strong); font-size:.85rem; }
+.cc-panel__bulk:hover { background:#dbe6fb; }
+
+.cc-panel__note { display:grid; gap:5px; }
+.cc-panel__note .form-label { margin:0; color:var(--text-muted); font-size:.78rem; }
+.cc-panel__note textarea { border-color:#eda0ad; border-radius:var(--radius-sm); font-size:.86rem; }
+
+.cc-panel__meta { margin:0; color:var(--text-muted); font-size:.75rem; }
+.cc-panel__error { margin:0; padding:9px 11px; border-radius:var(--radius-sm); background:var(--red-dim); color:#a52236; font-size:.8rem; }
+.cc-panel__error[hidden] { display:none; }
+
+.cc-panel__foot { display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--border); }
+.cc-panel__foot .btn { flex:1; min-height:44px; }
+
+/* ---------- โหมดเลือกหลายเครื่อง ---------- */
+
+.cc-panel__bulk-count { margin:0; color:var(--text); font-size:.95rem; font-weight:600; }
+.cc-panel__bulk-list { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none; max-height:180px; overflow:auto; }
+.cc-panel__bulk-list li { padding:4px 9px; border:1px solid var(--border); border-radius:999px; background:var(--surface-2); font-size:.78rem; }
+.cc-panel__bulk-submit { min-height:46px; }
+.cc-panel__body--bulk .btn { width:100%; }
+.cc-panel__hint { margin:0; color:var(--text-muted); font-size:.75rem; }
+
+/* ---------- ยังไม่เลือกเครื่อง ---------- */
+
+.cc-panel__empty { place-items:center; padding:36px 18px; color:var(--text-muted); text-align:center; }
+.cc-panel__empty i { font-size:1.8rem; }
+.cc-panel__empty p { margin:0; font-size:.85rem; }

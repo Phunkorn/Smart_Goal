@@ -7,14 +7,10 @@ import {
     buildCalendarAgenda,
     buildMonthCalendar,
     calendarMonthForDate,
-    calendarMonthKey,
     COMPACT_CALENDAR_QUERY,
     daysUntilDue,
     defaultCalendarMode,
-    monthsNeedingFetch,
     moveCalendarMonth,
-    parseCalendarDate,
-    rangeForMonths,
     resetCalendarMonth,
     toggleCalendarDatePoint,
 } from './calendar-model.js';
@@ -48,9 +44,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const dayTaskGroup = dayModal?.querySelector('[data-calendar-day-tasks]');
     const dayTaskList = dayModal?.querySelector('[data-calendar-day-task-list]');
     const dayTaskCount = dayModal?.querySelector('[data-calendar-day-task-count]');
-    const dayMeetingGroup = dayModal?.querySelector('[data-calendar-day-meetings]');
-    const dayMeetingList = dayModal?.querySelector('[data-calendar-day-meeting-list]');
-    const dayMeetingCount = dayModal?.querySelector('[data-calendar-day-meeting-count]');
     const detail = workspace.querySelector('[data-calendar-detail]');
     const agendaModal = workspace.querySelector('[data-calendar-agenda-modal]');
     const agendaModalTitle = agendaModal?.querySelector('[data-calendar-agenda-modal-title]');
@@ -59,14 +52,13 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const agendaModalCount = agendaModal?.querySelector('[data-calendar-agenda-modal-count]');
     const monthSelect = calendar?.querySelector('[data-calendar-month]');
     const yearSelect = calendar?.querySelector('[data-calendar-year]');
-    if (!calendar || !source || !grid || !title || !dayModal || !dayTitle || !dayTaskList || !dayMeetingList || !detail || !agendaModal || !agendaModalList || !monthSelect || !yearSelect) return;
+    if (!calendar || !source || !grid || !title || !dayModal || !dayTitle || !dayTaskList || !detail || !agendaModal || !agendaModalList || !monthSelect || !yearSelect) return;
 
     const json = (selector) => { const node = document.querySelector(selector); return node ? JSON.parse(node.textContent || '{}') : {}; };
     const teamData = json('[data-team-data]');
     // อ็อบเจกต์เดียวกับบอร์ดและโมดัลรายละเอียดงาน ปฏิทินจึงเห็นไฟล์ที่เพิ่งแนบทันที
     const attachmentData = attachmentStore(document);
 
-    const loadingIndicator = calendar.querySelector('[data-calendar-loading]');
     const filteredIndicator = calendar.querySelector('[data-calendar-filtered]');
     const searchInput = calendar.querySelector('[data-calendar-search]');
     const todayList = calendar.querySelector('[data-calendar-today-list]');
@@ -79,10 +71,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const modeButtons = [...calendar.querySelectorAll('[data-calendar-mode-option]')];
     const datePointButtons = [...calendar.querySelectorAll('[data-calendar-date-point]')];
     const displayNote = calendar.querySelector('[data-calendar-display-note]');
-    const meetingsEndpoint = calendar.dataset.meetingsEndpoint || '';
-    const meetingsById = new Map();
-    const loadedMonths = new Set();
-    const pendingRanges = new Set();
     let toastTimer;
 
     const now = new Date();
@@ -113,33 +101,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         yearSelect.value = String(selectedYear);
     };
 
-    const rememberMeetings = (meetings) => {
-        meetings.forEach((meeting) => {
-            if (meeting?.id) meetingsById.set(String(meeting.id), meeting);
-        });
-    };
-
-    const markMonthsLoaded = (startDate, endDate) => {
-        const start = parseCalendarDate(startDate);
-        const end = parseCalendarDate(endDate);
-        if (start === null || end === null) return;
-
-        let cursor = new Date(start);
-        while (Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1) <= end) {
-            loadedMonths.add(calendarMonthKey(cursor.getUTCFullYear(), cursor.getUTCMonth()));
-            cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
-        }
-    };
-
-    // ประชุมของช่วงเดือนตั้งต้นมากับ HTML แล้ว รอบแรกจึงวาดได้ทันทีโดยไม่ต้องรอเครือข่าย
-    const preloaded = calendar.querySelector('[data-calendar-meetings]');
-    if (preloaded) {
-        try {
-            rememberMeetings(JSON.parse(preloaded.textContent || '[]'));
-            markMonthsLoaded(calendar.dataset.meetingsLoadedStart, calendar.dataset.meetingsLoadedEnd);
-        } catch (_) { /* ข้อมูลเสียหายให้ถือว่ายังไม่โหลด แล้วปล่อยให้ fetch เติมภายหลัง */ }
-    }
-
     const showToast = (message) => {
         const node = document.querySelector('[data-toast]');
         if (!node) return;
@@ -148,10 +109,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         node.classList.add('show');
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => node.classList.remove('show'), 2600);
-    };
-
-    const setLoading = (isLoading) => {
-        if (loadingIndicator) loadingIndicator.hidden = !isLoading;
     };
 
     /*
@@ -164,37 +121,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
      * ซึ่งสั่ง render() อีกครั้ง งานใบนั้นจึงกลับเข้าปฏิทินทันทีโดยไม่ต้องรีโหลดหน้า
      */
     const CALENDAR_HIDDEN_STATUS = 4;
-
-    /*
-     * ประชุมที่จบไปแล้วก็ไม่ต้องอยู่บนปฏิทินเช่นกัน — เหตุผลเดียวกับงานที่ปิดแล้ว
-     *
-     * ปฏิทินตอบคำถามว่า "ข้างหน้ามีอะไรรออยู่" ประชุมที่เลิกไปแล้วตอบคำถามนั้นไม่ได้
-     * มีแต่จะเบียดช่องวันจนนัดหมายที่ยังไม่ถึงมองไม่เห็น ประวัติการประชุมอยู่ครบที่หน้าประชุม
-     *
-     * ตัดที่ "เวลาเลิกประชุม" ไม่ใช่เวลาเริ่ม ประชุมที่กำลังดำเนินอยู่จึงยังอยู่บนปฏิทิน
-     * ซึ่งเป็นช่วงที่คนต้องการเห็นมันที่สุด
-     *
-     * เทียบด้วยสตริง 'Y-m-dTH:i' ได้ตรง ๆ เพราะรูปแบบนี้เรียงตามเวลาอยู่แล้ว
-     * และ payload ฝั่ง server แปลงเป็นเวลาไทยมาให้แล้ว (MeetingQueryService)
-     * จึงใช้นาฬิกาเครื่องผู้ใช้เป็น "ตอนนี้" ชุดเดียวกับ todayKey ของไฟล์นี้
-     */
-    const meetingHasEnded = (meeting) => {
-        const endDate = meeting.due || meeting.start || '';
-        if (!endDate) return false;
-
-        const at = new Date();
-        const nowKey = [
-            at.getFullYear(),
-            String(at.getMonth() + 1).padStart(2, '0'),
-            String(at.getDate()).padStart(2, '0'),
-        ].join('-') + 'T' + [
-            String(at.getHours()).padStart(2, '0'),
-            String(at.getMinutes()).padStart(2, '0'),
-        ].join(':');
-
-        // ประชุมที่ไม่มีเวลาเลิกถือว่ากินทั้งวัน จึงพ้นไปเมื่อข้ามวันเท่านั้น
-        return `${endDate}T${meeting.endTime || '23:59'}` < nowKey;
-    };
 
     const readEvents = () => {
         const unique = new Map();
@@ -222,10 +148,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 subtasks: readSubtasks(row),
             });
         });
-        meetingsById.forEach((meeting, id) => {
-            if (meetingHasEnded(meeting)) return;
-            unique.set(id, meeting);
-        });
         return [...unique.values()];
     };
 
@@ -235,9 +157,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
      */
     const matchesSearch = (event, term) => {
         if (!term) return true;
-        const haystack = event.type === 'meeting'
-            ? [event.title, event.location, event.organizer, ...(event.attendees || []).map((person) => person.name)]
-            : [event.title, event.project, event.assignee, ...(teamOf(event.taskId).collaborators || []).map((person) => person.name)];
+        const haystack = [event.title, event.project, event.assignee, ...(teamOf(event.taskId).collaborators || []).map((person) => person.name)];
 
         return haystack.filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
     };
@@ -269,10 +189,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const eventAriaLabel = (event) => {
-        if (event.type === 'meeting') {
-            return `การประชุม: ${event.title}, ${event.startTime}–${event.endTime} น., ${event.location}, ผู้จัด ${event.organizer}, ${eventDateLabel(event)}`;
-        }
-
         const status = statusMeta[event.status]?.label || unsupportedStatusMeta.label;
         const priority = taskPriorityMeta[event.priority]?.label || taskPriorityMeta[2].label;
         // ช่องงานย่อยไม่ใช่ปุ่มของตัวเอง (ปุ่มซ้อนปุ่มไม่ได้) จำนวนจึงต้องอยู่ในป้ายของทั้งแถว
@@ -313,16 +229,17 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         // ผู้ใช้เปิดดูรายละเอียดจากปฏิทินเพื่อรู้ว่า "ต้องส่งเมื่อไหร่" เวลาจึงต้องอยู่คู่กับวัน
         const detailDueTime = row.dataset.dueTime ? ` ${row.dataset.dueTime} น.` : '';
         detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due) + detailDueTime;
-        detail.querySelector('[data-calendar-detail-assignee]').textContent = team.assignee?.name || row.dataset.assignee || 'ไม่ระบุ';
-        detail.querySelector('[data-calendar-detail-collaborators]').textContent = (team.collaborators || []).map((person) => `${person.name}${person.status === 'pending' ? ' (รอตอบรับ)' : ''}`).join(', ') || 'ไม่มีผู้ร่วมงาน';
+        // บทบาทในโปรเจกต์มาจาก App\Support\ProjectRoles ผ่าน [data-team-data] ชุดเดียวกับ Team Modal
+        detail.querySelector('[data-calendar-detail-leader]').textContent = team.leader?.name || 'ไม่ระบุ';
+        detail.querySelector('[data-calendar-detail-participants]').textContent = (team.participants || [])
+            .map((person) => `${person.name}${person.cross_department ? ' (ข้ามแผนก)' : ''}`)
+            .join(', ') || 'ไม่มีผู้เข้าร่วม';
         fillList(detail.querySelector('[data-calendar-detail-attachments]'), files.map((file) => file.name), 'ไม่มีไฟล์แนบ');
         modalStack(document).open(detail);
     };
 
     const configureCalendarEventNode = (node, event) => {
-        const isMeeting = event.type === 'meeting';
-        if (isMeeting) node.href = event.url;
-        else node.type = 'button';
+        node.type = 'button';
         node.dataset.calendarTask = event.id;
         node.dataset.calendarEventType = event.type;
         node.setAttribute('aria-label', eventAriaLabel(event));
@@ -332,8 +249,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     /* ---------- avatar ---------- */
 
     /**
-     * แหล่งข้อมูลของงานคือ [data-team-data] ที่ workspace-interactions ฝังไว้แล้ว
-     * ส่วนประชุมมากับ payload ของ MeetingQueryService ทั้งคู่เป็นข้อมูลจริงของระบบ
+     * แหล่งข้อมูลคือ [data-team-data] ที่ workspace-interactions ฝังไว้แล้ว
      * ไม่มีการประกอบ path รูปเอง ทุก URL ผ่าน MediaController แล้ว
      */
     const makeAvatar = (person, className = '') => {
@@ -374,18 +290,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
      *
      * จุดขนาด 8px บอกได้แค่ว่า "มีสีอะไรสักสี" ผู้ใช้ต้องจำว่าสีไหนคือระดับไหนเอง
      * ความสำคัญมีคอลัมน์ของตัวเองอยู่แล้ว การใส่สีลงบนข้อความในคอลัมน์นั้นตรงกว่า
-     * ส่วนการประชุมยังมีไอคอนปฏิทินนำหน้า เพราะมันบอก "ชนิดของรายการ" ไม่ใช่ระดับความสำคัญ
      */
-    const titleCell = (event) => {
-        if (event.type !== 'meeting') {
-            return cell('is-title', element('span', '', event.title));
-        }
-
-        const marker = element('i', 'calendar-table__marker bi bi-calendar-event');
-        marker.setAttribute('aria-hidden', 'true');
-
-        return cell('is-title', marker, element('span', '', event.title));
-    };
+    const titleCell = (event) => cell('is-title', element('span', '', event.title));
 
     const tag = (className, label) => element('span', `calendar-tag ${className}`, label);
 
@@ -488,61 +394,34 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         ),
     };
 
-    const meetingCellFactory = {
-        title: titleCell,
-        project: (event) => cell('is-muted', element('span', '', event.location || 'ไม่ระบุสถานที่')),
-        time: (event) => cell('is-muted', element('span', '', `${event.startTime} - ${event.endTime}`)),
-        organizer: (event) => cell('is-people', makeAvatar({name: event.organizer, avatar_url: event.organizerAvatar}, 'is-owner')),
-        attendees: (event) => cell('is-people', makeAvatarStack(Array.isArray(event.attendees) ? event.attendees : [], 'ไม่มี')),
-        location: (event) => cell('is-muted', element('span', '', event.location)),
-        date: (event) => cell('is-due', element('strong', '', shortDateFormatter.format(new Date(event.startStamp)))),
-        dueTime: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
-        index: (event, position) => cell('is-index', element('strong', '', String(position))),
-        subtasks: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
-        closure: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
-        blank: () => cell('is-muted', element('span', 'calendar-table__not-applicable', '—')),
-    };
-
     // ลำดับช่องต้องตรงกับหัวตารางใน calendar.blade.php ทุกตัว
     const TASK_LAYOUTS = {
         today: ['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'],
         due: ['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'],
         day: ['title', 'project', 'owner', 'collaborators', 'priority', 'status', 'start', 'due'],
     };
-    const MEETING_LAYOUTS = {
-        today: ['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'],
-        due: ['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'],
-        day: ['title', 'time', 'organizer', 'attendees', 'location'],
-    };
     const CELL_LABELS = {
         index: 'ลำดับที่',
         subtasks: 'งานย่อย',
         closure: 'ผลการปิดงาน',
         title: 'รายการ',
-        project: 'โปรเจกต์ / สถานที่',
+        project: 'โปรเจกต์',
         owner: 'เจ้าของ',
-        organizer: 'ผู้จัด',
         collaborators: 'ผู้ร่วมโปรเจกต์',
-        attendees: 'ผู้เข้าร่วม',
         priority: 'ความสำคัญ',
         status: 'สถานะ',
         time: 'เวลา',
         dueTime: 'เวลากำหนดส่ง',
         start: 'วันที่เริ่ม',
         due: 'กำหนดส่ง',
-        date: 'วันที่',
-        location: 'สถานที่',
-        blank: 'ความสำคัญ',
     };
 
     const makeRow = (event, layout, position = 0) => {
-        const isMeeting = event.type === 'meeting';
-        const factory = isMeeting ? meetingCellFactory : taskCellFactory;
-        const node = element(isMeeting ? 'a' : 'button', `calendar-table__row${isMeeting ? ' is-meeting' : ''}`);
+        const node = element('button', 'calendar-table__row');
         configureCalendarEventNode(node, event);
         node.setAttribute('role', 'row');
         node.append(...layout.map((column) => {
-            const item = factory[column](event, position);
+            const item = taskCellFactory[column](event, position);
             item.dataset.label = CELL_LABELS[column] || '';
             return item;
         }));
@@ -550,10 +429,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const taskRow = (variant) => (event, position) => makeRow(event, TASK_LAYOUTS[variant], position);
-    const meetingRow = (variant) => (event, position) => makeRow(event, MEETING_LAYOUTS[variant], position);
-    const agendaRow = (variant) => (event, position) => (
-        event.type === 'meeting' ? meetingRow(variant)(event, position) : taskRow(variant)(event, position)
-    );
+    const agendaRow = taskRow;
 
     /* ---------- modal ของวันที่ที่ถูกคลิกบนปฏิทิน ---------- */
 
@@ -564,12 +440,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         if (dayCount) dayCount.textContent = `ทั้งหมด ${day.events.length} รายการ`;
 
         dayTaskList.replaceChildren(...day.tasks.map(taskRow('day')));
-        dayMeetingList.replaceChildren(...day.meetings.map(meetingRow('day')));
         if (dayTaskCount) dayTaskCount.textContent = `${day.tasks.length} งาน`;
-        if (dayMeetingCount) dayMeetingCount.textContent = `${day.meetings.length} การประชุม`;
-        // section ที่ว่างถูกซ่อนทั้งใบ วันที่มีแต่งานจึงไม่เห็นหัวตารางประชุมลอยอยู่
         if (dayTaskGroup) dayTaskGroup.hidden = day.tasks.length === 0;
-        if (dayMeetingGroup) dayMeetingGroup.hidden = day.meetings.length === 0;
     };
 
     const closeDayModal = () => {
@@ -714,10 +586,10 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     /* ---------- ช่องวันที่ ---------- */
 
-    const groupLabel = (group) => `${group.count} ${group.type === 'meeting' ? 'ประชุม' : 'งาน'}`;
+    const groupLabel = (group) => `${group.count} งาน`;
 
     const makeCountChip = (group) => {
-        const tone = group.type === 'meeting' ? 'is-meeting' : (taskPriorityMeta[group.priority] || taskPriorityMeta[2]).className;
+        const tone = (taskPriorityMeta[group.priority] || taskPriorityMeta[2]).className;
         const node = element('span', `mytasks-calendar__count ${tone}`);
         node.dataset.count = String(group.count);
         const dot = element('i', 'calendar-dot');
@@ -727,12 +599,11 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     /**
-     * โทนของทั้งช่องวันที่ มาจากความสำคัญสูงสุดที่มีในวันนั้น (ประชุมล้วน = โทนประชุม)
+     * โทนของทั้งช่องวันที่ มาจากความสำคัญสูงสุดที่มีในวันนั้น
      * ชื่อคลาสถอดมาจาก taskPriorityMeta เพื่อไม่ให้มีตารางสีชุดที่สองในระบบ
      */
     const dayToneClass = (tone) => {
         if (!tone) return '';
-        if (tone === 'meeting') return 'is-tone-meeting';
 
         const priority = Number(String(tone).replace('priority-', ''));
         const meta = taskPriorityMeta[priority] || taskPriorityMeta[2];
@@ -781,17 +652,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
         /*
          * ปุ่ม "+N" ของโหมดเส้นช่วงงานบอกทั้งงานที่ล้นออกจากสี่เลน และจำนวนประชุมของวันนั้น
-         *
-         * งานได้เลนก่อนเสมอ เพราะเป็นสิ่งที่ต้องลงมือทำและมีช่วงวันที่ต้องเห็นเป็นเส้น
-         * ส่วนประชุมเป็นนัดหมายชั่วโมงเดียว การวาดเป็นเส้นทั้งวันจึงทำให้เข้าใจผิด
-         * แต่ก่อนหน้านี้ประชุมถูกวาดเป็นชิปแยกอีกมุมหนึ่ง ซึ่งวันที่งานเต็มสี่เลนแล้วจะถูกเบียดจนไม่เห็น
-         * ตอนนี้จึงรวมมาไว้ในปุ่มเดียวกัน กดแล้วเปิดรายการของวันนั้นซึ่งมีทั้งงานและประชุมครบ
          */
-        const meetingCount = day.groups
-            .filter((group) => group.type === 'meeting')
-            .reduce((total, group) => total + group.count, 0);
-
-        if (calendarMode === 'timeline' && (day.hiddenTimelineTasks > 0 || meetingCount > 0)) {
+        if (calendarMode === 'timeline' && day.hiddenTimelineTasks > 0) {
             const more = element('button', 'mytasks-calendar__timeline-more');
             more.type = 'button';
             more.dataset.calendarDay = day.key;
@@ -802,11 +664,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 more.append(element('span', null, `+${day.hiddenTimelineTasks} งาน`));
                 parts.push(`งานอีก ${day.hiddenTimelineTasks} รายการ`);
             }
-            if (meetingCount > 0) {
-                more.append(element('span', 'is-meeting-count', `${meetingCount} ประชุม`));
-                parts.push(`ประชุม ${meetingCount} รายการ`);
-            }
-
             more.setAttribute('aria-label', `ดู${parts.join(' และ ')}ของวันที่ ${dateFormatter.format(new Date(day.stamp))}`);
             cellNode.append(more);
         }
@@ -878,9 +735,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const render = () => {
-        // render() ถูกเรียกจาก ensureMeetingsForSelectedMonth() ทุกครั้งที่ fetch ประชุมพื้นหลังเสร็จ
-        // (ทุกครั้งที่เปิดหน้า/เปลี่ยนเดือน) โดยเดือนที่กำลังดูอยู่ไม่จำเป็นต้องเปลี่ยน
-        // modal รายวันและ modal ดูทั้งหมดที่เปิดค้างอยู่จึงแค่เติมเนื้อหาใหม่ ไม่ปิดทิ้ง
+        // modal รายวันและ modal ดูทั้งหมดที่เปิดค้างอยู่จะถูกเติมเนื้อหาใหม่ ไม่ปิดทิ้ง
+        // เมื่อข้อมูลงานเปลี่ยน (mytasks:changed)
         const events = visibleEvents();
         monthData = buildMonthCalendar(events, selectedYear, selectedMonth, 3, {
             datePoints,
@@ -912,56 +768,11 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         }
     };
 
-    /**
-     * เติมประชุมของเดือนที่ยังไม่เคยโหลด
-     *
-     * รายการที่แสดงอยู่จะไม่ถูกล้างระหว่างรอ และคำขอช่วงเดิมที่ยังค้างอยู่จะไม่ถูกยิงซ้ำ
-     * เมื่อล้มเหลวจะไม่ทำเครื่องหมายว่าโหลดแล้ว เพื่อให้ครั้งถัดไปลองใหม่ได้
-     */
-    const ensureMeetingsForSelectedMonth = async () => {
-        if (!meetingsEndpoint) return;
-
-        const missing = monthsNeedingFetch(selectedYear, selectedMonth, loadedMonths);
-        const range = rangeForMonths(missing);
-        if (!range) return;
-
-        const rangeKey = `${range.start}:${range.end}`;
-        if (pendingRanges.has(rangeKey)) return;
-        pendingRanges.add(rangeKey);
-        setLoading(true);
-
-        try {
-            const url = new URL(meetingsEndpoint, window.location.origin);
-            url.searchParams.set('start', range.start);
-            url.searchParams.set('end', range.end);
-            if (calendar.dataset.meetingsSubjectUserId) {
-                url.searchParams.set('subject_user_id', calendar.dataset.meetingsSubjectUserId);
-            }
-
-            const response = await fetch(url, {
-                headers: {Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-                credentials: 'same-origin',
-            });
-            if (!response.ok) throw new Error('meeting request failed');
-
-            const payload = await response.json();
-            rememberMeetings(Array.isArray(payload.meetings) ? payload.meetings : []);
-            range.keys.forEach((key) => loadedMonths.add(key));
-            render();
-        } catch (_) {
-            showToast('โหลดการประชุมของเดือนนี้ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
-        } finally {
-            pendingRanges.delete(rangeKey);
-            if (!pendingRanges.size) setLoading(false);
-        }
-    };
-
     const goToMonth = (year, month) => {
         closeDayModal();
         selectedYear = year;
         selectedMonth = month;
         render();
-        ensureMeetingsForSelectedMonth();
     };
 
     const moveMonth = (offset) => {
@@ -981,7 +792,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     /**
      * เปิดรายการหนึ่งรายการ — เส้นทางเดียวกันทั้งจากการ์ดใต้ปฏิทินและ modal รายวัน
-     * สิทธิ์ยังถูกตรวจที่ server ทุกครั้งผ่าน Task Workspace หรือ MeetingPolicy เดิม
+     * สิทธิ์ยังถูกตรวจที่ server ทุกครั้งผ่าน Task Workspace เดิม
      */
     const activateEvent = (chip, domEvent) => {
         // เปิดในแท็บใหม่ด้วย Ctrl/Cmd/Shift ยังต้องทำงานตามปกติของลิงก์
@@ -992,11 +803,6 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         // modal รายวันและ modal ดูทั้งหมดเป็นชั้นทึบ ต้องปิดก่อนเปิดชั้นถัดไป (Task Workspace หรือกล่องอ่านอย่างเดียว)
         closeDayModal();
         if (agendaModal.contains(chip)) closeAgendaViewAll();
-
-        if (chip.dataset.calendarEventType === 'meeting') {
-            if (chip.href) window.location.assign(chip.href);
-            return true;
-        }
 
         const taskId = String(chip.dataset.calendarTask).replace(/^task-/, '');
         if (!openTaskWorkspace(taskId)) openReadOnlyTask(taskId);
@@ -1100,5 +906,4 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     document.addEventListener('mytasks:changed', render);
 
     render();
-    ensureMeetingsForSelectedMonth();
 });

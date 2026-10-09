@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\AuditTrail;
+use App\Support\CrossDepartmentWork;
 use App\Support\TaskReviewStage;
 use App\Support\TodayWorkspace;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -51,6 +52,9 @@ class TaskStatusTransitionService
             'task_id' => (int) $task->job_id,
             'child_count' => $this->childCount($task),
             'open_child_count' => $this->openChildCount($task),
+            // บอกหน้าจอว่าแถวงานย่อยที่มันเห็นเป็นชุดเต็มหรือถูกตัดด้วยสิทธิ์
+            // ถ้าถูกตัด การนับจาก DOM จะต่ำกว่าความจริง ด่านจึงต้องเชื่อตัวเลขนี้แทน
+            'children_restricted' => CrossDepartmentWork::childrenWereRestricted($task),
         ];
     }
 
@@ -360,7 +364,7 @@ class TaskStatusTransitionService
     {
         // หน้า Task Workspace เรียก capabilities() ให้ทุกงานบนหน้า ถ้านับด้วยคิวรีทุกครั้ง
         // จะเพิ่มคิวรีตามจำนวนงาน ทั้งที่ children ถูก eager-load มาแล้วตั้งแต่ controller
-        if ($task->relationLoaded('children')) {
+        if (self::childrenAreComplete($task)) {
             return $task->children->filter(fn (WorkOrder $child) => (int) $child->job_status !== 4)->count();
         }
 
@@ -369,9 +373,23 @@ class TaskStatusTransitionService
 
     private function childCount(WorkOrder $task): int
     {
-        return $task->relationLoaded('children')
+        return self::childrenAreComplete($task)
             ? $task->children->count()
             : $task->children()->count();
+    }
+
+    /**
+     * ความสัมพันธ์ children ที่โหลดมาเป็น "ชุดเต็ม" หรือถูกตัดด้วยสิทธิ์ไปแล้ว
+     *
+     * CrossDepartmentWork::restrictChildren() ตัด children ของงานที่ผู้ดูเห็นได้บางส่วน
+     * ให้เหลือเฉพาะงานย่อยที่เขาร่วม ถ้านับด่านจากชุดที่ถูกตัด ตัวเลขจะต่ำกว่าความจริง
+     * แล้วหน้าจอจะบอกว่าปิดงานได้ทั้งที่ server จะปฏิเสธ จึงต้องกลับไปนับจากฐานข้อมูล
+     * ส่วนงานที่ยังไม่ถูกตัดยังนับในหน่วยความจำได้เหมือนเดิม ไม่เพิ่มคิวรีให้หน้า Workspace
+     */
+    private static function childrenAreComplete(WorkOrder $task): bool
+    {
+        return $task->relationLoaded('children')
+            && ! CrossDepartmentWork::childrenWereRestricted($task);
     }
 
     private function isSelfTask(WorkOrder $task, User $actor): bool

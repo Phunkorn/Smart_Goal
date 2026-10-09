@@ -4,6 +4,8 @@
 
 @push('styles')
     @vite('resources/css/pages/report-operational.css')
+    {{-- กล่องพรีวิวแบบตรวจใช้สไตล์ชุดเดียวกับหน้าตรวจเช็กคอมพิวเตอร์ --}}
+    @vite('resources/css/pages/computer-check.css')
 @endpush
 
 @push('scripts')
@@ -94,4 +96,7 @@
         ])
     </section>
 </div>
+
+{{-- กล่องพรีวิวแบบตรวจ ชุดเดียวกับไทม์ไลน์บันทึกงานและหน้าตรวจเช็กคอมพิวเตอร์ --}}
+@include('daily-logs.components.inspection-report-modal')
 @endsection

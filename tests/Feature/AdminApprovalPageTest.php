@@ -10,6 +10,7 @@ use App\Services\AdminApprovalQuery;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class AdminApprovalPageTest extends TestCase
@@ -34,51 +35,46 @@ class AdminApprovalPageTest extends TestCase
             ->assertSee('คำขออนุมัติ');
     }
 
-    public function test_page_shows_only_actionable_requests_and_counts_collaborator_pivots(): void
+    /**
+     * หน้าคำขออนุมัติต้องแสดงเฉพาะเรื่องที่ "ตัดสินได้จริง"
+     *
+     * สมาชิกโปรเจกต์ไม่ใช่เรื่องที่ต้องตัดสินอีกแล้ว ตัวนับจึงเหลือการมอบหมายงานข้ามแผนก
+     * และคำขอเข้าร่วมจากการแชร์งานเท่านั้น
+     */
+    public function test_page_shows_only_actionable_requests(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $marketing = Department::create(['department_name' => 'Marketing']);
         $admin = $this->user('admin', $it);
         $requester = $this->user('user', $it);
         $assignee = $this->user('user', $marketing);
-        $candidateOne = $this->user('user', $marketing);
-        $candidateTwo = $this->user('user', $marketing);
-        $acceptedCandidate = $this->user('user', $marketing);
-        $rejectedCandidate = $this->user('user', $marketing);
-        $deferredCandidate = $this->user('user', $marketing);
+        $participant = $this->user('user', $marketing);
 
         $pendingAssignment = $this->task($requester, $assignee, $marketing, 'Pending assignment', 'pending');
         $this->task($requester, $assignee, $marketing, 'Approved assignment', 'approved');
         $this->task($requester, $assignee, $marketing, 'Rejected assignment', 'rejected');
 
-        $collaboratorTask = $this->task($requester, $requester, $it, 'Pending collaborators', 'approved');
-        $collaboratorTask->collaborators()->attach([
-            $candidateOne->id => ['status' => 'pending', 'added_by' => $requester->id],
-            $candidateTwo->id => ['status' => 'pending', 'added_by' => $requester->id],
-            $acceptedCandidate->id => ['status' => 'accepted', 'added_by' => $requester->id],
-            $rejectedCandidate->id => ['status' => 'rejected', 'added_by' => $requester->id],
-        ]);
-
-        $deferredTask = $this->task($requester, $assignee, $marketing, 'Deferred collaborator', 'pending');
-        $deferredTask->collaborators()->attach($deferredCandidate->id, [
-            'status' => 'pending',
+        // ผู้เข้าร่วมข้ามแผนกที่อยู่ในโปรเจกต์แล้ว ต้องไม่กลายเป็นคำขอให้ admin ตัดสิน
+        $project = $this->task($requester, $requester, $it, 'Project with participants', 'approved');
+        $project->collaborators()->attach($participant->id, [
+            'status' => 'accepted',
             'added_by' => $requester->id,
+            'decided_by' => $requester->id,
         ]);
 
         $response = $this->actingAs($admin)->get(route('admin.approvals.index'));
 
         $response->assertOk()
-            ->assertViewHas('approvalCounts', ['assignments' => 2, 'collaborators' => 2, 'shares' => 0, 'total' => 4])
+            ->assertViewHas('approvalCounts', ['assignments' => 1, 'shares' => 0, 'total' => 1])
             ->assertSee($pendingAssignment->job_topic)
-            ->assertSee($candidateOne->name)
-            ->assertSee($candidateTwo->name)
             ->assertDontSee('Approved assignment')
             ->assertDontSee('Rejected assignment')
-            ->assertDontSee($acceptedCandidate->name)
-            ->assertDontSee($rejectedCandidate->name)
-            ->assertDontSee($deferredCandidate->name)
-            ->assertSee(route('admin.tasks.approval', $pendingAssignment), false)
-            ->assertSee(route('admin.tasks.collaborators.approval', [$collaboratorTask, $candidateOne]), false);
+            ->assertSee(route('admin.tasks.approval', $pendingAssignment), false);
+
+        // คิวอนุมัติผู้ร่วมงานถูกถอดออกทั้งหมด ไม่ใช่ซ่อนไว้
+        $this->assertFalse(Route::has('admin.tasks.collaborators.approval'));
+        $response->assertDontSee('collaborator-approval-queue')
+            ->assertDontSee('ผู้ร่วมงานข้ามแผนก');
     }
 
     public function test_empty_states_and_board_cleanup_are_rendered_without_changing_board_features(): void
@@ -88,9 +84,9 @@ class AdminApprovalPageTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.approvals.index'))
             ->assertOk()
-            ->assertViewHas('approvalCounts', ['assignments' => 0, 'collaborators' => 0, 'shares' => 0, 'total' => 0])
+            ->assertViewHas('approvalCounts', ['assignments' => 0, 'shares' => 0, 'total' => 0])
             ->assertSee('ไม่มีงานข้ามแผนกที่รอการตัดสินใจ')
-            ->assertSee('ไม่มีคำขอผู้ร่วมงานข้ามแผนกที่รอการตัดสินใจ');
+            ->assertDontSee('ไม่มีคำขอผู้ร่วมงานข้ามแผนกที่รอการตัดสินใจ');
 
         $this->actingAs($admin)->get(route('board.index'))
             ->assertOk()
@@ -113,15 +109,20 @@ class AdminApprovalPageTest extends TestCase
         $candidate = $this->user('user', $marketing);
 
         $this->task($requester, $assignee, $marketing, 'Badge assignment', 'pending');
-        $task = $this->task($requester, $requester, $it, 'Badge collaborator', 'approved');
-        $task->collaborators()->attach($candidate->id, ['status' => 'pending', 'added_by' => $requester->id]);
+        $this->task($requester, $assignee, $marketing, 'Second badge assignment', 'pending');
+        $project = $this->task($requester, $requester, $it, 'Badge participants', 'approved');
+        $project->collaborators()->attach($candidate->id, [
+            'status' => 'accepted',
+            'added_by' => $requester->id,
+            'decided_by' => $requester->id,
+        ]);
 
         DB::enableQueryLog();
-        $this->assertSame(['assignments' => 1, 'collaborators' => 1, 'shares' => 0, 'total' => 2], app(AdminApprovalQuery::class)->counts());
+        $this->assertSame(['assignments' => 2, 'shares' => 0, 'total' => 2], app(AdminApprovalQuery::class)->counts());
         $countQueries = DB::getQueryLog();
         DB::disableQueryLog();
 
-        $this->assertCount(2, $countQueries);
+        $this->assertCount(1, $countQueries);
         $this->assertFalse(collect($countQueries)->contains(fn (array $query): bool => str_contains($query['query'], 'select *')));
         $this->app->forgetScopedInstances();
 
@@ -174,7 +175,8 @@ class AdminApprovalPageTest extends TestCase
 
         foreach ([
             'cross_department_pending' => 'assignment',
-            'collaborator_approval_request' => 'collaborator',
+            // การรับทราบว่าลูกทีมไปร่วมโปรเจกต์ของแผนกอื่น พาไปหน้าติดตาม ไม่ใช่คิวตัดสินใจ
+            'cross_department_participation' => 'outgoing',
         ] as $type => $queue) {
             $notification = SystemNotification::create([
                 'user_id' => $admin->id,

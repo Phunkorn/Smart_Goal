@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -148,6 +149,18 @@ class WorkLog extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(WorkLogAttachment::class);
+    }
+
+    /**
+     * รอบการตรวจเช็กคอมพิวเตอร์ที่สร้างบันทึกนี้ขึ้นมา (ถ้ามี)
+     *
+     * มีได้อย่างมากหนึ่งรอบต่อหนึ่งบันทึก เพราะ ComputerCheckService::complete()
+     * สร้างบันทึกงานหนึ่งรายการต่อหนึ่งรอบ ไม่ใช่หนึ่งรายการต่อหนึ่งเครื่อง
+     * ใช้ตัดสินว่าจะแสดงปุ่ม "ดูแบบตรวจ" ในไทม์ไลน์และรายงานปฏิบัติงานหรือไม่
+     */
+    public function computerCheckSession(): HasOne
+    {
+        return $this->hasOne(ComputerCheckSession::class, 'work_log_id');
     }
 
     /**

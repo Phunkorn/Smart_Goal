@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\CrossDepartmentWork;
+use App\Support\ProjectRoles;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class AdminApprovalQuery
 {
@@ -16,35 +16,27 @@ class AdminApprovalQuery
         private readonly NotificationService $notifications,
     ) {}
 
-    /** @var array{assignments: int, collaborators: int, shares: int, total: int}|null */
+    /** @var array{assignments: int, shares: int, total: int}|null */
     private ?array $resolvedCounts = null;
 
     /**
      * @return array{
      *     pendingAssignments: Collection<int, WorkOrder>,
-     *     pendingCollaboratorTasks: Collection<int, WorkOrder>,
-     *     pendingCollaboratorInviters: Collection<int, User>,
-     *     approvalCounts: array{assignments: int, collaborators: int, shares: int, total: int}
+     *     shareJoinRequests: Collection<int, WorkOrderShareRequest>,
+     *     approvalCounts: array{assignments: int, shares: int, total: int}
      * }
      */
     public function data(User $viewer): array
     {
         $pendingAssignments = $this->pendingAssignments($viewer);
-        $pendingCollaboratorTasks = $this->pendingCollaboratorTasks($viewer);
-        $collaboratorCount = $pendingCollaboratorTasks
-            ->sum(fn (WorkOrder $task): int => $task->collaborators->count());
-
         $shareRequests = $this->shares->headQueueFor($viewer);
         $this->resolvedCounts = $this->formatCounts(
             $pendingAssignments->count(),
-            $collaboratorCount,
             $shareRequests->count(),
         );
 
         return [
             'pendingAssignments' => $pendingAssignments,
-            'pendingCollaboratorTasks' => $pendingCollaboratorTasks,
-            'pendingCollaboratorInviters' => $this->pendingCollaboratorInviters($pendingCollaboratorTasks),
             'shareJoinRequests' => $shareRequests,
             'approvalCounts' => $this->resolvedCounts,
         ];
@@ -69,61 +61,18 @@ class AdminApprovalQuery
             ->get();
     }
 
-    /** @return Collection<int, WorkOrder> */
-    public function pendingCollaboratorTasks(User $viewer): Collection
-    {
-        // admin เห็นเฉพาะผู้ถูกเชิญที่แผนกไม่มีหัวหน้า ตามเหตุผลเดียวกับ scopeAssignments()
-        $covered = $viewer->role === 'admin' ? $this->notifications->departmentIdsWithActiveHead() : [];
-
-        $query = WorkOrder::with([
-            'taskList',
-            'creator.department',
-            'collaborators' => function ($collaborators) use ($viewer, $covered): void {
-                $collaborators->where('work_order_collaborators.status', 'pending')
-                    ->when($viewer->role !== 'admin', fn ($query) => $query
-                        ->where('users.department_id', $viewer->department_id))
-                    ->when($viewer->role === 'admin', fn ($query) => $this->scopeOrphanCandidates($query, $covered))
-                    ->with('department');
-            },
-        ])
-            ->where('approval_status', 'approved')
-            ->whereHas('collaborators', fn ($collaborators) => $collaborators
-                ->where('work_order_collaborators.status', 'pending')
-                ->when($viewer->role !== 'admin', fn ($query) => $query
-                    ->where('users.department_id', $viewer->department_id))
-                ->when($viewer->role === 'admin', fn ($query) => $this->scopeOrphanCandidates($query, $covered)))
-            ->latest('job_id')
-            ->get();
-
-        return $query;
-    }
-
     /**
-     * @param  Collection<int, WorkOrder>  $tasks
-     * @return Collection<int, User>
-     */
-    public function pendingCollaboratorInviters(Collection $tasks): Collection
-    {
-        return User::query()
-            ->with('department')
-            ->whereIn('id', $tasks
-                ->flatMap(fn (WorkOrder $task) => $task->collaborators->pluck('pivot.added_by'))
-                ->filter()
-                ->unique())
-            ->get()
-            ->keyBy('id');
-    }
-
-    /**
-     * พนักงานของแผนกไปร่วมงานของแผนกอื่น — แท็บ "พนักงานไปร่วมงานแผนกอื่น"
+     * งานข้ามแผนกของทีม — ลูกทีมของแผนกที่กำลังเข้าร่วมโปรเจกต์ของแผนกอื่น
      *
-     * ไม่ใช่คิวรออนุมัติ แต่เป็นมุมมองติดตามของหัวหน้าต้นสังกัด จึงไม่ถูกนับใน approvalCounts
-     * (ตัวเลขบนแถบข้างต้องเป็นงานที่รอการตัดสินใจเท่านั้น)
+     * เป็นมุมมองติดตาม (tracking/visibility) ไม่ใช่คิวรออนุมัติ หัวหน้าแผนกต้นสังกัด
+     * "รับทราบ" ว่าลูกทีมไปร่วมโปรเจกต์ของใคร ไม่มีอะไรให้อนุมัติหรือปฏิเสธที่นี่
+     * จึงไม่ถูกนับใน approvalCounts (ตัวเลขบนแถบข้างต้องเป็นงานที่รอการตัดสินใจเท่านั้น)
      *
      * หัวหน้าแผนกเห็นเฉพาะลูกทีมของแผนกตัวเอง admin เห็นทุกแผนก
-     * นับเฉพาะผู้ร่วมงานที่ตอบรับแล้ว บนงานที่อนุมัติแล้ว และแผนกปลายทางของงานไม่ใช่แผนกของพนักงาน
+     * นับเฉพาะผู้เข้าร่วมที่อยู่ในโปรเจกต์แล้ว บนงานที่อนุมัติแล้ว และแผนกเจ้าของโปรเจกต์
+     * ไม่ใช่แผนกของพนักงาน
      *
-     * @return Collection<int, array{task: WorkOrder, member: User, destination: string}>
+     * @return Collection<int, array{task: WorkOrder, member: User, destination: string, leader: User|null}>
      */
     public function outgoingCollaborations(User $viewer): Collection
     {
@@ -143,6 +92,9 @@ class AdminApprovalQuery
             ->with([
                 'department',
                 'user.department',
+                // หัวหน้าโปรเจกต์คือผู้สร้าง (ProjectRoles) ตารางติดตามต้องบอกให้ได้ว่าใคร
+                'creator.department',
+                'leader.department',
                 'taskList',
                 'parent',
                 'collaborators' => fn ($collaborators) => $members($collaborators)->with('department'),
@@ -161,6 +113,7 @@ class AdminApprovalQuery
             ->get()
             ->flatMap(function (WorkOrder $task): Collection {
                 $destination = CrossDepartmentWork::destinationDepartmentId($task);
+                $leader = ProjectRoles::leader($task);
 
                 return $task->collaborators
                     ->filter(fn (User $member) => $destination !== null && (int) $member->department_id !== $destination)
@@ -168,12 +121,13 @@ class AdminApprovalQuery
                         'task' => $task,
                         'member' => $member,
                         'destination' => CrossDepartmentWork::destinationDepartmentName($task) ?? 'ไม่ระบุแผนก',
+                        'leader' => $leader,
                     ]);
             })
             ->values();
     }
 
-    /** @return array{assignments: int, collaborators: int, shares: int, total: int} */
+    /** @return array{assignments: int, shares: int, total: int} */
     public function counts(?User $viewer = null): array
     {
         if ($this->resolvedCounts !== null) {
@@ -182,48 +136,21 @@ class AdminApprovalQuery
 
         $assignmentQuery = WorkOrder::query()->where('approval_status', 'pending');
         $this->scopeAssignments($assignmentQuery, $viewer);
-        $assignmentCount = $assignmentQuery->count();
 
-        $collaboratorQuery = DB::table('work_order_collaborators')
-            ->join('work_orders', 'work_orders.job_id', '=', 'work_order_collaborators.work_order_id')
-            ->whereNull('work_orders.deleted_at')
-            ->where('work_orders.approval_status', 'approved')
-            ->where('work_order_collaborators.status', 'pending');
-
-        if ($viewer && $viewer->role !== 'admin') {
-            $collaboratorQuery
-                ->join('users as collaborator_users', 'collaborator_users.id', '=', 'work_order_collaborators.user_id')
-                ->where('collaborator_users.department_id', $viewer->department_id);
-        }
-
-        if ($viewer && $viewer->role === 'admin') {
-            $collaboratorQuery
-                ->join('users as collaborator_users', 'collaborator_users.id', '=', 'work_order_collaborators.user_id');
-
-            $this->scopeOrphanCandidates(
-                $collaboratorQuery,
-                $this->notifications->departmentIdsWithActiveHead(),
-                'collaborator_users.department_id'
-            );
-        }
-
-        $collaboratorCount = $collaboratorQuery->count();
-
-        // คำขอจากการแชร์งานอยู่ในตารางของตัวเอง ไม่ได้อยู่ใน pivot ผู้ร่วมงาน
+        // คำขอจากการแชร์งานอยู่ในตารางของตัวเอง ไม่ได้อยู่ใน pivot ผู้เข้าร่วม
         // จึงต้องนับแยกแล้วรวมเข้า total ซึ่งเป็นตัวเลขบนป้ายแถบข้าง
         $shareCount = $viewer ? $this->shares->headQueueCount($viewer) : 0;
 
-        return $this->resolvedCounts = $this->formatCounts($assignmentCount, $collaboratorCount, $shareCount);
+        return $this->resolvedCounts = $this->formatCounts($assignmentQuery->count(), $shareCount);
     }
 
-    /** @return array{assignments: int, collaborators: int, shares: int, total: int} */
-    private function formatCounts(int $assignments, int $collaborators, int $shares): array
+    /** @return array{assignments: int, shares: int, total: int} */
+    private function formatCounts(int $assignments, int $shares): array
     {
         return [
             'assignments' => $assignments,
-            'collaborators' => $collaborators,
             'shares' => $shares,
-            'total' => $assignments + $collaborators + $shares,
+            'total' => $assignments + $shares,
         ];
     }
 
@@ -260,18 +187,5 @@ class AdminApprovalQuery
             ->whereNull('department_id')
             ->when($covered !== [], fn (Builder $q) => $q->orWhereNotIn('department_id', $covered))
             ->when($covered === [], fn (Builder $q) => $q->orWhereNotNull('department_id')));
-    }
-
-    /**
-     * เงื่อนไขว่าผู้ถูกเชิญคนนี้ "ไม่มีหัวหน้าแผนกดูแล" — ใช้ร่วมกันทุกที่ที่กรองคิวผู้ร่วมงาน
-     *
-     * @param  \Illuminate\Contracts\Database\Query\Builder|Builder  $query
-     */
-    private function scopeOrphanCandidates($query, array $covered, string $column = 'users.department_id')
-    {
-        return $query->where(fn ($orphan) => $orphan
-            ->whereNull($column)
-            ->when($covered !== [], fn ($q) => $q->orWhereNotIn($column, $covered))
-            ->when($covered === [], fn ($q) => $q->orWhereNotNull($column)));
     }
 }

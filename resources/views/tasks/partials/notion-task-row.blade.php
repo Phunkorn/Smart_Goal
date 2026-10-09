@@ -30,6 +30,14 @@
     $taskAdminSenderName = $task->creator?->role === 'admin' ? $task->creator->name : null;
     $canQuickAddToList = $showQuickAdd && $task->taskList && auth()->user()->can('manage', $task->taskList);
     $canWork = auth()->user()->can('work', $task);
+    /*
+     * แถวต้นทางคือแหล่งข้อมูลที่ทุกมุมมองอ่าน (ปฏิทิน โมดัล การ์ด kanban) เมื่องานปิดแล้ว
+     * work() เป็นเท็จ ของเดิมจึงไม่มีเมนูสถานะและ input ซ่อนให้ JavaScript เขียนค่าใหม่ลงไป
+     * ผู้ที่เปิดงานอีกครั้งได้จึงต้องมีกล่องเหล่านี้ไว้ เพื่อให้ synchronizeTaskSource()
+     * เขียนสถานะใหม่ได้ครบทุกช่องโดยไม่ต้องโหลดหน้าใหม่
+     */
+    $canReopen = auth()->user()->can('reopen', $task);
+    $hasStatusControls = $canWork || $canReopen;
     $canReview = auth()->user()->can('review', $task);
     $reviewableSubtaskCount = $task->relationLoaded('children')
         ? $task->children->filter(fn ($child) => (int) $child->job_status === 3 && auth()->user()->can('review', $child))->count()
@@ -53,15 +61,15 @@
     @endif data-status="{{ $task->job_status }}" data-late="{{ $isLate ? 1 : 0 }}" data-list-id="{{ $task->work_order_list_id }}" data-list-owned="{{ $canQuickAddToList ? 1 : 0 }}" data-list-priority="{{ $task->taskList?->priority ?? 2 }}" data-topic="{{ $task->job_topic }}" data-project="{{ $projectName }}" data-assignee="{{ $assigneeName }}" data-priority="{{ $task->job_priority }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}" data-subtask-names="{{ $subtaskNames->toJson(JSON_UNESCAPED_UNICODE) }}">
     <button type="button" class="row-title" data-open-task-modal><strong title="{{ $task->job_topic }}">{{ $task->job_topic }}</strong>@include('tasks.partials.approval-state-marker', ['task' => $task])</button>
     @php($taskPriorityClass = [2=>'important',3=>'urgent',4=>'quick',5=>'flexible'][(int) $task->job_priority] ?? 'important')
-    @if($canWork)
+    @if($hasStatusControls)
         <details class="board-status-menu table-status-menu" data-table-status-menu>
             <summary class="board-status-pill status-{{ $statusClass }}"><span data-table-status-label>{{ $statusText }}</span><i class="bi bi-chevron-down"></i></summary>
             <div>@foreach([5=>['พักงาน','paused'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done']] as $value=>$meta)@continue($value === 3 && ! $showsReviewStage)<button type="button" class="status-{{ $meta[1] }}" data-table-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$task->job_status === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
         <input type="hidden" data-field="status" value="{{ $task->job_status }}">
-        <details class="board-priority-menu table-priority-menu" data-table-priority-menu>
+        <details class="board-priority-menu table-priority-menu {{ $canWork ? '' : 'is-locked' }}" data-table-priority-menu>
             <summary class="board-priority priority-{{ $taskPriorityClass }}"><span data-table-priority-label>{{ $priorityLabels[(int) $task->job_priority] ?? $priorityLabels[2] }}</span><i class="bi bi-chevron-down"></i></summary>
-            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-table-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$task->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-table-priority-value="{{ $value }}" @disabled(! $canWork)><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$task->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
         <input type="hidden" data-field="priority" value="{{ $task->job_priority }}">
     @else
@@ -76,7 +84,7 @@
         <small class="row-duration-time" data-due-time-label>{{ $dueTimeLabel ? 'ส่งภายใน '.$dueTimeLabel : 'ไม่มีเวลากำหนดส่ง' }}</small>
         @if($canWork)<input class="cell-date" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" aria-label="แก้ไขวันที่และเวลากำหนดส่ง">@endif
     </label>
-    <button type="button" class="row-collaborators" data-manage-team="{{ $task->job_id }}" title="{{ $canManageTeam ? 'จัดการผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}">
+    <button type="button" class="row-collaborators" data-manage-team="{{ $task->job_id }}" title="{{ $canManageTeam ? 'จัดการผู้เข้าร่วม' : 'ดูผู้เข้าร่วม' }}">
         <span class="collaborator-stack">
             @foreach($acceptedCollaborators->take(3) as $person)<i class="collaborator-avatar" title="{{ $person->name }}">@include('components.user-avatar-content', ['user' => $person])</i>@endforeach
             @foreach($pendingCollaborators->take(max(0, 3 - $acceptedCollaborators->take(3)->count())) as $person)<i class="collaborator-avatar pending" title="{{ $person->name }} — รอตอบรับ">@include('components.user-avatar-content', ['user' => $person])<b></b></i>@endforeach
@@ -90,7 +98,7 @@
             <summary aria-label="เมนูจัดการงาน"><i class="bi bi-three-dots"></i></summary>
             <div>
                 <button type="button" data-open-task-modal><i class="bi bi-box-arrow-up-right"></i> เปิดงาน</button>
-                <button type="button" data-manage-team="{{ $task->job_id }}"><i class="bi bi-people"></i> {{ $canManageTeam ? 'จัดการผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}</button>
+                <button type="button" data-manage-team="{{ $task->job_id }}"><i class="bi bi-people"></i> {{ $canManageTeam ? 'จัดการผู้เข้าร่วม' : 'ดูผู้เข้าร่วม' }}</button>
                 @if($attachmentCount)<button type="button" data-open-attachments="{{ $task->job_id }}"><i class="bi bi-paperclip"></i> ไฟล์แนบ <small>{{ $attachmentCount }}</small></button>@endif
                 <button type="button" data-open-task-modal><i class="bi {{ $canWork ? 'bi-pencil-square' : 'bi-eye' }}"></i> {{ $canWork ? 'แก้ไข' : 'ดูรายละเอียด' }}</button>
                 @if($workspaceContext === 'admin-member')

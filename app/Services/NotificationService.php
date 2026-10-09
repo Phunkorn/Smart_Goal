@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Appointment;
 use App\Models\Meeting;
 use App\Models\SystemNotification;
 use App\Models\User;
@@ -11,6 +12,7 @@ use App\Models\WorkOrderShareRequest;
 use App\Models\WorkOrderUpdate;
 use App\Services\Telegram\TelegramOutbox;
 use App\Support\ApprovalPresenter;
+use App\Support\ProjectRoles;
 use App\Support\TaskCommentPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -104,13 +106,11 @@ class NotificationService
      */
     public function notifyApprovalRequest(Collection|array $recipients, string $type, string $title, string $message, WorkOrder $task, User $actor, ?User $candidate = null, ?string $dedupePrefix = null): Collection
     {
-        $ability = $type === 'collaborator_approval_request' ? 'approveCollaborator' : 'approve';
-
         return User::whereIn('id', collect($recipients)->map(fn ($recipient) => $recipient instanceof User ? $recipient->id : $recipient)->filter()->unique())
             ->where('is_active', true)->get()
             ->reject(fn (User $user) => $user->role === 'viewer')
             ->reject(fn (User $user) => (int) $user->id === (int) $actor->id)
-            ->filter(fn (User $user) => Gate::forUser($user)->allows($ability, $candidate ? [$task, $candidate] : $task))
+            ->filter(fn (User $user) => Gate::forUser($user)->allows('approve', $task))
             ->map(fn (User $user) => $this->create(
                 $user,
                 $type,
@@ -276,6 +276,40 @@ class NotificationService
             ? $headIds
             : User::query()->where('role', 'admin')->where('is_active', true)
                 ->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * แจ้งหัวหน้าแผนกต้นสังกัดว่าลูกทีมเข้าร่วมโปรเจกต์ของแผนกอื่นแล้ว
+     *
+     * เป็นการ "รับทราบและติดตาม" ไม่ใช่คำขอ จึงไม่ผ่าน notifyApprovalRequest() และไม่มี
+     * ปุ่มอนุมัติหรือปฏิเสธที่ปลายทาง การเข้าร่วมเกิดขึ้นเสร็จแล้วก่อนแจ้งเตือนฉบับนี้ออก
+     *
+     * ไม่มี fallback ไปหา admin เมื่อแผนกยังไม่มีหัวหน้า — ต่างจาก
+     * departmentApprovalRecipientIds() ที่ต้องหาคนตัดสินให้ได้เสมอ เพราะที่นี่ไม่มีอะไร
+     * ให้ตัดสิน ถ้าไม่มีหัวหน้าก็ไม่มีใครต้องรับทราบ และงานต้องเดินต่อได้ตามปกติ
+     *
+     * ส่งหาหัวหน้าทุกคนของแผนกนั้นเมื่อมีมากกว่าหนึ่งคน แต่ไม่ส่งให้ผู้เข้าร่วมเอง
+     * เมื่อผู้เข้าร่วมคือหัวหน้าแผนกนั้น เพราะเขาได้ฉบับ "คุณถูกเพิ่มเข้าร่วมโปรเจกต์" ไปแล้ว
+     */
+    public function notifyCrossDepartmentParticipation(WorkOrder $task, User $participant, User $actor): Collection
+    {
+        $participant->loadMissing('department');
+        $memberDepartment = $participant->department?->department_name ?? 'ไม่ระบุแผนก';
+        $projectDepartment = ProjectRoles::projectDepartmentName($task) ?? 'แผนกอื่น';
+        $heads = array_values(array_filter(
+            $this->departmentHeadIds($participant->department_id),
+            fn (int $headId) => $headId !== (int) $participant->id
+        ));
+
+        return $this->notify(
+            $heads,
+            'cross_department_participation',
+            'พนักงานเข้าร่วมโปรเจกต์ข้ามแผนก',
+            $participant->name.' · '.$memberDepartment.' ถูกเพิ่มเข้าร่วมโปรเจกต์ “'.$task->job_topic.'” ของแผนก'.$projectDepartment.' โดย '.$actor->name,
+            $task,
+            $actor,
+            ['participant_user_id' => (int) $participant->id]
+        );
     }
 
     public function notifyAssignmentCreated(WorkOrder $task, User $actor, User $assignee, bool $sameDepartment): void
@@ -485,7 +519,7 @@ class NotificationService
         return SystemNotification::with(['actor', 'workOrder.user.department', 'project'])
             ->forUser($user)->centerEligible()
             ->when(($filters['status'] ?? 'all') === 'unread', fn ($query) => $query->unread())
-            ->when(in_array($filters['category'] ?? '', ['task', 'review', 'comment', 'deadline', 'meeting', 'system'], true), fn ($query) => $query->where('category', $filters['category']))
+            ->when(in_array($filters['category'] ?? '', ['task', 'review', 'comment', 'deadline', 'meeting', 'appointment', 'worklog', 'system'], true), fn ($query) => $query->where('category', $filters['category']))
             ->when(! empty($filters['project']), fn ($query) => $query->where('work_order_list_id', $filters['project']))
             ->latest()->paginate(self::CENTER_PAGE_SIZE)->withQueryString();
     }
@@ -540,23 +574,36 @@ class NotificationService
     {
         $task = $notification->workOrder;
 
-        if (($viewer->role === 'admin' || $viewer->isDepartmentHead()) && in_array($notification->type, [
-            'cross_department_pending',
-            'collaborator_approval_request',
-        ], true)) {
-            return route('admin.approvals.index', [
-                'approval_queue' => $notification->type === 'collaborator_approval_request'
-                    ? 'collaborator'
-                    : 'assignment',
-            ]);
+        if ($viewer->role === 'admin' || $viewer->isDepartmentHead()) {
+            if ($notification->type === 'cross_department_pending') {
+                return route('admin.approvals.index', ['approval_queue' => 'assignment']);
+            }
+
+            /*
+             * การรับทราบว่าลูกทีมไปร่วมโปรเจกต์ของแผนกอื่น พาไปหน้าติดตามของแผนกตัวเอง
+             * ไม่ใช่คิวอนุมัติ — หัวหน้าเห็นภาพรวมทั้งทีมได้ที่เดียว และเปิดงานต่อจากที่นั่น
+             * ตาม policy ปกติ (บางใบหัวหน้าต้นสังกัดดูได้เพราะมีลูกทีมอยู่ในงาน)
+             */
+            if ($notification->type === 'cross_department_participation') {
+                return route('admin.approvals.index', ['approval_queue' => 'outgoing']);
+            }
         }
 
         if (! $task) {
             // การประชุมไม่ผูกกับ WorkOrder เลย work_order_id จึงเป็น null เสมอ
             // ถ้าไม่ดักตรงนี้จะตกไป fallback ท้ายบล็อกแล้ววนกลับหน้าศูนย์การแจ้งเตือน
-            if ($notification->type === 'meeting_scheduled' && ($meeting = $this->notificationMeeting($notification))) {
+            // เทียบด้วย category ไม่ใช่รายชื่อ type เพื่อให้แจ้งเตือนประชุมชนิดใหม่ (การตอบรับ
+            // เข้าร่วม — ดู MeetingAttendeeResponseService) ได้ปลายทางเดียวกันโดยไม่ต้องแก้ที่นี่
+            if ($notification->category === 'meeting' && ($meeting = $this->notificationMeeting($notification))) {
                 if (Gate::forUser($viewer)->allows('view', $meeting)) {
-                    return route('meetings.show', $meeting);
+                    return route('meetings.show', $this->invitationRouteParameters($notification, ['meeting' => $meeting->id]));
+                }
+            }
+
+            // นัดหมายไม่ผูกกับ WorkOrder เช่นกัน และเป็นคนละหน้าปลายทางกับการประชุม
+            if ($notification->category === 'appointment' && ($appointment = $this->notificationAppointment($notification))) {
+                if (Gate::forUser($viewer)->allows('view', $appointment)) {
+                    return route('appointments.show', $this->invitationRouteParameters($notification, ['appointment' => $appointment->id]));
                 }
             }
 
@@ -639,21 +686,9 @@ class NotificationService
                 || ! Gate::forUser($viewer)->allows('approve', $notification->workOrder);
         }
 
-        if ($notification->type === 'collaborator_approval_request') {
-            $candidateId = (int) data_get($notification->data, 'candidate_user_id');
-            $candidate = $candidateId ? User::find($candidateId) : null;
-
-            if (! $candidate && $notification->workOrder) {
-                $candidate = $notification->workOrder->collaborators()
-                    ->wherePivot('status', 'pending')
-                    ->get()
-                    ->first(fn (User $pendingCandidate) => Gate::forUser($viewer)
-                        ->allows('approveCollaborator', [$notification->workOrder, $pendingCandidate]));
-            }
-
-            return ! $notification->workOrder
-                || ! $candidate
-                || ! Gate::forUser($viewer)->allows('approveCollaborator', [$notification->workOrder, $candidate]);
+        // หน้าติดตามงานข้ามแผนกของทีมเปิดได้เฉพาะ admin และหัวหน้าแผนก (WorkOrderPolicy::approve)
+        if ($notification->type === 'cross_department_participation') {
+            return $viewer->role !== 'admin' && ! $viewer->isDepartmentHead();
         }
 
         if (str_starts_with($notification->type, 'share_join_')) {
@@ -686,10 +721,16 @@ class NotificationService
                     ->exists();
         }
 
-        if ($notification->type === 'meeting_scheduled') {
+        if ($notification->category === 'meeting') {
             $meeting = $this->notificationMeeting($notification);
 
             return ! $meeting || ! Gate::forUser($viewer)->allows('view', $meeting);
+        }
+
+        if ($notification->category === 'appointment') {
+            $appointment = $this->notificationAppointment($notification);
+
+            return ! $appointment || ! Gate::forUser($viewer)->allows('view', $appointment);
         }
 
         if (! $notification->work_order_id) {
@@ -709,5 +750,30 @@ class NotificationService
         $meetingId = $notification->data['meeting_id'] ?? null;
 
         return $meetingId ? Meeting::find($meetingId) : null;
+    }
+
+    /** นัดหมายใช้ SoftDeletes ใบที่ถูกลบแล้วจะคืน null ตามที่ต้องการ */
+    private function notificationAppointment(SystemNotification $notification): ?Appointment
+    {
+        $appointmentId = $notification->data['appointment_id'] ?? null;
+
+        return $appointmentId ? Appointment::find($appointmentId) : null;
+    }
+
+    /**
+     * แจ้งเตือนที่ "ขอคำตอบ" พาผู้ใช้ไปที่หน้ารายละเอียดพร้อมธง respond=1
+     *
+     * หน้ารายละเอียดจะเปิดกล่องยืนยันให้ทันทีเมื่อเห็นธงนี้และผู้ใช้ยังตอบได้จริง
+     * (ดู meetings/show.blade.php) การกดเข้าหน้าเองไม่มีธงนี้จึงไม่มีกล่องเด้ง
+     *
+     * @param  array<string, mixed>  $parameters
+     * @return array<string, mixed>
+     */
+    private function invitationRouteParameters(SystemNotification $notification, array $parameters): array
+    {
+        $asksForAnswer = str_ends_with($notification->type, '_scheduled')
+            || str_ends_with($notification->type, '_reinvited');
+
+        return $asksForAnswer ? $parameters + ['respond' => 1] : $parameters;
     }
 }

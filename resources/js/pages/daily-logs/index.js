@@ -7,6 +7,7 @@
  * ห้ามใช้ alert/confirm ตามกติกาของโปรเจกต์ การยืนยันทุกอย่างผ่าน window.Swal
  */
 import {initAutoSubmitFilters} from '../../components/auto-submit-filter.js';
+import {initInspectionReportModal} from '../../components/inspection-report-modal.js';
 import {useDatePickers} from '../../components/date-picker.js';
 import {initSelectDropdowns} from '../../components/select-dropdown.js';
 import {initAttachments} from './attachments.js';
@@ -47,6 +48,9 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
     // ตัวเลือกผู้ร่วมงานดูแลป้ายจำนวนของตัวเอง ค่าที่ติ๊กถูกส่งไปกับ FormData
     // ของฟอร์มโดยตรง ที่นี่จึงเหลือแค่การเปิดใช้งาน
     initParticipantPickers({root});
+    // ปุ่ม "ดูแบบตรวจ" บนการ์ดของบันทึกที่มาจากรอบตรวจเช็กคอมพิวเตอร์
+    // ใช้ delegation บน document จึงรองรับแถวที่ถูกวาดใหม่จาก AJAX ด้วย
+    initInspectionReportModal({doc});
     initPlanCalendar({root});
     // ดร็อปดาวน์แบบสไลด์ชุดเดียวของทั้งหน้า: ตัวกรองปฏิทิน ตัวกรองสถานะ ตัวเลือกสมาชิก
     // ตัวเลือกเดือนของสรุปรายเดือน และช่องเลือกในกล่องเพิ่มงาน

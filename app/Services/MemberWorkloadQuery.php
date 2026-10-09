@@ -16,14 +16,68 @@ final class MemberWorkloadQuery
     /** Direct workload excludes creator, leader and project-context visibility. */
     public function forMember(User|int $member): EloquentBuilder
     {
-        $memberId = $member instanceof User ? $member->id : $member;
+        return WorkOrder::query()->where(fn (EloquentBuilder $query) => $this->direct(
+            $query,
+            $member instanceof User ? $member->id : $member
+        ));
+    }
+
+    /**
+     * ชุดงานที่ Workspace ของสมาชิกต้อง "วาด" — ภาระงานตรงของเขา บวกงานแม่ของงานย่อยที่เขาทำ
+     *
+     * ต่างจาก forMember() ตรงที่ไม่ใช่คำตอบของ "ภาระงานของเขามีเท่าไร" ทุกมุมมองวาดงานย่อย
+     * เป็นลูกของแถวงานแม่เท่านั้น เมื่อสมาชิกถูกเพิ่มเข้าเฉพาะงานย่อย งานแม่จะไม่อยู่ในชุด
+     * ของ forMember() แล้วงานย่อยนั้นก็ไม่มีที่ยืน หน้าจึงว่างทั้งที่เขามีงานอยู่
+     *
+     * ตัวเลขภาระงาน (totals, statusCounts) ต้องนับจากงานที่ผ่าน isDirectWorkload() เท่านั้น
+     * ไม่ใช่จากชุดนี้ เพราะงานแม่ที่ติดมาเป็นบริบท ไม่ใช่งานของสมาชิก
+     */
+    public function forMemberWorkspace(User|int $member): EloquentBuilder
+    {
+        $memberId = $member instanceof User ? (int) $member->id : (int) $member;
 
         return WorkOrder::query()->where(function (EloquentBuilder $query) use ($memberId): void {
-            $query->where('user_id', $memberId)
-                ->orWhereHas('collaborators', fn (EloquentBuilder $collaborators) => $collaborators
-                    ->where('users.id', $memberId)
-                    ->where('work_order_collaborators.status', self::ACCEPTED_COLLABORATOR_STATUS));
+            $query->where(fn (EloquentBuilder $direct) => $this->direct($direct, $memberId))
+                ->orWhereHas('children', fn (EloquentBuilder $child) => $this->direct(
+                    $child->where('approval_status', 'approved'),
+                    $memberId
+                ));
         });
+    }
+
+    /**
+     * งานใบนี้เป็นภาระงานตรงของสมาชิกคนนี้หรือไม่ — คำถามเดียวกับ forMember() แต่ถามกับงานที่โหลดมาแล้ว
+     *
+     * ใช้แยก "งานของสมาชิก" ออกจาก "งานแม่ที่ติดมาเป็นบริบท" ตอนนับตัวเลขของ Workspace
+     */
+    public function isDirectWorkload(WorkOrder $task, User|int $member): bool
+    {
+        $memberId = $member instanceof User ? (int) $member->id : (int) $member;
+
+        if ((int) $task->user_id === $memberId) {
+            return true;
+        }
+
+        if ($task->relationLoaded('collaborators')) {
+            return $task->collaborators->contains(
+                fn ($person) => (int) $person->id === $memberId
+                    && $person->pivot?->status === self::ACCEPTED_COLLABORATOR_STATUS
+            );
+        }
+
+        return $task->collaborators()
+            ->where('users.id', $memberId)
+            ->wherePivot('status', self::ACCEPTED_COLLABORATOR_STATUS)
+            ->exists();
+    }
+
+    /** เงื่อนไข "ภาระงานตรง" ที่ forMember() และ forMemberWorkspace() ใช้ร่วมกัน */
+    private function direct(EloquentBuilder $query, int $memberId): EloquentBuilder
+    {
+        return $query->where('user_id', $memberId)
+            ->orWhereHas('collaborators', fn (EloquentBuilder $collaborators) => $collaborators
+                ->where('users.id', $memberId)
+                ->where('work_order_collaborators.status', self::ACCEPTED_COLLABORATOR_STATUS));
     }
 
     /**

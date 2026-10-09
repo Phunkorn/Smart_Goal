@@ -13,7 +13,7 @@
     $views = $views ?? [
         ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
         ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
-        ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทิน', 'controls' => 'mytasks-calendar'],
+        ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทินงาน', 'controls' => 'mytasks-calendar'],
     ];
 @endphp
 

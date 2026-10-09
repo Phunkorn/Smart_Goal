@@ -25,9 +25,10 @@ export function taskWorkspaceMarkup({
             can_manage: true,
             add_url: `/tasks/${taskId}/collaborators`,
             remove_url: `/tasks/${taskId}/collaborators/__USER__`,
-            assignee: {id: 99, name: 'เจ้าของงาน', department: 'ไอที'},
+            leader: {id: 99, name: 'หัวหน้าโปรเจกต์', department: 'ไอที', cross_department: false},
+            project_department: 'ไอที',
             protected_ids: [99],
-            collaborators: [],
+            participants: [],
             ...team,
         },
     };
@@ -59,9 +60,10 @@ export function taskWorkspaceMarkup({
             can_manage: true,
             add_url: `/tasks/${secondTaskId}/collaborators`,
             remove_url: `/tasks/${secondTaskId}/collaborators/__USER__`,
-            assignee: {id: 99, name: 'เจ้าของงาน', department: 'ไอที'},
+            leader: {id: 99, name: 'หัวหน้าโปรเจกต์', department: 'ไอที', cross_department: false},
+            project_department: 'ไอที',
             protected_ids: [99],
-            collaborators: [],
+            participants: [],
         };
 
         managementData[String(secondTaskId)] = {
@@ -157,19 +159,19 @@ export function taskWorkspaceMarkup({
                 }).replace('data-people-count', 'data-people-count data-count-template="เลือกเพิ่ม :count คน"')
                   .replace('<div class="people-selector__selected">', `<div class="people-selector__selected">
                     <section class="team-current" data-team-current>
-                        <strong data-team-count>ทีมปัจจุบัน (0 คน)</strong>
+                        <strong data-team-count>ผู้เข้าร่วม (0 คน)</strong>
                         <div class="team-member-list">
                             <article class="team-member team-member--assignee" data-team-owner></article>
                             <div data-team-members></div>
                         </div>
-                        <p data-team-empty hidden>ยังไม่มีผู้ร่วมงานในงานนี้</p>
+                        <p data-team-empty hidden>ยังไม่มีผู้เข้าร่วมในโปรเจกต์นี้</p>
                     </section>`)}
                 <p class="team-manager__notice" data-team-notice hidden></p>
             </div>
             <footer class="team-manager__footer">
                 <p class="team-manager__hint">สมาชิกที่เลือกจะถูกเพิ่มเมื่อกดยืนยัน</p>
                 <button type="button" class="task-secondary" data-close-team>ปิด</button>
-                <button type="submit" class="notion-primary" data-team-submit aria-busy="false" disabled><span data-team-submit-label>เพิ่มผู้ร่วมงาน (0 คน)</span></button>
+                <button type="submit" class="notion-primary" data-team-submit aria-busy="false" disabled><span data-team-submit-label>เพิ่มผู้เข้าร่วม (0 คน)</span></button>
             </footer>
         </form>
     </section>

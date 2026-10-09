@@ -113,3 +113,281 @@
     height: 1px;
     opacity: 0;
 }
+
+/* ---------- กล่องเลือกดาวน์โหลดไฟล์แนบ ---------- */
+
+/*
+ * โมดัลเดียวที่หน้างานของฉันและ Workspace ของ Admin ใช้ร่วมกัน
+ * โทนสีและระยะยืมจากการ์ด "ไฟล์แนบ" ใน Task Workspace เพื่อให้เป็นชุดเดียวกัน
+ *
+ * backdrop โทนเดียวกับโมดัลอื่นในหน้านี้ ส่วน z-index มาจาก modal-stack ไม่ประกาศเองที่นี่
+ */
+.attachment-download-modal {
+    padding: 18px;
+    background: rgba(15, 23, 42, .42);
+    backdrop-filter: blur(3px);
+}
+
+.attachment-download-modal__card {
+    display: flex;
+    width: min(620px, 100%);
+    max-height: calc(100vh - 36px);
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #e6ecf4;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+}
+
+.attachment-download-modal__card > header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 0 0 auto;
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.attachment-download-modal__card > header > div {
+    min-width: 0;
+    flex: 1;
+}
+
+.attachment-download-modal__card > header span {
+    display: block;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .11em;
+}
+
+.attachment-download-modal__card > header strong {
+    display: block;
+    color: #0f172a;
+    font-size: 16px;
+}
+
+.attachment-download-modal__card > header small {
+    display: block;
+    overflow: hidden;
+    color: #7b8aa1;
+    font-size: 12px;
+    /* ภาษาไทยต้องการที่ว่างเหนือเส้นฐาน กล่องที่ตัดส่วนเกินทิ้งจึงห้ามปล่อย line-height เป็น normal */
+    line-height: var(--thai-line-height, 1.6);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-download-modal__body {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 18px;
+    overflow: auto;
+}
+
+.attachment-download-modal__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+}
+
+.attachment-download-modal__toolbar[hidden] {
+    display: none;
+}
+
+.attachment-download-modal__all {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #40516a;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.attachment-download-modal__count {
+    margin-left: auto;
+    color: #7b8aa1;
+    font-size: 11px;
+}
+
+/*
+ * คอลัมน์ต้องเป็น minmax(0, 1fr) ไม่ใช่ auto และแถวต้อง min-width: 0
+ *
+ * แถวเป็นกริดไอเท็มที่ min-width ยังเป็น auto ขนาดต่ำสุดของมันจึงเท่ากับความกว้าง
+ * ของชื่อไฟล์เต็ม ๆ ชื่อไฟล์ยาวจะดันแถวให้กว้างเกินการ์ด แล้วไอคอนดาวน์โหลดท้ายแถว
+ * หลุดออกนอกขอบจนมองไม่เห็น การตัดชื่อด้วย ellipsis ที่ span อย่างเดียวไม่พอ
+ * เพราะกริดยอมให้ไอเท็มล้นคอลัมน์ได้ตั้งแต่ตอนคิดขนาดราง
+ */
+.attachment-download-modal__list {
+    display: grid;
+    align-content: start;
+    gap: 7px;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.attachment-download-modal__row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 7px 9px;
+    border: 1px solid #e1e8f1;
+    border-radius: 9px;
+    background: #fff;
+}
+
+.attachment-download-modal__row.is-selected {
+    border-color: #b8cef0;
+    background: #f7faff;
+}
+
+.attachment-download-modal__row > label {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    color: #40516a;
+    cursor: pointer;
+}
+
+.attachment-download-modal__row > label > i {
+    flex: 0 0 auto;
+    font-size: 17px;
+}
+
+.attachment-download-modal__row > label > span {
+    overflow: hidden;
+    font-size: 13px;
+    line-height: var(--thai-line-height, 1.6);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ไอคอนตามชนิดไฟล์ใช้สีชุดเดียวกับการ์ดไฟล์แนบ กวาดตาหาไฟล์ที่ต้องการได้เร็วเท่ากัน */
+.attachment-download-modal__row .file-tone-word { color: #2b579a; }
+.attachment-download-modal__row .file-tone-excel { color: #217346; }
+.attachment-download-modal__row .file-tone-ppt { color: #d24726; }
+.attachment-download-modal__row .file-tone-image { color: #7c3aed; }
+.attachment-download-modal__row .file-tone-pdf { color: #d93025; }
+.attachment-download-modal__row .file-tone-zip { color: #b45309; }
+.attachment-download-modal__row .file-tone-other { color: #64748b; }
+
+.attachment-download-modal__row > a {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    place-items: center;
+    border-radius: 7px;
+    color: #64748b;
+    text-decoration: none;
+}
+
+.attachment-download-modal__row > a:hover {
+    background: #eef4ff;
+    color: #2563eb;
+}
+
+.attachment-download-modal__empty {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 5px;
+    min-height: 120px;
+    margin: 0;
+    border: 1px dashed #d7e1ef;
+    border-radius: 10px;
+    color: #94a3b8;
+    text-align: center;
+}
+
+.attachment-download-modal__empty[hidden] {
+    display: none;
+}
+
+.attachment-download-modal__empty > i {
+    color: #c7d5e8;
+    font-size: 22px;
+}
+
+.attachment-download-modal__empty > strong {
+    color: #475569;
+    font-size: 13px;
+}
+
+.attachment-download-modal__empty > span {
+    font-size: 11px;
+}
+
+.attachment-download-modal__status {
+    margin: 0;
+    padding: 9px 11px;
+    border-radius: 8px;
+    background: #eef7f2;
+    color: #07845f;
+    font-size: 12px;
+}
+
+.attachment-download-modal__status[hidden] {
+    display: none;
+}
+
+.attachment-download-modal__card > footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    padding: 12px 18px;
+    border-top: 1px solid #eef2f7;
+    background: #f8fafc;
+}
+
+.attachment-download-modal__hint {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    color: #7b8aa1;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.attachment-download-modal__actions {
+    display: flex;
+    gap: 8px;
+}
+
+.attachment-download-modal__actions button {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 8px;
+}
+
+.attachment-download-modal__actions .notion-primary:disabled {
+    background: #cbd5e1;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+    .attachment-download-modal__card > footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .attachment-download-modal__actions button {
+        min-height: 44px;
+        flex: 1;
+    }
+}

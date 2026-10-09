@@ -1,0 +1,226 @@
+/*
+ * เอกสารปฏิทินสำหรับสั่งพิมพ์ / บันทึกเป็น PDF
+ *
+ * เป็นหน้า standalone ไม่โหลด layout ของระบบ จึงประกาศฟอนต์และสีพื้นเองทั้งหมด
+ * โทเคนของระบบไม่ถูก import เข้ามาเพราะเอกสารต้องพิมพ์ลงกระดาษขาวได้โดยไม่พึ่งธีม
+ *
+ * ไม่มีสีแบรนด์ในเอกสารเลย — ขาว ดำ เทา เท่านั้น
+ * ---------------------------------------------------------------
+ * เอกสารนี้ถูกพิมพ์จริง และเครื่องพิมพ์ส่วนใหญ่ในสำนักงานเป็นขาวดำ สีน้ำเงินที่
+ * อ่านชัดบนจอจะกลายเป็นเทากลาง ๆ บนกระดาษที่แยกจากตัวอักษรปกติไม่ออก
+ * ลำดับชั้นในเอกสารนี้จึงมาจากน้ำหนักตัวอักษร เส้นตาราง และพื้นเทาอ่อน
+ * ซึ่งทำงานเหมือนกันทั้งบนจอและบนกระดาษ
+ */
+:root { color-scheme: light; }
+
+body {
+    margin: 0;
+    background: #f4f4f5;
+    color: #1a1a1a;
+    font-family: 'Prompt', 'Segoe UI', sans-serif;
+    font-size: 13px;
+}
+
+.calendar-export { max-width: 1040px; margin: 0 auto; padding: 28px 24px 48px; }
+.calendar-export__head { margin-bottom: 16px; }
+.calendar-export__head h1 { margin: 0 0 6px; font-size: 1.45rem; font-weight: 700; }
+.calendar-export__head p { margin: 0; color: #555; font-size: .85rem; }
+
+/* ปุ่มบนจอเท่านั้น ถูกซ่อนตอนพิมพ์ จึงเป็นเทาเข้มกลาง ๆ ไม่ใช่สีแบรนด์ */
+.calendar-export__print {
+    min-height: 40px;
+    margin-bottom: 18px;
+    padding: 0 18px;
+    border: 1px solid #1a1a1a;
+    border-radius: 6px;
+    background: #1a1a1a;
+    color: #fff;
+    font-family: inherit;
+    font-size: .85rem;
+    cursor: pointer;
+}
+
+.calendar-export__print:hover { background: #333; }
+
+/*
+ * ตารางเดียวตลอดเอกสาร เส้นครบทุกช่องเพื่อให้กวาดตาตามคอลัมน์ได้บนกระดาษ
+ *
+ * border-collapse ทำให้เส้นไม่หนาเป็นสองเท่าตรงรอยต่อ และ table-layout: auto
+ * ปล่อยให้คอลัมน์หัวข้อได้ความกว้างตามเนื้อหาจริง
+ */
+.calendar-export__table {
+    width: 100%;
+    border: 1px solid #1a1a1a;
+    border-collapse: collapse;
+    background: #fff;
+}
+
+.calendar-export__table th,
+.calendar-export__table td {
+    padding: 7px 9px;
+    border: 1px solid #b8b8b8;
+    text-align: left;
+    vertical-align: top;
+}
+
+/* หัวตารางเข้มกว่าเส้นในตาราง เพื่อให้แยกออกจากแถวข้อมูลเมื่อซ้ำทุกหน้ากระดาษ */
+.calendar-export__table thead th {
+    border-color: #1a1a1a;
+    background: #e4e4e7;
+    font-size: .76rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.calendar-export__table td { font-size: .8rem; line-height: 1.5; }
+
+/*
+ * แถวหัวข้อวัน — ขึงเต็มความกว้าง แทนคอลัมน์ "วันที่" ที่เคยซ้ำค่าเดิมทุกแถว
+ * พื้นเทาเข้มกว่าหัวตารางไม่ได้ ไม่งั้นจะแข่งกับหัวตาราง จึงใช้เส้นบน-ล่างหนาแทน
+ */
+.calendar-export__day-row th {
+    border-color: #1a1a1a;
+    border-top-width: 2px;
+    background: #f4f4f5;
+    font-size: .84rem;
+    font-weight: 700;
+}
+
+/* คอลัมน์หัวข้อเป็นคอลัมน์ที่กว้างที่สุด ชื่อยาวจึงไม่ถูกบีบเป็นริ้ว */
+.calendar-export__col-title { width: 38%; }
+.calendar-export__col-time { white-space: nowrap; }
+.calendar-export__col-count { white-space: nowrap; }
+
+.calendar-export__title { display: block; font-size: .83rem; font-weight: 700; }
+
+/* รายละเอียดเกาะใต้หัวข้อในช่องเดียวกัน เล็กกว่าและเทากว่าเพื่อไม่แย่งความสำคัญ */
+.calendar-export__detail {
+    display: block;
+    margin-top: 3px;
+    color: #555;
+    font-size: .74rem;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+.calendar-export__empty,
+.calendar-export__total { margin: 14px 0 0; color: #555; font-size: .82rem; }
+
+/*
+ * ส่วนของเอกสาร (ประชุม / นัดหมาย) — แต่ละส่วนขึ้นหน้าใหม่
+ *
+ * :first-of-type ไม่ขึ้นหน้าใหม่ ไม่งั้นจะได้หน้าแรกว่างก่อนเนื้อหาส่วนแรก
+ */
+.calendar-export__part { break-before: page; page-break-before: always; }
+.calendar-export__part:first-of-type { break-before: auto; page-break-before: auto; }
+
+.calendar-export__part-title {
+    margin: 0 0 12px;
+    padding-bottom: 7px;
+    border-bottom: 2px solid #1a1a1a;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+/*
+ * รายงานรายรายการ — หนึ่งรายการหนึ่งหน้ากระดาษ
+ *
+ * ประกาศทั้ง break-before (มาตรฐานปัจจุบัน) และ page-break-before (รุ่นเก่า)
+ * เพราะเครื่องพิมพ์/เบราว์เซอร์ที่ใช้งานจริงยังอ่านคนละตัว และตัวใดไม่รู้จักก็ข้ามไป
+ * ไม่มีผลเสีย ส่วนบนจอทั้งคู่ไม่ทำอะไร จึงคั่นด้วยเส้นบนให้ตาเห็นว่าเป็นหน้าใหม่
+ */
+.calendar-export__item {
+    break-before: page;
+    page-break-before: always;
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 2px solid #1a1a1a;
+}
+
+.calendar-export__item-title {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.calendar-export__item-index { color: #555; }
+
+/* รายละเอียดหัวเรื่องเรียงเป็นคอลัมน์ตามที่ว่าง — A4 ได้สามคอลัมน์ */
+.calendar-export__item-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px 18px;
+    margin: 0 0 12px;
+}
+
+.calendar-export__item-meta dt { color: #555; font-size: .7rem; font-weight: 700; }
+.calendar-export__item-meta dd { margin: 1px 0 0; font-size: .8rem; }
+
+.calendar-export__item-detail {
+    margin: 0 0 14px;
+    padding: 9px 11px;
+    border: 1px solid #b8b8b8;
+    font-size: .78rem;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.calendar-export__roster-title {
+    margin: 0 0 7px;
+    font-size: .88rem;
+    font-weight: 700;
+}
+
+.calendar-export__col-no { width: 48px; text-align: center; }
+
+/*
+ * ช่องลงชื่อต้องสูงพอเซ็นด้วยปากกาจริง และกว้างพอใส่ชื่อ-นามสกุล
+ * ความสูงอยู่ที่แถวทั้งแถว ไม่ใช่ที่ช่องนี้ช่องเดียว ไม่งั้นเส้นกรอบจะไม่เท่ากัน
+ */
+.calendar-export__col-sign { width: 24%; }
+.calendar-export__table tbody .calendar-export__col-sign { height: 30px; }
+
+@media print {
+    /* ปุ่มสั่งพิมพ์และพื้นหลังสีเทาของหน้าจอไม่ต้องติดไปในกระดาษ */
+    .calendar-export__print { display: none; }
+
+    body { background: #fff; font-size: 11px; }
+    .calendar-export { max-width: none; padding: 0; }
+
+    /*
+     * หัวตารางซ้ำทุกหน้า ผู้อ่านจึงรู้ว่าคอลัมน์ไหนคืออะไรโดยไม่ต้องย้อนไปหน้าแรก
+     * และหนึ่งแถวต้องไม่ถูกหน้ากระดาษผ่ากลาง
+     */
+    .calendar-export__table { page-break-inside: auto; }
+    .calendar-export__table thead { display: table-header-group; }
+    .calendar-export__table tr { page-break-inside: avoid; }
+
+    /* หัวข้อวันต้องไม่ค้างอยู่ท้ายหน้าโดยไม่มีรายการของวันนั้นตามมาเลย */
+    .calendar-export__day-row { page-break-after: avoid; }
+
+    /*
+     * บนกระดาษแต่ละรายงานขึ้นหน้าใหม่อยู่แล้ว เส้นคั่นกับระยะห่างที่ใส่ไว้
+     * สำหรับการอ่านบนจอจึงกลายเป็นเส้นลอยกับที่ว่างหัวหน้าเปล่า ๆ
+     */
+    .calendar-export__item { margin-top: 0; padding-top: 0; border-top: 0; }
+
+    /* หัวข้อรายงานและหัวข้อรายชื่อต้องไม่ค้างท้ายหน้าโดยไม่มีเนื้อหาตามมา */
+    .calendar-export__item-title,
+    .calendar-export__part-title,
+    .calendar-export__roster-title { page-break-after: avoid; }
+
+    /* บนกระดาษส่วนถัดไปขึ้นหน้าใหม่อยู่แล้ว ระยะห่างบนจอจึงไม่ต้องมี */
+    .calendar-export__part { margin-top: 0; }
+
+    /*
+     * พื้นเทาของหัวตารางและแถวหัวข้อวันเป็นตัวบอกลำดับชั้น ไม่ใช่การตกแต่ง
+     * เบราว์เซอร์ตัดพื้นหลังทิ้งตอนพิมพ์เป็นค่าเริ่มต้น จึงต้องขอให้คงไว้
+     * ถ้าผู้ใช้ปิดการพิมพ์พื้นหลัง เส้นตารางยังบอกโครงสร้างได้ครบอยู่
+     */
+    .calendar-export__table thead th,
+    .calendar-export__day-row th {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

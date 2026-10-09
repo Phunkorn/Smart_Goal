@@ -4,6 +4,8 @@
 
 @push('styles')
     @vite('resources/css/pages/daily-logs.css')
+    {{-- กล่องพรีวิวแบบตรวจใช้สไตล์ชุดเดียวกับหน้าตรวจเช็กคอมพิวเตอร์ --}}
+    @vite('resources/css/pages/computer-check.css')
 @endpush
 
 @push('scripts')
@@ -52,5 +54,8 @@
     @if($capabilities['canCreate'] || $capabilities['canEdit'])
         @include('daily-logs.components.entry-modal')
     @endif
+
+    {{-- กล่องพรีวิวแบบตรวจ ชุดเดียวกับหน้าตรวจเช็กคอมพิวเตอร์และรายงานปฏิบัติงาน --}}
+    @include('daily-logs.components.inspection-report-modal')
 </div>
 @endsection

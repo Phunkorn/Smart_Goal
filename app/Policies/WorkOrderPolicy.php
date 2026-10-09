@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Support\TaskParticipation;
 
 /**
  * รวม authorization logic ของ WorkOrder ที่แต่เดิมกระจายอยู่เป็น
@@ -71,9 +72,48 @@ class WorkOrderPolicy
              * แต่ไม่ได้สิทธิ์เหมารวมทั้งโปรเจกต์อีก ส่วนคนในแผนกเดียวกันยังเห็นทั้งโปรเจกต์
              * เพราะงานเหล่านั้นเป็นงานของแผนกตัวเองอยู่แล้ว
              */
-            || ($workOrder->work_order_list_id
-                && $this->sharesDepartmentWith($workOrder, $user)
-                && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
+            || $this->hasProjectLevelAccess($workOrder, $user)
+            /*
+             * งานแม่ของงานย่อยที่ผู้ใช้ร่วมอยู่ — อ่านได้เพื่อเป็นบริบทของงานย่อยใบนั้น
+             *
+             * เป็น ability เดียวที่ contextual visibility เติมให้ นอกจากนี้ก็มี viewComments()
+             * ที่ขอบเขตกว้างกว่าอยู่แล้ว ส่วน work/comment/manageTeam/manageSubtasks/share/
+             * submitForReview/review/reopen/delete ทุกตัวยังวัดจาก isTaskParticipant()
+             * หรือ isTaskEditor() จึงเป็นเท็จต่อไปโดยไม่ต้องเขียนข้อยกเว้นเพิ่ม
+             */
+            || $this->participatesInChild($workOrder, $user);
+    }
+
+    /**
+     * งานใบนี้ปรากฏกับผู้ใช้คนนี้ "เพื่อเป็นบริบทของงานย่อยที่เขาร่วม" เท่านั้นหรือไม่
+     *
+     * ตอบจริงเมื่อ view() เป็นจริงได้ด้วยสาขา participatesInChild() สาขาเดียว — ผู้ใช้
+     * ไม่ได้เป็นผู้มีส่วนร่วม ไม่ใช่หัวหน้าที่ดูแลงานนี้ และไม่มีสิทธิ์ระดับโปรเจกต์
+     *
+     * หน้าจอใช้ค่านี้ตัดสินว่าจะวาดแถวเป็นอ่านอย่างเดียวพร้อมป้ายบอกที่มา และ
+     * CrossDepartmentWork::restrictChildren() ใช้ตัดงานย่อยใบอื่นของงานแม่นั้นออก
+     * ทั้งสองที่จึงอ่านกติกาเดียวกัน ไม่ใช่เขียนเงื่อนไขซ้ำกันเอง
+     */
+    public function viewAsContext(User $user, WorkOrder $workOrder): bool
+    {
+        if (in_array($user->role, ['admin', 'viewer'], true)
+            || $workOrder->approval_status !== 'approved') {
+            return false;
+        }
+
+        /*
+         * ถามข้อที่ถูกที่สุดก่อน — งานย่อยถูก eager-load มาแล้วทุกหน้าที่เรียก ability นี้
+         * คำตอบจึงมาจากหน่วยความจำและเป็นเท็จสำหรับงานเกือบทุกใบในหน้า
+         * ส่วนข้อยกเว้นด้านล่างมีคิวรีของตัวเอง (acceptedProjectIds) จึงต้องอยู่หลัง
+         */
+        if (! $this->participatesInChild($workOrder, $user)) {
+            return false;
+        }
+
+        return ! $this->isTaskParticipant($workOrder, $user)
+            && ! $user->overseesDepartment($this->destinationDepartmentId($workOrder))
+            && ! $this->overseesMemberOnTask($workOrder, $user)
+            && ! $this->hasProjectLevelAccess($workOrder, $user);
     }
 
     /**
@@ -227,12 +267,10 @@ class WorkOrderPolicy
             || $this->isTaskParticipant($workOrder, $user)
             || $this->overseesMemberOnTask($workOrder, $user)
             || ($workOrder->work_order_list_id
-                && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true));
-    }
-
-    public function respondToInvitation(User $user, WorkOrder $workOrder): bool
-    {
-        return false;
+                && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true))
+            // ผู้ที่เห็นงานแม่เป็นบริบทต้องอ่านบทสนทนาของงานนั้นได้ ไม่งั้นบริบทขาดไปครึ่งหนึ่ง
+            // ส่วนการ "เขียน" คอมเมนต์ยังอยู่ที่ comment() ซึ่งไม่ถูกเติมสิทธิ์นี้
+            || $this->participatesInChild($workOrder, $user);
     }
 
     /**
@@ -280,19 +318,16 @@ class WorkOrderPolicy
                 || $user->overseesDepartment($this->destinationDepartmentId($workOrder)));
     }
 
-    public function approveCollaborator(User $user, ?WorkOrder $workOrder = null, ?User $candidate = null): bool
-    {
-        if ($user->role === 'admin') {
-            return true;
-        }
-
-        return $user->isDepartmentHead()
-            && ($candidate === null || $user->overseesDepartment($candidate->department_id));
-    }
-
     /**
-     * จัดการทีม (เพิ่ม/นำผู้ร่วมงานออก) — TaskCollaboratorController::addCollaborators,
+     * จัดการสมาชิกโปรเจกต์ (เพิ่ม/นำผู้เข้าร่วมออก) — TaskCollaboratorController::addCollaborators,
      * removeCollaborator (เดิมคือ canManageTeam())
+     *
+     * หัวหน้าโปรเจกต์คือผู้สร้างงาน (App\Support\ProjectRoles) จึงจัดสมาชิกได้เสมอ
+     * ผู้เข้าร่วมที่ถูกเพิ่มเข้ามาไม่ได้สิทธิ์นี้ติดมาด้วย การถูกเพิ่มจึงไม่ทำให้ใคร
+     * กลายเป็นหัวหน้าโปรเจกต์
+     *
+     * ไม่มีความสามารถ "อนุมัติผู้เข้าร่วม" อีกแล้ว เพราะการเพิ่มสมาชิกเสร็จทันที
+     * ไม่ว่าจะข้ามแผนกหรือไม่ (ดู CollaboratorInvitationService::invite())
      */
     public function manageTeam(User $user, WorkOrder $workOrder): bool
     {
@@ -349,20 +384,33 @@ class WorkOrderPolicy
 
     private function isTaskParticipant(WorkOrder $workOrder, User $user): bool
     {
-        if ($this->isTaskEditor($workOrder, $user)) {
-            return true;
+        // admin เข้าได้เสมอผ่าน isTaskEditor() ส่วนเกณฑ์ "มีส่วนร่วมโดยตรง" ที่เหลือ
+        // อ่านจาก App\Support\TaskParticipation ที่เดียว ร่วมกับ scope ของโมเดลและ
+        // CrossDepartmentWork เพื่อไม่ให้ policy กับคิวรีตอบคนละอย่าง
+        return $this->isTaskEditor($workOrder, $user)
+            || TaskParticipation::participates($workOrder, $user);
+    }
+
+    /**
+     * ผู้ใช้มีส่วนร่วมโดยตรงกับงานย่อยของงานใบนี้อย่างน้อยหนึ่งใบหรือไม่
+     *
+     * ใช้เกณฑ์ชุดเดียวกับ WorkOrder::scopeVisibleInProjectsFor() ผ่าน TaskParticipation
+     */
+    private function participatesInChild(WorkOrder $workOrder, User $user): bool
+    {
+        if ($user->role === 'viewer') {
+            return false;
         }
 
-        if ($workOrder->relationLoaded('collaborators')) {
-            return $workOrder->collaborators->contains(
-                fn ($person) => (int) $person->id === (int) $user->id && $person->pivot?->status === 'accepted'
-            );
-        }
+        return TaskParticipation::participatesInChild($workOrder, $user);
+    }
 
-        return $workOrder->collaborators()
-            ->where('users.id', $user->id)
-            ->wherePivot('status', 'accepted')
-            ->exists();
+    /** สิทธิ์เหมาทั้งโปรเจกต์ของคนในแผนกเดียวกับงานใบนั้น */
+    private function hasProjectLevelAccess(WorkOrder $workOrder, User $user): bool
+    {
+        return $workOrder->work_order_list_id
+            && $this->sharesDepartmentWith($workOrder, $user)
+            && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true);
     }
 
     /**

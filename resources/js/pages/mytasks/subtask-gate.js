@@ -76,10 +76,27 @@ export function subtaskGateMessage(targetStatus, openCount) {
  * ใช้ตอนตัดสินใจว่าจะเด้ง SweetAlert หรือปล่อยผ่าน
  */
 export function openSubtasksFor(capabilities = {}, root = globalThis.document) {
+    /*
+     * แถวงานย่อยในหน้าไม่ใช่ชุดเต็มเสมอไป
+     *
+     * ผู้ร่วมงานข้ามแผนกเห็นเฉพาะงานย่อยที่ตัวเองร่วม (CrossDepartmentWork::restrictChildren)
+     * การนับจาก DOM ของเขาจึงต่ำกว่าความจริง แล้วด่านก็ปล่อยผ่านไปโดน server ปฏิเสธ
+     * ทั้งที่หน้าที่ของด่านคืออธิบายเหตุผลให้ก่อนเสียเวลายิง request
+     *
+     * server บอกมาเองว่าชุดในหน้าถูกตัดหรือไม่ (children_restricted) ถ้าถูกตัดให้เชื่อ
+     * ตัวเลขจากฐานข้อมูล ถ้าไม่ถูกตัดก็เชื่อ DOM ต่อไปเหมือนเดิม เพราะมันสดกว่าเมื่อ
+     * ผู้ใช้ทยอยปิดงานย่อยในหน้าเดียวกันโดยไม่โหลดหน้าใหม่
+     */
+    const fromServer = capabilities.open_child_count === undefined || capabilities.open_child_count === null
+        ? null
+        : Number(capabilities.open_child_count);
+
+    if (capabilities.children_restricted === true) return fromServer ?? 0;
+
     const taskId = capabilities.task_id;
     const fromDom = taskId === undefined || taskId === null ? null : openSubtaskCount(taskId, root);
 
-    return fromDom ?? Number(capabilities.open_child_count || 0);
+    return fromDom ?? fromServer ?? 0;
 }
 
 /**
@@ -123,7 +140,9 @@ export function syncSubtaskGate(taskId, management = null, root = globalThis.doc
     }
 
     const entry = management?.[String(taskId)]?.transitions;
-    if (entry) {
+    // เขียนตัวเลขกลับเฉพาะเมื่อแถวในหน้าเป็นชุดเต็ม ไม่งั้นจะไปทับตัวเลขจริงจาก server
+    // ด้วยค่าที่ต่ำกว่าความจริง แล้วด่านของผู้ร่วมงานข้ามแผนกจะปล่อยผ่านทุกครั้ง
+    if (entry && entry.children_restricted !== true) {
         entry.child_count = counts.total;
         entry.open_child_count = counts.open;
     }

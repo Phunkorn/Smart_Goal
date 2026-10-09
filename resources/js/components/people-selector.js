@@ -37,6 +37,21 @@ export function derivePeopleState(options, keyword = '', departmentId = '') {
     return {selectedIds, visibleIds};
 }
 
+/**
+ * id ที่ "มองเห็นอยู่ตอนนี้และเลือกได้จริง" ตามตัวกรองที่ใช้อยู่
+ *
+ * ใช้โดยปุ่มเลือกทั้งแผนก — ต้องเคารพทั้งคำค้นและแผนกพร้อมกัน ไม่ใช่แผนกอย่างเดียว
+ * มิฉะนั้นผู้ใช้ที่พิมพ์ค้นหาไว้แล้วกดปุ่มจะได้คนที่ไม่ได้เห็นบนจอติดมาด้วย
+ *
+ * derivePeopleState() ตัดคนที่ถูกกันออก (excluded) ให้แล้ว visibleIds จึงเลือกได้ทุกตัว
+ *
+ * @param {Array<{id: *, departmentId: *, search: string, checked: boolean, excluded: boolean}>} options
+ * @returns {string[]}
+ */
+export function visibleSelectableIds(options, keyword = '', departmentId = '') {
+    return derivePeopleState(options, keyword, departmentId).visibleIds;
+}
+
 export function updateSelection(selectedIds, personId, isSelected) {
     const nextIds = new Set(selectedIds.map(String));
     const normalizedId = String(personId);
@@ -66,6 +81,24 @@ export function selectedIdsOf(root) {
 export function clearPeopleSelection(root) {
     root?.querySelectorAll?.('[data-people-checkbox]').forEach((checkbox) => {
         checkbox.checked = false;
+    });
+    refreshPeopleSelector(root);
+}
+
+/**
+ * เลือกทุกคนที่แสดงอยู่ตอนนี้ — ใช้โดยปุ่ม "เลือกทั้งแผนก"
+ *
+ * เพิ่มอย่างเดียว ไม่เคยปลดของที่เลือกไว้ก่อน เพราะผู้ใช้อาจเลือกคนจากแผนกอื่นไว้แล้ว
+ * ค่อยเปลี่ยนมากรองอีกแผนกเพื่อเพิ่มทีละกลุ่ม (การล้างมีปุ่มของตัวเองอยู่แล้ว)
+ *
+ * ข้าม disabled เพราะนั่นคือ readOnly หรือคนที่ถูกกันออกจากรายการ
+ */
+export function selectVisiblePeople(root) {
+    root?.querySelectorAll?.('[data-people-option]').forEach((row) => {
+        if (row.hidden || row.hasAttribute('data-people-excluded')) return;
+
+        const checkbox = row.querySelector('[data-people-checkbox]');
+        if (checkbox && !checkbox.disabled) checkbox.checked = true;
     });
     refreshPeopleSelector(root);
 }
@@ -112,6 +145,7 @@ export function initializePeopleSelector(root) {
     const count = root.querySelector('[data-people-count]');
     const summaryCount = root.querySelector('[data-people-summary-count]');
     const clearButton = root.querySelector('[data-people-clear]');
+    const selectVisibleButton = root.querySelector('[data-people-select-visible]');
     const stage = root.querySelector('[data-people-stage]');
     const chipsEmptyLabel = root.querySelector('[data-people-chips-empty]')?.textContent || 'ยังไม่ได้เลือก';
     const isTeamManager = root.dataset.peopleVariant === 'team-manager';
@@ -221,6 +255,18 @@ export function initializePeopleSelector(root) {
             row.hidden = !visible.has(String(row.dataset.personId));
         });
         if (optionsEmpty) optionsEmpty.hidden = visible.size > 0;
+
+        /*
+         * ป้ายปุ่มบอกสิ่งที่จะเกิดขึ้นจริงเมื่อกด ณ ตัวกรองปัจจุบัน
+         * เลือกแผนกไว้ = "เลือกทั้งแผนก" ไม่ได้เลือก = "เลือกทั้งหมดที่แสดง"
+         * เพราะคำว่า "ทั้งแผนก" จะโกหกทันทีถ้าผู้ใช้พิมพ์ค้นหาคั่นไว้
+         */
+        if (selectVisibleButton) {
+            selectVisibleButton.textContent = activeDepartment !== ''
+                ? selectVisibleButton.dataset.departmentLabel || 'เลือกทั้งแผนก'
+                : selectVisibleButton.dataset.visibleLabel || 'เลือกทั้งหมดที่แสดง';
+            selectVisibleButton.disabled = isReadOnly() || visible.size === 0;
+        }
     };
 
     search?.addEventListener('input', applyFilters);
@@ -245,6 +291,7 @@ export function initializePeopleSelector(root) {
 
     checkboxes.forEach((checkbox) => checkbox.addEventListener('change', renderChips));
     clearButton?.addEventListener('click', () => clearPeopleSelection(root));
+    selectVisibleButton?.addEventListener('click', () => selectVisiblePeople(root));
 
     chips?.addEventListener('click', (event) => {
         const remove = event.target.closest('[data-people-remove]');

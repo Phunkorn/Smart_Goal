@@ -11,7 +11,7 @@ const TASK_SELECTOR = '[data-admin-task]';
 const ALLOWED_ATTACHMENT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 const MAX_ATTACHMENT_MB = 10;
 const ASSIGNEE_PLACEHOLDER = 'เลือกผู้รับผิดชอบ...';
-const COLLABORATOR_DEPARTMENT_HINT = 'กรุณาเลือกแผนกด้านบนก่อน จึงจะเลือกผู้ร่วมงานในแผนกนั้นได้';
+const COLLABORATOR_DEPARTMENT_HINT = 'กรุณาเลือกแผนกด้านบนก่อน จึงจะเลือกผู้เข้าร่วมในแผนกนั้นได้';
 const COLLABORATOR_SEARCH_HINT = 'ไม่พบพนักงานในแผนกนี้ที่ตรงกับคำค้นหา';
 
 const hideDropdown = (toggle) => {

@@ -43,16 +43,20 @@ test('an unread notification card separates itself from the page background', as
     assert.match(css.slice(css.lastIndexOf('.notification-center__item.is-unread {')), /box-shadow:\s*inset\s+4px/);
 });
 
-test('today on the calendar reads as blue, not as the purple that means "meeting"', async () => {
+test('today on the calendar reads as blue, not as a purple that competes with a priority tone', async () => {
     const css = await read('resources/css/components/task-workspace/calendar/base.css');
 
     const today = css
         .slice(css.lastIndexOf('.mytasks-calendar__day.is-today .mytasks-calendar__day-number {'))
         .match(/background:\s*(#[0-9a-fA-F]{6})/)[1]
         .toLowerCase();
-    const meetingTone = css.match(/is-tone-meeting \{\s*--calendar-tone:\s*(#[0-9a-fA-F]{6})/)[1].toLowerCase();
 
-    assert.notEqual(today, meetingTone, 'วันนี้กับโทนของการประชุมต้องไม่ใช้สีเดียวกัน');
+    // โทนของทุกระดับความสำคัญต้องไม่ชนกับวงกลม "วันนี้"
+    const priorityTones = [...css.matchAll(/\.priority-(?:urgent|quick|important|flexible) \{ --calendar-tone: (#[0-9a-fA-F]{6})/g)]
+        .map((match) => match[1].toLowerCase());
+
+    assert.ok(priorityTones.length >= 4, 'ต้องเจอโทนของทุกระดับความสำคัญ');
+    assert.ok(! priorityTones.includes(today), 'วันนี้ต้องไม่ใช้สีเดียวกับโทนของระดับความสำคัญใด');
 
     const [red, green, blue] = [1, 3, 5].map((offset) => parseInt(today.slice(offset, offset + 2), 16));
     assert.ok(blue > red && blue > green, 'วงกลมวันนี้ต้องเป็นสีฟ้า ไม่ใช่สีม่วง (ได้ ' + today + ')');

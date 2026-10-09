@@ -214,26 +214,96 @@ class CrossDepartmentCollaborationTest extends TestCase
             ->assertSee('มอบหมายข้ามแผนกจาก Account');
     }
 
-    public function test_approval_queue_parameter_renders_only_the_selected_queue(): void
+    /**
+     * หน้านี้ของหัวหน้าแผนกคือหน้าติดตาม ไม่ใช่กล่องขาเข้าของคำขอ
+     *
+     * เมื่อไม่มีอะไรให้ตัดสิน (สภาพปกติหลังเลิกอนุมัติผู้เข้าร่วมโปรเจกต์) ต้องเปิดมาเจอ
+     * แท็บติดตามทันที ไม่มีการ์ดคิวว่างและไม่มีแถบแท็บให้สับสนว่ายังต้องไปกดอะไร
+     */
+    public function test_a_head_with_nothing_to_decide_lands_straight_on_the_tracking_view(): void
     {
-        $this->actingAs($this->itHead)->get(route('admin.approvals.index', ['approval_queue' => 'collaborator']))
+        $this->actingAs($this->itHead)->get(route('admin.approvals.index'))
             ->assertOk()
-            ->assertViewHas('approvalQueue', 'collaborator')
-            ->assertSee('id="collaborator-approval-queue"', false)
+            ->assertViewHas('approvalQueue', 'outgoing')
+            ->assertSee('id="outgoing-collaboration-queue"', false)
+            ->assertSee('งานข้ามแผนกของทีม')
+            // การ์ดคิวที่ว่างต้องไม่ถูกวาดเลย ไม่ใช่วาดสถานะว่างทิ้งไว้
             ->assertDontSee('id="assignment-approval-queue"', false)
+            ->assertDontSee('id="share-approval-queue"', false)
+            ->assertDontSee('id="collaborator-approval-queue"', false)
+            // ไม่มีการ์ดสรุป ไม่มีแถบแท็บ และไม่มีแถบของค้าง
+            ->assertDontSee('admin-approvals-summary', false)
+            ->assertDontSee('admin-approvals-tabs', false)
+            ->assertDontSee('admin-approvals-pending', false)
+            ->assertDontSee('data-approval-form', false);
+
+        // ขอคิวที่ว่างมาตรง ๆ ก็ต้องไม่วาดการ์ดว่างให้หัวหน้าแผนก
+        $this->actingAs($this->itHead)->get(route('admin.approvals.index', ['approval_queue' => 'share']))
+            ->assertOk()
+            ->assertViewHas('approvalQueue', 'share')
             ->assertDontSee('id="share-approval-queue"', false);
+
+        // ค่าที่ไม่รู้จักและคิวที่ถูกยกเลิก ตกกลับเป็นค่าตั้งต้นของ role นั้น
+        foreach (['collaborator', 'bogus'] as $retired) {
+            $this->actingAs($this->itHead)->get(route('admin.approvals.index', ['approval_queue' => $retired]))
+                ->assertOk()
+                ->assertViewHas('approvalQueue', 'outgoing')
+                ->assertDontSee('id="collaborator-approval-queue"', false);
+        }
+    }
+
+    /** มีของค้างจริงต้องพาไปที่ของค้างก่อน พร้อมแถบบอกจำนวนที่กดเข้าไปได้ */
+    public function test_a_head_with_a_pending_request_is_taken_to_it_and_warned(): void
+    {
+        $outsider = $this->user($this->account);
+        WorkOrder::create($this->taskAttributes('งานข้ามแผนกรออนุมัติ', [
+            'user_id' => $this->itMember->id,
+            'created_by' => $outsider->id,
+            'assigned_by' => $outsider->id,
+            'leader_user_id' => $outsider->id,
+            'department_id' => $this->it->id,
+            'approval_status' => 'pending',
+        ]));
 
         $this->actingAs($this->itHead)->get(route('admin.approvals.index'))
             ->assertOk()
             ->assertViewHas('approvalQueue', 'all')
             ->assertSee('id="assignment-approval-queue"', false)
-            ->assertSee('id="collaborator-approval-queue"', false)
+            ->assertSee('งานข้ามแผนกรออนุมัติ')
+            // แถบของค้างพาไปที่คิวนั้นตรง ๆ และแถบแท็บกลับมาเพราะมีมากกว่าหนึ่งแท็บ
+            ->assertSee('admin-approvals-pending', false)
+            ->assertSee(route('admin.approvals.index', ['approval_queue' => 'assignment']), false)
+            ->assertSee('admin-approvals-tabs', false)
+            // คิวแชร์ยังว่าง จึงยังไม่ถูกวาด
+            ->assertDontSee('id="share-approval-queue"', false);
+    }
+
+    /** ฝั่ง admin ต้องไม่เปลี่ยนพฤติกรรม — ยังเป็นกล่องขาเข้าที่เห็นคิวว่างได้ */
+    public function test_admin_still_sees_the_full_approval_inbox(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'department_id' => null,
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.approvals.index'))
+            ->assertOk()
+            ->assertViewHas('approvalQueue', 'all')
+            ->assertSee('คำขออนุมัติ')
+            ->assertSee('admin-approvals-summary', false)
+            ->assertSee('admin-approvals-tabs', false)
+            ->assertSee('id="assignment-approval-queue"', false)
             ->assertSee('id="share-approval-queue"', false)
             ->assertDontSee('id="outgoing-collaboration-queue"', false);
 
-        $this->actingAs($this->itHead)->get(route('admin.approvals.index', ['approval_queue' => 'bogus']))
+        $this->actingAs($admin)->get(route('admin.approvals.index', ['approval_queue' => 'share']))
             ->assertOk()
-            ->assertViewHas('approvalQueue', 'all');
+            ->assertViewHas('approvalQueue', 'share')
+            ->assertSee('id="share-approval-queue"', false)
+            ->assertDontSee('id="assignment-approval-queue"', false)
+            ->assertDontSee('id="outgoing-collaboration-queue"', false);
     }
 
     public function test_outgoing_tab_lists_home_members_working_for_other_departments(): void
@@ -254,9 +324,16 @@ class CrossDepartmentCollaborationTest extends TestCase
             ->assertSee('แผนกAccount')
             ->assertSee('ทดสอบข้ามแผนก')
             ->assertSee($this->itMember->name)
-            ->assertSee('พนักงานที่ไปร่วม')
-            ->assertSee('ผู้รับผิดชอบหลัก')
-            ->assertSee('กำหนดส่ง / สถานะ')
+            ->assertSee('พนักงาน')
+            ->assertSee('หัวหน้าโปรเจกต์')
+            ->assertSee('กำลังเข้าร่วม')
+            ->assertSee('กำหนดส่ง')
+            // แถบสรุปและตัวกรองของหน้าติดตาม — ตัวกรองเป็นปุ่มฝั่ง client ไม่ใช่ฟอร์ม
+            ->assertSee('พนักงานที่ไปช่วย')
+            ->assertSee('data-cross-dept-filter="late"', false)
+            ->assertSee('data-cross-dept-search', false)
+            // หน้านี้เป็นการติดตาม ไม่ใช่คิวอนุมัติ จึงต้องไม่มีฟอร์มตัดสินใจ
+            ->assertDontSee('data-approval-form', false)
             ->assertSee($task->job_due_at->timezone('Asia/Bangkok')->format('d/m/Y'))
             ->assertDontSee('งานภายใน IT')
             ->assertSee(route('work-board.member', [

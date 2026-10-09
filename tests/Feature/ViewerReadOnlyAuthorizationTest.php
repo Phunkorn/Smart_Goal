@@ -105,7 +105,7 @@ class ViewerReadOnlyAuthorizationTest extends TestCase
         $this->assertSame(4, (int) $completed->fresh()->job_status);
     }
 
-    public function test_viewer_cannot_delete_manage_collaborators_or_respond_to_invitation(): void
+    public function test_viewer_cannot_delete_or_manage_project_members(): void
     {
         $viewer = $this->legacyCreatorViewer();
         $assignee = $this->user();
@@ -117,10 +117,15 @@ class ViewerReadOnlyAuthorizationTest extends TestCase
         $this->actingAs($viewer)->postJson(route('tasks.collaborators.store', $task), [
             'collaborators' => [$candidate->id],
         ])->assertForbidden();
+        $this->actingAs($viewer)
+            ->deleteJson(route('tasks.collaborators.destroy', [$task->job_id, $candidate->id]))
+            ->assertForbidden();
 
-        $task->collaborators()->attach($viewer->id, ['status' => 'pending']);
-        $this->actingAs($viewer)->patchJson(route('tasks.invitation.respond', $task), ['status' => 'accepted'])->assertForbidden();
-        $this->assertSame('pending', $task->collaborators()->where('users.id', $viewer->id)->first()->pivot->status);
+        // viewer ต้องไม่กลายเป็นผู้เข้าร่วมได้เลย ไม่ว่าจะด้วยเส้นทางใด
+        $this->assertDatabaseMissing('work_order_collaborators', [
+            'work_order_id' => $task->job_id,
+            'user_id' => $viewer->id,
+        ]);
     }
 
     public function test_viewer_cannot_mutate_legacy_project_or_comment_on_task(): void

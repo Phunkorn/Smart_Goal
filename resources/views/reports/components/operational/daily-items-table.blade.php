@@ -31,7 +31,20 @@
             @forelse($rows as $row)
                 <tr data-operational-daily-row>
                     <td data-label="วันที่" class="is-date">{{ $row['date_label'] }}</td>
-                    <th scope="row" data-label="รายการงาน">{{ $row['title'] }}</th>
+                    <th scope="row" data-label="รายการงาน">
+                        {{ $row['title'] }}
+                        {{-- รายการที่มาจากรอบตรวจเช็กคอมพิวเตอร์เปิดแบบตรวจย้อนหลังได้จากที่นี่
+                             คอลัมน์ของ CSV ไม่เปลี่ยน เพราะค่านี้ไม่ได้อยู่ใน dailyCells() --}}
+                        @if($row['inspection'] ?? null)
+                            <button type="button" class="operational-table__inspection"
+                                data-cc-report-open
+                                data-report-url="{{ $row['inspection']['report_url'] }}"
+                                data-report-title="{{ $row['inspection']['label'] }}"
+                                data-report-meta="{{ $row['inspection']['meta'] }}">
+                                <i class="bi bi-file-earmark-text" aria-hidden="true"></i> ดูแบบตรวจ
+                            </button>
+                        @endif
+                    </th>
                     <td data-label="ประเภทงาน">{{ $row['kind_label'] }}</td>
                     <td data-label="หมวดงาน">{{ $row['category'] }}</td>
                     <td data-label="เวลาที่ตั้งไว้" class="is-time">{{ $row['planned_time'] }}</td>

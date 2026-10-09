@@ -88,6 +88,41 @@
     scrollbar-width: thin;
 }
 
+/*
+ * แถวเลือกทีละกลุ่ม — อยู่ใต้ปุ่มกรองแผนกเพื่อให้อ่านต่อกันเป็นลำดับ:
+ * กรองให้เหลือคนที่ต้องการ แล้วค่อยกดเลือกทั้งหมดที่เหลือ
+ */
+.people-selector__bulk {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.people-selector__bulk-action {
+    min-height: 38px;
+    flex: 0 0 auto;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--accent-strong);
+    font-size: .74rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.people-selector__bulk-action:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.people-selector__bulk-action:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: .6;
+}
+
 .people-selector__department {
     min-height: 32px;
     flex: 0 0 auto;

@@ -9,9 +9,11 @@ use App\Models\WorkOrderListAttachment;
 use App\Models\WorkOrderUpdateAttachment;
 use App\Models\WorkspaceBoardAttachment;
 use App\Support\ProtectedMedia;
+use App\Support\TaskAttachmentPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class MediaController extends Controller
 {
@@ -24,6 +26,14 @@ class MediaController extends Controller
         return $this->fileResponse(ProtectedMedia::profileAbsolutePath($path));
     }
 
+    /**
+     * เสิร์ฟไฟล์แนบของงาน
+     *
+     * ?download=1 คือการบังคับให้เบราว์เซอร์บันทึกไฟล์ด้วยชื่อเดิมที่ผู้ใช้อัปโหลดขึ้นมา
+     * แทนการเปิดดูในแท็บ ชื่อบนดิสก์เป็น hash การดาวน์โหลดจึงต้องออกชื่อจากที่นี่
+     *
+     * สิทธิ์เปิดดูกับสิทธิ์ดาวน์โหลดเป็นเรื่องเดียวกัน จึงใช้ route เดียวและจุดตรวจสิทธิ์เดียว
+     */
     public function taskAttachment(Request $request, JobImage $attachment): BinaryFileResponse
     {
         $job = $attachment->job()->with('collaborators')->firstOrFail();
@@ -32,7 +42,9 @@ class MediaController extends Controller
 
         return $this->attachmentResponse(
             $attachment->file_path,
-            'job-attachments/'.$job->job_id.'/'
+            'job-attachments/'.$job->job_id.'/',
+            TaskAttachmentPresenter::name($attachment),
+            $request->boolean('download')
         );
     }
 
@@ -46,7 +58,9 @@ class MediaController extends Controller
 
         return $this->attachmentResponse(
             $attachment->file_path,
-            'project-attachments/'.$project->id.'/'
+            'project-attachments/'.$project->id.'/',
+            $attachment->original_name,
+            $request->boolean('download')
         );
     }
 
@@ -66,7 +80,9 @@ class MediaController extends Controller
 
         return $this->attachmentResponse(
             $attachment->file_path,
-            'work-log-attachments/'.$log->id.'/'
+            'work-log-attachments/'.$log->id.'/',
+            $attachment->original_name,
+            $request->boolean('download')
         );
     }
 
@@ -87,7 +103,9 @@ class MediaController extends Controller
 
         return $this->attachmentResponse(
             $attachment->file_path,
-            'workspace-board-attachments/'.$board->id.'/'
+            'workspace-board-attachments/'.$board->id.'/',
+            $attachment->original_name,
+            $request->boolean('download')
         );
     }
 
@@ -109,7 +127,9 @@ class MediaController extends Controller
 
         return $this->attachmentResponse(
             $attachment->file_path,
-            'comment-attachments/'.$task->job_id.'/'
+            'comment-attachments/'.$task->job_id.'/',
+            $attachment->original_name,
+            $request->boolean('download')
         );
     }
 
@@ -140,18 +160,29 @@ class MediaController extends Controller
         abort(404);
     }
 
-    private function attachmentResponse(string $path, string $expectedPrefix): BinaryFileResponse
-    {
+    private function attachmentResponse(
+        string $path,
+        string $expectedPrefix,
+        ?string $originalName = null,
+        bool $forceDownload = false
+    ): BinaryFileResponse {
         abort_unless(
             ProtectedMedia::isSafeRelativePath($path) && str_starts_with($path, $expectedPrefix),
             404
         );
 
-        return $this->fileResponse(ProtectedMedia::attachmentAbsolutePath($path));
+        return $this->fileResponse(
+            ProtectedMedia::attachmentAbsolutePath($path),
+            ProtectedMedia::dispositionName($originalName, $path),
+            $forceDownload
+        );
     }
 
-    private function fileResponse(?string $absolutePath): BinaryFileResponse
-    {
+    private function fileResponse(
+        ?string $absolutePath,
+        ?string $fileName = null,
+        bool $forceDownload = false
+    ): BinaryFileResponse {
         abort_unless($absolutePath !== null, 404);
 
         $response = response()->file($absolutePath, [
@@ -159,6 +190,27 @@ class MediaController extends Controller
         ]);
         $response->setPrivate();
         $response->headers->set('Cache-Control', 'private, no-store');
+
+        if ($fileName !== null) {
+            /*
+             * ต้องส่งชื่อไฟล์ไปกับทุก response ไม่ใช่เฉพาะตอน ?download=1
+             *
+             * response()->file() ไม่ตั้ง Content-Disposition ให้เอง เบราว์เซอร์จึงตั้งชื่อ
+             * ไฟล์ที่บันทึกจากส่วนท้ายของ URL ซึ่งเป็น id ของไฟล์แนบ ผู้ใช้ที่กดลิงก์ไฟล์
+             * Excel หรือ Word จึงได้ไฟล์ชื่อ "224" ที่ไม่มีนามสกุลและเปิดไม่ออก
+             *
+             * inline ยังเปิดดูในแท็บได้เหมือนเดิม ต่างกันแค่ชื่อที่ใช้ตอนบันทึก
+             * ส่วน attachment (?download=1) คือการบังคับให้บันทึกแทนการเปิดดู
+             *
+             * ชื่อไฟล์ไทยถูกส่งเป็น filename*= แบบ UTF-8 และ Symfony เติม fallback ASCII ให้เอง
+             */
+            $response->setContentDisposition(
+                $forceDownload
+                    ? ResponseHeaderBag::DISPOSITION_ATTACHMENT
+                    : ResponseHeaderBag::DISPOSITION_INLINE,
+                $fileName
+            );
+        }
 
         return $response;
     }

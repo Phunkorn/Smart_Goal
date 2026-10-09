@@ -671,17 +671,11 @@
     gap: 7px;
 }
 
-.team-modal .people-selector__selection-summary button {
-    border: 0;
-    background: transparent;
-    color: var(--sg-blue);
+/* แถวเลือกทีละกลุ่มใช้ขนาดเดียวกับปุ่มกรองแผนกในกล่องนี้ ไม่ใช่ขนาดเต็มของ component กลาง */
+.team-modal .people-selector__bulk-action {
+    min-height: 32px;
+    padding: 0 11px;
     font-size: 10px;
-    font-weight: 700;
-}
-
-.team-modal .people-selector__selection-summary button:disabled {
-    color: var(--sg-faint);
-    cursor: not-allowed;
 }
 
 .team-modal .team-current {
@@ -781,6 +775,26 @@
 .team-modal .team-role-badge {
     background: var(--sg-green-soft);
     color: var(--sg-green);
+}
+
+/*
+ * ป้าย "ข้ามแผนก" — บอกที่มาของคน ไม่ใช่สถานะรออนุมัติ
+ *
+ * ใช้โทเคนม่วงของระบบ (--sg-purple) เพื่อไม่ให้ชนกับความหมายที่มีอยู่แล้วในแถวนี้:
+ * เขียว = เข้าร่วมแล้ว, เหลือง = รอเปิดงาน, แดง = ไม่ได้เข้าร่วม
+ */
+.team-modal .team-cross-department {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: var(--sg-purple-soft);
+    color: var(--sg-purple);
+    font-size: 9px;
+    font-weight: 750;
+    line-height: var(--thai-line-height, 1.6);
+    white-space: nowrap;
 }
 
 .team-modal .team-state > i {
@@ -1105,9 +1119,14 @@
         max-width: 48vw;
     }
 
+    /* ป้ายแผนกยอมตัดทิ้งได้บนจอแคบ แต่ป้าย "ข้ามแผนก" คือสาระที่หายไปไม่ได้ */
     .team-modal .people-selector__department-badge,
     .team-modal .team-department {
         display: none;
+    }
+
+    .team-modal .team-cross-department {
+        padding: 3px 6px;
     }
 
     .team-manager__actions {

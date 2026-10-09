@@ -219,12 +219,6 @@
     color: #64748b;
 }
 
-.my-tasks-page .calendar-table__marker {
-    flex: 0 0 auto;
-    color: var(--calendar-tone, #94a3b8);
-    font-size: 12px;
-}
-
 .my-tasks-page .calendar-table__cell.is-due {
     display: grid;
     gap: 1px;
@@ -243,11 +237,10 @@
     white-space: nowrap;
 }
 
-/* ลำดับคอลัมน์ของแต่ละตารางต้องตรงกับ TASK_LAYOUTS / MEETING_LAYOUTS ใน calendar.js */
+/* ลำดับคอลัมน์ของแต่ละตารางต้องตรงกับ TASK_LAYOUTS ใน calendar.js */
 .my-tasks-page .calendar-table--today,
 .my-tasks-page .calendar-table--due { --calendar-columns: 52px minmax(180px, 1.3fr) minmax(126px, .88fr) 92px 76px 108px minmax(106px, .66fr) minmax(110px, .68fr) 94px 104px; }
 .my-tasks-page .calendar-table--day-task { --calendar-columns: minmax(180px, 1.5fr) minmax(130px, 1fr) 52px 82px minmax(100px, .9fr) minmax(92px, .85fr) 92px 96px; }
-.my-tasks-page .calendar-table--day-meeting { --calendar-columns: minmax(0, 1.5fr) 104px 44px 74px minmax(0, 1fr); }
 
 /* ---------- ป้ายกำกับ ---------- */
 

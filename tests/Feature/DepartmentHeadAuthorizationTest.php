@@ -159,36 +159,43 @@ class DepartmentHeadAuthorizationTest extends TestCase
         ])->assertOk();
     }
 
-    public function test_candidate_department_head_decides_only_collaborator_requests_for_own_department(): void
+    /**
+     * หัวหน้าแผนกต้นสังกัดได้แค่ "ติดตาม" ลูกทีมที่ไปร่วมโปรเจกต์ของแผนกอื่น
+     *
+     * ไม่มีคิวอนุมัติผู้เข้าร่วมอีกแล้ว และขอบเขตที่เห็นยังจำกัดอยู่ที่แผนกตัวเองเหมือนเดิม
+     */
+    public function test_origin_department_head_only_tracks_members_joining_other_departments(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $sales = Department::create(['department_name' => 'Sales']);
         $owner = $this->user($it);
-        $candidate = $this->user($sales);
+        $participant = $this->user($sales);
         $salesHead = $this->user($sales, true);
         $itHead = $this->user($it, true);
         $job = $this->task($it, $owner, 'Cross team request');
-        $job->collaborators()->attach($candidate->id, [
-            'status' => 'pending',
-            'added_by' => $owner->id,
-        ]);
 
-        $this->actingAs($itHead)->patchJson(
-            route('admin.tasks.collaborators.approval', [$job, $candidate]),
-            ['status' => 'accepted'],
-        )->assertForbidden();
-
-        $this->actingAs($salesHead)->get(route('admin.approvals.index'))
-            ->assertOk()->assertSee('Cross team request')->assertSee($candidate->name);
-        $this->actingAs($salesHead)->patchJson(
-            route('admin.tasks.collaborators.approval', [$job, $candidate]),
-            ['status' => 'accepted'],
-        )->assertOk();
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $job->job_id), ['collaborators' => [$participant->id]])
+            ->assertSuccessful();
 
         $this->assertSame(
             'accepted',
-            $job->fresh()->collaborators()->findOrFail($candidate->id)->pivot->status,
+            $job->fresh()->collaborators()->findOrFail($participant->id)->pivot->status,
         );
+
+        // หัวหน้าแผนกต้นสังกัดของผู้เข้าร่วมเห็นแถวติดตาม พร้อมชื่อหัวหน้าโปรเจกต์
+        $this->actingAs($salesHead)->get(route('admin.approvals.index', ['approval_queue' => 'outgoing']))
+            ->assertOk()
+            ->assertSee('Cross team request')
+            ->assertSee($participant->name)
+            ->assertSee($owner->name)
+            ->assertSee('กำลังเข้าร่วม')
+            ->assertDontSee('data-approval-form', false);
+
+        // หัวหน้าแผนกเจ้าของโปรเจกต์ไม่เห็นลูกทีมของแผนกอื่นในหน้าติดตามของตัวเอง
+        $this->actingAs($itHead)->get(route('admin.approvals.index', ['approval_queue' => 'outgoing']))
+            ->assertOk()
+            ->assertDontSee($participant->name);
     }
 
     public function test_head_sees_department_meetings_but_cannot_edit_team_members_meeting(): void

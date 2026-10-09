@@ -1,0 +1,97 @@
+/*
+ * แบบตรวจเช็กคอมพิวเตอร์ประจำวัน — A4 แนวตั้ง
+ *
+ * หน้านี้ไม่ได้ใช้ layouts.app จึงต้อง import token เองที่นี่
+ * (หน้าปกติได้ token มาจาก components/layout.css ของ shell)
+ *
+ * วิธีออก PDF ของโปรเจกต์นี้คือ print stylesheet ตามที่ระบุไว้ใน
+ * docs/UI_DESIGN_SYSTEM.md — ระบบไม่มีไลบรารีสร้างไฟล์ PDF ฝั่งเซิร์ฟเวอร์
+ * เนื้อหาทั้งหมดมาจากข้อมูลที่บันทึกไว้จริง ไม่ใช่ภาพหน้าจอ
+ */
+@import '../foundations/tokens.css';
+@import './computer-check/plan.css';
+
+.cc-report { margin:0; padding:20px; background:#eef1f7; color:#16233d; font-family:'Prompt', sans-serif; font-size:13px; }
+.cc-report--embedded { padding:0; background:#fff; }
+
+.visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+/* ---------- แถบเครื่องมือ (ไม่ถูกพิมพ์) ---------- */
+
+.cc-report__toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; width:210mm; max-width:100%; margin:0 auto 12px; }
+.cc-report__toolbar a { color:#1e4fd6; font-size:13px; text-decoration:none; }
+.cc-report__toolbar button { min-height:40px; padding:0 18px; border:1px solid #1e4fd6; border-radius:8px; background:#1e4fd6; color:#fff; font-family:inherit; font-size:13px; cursor:pointer; }
+
+/* ---------- กระดาษ A4 ---------- */
+
+.cc-sheet { width:210mm; min-height:297mm; max-width:100%; margin:0 auto; padding:12mm 12mm 10mm; background:#fff; box-shadow:0 2px 12px rgba(22, 35, 61, .12); }
+.cc-report--embedded .cc-sheet { box-shadow:none; }
+
+.cc-sheet__head { position:relative; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #16233d; text-align:center; }
+.cc-sheet__form-code { position:absolute; top:0; right:0; margin:0; font-size:11px; font-weight:600; }
+.cc-sheet__title { margin:0 0 2px; font-size:19px; font-weight:700; }
+.cc-sheet__department { margin:0; color:#5a6b86; font-size:12px; }
+
+/* ---------- หัวแบบตรวจ ---------- */
+
+.cc-sheet__meta { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:8px; }
+.cc-sheet__fields { display:grid; grid-template-columns:repeat(2, auto); gap:3px 22px; margin:0; }
+.cc-sheet__fields div { display:flex; gap:7px; }
+.cc-sheet__fields dt { color:#5a6b86; font-size:12px; }
+.cc-sheet__fields dt::after { content:':'; }
+.cc-sheet__fields dd { margin:0; min-width:92px; border-bottom:1px dotted #96a2b8; font-size:12px; font-weight:600; }
+
+.cc-sheet__shift { display:flex; gap:10px; }
+.cc-sheet__shift-box { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; }
+.cc-sheet__tick { display:grid; place-items:center; width:19px; height:19px; border:1.4px solid #16233d; font-size:13px; font-weight:700; }
+
+/* ---------- Legend ---------- */
+
+.cc-sheet__legend { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 18px; margin-bottom:8px; padding:6px 10px; border:1px solid #c9d3e4; background:#f7f9fd; }
+.cc-sheet__legend ul { display:flex; flex-wrap:wrap; gap:4px 14px; margin:0; padding:0; list-style:none; font-size:11px; }
+.cc-sheet__legend strong { font-weight:700; }
+
+/* ---------- ผังห้อง ---------- */
+
+.cc-sheet__plan { margin-bottom:8px; }
+/* ผังต้องพอดีความสูงที่เหลือของหน้าแรก ไม่งั้นสรุปผลจะถูกดันไปหน้าถัดไป */
+.cc-sheet__plan .cc-plan__svg { width:100%; max-height:168mm; }
+
+/* ---------- สรุปผล ---------- */
+
+.cc-sheet__summary { margin-bottom:8px; }
+.cc-sheet__summary-table { width:100%; border-collapse:collapse; font-size:12px; }
+.cc-sheet__summary-table th,
+.cc-sheet__summary-table td { padding:5px 8px; border:1px solid #c9d3e4; text-align:left; }
+.cc-sheet__summary-table th { background:#f0f4fb; font-weight:500; }
+.cc-sheet__summary-table td { font-weight:700; text-align:center; }
+
+/* ---------- รายการปัญหา ---------- */
+
+.cc-sheet__issues-heading { margin:0 0 5px; font-size:13px; font-weight:700; }
+.cc-sheet__issues-table { width:100%; border-collapse:collapse; font-size:11.5px; }
+.cc-sheet__issues-table th,
+.cc-sheet__issues-table td { padding:5px 8px; border:1px solid #c9d3e4; text-align:left; vertical-align:top; }
+.cc-sheet__issues-table th { background:#fdeef0; font-weight:600; }
+
+.cc-sheet__foot { display:flex; justify-content:space-between; gap:12px; margin-top:10px; padding-top:6px; border-top:1px solid #c9d3e4; color:#5a6b86; font-size:10.5px; }
+
+/* ---------- ตอนพิมพ์จริง ---------- */
+
+@page { size:A4 portrait; margin:10mm; }
+
+@media print {
+    .cc-report { padding:0; background:#fff; }
+    .cc-report__toolbar { display:none !important; }
+    .cc-sheet { width:auto; min-height:0; padding:0; box-shadow:none; }
+
+    /* ตารางปัญหาต้องไม่ถูกตัดกลางแถวเมื่อขึ้นหน้าใหม่ */
+    .cc-sheet__issues-table tr,
+    .cc-sheet__summary-table tr { break-inside:avoid; }
+    .cc-sheet__plan { break-inside:avoid; }
+
+    /* สีพื้นของสถานะต้องถูกพิมพ์ออกมาด้วย ไม่งั้นเหลือแต่กรอบเปล่า
+       (สัญลักษณ์ K✓ / M! ยังอ่านออกแม้พิมพ์ขาวดำ จึงไม่พึ่งสีอย่างเดียว) */
+    .cc-sheet,
+    .cc-sheet * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}

@@ -18,6 +18,19 @@
 
 @push('styles')
     @vite(['resources/css/pages/mytasks.css', 'resources/js/pages/mytasks/index.js'])
+    {{--
+        ปฏิทินประชุมและนัดหมายถูกโหลดเฉพาะเมื่อผู้ใช้เปิดมุมมองนั้นจริง เพื่อไม่ให้ทุกการเปิด
+        หน้างานต้องดาวน์โหลดตัววาดปฏิทินกับสไตล์ของประชุมไปด้วย
+        meetings.css มาด้วยเพราะปฏิทินใช้ปุ่มและเปลือก modal ชุดเดียวกับหน้าประชุม
+    --}}
+    @if(($workspaceView ?? null) === 'meeting')
+        @vite([
+            'resources/css/pages/meetings.css',
+            'resources/css/pages/meeting-calendar.css',
+            'resources/js/pages/meetings/index.js',
+            'resources/js/pages/meeting-calendar/index.js',
+        ])
+    @endif
 @endpush
 
 @section('content')
@@ -27,6 +40,8 @@
     data-task-scope="{{ $taskScope }}"
     data-details-template="{{ route('tasks.details.update', ['id' => '__ID__']) }}"
     data-status-template="{{ route('tasks.updateStatus', ['id' => '__ID__']) }}"
+    {{-- การ์ด kanban ของงานที่ server เคยกรองออกจากหน้า ถูกดึงกลับมาทีละใบเมื่อสถานะเปลี่ยน --}}
+    data-kanban-card-template="{{ route('mytasks.kanban-card', ['workOrder' => '__ID__']) }}"
     data-priority-template="{{ route('mytasks.updatePriority', ['job_id' => '__ID__']) }}"
     data-schedule-template="{{ route('tasks.schedule.update', ['id' => '__ID__']) }}"
     data-due-template="{{ route('mytasks.updateDueDate', ['job_id' => '__ID__']) }}"
@@ -43,16 +58,23 @@
             $workspaceViews = [
                 ['view' => 'table', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
                 ['view' => 'board', 'icon' => 'bi-table ', 'label' => 'ตาราง'],
-                ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทิน', 'controls' => 'mytasks-calendar'],
+                // "ปฏิทินงาน" ไม่ใช่ "ปฏิทิน" เพราะมุมมองนี้วาดงานกับกำหนดส่งของโปรเจกต์
+                // ส่วนแท็บ "ประชุมและนัดหมาย" ด้านล่างคือปฏิทินประชุมและนัดหมายของแผนก
+                // ป้ายสองอันต้องไม่มีคำซ้ำกัน ไม่งั้นผู้ใช้เดาไม่ได้ว่าอันไหนคืออะไร
+                ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทินงาน', 'controls' => 'mytasks-calendar'],
             ];
 
-            // เฉพาะพนักงานเท่านั้นที่เมนู "การประชุม" ถูกย้ายมาเป็น view ที่ 4 ที่นี่
-            // panel ประชุมถูก render จาก server เท่านั้น ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
+            // เฉพาะพนักงานเท่านั้นที่เมนูปฏิทินประชุมและนัดหมายถูกย้ายมาเป็น view ที่ 4 ที่นี่
+            // panel ปฏิทินถูก render จาก server เท่านั้น ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
+            //
+            // ป้ายเป็น "ประชุมและนัดหมาย" เพราะมุมมองนี้ครอบทั้งสองอย่าง ไม่ใช่ประชุมเพียว ๆ
+            // และต้องไม่ใช้คำว่า "ปฏิทิน" เฉย ๆ เพราะซ้ำกับแท็บ "ปฏิทินงาน" ที่อยู่ติดกัน
+            // ลำดับคำตรงกับหัวเรื่องของ panel เองคือ "ปฏิทินประชุมและนัดหมาย"
             if (auth()->user()->role === 'user') {
                 $workspaceViews[] = [
                     'view' => 'meeting',
                     'icon' => 'bi-calendar-event-fill',
-                    'label' => 'ประชุม',
+                    'label' => 'ประชุมและนัดหมาย',
                     'href' => route('mytasks.index', ['view' => 'meeting']),
                 ];
             }
@@ -135,13 +157,26 @@
         </div>
 
         @if($workspaceView === 'meeting')
-            {{-- ใช้ partial ชุดเดียวกับหน้า /meetings ห้ามคัดลอก HTML หรือ JavaScript ซ้ำ --}}
-            <div class="mytasks-meeting-view" data-view-panel="meeting" role="tabpanel" aria-label="มุมมองการประชุม">
-                @include('meetings.components.meeting-list', array_merge($meetingData, [
-                    'meetingFormAction' => route('mytasks.index'),
-                    'meetingBaseQuery' => ['view' => 'meeting'],
-                    'meetingEmbedded' => true,
-                ]))
+            {{--
+                มุมมองนี้คือ "ปฏิทินประชุมและนัดหมาย" ไม่ใช่รายการการ์ดประชุมแบบเดิมแล้ว
+                การประชุมและนัดหมายไม่ปรากฏในปฏิทินโปรเจกต์ (data-view="calendar") อีกต่อไป
+                ทั้งสองอย่างมีปฏิทินของตัวเองที่นี่ — ดู MeetingAppointmentCalendarQuery
+            --}}
+            <div class="mytasks-meeting-view" data-view-panel="meeting" role="tabpanel"
+                aria-label="ปฏิทินประชุมและนัดหมาย">
+                @include('meetings.components.meeting-appointment-calendar', $meetingCalendarData)
+                @can('create', App\Models\Meeting::class)
+                    {{-- ฟอร์มสร้างของทั้งสองประเภท เปิดจากการ์ดเลือกประเภทใน "+ เพิ่ม" --}}
+                    @include('meetings.components.form-modal', array_merge($meetingCreateData, [
+                        'formMeeting' => null,
+                        'meetingContextQuery' => ['view' => 'meeting'],
+                    ]))
+                    @include('appointments.components.form-modal', [
+                        'formAppointment' => null,
+                        'attendeeOptions' => $meetingCreateData['attendeeOptions'] ?? collect(),
+                        'attendeeDepartments' => $meetingCreateData['attendeeDepartments'] ?? collect(),
+                    ])
+                @endcan
             </div>
         @endif
 

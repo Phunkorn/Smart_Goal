@@ -93,9 +93,9 @@ class TaskCollaboratorSelectorTest extends TestCase
 
         $content = $this->actingAs($member)->get(route('mytasks.index'))->assertOk()->getContent();
 
-        // ทีมปัจจุบันกับรายการที่เตรียมเพิ่มต้องมีตัวนับคนละตัวและอ่านออกว่าคนละชุด
+        // รายชื่อผู้เข้าร่วมกับรายการที่เตรียมเพิ่มต้องมีตัวนับคนละตัวและอ่านออกว่าคนละชุด
         $this->assertStringContainsString('data-team-current', $content);
-        $this->assertStringContainsString('ทีมปัจจุบัน (0 คน)', $content);
+        $this->assertStringContainsString('ผู้เข้าร่วม (0 คน)', $content);
         $this->assertStringContainsString('data-count-template="เลือกเพิ่ม :count คน"', $content);
         $this->assertStringContainsString('data-people-summary-count', $content);
         $this->assertStringContainsString('เลือกแล้ว 0 คน', $content, 'ตัวนับฝั่งซ้ายต้องสื่อเฉพาะรายการที่เตรียมเพิ่ม');
@@ -107,7 +107,7 @@ class TaskCollaboratorSelectorTest extends TestCase
 
         // ปุ่มหลักอยู่ใน flow ปกติของ footer และเริ่มต้นกดไม่ได้
         $this->assertMatchesRegularExpression('/<button type="submit"[^>]*data-team-submit[^>]*disabled/', $content);
-        $this->assertStringContainsString('เพิ่มผู้ร่วมงาน (0 คน)', $content);
+        $this->assertStringContainsString('เพิ่มผู้เข้าร่วม (0 คน)', $content);
     }
 
     public function test_overlay_uses_theme_scope_not_page_layout_class(): void
@@ -135,7 +135,8 @@ class TaskCollaboratorSelectorTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/value="'.$member->id.'"[^>]*data-people-checkbox/', $content);
     }
 
-    public function test_adding_many_collaborators_keeps_department_based_status(): void
+    /** แผนกไม่ได้กำหนดสถานะของผู้เข้าร่วมอีกแล้ว ทุกคนเข้าร่วมทันที */
+    public function test_adding_many_participants_admits_every_department_immediately(): void
     {
         [$member, , $task] = $this->scenario();
         $sameDepartment = $this->member('Same Dept');
@@ -149,7 +150,7 @@ class TaskCollaboratorSelectorTest extends TestCase
 
         $collaborators = $task->fresh()->collaborators->keyBy('id');
         $this->assertSame('accepted', $collaborators[$sameDepartment->id]->pivot->status);
-        $this->assertSame('pending', $collaborators[$otherDepartment->id]->pivot->status);
+        $this->assertSame('accepted', $collaborators[$otherDepartment->id]->pivot->status);
     }
 
     public function test_inactive_user_cannot_be_added_even_through_the_api(): void

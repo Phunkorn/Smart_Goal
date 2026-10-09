@@ -1,4 +1,5 @@
-import {synchronizeTaskManagement, synchronizeTaskSource} from './task-state.js';
+import {publishTaskState} from './task-state.js';
+import {taskStateStore} from './task-state-store.js';
 import {canDragTask, canTransitionTo, confirmTaskTransition, lockReason, nextStepHint} from './task-transitions.js';
 import {boardTaskMatches} from './task-filter-state.js';
 
@@ -92,8 +93,10 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
 
 (() => {
     const root = document.querySelector('[data-workspace]'); const kanban = root?.querySelector('[data-kanban]'); if (!root || !kanban) return;
-    const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
+    const management = taskStateStore(document);
     const statusFilter = root.querySelector('[data-filter]');
+    // งานที่กำลังรอ fragment อยู่ กันการยิงซ้ำเมื่อ event มาหลายรอบติดกัน
+    const pendingCards = new Set();
 
     const priorityLabels = {
         2: 'สำคัญไม่ด่วน',
@@ -158,10 +161,52 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
     statusFilter?.addEventListener('change', refresh);
     refresh();
 
+    /**
+     * ดึงการ์ดที่ server เคยกรองออกจากหน้า กลับมาแทรกในคอลัมน์ที่ถูกต้อง
+     *
+     * มุมมองนี้แสดงงานที่ปิดแล้วเฉพาะใบที่ปิดวันนี้ งานที่ปิดไปก่อนหน้านั้นจึงไม่มีการ์ด
+     * ในหน้าเลย พอผู้ใช้เปิดงานนั้นอีกครั้ง การ์ดต้องโผล่มาเองโดยไม่ต้องโหลดหน้าใหม่
+     * ซึ่งจะทำให้เสีย scroll ตัวกรอง และโมดัลที่เปิดค้างอยู่
+     */
+    const ensureCardFor = async (task) => {
+        const template = root.dataset.kanbanCardTemplate;
+        if (!template || pendingCards.has(String(task.id))) return;
+
+        const column = kanban.querySelector(`[data-kanban-column="${task.status}"] .mytasks-kanban__cards`);
+        if (!column) return;
+
+        pendingCards.add(String(task.id));
+        try {
+            const response = await fetch(template.replace('__ID__', task.id), {
+                headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            });
+            if (!response.ok) return;
+
+            const data = await response.json().catch(() => ({}));
+            if (!data.card || kanban.querySelector(`[data-kanban-card][data-id="${task.id}"]`)) return;
+
+            const holder = document.createElement('div');
+            holder.innerHTML = data.card;
+            const card = holder.querySelector('[data-kanban-card]');
+            if (!card) return;
+
+            const target = kanban.querySelector(`[data-kanban-column="${data.job_status ?? task.status}"] .mytasks-kanban__cards`)
+                || column;
+            target.append(card);
+            initializeCard(card);
+            refresh();
+        } finally {
+            pendingCards.delete(String(task.id));
+        }
+    };
+
     document.addEventListener('mytasks:changed', (event) => {
         const task = event.detail;
         const card = kanban.querySelector(`[data-kanban-card][data-id="${task.id}"]`);
-        if (!card) return;
+        if (!card) {
+            ensureCardFor(task);
+            return;
+        }
 
         card.dataset.status = task.status;
         card.dataset.priority = task.priority;
@@ -175,8 +220,8 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
         }
 
         kanban.querySelector(`[data-kanban-column="${task.status}"] .mytasks-kanban__cards`)?.append(card);
-        // capabilities มาพร้อม event เมื่อการเปลี่ยนสถานะเกิดจากที่อื่น (modal/ตาราง)
-        if (task.transitions) management[String(task.id)] = {...management[String(task.id)], transitions: task.transitions};
+        // capabilities ชุดใหม่ถูกเขียนลง store กลางโดย publishTaskState() ไปแล้ว
+        // ที่นี่จึงอ่านได้ตรง ๆ ไม่ต้องรับค่ามาเขียนทับเอง (ซึ่งเคยแทนที่อ็อบเจกต์ร่วมทั้งใบ)
         paintCardGuidance(card);
         refresh();
     });
@@ -237,15 +282,10 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
             if (!response.ok) {
                 throw new Error(Object.values(data.errors || {}).flat()[0] || data.message || 'เปลี่ยนสถานะไม่สำเร็จ');
             }
-            synchronizeTaskManagement(management, card.dataset.id, data);
-
-            const actualStatus = Number(data.job_status ?? status);
-            card.dataset.status = String(actualStatus);
-            kanban.querySelector(`[data-kanban-column="${actualStatus}"] .mytasks-kanban__cards`)?.append(card);
-            refresh();
-            paintCardGuidance(card);
-            notify(`ย้ายไป "${columnLabel(actualStatus)}" แล้ว`, true);
-            synchronizeTaskSource(root, card.dataset.id, {status: actualStatus});
+            // publishTaskState() เขียน state กลางแล้วยิง event ที่ listener ด้านล่าง
+            // รับไปย้ายคอลัมน์ นับใหม่ และวาดป้ายของการ์ดนี้ พร้อมกับทุกมุมมองอื่น
+            publishTaskState(root, card.dataset.id, data, status);
+            notify(`ย้ายไป "${columnLabel(Number(data.job_status ?? status))}" แล้ว`, true);
         } catch (error) {
             card.dataset.status = String(previousStatus);
             previousZone?.append(card);
@@ -326,8 +366,17 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
         if (card) applyTransition(card, Number(trigger.dataset.kanbanNextStatus));
     });
 
-    kanban.querySelectorAll('[data-kanban-card]').forEach((card) => {
+    /**
+     * เตรียมการ์ดหนึ่งใบให้พร้อมใช้งาน — วาดป้ายขั้นถัดไปและผูกการลาก
+     *
+     * ต้องเรียกกับการ์ดที่ถูกแทรกเข้ามาภายหลังด้วย (ดู ensureCardFor) ไม่งั้นการ์ดที่
+     * มาจาก fragment จะลากไม่ได้และไม่มีปุ่มขั้นถัดไป ซึ่งดูเหมือนการ์ดเสีย
+     * ธง data-kanban-ready กันการผูก listener ซ้ำเมื่อถูกเรียกกับการ์ดเดิมอีกครั้ง
+     */
+    const initializeCard = (card) => {
         paintCardGuidance(card);
+        if (card.dataset.kanbanReady === 'true') return;
+        card.dataset.kanbanReady = 'true';
         card.querySelectorAll('*').forEach((item) => item.draggable = false);
 
         // คำใบ้ปลายทางต้องมาตั้งแต่ยังไม่เริ่มลาก คนที่ไม่รู้ว่าการ์ดลากได้จึงจะเห็น
@@ -357,7 +406,9 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
             clearDropTargets();
             dragged = null;
         });
-    });
+    };
+
+    kanban.querySelectorAll('[data-kanban-card]').forEach(initializeCard);
 
     kanban.querySelectorAll('[data-kanban-column]').forEach((column) => {
         const dropZone = column.querySelector('.mytasks-kanban__cards');

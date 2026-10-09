@@ -46,6 +46,13 @@
             @if($taskDetailsLate)
                 <span class="board-task-details__late" data-task-details-late title="มีงานย่อยเลยกำหนดส่ง {{ $taskDetailsLate }} งาน"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><b aria-hidden="true">{{ $taskDetailsLate }}</b><span class="visually-hidden">มีงานย่อยเลยกำหนดส่ง {{ $taskDetailsLate }} งาน</span></span>
             @endif
+            {{--
+                ป้ายบอกว่าแถวนี้เป็นงานแม่ที่แสดงไว้ให้เห็นบริบทของงานย่อยที่ผู้ใช้ร่วมอยู่
+                ต้องเป็น <span> เพราะอยู่ใน <button> ของตัวกางแผงงานย่อยอยู่แล้ว เหมือนป้ายเลยกำหนด
+            --}}
+            @if($taskIsContextOnly ?? false)
+                <span class="board-task-details__context" data-task-context-only title="คุณร่วมงานย่อยในงานนี้ จึงเห็นงานแม่ไว้เป็นบริบท — แก้ไขงานแม่ไม่ได้"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>งานแม่ของงานย่อยที่คุณร่วม</span></span>
+            @endif
             <small class="board-task-details__progress {{ $taskDetailsComplete ? 'is-complete' : 'is-pending' }}" data-task-details-progress>งานย่อย <b data-task-details-count>{{ $taskDetailsDone }}</b>/<span data-task-details-total>{{ $taskDetails->count() }}</span></small>
         </button>
         <button type="button" class="board-reference-task__open" data-open-task-modal data-task-id="{{ $task->job_id }}" aria-label="เปิดข้อมูลทั้งหมดของงาน {{ $task->job_topic }}" title="เปิดข้อมูลงาน">

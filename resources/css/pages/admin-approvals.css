@@ -111,17 +111,56 @@
 .admin-approvals-queue__heading h2 { margin: 3px 0 0; font-size: 1.18rem; font-weight: 600; line-height: 1.45; }
 .admin-approvals-queue__heading p { margin: 4px 0 0; color: var(--approvals-muted); font-size: .86rem; line-height: 1.65; }
 
-.admin-approvals-group + .admin-approvals-group { border-top: 1px solid var(--approvals-line); }
-.admin-approvals-group__heading {
+/*
+ * แถบ "มีของค้างรอคุณตัดสินใจ" ของหัวหน้าแผนก
+ *
+ * แทนการ์ดสรุปสามใบที่ปกติเป็นศูนย์ทั้งแถว เพราะหน้าของหัวหน้าแผนกเป็นหน้าติดตาม
+ * ของค้างเป็นกรณียกเว้น จึงบอกด้วยแถบเดียวที่พาไปที่คิวนั้นตรง ๆ
+ *
+ * โทนเหลืองชุดเดียวกับ .admin-approvals-status.is-amber เพื่อไม่ให้มีสีใหม่ในหน้านี้
+ */
+.admin-approvals-pending {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    background: #f5f3ff;
-    color: #5b21b6;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 13px 18px;
+    border: 1px solid #fde8c4;
+    border-radius: var(--approvals-radius);
+    background: #fffbeb;
+    color: #b45309;
 }
-.admin-approvals-group__heading strong { font-weight: 600; }
-.admin-approvals-group__heading span { margin-left: auto; color: var(--approvals-muted); font-size: .82rem; font-weight: 500; }
+
+.admin-approvals-pending > i {
+    flex: 0 0 auto;
+    font-size: 1.05rem;
+}
+
+.admin-approvals-pending p {
+    margin: 0;
+    font-size: .92rem;
+}
+
+.admin-approvals-pending strong {
+    font-weight: 700;
+}
+
+.admin-approvals-pending a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex: 0 0 auto;
+    color: #92400e;
+    font-size: .88rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.admin-approvals-pending a:hover {
+    text-decoration: underline;
+}
 
 .admin-approvals-status {
     display: inline-flex;
@@ -167,15 +206,6 @@
 .admin-approvals-request__topic .badge { margin-top: 6px; }
 .admin-approvals-request__actions { display: flex; justify-content: flex-end; gap: 8px; }
 .admin-approvals-request__actions .btn { font-size: .8rem; font-weight: 500; }
-
-.admin-approvals-list--outgoing .admin-approvals-list__header,
-.admin-approvals-list--outgoing .admin-approvals-request {
-    grid-template-columns: minmax(240px, 1.4fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(210px, 1.05fr) minmax(110px, .55fr);
-}
-
-.admin-approvals-list--outgoing .admin-approvals-list__header > :last-child {
-    text-align: right;
-}
 
 .admin-approvals-request__tracking {
     display: grid;
@@ -247,9 +277,6 @@
         border-radius: 12px;
         background: var(--approvals-surface);
     }
-    .admin-approvals-list--outgoing .admin-approvals-request {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
     .admin-approvals-request__cell::before {
         display: block;
         margin-bottom: 4px;
@@ -265,6 +292,17 @@
 }
 
 @media (max-width: 575.98px) {
+    .admin-approvals-pending {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .admin-approvals-pending a {
+        margin-left: 0;
+        padding-left: 30px;
+        width: 100%;
+    }
+
     /* สองคอลัมน์ ไม่ใช่ทีละใบ — สี่ใบเรียงตั้งกินจอแรกเกือบ 350px ทั้งที่มีแค่ตัวเลข */
     .admin-approvals-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .admin-approvals-summary__card { min-height: 72px; padding: 10px 12px; }
@@ -273,9 +311,352 @@
     .admin-approvals-summary__card i { display: none; }
     .admin-approvals-queue__heading { align-items: flex-start; padding: 16px; }
     .admin-approvals-request { grid-template-columns: 1fr; }
-    .admin-approvals-list--outgoing .admin-approvals-request { grid-template-columns: 1fr; }
     .admin-approvals-request__topic,
     .admin-approvals-request__actions { grid-column: auto; }
     .admin-approvals-request__actions { display: grid; grid-template-columns: 1fr 1fr; }
     .admin-approvals-request__actions .btn { width: 100%; }
+}
+
+/*
+ * งานข้ามแผนกของทีม — การ์ดหนึ่งใบต่อพนักงานหนึ่งคน แล้วตามด้วยงานที่เขาเข้าร่วม
+ *
+ * ของเดิมเป็นตารางสี่คอลัมน์ที่จัดกลุ่มด้วยแผนกปลายทางก่อน ชื่องาน หัวหน้าโปรเจกต์
+ * กำหนดส่ง และปุ่มจึงยืนห่างกันคนละมุมบนจอกว้าง ต้องกวาดสายตาทั้งแถวกว่าจะรู้ว่า
+ * งานใบนี้ของใครและช้าหรือไม่ และคนคนเดียวที่ช่วยสองแผนกถูกวาดเป็นหัวแถวสองครั้ง
+ *
+ * ตอนนี้แถวงานอ่านจากซ้ายไปขวาเป็นก้อนเดียว: ชื่องาน + สถานะ แล้วรายละเอียดเป็นป้ายเล็ก
+ * ใต้ชื่อ ส่วนกำหนดส่งกับปุ่มอยู่ชิดขวา รางสีด้านซ้ายของแถวบอกถังสถานะ (ล่าช้า/กำลังทำ/
+ * เสร็จแล้ว) ให้เห็นตั้งแต่ยังไม่อ่านตัวหนังสือ
+ *
+ * ใช้โทเคนชุดเดียวกับหน้าคำขออนุมัติ (--approvals-*) ไม่มีสีใหม่ให้ต้องเรียนรู้เพิ่ม
+ */
+
+/* แถบสรุป — ตอบภาพรวมก่อนที่ผู้ใช้จะต้องอ่านรายการทีละใบ */
+.cross-dept-track__overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 18px 20px 0;
+    background: var(--approvals-background);
+}
+
+.cross-dept-track__tile {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 12px 14px;
+    border: 1px solid var(--approvals-line);
+    border-radius: 12px;
+    background: var(--approvals-surface);
+}
+
+.cross-dept-track__tile i {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 1rem;
+}
+
+.cross-dept-track__tile span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    color: var(--approvals-muted);
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.cross-dept-track__tile strong {
+    color: var(--approvals-ink);
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.cross-dept-track__tile.is-red i { background: #fef2f2; color: #b91c1c; }
+.cross-dept-track__tile.is-red strong { color: #b91c1c; }
+.cross-dept-track__tile.is-green i { background: #ecfdf5; color: #047857; }
+
+/* ค้นหาและตัวกรอง — ทำงานฝั่ง client บนรายการที่ server ส่งมาครบแล้ว */
+.cross-dept-track__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 20px;
+    background: var(--approvals-background);
+}
+
+.cross-dept-track__search {
+    position: relative;
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.cross-dept-track__search i {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    color: #94a3b8;
+    font-size: .95rem;
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.cross-dept-track__search input {
+    width: 100%;
+    padding: 9px 12px 9px 36px;
+    border: 1px solid var(--approvals-line);
+    border-radius: 10px;
+    background: var(--approvals-surface);
+    color: var(--approvals-ink);
+    font-size: .88rem;
+}
+
+.cross-dept-track__search input:focus-visible {
+    border-color: var(--approvals-accent);
+    outline: 2px solid #bfdbfe;
+    outline-offset: 1px;
+}
+
+.cross-dept-track__filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.cross-dept-track__filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 13px;
+    border: 1px solid var(--approvals-line);
+    border-radius: 999px;
+    background: var(--approvals-surface);
+    color: #334155;
+    font-size: .84rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cross-dept-track__filter span {
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--approvals-background);
+    color: var(--approvals-muted);
+    font-size: .76rem;
+    text-align: center;
+}
+
+.cross-dept-track__filter:hover,
+.cross-dept-track__filter:focus-visible { border-color: #bfdbfe; color: var(--approvals-accent); }
+.cross-dept-track__filter.is-active { border-color: var(--approvals-accent); background: #eff6ff; color: #1d4ed8; }
+.cross-dept-track__filter.is-active span { background: #dbeafe; color: #1d4ed8; }
+
+.cross-dept-track {
+    display: grid;
+    gap: 14px;
+    padding: 4px 20px 20px;
+    background: var(--approvals-background);
+}
+
+.cross-dept-track__member {
+    overflow: hidden;
+    border: 1px solid var(--approvals-line);
+    border-radius: 14px;
+    background: var(--approvals-surface);
+}
+
+.cross-dept-track__member-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--approvals-line);
+    background: #f1f5f9;
+}
+
+.cross-dept-track__member-copy { display: grid; gap: 2px; min-width: 0; }
+.cross-dept-track__member-copy strong { font-size: 1rem; font-weight: 600; }
+.cross-dept-track__member-copy small { color: var(--approvals-muted); font-size: .8rem; }
+
+.cross-dept-track__member-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.cross-dept-track__member-late {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: .8rem;
+    font-weight: 600;
+}
+
+.cross-dept-track__member-count { font-size: .85rem; font-weight: 700; }
+.cross-dept-track__member-stats small { color: var(--approvals-muted); font-size: .8rem; }
+
+/*
+ * วงกลมรูปโปรไฟล์ — เนื้อในมาจาก components/user-avatar-content ที่เดียวทั้งระบบ
+ * (รูปจริงถ้ามี ไม่งั้นเป็นตัวย่อชื่อ) ที่นี่คุมแค่รูปทรงกับขนาด
+ */
+.cross-dept-track__avatar {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: .82rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.cross-dept-track__avatar--lg {
+    width: 42px;
+    height: 42px;
+    font-size: 1.05rem;
+}
+
+.cross-dept-track__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cross-dept-track__tasks { display: grid; }
+
+.cross-dept-track__task {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(145px, auto) auto;
+    gap: 14px;
+    align-items: center;
+    padding: 13px 16px 13px 20px;
+    line-height: 1.5;
+}
+
+.cross-dept-track__task + .cross-dept-track__task { border-top: 1px solid var(--approvals-line); }
+
+/* รางสีด้านซ้ายบอกถังสถานะโดยไม่ต้องอ่านป้าย — โทนเดียวกับป้ายสถานะของแถว */
+.cross-dept-track__task[data-bucket="late"] { box-shadow: inset 4px 0 0 #ef4444; background: #fffbfb; }
+.cross-dept-track__task[data-bucket="active"] { box-shadow: inset 4px 0 0 #60a5fa; }
+.cross-dept-track__task[data-bucket="done"] { box-shadow: inset 4px 0 0 #34d399; }
+
+/* งานย่อยเยื้องเข้ามาใต้งานแม่ที่อยู่แถวบน */
+.cross-dept-track__task.is-nested .cross-dept-track__body { padding-left: 14px; }
+
+.cross-dept-track__body { display: grid; gap: 6px; min-width: 0; }
+
+.cross-dept-track__topic {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0;
+}
+
+.cross-dept-track__topic strong { font-size: .97rem; font-weight: 600; }
+.cross-dept-track__nest-mark { color: #94a3b8; font-size: .9rem; }
+
+.cross-dept-track__meta {
+    display: flex;
+    gap: 5px 14px;
+    flex-wrap: wrap;
+    margin: 0;
+}
+
+.cross-dept-track__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    color: var(--approvals-muted);
+    font-size: .8rem;
+}
+
+.cross-dept-track__chip--dept { color: #1d4ed8; font-weight: 600; }
+/* ม่วงเฉดเดียวกับป้ายงานข้ามแผนกบนบอร์ด (.cross-department-marker) */
+.cross-dept-track__chip--parent { color: #6d28d9; }
+
+.cross-dept-track__schedule {
+    display: grid;
+    gap: 2px;
+    justify-items: start;
+    margin: 0;
+}
+
+.cross-dept-track__due {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--approvals-muted);
+    font-size: .82rem;
+}
+
+.cross-dept-track__due strong { color: var(--approvals-ink); font-weight: 600; }
+.cross-dept-track__task[data-bucket="late"] .cross-dept-track__due strong { color: #b91c1c; }
+.cross-dept-track__schedule small { color: #94a3b8; font-size: .76rem; }
+
+.cross-dept-track__action { font-size: .8rem; font-weight: 500; white-space: nowrap; }
+
+.cross-dept-track__no-result {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 26px 20px 30px;
+    background: var(--approvals-background);
+    color: var(--approvals-muted);
+    font-size: .9rem;
+}
+
+/* ตัวกรองซ่อนแถวด้วย [hidden] ซึ่งต้องชนะ display ของกริดด้านบน */
+.cross-dept-track__member[hidden],
+.cross-dept-track__task[hidden],
+.cross-dept-track__no-result[hidden] { display: none; }
+
+@media (max-width: 991.98px) {
+    .cross-dept-track__overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    /* ชื่อคนอยู่บรรทัดแรก ตัวเลขของเขาอยู่บรรทัดที่สอง ไม่ต้องบีบทุกอย่างในแถวเดียว */
+    .cross-dept-track__member-head { flex-wrap: wrap; }
+    .cross-dept-track__member-copy { flex: 1 1 auto; }
+    .cross-dept-track__member-stats { width: 100%; margin-left: 0; }
+
+    /* แถวงานซ้อนลงมาเป็นก้อนเดียว ลำดับการอ่านยังเหมือนเดิม */
+    .cross-dept-track__task { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px 14px 14px 18px; }
+    .cross-dept-track__action { justify-self: start; }
+}
+
+@media (max-width: 575.98px) {
+    .cross-dept-track__overview { gap: 8px; padding: 14px 14px 0; }
+    .cross-dept-track__tile { gap: 9px; padding: 10px; }
+    .cross-dept-track__tile i { width: 30px; height: 30px; font-size: .9rem; }
+    .cross-dept-track__tile strong { font-size: 1.05rem; }
+    .cross-dept-track__toolbar { padding: 12px 14px; }
+    .cross-dept-track__filters { width: 100%; }
+    .cross-dept-track__filter { flex: 1 1 auto; justify-content: center; padding: 8px 10px; }
+    .cross-dept-track { padding: 2px 14px 16px; }
+    .cross-dept-track__member-head { padding: 12px 14px; }
+    .cross-dept-track__task { padding: 14px 12px 14px 16px; }
+    .cross-dept-track__action { width: 100%; text-align: center; }
 }

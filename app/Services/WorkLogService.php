@@ -30,7 +30,18 @@ class WorkLogService
         $businessDay = $this->businessDay($data['work_date'] ?? null);
         [$startedAt, $endedAt, $minutes] = $this->resolveTimes($businessDay, $data);
 
-        return DB::transaction(function () use ($owner, $actor, $data, $businessDay, $startedAt, $endedAt, $minutes): WorkLog {
+        /*
+         * บันทึกที่สร้างมาพร้อมผลว่า "พบปัญหา" ตั้งแต่ต้น
+         *
+         * ฟอร์มเพิ่มงานของผู้ใช้ไม่เคยส่ง outcome เข้ามา (ดู validationRules()
+         * ของ WorkLogController) ค่าเริ่มต้นจึงเป็น [false, null] เหมือนเดิมทุกครั้ง
+         * คีย์นี้มีไว้ให้ผู้เรียกฝั่งระบบที่รู้ผลอยู่แล้วตอนสร้าง เช่น
+         * ComputerCheckService::complete() ที่ปิดรอบตรวจแล้วพบเครื่องมีปัญหา
+         * เพื่อให้การเขียนคอลัมน์ของ work_logs ยังมีทางเข้าทางเดียวคือที่นี่
+         */
+        [$hasIssue, $issueDetails] = $this->completionIssue($data);
+
+        return DB::transaction(function () use ($owner, $actor, $data, $businessDay, $startedAt, $endedAt, $minutes, $hasIssue, $issueDetails): WorkLog {
             $log = WorkLog::create([
                 'user_id' => $owner->id,
                 'created_by' => $actor->id,
@@ -52,6 +63,8 @@ class WorkLogService
                 'started_at' => $startedAt,
                 'ended_at' => $endedAt,
                 'duration_minutes' => $minutes,
+                'has_issue' => $hasIssue,
+                'issue_details' => $issueDetails,
             ]);
 
             AuditTrail::log(

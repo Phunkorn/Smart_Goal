@@ -178,6 +178,79 @@
     font-size: .72rem;
 }
 
+/*
+ * แถวตั้งค่าฟังก์ชันรายแผนก — ยืนอยู่ระหว่างหัวการ์ดกับแถวสรุปสมาชิก
+ *
+ * ใช้โทเคนของหน้านี้ทั้งหมด (--surface-2, --border, --accent, --radius-sm)
+ * ไม่ประกาศสีใหม่ เพื่อให้แถวนี้อ่านเป็นส่วนหนึ่งของการ์ด ไม่ใช่ของแปลกปลอม
+ */
+.department-card__feature {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.department-card__feature-copy {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.department-card__feature-copy strong {
+    color: var(--text);
+    font-size: .8rem;
+    font-weight: 700;
+}
+
+.department-card__feature-copy small {
+    color: var(--text-muted);
+    font-size: .72rem;
+    line-height: 1.4;
+}
+
+/* สวิตช์เปิด/ปิด — ปุ่ม submit ของฟอร์ม ไม่ใช่ checkbox ที่วาดทับ */
+.department-card__feature-toggle {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex: none;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: background .16s ease, border-color .16s ease;
+}
+
+.department-card__feature-toggle > span {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform .16s ease, background .16s ease;
+}
+
+.department-card__feature-toggle.is-on {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.department-card__feature-toggle.is-on > span {
+    background: #fff;
+    transform: translateX(18px);
+}
+
+.department-card__feature-toggle:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+
 .departments-empty {
     grid-column: 1 / -1;
     padding: 46px 20px;

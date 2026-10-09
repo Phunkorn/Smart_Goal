@@ -433,7 +433,12 @@
     font-size: 14px;
 }
 
-.task-workspace__add-file {
+/*
+ * ปุ่มบนหัวการ์ด (เพิ่มไฟล์ / ดาวน์โหลด) ใช้สูตรหน้าตาชุดเดียวกัน
+ * เพิ่มปุ่มใหม่บนหัวการ์ดจึงไม่ต้องคัดลอกค่าสีและระยะไปอีกชุด
+ */
+.task-workspace__add-file,
+.task-workspace__panel-button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -448,9 +453,14 @@
     cursor: pointer;
 }
 
-.task-workspace__add-file:hover {
+.task-workspace__add-file:hover,
+.task-workspace__panel-button:hover {
     border-color: #9fb9df;
     background: #f6faff;
+}
+
+.task-workspace__panel-button[hidden] {
+    display: none;
 }
 
 .task-workspace__add-file input {
@@ -1135,6 +1145,18 @@
         grid-template-columns: minmax(0, 1fr);
     }
 
+    /*
+     * หัวการ์ดไฟล์แนบมีปุ่มสองปุ่ม (ดาวน์โหลด / เพิ่มไฟล์) บนจอแคบจึงไม่พอในบรรทัดเดียว
+     * ให้ชื่อการ์ดกินบรรทัดแรกเต็มแล้วปุ่มตกลงมาบรรทัดถัดไป ดีกว่าบีบปุ่มจนอ่านไม่ออก
+     */
+    .task-workspace__panel-head {
+        flex-wrap: wrap;
+    }
+
+    .task-workspace__panel-head strong {
+        flex: 1 0 calc(100% - 40px);
+    }
+
     .task-workspace__header {
         padding: 16px 56px 14px 16px;
     }
@@ -1156,14 +1178,23 @@
 
 /* ---------- รายการไฟล์แนบ ---------- */
 
+/*
+ * คอลัมน์ต้องเป็น minmax(0, 1fr) ไม่ใช่ auto
+ *
+ * แถวไฟล์เป็นกริดไอเท็มที่ min-width ยังเป็น auto ขนาดต่ำสุดของมันจึงเท่ากับ
+ * ความกว้างของชื่อไฟล์เต็ม ๆ ชื่อไฟล์ยาวจะดันแถวให้กว้างกว่าการ์ด แล้วปุ่มท้ายแถว
+ * (ลบ/ดาวน์โหลด) ถูกผลักออกนอกขอบ panel ที่ overflow:auto จนมองไม่เห็น
+ */
 .task-workspace .task-inline-files {
     display: grid;
     align-content: start;
     gap: 7px;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .task-workspace .task-inline-files article {
     display: flex;
+    min-width: 0;
     align-items: center;
     gap: 8px;
     min-height: 42px;
@@ -1206,6 +1237,20 @@
 .task-workspace .task-inline-files article > button:hover {
     background: #fff1f1;
     color: #dc2626;
+}
+
+/* จอสัมผัสไม่มี hover ปุ่มลบจึงต้องอ่านออกตั้งแต่ยังไม่ถูกแตะ และกดโดนง่าย */
+@media (max-width: 640px), (hover: none) {
+    .task-workspace .task-inline-files article > button {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+        border: 1px solid #e1e7ef;
+        border-radius: 10px;
+        background: #fff;
+        color: #dc2626;
+        font-size: 15px;
+    }
 }
 
 /* Empty state ของไฟล์แนบตามแบบที่อนุมัติ: กรอบเส้นประกลางพื้นที่ */

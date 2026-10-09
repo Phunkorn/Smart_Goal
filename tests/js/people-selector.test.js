@@ -9,6 +9,7 @@ import {
     selectedIdsOf,
     setExcludedIds,
     updateSelection,
+    visibleSelectableIds,
 } from '../../resources/js/components/people-selector.js';
 
 const PEOPLE = [
@@ -340,4 +341,136 @@ test('ไม่เปิด showAvatar แล้วไม่มี avatar โผ
 
     assert.equal(ui.root.querySelector('.people-selector__avatar'), null);
     assert.equal(ui.root.querySelector('.people-selector__chip-avatar'), null);
+});
+
+/* ---------- เลือกทีละกลุ่ม ---------- */
+
+/*
+ * ปุ่มนี้อยู่ใน component กลาง จึงได้ทุกที่ที่เลือกบุคคล:
+ * ผู้เข้าร่วมประชุม ผู้ร่วมนัดหมาย และผู้ร่วมงานของ Task
+ */
+test('visibleSelectableIds เคารพทั้งคำค้นและแผนกพร้อมกัน', () => {
+    const options = [
+        {id: 1, departmentId: 10, search: 'สมชาย ใจดี ไอที', checked: false, excluded: false},
+        {id: 2, departmentId: 20, search: 'สมหญิง ตั้งใจ การตลาด', checked: false, excluded: false},
+        {id: 3, departmentId: 10, search: 'ปิติ รักงาน ไอที', checked: false, excluded: false},
+    ];
+
+    assert.deepEqual(visibleSelectableIds(options), ['1', '2', '3']);
+    assert.deepEqual(visibleSelectableIds(options, '', 10), ['1', '3']);
+    // คำค้นต้องตัดคนในแผนกเดียวกันที่ไม่ตรงออกด้วย ไม่ใช่กรองแค่แผนก
+    assert.deepEqual(visibleSelectableIds(options, 'ปิติ', 10), ['3']);
+    assert.deepEqual(visibleSelectableIds(options, 'ไม่มีใครชื่อนี้'), []);
+});
+
+test('visibleSelectableIds ไม่คืนคนที่ถูกกันออกจากรายการ', () => {
+    const options = [
+        {id: 1, departmentId: 10, search: 'สมชาย', checked: false, excluded: false},
+        {id: 2, departmentId: 10, search: 'สมหญิง', checked: false, excluded: true},
+    ];
+
+    assert.deepEqual(visibleSelectableIds(options, '', 10), ['1']);
+});
+
+test('กด "เลือกทั้งแผนก" เลือกเฉพาะคนในแผนกที่กรองอยู่', () => {
+    const ui = mountSelector();
+
+    click(ui.root.querySelector('[data-people-department][data-department-id="10"]'));
+    click(ui.root.querySelector('[data-people-select-visible]'));
+
+    assert.deepEqual(selectedIdsOf(ui.root), [1, 3]);
+});
+
+test('ป้ายปุ่มบอกสิ่งที่จะเกิดขึ้นจริงตามตัวกรองที่ใช้อยู่', () => {
+    const ui = mountSelector();
+    const button = ui.root.querySelector('[data-people-select-visible]');
+
+    assert.equal(button.textContent, 'เลือกทั้งหมดที่แสดง');
+
+    click(ui.root.querySelector('[data-people-department][data-department-id="10"]'));
+    assert.equal(button.textContent, 'เลือกทั้งแผนก');
+
+    click(ui.root.querySelector('[data-people-department][data-department-id=""]'));
+    assert.equal(button.textContent, 'เลือกทั้งหมดที่แสดง');
+});
+
+test('เลือกทีละแผนกสะสมกันได้ ไม่ล้างของแผนกก่อนหน้า', () => {
+    const ui = mountSelector();
+
+    click(ui.root.querySelector('[data-people-department][data-department-id="10"]'));
+    click(ui.root.querySelector('[data-people-select-visible]'));
+    click(ui.root.querySelector('[data-people-department][data-department-id="20"]'));
+    click(ui.root.querySelector('[data-people-select-visible]'));
+
+    assert.deepEqual(selectedIdsOf(ui.root).sort(), [1, 2, 3]);
+});
+
+test('ปุ่มเลือกทั้งหมดไม่แตะคนที่ถูกกันออกจากรายการ', () => {
+    const ui = mountSelector();
+
+    setExcludedIds(ui.root, [3]);
+    click(ui.root.querySelector('[data-people-select-visible]'));
+
+    assert.deepEqual(selectedIdsOf(ui.root).sort(), [1, 2], 'คนที่อยู่ในทีมแล้วต้องไม่ถูกเลือกซ้ำ');
+});
+
+test('ปุ่มเลือกทั้งหมดไม่แตะ checkbox ที่ถูกปิดไว้', () => {
+    const ui = mountSelector({disabled: [2]});
+
+    click(ui.root.querySelector('[data-people-select-visible]'));
+
+    assert.deepEqual(selectedIdsOf(ui.root).sort(), [1, 3]);
+    assert.equal(ui.checkbox(2).checked, false);
+});
+
+test('โหมดอ่านอย่างเดียวกดเลือกทั้งหมดไม่ได้', () => {
+    const ui = mountSelector({readOnly: true});
+
+    assert.equal(ui.root.querySelector('[data-people-select-visible]').disabled, true);
+
+    click(ui.root.querySelector('[data-people-select-visible]'));
+    assert.deepEqual(selectedIdsOf(ui.root), []);
+});
+
+test('ปุ่มถูกปิดเมื่อไม่มีใครให้เลือก และเปิดกลับเมื่อมี', () => {
+    const ui = mountSelector();
+    const button = ui.root.querySelector('[data-people-select-visible]');
+
+    typeInto(ui.root.querySelector('[data-people-search]'), 'ไม่มีใครชื่อนี้');
+    assert.equal(button.disabled, true);
+
+    typeInto(ui.root.querySelector('[data-people-search]'), '');
+    assert.equal(button.disabled, false);
+});
+
+test('ปุ่มล้างการเลือกมีทุก variant ไม่ใช่เฉพาะ team-manager', () => {
+    const ui = mountSelector();
+
+    click(ui.root.querySelector('[data-people-select-visible]'));
+    assert.equal(selectedIdsOf(ui.root).length, 3);
+
+    click(ui.root.querySelector('[data-people-clear]'));
+    assert.deepEqual(selectedIdsOf(ui.root), []);
+});
+
+test('การเลือกทั้งหมดยิง peopleselector:change ครั้งเดียวให้ผู้เรียกภายนอก', () => {
+    const ui = mountSelector();
+    const payloads = [];
+
+    ui.root.addEventListener('peopleselector:change', (event) => payloads.push(event.detail.selectedIds));
+    click(ui.root.querySelector('[data-people-select-visible]'));
+
+    assert.equal(payloads.length, 1, 'ตัวนับฝั่งผู้เรียกต้องอัปเดตรอบเดียว');
+    assert.deepEqual(payloads[0].sort(), [1, 2, 3]);
+});
+
+test('เรียก initializePeopleSelector ซ้ำไม่ทำให้กดหนึ่งครั้งทำงานสองรอบ', () => {
+    const ui = mountSelector();
+    const payloads = [];
+
+    initializePeopleSelector(ui.root);
+    ui.root.addEventListener('peopleselector:change', (event) => payloads.push(event.detail.selectedIds));
+    click(ui.root.querySelector('[data-people-select-visible]'));
+
+    assert.equal(payloads.length, 1);
 });

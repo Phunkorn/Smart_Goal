@@ -9,7 +9,30 @@ class Department extends Model
 {
     protected $fillable = [
         'department_name',
+        // สิทธิ์ใช้งาน "ตรวจเช็กคอมพิวเตอร์ประจำวัน" — เขียนได้จากหน้าตั้งค่าของ admin เท่านั้น
+        // (DepartmentController::updateComputerCheckAccess) ส่วนการตัดสินสิทธิ์อยู่ที่
+        // App\Support\ComputerCheckAccess และ ComputerCheckSessionPolicy
+        'computer_check_enabled',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'computer_check_enabled' => 'boolean',
+        ];
+    }
+
+    /** รอบตรวจเช็กคอมพิวเตอร์ที่ผูกกับแผนกนี้ — ใช้นับว่าแผนกนี้ใช้ฟังก์ชันอยู่จริงหรือไม่ */
+    public function computerCheckSessions(): HasMany
+    {
+        return $this->hasMany(ComputerCheckSession::class, 'department_id');
+    }
+
+    /** นัดหมายที่แผนกนี้เป็นเจ้าของ — ดู Appointment::scopeVisibleTo() */
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class, 'department_id');
+    }
 
     public function users(): HasMany
     {

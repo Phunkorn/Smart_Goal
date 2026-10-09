@@ -6,8 +6,11 @@ import {
     resolveBoardFloatingMenu,
 } from './pages/mytasks/board-floating-menu.js';
 import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
-import {synchronizeCompletedTaskGroup, synchronizeTaskManagement, synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {publishTaskState, synchronizeCompletedTaskGroup, synchronizeTaskManagement, synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {taskStateStore} from './pages/mytasks/task-state-store.js';
 import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
+// ปุ่มลบไฟล์แนบใช้โมดูลเดียวกับการ์ด "ไฟล์แนบ" ใน Task Workspace ไม่มีสำเนาแยก
+import {attachmentDeleteButton, confirmAttachmentDelete, deleteTaskAttachment} from './pages/mytasks/attachment-delete.js';
 import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 
@@ -30,7 +33,8 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
     let lastPreviewTrigger = null;
     // อ็อบเจกต์เดียวกับโมดัลรายละเอียดงานและปฏิทิน การแนบไฟล์จากที่ใดก็ตามจึงเห็นตรงกัน
     const attachmentData = attachmentStore(document);
-    const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
+    // อ็อบเจกต์เดียวกับโมดัล ตาราง kanban และไทม์ไลน์ ทุกมุมมองจึงเห็นสิทธิ์ชุดเดียวกันทันที
+    const management = taskStateStore(document);
 
     /*
      * งานย่อยเป็น [data-board-task] ของตัวเองและซ้อนอยู่ในแถวงานแม่
@@ -57,6 +61,27 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         ownControls(task, '[data-board-status-value]').forEach((button) => {
             button.disabled = !canTransitionTo(currentStatus, Number(button.dataset.boardStatusValue), capabilities);
         });
+
+        /*
+         * ความสำคัญและกำหนดการแก้ได้เมื่อ "ทำงานกับงานใบนี้ได้ตอนนี้" ซึ่งเป็นเท็จเสมอ
+         * เมื่องานปิดแล้ว (WorkOrderPolicy::work) Blade วาดกล่องพวกนี้ไว้ตั้งแต่ต้นเมื่อ
+         * ผู้ใช้เป็นผู้ที่เปิดงานอีกครั้งได้ แล้วปล่อยให้สิทธิ์จาก server เป็นตัวเปิด/ปิด
+         * ที่นี่ที่เดียว เปิดงานอีกครั้งแล้วจึงกลับมาแก้ได้ทันทีโดยไม่ต้องโหลดหน้าใหม่
+         */
+        const canEdit = capabilities.can_edit === true;
+        ownControls(task, '[data-board-priority-value]').forEach((button) => {
+            button.disabled = !canEdit;
+        });
+        ownControls(task, '[data-board-priority-menu]').forEach((menu) => {
+            menu.classList.toggle('is-locked', !canEdit);
+            if (!canEdit) menu.removeAttribute('open');
+        });
+        // ช่องวันที่ถูกปฏิเสธโดย components/date-picker.js เองเมื่อ disabled จึงไม่ต้องถอด listener
+        ownControls(task, 'input[data-board-field]').forEach((input) => {
+            input.disabled = !canEdit;
+            input.closest('label')?.classList.toggle('is-locked', !canEdit);
+        });
+
         task.classList.toggle('is-readonly', capabilities.can_edit !== true && capabilities.can_reopen !== true);
     };
 
@@ -359,6 +384,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         const upload = attachmentModal.querySelector('[data-board-attachment-upload]');
         const locked = attachmentModal.querySelector('[data-board-attachment-locked]');
         const input = attachmentModal.querySelector('[data-board-modal-attachment-input]');
+        const download = attachmentModal.querySelector('[data-open-attachment-download]');
         attachmentModal.querySelector('[data-board-attachment-topic]').textContent = data.topic || '';
         list.replaceChildren();
         (data.files || []).forEach((file) => {
@@ -373,9 +399,21 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             const open = document.createElement('i');
             open.className = 'bi bi-box-arrow-up-right';
             link.append(icon, name, open);
-            list.append(link);
+            // แถวไฟล์ครอบลิงก์กับปุ่มลบไว้ด้วยกัน เพราะปุ่มลบต้องไม่อยู่ในลิงก์เปิดไฟล์
+            const row = document.createElement('div');
+            row.className = 'board-attachment-modal__row';
+            row.append(link);
+            const remove = attachmentDeleteButton(file, document);
+            if (remove) row.append(remove);
+            list.append(row);
         });
         empty.hidden = (data.files || []).length > 0;
+        // ปุ่มดาวน์โหลดเปิดกล่องเลือกไฟล์ใบเดียวกับการ์ดไฟล์แนบใน Task Workspace
+        // โมดูลนั้นอ่านงานที่เปิดอยู่จาก dataset ของปุ่มที่กด ไม่ใช่ตัวแปรในไฟล์นี้
+        if (download) {
+            download.hidden = (data.files || []).length === 0;
+            download.dataset.taskId = String(taskId);
+        }
         upload.hidden = !data.can_upload;
         if (locked) locked.hidden = data.is_closed !== true;
         [input].filter(Boolean).forEach((field) => {
@@ -616,6 +654,31 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             openAttachmentModal(attachmentOpen.dataset.boardOpenAttachments || attachmentOpen.dataset.openAttachments);
             return;
         }
+        // ลบไฟล์จากกล่องไฟล์แนบ — ทางเข้าหลักของจอมือถือ ใช้สิทธิ์ delete_url จาก server
+        const removeAttachment = event.target.closest('[data-delete-attachment]');
+        if (removeAttachment && attachmentModal?.contains(removeAttachment)) {
+            event.preventDefault();
+            if (removeAttachment.disabled) return;
+            const removeTaskId = attachmentModal.dataset.taskId;
+            if (!(await confirmAttachmentDelete())) return;
+
+            removeAttachment.disabled = true;
+            try {
+                await deleteTaskAttachment({
+                    url: removeAttachment.dataset.deleteAttachment,
+                    csrf,
+                    taskId: removeTaskId,
+                    files: attachmentData[String(removeTaskId)]?.files || [],
+                });
+                notify('ลบไฟล์แล้ว');
+                openAttachmentModal(removeTaskId);
+            } catch (error) {
+                removeAttachment.disabled = false;
+                notify(error.message, false);
+            }
+            return;
+        }
+
         if (event.target.closest('[data-close-board-attachments]') || event.target === attachmentModal) {
             closeAttachmentModal();
             return;
@@ -698,29 +761,14 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             const payload = await confirmTaskTransition(Number(task.dataset.status), value, management[String(task.dataset.taskId)]?.transitions || {});
             if (!payload) { statusOption.disabled = false; return; }
             request(endpoint(workspace.dataset.statusTemplate, task.dataset.taskId), 'PATCH', payload).then((data) => {
-                synchronizeTaskManagement(management, task.dataset.taskId, data);
-                const actualStatus = Number(data.job_status ?? value);
-                const actualMeta = statusMeta[actualStatus] || meta;
-                task.dataset.status = String(actualStatus);
-                task.dataset.late = actualStatus === 6 ? '1' : '0';
-                const summary = menu.querySelector('summary');
-                summary.classList.remove(...statusClasses);
-                summary.classList.add(actualMeta.className);
-                const label = summary.querySelector('[data-board-status-label]');
-                if (label) label.textContent = actualMeta.label;
                 closeBoardMenu(menu);
-                synchronizeTaskSource(workspace, task.dataset.taskId, {status: actualStatus});
-                refreshStatusControls(task);
                 /*
-                 * ปิดงานย่อยใบสุดท้ายแล้วต้องปิดงานแม่ได้ทันทีโดยไม่ต้องโหลดหน้าใหม่
-                 * ตัวนับและด่านของงานแม่จึงต้องอัปเดตทุกครั้งที่งานย่อยเปลี่ยนสถานะ
+                 * ไม่แก้ป้ายและปุ่มของแถวนี้เองอีกแล้ว — publishTaskState() เขียน state กลาง
+                 * แล้วยิง event ที่ applyTaskChange() รับไปวาดแถวนี้พร้อมกับทุกมุมมองอื่น
+                 * ของเดิมแก้สองที่ (ที่นี่กับ listener) ซึ่งเป็นสองแหล่งความจริงของป้ายเดียวกัน
                  */
-                if (task.matches('[data-board-subtask]') && task.dataset.workOrderId) {
-                    syncSubtaskGate(task.dataset.workOrderId, management);
-                }
-                refreshProjectArchiveAction(task);
+                publishTaskState(workspace, task.dataset.taskId, data, value);
                 notify('เปลี่ยนสถานะงานแล้ว');
-                filterBoard();
             }).catch((error) => notify(error.message, false)).finally(() => refreshStatusControls(task));
             return;
         }
@@ -897,15 +945,11 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         try {
             if (field === 'status') {
                 const data = await request(endpoint(workspace.dataset.statusTemplate, id), 'PATCH', {job_status: Number(control.value)});
-                synchronizeTaskManagement(management, id, data);
                 const actualStatus = Number(data.job_status ?? control.value);
-                task.dataset.status = String(actualStatus);
-                task.dataset.late = actualStatus === 6 ? '1' : '0';
                 const wrapper = control.closest('[data-board-status-choice]');
                 wrapper.classList.remove(...statusClasses);
                 wrapper.classList.add(statusMeta[actualStatus]?.className || unsupportedStatusMeta.className);
-                synchronizeTaskSource(workspace, id, {status: actualStatus});
-                refreshProjectArchiveAction(task);
+                publishTaskState(workspace, id, data, actualStatus);
             } else if (field === 'priority') {
                 await request(endpoint(workspace.dataset.priorityTemplate, id), 'POST', {job_priority: Number(control.value)});
                 task.dataset.priority = control.value;

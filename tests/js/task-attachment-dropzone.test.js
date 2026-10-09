@@ -214,7 +214,8 @@ test('the attachment flow no longer reloads the page on success', async () => {
 
 test('the client hint matches the server allow-list exactly', async () => {
     const policy = await read('app/Support/AttachmentPolicy.php');
-    const script = await read('resources/js/mytasks-task-modal.js');
+    // ตารางไอคอนย้ายไปอยู่ที่ attachment-icons.js แล้ว เพราะกล่องดาวน์โหลดใช้ชุดเดียวกัน
+    const icons = await read('resources/js/pages/mytasks/attachment-icons.js');
     const blade = await read('resources/views/tasks/partials/workspace-interactions.blade.php');
 
     // กติกาอยู่ที่ AttachmentPolicy ที่เดียว ไอคอนฝั่ง client ต้องรู้จักครบทุกนามสกุล
@@ -225,7 +226,8 @@ test('the client hint matches the server allow-list exactly', async () => {
 
     assert.deepEqual(allowed, ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip']);
 
-    const iconMap = script.slice(script.indexOf('const FILE_ICONS'), script.indexOf('const extensionOf'));
+    const iconMap = icons.slice(icons.indexOf('export const FILE_ICONS'), icons.indexOf('export const extensionOf'));
+    assert.ok(iconMap.length > 0, 'ต้องหาตาราง FILE_ICONS เจอ ไม่ใช่ slice ว่าง');
     allowed.forEach((extension) => {
         assert.ok(iconMap.includes(`${extension}:`), `FILE_ICONS ต้องรู้จัก .${extension}`);
     });

@@ -245,8 +245,8 @@ test('agenda priority reads as a coloured badge with plain text, not a coloured 
     // สีของระดับอยู่ที่พื้นหลังและขอบ ส่วนตัวอักษรใช้สีกลางน้ำหนักปกติเหมือนช่องอื่นในแถว
     assert.match(css, /\.calendar-tag\.is-priority \{[^}]*--calendar-priority-tone/s);
 
-    // การประชุมยังมีไอคอนนำหน้า เพราะมันบอกชนิดของรายการ ไม่ใช่ระดับความสำคัญ
-    assert.match(calendar, /calendar-table__marker bi bi-calendar-event/);
+    // ไม่มีไอคอนนำหน้าชื่อรายการแล้ว ปฏิทินนี้มีแต่งาน จึงไม่ต้องบอกชนิดของรายการ
+    assert.doesNotMatch(calendar, /calendar-table__marker/);
 });
 
 test('the agenda numbers rows across the whole list, not per page', async () => {

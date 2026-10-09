@@ -10,3 +10,13 @@
 @import '../components/subtask-modal.css';
 @import './reports/shared.css';
 @import './reports/operational.css';
+
+/*
+ * ปุ่ม "ดูแบบตรวจ" ในตารางสรุปรายวัน
+ *
+ * โผล่เฉพาะรายการที่มาจากรอบตรวจเช็กคอมพิวเตอร์ จึงเป็นปุ่มเล็กใต้ชื่องาน
+ * ไม่ใช่คอลัมน์ใหม่ เพราะคอลัมน์ว่างเกือบทุกแถวจะกินความกว้างไปเปล่า ๆ
+ * และต้องไม่ทำให้คอลัมน์ของไฟล์ CSV เปลี่ยนไปจากเดิม
+ */
+.operational-table__inspection { display:inline-flex; align-items:center; gap:5px; margin-top:5px; min-height:30px; padding:0 10px; border:1px solid var(--accent); border-radius:var(--radius-sm); background:var(--accent-dim); color:var(--accent-strong); font-size:.74rem; }
+.operational-table__inspection:hover { background:var(--accent); color:#fff; }

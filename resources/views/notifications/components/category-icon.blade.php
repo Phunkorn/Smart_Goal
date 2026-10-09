@@ -5,6 +5,7 @@
         'comment' => 'bi-chat-dots',
         'review' => 'bi-patch-check',
         'meeting' => 'bi-calendar-event',
+        'appointment' => 'bi-bookmark-star',
         'deadline' => 'bi-alarm',
         'system' => 'bi-bell',
     ];

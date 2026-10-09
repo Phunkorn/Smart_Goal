@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -226,10 +227,16 @@ class WorkOrderPolicyTest extends TestCase
         ];
     }
 
-    public function test_cross_department_invitation_requires_admin_decision_and_can_only_be_decided_once(): void
+    /**
+     * ไม่มีใครตัดสินการเข้าร่วมโปรเจกต์ได้อีกแล้ว เพราะไม่มีอะไรให้ตัดสิน
+     *
+     * การเพิ่มผู้เข้าร่วมจบในขั้นเดียวที่หัวหน้าโปรเจกต์ (ProjectRoles) และสมาชิกเอง
+     * ก็ถอนตัวหรือกดรับคำเชิญไม่ได้ ต้องให้หัวหน้าโปรเจกต์นำออกเท่านั้น
+     */
+    public function test_nobody_decides_project_participation_and_members_cannot_withdraw_themselves(): void
     {
         $owner = User::factory()->create(['role' => 'user']);
-        $invitee = User::factory()->create(['role' => 'user']);
+        $participant = User::factory()->create(['role' => 'user']);
         $admin = User::factory()->create(['role' => 'admin']);
         $job = WorkOrder::create([
             'user_id' => $owner->id,
@@ -242,26 +249,36 @@ class WorkOrderPolicyTest extends TestCase
             'job_start_at' => now(),
             'job_due_at' => now()->addDay(),
         ]);
-        $job->collaborators()->attach($invitee->id, ['added_by' => $owner->id, 'status' => 'pending']);
 
-        $this->actingAs($invitee)
-            ->patch(route('tasks.invitation.respond', $job->job_id), ['status' => 'rejected'])
-            ->assertForbidden();
-        $this->assertSame('pending', $job->fresh()->collaborators()->first()->pivot->status);
-
-        $this->actingAs($admin)
-            ->patchJson(route('admin.tasks.collaborators.approval', [$job->job_id, $invitee->id]), ['status' => 'rejected'])
+        $this->actingAs($owner)
+            ->postJson(route('tasks.collaborators.store', $job->job_id), ['collaborators' => [$participant->id]])
             ->assertOk();
-        $this->assertSame('rejected', $job->collaborators()->first()->pivot->status);
 
-        $this->actingAs($admin)
-            ->patchJson(route('admin.tasks.collaborators.approval', [$job->job_id, $invitee->id]), ['status' => 'accepted'])
-            ->assertConflict();
-        $this->assertSame('rejected', $job->fresh()->collaborators()->first()->pivot->status);
-        $this->assertSame(1, ActivityLog::where('subject_id', $job->job_id)->where('action', 'collaborator_rejected')->count());
-        $this->assertSame(1, SystemNotification::where('user_id', $owner->id)
-            ->where('work_order_id', $job->job_id)
-            ->where('type', 'collaborator_rejected')
+        $this->assertSame('accepted', $job->fresh()->collaborators()->first()->pivot->status);
+
+        // ไม่มีเส้นทางให้ตอบรับ/ปฏิเสธคำเชิญ หรืออนุมัติผู้ร่วมงานอีกต่อไป
+        foreach (['tasks.invitation.respond', 'admin.tasks.collaborators.approval'] as $retired) {
+            $this->assertFalse(Route::has($retired), $retired.' ต้องถูกถอดออกแล้ว');
+        }
+
+        // สมาชิกถอนตัวเองไม่ได้ และ admin ก็ไม่มีคำขอให้ตัดสิน
+        $this->actingAs($participant)
+            ->deleteJson(route('tasks.collaborators.destroy', [$job->job_id, $participant->id]))
+            ->assertForbidden();
+        $this->assertSame('accepted', $job->fresh()->collaborators()->first()->pivot->status);
+        $this->assertSame(0, ActivityLog::where('subject_id', $job->job_id)
+            ->whereIn('action', ['collaborator_accepted', 'collaborator_rejected'])
             ->count());
+        $this->assertSame(0, SystemNotification::whereIn('type', [
+            'collaborator_approval_request',
+            'collaborator_approved',
+            'collaborator_rejected',
+        ])->count());
+
+        // admin ยังนำสมาชิกออกได้ในฐานะอำนาจสำรอง
+        $this->actingAs($admin)
+            ->deleteJson(route('tasks.collaborators.destroy', [$job->job_id, $participant->id]))
+            ->assertOk();
+        $this->assertFalse($job->fresh()->collaborators->contains('id', $participant->id));
     }
 }

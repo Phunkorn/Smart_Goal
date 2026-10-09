@@ -81,7 +81,9 @@ class WorkLogQueryService
     {
         return WorkLog::query()
             // template.user ใช้บอกว่ารายการงานประจำนี้เป็นของแม่แบบที่คนอื่นตั้งไว้
-            ->with(['category', 'project', 'task', 'attachments', 'user', 'participants', 'template.user', 'template.participants', 'sharedFrom.user', 'sharedFrom.participants', 'absentMarkedBy:id,name'])
+            // computerCheckSession โหลดมาด้วยเพื่อให้ WorkLogPresenter รู้ว่าต้องมี
+            // ปุ่ม "ดูแบบตรวจ" ไหม โดยไม่ยิง query เพิ่มทีละการ์ด
+            ->with(['category', 'project', 'task', 'attachments', 'user', 'participants', 'template.user', 'template.participants', 'sharedFrom.user', 'sharedFrom.participants', 'absentMarkedBy:id,name', 'computerCheckSession'])
             ->where('user_id', $owner->id)
             ->whereDate('work_date', $businessDay->format('Y-m-d'))
             ->get()

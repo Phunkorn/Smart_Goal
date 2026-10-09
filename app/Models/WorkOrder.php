@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TaskParticipation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -256,15 +257,10 @@ class WorkOrder extends Model
      */
     public function scopeContributedBy(Builder $query, int $userId): Builder
     {
-        return $query->where('approval_status', 'approved')
-            ->where(function (Builder $participant) use ($userId): void {
-                $participant->where('user_id', $userId)
-                    ->orWhere('created_by', $userId)
-                    ->orWhere('leader_user_id', $userId)
-                    ->orWhereHas('collaborators', fn (Builder $collaborators) => $collaborators
-                        ->where('users.id', $userId)
-                        ->where('work_order_collaborators.status', 'accepted'));
-            });
+        return TaskParticipation::matches(
+            $query->where('approval_status', 'approved'),
+            $userId
+        );
     }
 
     /**
@@ -305,15 +301,10 @@ class WorkOrder extends Model
 
         return $query->where(function (Builder $query) use ($user): void {
             $query->where(function (Builder $approved) use ($user): void {
-                $approved->where('approval_status', 'approved')
-                    ->where(function (Builder $participant) use ($user): void {
-                        $participant->where('user_id', $user->id)
-                            ->orWhere('created_by', $user->id)
-                            ->orWhere('leader_user_id', $user->id)
-                            ->orWhereHas('collaborators', fn (Builder $collaborators) => $collaborators
-                                ->where('users.id', $user->id)
-                                ->where('work_order_collaborators.status', 'accepted'));
-                    });
+                TaskParticipation::matches(
+                    $approved->where('approval_status', 'approved'),
+                    $user
+                );
             })->orWhere(function (Builder $unapproved) use ($user): void {
                 $unapproved->where('approval_status', '!=', 'approved')
                     ->where(function (Builder $requester) use ($user): void {
@@ -333,6 +324,23 @@ class WorkOrder extends Model
 
         return $query->where(function (Builder $query) use ($user): void {
             $query->involving($user)
+                /*
+                 * งานแม่ของงานย่อยที่ผู้ใช้ร่วมอยู่ — เห็นเพื่อเป็น "บริบท" เท่านั้น
+                 *
+                 * ผู้ที่ถูกเพิ่มเข้างานย่อยโดยตรง (ซึ่งเป็นผลลัพธ์ปกติของการแชร์งาน เพราะ
+                 * WorkOrderPolicy::share() ให้แชร์ได้เฉพาะงานย่อย) ไม่เคยมีสิทธิ์บนงานแม่
+                 * ทุกมุมมองวาดงานย่อยเป็นลูกของแถวงานแม่เท่านั้น เมื่องานแม่ไม่เข้าคิวรี
+                 * งานย่อยจึงไม่มีที่ยืนในหน้าเลย ทั้งที่ policy อนุญาตให้ดูได้
+                 *
+                 * สิทธิ์ที่ได้จากตรงนี้เป็นสิทธิ์อ่านล้วน ๆ และต้องไม่ทำให้ผู้ใช้กลายเป็น
+                 * ผู้มีส่วนร่วมของงานแม่ เกณฑ์ต้องตรงกับ WorkOrderPolicy::viewAsContext()
+                 * และงานย่อยใบอื่นของงานแม่เดียวกันถูกตัดออกที่
+                 * CrossDepartmentWork::restrictChildren()
+                 */
+                ->orWhere(fn (Builder $context) => TaskParticipation::matchesThroughChild(
+                    $context->where('approval_status', 'approved'),
+                    $user
+                ))
                 /*
                  * สิทธิ์ระดับโปรเจกต์ให้เฉพาะคนในแผนกเดียวกับงาน
                  *

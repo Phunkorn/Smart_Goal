@@ -554,3 +554,270 @@ test('initializeAttendeeDepartmentFilter ไม่ผูก listener ซ้ำ�
     const rows = [...env.document.querySelectorAll('span[data-attendee-department]')];
     assert.deepEqual(rows.filter((row) => !row.hidden).map((row) => row.textContent), ['สมหญิง']);
 });
+
+/*
+ * การตอบรับเข้าร่วมประชุม — ทั้งสาม modal ใบใหม่ต้องใช้กลไกเปิด/ปิดชุดเดิมของหน้าประชุม
+ * ไม่ใช่สร้างตัวจัดการ overlay ใบที่สองขึ้นมาขนานกัน
+ */
+const declineModalSource = readFileSync(new URL('../../resources/views/invitations/components/decline-modal.blade.php', import.meta.url), 'utf8');
+const responseModalSource = readFileSync(new URL('../../resources/views/invitations/components/attendee-status-modal.blade.php', import.meta.url), 'utf8');
+const responseActionsSource = readFileSync(new URL('../../resources/views/invitations/components/response-actions.blade.php', import.meta.url), 'utf8');
+const responseCss = readFileSync(new URL('../../resources/css/pages/meetings/attendee-response.css', import.meta.url), 'utf8');
+
+test('ปุ่มตอบรับ/ไม่ว่าง และปุ่มสถานะผู้เข้าร่วม ใช้ปุ่มกับตัวเปิด modal ชุดเดิมของหน้าประชุม', () => {
+    const showSource = readFileSync(new URL('../../resources/views/meetings/show.blade.php', import.meta.url), 'utf8');
+
+    assert.match(responseActionsSource, /data-meeting-modal-trigger="declineMeetingInvitationModal"/);
+    assert.match(showSource, /data-meeting-modal-trigger="meetingAttendeeResponsesModal"/);
+    // ไม่มีคลาสปุ่มใหม่ ทุกปุ่มยังเป็น .meetings-page__button ตัวเดิม
+    assert.match(responseActionsSource, /class="meetings-page__button meetings-page__button--primary"/);
+    assert.doesNotMatch(responseCss, /\.meeting-rsvp__button/);
+});
+
+test('modal การตอบรับเข้าร่วมประชุมถูกเปิดได้ด้วย resolveMeetingModal ตัวเดียวกับฟอร์มประชุม', () => {
+    [declineModalSource, responseModalSource].forEach((modalSource) => {
+        assert.match(modalSource, /class="modal fade meeting-form-modal/);
+        assert.match(modalSource, /modal-dialog-centered/);
+        assert.match(modalSource, /data-bs-dismiss="modal"/);
+    });
+});
+
+test('เหตุผลที่ไม่สะดวกเข้าร่วมเป็นข้อมูลบังคับทั้งในฟอร์มและมีช่องแสดงข้อผิดพลาดของตัวเอง', () => {
+    assert.match(declineModalSource, /name="decline_reason"/);
+    assert.match(declineModalSource, /required/);
+    assert.match(declineModalSource, /@error\('decline_reason'\)/);
+    // ใบเดียวใช้ทั้งประชุมและนัดหมาย ปลายทางจึงถูกส่งเข้ามา ไม่ hardcode route ของ domain ใด
+    assert.match(declineModalSource, /\$invitationDeclineUrl/);
+    assert.doesNotMatch(declineModalSource, /route\('meetings\./);
+    assert.doesNotMatch(declineModalSource, /route\('appointments\./);
+});
+
+test('modal สถานะผู้เข้าร่วมไม่ตัดสินสิทธิ์เองและไม่ประกาศคำของสถานะซ้ำ', () => {
+    // สิทธิ์มาจาก policy ฝั่งเซิร์ฟเวอร์ ไม่ใช่เงื่อนไข role ใน Blade
+    assert.doesNotMatch(responseModalSource, /role\s*===?\s*'admin'/);
+    assert.doesNotMatch(responseModalSource, /->role/);
+    // คำกับไอคอนของทุกสถานะมาจาก MeetingAttendeeResponseDesign ที่เดียว
+    assert.match(responseModalSource, /\$responseDesign::/);
+    assert.doesNotMatch(responseModalSource, /MeetingAttendeeResponseDesign/);
+    assert.doesNotMatch(responseModalSource, /'รอตอบรับ'/);
+    /*
+     * ป้ายสถานะของผู้เปิดหน้าย้ายไปอยู่บนการ์ดคำเชิญแล้ว ส่วน attendee-response-actions
+     * เหลือหน้าที่เดียวคือปุ่มสองปุ่ม จึงไม่ต้องรู้จักคำของสถานะอีก
+     */
+    /*
+     * แบนเนอร์ใช้ร่วมสอง domain แล้ว คลาสป้ายสถานะจึงถูกส่งเข้ามาเป็น $invitationDesign
+     * ไม่ใช่อ้างถึงคลาสของการประชุมตรง ๆ และไม่ประกาศคำของสถานะเอง
+     */
+    assert.match(invitationCardSource, /\$invitationDesign::/);
+    assert.doesNotMatch(invitationCardSource, /MeetingAttendeeResponseDesign/);
+    assert.doesNotMatch(invitationCardSource, /'รอตอบรับ'/);
+    assert.doesNotMatch(responseActionsSource, /ResponseDesign/);
+});
+
+test('สไตล์การตอบรับเข้าร่วมประชุมใช้โทเคนเดิม ไม่มี gradient และไม่มี dependency ใหม่', () => {
+    assert.doesNotMatch(responseCss, /gradient/i);
+    assert.doesNotMatch(responseCss, /@tailwind|tailwind/i);
+    assert.match(responseCss, /var\(--border\)/);
+    assert.match(responseCss, /var\(--green-dim\)/);
+    assert.match(responseCss, /var\(--red-dim\)/);
+    // ต้องถูกผูกเข้ากับ entry เดิมของหน้าประชุม ไม่ใช่ entry Vite ใบใหม่
+    const meetingsCss = readFileSync(new URL('../../resources/css/pages/meetings.css', import.meta.url), 'utf8');
+    assert.match(meetingsCss, /@import '\.\/meetings\/attendee-response\.css';/);
+});
+
+test('modal การตอบรับเข้าร่วมประชุมไม่ใช้ native dialog และยังพึ่ง Swal ของระบบ', () => {
+    [declineModalSource, responseModalSource, responseActionsSource].forEach((modalSource) => {
+        assert.doesNotMatch(modalSource, /(^|[^.\w])alert\s*\(/m);
+        assert.doesNotMatch(modalSource, /(^|[^.\w])confirm\s*\(/m);
+        assert.doesNotMatch(modalSource, /(^|[^.\w])prompt\s*\(/m);
+    });
+});
+
+test('กดปุ่ม "ไม่ว่างประชุม" เปิด modal เหตุผลจริง และกดซ้ำไม่ผูก listener เพิ่ม', (t) => {
+    const env = mountDom();
+    t.after(env.cleanup);
+    env.document.body.innerHTML = `
+        <div class="meetings-page">
+            <button type="button" data-meeting-modal-trigger="declineMeetingInvitationModal">ไม่ว่างประชุม</button>
+            <div class="modal fade meeting-form-modal" id="declineMeetingInvitationModal">
+                <form><textarea name="decline_reason" required></textarea></form>
+            </div>
+        </div>`;
+
+    const bootstrapApi = fakeBootstrapModal();
+    initializeMeetingModals(env.document, bootstrapApi);
+    initializeMeetingModals(env.document, bootstrapApi);
+
+    const declineModal = env.document.getElementById('declineMeetingInvitationModal');
+    assert.equal(declineModal.classList.contains('show'), false);
+
+    click(env.document.querySelector('[data-meeting-modal-trigger]'));
+    assert.equal(declineModal.classList.contains('show'), true, 'ปุ่มไม่ว่างประชุมต้องเปิด modal เหตุผลได้จริง');
+
+    bootstrapApi.Modal.getOrCreateInstance(declineModal).hide();
+    click(env.document.querySelector('[data-meeting-modal-trigger]'));
+    assert.equal(declineModal.classList.contains('show'), true, 'เปิดซ้ำได้ตามปกติโดยไม่ค้างสถานะ');
+});
+
+/*
+ * การ์ดคำเชิญเข้าร่วมประชุมและแถบปุ่มติดขอบล่างของมือถือ — ต้องใช้ปุ่มคู่เดียวกับของเดิม
+ * ไม่ใช่ประกาศ markup ปุ่มชุดที่สองขึ้นมาขนานกัน
+ */
+const invitationCardSource = readFileSync(new URL('../../resources/views/invitations/components/response-card.blade.php', import.meta.url), 'utf8');
+const mobileActionsSource = readFileSync(new URL('../../resources/views/invitations/components/mobile-actions.blade.php', import.meta.url), 'utf8');
+const meetingShowSource = readFileSync(new URL('../../resources/views/meetings/show.blade.php', import.meta.url), 'utf8');
+
+test('ปุ่มตอบรับคำเชิญถูกประกาศที่เดียว การ์ดกับแถบมือถือ include ตัวเดียวกัน', () => {
+    [invitationCardSource, mobileActionsSource].forEach((source) => {
+        assert.match(source, /@include\('invitations\.components\.response-actions'/);
+        // ห้ามประกาศฟอร์ม/ปุ่มตอบรับซ้ำในสองไฟล์ (ชื่อตัวแปรในคอมเมนต์อธิบายสัญญาไม่นับ)
+        assert.doesNotMatch(source, /<form[^>]*\$invitationAcceptUrl/);
+        assert.doesNotMatch(source, /type="submit"/);
+        assert.doesNotMatch(source, /data-meeting-modal-trigger="declineMeetingInvitationModal"/);
+    });
+
+    assert.match(responseActionsSource, /\$invitationAcceptUrl/);
+    assert.doesNotMatch(responseActionsSource, /route\(/, 'ปุ่มคู่นี้ต้องไม่ผูกกับ route ของ domain ใด');
+    assert.match(responseActionsSource, /data-meeting-modal-trigger="declineMeetingInvitationModal"/);
+});
+
+test('ปุ่ม RSVP ไม่อยู่ในแถบปุ่มมุมขวาบนอีกต่อไป และการ์ดอยู่เหนือแผงรายละเอียด', () => {
+    const actionBar = meetingShowSource.match(/<div class="meetings-page__actions">[\s\S]*?<\/header>/);
+    assert.ok(actionBar, 'ต้องเจอแถบปุ่มมุมขวาบนใน show.blade.php');
+    assert.doesNotMatch(actionBar[0], /attendee-response-actions/);
+    assert.doesNotMatch(actionBar[0], /meetings\.attendance\.accept/);
+    // แถบนี้ยังเป็นของผู้สร้างประชุมตามเดิม
+    assert.match(actionBar[0], /meetingAttendeeResponsesModal/);
+    assert.match(actionBar[0], /editMeetingModal/);
+
+    assert.ok(
+        meetingShowSource.indexOf('meeting-invitation-response-card') < meetingShowSource.indexOf('meetings-page__detail-main'),
+        'การ์ดคำเชิญต้องถูก include ก่อนแผงรายละเอียดการประชุม'
+    );
+});
+
+test('แถบปุ่มติดขอบล่างถูกซ่อน/แสดงด้วย CSS media query ไม่ใช่ JavaScript', () => {
+    assert.match(responseCss, /\.meeting-rsvp-mobile-actions \{ display: none; \}/);
+    assert.match(responseCss, /@media \(max-width: 767\.98px\)[\s\S]*\.meeting-rsvp-mobile-actions \{[\s\S]*position: fixed/);
+    // ไม่มีโค้ด JS ใดแตะแถบนี้เลย การซ่อนบนเดสก์ท็อปจึงไม่ขึ้นกับ JavaScript
+    assert.doesNotMatch(source, /meeting-rsvp-mobile-actions/);
+    assert.doesNotMatch(source, /meeting-invitation/);
+});
+
+test('แถบปุ่มมือถือมี touch target ใหญ่พอและไม่ทับเนื้อหาท้ายหน้า', () => {
+    assert.match(responseCss, /\.meeting-rsvp-mobile-actions \.meetings-page__button \{[\s\S]*min-height: 48px/);
+    assert.match(responseCss, /safe-area-inset-bottom/);
+    assert.match(responseCss, /\.meetings-page--awaiting-invitation-response \{ padding-bottom: \d+px; \}/);
+    assert.match(meetingShowSource, /meetings-page--awaiting-invitation-response/);
+});
+
+test('การ์ดคำเชิญสื่อสถานะด้วยไอคอนและข้อความ ไม่ใช่สีเพียงอย่างเดียว', () => {
+    assert.match(invitationCardSource, /statusIcon\(/);
+    assert.match(invitationCardSource, /statusLabel\(/);
+    // ทุกไอคอนเป็นตัวเสริม ข้อความต้องอ่านได้เองโดยไม่ต้องพึ่งไอคอน
+    assert.match(invitationCardSource, /aria-labelledby="meetingInvitationResponseHeading"/);
+    assert.doesNotMatch(invitationCardSource, /<i[^>]*class="bi[^"]*"(?![^>]*aria-hidden)/);
+});
+
+test('สไตล์การ์ดคำเชิญใช้โทเคนเดิม ไม่มี gradient และไม่มีไฟล์ CSS ใบใหม่', () => {
+    assert.match(responseCss, /\.meeting-rsvp-card \{/);
+    assert.match(responseCss, /\.meeting-rsvp-card__header/);
+    assert.match(responseCss, /\.meeting-rsvp-card__actions/);
+    assert.doesNotMatch(responseCss, /gradient/i);
+    assert.doesNotMatch(responseCss, /!important/);
+    assert.match(responseCss, /var\(--accent-dim\)/);
+    assert.match(responseCss, /var\(--radius\)/);
+});
+
+test('modal เหตุผลยังเป็นใบเดิมและข้อความผิดพลาดผูกกับ textarea เพื่อ screen reader', () => {
+    assert.match(declineModalSource, /id="declineMeetingInvitationModal"/);
+    assert.match(declineModalSource, /กรุณาระบุเหตุผลที่ไม่สามารถเข้าร่วม\{\{ \$invitationSubjectNoun \}\}ได้/);
+    assert.match(declineModalSource, /ยืนยันไม่เข้าร่วม/);
+    assert.match(declineModalSource, /aria-describedby="declineMeetingInvitationReasonError"/);
+    assert.match(declineModalSource, /id="declineMeetingInvitationReasonError"/);
+    assert.match(declineModalSource, /for="declineMeetingInvitationReason"/);
+});
+
+/*
+ * คำเชิญใช้ชุด Blade เดียวกันทั้งการประชุมและนัดหมาย — ไฟล์อยู่ที่
+ * resources/views/invitations/components/ และรับปลายทาง/ถ้อยคำผ่านตัวแปร
+ */
+const confirmModalSource = readFileSync(new URL('../../resources/views/invitations/components/confirm-modal.blade.php', import.meta.url), 'utf8');
+const appointmentShowSource = readFileSync(new URL('../../resources/views/appointments/show.blade.php', import.meta.url), 'utf8');
+const appointmentFormBlade = readFileSync(new URL('../../resources/views/appointments/components/form-modal.blade.php', import.meta.url), 'utf8');
+
+test('partial คำเชิญทุกใบเป็นกลาง ไม่ผูกกับ domain ใด domain หนึ่ง', () => {
+    [invitationCardSource, mobileActionsSource, declineModalSource, responseModalSource, confirmModalSource, responseActionsSource]
+        .forEach((source) => {
+            assert.doesNotMatch(source, /route\('meetings\./, 'ห้าม hardcode route ของการประชุม');
+            assert.doesNotMatch(source, /route\('appointments\./, 'ห้าม hardcode route ของนัดหมาย');
+            assert.doesNotMatch(source, /MeetingAttendee|AppointmentAttendee/, 'ห้ามอ้างค่าคงที่ของโมเดลใน Blade');
+        });
+});
+
+test('ทั้งสองหน้ารายละเอียดส่งสัญญาเดียวกันเข้า partial คำเชิญ', () => {
+    const required = [
+        'invitationSubject',
+        'invitationDesign',
+        'invitationNoun',
+        'invitationSubjectNoun',
+        'invitationOrganiser',
+        'invitationTitle',
+        'invitationSchedule',
+        'invitationAcceptUrl',
+        'invitationDeclineUrl',
+    ];
+
+    required.forEach((key) => {
+        assert.match(meetingShowSource, new RegExp(`'${key}' =>`), `meetings/show ต้องส่ง ${key}`);
+        assert.match(appointmentShowSource, new RegExp(`'${key}' =>`), `appointments/show ต้องส่ง ${key}`);
+    });
+});
+
+test('กล่องยืนยันเด้งได้ด้วยกลไกเดิม ไม่มีระบบ auto-open ชุดใหม่', () => {
+    // ต้องมีคลาสที่ resolveMeetingModal() รู้จัก มิฉะนั้น showFeedback() จะเปิดไม่ได้
+    assert.match(confirmModalSource, /class="modal fade meeting-form-modal/);
+    assert.match(confirmModalSource, /id="confirmInvitationModal"/);
+    // ใช้ปุ่มคู่เดิม ไม่ประกาศปุ่มใหม่
+    assert.match(confirmModalSource, /@include\('invitations\.components\.response-actions'\)/);
+    assert.doesNotMatch(confirmModalSource, /type="submit"/);
+    // ไม่มีโค้ด JS ที่เปิด modal เองตอนโหลดหน้า นอกจาก showFeedback() เดิม
+    assert.doesNotMatch(source, /confirmInvitationModal/);
+});
+
+test('ธง respond สั่งเปิดกล่องยืนยันเฉพาะเมื่อผู้ใช้ยังตอบได้', () => {
+    [meetingShowSource, appointmentShowSource].forEach((showSource) => {
+        assert.match(showSource, /request\(\)->boolean\('respond'\)/);
+        assert.match(showSource, /'confirmInvitationModal'/);
+        // เงื่อนไขต้องมีการตรวจสิทธิ์ควบคู่เสมอ ไม่ใช่เปิดให้ใครก็ได้ที่ต่อ ?respond=1
+        assert.match(showSource, /canRespondTo(Meeting|Appointment)/);
+    });
+});
+
+test('แบนเนอร์ที่ยังรอตอบได้น้ำหนักต่างจากที่ตอบแล้ว', () => {
+    assert.match(invitationCardSource, /meeting-rsvp-card--awaiting/);
+    assert.match(invitationCardSource, /meeting-rsvp-card__schedule/);
+    assert.match(responseCss, /\.meeting-rsvp-card--awaiting \{[\s\S]*border-left-width: 6px/);
+    assert.match(responseCss, /\.meeting-rsvp-card--awaiting \.meeting-rsvp-card__actions \.meetings-page__button \{[^}]*min-height: 48px/s);
+});
+
+test('ฟอร์มนัดหมายใช้ตัวเลือกบุคคลกลางตัวเดียวกับฟอร์มประชุม', () => {
+    assert.match(appointmentFormBlade, /@include\('components\.people-selector'/);
+    assert.match(appointmentFormBlade, /'inputName' => 'attendees\[\]'/);
+    assert.match(appointmentFormBlade, /data-meeting-attendees-field/);
+    // ผูกกลับฟอร์มหลักด้วย form="..." เพราะตัวเลือกอยู่นอก <form>
+    assert.match(appointmentFormBlade, /'formId' => \$appointmentModalId\.'Form'/);
+    assert.match(appointmentFormBlade, /id="\{\{ \$appointmentModalId \}\}Form"/);
+});
+
+test('ลิงก์แผนที่เปิดแท็บใหม่อย่างปลอดภัยในทั้งสองหน้า', () => {
+    [meetingShowSource, appointmentShowSource].forEach((showSource) => {
+        assert.match(showSource, /meetings-page__map-link/);
+        assert.match(showSource, /target="_blank"[\s\S]{0,40}rel="noopener"/);
+    });
+
+    [formSource, appointmentFormBlade].forEach((formBlade) => {
+        assert.match(formBlade, /name="map_url"/);
+        assert.match(formBlade, /type="url"/);
+    });
+});

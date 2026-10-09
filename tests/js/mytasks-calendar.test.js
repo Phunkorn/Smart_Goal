@@ -161,20 +161,6 @@ test('non-overlapping tasks reuse a lane instead of triggering the four-line ove
     assert.ok(week.days.every((day) => day.hiddenTimelineTasks === 0));
 });
 
-test('meetings stay in day summaries but never consume task timeline lanes', () => {
-    const calendar = buildMonthCalendar([
-        {id: 1, title: 'งาน', priority: 3, start: '2026-08-12', due: '2026-08-12'},
-        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-13'},
-    ], 2026, 7);
-    const day = calendar.days.find((candidate) => candidate.key === '2026-08-12');
-    const week = calendar.weeks.find((candidate) => candidate.days.includes(day));
-
-    assert.equal(day.meetings.length, 1);
-    assert.deepEqual(day.groups.map((group) => group.key), ['priority-3', 'meeting']);
-    assert.equal(week.segments.length, 1);
-    assert.equal(week.segments[0].event.type, 'task');
-});
-
 test('agenda remains due-based even though the month grid uses full task ranges', () => {
     const agenda = buildCalendarAgenda([
         {id: 1, title: 'Range task', priority: 3, start: '2026-08-01', due: '2026-09-02'},
@@ -195,13 +181,12 @@ test('day summaries follow the legend order and never depend on input order', ()
         {id: 3, title: 'urgent A', priority: 3, start: '', due: '2026-08-12'},
         {id: 4, title: 'urgent B', priority: 3, start: '', due: '2026-08-12'},
         {id: 5, title: 'quick', priority: 4, start: '', due: '2026-08-12'},
-        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
     ];
     const shape = (list) => buildMonthCalendar(list, 2026, 7)
         .days.find((day) => day.key === '2026-08-12')
         .groups.map((group) => `${group.key}:${group.count}`);
 
-    assert.deepEqual(shape(events), ['priority-3:2', 'priority-4:1', 'priority-2:1', 'priority-5:1', 'meeting:1']);
+    assert.deepEqual(shape(events), ['priority-3:2', 'priority-4:1', 'priority-2:1', 'priority-5:1']);
     assert.deepEqual(shape([...events].reverse()), shape(events));
 });
 
@@ -224,12 +209,11 @@ test('the day tone follows the most urgent item on that day', () => {
         {id: 2, title: 'flexible', priority: 5, start: '', due: '2026-08-12'},
     ]), 'priority-2');
 
-    // ประชุมอยู่ท้ายลำดับเสมอ วันที่มีแต่ประชุมจึงได้โทนประชุม แต่ถ้ามีงานปนงานต้องชนะ
+    // ความสำคัญที่ไม่รู้จักตกไปที่กลุ่มตั้งต้น ไม่ใช่หายไปจากช่องวันนั้น
     assert.equal(toneOf([
-        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
-    ]), 'meeting');
+        {id: 'task-9', type: 'task', title: 'งาน', priority: 1, start: '2026-08-12', due: '2026-08-12'},
+    ]), 'priority-2');
     assert.equal(toneOf([
-        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
         {id: 1, title: 'flexible', priority: 5, start: '', due: '2026-08-12'},
     ]), 'priority-5');
 
@@ -242,15 +226,14 @@ test('a crowded day shows the first three groups and reports the rest as hidden'
         {id: 2, title: 'b', priority: 4, start: '', due: '2026-08-12'},
         {id: 3, title: 'c', priority: 2, start: '', due: '2026-08-12'},
         {id: 4, title: 'd', priority: 5, start: '', due: '2026-08-12'},
-        {id: 'meeting-1', type: 'meeting', title: 'ประชุม', start: '2026-08-12', due: '2026-08-12'},
     ], 2026, 7);
     const day = calendar.days.find((candidate) => candidate.key === '2026-08-12');
 
-    assert.equal(day.groups.length, 5);
+    assert.equal(day.groups.length, 4);
     assert.deepEqual(day.visibleGroups.map((group) => group.key), ['priority-3', 'priority-4', 'priority-2']);
-    assert.equal(day.hiddenGroups, 2);
+    assert.equal(day.hiddenGroups, 1);
     // จำนวนที่ซ่อนคือ "กลุ่ม" ที่ล้น ไม่ใช่จำนวนงาน รายการเต็มยังอ่านได้ใน modal รายวัน
-    assert.equal(day.events.length, 5);
+    assert.equal(day.events.length, 4);
 });
 
 test('an unknown priority falls back to the default group instead of disappearing', () => {

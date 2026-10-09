@@ -2,6 +2,8 @@
  * ชื่อ dataset ที่มุมมองต่าง ๆ ใช้ร่วมกัน — 'startTime'/'dueTime' คือ data-start-time /
  * data-due-time ซึ่งเก็บเวลาไทยแยกจากวัน เพราะปฏิทินและการจัดกลุ่มทำงานระดับวัน
  */
+import {taskStateStore} from './task-state-store.js';
+
 const mutableFields = ['topic', 'status', 'priority', 'start', 'due', 'startTime', 'dueTime'];
 
 export const synchronizeTaskManagement = (management, id, response = {}, eventTarget = globalThis.document) => {
@@ -104,7 +106,12 @@ export const synchronizeCompletedTaskGroup = (cardGrid, task, status) => {
     return group;
 };
 
-export const synchronizeTaskSource = (workspace, id, changes, eventTarget = document) => {
+/**
+ * @param {object} state  canonical state จาก server (transitions/interactions) ที่ต้องเดินทาง
+ *                        ไปกับ event ด้วย ไม่เช่นนั้นมุมมองที่ฟัง mytasks:changed จะวาดป้ายใหม่
+ *                        จาก capabilities ชุดเก่า แล้วปุ่มของมันจะค้างอยู่ในสถานะก่อนเปลี่ยน
+ */
+export const synchronizeTaskSource = (workspace, id, changes, eventTarget = document, state = {}) => {
     const row = [...workspace.querySelectorAll('[data-workspace-task-source] [data-row]')]
         .find((candidate) => String(candidate.dataset.id) === String(id));
     if (!row) return null;
@@ -146,6 +153,46 @@ export const synchronizeTaskSource = (workspace, id, changes, eventTarget = docu
         startTime: row.dataset.startTime || '',
         dueTime: row.dataset.dueTime || '',
     };
+    if (state.transitions) detail.transitions = state.transitions;
+    if (state.interactions) detail.interactions = state.interactions;
     eventTarget.dispatchEvent(new CustomEvent('mytasks:changed', {detail}));
+    return detail;
+};
+
+/**
+ * เส้นทางเดียวที่ทุกการเปลี่ยนสถานะงานต้องผ่าน
+ *
+ *   mutation สำเร็จ → canonical state จาก server → เขียน store กลาง → ยิง event
+ *   → ทุกมุมมองที่มี representation ของงานใบนั้นวาดใหม่จากความจริงชุดเดียวกัน
+ *
+ * เดิมแต่ละทางเข้า (เมนูบอร์ด, การ์ด kanban, เมนูตาราง, โมดัล) เรียก
+ * synchronizeTaskManagement() กับสำเนา capabilities ของตัวเองแล้วแก้ DOM ของตัวเองต่อ
+ * มุมมองอื่นจึงได้แต่สถานะใหม่ แต่ไม่ได้สิทธิ์ใหม่ ปุ่มของมันจึงค้างอยู่ในสถานะก่อนเปลี่ยน
+ *
+ * งานแม่ถูกอัปเดตด้วยเมื่อ server ส่ง parent มา (ปิด/เปิดงานย่อยทำให้ด่านงานย่อย
+ * ของงานแม่เปลี่ยน) ตัวเลขด่านจึงมาจาก server ไม่ใช่การนับจาก DOM
+ */
+export const publishTaskState = (workspace, id, response = {}, fallbackStatus = null, eventTarget = document) => {
+    const store = taskStateStore(workspace?.ownerDocument || globalThis.document);
+    const status = Number(response.job_status ?? fallbackStatus ?? store[String(id)]?.status ?? 0);
+
+    synchronizeTaskManagement(store, id, response, eventTarget);
+    const detail = synchronizeTaskSource(workspace, id, {status}, eventTarget, response);
+
+    if (response.parent?.job_id) {
+        const parentId = String(response.parent.job_id);
+        synchronizeTaskManagement(store, parentId, {
+            job_status: response.parent.job_status,
+            transitions: response.parent.transitions,
+        }, eventTarget);
+        /*
+         * สถานะของงานแม่ไม่ได้เปลี่ยนจากการปิด/เปิดงานย่อย แต่ป้ายและตัวนับของมันเปลี่ยน
+         * จึงยิง mytasks:changed ของงานแม่ด้วย เพื่อให้ทุกมุมมองวาดด่านงานย่อยใหม่
+         */
+        synchronizeTaskSource(workspace, parentId, {
+            status: Number(response.parent.job_status ?? store[parentId]?.status ?? 0),
+        }, eventTarget, response.parent);
+    }
+
     return detail;
 };

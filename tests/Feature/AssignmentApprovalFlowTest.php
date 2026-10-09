@@ -240,13 +240,20 @@ class AssignmentApprovalFlowTest extends TestCase
             ->where('type', 'cross_department_pending')->count());
     }
 
-    public function test_task_creation_entry_points_share_collaborator_approval_and_notification_rules(): void
+    /**
+     * สองช่องทางสร้างงานต้องใช้กติกาผู้เข้าร่วมชุดเดียวกัน
+     *
+     * ผู้เข้าร่วมทุกคนเข้าร่วมทันทีไม่ว่าแผนกไหน และ admin ไม่เกี่ยวข้องกับเส้นทางนี้เลย
+     */
+    public function test_task_creation_entry_points_share_the_same_participant_rules(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $marketing = Department::create(['department_name' => 'Marketing']);
         $actor = $this->user($it);
         $sameDepartment = $this->user($it);
         $crossDepartment = $this->user($marketing);
+        $marketingHead = $this->user($marketing);
+        $marketingHead->update(['is_department_head' => true]);
         $admin = $this->admin();
 
         $this->actingAs($actor)
@@ -257,9 +264,11 @@ class AssignmentApprovalFlowTest extends TestCase
 
         $taskRouteJob = WorkOrder::where('job_topic', 'Task route collaborators')->firstOrFail();
         $this->assertSame('accepted', $taskRouteJob->collaborators()->findOrFail($sameDepartment->id)->pivot->status);
-        $this->assertSame('pending', $taskRouteJob->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
+        $this->assertSame('accepted', $taskRouteJob->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
         $this->assertNotificationCount($sameDepartment, $taskRouteJob, 'collaborator_added', 1);
-        $this->assertNotificationCount($admin, $taskRouteJob, 'collaborator_approval_request', 1);
+        $this->assertNotificationCount($crossDepartment, $taskRouteJob, 'collaborator_added', 1);
+        $this->assertNotificationCount($admin, $taskRouteJob, 'collaborator_approval_request', 0);
+        $this->assertNotificationCount($marketingHead, $taskRouteJob, 'cross_department_participation', 1);
 
         $this->actingAs($actor)
             ->postJson(route('mytasks.create'), $this->payload($actor, 'My Tasks route collaborators') + [
@@ -270,12 +279,20 @@ class AssignmentApprovalFlowTest extends TestCase
 
         $myTasksJob = WorkOrder::where('job_topic', 'My Tasks route collaborators')->firstOrFail();
         $this->assertSame('accepted', $myTasksJob->collaborators()->findOrFail($sameDepartment->id)->pivot->status);
-        $this->assertSame('pending', $myTasksJob->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
+        $this->assertSame('accepted', $myTasksJob->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
         $this->assertNotificationCount($sameDepartment, $myTasksJob, 'collaborator_added', 1);
-        $this->assertNotificationCount($admin, $myTasksJob, 'collaborator_approval_request', 1);
+        $this->assertNotificationCount($crossDepartment, $myTasksJob, 'collaborator_added', 1);
+        $this->assertNotificationCount($admin, $myTasksJob, 'collaborator_approval_request', 0);
+        $this->assertNotificationCount($marketingHead, $myTasksJob, 'cross_department_participation', 1);
     }
 
-    public function test_pending_assignment_defers_collaborator_decisions_until_main_approval(): void
+    /**
+     * งานที่ตัวมันเองยังรออนุมัติการมอบหมาย ยังไม่มีโปรเจกต์ให้เข้าร่วมจริง
+     *
+     * สมาชิกที่ใส่ไว้ตอนสร้างจึงค้างเป็น pending — เป็นผลของการอนุมัติ "ตัวงาน"
+     * ไม่ใช่การขออนุมัติตัวคน เมื่อการมอบหมายผ่าน ทุกคนเข้าร่วมพร้อมกันทั้งหมด
+     */
+    public function test_pending_assignment_holds_participants_until_the_assignment_itself_is_approved(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $marketing = Department::create(['department_name' => 'Marketing']);
@@ -284,6 +301,8 @@ class AssignmentApprovalFlowTest extends TestCase
         $assignee = $this->user($marketing);
         $sameAsTask = $this->user($marketing);
         $crossDepartment = $this->user($finance);
+        $financeHead = $this->user($finance);
+        $financeHead->update(['is_department_head' => true]);
         $admin = $this->admin();
 
         $this->actingAs($actor)
@@ -297,6 +316,7 @@ class AssignmentApprovalFlowTest extends TestCase
         $this->assertSame('pending', $job->collaborators()->findOrFail($sameAsTask->id)->pivot->status);
         $this->assertSame('pending', $job->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
         $this->assertNotificationCount($sameAsTask, $job, 'collaborator_added', 0);
+        $this->assertNotificationCount($crossDepartment, $job, 'collaborator_added', 0);
         $this->assertNotificationCount($admin, $job, 'collaborator_approval_request', 0);
 
         $this->actingAs($admin)
@@ -304,11 +324,22 @@ class AssignmentApprovalFlowTest extends TestCase
             ->assertOk();
 
         $this->assertSame('accepted', $job->fresh()->collaborators()->findOrFail($sameAsTask->id)->pivot->status);
-        $this->assertSame('pending', $job->fresh()->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
+        $this->assertSame('accepted', $job->fresh()->collaborators()->findOrFail($crossDepartment->id)->pivot->status);
         $this->assertNotificationCount($sameAsTask, $job, 'collaborator_added', 1);
-        $this->assertNotificationCount($admin, $job, 'collaborator_approval_request', 1);
+        $this->assertNotificationCount($crossDepartment, $job, 'collaborator_added', 1);
+        $this->assertNotificationCount($admin, $job, 'collaborator_approval_request', 0);
+        // หัวหน้าแผนกต้นสังกัดของผู้เข้าร่วมข้ามแผนกรับทราบตอนที่เขาเข้าร่วมจริง
+        $this->assertNotificationCount($financeHead, $job, 'cross_department_participation', 1);
+
+        // ผู้เข้าร่วมข้ามแผนกต้องถูกบอกว่าเป็นงานข้ามแผนกของแผนกใด แม้มาทางเส้นทางอนุมัติ
+        $crossNotice = SystemNotification::where('user_id', $crossDepartment->id)
+            ->where('work_order_id', $job->job_id)
+            ->where('type', 'collaborator_added')
+            ->sole();
+        $this->assertSame('คุณถูกเพิ่มเข้าร่วมโปรเจกต์ข้ามแผนก', $crossNotice->title);
+        $this->assertStringContainsString('แผนกMarketing', $crossNotice->message);
         $this->actingAs($sameAsTask)->get(route('tasks.show', $job))->assertRedirect();
-        $this->actingAs($crossDepartment)->get(route('tasks.show', $job))->assertForbidden();
+        $this->actingAs($crossDepartment)->get(route('tasks.show', $job))->assertRedirect();
     }
 
     public function test_department_head_collaborator_joins_when_pending_assignment_is_approved(): void
@@ -337,6 +368,8 @@ class AssignmentApprovalFlowTest extends TestCase
         $this->assertSame('accepted', $job->fresh()->collaborators()->findOrFail($head->id)->pivot->status);
         $this->assertNotificationCount($head, $job, 'collaborator_added', 1);
         $this->assertNotificationCount($admin, $job, 'collaborator_approval_request', 0);
+        // หัวหน้าแผนกที่เข้าร่วมเองไม่ต้องแจ้งตัวเองว่าลูกทีม (คือตัวเขา) ไปร่วมงานแผนกอื่น
+        $this->assertNotificationCount($head, $job, 'cross_department_participation', 0);
     }
 
     public function test_rejected_assignment_rejects_deferred_collaborators_without_notifications(): void

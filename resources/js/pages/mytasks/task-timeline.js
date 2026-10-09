@@ -1,3 +1,4 @@
+import {taskStateStore} from './task-state-store.js';
 import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
 import {modalStack} from '../../components/modal-stack.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
@@ -11,7 +12,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     if (!root || !modal || !panel || !timelineNode || !managementNode) return;
 
     const timeline = JSON.parse(timelineNode.textContent || '{}');
-    const management = JSON.parse(managementNode.textContent || '{}');
+    const management = taskStateStore(document);
     const mentionable = JSON.parse(document.querySelector('[data-mentionable-data]')?.textContent || '{}');
     let taskId = null;
     let tab = 'updates';

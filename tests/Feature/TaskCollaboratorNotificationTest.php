@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -164,7 +165,7 @@ class TaskCollaboratorNotificationTest extends TestCase
             ->count());
     }
 
-    public function test_cross_department_add_stays_pending_and_only_notifies_admins(): void
+    public function test_cross_department_add_joins_immediately_and_never_bothers_admins(): void
     {
         $ownerDepartment = Department::create(['department_name' => 'IT']);
         $otherDepartment = Department::create(['department_name' => 'Marketing']);
@@ -178,29 +179,25 @@ class TaskCollaboratorNotificationTest extends TestCase
             ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$outsider->id]])
             ->assertOk();
 
-        // ห้าม bypass approval
-        $this->assertSame('pending', $task->collaborators()->findOrFail($outsider->id)->pivot->status);
+        // ต่างแผนกเข้าร่วมได้ทันทีเหมือนคนในแผนก
+        $this->assertSame('accepted', $task->collaborators()->findOrFail($outsider->id)->pivot->status);
 
+        // admin ไม่ใช่ผู้ดูแลงาน การเพิ่มผู้เข้าร่วมไม่ใช่เรื่องของ admin อีกต่อไป
         foreach ([$adminOne, $adminTwo] as $admin) {
-            $this->assertDatabaseHas('system_notifications', [
-                'user_id' => $admin->id,
-                'work_order_id' => $task->job_id,
-                'type' => 'collaborator_approval_request',
-            ]);
+            $this->assertDatabaseMissing('system_notifications', ['user_id' => $admin->id]);
         }
 
-        $this->assertSame(2, SystemNotification::where('work_order_id', $task->job_id)
-            ->where('type', 'collaborator_approval_request')
-            ->count());
+        $this->assertSame(0, SystemNotification::where('type', 'collaborator_approval_request')->count());
 
-        // คนข้ามแผนกยังไม่เข้าทีมจริง จึงยังไม่ได้รับแจ้งว่าถูกเพิ่ม
-        $this->assertDatabaseMissing('system_notifications', [
+        // ผู้เข้าร่วมได้รับแจ้งว่าเข้าร่วมแล้วทันที
+        $this->assertDatabaseHas('system_notifications', [
             'user_id' => $outsider->id,
+            'work_order_id' => $task->job_id,
             'type' => 'collaborator_added',
         ]);
     }
 
-    public function test_destination_department_head_receives_and_can_open_cross_department_approval_notification(): void
+    public function test_origin_department_head_is_told_their_member_joined_and_lands_on_the_tracking_tab(): void
     {
         $ownerDepartment = Department::create(['department_name' => 'IT']);
         $otherDepartment = Department::create(['department_name' => 'Marketing']);
@@ -210,6 +207,7 @@ class TaskCollaboratorNotificationTest extends TestCase
         $head->update(['is_department_head' => true]);
         $task = $this->taskFor($owner, $ownerDepartment);
 
+        // ก่อนที่ลูกทีมจะเข้าร่วม หัวหน้าต้นสังกัดยังไม่เกี่ยวกับงานใบนี้
         $this->assertFalse($head->can('view', $task));
 
         $this->actingAs($owner)
@@ -218,13 +216,16 @@ class TaskCollaboratorNotificationTest extends TestCase
 
         $notification = SystemNotification::where('user_id', $head->id)
             ->where('work_order_id', $task->job_id)
-            ->where('type', 'collaborator_approval_request')
-            ->firstOrFail();
+            ->where('type', 'cross_department_participation')
+            ->sole();
 
-        $this->assertSame($candidate->id, (int) data_get($notification->data, 'candidate_user_id'));
+        $this->assertSame($candidate->id, (int) data_get($notification->data, 'participant_user_id'));
         $this->actingAs($head)
             ->get(route('notifications.open', $notification))
-            ->assertRedirect(route('admin.approvals.index', ['approval_queue' => 'collaborator']));
+            ->assertRedirect(route('admin.approvals.index', ['approval_queue' => 'outgoing']));
+
+        // พอมีลูกทีมอยู่ในงานแล้ว หัวหน้าต้นสังกัดจึงเปิดดูงานได้เพื่อติดตาม
+        $this->assertTrue($head->fresh()->can('view', $task->fresh()));
     }
 
     public function test_cross_department_head_collaborator_joins_immediately(): void
@@ -252,26 +253,29 @@ class TaskCollaboratorNotificationTest extends TestCase
         ]);
     }
 
-    public function test_cross_department_retry_does_not_duplicate_but_remove_and_reinvite_creates_a_new_request_notice(): void
+    public function test_cross_department_retry_does_not_duplicate_but_remove_and_rejoin_notifies_again(): void
     {
         $ownerDepartment = Department::create(['department_name' => 'IT']);
         $otherDepartment = Department::create(['department_name' => 'Marketing']);
         $owner = $this->user('user', $ownerDepartment);
         $candidate = $this->user('user', $otherDepartment);
-        $admin = $this->user('admin');
+        $head = $this->user('user', $otherDepartment);
+        $head->update(['is_department_head' => true]);
         $task = $this->taskFor($owner, $ownerDepartment);
 
         $this->actingAs($owner)
             ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
             ->assertOk();
+        // ยิงซ้ำคนเดิมต้องไม่สร้างแถวหรือแจ้งเตือนซ้ำ เพราะอยู่ในโปรเจกต์แล้ว
         $this->actingAs($owner)
             ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
             ->assertOk();
 
-        $query = SystemNotification::where('user_id', $admin->id)
+        $headNotices = SystemNotification::where('user_id', $head->id)
             ->where('work_order_id', $task->job_id)
-            ->where('type', 'collaborator_approval_request');
-        $this->assertSame(1, $query->count());
+            ->where('type', 'cross_department_participation');
+        $this->assertSame(1, $headNotices->count());
+        $this->assertSame(1, $task->fresh()->collaborators->where('id', $candidate->id)->count());
 
         $this->actingAs($owner)
             ->deleteJson(route('tasks.collaborators.destroy', [$task, $candidate]))
@@ -280,10 +284,11 @@ class TaskCollaboratorNotificationTest extends TestCase
             ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
             ->assertOk();
 
-        $this->assertSame(2, $query->count());
+        // นำออกแล้วเพิ่มกลับคือเหตุการณ์ใหม่ หัวหน้าต้นสังกัดต้องรับทราบอีกครั้ง
+        $this->assertSame(2, $headNotices->count());
     }
 
-    public function test_admin_approval_turns_cross_department_collaborator_into_worker_exactly_once(): void
+    public function test_a_cross_department_participant_can_work_on_the_task_right_away(): void
     {
         $ownerDepartment = Department::create(['department_name' => 'IT']);
         $otherDepartment = Department::create(['department_name' => 'Marketing']);
@@ -296,43 +301,31 @@ class TaskCollaboratorNotificationTest extends TestCase
             ->postJson(route('tasks.collaborators.store', $task), ['collaborators' => [$candidate->id]])
             ->assertOk();
 
-        $this->actingAs($candidate)->get(route('tasks.show', $task))->assertForbidden();
-        $this->actingAs($candidate)
-            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
-            ->assertForbidden();
-
-        $this->actingAs($admin)->get(route('admin.approvals.index', ['approval_queue' => 'collaborator']))
-            ->assertOk()
-            ->assertSee($candidate->name)
-            ->assertSee(route('admin.tasks.collaborators.approval', [$task, $candidate]), false);
-
-        $this->actingAs($admin)
-            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
-            ->assertOk();
-
         $pivot = $task->fresh()->collaborators()->findOrFail($candidate->id)->pivot;
         $this->assertSame('accepted', $pivot->status);
-        $this->assertSame($admin->id, $pivot->decided_by);
+        $this->assertSame($owner->id, $pivot->decided_by, 'หัวหน้าโปรเจกต์เป็นผู้รับคนเข้าโปรเจกต์เอง');
         $this->assertNotNull($pivot->responded_at);
-        $this->actingAs($candidate)->get(route('tasks.show', $task))->assertRedirect();
+
+        // ลงมือทำงานได้ทันทีโดยไม่ต้องรอใคร
         $this->actingAs($candidate)
             ->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2])
             ->assertOk();
 
+        // แจ้งเตือนและร่องรอยต้องเกิดครั้งเดียวต่อการเพิ่มหนึ่งครั้ง
         $this->assertSame(1, SystemNotification::where('user_id', $candidate->id)
             ->where('work_order_id', $task->job_id)
             ->where('type', 'collaborator_added')
             ->count());
-        $this->assertSame(1, ActivityLog::where('subject_id', $task->job_id)->where('action', 'collaborator_accepted')->count());
+        $this->assertSame(1, ActivityLog::where('subject_id', $task->job_id)
+            ->where('action', 'collaborator_added')
+            ->count());
 
-        $this->actingAs($admin)
-            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
-            ->assertConflict();
-        $this->assertSame(1, SystemNotification::where('user_id', $candidate->id)
-            ->where('work_order_id', $task->job_id)
-            ->where('type', 'collaborator_added')
+        // ไม่มีเส้นทางให้ใครมาอนุมัติหรือปฏิเสธการเข้าร่วมนี้
+        $this->assertFalse(Route::has('admin.tasks.collaborators.approval'));
+        $this->assertSame(0, ActivityLog::where('subject_id', $task->job_id)
+            ->whereIn('action', ['collaborator_accepted', 'collaborator_rejected'])
             ->count());
-        $this->assertSame(1, ActivityLog::where('subject_id', $task->job_id)->where('action', 'collaborator_accepted')->count());
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $admin->id]);
     }
 
     public function test_viewer_and_inactive_accounts_are_never_added_or_notified(): void

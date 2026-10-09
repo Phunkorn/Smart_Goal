@@ -279,6 +279,40 @@
     font-variant-numeric: tabular-nums;
 }
 
+/*
+ * ป้าย "งานแม่ของงานย่อยที่คุณร่วม"
+ *
+ * ยืมคู่สีม่วงของป้ายงานข้ามแผนก (.cross-department-marker) เพราะทั้งคู่ตอบคำถาม
+ * เดียวกันคือ "ทำไมงานของคนอื่นมาอยู่ในหน้าของฉัน" ไม่ใช่สีใหม่ให้ต้องเรียนรู้เพิ่ม
+ * ทรงป้ายเท่ากับป้ายเลยกำหนดข้างกัน หัวข้องานจึงยังอยู่บรรทัดเดียว
+ */
+.my-tasks-page .board-task-details__context {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-height: 18px;
+    max-width: 100%;
+    padding: 0 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #f5f3ff;
+    color: #6d28d9;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.my-tasks-page .board-task-details__context > i {
+    font-size: 11px;
+    line-height: 1;
+}
+
+.my-tasks-page .board-task-details__context > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* งานย่อยที่เลยกำหนดส่งต้องเห็นได้จากแถวโดยไม่ต้องเปิดโมดัล */
 .my-tasks-page .board-task-detail.is-late [data-task-detail-title] {
     color: #dc2626;

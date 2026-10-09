@@ -1,0 +1,83 @@
+/*
+ * โครงหน้า หัวเรื่อง ฟอร์มเปิดรอบ และแถบความคืบหน้า
+ *
+ * โทนน้ำเงิน/ขาวตาม docs/UI_DESIGN_SYSTEM.md ไม่มี gradient ไม่มีเงาหนัก
+ * ผังห้องต้องเป็นตัวเอกของหน้า การ์ดรอบ ๆ จึงเบาและมีเส้นขอบบางเท่านั้น
+ */
+.computer-check { display:grid; gap:16px; padding:20px 22px 40px; background:transparent; font-weight:300; }
+
+.computer-check strong,
+.computer-check b,
+.computer-check .btn,
+.computer-check .form-label,
+.computer-check .form-control,
+.computer-check .form-select { font-weight:400; }
+
+.cc-back a { display:inline-flex; align-items:center; gap:6px; color:var(--text-muted); font-size:.85rem; }
+.cc-back a:hover { color:var(--accent); }
+
+/* ---------- หัวหน้าจอ ---------- */
+
+.cc-head { display:grid; gap:16px; padding:18px 20px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm); }
+.cc-head__identity { display:flex; align-items:flex-start; gap:14px; }
+.cc-head__icon { display:grid; place-items:center; width:48px; height:48px; flex:0 0 48px; border-radius:var(--radius-sm); background:var(--accent-dim); color:var(--accent); font-size:1.4rem; }
+.cc-head__eyebrow { margin:0 0 2px; color:var(--text-muted); font-size:.75rem; letter-spacing:.02em; }
+.cc-head__title { margin:0 0 3px; color:var(--text); font-size:1.4rem; font-weight:600; letter-spacing:-.01em; }
+.cc-head__subtitle { margin:0; color:var(--text-muted); font-size:.84rem; }
+
+/* ---------- ฟอร์มเปิดรอบ ---------- */
+
+.cc-start { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px 14px; padding-top:14px; border-top:1px solid var(--border); }
+.cc-start__field { display:grid; gap:5px; min-width:0; }
+.cc-start__field .form-label { margin:0; color:var(--text-muted); font-size:.78rem; }
+.cc-start .form-control,
+.cc-start .form-select { min-height:42px; border-color:var(--border); border-radius:var(--radius-sm); font-size:.88rem; }
+.cc-start__shift { margin:0; padding:0; border:0; }
+.cc-start__shift .form-label { display:block; }
+
+.cc-shift { display:flex; gap:8px; }
+.cc-shift__option { position:relative; flex:1; }
+.cc-shift__option input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+.cc-shift__option span { display:grid; place-items:center; min-height:42px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); color:var(--text-muted); font-size:.85rem; }
+.cc-shift__option input:checked + span { border-color:var(--accent); background:var(--accent-dim); color:var(--accent-strong); }
+.cc-shift__option input:focus-visible + span { outline:2px solid var(--accent); outline-offset:2px; }
+
+.cc-start__action { display:flex; align-items:flex-end; grid-column:span 4; }
+.cc-start__action .btn { min-height:44px; padding:0 20px; }
+.cc-start__denied { margin:0; color:var(--text-muted); font-size:.84rem; }
+.cc-start__hint { grid-column:span 4; margin:0; color:var(--text-muted); font-size:.76rem; }
+
+/* ---------- ข้อมูลรอบที่เปิดอยู่ ---------- */
+
+.cc-session { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding-top:14px; border-top:1px solid var(--border); }
+.cc-session__facts { display:flex; flex-wrap:wrap; gap:10px 26px; margin:0; }
+.cc-session__facts div { display:grid; gap:2px; }
+.cc-session__facts dt { color:var(--text-muted); font-size:.74rem; }
+.cc-session__facts dd { margin:0; color:var(--text); font-size:.9rem; }
+
+.cc-session__status { padding:6px 12px; border-radius:999px; font-size:.78rem; }
+.cc-session__status--in_progress { background:var(--blue-dim); color:#1b4f9c; }
+.cc-session__status--completed { background:var(--green-dim); color:#06694a; }
+
+/* ---------- ความคืบหน้า ---------- */
+
+.cc-progress { display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px; padding-top:14px; border-top:1px solid var(--border); }
+.cc-progress__headline { margin:0; color:var(--text); font-size:1rem; }
+.cc-progress__headline strong { color:var(--accent); font-size:1.25rem; font-weight:700; }
+.cc-progress__stats { display:flex; flex-wrap:wrap; gap:8px; margin:0; padding:0; list-style:none; }
+.cc-progress__stat { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border:1px solid var(--border); border-radius:999px; background:var(--surface-2); font-size:.8rem; }
+.cc-progress__stat strong { font-weight:700; }
+.cc-progress__stat--normal { border-color:#b9ecd5; background:var(--green-dim); color:#06694a; }
+.cc-progress__stat--issue { border-color:#f6c6ce; background:var(--red-dim); color:#a52236; }
+.cc-progress__stat--partial { border-color:#fadcb0; background:var(--amber-dim); color:#8a5508; }
+.cc-progress__stat--pending { color:var(--text-muted); }
+
+/* ---------- แท็บ ---------- */
+
+.cc-tabs { display:flex; flex-wrap:wrap; gap:8px; }
+.cc-tabs__tab { display:inline-flex; align-items:center; gap:7px; min-height:42px; padding:0 16px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); color:var(--text-muted); font-size:.85rem; }
+.cc-tabs__tab:hover { border-color:var(--accent); color:var(--accent); }
+.cc-tabs__tab[aria-selected="true"] { border-color:var(--accent); background:var(--accent); color:#fff; }
+
+.cc-view { min-width:0; }
+.cc-empty { padding:28px 12px; color:var(--text-muted); font-size:.86rem; text-align:center; }

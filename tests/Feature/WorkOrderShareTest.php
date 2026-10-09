@@ -269,7 +269,7 @@ class WorkOrderShareTest extends TestCase
         foreach ([$admin, $hrHead] as $bystander) {
             $this->assertFalse(
                 SystemNotification::where('user_id', $bystander->id)
-                    ->whereIn('type', ['share_join_awaiting_head', 'collaborator_approval_request'])
+                    ->whereIn('type', ['share_join_awaiting_head'])
                     ->exists(),
                 'ไม่ควรมีคำขออนุมัติชั้นที่สองถูกส่งออกไปเลย'
             );
@@ -415,13 +415,12 @@ class WorkOrderShareTest extends TestCase
     }
 
     /**
-     * การเชิญผู้ร่วมงานแบบเดิมต้องไม่เปลี่ยนพฤติกรรมเลย
+     * การแชร์งานต้องไม่กลายเป็นทางอ้อมของการเพิ่มผู้เข้าร่วมโดยตรง
      *
-     * invite() ได้พารามิเตอร์ใหม่ actorHasFinalSay ที่ค่าเริ่มต้นเป็น false ผู้เรียกเดิม
-     * ทุกจุดจึงต้องได้ผลเหมือนเดิม — คำขอข้ามแผนกยังเป็น pending และยังไปที่คิวของ
-     * หัวหน้าแผนก "ผู้ถูกเชิญ" ตามโมเดลยืมตัวคนแบบเดิม
+     * สองเส้นทางนี้ต่างกันที่ "ใครเริ่ม": หัวหน้าโปรเจกต์กดเพิ่มเอง = เข้าร่วมทันที
+     * ส่วนคนนอกกดขอเข้าร่วมเอง = ยังต้องมีผู้ตัดสิน (ดู test อื่นในไฟล์นี้)
      */
-    public function test_the_classic_collaborator_invite_flow_is_unchanged(): void
+    public function test_a_project_leader_adding_a_cross_department_member_needs_no_request(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $hr = Department::create(['department_name' => 'HR']);
@@ -435,10 +434,17 @@ class WorkOrderShareTest extends TestCase
             ->assertSuccessful();
 
         $pivot = $task->fresh()->collaborators->firstWhere('id', $stranger->id);
-        $this->assertSame('pending', $pivot->pivot->status, 'การเชิญข้ามแผนกแบบเดิมต้องยังเป็น pending');
-        $this->assertTrue(SystemNotification::where('user_id', $hrHead->id)
-            ->where('type', 'collaborator_approval_request')->exists(),
-            'ยังต้องเข้าคิวของหัวหน้าแผนกผู้ถูกเชิญเหมือนเดิม');
+        $this->assertSame('accepted', $pivot->pivot->status, 'หัวหน้าโปรเจกต์เพิ่มคนต่างแผนกได้ทันที');
+        $this->assertFalse(
+            SystemNotification::where('type', 'collaborator_approval_request')->exists(),
+            'ต้องไม่มีคำขออนุมัติผู้ร่วมงานเกิดขึ้นอีก'
+        );
+
+        // หัวหน้าแผนกต้นสังกัดได้รับแจ้งเพื่อรับทราบ ไม่ใช่เพื่อตัดสิน
+        $this->assertTrue(
+            SystemNotification::where('user_id', $hrHead->id)
+                ->where('type', 'cross_department_participation')->exists()
+        );
     }
 
     public function test_approving_the_same_request_twice_reports_a_conflict(): void

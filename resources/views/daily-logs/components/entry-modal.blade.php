@@ -29,6 +29,25 @@
                     <i class="bi bi-geo-alt" aria-hidden="true"></i>
                     <strong>งานนอกสถานที่</strong><small>งานที่ทำนอกสถานที่</small>
                 </button>
+
+                {{--
+                    แบบตรวจที่มีผังห้องของตัวเอง — เป็นลิงก์ ไม่ใช่ปุ่มเลือกประเภทงาน
+                    เพราะไม่ได้กรอกในกล่องนี้ แต่พาไปหน้าตรวจที่มีผังห้องกดได้
+                    บันทึกงานประจำวันถูกสร้างให้อัตโนมัติหนึ่งรายการเมื่อตรวจเสร็จ
+                    (ดู ComputerCheckService::complete)
+
+                    แสดงเฉพาะแผนกที่ admin เปิดสิทธิ์ให้ใช้ฟังก์ชันนี้ — @can ถาม
+                    ComputerCheckSessionPolicy::viewAny ตัวเดียวกับที่ route บังคับใช้
+                    จึงไม่มีกติกาสิทธิ์ชุดที่สองใน Blade การซ่อนลิงก์เป็นเรื่องของการ
+                    ไม่เสนอทางที่กดไปแล้วเจอ 403 ไม่ใช่การให้สิทธิ์ (CLAUDE.md)
+                --}}
+                @can('viewAny', \App\Models\ComputerCheckSession::class)
+                    <a class="log-modal__type-link" href="{{ route('daily-logs.computer-check.index') }}">
+                        <i class="bi bi-pc-display" aria-hidden="true"></i>
+                        <strong>ตรวจเช็กคอมพิวเตอร์ประจำวัน</strong>
+                        <small>{{ \App\Support\ComputerCheckDesign::LOG_CATEGORY }} · ตรวจตามผังห้อง {{ \App\Support\ComputerCheckDesign::ROOM_NAME }}</small>
+                    </a>
+                @endcan
             </div>
             <footer class="log-modal__footer"><button type="button" class="btn btn-outline-secondary" data-entry-modal-close>ยกเลิก</button></footer>
         </div>

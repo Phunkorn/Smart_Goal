@@ -3,8 +3,13 @@ import {confirmTaskTransition, isModalStatusOptionDisabled, isModalStatusOptionH
 import {hasWorkspaceChanges, workspaceChanges, workspaceMenuPosition} from './pages/mytasks/task-workspace-model.js';
 import {clearPeopleSelection, initializePeopleSelectors, selectedIdsOf, setExcludedIds} from './components/people-selector.js';
 import {modalStack} from './components/modal-stack.js';
-import {synchronizeTaskManagement, synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {publishTaskState, synchronizeTaskSource} from './pages/mytasks/task-state.js';
+import {taskStateStore} from './pages/mytasks/task-state-store.js';
 import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
+// ไอคอนตามชนิดไฟล์ใช้ตารางร่วมกับกล่องดาวน์โหลดไฟล์แนบ ไม่มีสำเนาแยกอีกชุด
+import {extensionOf, iconFor, toneFor} from './pages/mytasks/attachment-icons.js';
+// การลบไฟล์แนบใช้โมดูลร่วมกับกล่องไฟล์แนบที่เปิดจากปุ่มคลิปหนีบ ไม่มีสำเนาแยก
+import {confirmAttachmentDelete, deleteTaskAttachment} from './pages/mytasks/attachment-delete.js';
 
 const layers = modalStack(document);
 initializePeopleSelectors(document);
@@ -21,8 +26,7 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const toast = document.querySelector('[data-toast]');
-    const managementNode = document.querySelector('[data-task-management-data]');
-    const management = managementNode ? JSON.parse(managementNode.textContent || '{}') : {};
+    const management = taskStateStore(document);
     let activeRow = null;
 
     const notify = (message, error = false) => {
@@ -136,7 +140,7 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         form.elements.job_start_at.readOnly = !canUpdate || !workspace.dataset.scheduleTemplate;
 
         const teamButton = form.querySelector('[data-manage-team]');
-        if (teamButton) teamButton.textContent = meta.can_manage_team ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน';
+        if (teamButton) teamButton.textContent = meta.can_manage_team ? 'จัดการผู้เข้าร่วม' : 'ดูผู้เข้าร่วม';
 
         modal.querySelector('[data-review-approve]').hidden = !transitions.can_review;
         modal.querySelector('[data-review-return]').hidden = !transitions.can_review;
@@ -251,8 +255,7 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
             workflowAction.disabled = true;
             try {
                 const data = await request(endpoint(workspace.dataset.statusTemplate, activeRow.dataset.id), 'PATCH', payload);
-                synchronizeTaskManagement(management, activeRow.dataset.id, data);
-                synchronizeTaskSource(workspace, activeRow.dataset.id, {status: Number(data.job_status ?? target)});
+                publishTaskState(workspace, activeRow.dataset.id, data, target);
                 close();
             } catch (error) {
                 notify(error.message, true);
@@ -475,47 +478,50 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         return `<span class="team-avatar${toneClass}" aria-hidden="true">${escapeHtml(initials(person?.name))}</span>`;
     };
 
-    /** แสดง assignee เพียงครั้งเดียว แม้ข้อมูลเดิมจะมี collaborator pivot ของคนเดียวกัน */
-    const currentCollaborators = (team) => {
-        const assigneeId = String(team.assignee?.id ?? '');
-        const seen = new Set();
-        return team.collaborators.filter((person) => {
-            const id = String(person.id);
-            if (!id || id === assigneeId || seen.has(id)) return false;
-            seen.add(id);
-            return true;
-        });
-    };
-
-    /** สถานะของสมาชิกปัจจุบัน — บัญชีที่ถูกปิดต้องบอกให้ชัดว่าเพิ่มซ้ำไม่ได้แล้ว */
+    /**
+     * สถานะของผู้เข้าร่วม — บัญชีที่ถูกปิดต้องบอกให้ชัดว่าเพิ่มซ้ำไม่ได้แล้ว
+     *
+     * การเพิ่มผู้เข้าร่วมเสร็จทันที สถานะ "รอเปิดงาน" เหลือไว้สำหรับงานที่ตัวมันเองยัง
+     * รออนุมัติการมอบหมายข้ามแผนกอยู่ ไม่ใช่การรออนุมัติตัวคน
+     */
     const memberState = (person) => {
         if (person.is_active === false) return {className: 'inactive', label: 'ปิดบัญชี'};
         if (person.status === 'accepted') return {className: 'accepted', label: 'เข้าร่วมแล้ว'};
-        if (person.status === 'pending') return {className: 'pending', label: 'รออนุมัติ'};
-        if (person.status === 'rejected') return {className: 'rejected', label: 'ไม่อนุมัติ'};
+        if (person.status === 'pending') return {className: 'pending', label: 'รอเปิดงาน'};
+        if (person.status === 'rejected') return {className: 'rejected', label: 'ไม่ได้เข้าร่วม'};
         return {className: 'unknown', label: 'ไม่ทราบสถานะ'};
     };
 
-    /** คอลัมน์ขวาส่วนบน: ทีมปัจจุบัน แสดงที่เดียวเท่านั้น */
-    const renderCurrentTeam = () => {
+    /** ป้ายข้ามแผนก — บอกที่มาของคน ไม่ใช่สถานะรออนุมัติ */
+    const crossDepartmentBadge = (person) => person.cross_department
+        ? '<span class="team-cross-department">ข้ามแผนก</span>'
+        : '';
+
+    const personColumns = (person) => {
+        const department = person.department || 'ไม่ระบุแผนก';
+
+        return `<span class="team-person"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email || department)}</small></span>`
+            + `<span class="team-department">${escapeHtml(department)}</span>`
+            + crossDepartmentBadge(person);
+    };
+
+    /** คอลัมน์ขวาส่วนบน: ผู้เข้าร่วมโปรเจกต์ แสดงที่เดียวเท่านั้น */
+    const renderParticipants = () => {
         const team = activeTeam;
         const canEdit = team.can_manage && !team.locked;
-        const collaborators = currentCollaborators(team);
+        const participants = team.participants || [];
         const protectedIds = new Set((team.protected_ids || []).map(String));
-        const total = (team.assignee?.id ? 1 : 0) + collaborators.length;
 
-        count.textContent = `ทีมปัจจุบัน (${total} คน)`;
-        empty.hidden = collaborators.length > 0;
-        members.innerHTML = collaborators.map((person) => {
+        count.textContent = `ผู้เข้าร่วม (${participants.length} คน)`;
+        empty.hidden = participants.length > 0;
+        members.innerHTML = participants.map((person) => {
             const state = memberState(person);
             const removable = canEdit && !protectedIds.has(String(person.id));
-            const department = person.department || 'ไม่ระบุแผนก';
 
-            return `<article class="team-member">${avatarMarkup(person)}`
-                + `<span class="team-person"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email || department)}</small></span>`
-                + `<span class="team-department">${escapeHtml(department)}</span>`
+            return `<article class="team-member${person.is_assignee ? ' team-member--responsible' : ''}">${avatarMarkup(person)}`
+                + personColumns(person)
                 + `<span class="team-state ${state.className}"><i></i>${state.label}</span>`
-                + (removable ? `<button type="button" data-remove-team-member="${person.id}" title="นำ ${escapeHtml(person.name)} ออกจากทีม" aria-label="นำ ${escapeHtml(person.name)} ออกจากทีม"><i class="bi bi-x-lg"></i></button>` : '')
+                + (removable ? `<button type="button" data-remove-team-member="${person.id}" title="นำ ${escapeHtml(person.name)} ออกจากโปรเจกต์" aria-label="นำ ${escapeHtml(person.name)} ออกจากโปรเจกต์"><i class="bi bi-x-lg"></i></button>` : '')
                 + '</article>';
         }).join('');
     };
@@ -528,36 +534,37 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         if (submit) submit.disabled = submitting || !canEdit || staged.length === 0;
         if (submitLabel) {
             submitLabel.textContent = submitting
-                ? 'กำลังเพิ่มผู้ร่วมงาน...'
-                : `เพิ่มผู้ร่วมงาน (${staged.length} คน)`;
+                ? 'กำลังเพิ่มผู้เข้าร่วม...'
+                : `เพิ่มผู้เข้าร่วม (${staged.length} คน)`;
         }
     };
 
     const render = () => {
         const team = activeTeam;
-        const assigneeDepartment = team.assignee.department || 'ไม่ระบุแผนก';
         topic.textContent = team.topic;
-        owner.innerHTML = avatarMarkup(team.assignee, 'primary')
-            + `<span class="team-person"><strong>${escapeHtml(team.assignee.name)}</strong><small>${escapeHtml(team.assignee.email || assigneeDepartment)}</small></span>`
-            + `<span class="team-department">${escapeHtml(assigneeDepartment)}</span>`
-            + '<b class="team-role-badge"><i class="bi bi-check-circle-fill"></i> ผู้รับผิดชอบหลัก</b>';
+        // หัวหน้าโปรเจกต์คือผู้สร้างโปรเจกต์ ไม่เปลี่ยนไปตามการเพิ่มผู้เข้าร่วม
+        owner.innerHTML = team.leader
+            ? avatarMarkup(team.leader, 'primary')
+                + personColumns(team.leader)
+                + '<b class="team-role-badge"><i class="bi bi-person-badge-fill"></i> หัวหน้าโปรเจกต์</b>'
+            : '<span class="team-person"><strong>ไม่ระบุหัวหน้าโปรเจกต์</strong></span>';
 
-        renderCurrentTeam();
+        renderParticipants();
 
         const canEdit = team.can_manage && !team.locked;
         if (selector) {
             selector.dataset.readonly = canEdit ? 'false' : 'true';
-            // ผู้รับผิดชอบหลัก สมาชิกปัจจุบัน creator และ leader ต้องไม่เป็น candidate ตาม server contract
+            // หัวหน้าโปรเจกต์ ผู้เข้าร่วมปัจจุบัน creator และ leader ต้องไม่เป็น candidate ตาม server contract
             setExcludedIds(selector, [
-                team.assignee.id,
+                team.leader?.id,
                 ...(team.protected_ids || []),
-                ...team.collaborators.map((person) => person.id),
+                ...(team.participants || []).map((person) => person.id),
             ].filter(Boolean));
         }
 
         form.hidden = false;
         notice.hidden = canEdit;
-        if (!notice.hidden) notice.textContent = team.locked ? 'งานที่เสร็จแล้วถูกล็อกการจัดการทีม' : 'คุณดูรายชื่อทีมได้ แต่ไม่มีสิทธิ์แก้ไข';
+        if (!notice.hidden) notice.textContent = team.locked ? 'งานที่เสร็จแล้วถูกล็อกการจัดการสมาชิก' : 'คุณดูรายชื่อสมาชิกได้ แต่ไม่มีสิทธิ์แก้ไข';
         syncSubmit();
     };
 
@@ -595,26 +602,26 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         const remove = event.target.closest('[data-remove-team-member]');
         if (!remove || !activeTeam) return;
 
-        const member = activeTeam.collaborators.find((person) => String(person.id) === remove.dataset.removeTeamMember);
+        const member = (activeTeam.participants || []).find((person) => String(person.id) === remove.dataset.removeTeamMember);
         const confirmed = window.Swal
             ? (await window.Swal.fire({
                 ...workspaceDialogLayer,
                 icon: 'warning',
-                title: 'นำออกจากทีม',
-                text: `ต้องการนำ ${member?.name || 'สมาชิกคนนี้'} ออกจากทีมงานนี้หรือไม่?`,
+                title: 'นำออกจากโปรเจกต์',
+                text: `ต้องการนำ ${member?.name || 'สมาชิกคนนี้'} ออกจากโปรเจกต์นี้หรือไม่?`,
                 showCancelButton: true,
                 confirmButtonText: 'นำออก',
                 cancelButtonText: 'ยกเลิก',
                 confirmButtonColor: '#dc2626',
                 reverseButtons: true,
             })).isConfirmed
-            : window.confirm(`ต้องการนำ ${member?.name || 'สมาชิกคนนี้'} ออกจากทีมงานนี้หรือไม่?`);
+            : window.confirm(`ต้องการนำ ${member?.name || 'สมาชิกคนนี้'} ออกจากโปรเจกต์นี้หรือไม่?`);
         if (!confirmed) return;
 
         remove.disabled = true;
         try {
             await request(activeTeam.remove_url.replace('__USER__', remove.dataset.removeTeamMember), 'DELETE');
-            activeTeam.collaborators = activeTeam.collaborators.filter((person) => String(person.id) !== remove.dataset.removeTeamMember);
+            activeTeam.participants = (activeTeam.participants || []).filter((person) => String(person.id) !== remove.dataset.removeTeamMember);
             render();
         } catch (error) {
             notice.hidden = false;
@@ -663,31 +670,15 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
     const dropZone = box.querySelector('[data-task-drop-zone]');
     const typesHint = box.querySelector('[data-attachment-types]');
     const lockedNotice = box.querySelector('[data-attachment-locked]');
+    const downloadTrigger = box.querySelector('[data-open-attachment-download]');
     let taskId = null;
     let uploading = false;
     // dragenter/dragleave ยิงทุกครั้งที่ผ่าน element ลูก ต้องนับชั้นไม่งั้นกรอบกะพริบ
     let dragDepth = 0;
 
-    /**
-     * allow-list ชุดเดียวกับ App\Support\Concerns\ValidatesAttachments
-     * ฝั่งนี้ทำหน้าที่บอกผู้ใช้ให้เร็วเท่านั้น การบังคับจริงยังอยู่ที่ server เสมอ
-     */
-    const FILE_ICONS = {
-        jpg: 'bi-file-earmark-image', jpeg: 'bi-file-earmark-image', png: 'bi-file-earmark-image',
-        pdf: 'bi-file-earmark-pdf',
-        doc: 'bi-file-earmark-word', docx: 'bi-file-earmark-word',
-        xls: 'bi-file-earmark-excel', xlsx: 'bi-file-earmark-excel',
-        ppt: 'bi-file-earmark-ppt', pptx: 'bi-file-earmark-ppt',
-        zip: 'bi-file-earmark-zip',
-    };
-
     // เพดานมาจาก AttachmentPolicy ฝั่ง server ไม่ฮาร์ดโค้ดซ้ำที่นี่
     // ถ้า server เปลี่ยนเพดาน หน้าจอจะตามทันทีโดยไม่ต้องแก้ JavaScript
     const limits = attachmentLimits(document);
-
-    const extensionOf = (name) => String(name ?? '').split('.').pop().toLowerCase();
-    const iconFor = (name) => FILE_ICONS[extensionOf(name)] || 'bi-file-earmark';
-    const toneFor = (name) => FILE_ICONS[extensionOf(name)]?.replace('bi-file-earmark-', '') || 'other';
 
     const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
 
@@ -703,13 +694,20 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         const files = task?.files || [];
         // ไอคอนบอกชนิดไฟล์ตั้งแต่แรกเห็น ไม่ต้องอ่านนามสกุลท้ายชื่อที่มักถูกตัดด้วย ellipsis
         list.innerHTML = files.length
-            ? files.map((file) => `<article><a href="${escape(file.url)}" target="_blank" rel="noopener"><i class="bi ${iconFor(file.name)} file-tone-${toneFor(file.name)}" aria-hidden="true"></i><span>${escape(file.name)}</span></a>${file.delete_url ? `<button type="button" data-delete-inline-file="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ''}</article>`).join('')
+            ? files.map((file) => `<article><a href="${escape(file.url)}" target="_blank" rel="noopener"><i class="bi ${iconFor(file.name)} file-tone-${toneFor(file.name)}" aria-hidden="true"></i><span>${escape(file.name)}</span></a>${file.delete_url ? `<button type="button" class="attachment-delete" data-delete-attachment="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ''}</article>`).join('')
             : '<p>ยังไม่มีไฟล์แนบ</p>';
         if (drop) drop.hidden = !task?.can_upload;
         // งานที่แนบไฟล์ไม่ได้ต้องไม่ชวนให้ลาก
         if (typesHint) typesHint.hidden = !task?.can_upload;
         if (lockedNotice) lockedNotice.hidden = task?.is_closed !== true;
         if (dropZone) dropZone.classList.toggle('is-droppable', Boolean(task?.can_upload));
+
+        // กล่องดาวน์โหลดเป็นโมดูลแยก จึงรับรู้งานที่เปิดอยู่ผ่าน dataset ของปุ่มที่กด
+        // ไม่ใช่ตัวแปร taskId ภายใน IIFE นี้ ที่โมดูลอื่นมองไม่เห็น
+        if (downloadTrigger) {
+            downloadTrigger.hidden = files.length === 0;
+            downloadTrigger.dataset.taskId = String(taskId ?? '');
+        }
     };
 
     document.addEventListener('click', (event) => {
@@ -721,40 +719,25 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
             render();
         }
 
-        const remove = event.target.closest('[data-delete-inline-file]');
-        if (!remove || !taskId || remove.disabled) return;
+        const remove = event.target.closest('[data-delete-attachment]');
+        if (!remove || !list.contains(remove) || !taskId || remove.disabled) return;
 
         deleteAttachment(remove);
     });
 
     const deleteAttachment = async (remove) => {
-        // ใช้ Swal ก่อนตามแบบเดียวกับส่วนอื่นของไฟล์นี้ แล้วค่อยตกไป confirm ของเบราว์เซอร์
-        const confirmed = window.Swal
-            ? (await window.Swal.fire({
-                ...workspaceDialogLayer,
-                icon: 'warning',
-                title: 'ต้องการลบไฟล์นี้หรือไม่?',
-                showCancelButton: true,
-                confirmButtonText: 'ลบไฟล์',
-                cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: '#dc2626',
-                reverseButtons: true,
-            })).isConfirmed
-            : window.confirm('ต้องการลบไฟล์นี้ใช่หรือไม่?');
-        if (!confirmed) return;
+        if (!(await confirmAttachmentDelete())) return;
 
         remove.disabled = true;
         setStatus('กำลังลบไฟล์...');
         try {
-            const response = await fetch(remove.dataset.deleteInlineFile, {method: 'DELETE', headers: {Accept: 'application/json', 'X-CSRF-TOKEN': csrf}});
-            const result = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(result.message || '');
-
             const task = data[String(taskId)];
-            task.files = Array.isArray(result.files)
-                ? result.files
-                : task.files.filter((file) => file.delete_url !== remove.dataset.deleteInlineFile);
-            publishTaskFiles(taskId, task.files);
+            task.files = await deleteTaskAttachment({
+                url: remove.dataset.deleteAttachment,
+                csrf,
+                taskId,
+                files: task.files || [],
+            });
             render();
             setStatus('ลบไฟล์แล้ว');
         } catch (error) {

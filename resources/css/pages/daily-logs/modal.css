@@ -28,9 +28,15 @@
 .log-modal__choice > .log-modal__step-heading,
 .log-modal__type-grid { margin-left:22px; margin-right:22px; }
 .log-modal__type-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding-bottom:30px; }
-.log-modal__type-grid button { display:grid; justify-items:center; gap:7px; min-height:132px; padding:20px 12px; border:1px solid #dbe6f7; border-radius:9px; background:#fff; color:#1c3357; cursor:pointer; }
+.log-modal__type-grid button,
+.log-modal__type-grid .log-modal__type-link { display:grid; justify-items:center; gap:7px; min-height:132px; padding:20px 12px; border:1px solid #dbe6f7; border-radius:9px; background:#fff; color:#1c3357; cursor:pointer; }
 .log-modal__type-grid button:hover,
-.log-modal__type-grid button:focus-visible { border-color:#1261dc; background:#f5f9ff; outline:2px solid #e1edff; outline-offset:1px; }
+.log-modal__type-grid button:focus-visible,
+.log-modal__type-grid .log-modal__type-link:hover,
+.log-modal__type-grid .log-modal__type-link:focus-visible { border-color:#1261dc; background:#f5f9ff; outline:2px solid #e1edff; outline-offset:1px; }
+/* แบบตรวจที่มีผังห้องเป็นทางเข้าของตัวเอง จึงกินสองคอลัมน์ให้เห็นชัดว่าไม่ใช่
+   ประเภทงานคู่กับอีกสองใบด้านบน แต่เป็นหน้าแยก */
+.log-modal__type-grid .log-modal__type-link { grid-column:span 2; min-height:92px; align-content:center; text-decoration:none; }
 .log-modal__type-grid i { color:#1261dc; font-size:1.6rem; }
 .log-modal__type-grid strong { font-size:.9rem; font-weight:300; }
 .log-modal__type-grid small { color:#7b8da8; font-size:.72rem; text-align:center; }
@@ -65,6 +71,8 @@
 .log-field__date-list[hidden] { display:none !important; }
 @media (max-width:480px) {
   .log-modal__type-grid { grid-template-columns:minmax(0,1fr); }
+  /* คอลัมน์เดียวแล้ว span 2 จะทำให้แถวว่างโผล่ขึ้นมา */
+  .log-modal__type-grid .log-modal__type-link { grid-column:span 1; }
 }
 
 /*

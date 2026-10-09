@@ -22,9 +22,11 @@ use Tests\TestCase;
  *   thanabodee      role=user  is_department_head=false  แผนก IT       (พนักงาน IT)
  *   phunkorn.sr123  role=user  is_department_head=false  แผนก Account  (พนักงาน Account)
  *
- * แผนก IT มีหัวหน้า ส่วน Account ไม่มีหัวหน้าเลย — ทุกเส้นทางที่วิ่งไปหา "หัวหน้าแผนก
- * ของฝั่ง Account" จึงตกไปหา admin ตาม fallback ของ
+ * แผนก IT มีหัวหน้า ส่วน Account ไม่มีหัวหน้าเลย — คำขอที่ต้องมีคนตัดสินจริง (การมอบหมาย
+ * งานข้ามแผนก) จึงตกไปหา admin ตาม fallback ของ
  * NotificationService::departmentApprovalRecipientIds()
+ *
+ * ส่วนการเพิ่มผู้เข้าร่วมโปรเจกต์ไม่มีอะไรให้ตัดสิน จึงไม่มี fallback ไปหา admin เลย
  *
  * ทดสอบผ่าน HTTP endpoint จริงทุกข้อ ไม่เรียก service ตรง ๆ เพื่อให้ครอบคลุมทั้ง
  * validation, policy, สถานะที่บันทึกลงฐานข้อมูล และรูปร่าง response
@@ -156,10 +158,10 @@ class CrossDepartmentScenarioTest extends TestCase
     /**
      * ดึงพนักงาน Account เข้างานของ IT
      *
-     * โมเดลของเส้นทางนี้คือ "ยืมตัวคน" ผู้อนุมัติจึงเป็นหัวหน้าแผนกของคนที่ถูกยืม
-     * ซึ่งคือ Account ที่ไม่มีหัวหน้า จึงตกไปหา admin
+     * หัวหน้าโปรเจกต์เพิ่มผู้เข้าร่วมได้ทันที ไม่ว่าคนนั้นอยู่แผนกไหน แผนก Account
+     * ไม่มีหัวหน้าเลย ซึ่งต้องไม่ทำให้อะไรตกไปหา admin เพราะไม่มีอะไรให้ตัดสิน
      */
-    public function test_pulling_a_cross_department_person_into_a_task_waits_for_approval(): void
+    public function test_pulling_a_cross_department_person_into_a_task_joins_immediately(): void
     {
         $job = $this->approvedTask($this->itStaff);
 
@@ -170,12 +172,18 @@ class CrossDepartmentScenarioTest extends TestCase
             ->assertSuccessful();
 
         $pivot = $job->fresh()->collaborators->firstWhere('id', $this->accountStaff->id);
-        $this->assertSame('pending', $pivot->pivot->status);
-        $this->assertNull($pivot->pivot->decided_by);
+        $this->assertSame('accepted', $pivot->pivot->status);
+        $this->assertSame((int) $this->itStaff->id, (int) $pivot->pivot->decided_by);
         $this->assertSame((int) $this->itStaff->id, (int) $pivot->pivot->added_by);
+        $this->assertTrue($this->accountStaff->fresh()->can('view', $job->fresh()));
 
-        $this->assertTrue(SystemNotification::where('user_id', $this->admin->id)
-            ->where('type', 'collaborator_approval_request')->exists());
+        $this->assertFalse(SystemNotification::where('type', 'collaborator_approval_request')->exists());
+        $this->assertFalse(SystemNotification::where('user_id', $this->admin->id)->exists(),
+            'แผนกที่ไม่มีหัวหน้าต้องไม่ตกไปหา admin เพราะไม่มีคำขอให้ตัดสิน');
+
+        // ผู้เข้าร่วมได้รับแจ้งว่าเข้าร่วมแล้ว
+        $this->assertTrue(SystemNotification::where('user_id', $this->accountStaff->id)
+            ->where('type', 'collaborator_added')->exists());
     }
 
     /** คนในแผนกเดียวกันเข้าร่วมได้ทันที ไม่ต้องอนุมัติ */
@@ -265,7 +273,7 @@ class CrossDepartmentScenarioTest extends TestCase
         $this->assertTrue($this->accountStaff->fresh()->can('view', $job->fresh()));
 
         $this->assertFalse(
-            SystemNotification::whereIn('type', ['share_join_awaiting_head', 'collaborator_approval_request'])->exists(),
+            SystemNotification::where('type', 'share_join_awaiting_head')->exists(),
             'หัวหน้าแผนกแชร์เอง ต้องไม่มีคำขออนุมัติชั้นที่สองเกิดขึ้นเลย'
         );
     }
@@ -479,19 +487,20 @@ class CrossDepartmentScenarioTest extends TestCase
     }
 
     /** สถานะการอนุมัติรับได้แค่ accepted / rejected */
-    public function test_the_collaborator_decision_only_accepts_known_statuses(): void
+    /** รายชื่อผู้เข้าร่วมต้องรับเฉพาะ id ของผู้ใช้ที่มีอยู่จริง */
+    public function test_adding_participants_only_accepts_existing_users(): void
     {
         $job = $this->approvedTask($this->itStaff);
-        $job->collaborators()->attach($this->accountStaff->id, [
-            'status' => 'pending', 'added_by' => $this->itStaff->id,
-        ]);
 
-        $this->actingAs($this->admin)
-            ->patchJson(route('admin.tasks.collaborators.approval', [$job->job_id, $this->accountStaff->id]), [
-                'status' => 'maybe',
-            ])
+        $this->actingAs($this->itStaff)
+            ->postJson(route('tasks.collaborators.store', $job->job_id), ['collaborators' => [999999]])
             ->assertStatus(422)
-            ->assertJsonValidationErrors('status');
+            ->assertJsonValidationErrors('collaborators.0');
+
+        $this->actingAs($this->itStaff)
+            ->postJson(route('tasks.collaborators.store', $job->job_id), ['collaborators' => []])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('collaborators');
     }
 
     /** endpoint อนุมัติงานใช้ชื่อฟิลด์ approval_status และรับได้แค่ approved/rejected */

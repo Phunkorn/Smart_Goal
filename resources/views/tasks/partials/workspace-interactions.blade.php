@@ -2,33 +2,52 @@
     $workspaceContext = $workspaceContext ?? 'user';
     $showCreateActions = $showCreateActions ?? true;
     $forceReadOnly = $forceReadOnly ?? false;
-    $teamData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
-        'id' => $task->job_id,
-        'topic' => $task->job_topic,
-        'locked' => $forceReadOnly || ((int) $task->job_status === 4 && auth()->user()->role !== 'admin'),
-        'can_manage' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task),
-        'add_url' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.store', $task->job_id) : null,
-        'remove_url' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task) ? route('tasks.collaborators.destroy', [$task->job_id, '__USER__']) : null,
-        'assignee' => [
-            'id' => $task->user?->id,
-            'name' => $task->user?->name ?? 'ไม่ระบุ',
-            'email' => $task->user?->email,
-            'department' => $task->user?->department?->department_name,
-            'avatar_url' => $task->user?->profile_image ? route('media.profile', $task->user) : null,
-        ],
-        // ผู้รับผิดชอบ ผู้สร้าง และหัวหน้างาน ลบออกจากทีมไม่ได้ (TaskCollaboratorController:87)
-        'protected_ids' => array_values(array_filter([$task->user_id, $task->created_by, $task->leader_user_id])),
-        'collaborators' => $task->collaborators->map(fn ($person) => [
-            'id' => $person->id,
-            'name' => $person->name,
-            'email' => $person->email,
-            'department' => $person->department?->department_name,
-            'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
-            'status' => $person->pivot?->status ?? 'pending',
-            // บัญชีที่ถูกปิดยังแสดงไว้เพื่อรักษาประวัติ แต่ต้องบอกสถานะให้ชัดและเพิ่มซ้ำไม่ได้
-            'is_active' => (bool) $person->is_active,
-        ])->values(),
-    ]]);
+    /*
+     * โครงสร้างสมาชิกโปรเจกต์ที่หน้าจอใช้ ตรงกับ App\Support\ProjectRoles ทุกประการ:
+     *   leader       — หัวหน้าโปรเจกต์ คือผู้สร้างงานใบนั้น
+     *   participants — ผู้เข้าร่วมทั้งหมด ทั้งผู้รับผิดชอบงานและคนที่ถูกเพิ่มเข้ามา
+     *
+     * cross_department เป็นเพียงป้ายบอกที่มาของคน ไม่ใช่สถานะรออนุมัติ — ผู้เข้าร่วม
+     * ต่างแผนกเข้าร่วมได้ทันทีเหมือนคนในแผนก (CollaboratorInvitationService::invite())
+     */
+    $personPayload = fn ($person) => $person === null ? null : [
+        'id' => $person->id,
+        'name' => $person->name,
+        'email' => $person->email,
+        'department' => $person->department?->department_name,
+        'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
+    ];
+    $teamData = $allTasks->mapWithKeys(function ($task) use ($forceReadOnly, $personPayload) {
+        $canManage = ! $forceReadOnly && auth()->user()->can('manageTeam', $task);
+        $leader = \App\Support\ProjectRoles::leader($task);
+
+        return [(string) $task->job_id => [
+            'id' => $task->job_id,
+            'topic' => $task->job_topic,
+            'locked' => $forceReadOnly || ((int) $task->job_status === 4 && auth()->user()->role !== 'admin'),
+            'can_manage' => $canManage,
+            'add_url' => $canManage ? route('tasks.collaborators.store', $task->job_id) : null,
+            'remove_url' => $canManage ? route('tasks.collaborators.destroy', [$task->job_id, '__USER__']) : null,
+            'project_department' => \App\Support\ProjectRoles::projectDepartmentName($task),
+            'leader' => $leader === null ? null : [
+                ...$personPayload($leader),
+                'cross_department' => \App\Support\ProjectRoles::joinsAcrossDepartments($task, $leader),
+            ],
+            // หัวหน้าโปรเจกต์ ผู้รับผิดชอบ และหัวหน้างาน นำออกจากโปรเจกต์ไม่ได้
+            // (TaskCollaboratorController::removeCollaborator)
+            'protected_ids' => array_values(array_filter([$task->user_id, $task->created_by, $task->leader_user_id])),
+            'participants' => \App\Support\ProjectRoles::participants($task)
+                ->map(fn (array $entry) => [
+                    ...$personPayload($entry['user']),
+                    'status' => $entry['status'],
+                    'is_assignee' => $entry['is_assignee'],
+                    'cross_department' => $entry['cross_department'],
+                    // บัญชีที่ถูกปิดยังแสดงไว้เพื่อรักษาประวัติ แต่ต้องบอกสถานะให้ชัดและเพิ่มซ้ำไม่ได้
+                    'is_active' => (bool) $entry['user']->is_active,
+                ])
+                ->values(),
+        ]];
+    });
 ?>
 <script type="application/json" data-team-data>@json($teamData)</script>
 
@@ -48,11 +67,8 @@
         'is_closed' => (int) $task->job_status === 4,
         'can_upload' => ! $forceReadOnly && auth()->user()->can('work', $task),
         'upload_url' => ! $forceReadOnly && auth()->user()->can('work', $task) ? route('tasks.attachments.store', $task->job_id) : null,
-        'files' => $task->images->map(fn ($file) => [
-            'name' => $file->original_name ?? basename($file->file_path),
-            'url' => route('media.task-attachments.show', $file),
-            'delete_url' => ! $forceReadOnly && auth()->user()->can('work', $task) ? route('tasks.attachments.destroy', [$task->job_id, $file]) : null,
-        ])->values(),
+        // รูปแบบเดียวกับที่ TaskAttachmentController และ TaskStatusController ส่งกลับหลังแนบ/ลบไฟล์
+        'files' => \App\Support\TaskAttachmentPresenter::files($task, ! $forceReadOnly && auth()->user()->can('work', $task)),
     ]]);
 ?>
 <script type="application/json" data-attachment-data
@@ -92,7 +108,7 @@
     /*
      * รายชื่อที่ @กล่าวถึงได้ในแต่ละงาน — ชุดเดียวกับผู้รับแจ้งเตือนคอมเมนต์ของงานใบนั้น
      * (TaskCommentService::mentionCandidates()) ไม่ใช่ TaskCollaboratorOptions ซึ่งเป็นรายชื่อ
-     * ทั่วทั้งระบบสำหรับหน้าเพิ่มผู้ร่วมงาน คนละขอบเขตกัน
+     * ทั่วทั้งระบบสำหรับหน้าเพิ่มผู้เข้าร่วมโปรเจกต์ คนละขอบเขตกัน
      */
     $taskCommentService = app(\App\Services\TaskCommentService::class);
     $mentionableData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id =>
@@ -122,6 +138,7 @@
         'task_id' => (int) $task->job_id,
         'child_count' => 0,
         'open_child_count' => 0,
+        'children_restricted' => false,
     ];
     $taskManagementData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id => [
         'transitions' => $forceReadOnly
@@ -157,7 +174,7 @@
                 <span class="team-modal__heading-icon" aria-hidden="true"><i class="bi bi-people"></i></span>
                 <span class="team-modal__heading-copy">
                     <span class="task-edit-kicker">PROJECT TEAM</span>
-                    <strong id="team-modal-title">ทีมของงานนี้</strong>
+                    <strong id="team-modal-title">สมาชิกโปรเจกต์</strong>
                     <small data-team-topic></small>
                 </span>
             </div>
@@ -166,7 +183,8 @@
 
         {{--
             Team Manager เป็น component เดียว ไม่มีรายการสมาชิกกับฟอร์มเพิ่มแยกกันอีกแล้ว
-            คอลัมน์ซ้ายคือคนที่ยังเพิ่มได้ คอลัมน์ขวาคือทีมปัจจุบันและคนที่เตรียมเพิ่ม
+            คอลัมน์ซ้ายคือคนที่ยังเพิ่มได้ คอลัมน์ขวาคือหัวหน้าโปรเจกต์ ผู้เข้าร่วมปัจจุบัน
+            และคนที่เตรียมเพิ่ม (ดู App\Support\ProjectRoles)
         --}}
         <form class="team-manager" data-team-form>
             <div class="team-manager__body">
@@ -189,14 +207,14 @@
                     'sidePanel' => 'tasks.partials.team-current-list',
                     'variant' => 'team-manager',
                     'labels' => [
-                        'title' => 'เพิ่มผู้ร่วมงาน',
-                        'hint' => 'ค้นหาและเลือกคนที่ต้องการเพิ่มเข้าร่วมงาน',
+                        'title' => 'เพิ่มผู้เข้าร่วม',
+                        'hint' => 'ค้นหาและเลือกคนที่ต้องการเพิ่มเข้าร่วมโปรเจกต์ เพิ่มข้ามแผนกได้ทันที',
                         'search' => 'ค้นหาชื่อ อีเมล หรือแผนก',
-                        'emptyOptions' => 'ไม่มีพนักงานที่เพิ่มเข้าทีมนี้ได้',
+                        'emptyOptions' => 'ไม่มีพนักงานที่เพิ่มเข้าโปรเจกต์นี้ได้',
                         'emptySelected' => 'ยังไม่ได้เลือกใคร',
                         'countTemplate' => 'เลือกเพิ่ม :count คน',
                         'removeHint' => 'กด × เพื่อยกเลิก',
-                        'help' => 'แสดงเฉพาะบัญชีที่เปิดใช้งานและยังไม่อยู่ในทีม',
+                        'help' => 'แสดงเฉพาะบัญชีที่เปิดใช้งานและยังไม่อยู่ในโปรเจกต์',
                         'help2' => 'การเปลี่ยนแผนกไม่ยกเลิกคนที่เลือกไว้',
                     ],
                 ])
@@ -205,11 +223,11 @@
 
             <footer class="team-manager__footer">
                 <div class="team-manager__footer-primary">
-                    <p class="team-manager__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> สมาชิกที่เลือกจะถูกเพิ่มเมื่อกดยืนยัน</p>
+                    <p class="team-manager__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> ผู้ที่เลือกจะเข้าร่วมโปรเจกต์ทันทีเมื่อกดยืนยัน ไม่ต้องรออนุมัติ</p>
                     <p class="team-manager__notice" data-team-notice hidden></p>
                 </div>
                 <div class="team-manager__actions">
-                    <button type="submit" class="notion-primary" data-team-submit aria-busy="false" disabled><i class="bi bi-person-plus" aria-hidden="true"></i> <span data-team-submit-label>เพิ่มผู้ร่วมงาน (0 คน)</span></button>
+                    <button type="submit" class="notion-primary" data-team-submit aria-busy="false" disabled><i class="bi bi-person-plus" aria-hidden="true"></i> <span data-team-submit-label>เพิ่มผู้เข้าร่วม (0 คน)</span></button>
                     <button type="button" class="task-secondary" data-close-team>ปิด</button>
                 </div>
             </footer>
@@ -251,7 +269,15 @@
     <section class="board-attachment-modal__card" role="dialog" aria-modal="true" aria-labelledby="board-attachment-modal-title">
         <header>
             <div><span>ATTACHMENTS</span><strong id="board-attachment-modal-title">ไฟล์แนบ</strong><small data-board-attachment-topic></small></div>
-            <button type="button" class="task-modal-close" data-close-board-attachments aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
+            <div class="board-attachment-modal__actions">
+                {{-- ใช้กล่องเลือกดาวน์โหลดใบเดียวกับการ์ดไฟล์แนบใน Task Workspace
+                     ปุ่มจึงเป็นแค่ตัวเปิด ไม่มีตรรกะดาวน์โหลดของตัวเอง
+                     ซ่อนไว้จนกว่างานนั้นจะมีไฟล์จริง เหมือนปุ่มบนหัวการ์ด --}}
+                <button type="button" class="task-workspace__panel-button" data-open-attachment-download data-task-id="" hidden>
+                    <i class="bi bi-download" aria-hidden="true"></i> ดาวน์โหลด
+                </button>
+                <button type="button" class="task-modal-close" data-close-board-attachments aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
+            </div>
         </header>
         <div class="board-attachment-modal__body">
             <div class="board-attachment-modal__list" data-board-attachment-list></div>
@@ -262,6 +288,53 @@
             <p class="task-workspace__locked-notice" data-board-attachment-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i><span>งานนี้ปิดแล้ว ไม่สามารถแนบไฟล์ได้ หากต้องการแนบไฟล์ กรุณาเปิดงานอีกครั้ง</span></p>
         </div>
         <footer><button type="button" class="task-secondary" data-close-board-attachments>ปิด</button></footer>
+    </section>
+</div>
+
+{{--
+    กล่อง "ดาวน์โหลดไฟล์แนบ"
+
+    การ์ดไฟล์แนบใน Task Workspace เปิดดูไฟล์ได้ทีละไฟล์เท่านั้น ไม่มีปุ่มดาวน์โหลด
+    และเลือกหลายรายการพร้อมกันไม่ได้ กล่องนี้คือที่เดียวที่ทำสองเรื่องนั้น
+
+    เป็น modal จริง (มี backdrop / aria-modal / ล็อก scroll) ผ่าน modalStack เท่านั้น
+    จึงซ้อนบน Task Workspace ได้โดยไม่มี backdrop สองชั้นทับกัน
+--}}
+<div class="notion-modal attachment-download-modal" data-attachment-download-modal hidden>
+    <section class="attachment-download-modal__card" role="dialog" aria-modal="true" aria-labelledby="attachment-download-title">
+        <header>
+            <div>
+                <span>DOWNLOAD</span>
+                <strong id="attachment-download-title">ดาวน์โหลดไฟล์แนบ</strong>
+                <small data-attachment-download-topic></small>
+            </div>
+            <button type="button" class="task-modal-close" data-close-attachment-download aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
+        </header>
+        <div class="attachment-download-modal__body">
+            <div class="attachment-download-modal__toolbar" data-attachment-download-toolbar>
+                <label class="attachment-download-modal__all">
+                    <input type="checkbox" data-attachment-download-all checked>
+                    <span>เลือกทั้งหมด</span>
+                </label>
+                <span class="attachment-download-modal__count" data-attachment-download-count></span>
+            </div>
+            <div class="attachment-download-modal__list" data-attachment-download-list role="group" aria-labelledby="attachment-download-title"></div>
+            <p class="attachment-download-modal__empty" data-attachment-download-empty hidden>
+                <i class="bi bi-paperclip" aria-hidden="true"></i>
+                <strong>ยังไม่มีไฟล์แนบ</strong>
+                <span>งานนี้ยังไม่มีเอกสารหรือรูปภาพให้ดาวน์โหลด</span>
+            </p>
+            <p class="attachment-download-modal__status" data-attachment-download-status role="status" aria-live="polite" hidden></p>
+        </div>
+        <footer>
+            <p class="attachment-download-modal__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> เลือกหลายไฟล์ได้ เบราว์เซอร์อาจถามยืนยันการบันทึกหลายไฟล์ครั้งแรก</p>
+            <div class="attachment-download-modal__actions">
+                <button type="button" class="notion-primary" data-attachment-download-start disabled>
+                    <i class="bi bi-download" aria-hidden="true"></i> <span data-attachment-download-label>ดาวน์โหลด</span>
+                </button>
+                <button type="button" class="task-secondary" data-close-attachment-download>ปิด</button>
+            </div>
+        </footer>
     </section>
 </div>
 
@@ -362,8 +435,8 @@
             <div class="task-workspace__cell">
                 <span class="task-workspace__cell-icon tone-team"><i class="bi bi-people-fill" aria-hidden="true"></i></span>
                 <span class="task-workspace__cell-body">
-                    <span class="task-workspace__cell-label">ผู้ร่วมงาน</span>
-                    <button type="button" class="task-workspace__cell-action" data-manage-team>เพิ่มผู้ร่วมงาน</button>
+                    <span class="task-workspace__cell-label">สมาชิกโปรเจกต์</span>
+                    <button type="button" class="task-workspace__cell-action" data-manage-team>จัดการผู้เข้าร่วม</button>
                 </span>
             </div>
         </section>
@@ -373,6 +446,10 @@
                 <header class="task-workspace__panel-head">
                     <span class="task-workspace__panel-icon"><i class="bi bi-paperclip" aria-hidden="true"></i></span>
                     <strong id="task-workspace-files-title">ไฟล์แนบ</strong>
+                    {{-- เปิดกล่องเลือกไฟล์เพื่อดาวน์โหลด ซ่อนไว้จนกว่างานนี้จะมีไฟล์แนบจริง --}}
+                    <button type="button" class="task-workspace__panel-button" data-open-attachment-download hidden>
+                        <i class="bi bi-download" aria-hidden="true"></i> ดาวน์โหลด
+                    </button>
                     <label class="task-workspace__add-file" data-task-inline-drop>
                         <i class="bi bi-plus-lg" aria-hidden="true"></i> เพิ่มไฟล์
                         <input type="file" multiple data-task-inline-file-input accept="{{ \App\Support\AttachmentPolicy::acceptAttribute() }}">

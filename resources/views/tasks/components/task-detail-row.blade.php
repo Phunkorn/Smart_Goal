@@ -21,11 +21,27 @@
     $detailCommentLabel = $detailComments ? 'ดูคอมเมนต์ '.$detailComments.' รายการ' : 'ยังไม่มีคอมเมนต์';
     $detailAssigneeName = $detail->user?->name ?? auth()->user()->name;
     $detailCanWork = auth()->user()->can('work', $detail);
+    /*
+     * งานย่อยที่ปิดแล้วต้องยังมีกล่องควบคุมอยู่ในหน้า ถ้าผู้ใช้คนนี้เป็นคนที่เปิดงานอีกครั้งได้
+     *
+     * work() เป็นเท็จเสมอเมื่องานปิดแล้ว ของเดิมจึงวาดป้ายสถานะเป็น <span> คงที่ ไม่มีเมนู
+     * และไม่มีคำสั่งเปิดงานอีกครั้งเลย พอผู้ใช้ไปเปิดงานใหม่จากโมดัล ก็ไม่มี element ให้
+     * JavaScript เขียนป้ายใหม่ ป้าย "เสร็จแล้ว" จึงค้างอยู่จนกด Ctrl+F5
+     *
+     * แถวงานแม่ (project-board-card.blade.php) ใช้วิธีนี้อยู่แล้ว ที่นี่จึงทำให้ตรงกัน
+     * โครงของกล่องมาจาก Blade ส่วนสถานะเปิด/ปิดของแต่ละปุ่มมาจาก capabilities ที่ server
+     * ส่งมา และถูกเขียนที่ refreshStatusControls() ใน mytasks-project-board.js ที่เดียว
+     */
+    $detailCanReopen = auth()->user()->can('reopen', $detail);
+    $detailHasControls = $detailCanWork || $detailCanReopen;
     // "งานย่อยใบนี้เป็นของฉันไหม" — ใช้เกณฑ์เดียวกับแถวงานแม่ใน project-board-card.blade.php
     // งานย่อยที่เราถูกมอบหมาย ทำให้งานแม่ของคนอื่นยังแสดงอยู่เมื่อเปิดปุ่ม "เฉพาะงานของฉัน"
     $detailIsMine = auth()->user()->can('participate', $detail);
     $detailCanManageTeam = auth()->user()->can('manageTeam', $detail);
     $detailCanEditSchedule = $detailCanWork && ((int) $detail->job_status !== 4 || auth()->user()->role === 'admin');
+    // มีช่องให้แก้กำหนดการไหม (คนละคำถามกับ "แก้ได้ตอนนี้ไหม") — ช่องถูกวาดไว้แบบ disabled
+    // เพื่อให้กลับมาใช้งานได้ทันทีที่งานถูกเปิดอีกครั้ง โดยไม่ต้องวาดแถวใหม่ทั้งแถว
+    $detailHasScheduleControls = $detailCanEditSchedule || $detailCanReopen;
     $detailShowsReviewStage = \App\Support\TaskReviewStage::appliesTo($detail, auth()->user());
     $detailThaiMonths = [1=>'ม.ค.',2=>'ก.พ.',3=>'มี.ค.',4=>'เม.ย.',5=>'พ.ค.',6=>'มิ.ย.',7=>'ก.ค.',8=>'ส.ค.',9=>'ก.ย.',10=>'ต.ค.',11=>'พ.ย.',12=>'ธ.ค.'];
     // รูปแบบวันที่ต้องเหมือนแถวงานแม่ทุกตัวอักษร คอลัมน์นี้จัดกึ่งกลาง
@@ -80,43 +96,44 @@
         </button>
     </span>
 
-    @if($detailCanWork)
+    @if($detailHasControls)
         <details class="board-status-menu" data-board-status-menu>
             <summary class="board-status-pill status-{{ $detailIsLate ? 'late' : $detailStatus[1] }}"><span data-board-status-label>{{ $detailIsLate ? 'ล่าช้า' : $detailStatus[0] }}</span><i class="bi bi-chevron-down"></i></summary>
             <div>
+                <button type="button" class="board-reopen-option" data-board-status-value="2" data-board-reopen-option @if((int) $detail->job_status !== 4) hidden @endif><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>เปิดงานอีกครั้ง</button>
                 @foreach([5=>['พักงาน','paused'],2=>['กำลังทำ','progress'],3=>['รอตรวจสอบ','review'],4=>['เสร็จแล้ว','done']] as $value=>$meta)
                     @continue($value === 3 && ! $detailShowsReviewStage)
-                    <button type="button" class="status-{{ $meta[1] }}" data-board-status-value="{{ $value }}">{{ $meta[0] }}@if((int)$detail->job_status === $value)<span class="bi bi-check2"></span>@endif</button>
+                    <button type="button" class="status-{{ $meta[1] }}" data-board-status-value="{{ $value }}" data-board-normal-status-option @if((int) $detail->job_status === 4) hidden @endif>{{ $meta[0] }}@if((int)$detail->job_status === $value)<span class="bi bi-check2"></span>@endif</button>
                 @endforeach
             </div>
         </details>
-        <details class="board-status-menu board-priority-menu" data-board-priority-menu>
+        <details class="board-status-menu board-priority-menu {{ $detailCanWork ? '' : 'is-locked' }}" data-board-priority-menu>
             <summary class="board-priority priority-{{ $detailPriority[1] }}"><span data-board-priority-label>{{ $detailPriority[0] }}</span><i class="bi bi-chevron-down"></i></summary>
-            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}"><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$detail->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
+            <div>@foreach([3=>['สำคัญด่วน','urgent'],4=>['ด่วนไม่ค่อยสำคัญ','quick'],2=>['สำคัญไม่ด่วน','important'],5=>['ไม่รีบ ไม่มีกำหนด','flexible']] as $value=>$meta)<button type="button" class="priority-{{ $meta[1] }}" data-board-priority-value="{{ $value }}" @disabled(! $detailCanWork)><i class="bi bi-flag-fill"></i>{{ $meta[0] }}@if((int)$detail->job_priority === $value)<span class="bi bi-check2"></span>@endif</button>@endforeach</div>
         </details>
     @else
         <span class="board-status-pill status-{{ $detailIsLate ? 'late' : $detailStatus[1] }}"><span class="bi bi-lock-fill board-status-lock" aria-hidden="true"></span>{{ $detailIsLate ? 'ล่าช้า' : $detailStatus[0] }}<span class="visually-hidden">อ่านอย่างเดียว</span></span>
         <span class="board-priority priority-{{ $detailPriority[1] }}"><i class="bi bi-flag-fill" aria-hidden="true"></i>{{ $detailPriority[0] }}</span>
     @endif
 
-    @if($detailCanEditSchedule)
-        <label class="board-start board-start-editable"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $detailStartLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}" data-board-field="start" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_start_at) }}" data-range-partner="due" aria-label="เลือกวันที่และเวลาเริ่มของงานย่อย {{ $detail->job_topic }}"></label>
-        <label class="board-due board-due-editable {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $detailIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $detailDueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_due_at) }}" data-range-partner="start" aria-label="เลือกวันที่และเวลากำหนดส่งของงานย่อย {{ $detail->job_topic }}"></label>
+    @if($detailHasScheduleControls)
+        <label class="board-start board-start-editable{{ $detailCanEditSchedule ? '' : ' is-locked' }}"><i class="bi bi-calendar-plus"></i><span data-board-start-label>{{ $detailStartLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_START_TIME }}" data-board-field="start" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_start_at) }}" data-range-partner="due" @disabled(! $detailCanEditSchedule) aria-label="เลือกวันที่และเวลาเริ่มของงานย่อย {{ $detail->job_topic }}"></label>
+        <label class="board-due board-due-editable {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}{{ $detailCanEditSchedule ? '' : ' is-locked' }}"><i class="bi {{ $detailIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $detailDueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_due_at) }}" data-range-partner="start" @disabled(! $detailCanEditSchedule) aria-label="เลือกวันที่และเวลากำหนดส่งของงานย่อย {{ $detail->job_topic }}"></label>
     @else
         <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $detailStartLabel }}</span>
         <span class="board-due {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $detailIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $detailDueLabel }}</span>
     @endif
 
     {{-- คอลัมน์เวลากำหนดส่ง กดแก้ได้เหมือนแถวงานแม่ และผูกกับค่าเดียวกันคือ job_due_at --}}
-    @if($detailCanEditSchedule)
-        <label class="board-due-time board-due-time-editable {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $detailDueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_due_at) }}" data-range-partner="start" aria-label="เลือกเวลากำหนดส่งของงานย่อย {{ $detail->job_topic }}"></label>
+    @if($detailHasScheduleControls)
+        <label class="board-due-time board-due-time-editable {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}{{ $detailCanEditSchedule ? '' : ' is-locked' }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $detailDueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($detail->job_due_at) }}" data-range-partner="start" @disabled(! $detailCanEditSchedule) aria-label="เลือกเวลากำหนดส่งของงานย่อย {{ $detail->job_topic }}"></label>
     @else
         <span class="board-due-time {{ $detailIsLate ? 'is-late' : ($detailIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $detailDueTimeLabel }}</span></span>
     @endif
 
     <button type="button" class="board-owner" data-open-owner="{{ $detail->job_id }}" title="ผู้รับผิดชอบ: {{ $detailAssigneeName }}" aria-label="ดูข้อมูลผู้รับผิดชอบ {{ $detailAssigneeName }}"><i>@include('components.user-avatar-content', ['user' => $detail->user ?? auth()->user()])</i></button>
 
-    <span class="board-collaborators"><button type="button" data-manage-team="{{ $detail->job_id }}" aria-label="{{ $detailCanManageTeam ? 'จัดการ' : 'ดู' }}ผู้ร่วมงานของงานย่อย {{ $detail->job_topic }}">@foreach($detailTeam->take(2) as $person)<i class="{{ $person->pivot?->status === 'accepted' ? '' : 'is-pending' }}" title="{{ $person->name }}">@include('components.user-avatar-content', ['user' => $person])</i>@endforeach @if($detailTeam->count() > 2)<b>+{{ $detailTeam->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $detailCanManageTeam ? 'เพิ่มผู้ร่วมงาน' : 'ดูผู้ร่วมงาน' }}"><i class="bi {{ $detailCanManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>
+    <span class="board-collaborators"><button type="button" data-manage-team="{{ $detail->job_id }}" aria-label="{{ $detailCanManageTeam ? 'จัดการ' : 'ดู' }}ผู้เข้าร่วมของงานย่อย {{ $detail->job_topic }}">@foreach($detailTeam->take(2) as $person)<i class="{{ $person->pivot?->status === 'accepted' ? '' : 'is-pending' }}" title="{{ $person->name }}">@include('components.user-avatar-content', ['user' => $person])</i>@endforeach @if($detailTeam->count() > 2)<b>+{{ $detailTeam->count() - 2 }}</b>@endif<span class="board-team-add" title="{{ $detailCanManageTeam ? 'เพิ่มผู้เข้าร่วม' : 'ดูผู้เข้าร่วม' }}"><i class="bi {{ $detailCanManageTeam ? 'bi-person-plus-fill' : 'bi-people-fill' }}"></i></span></button></span>
 
     <button type="button" class="board-attachments {{ $detailFiles ? 'has-files' : '' }}" data-board-open-attachments="{{ $detail->job_id }}" title="{{ $detailFiles ? 'ดูไฟล์แนบ '.$detailFiles.' ไฟล์' : 'แนบไฟล์ให้งานย่อยนี้' }}"><i class="bi bi-paperclip"></i><strong>{{ $detailFiles ?: '-' }}</strong></button>
 

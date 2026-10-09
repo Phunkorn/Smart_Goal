@@ -82,6 +82,64 @@ class DepartmentController extends Controller
             ->with('success', 'แก้ไขชื่อแผนกสำเร็จ');
     }
 
+    /**
+     * เปิด/ปิดสิทธิ์ใช้งาน "ตรวจเช็กคอมพิวเตอร์ประจำวัน" ของแผนกหนึ่ง
+     *
+     * เป็นการตั้งค่าในระบบ Admin เดิม ไม่ใช่ระบบ permission ชุดใหม่ — ค่าที่เขียนที่นี่
+     * ถูกอ่านโดย App\Support\ComputerCheckAccess แล้วบังคับใช้ที่
+     * ComputerCheckSessionPolicy ที่เดียว (ดู CLAUDE.md: ห้ามซ้ำซ้อนการตรวจสิทธิ์)
+     *
+     * บันทึก AuditTrail เพราะนี่คือการเปลี่ยนสิทธิ์การเข้าถึง ต้องตอบได้ว่าใครเปิดให้
+     * แผนกไหนเมื่อไหร่ ไม่ใช่แค่สถานะปัจจุบัน
+     */
+    public function updateComputerCheckAccess(Request $request, Department $department): RedirectResponse
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+
+        $validated = $request->validate([
+            'computer_check_enabled' => ['required', 'boolean'],
+        ], [
+            'computer_check_enabled.required' => 'กรุณาระบุสถานะสิทธิ์',
+            'computer_check_enabled.boolean' => 'สถานะสิทธิ์ไม่ถูกต้อง',
+        ]);
+
+        $enabled = (bool) $validated['computer_check_enabled'];
+
+        $changed = DB::transaction(function () use ($department, $enabled): bool {
+            $lockedDepartment = Department::query()->lockForUpdate()->findOrFail($department->id);
+            $before = (bool) $lockedDepartment->computer_check_enabled;
+
+            // ติ๊กค่าเดิมซ้ำไม่ใช่การเปลี่ยนสิทธิ์ จึงไม่เขียนแถว audit ที่ไม่มีความต่าง
+            if ($before === $enabled) {
+                return false;
+            }
+
+            $lockedDepartment->update(['computer_check_enabled' => $enabled]);
+
+            AuditTrail::log(
+                'updated',
+                $lockedDepartment,
+                ($enabled ? 'Admin enabled' : 'Admin disabled')
+                    .' daily computer check for department: '.$lockedDepartment->department_name,
+                [
+                    'before' => ['computer_check_enabled' => $before],
+                    'after' => ['computer_check_enabled' => $enabled],
+                ]
+            );
+
+            return true;
+        });
+
+        return redirect()->route('admin.departments.index')->with(
+            'success',
+            $changed
+                ? ($enabled
+                    ? 'เปิดสิทธิ์ตรวจเช็กคอมพิวเตอร์ประจำวันให้แผนก '.$department->department_name.' แล้ว'
+                    : 'ปิดสิทธิ์ตรวจเช็กคอมพิวเตอร์ประจำวันของแผนก '.$department->department_name.' แล้ว')
+                : 'สิทธิ์ของแผนก '.$department->department_name.' เป็นค่านี้อยู่แล้ว'
+        );
+    }
+
     public function destroy(Department $department): RedirectResponse
     {
         abort_unless(Auth::user()?->role === 'admin', 403);

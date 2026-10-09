@@ -1,0 +1,93 @@
+/*
+ * ผังห้อง — SVG ที่กดได้ พร้อมการย่อ/ขยาย/เลื่อน
+ *
+ * ทำไมเป็น SVG + viewBox ไม่ใช่ Bootstrap grid
+ * ---------------------------------------------------------------
+ * grid จะจัดโต๊ะใหม่เมื่อจอแคบลง ทำให้รูปทรงห้องเปลี่ยนไปจากของจริง ซึ่งทำลาย
+ * จุดประสงค์ทั้งหมดของผัง (ผู้ตรวจใช้มันหาเครื่องในห้องจริง) viewBox ย่อขยาย
+ * ทั้งผังพร้อมกัน สัดส่วนจึงคงที่ทุกขนาดจอ — มือถือได้ผังเดียวกับเดสก์ท็อป
+ *
+ * การซูม/แพนทำด้วย transform บน .cc-plan__canvas ไม่ใช่การแก้ viewBox
+ * เพราะ transform ถูก composite บน GPU จึงลื่นกว่าบนมือถือ และไม่กระทบพิกัด
+ * ของ workstation ที่มาจากฐานข้อมูล
+ */
+.cc-plan { display:grid; gap:12px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm); }
+
+.cc-plan__toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
+
+.cc-plan__multi { display:inline-flex; align-items:center; gap:8px; min-height:42px; padding:0 14px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); color:var(--text-muted); font-size:.85rem; cursor:pointer; }
+.cc-plan__multi input { width:18px; height:18px; accent-color:var(--accent); }
+.cc-plan__multi:has(input:checked) { border-color:var(--accent); background:var(--accent-dim); color:var(--accent-strong); }
+
+.cc-plan__zoom { display:inline-flex; gap:4px; padding:4px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-2); }
+.cc-plan__zoom button { display:grid; place-items:center; width:40px; height:40px; border:0; border-radius:6px; background:transparent; color:var(--text-muted); }
+.cc-plan__zoom button:hover { background:var(--surface); color:var(--accent); }
+
+/*
+ * เวทีของผัง — ตัดส่วนที่เลยขอบและเป็นตัวจับการลากเพื่อเลื่อน
+ * touch-action:none จำเป็นเพื่อให้การลากด้วยนิ้วเป็นการแพนผัง ไม่ใช่การเลื่อนหน้า
+ * ซึ่งเป็นข้อกำหนด "ห้ามทำให้ต้องเลื่อนแนวนอนแบบควบคุมไม่ได้"
+ */
+.cc-plan__stage { position:relative; overflow:hidden; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-2); touch-action:none; overscroll-behavior:contain; }
+.cc-plan__canvas { transform-origin:0 0; will-change:transform; }
+
+.cc-plan__svg { display:block; width:100%; height:auto; }
+.cc-plan__floor { fill:#fbfcff; stroke:var(--border); stroke-width:1.5; }
+
+.cc-plan__zone rect { fill:var(--accent-dim); stroke:#c3d4f6; stroke-width:1.5; }
+.cc-plan__zone text { fill:var(--accent-strong); font-size:34px; font-weight:600; }
+
+.cc-plan__fixture rect { fill:#e8ecf4; stroke:#cfd8e8; stroke-width:1.5; }
+.cc-plan__fixture--fixture rect { fill:#fff; }
+.cc-plan__fixture line { stroke:#b9c4d8; stroke-width:2; }
+.cc-plan__fixture text { fill:#8d99ae; font-size:19px; }
+
+/* ---------- โต๊ะหนึ่งตัว ---------- */
+
+.cc-station { cursor:pointer; }
+.cc-station__monitor { fill:#44506b; }
+.cc-station__chair { fill:#9aa6bd; }
+.cc-station__desk { fill:#fff; stroke:#c9d3e4; stroke-width:2; transition:fill .12s ease, stroke .12s ease; }
+.cc-station__code { fill:var(--text); font-size:21px; font-weight:600; }
+.cc-station__state { font-size:16px; }
+.cc-station__code--print { fill:#111; font-size:17px; font-weight:700; }
+
+/*
+ * สถานะถูกสื่อด้วยสีพื้น + สัญลักษณ์ + ข้อความพร้อมกันเสมอ (ดู floor-plan.blade.php)
+ * ห้ามลดเหลือแค่สี เพราะคนตาบอดสีและแบบตรวจที่พิมพ์ขาวดำจะอ่านไม่ออก
+ */
+.cc-station--pending .cc-station__desk { fill:#f3f5f9; stroke:#ccd4e2; }
+.cc-station--pending .cc-station__state { fill:#7b8699; }
+
+.cc-station--partial .cc-station__desk { fill:var(--amber-dim); stroke:#f0c583; }
+.cc-station--partial .cc-station__state { fill:#8a5508; }
+
+.cc-station--normal .cc-station__desk { fill:var(--green-dim); stroke:#8fdcb8; }
+.cc-station--normal .cc-station__state { fill:#06694a; }
+
+.cc-station--issue .cc-station__desk { fill:var(--red-dim); stroke:#eda0ad; }
+.cc-station--issue .cc-station__state { fill:#a52236; }
+
+.cc-station:hover .cc-station__desk { stroke-width:3; }
+
+/* กำลังเลือก — สีน้ำเงินทับสถานะเดิม แต่สัญลักษณ์กับข้อความสถานะยังอยู่ครบ */
+.cc-station.is-selected .cc-station__desk { fill:var(--accent-dim); stroke:var(--accent); stroke-width:4; }
+.cc-station.is-selected .cc-station__code { fill:var(--accent-strong); }
+.cc-station:focus-visible { outline:none; }
+.cc-station:focus-visible .cc-station__desk { stroke:var(--accent); stroke-width:4; stroke-dasharray:7 4; }
+
+/* ช่องอุปกรณ์ห้าช่องบนโต๊ะ — ใช้เฉพาะโหมดพิมพ์ */
+.cc-chip rect { fill:#fff; stroke:#9aa6bd; stroke-width:1.2; }
+.cc-chip text { fill:#111; font-size:12px; font-weight:600; }
+.cc-chip--normal rect { fill:#eef9f3; }
+.cc-chip--issue rect { fill:#fdeef0; stroke:#d6566e; stroke-width:2; }
+.cc-chip--issue text { fill:#a52236; }
+
+/* ---------- คำอธิบายสี ---------- */
+
+.cc-legend { display:flex; flex-wrap:wrap; gap:8px 16px; margin:0; padding:0; list-style:none; }
+.cc-legend__item { display:inline-flex; align-items:center; gap:6px; color:var(--text-muted); font-size:.78rem; }
+.cc-legend__swatch { width:14px; height:14px; border:1px solid #c9d3e4; border-radius:4px; background:#f3f5f9; }
+.cc-legend__item--partial .cc-legend__swatch { border-color:#f0c583; background:var(--amber-dim); }
+.cc-legend__item--normal .cc-legend__swatch { border-color:#8fdcb8; background:var(--green-dim); }
+.cc-legend__item--issue .cc-legend__swatch { border-color:#eda0ad; background:var(--red-dim); }

@@ -8,6 +8,7 @@ use App\Models\WorkOrder;
 use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
+use App\Support\TaskAttachmentPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -82,14 +83,11 @@ class TaskAttachmentController extends Controller
      * รูปแบบเดียวกับ $attachmentData ที่ workspace-interactions.blade.php สร้างตอน render
      * ฝั่ง JavaScript จึงนำไปแทนที่ของเดิมได้ตรง ๆ โดยไม่ต้องแปลงรูปอีกชั้น
      *
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     private function attachmentPayload(WorkOrder $job): array
     {
-        return $job->images->map(fn (JobImage $file) => [
-            'name' => $file->original_name ?? basename($file->file_path),
-            'url' => route('media.task-attachments.show', $file),
-            'delete_url' => route('tasks.attachments.destroy', [$job->job_id, $file]),
-        ])->values()->all();
+        // มาถึงที่นี่ได้ต้องผ่าน authorize('work') แล้ว จึงจัดการไฟล์ได้แน่นอน
+        return TaskAttachmentPresenter::files($job, true);
     }
 }

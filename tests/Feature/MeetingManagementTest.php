@@ -44,7 +44,10 @@ class MeetingManagementTest extends TestCase
         $viewer = $this->user('viewer');
         $creator = $this->user();
         $attendee = $this->user();
-        $unrelated = $this->user();
+        // เพื่อนร่วมแผนกของผู้จัด ไม่ได้ถูกเชิญ — ปฏิทินเป็นระดับแผนกแล้ว คนนี้จึง "เห็นได้"
+        $departmentColleague = $this->user();
+        // คนนอกแผนกของผู้จัดและไม่ได้ถูกเชิญ — ไม่มีเหตุให้เห็นประชุมใบนี้เลย
+        $unrelated = $this->user(department: Department::create(['department_name' => 'Finance']));
         $meeting = $this->meeting($creator, ['title' => 'Organization meeting']);
         $meeting->attendees()->attach($attendee);
 
@@ -54,6 +57,16 @@ class MeetingManagementTest extends TestCase
         $this->actingAs($attendee)->get(route('meetings.index', ['period' => 'all']))->assertOk()->assertSee('Organization meeting');
         $this->actingAs($unrelated)->get(route('meetings.index', ['period' => 'all']))->assertOk()->assertDontSee('Organization meeting');
         $this->actingAs($unrelated)->get(route('meetings.show', $meeting))->assertForbidden();
+
+        /*
+         * ปฏิทินประชุมและนัดหมายเป็นระดับแผนก คนในแผนกของผู้จัดจึงเปิดรายละเอียด
+         * ประชุมของแผนกตัวเองได้ แม้ไม่ได้ถูกเชิญ (ดู MeetingPolicy::view)
+         * แต่ยังแก้ไม่ได้ — สิทธิ์แก้ยังเป็นของผู้จัดกับ admin เท่านั้น
+         */
+        $this->actingAs($departmentColleague)->get(route('meetings.show', $meeting))->assertOk();
+        $this->actingAs($departmentColleague)
+            ->patch(route('meetings.update', $meeting), $this->meetingPayload())
+            ->assertForbidden();
 
         $payload = $this->meetingPayload();
         $this->actingAs($viewer)->post(route('meetings.store'), $payload)->assertForbidden();
@@ -906,11 +919,12 @@ class MeetingManagementTest extends TestCase
         $this->assertDatabaseMissing('meeting_attendees', ['meeting_id' => $attending->id, 'user_id' => $person->id]);
     }
 
-    private function user(string $role = 'user', bool $isActive = true): User
+    private function user(string $role = 'user', bool $isActive = true, ?Department $department = null): User
     {
         return User::factory()->create([
             'role' => $role,
-            'department_id' => $role === 'user' ? $this->department->id : null,
+            // $department ชนะค่าเริ่มต้นเสมอ ใช้กับเคสที่ต้องการคนนอกแผนกของผู้จัดจริง ๆ
+            'department_id' => $department?->id ?? ($role === 'user' ? $this->department->id : null),
             'must_change_password' => false,
             'is_active' => $isActive,
         ]);

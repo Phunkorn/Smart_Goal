@@ -78,7 +78,11 @@ test('the task modal and the board both go through the shared store', async () =
     }
 
     // แนบและลบจากโมดัลต้องประกาศผลออกไป ไม่ใช่รีโหลดหน้า
-    assert.equal(modal.match(/publishTaskFiles\(/g).length, 2);
+    // การลบย้ายไปอยู่ใน attachment-delete.js ที่กล่องไฟล์แนบของบอร์ดใช้ร่วมกัน
+    const remove = await read('resources/js/pages/mytasks/attachment-delete.js');
+    assert.equal(modal.match(/publishTaskFiles\(/g).length, 1, 'การแนบไฟล์ประกาศผลจากโมดัล');
+    assert.equal(remove.match(/publishTaskFiles\(/g).length, 1, 'การลบไฟล์ประกาศผลจากโมดูลร่วม');
+    assert.match(board, /deleteTaskAttachment\(/, 'กล่องไฟล์แนบของบอร์ดต้องลบผ่านโมดูลร่วม');
     assert.doesNotMatch(board, /window\.location\.reload\(\), 450/);
 });
 
@@ -88,7 +92,15 @@ test('confirmation dialogs opened inside the workspace modal sit above it', asyn
 
     // SweetAlert2 ตั้ง container ไว้ที่ z-index 1060 ซึ่งต่ำกว่าโมดัลทุกตัวของ workspace
     assert.match(modal, /task-workspace-dialog/);
-    assert.equal(modal.match(/\.\.\.workspaceDialogLayer,/g).length, 3, 'Swal ทุกกล่องในโมดัลต้องยกเลเยอร์');
+    // ตรึงว่า "ทุกกล่อง" ยกเลเยอร์ โดยนับจาก Swal.fire ที่มีจริง ไม่ใช่ตัวเลขคงที่
+    assert.equal(
+        modal.match(/\.\.\.workspaceDialogLayer,/g).length,
+        modal.match(/Swal\.fire\(\{/g).length,
+        'Swal ทุกกล่องในโมดัลต้องยกเลเยอร์',
+    );
+    // กล่องยืนยันลบไฟล์ย้ายไปอยู่ในโมดูลร่วม ต้องยกเลเยอร์ด้วยคลาสเดียวกัน
+    const remove = await read('resources/js/pages/mytasks/attachment-delete.js');
+    assert.match(remove, /task-workspace-dialog/, 'กล่องยืนยันลบไฟล์ต้องยกเลเยอร์เช่นกัน');
 
     const layer = Number(css.match(/\.swal2-container\.task-workspace-dialog\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]);
     const workspaceModal = Number(css.match(/\.task-workspace-modal\s*\{[\s\S]*?z-index:\s*(\d+)/)?.[1]);

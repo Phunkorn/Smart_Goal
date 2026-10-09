@@ -108,11 +108,6 @@
     --calendar-legend-background: #f2f5f9;
 }
 
-.my-tasks-page .mytasks-calendar__legend-item--meeting {
-    --calendar-legend-border: #ddd6fe;
-    --calendar-legend-background: #f6f1ff;
-}
-
 .my-tasks-page .mytasks-calendar__legend-item > i {
     width: 8px;
     height: 8px;
@@ -370,11 +365,6 @@
     background: #f2f5f9;
 }
 
-.my-tasks-page .mytasks-calendar__day.is-tone-meeting {
-    --calendar-tone: #7c3aed;
-    background: #f6f1ff;
-}
-
 /* วันนอกเดือนที่กำลังดูยังบอกโทนได้ แต่ต้องจางกว่าเสมอเพื่อไม่ให้แย่งสายตา */
 .my-tasks-page .mytasks-calendar__day.is-outside.is-busy {
     opacity: .55;
@@ -425,10 +415,6 @@
 .my-tasks-page .priority-quick { --calendar-tone: #f97316; }
 .my-tasks-page .priority-important { --calendar-tone: #eab308; }
 .my-tasks-page .priority-flexible { --calendar-tone: #64748b; }
-.my-tasks-page .mytasks-calendar__legend-item--meeting,
-.my-tasks-page .mytasks-calendar__count.is-meeting,
-.my-tasks-page .calendar-table__row.is-meeting { --calendar-tone: #7c3aed; }
-
 .my-tasks-page .calendar-dot {
     width: 8px;
     height: 8px;
@@ -632,7 +618,7 @@
 /*
  * วันนี้ใช้สีฟ้าของระบบ ไม่ใช่สีม่วง
  *
- * สีม่วงในปฏิทินนี้ถูกใช้เป็นโทนของ "การประชุม" อยู่แล้ว (is-tone-meeting)
+ * สีม่วงถูกสงวนไว้ไม่ใช้เป็นโทนของระดับความสำคัญในปฏิทินนี้
  * วงกลมวันนี้ที่เป็นสีม่วงด้วยจึงอ่านสับสนว่าวันนั้นมีประชุม
  */
 .my-tasks-page .mytasks-calendar__day.is-today .mytasks-calendar__day-number {

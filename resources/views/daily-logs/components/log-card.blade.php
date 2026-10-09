@@ -72,6 +72,19 @@
         @if($presented['has_issue']) <small class="log-card__issue"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> พบปัญหา: {{ $presented['issue_details'] }}</small> @endif
     </div>
     <div class="log-card__actions">
+        {{-- บันทึกที่มาจากรอบตรวจเช็กคอมพิวเตอร์เปิดแบบตรวจย้อนหลังได้
+             ปุ่มนี้อยู่นอก isReadOnly เพราะหัวหน้าที่เปิดดูแทนก็ต้องอ่านแบบตรวจได้
+             สิทธิ์จริงถูกบังคับอีกชั้นที่ ComputerCheckSessionPolicy::view() --}}
+        @if($presented['inspection'])
+            <button type="button" class="log-card__action"
+                data-cc-report-open
+                data-report-url="{{ $presented['inspection']['report_url'] }}"
+                data-report-title="{{ $presented['inspection']['label'] }}"
+                data-report-meta="{{ $presented['inspection']['meta'] }}">
+                <i class="bi bi-file-earmark-text" aria-hidden="true"></i> ดูแบบตรวจ
+            </button>
+        @endif
+
         @unless($capabilities['isReadOnly'] ?? true)
             @if($presented['requires_explanation'])
                 {{-- ปิดรอบแล้วและยังไม่มีเหตุผล ถามคนละชุดตามกรณี (ไม่ได้เริ่ม / ไม่มา / เริ่มแล้วไม่กดเสร็จ) --}}

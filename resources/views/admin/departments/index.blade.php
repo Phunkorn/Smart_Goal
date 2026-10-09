@@ -51,6 +51,39 @@
                     <p class="department-card__locked">ลบไม่ได้เนื่องจากยังมีข้อมูลเชื่อมโยง</p>
                 @endunless
 
+                {{--
+                    สิทธิ์ใช้งาน "ตรวจเช็กคอมพิวเตอร์ประจำวัน" ของแผนกนี้
+
+                    เป็นฟอร์ม PATCH จริง ไม่ใช่สวิตช์ที่เรียก fetch เอง เพื่อให้ใช้เส้นทาง
+                    ตรวจสิทธิ์ ข้อความสำเร็จ และ AuditTrail ชุดเดียวกับการตั้งค่าอื่น
+                    ของหน้านี้ ช่อง hidden ส่งค่าที่ "ต้องการให้เป็น" ไม่ใช่ค่าปัจจุบัน
+                    จึงไม่มีทางที่ checkbox ที่ไม่ได้ติ๊กแล้วไม่ถูกส่งจะกลายเป็นค่าว่าง
+                --}}
+                <form class="department-card__feature" method="POST"
+                    action="{{ route('admin.departments.computer-check-access', $department) }}"
+                    data-department-feature-form>
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="computer_check_enabled"
+                        value="{{ $department->computer_check_enabled ? '0' : '1' }}">
+
+                    <span class="department-card__feature-copy">
+                        <strong>ตรวจเช็กคอมพิวเตอร์ประจำวัน</strong>
+                        <small>
+                            {{ $department->computer_check_enabled
+                                ? 'แผนกนี้ใช้งานฟังก์ชันนี้ได้'
+                                : 'แผนกนี้ไม่เห็นเมนูและเข้าถึงหน้านี้ไม่ได้' }}
+                        </small>
+                    </span>
+
+                    <button type="submit"
+                        class="department-card__feature-toggle {{ $department->computer_check_enabled ? 'is-on' : '' }}"
+                        aria-pressed="{{ $department->computer_check_enabled ? 'true' : 'false' }}"
+                        aria-label="{{ $department->computer_check_enabled ? 'ปิด' : 'เปิด' }}สิทธิ์ตรวจเช็กคอมพิวเตอร์ประจำวันของแผนก {{ $department->department_name }}">
+                        <span aria-hidden="true"></span>
+                    </button>
+                </form>
+
                 <div class="department-card__foot">
                     <p class="department-card__members">
                         <strong>{{ number_format($department->member_count) }}</strong> สมาชิก
@@ -133,6 +166,34 @@
                 text: `ต้องการลบแผนก “${departmentName}” หรือไม่? การลบทำได้เฉพาะแผนกที่ไม่มีพนักงานและไม่มีข้อมูลงาน`,
                 showCancelButton: true,
                 confirmButtonText: 'ยืนยันลบ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626',
+                reverseButtons: true,
+            });
+
+            if (confirmation.isConfirmed) form.submit();
+        });
+    });
+
+    /*
+     * ปิดสิทธิ์คือการตัดการเข้าถึงของทั้งแผนก จึงถามยืนยันก่อน
+     * ส่วนการเปิดสิทธิ์ส่งได้ทันที เพราะย้อนกลับได้ด้วยการกดปิด
+     *
+     * ใช้ Swal ตามกติกาของระบบ ห้ามใช้ confirm() ของเบราว์เซอร์
+     */
+    document.querySelectorAll('[data-department-feature-form]').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+            const willEnable = form.querySelector('[name="computer_check_enabled"]')?.value === '1';
+            if (willEnable) return;
+
+            event.preventDefault();
+
+            const confirmation = await Swal.fire({
+                icon: 'warning',
+                title: 'ยืนยันปิดสิทธิ์',
+                text: 'ปิดสิทธิ์แล้วสมาชิกของแผนกนี้จะไม่เห็นเมนู "ตรวจเช็กคอมพิวเตอร์ประจำวัน" และเปิดหน้านี้ไม่ได้ รอบตรวจที่บันทึกไว้แล้วยังอยู่ครบ',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันปิดสิทธิ์',
                 cancelButtonText: 'ยกเลิก',
                 confirmButtonColor: '#dc2626',
                 reverseButtons: true,

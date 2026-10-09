@@ -5,7 +5,7 @@
             <div>
                 <span>PROJECT ARCHIVE</span>
                 <strong id="completed-projects-title">โปรเจกต์ที่เสร็จแล้ว</strong>
-                <small>เก็บงาน งานย่อย ผู้ร่วมงาน และไฟล์ของโปรเจกต์ไว้ครบถ้วน</small>
+                <small>เก็บงาน งานย่อย ผู้เข้าร่วม และไฟล์ของโปรเจกต์ไว้ครบถ้วน</small>
             </div>
             <button type="button" data-close-completed-projects aria-label="ปิดโปรเจกต์ที่เสร็จแล้ว"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </header>
@@ -81,7 +81,7 @@
                                     <span><i class="bi bi-calendar-event" aria-hidden="true"></i> {{ $task->job_due_at->timezone('Asia/Bangkok')->locale('th')->translatedFormat('j M Y') }}</span>
                                 @endif
                                 @if($task->collaborators->isNotEmpty())
-                                    <span><i class="bi bi-people" aria-hidden="true"></i> ผู้ร่วมงาน {{ $task->collaborators->count() }} คน</span>
+                                    <span><i class="bi bi-people" aria-hidden="true"></i> ผู้เข้าร่วม {{ $task->collaborators->count() }} คน</span>
                                 @endif
                                 @if($task->images->isNotEmpty())
                                     <span><i class="bi bi-paperclip" aria-hidden="true"></i> {{ $task->images->count() }} ไฟล์</span>

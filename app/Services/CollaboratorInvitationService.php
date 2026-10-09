@@ -5,26 +5,31 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\AuditTrail;
+use App\Support\ProjectRoles;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * รับคนเข้าเป็น "ผู้เข้าร่วมโปรเจกต์" — เส้นทางเดียวที่ทุกจุดเพิ่มสมาชิกต้องผ่าน
+ *
+ * กติกา (ดู App\Support\ProjectRoles):
+ * - หัวหน้าโปรเจกต์คือผู้สร้างงาน การเพิ่มสมาชิกไม่เปลี่ยนหัวหน้าโปรเจกต์
+ * - คนที่ถูกเพิ่มเป็นผู้เข้าร่วมเสมอ ไม่ว่าจะแผนกเดียวกันหรือต่างแผนก
+ * - เข้าร่วมได้ทันที ไม่มีคำขออนุมัติ ไม่มีสถานะรอหัวหน้าแผนกตัดสิน
+ * - ต่างแผนกเป็นเพียงข้อมูลสำหรับแจ้งเตือนและหน้าติดตามของหัวหน้าแผนกต้นสังกัด
+ *
+ * สถานะ pending ที่ยังเหลืออยู่มาจากอีกเส้นทางหนึ่งเท่านั้น คือสมาชิกที่ถูกใส่ไว้ตอนสร้างงาน
+ * ขณะที่ "ตัวงาน" ยังรออนุมัติการมอบหมายข้ามแผนกอยู่ (work_orders.approval_status)
+ * เมื่อการมอบหมายถูกตัดสิน activateAfterAssignmentApproval() หรือ
+ * rejectPendingAfterAssignmentRejection() จะปิดสถานะนั้นให้ครบทุกแถว
+ */
 class CollaboratorInvitationService
 {
     public function __construct(private readonly NotificationService $notifications) {}
 
     /**
-     * Attach one eligible user using the collaborator approval contract shared
-     * by task creation and the task workspace.
-     *
-     * $actorHasFinalSay: ผู้เรียกยืนยันแล้วว่าผู้กระทำมีอำนาจชี้ขาดการรับคนเข้างานใบนี้
-     * เอง จึงไม่ต้องส่งคำขอต่อให้ใครอีก ใช้กับเส้นทางที่ตรวจอำนาจมาแล้วจากภายนอก เช่น
-     * หัวหน้าแผนกที่ดูแลแผนกปลายทางของงานอนุมัติคำขอเข้าร่วมงานที่ตัวเองแชร์
-     * (App\Services\WorkOrderShareService::decidesAlone())
-     *
-     * ค่าเริ่มต้นเป็น false เพื่อให้ผู้เรียกเดิมทุกจุดได้พฤติกรรมเดิมทุกประการ — กติกา
-     * ของการเชิญผู้ร่วมงานแบบเดิมคือ "หัวหน้าแผนกของคนที่ถูกยืมตัวเป็นผู้อนุมัติ"
-     * ซึ่งตั้งใจให้เป็นแบบนั้น ห้ามเปลี่ยนโดยไม่ตั้งใจ
+     * เพิ่มผู้เข้าร่วมหนึ่งคนเข้าโปรเจกต์ คืนสถานะที่บันทึกลง pivot หรือ null เมื่อไม่เข้าเกณฑ์
      */
-    public function invite(WorkOrder $task, User $candidate, User $actor, bool $actorHasFinalSay = false): ?string
+    public function invite(WorkOrder $task, User $candidate, User $actor): ?string
     {
         if (! $candidate->is_active || $candidate->role !== 'user') {
             return null;
@@ -43,33 +48,9 @@ class CollaboratorInvitationService
             return null;
         }
 
-        $task->loadMissing('user.department');
-        $candidate->loadMissing('department');
-        $taskDepartmentId = $task->department_id ?: $task->user?->department_id;
-        $sameDepartment = $taskDepartmentId
-            && (int) $candidate->department_id === (int) $taskDepartmentId;
-        /*
-         * ผู้เชิญที่เป็นผู้อนุมัติของคนคนนี้อยู่แล้ว ไม่ต้องขออนุมัติจากตัวเอง
-         *
-         * โมเดลของการเชิญคือ "ยืมตัวคน" ผู้อนุมัติจึงเป็นหัวหน้าแผนกของ candidate
-         * เสมอ (ดู notifyApprovers) ซึ่งถูกต้อง แต่มีช่องที่ตรรกะนี้วนกลับมาที่ตัวเอง:
-         * หัวหน้าแผนกเชิญลูกน้องของตัวเองเข้างานที่ปลายทางเป็นแผนกอื่น $sameDepartment
-         * เป็น false สถานะจึงเป็น pending แล้วผู้อนุมัติที่ถูกเลือกคือผู้เชิญคนเดิม
-         *
-         * ผลคือคำขอค้างเงียบ — notifyApprovalRequest() ตัดผู้รับที่เป็นคนลงมือออก
-         * แจ้งเตือนฉบับเดียวที่จะออกจึงหายไป ไม่มีใครรู้ว่ามีอะไรรออยู่ และคนที่ถูกเชิญ
-         * ไม่เคยเข้ามาในงาน
-         *
-         * การรับเข้าเลยไม่ได้เพิ่มอำนาจให้ใคร ผู้เชิญกดอนุมัติเองได้อยู่แล้ว แค่ตัดพิธี
-         * ที่ไม่มีปลายทางออก
-         */
-        $actorDecidesAlone = $actor->overseesDepartment($candidate->department_id);
-
-        $status = $task->approval_status === 'approved'
-            && ($actorHasFinalSay || $actor->role === 'admin' || $sameDepartment
-                || $actorDecidesAlone || $candidate->isDepartmentHead())
-                ? 'accepted'
-                : 'pending';
+        // งานที่ตัวมันเองยังรออนุมัติการมอบหมาย ยังไม่มีโปรเจกต์ให้เข้าร่วมจริง
+        // สมาชิกจึงค้างไว้จนการมอบหมายถูกตัดสิน ไม่ใช่การขออนุมัติตัวสมาชิก
+        $status = $task->approval_status === 'approved' ? 'accepted' : 'pending';
 
         $task->collaborators()->attach($candidate->id, [
             'added_by' => $actor->id,
@@ -80,83 +61,43 @@ class CollaboratorInvitationService
         $task->unsetRelation('collaborators');
         $task->load('collaborators');
 
-        AuditTrail::log('collaborator_added', $task, 'เพิ่มผู้ร่วมงานในงาน: '.$task->job_topic, [
+        AuditTrail::log('collaborator_added', $task, 'เพิ่มผู้เข้าร่วมโปรเจกต์: '.$task->job_topic, [
             'user_id' => $candidate->id,
             'status' => $status,
         ]);
 
         if ($status === 'accepted') {
-            $this->notifications->notify(
-                [$candidate->id],
-                'collaborator_added',
-                'ถูกเพิ่มเข้าร่วมงาน',
-                ($actor->role === 'admin' ? 'ผู้ดูแลระบบ' : $actor->name).' เพิ่มคุณเข้าร่วมงาน “'.$task->job_topic.'”',
-                $task,
-                $actor
-            );
-
-            return $status;
+            $this->announceParticipation($task, $candidate, $actor);
         }
-
-        if ($task->approval_status !== 'approved') {
-            return $status;
-        }
-
-        $this->notifyApprovers($task, $candidate, $actor);
 
         return $status;
     }
 
     /**
-     * Resolve collaborator invitations only after the main cross-department
-     * assignment has been approved. The assignee pivot used by Project Task
-     * Request is accepted by the main decision and never enters this queue.
+     * ปิดสถานะ pending ที่ค้างจากการมอบหมายข้ามแผนกเมื่อการมอบหมายได้รับอนุมัติ
+     *
+     * ทุกแถวเข้าร่วมได้ทั้งหมด เพราะอุปสรรคเดียวคือตัวงานเอง ไม่ใช่ตัวสมาชิก
+     * (pivot ของผู้รับผิดชอบที่มาจาก Project Task Request ถูกตอบรับไปแล้วตั้งแต่ต้น
+     * จึงไม่เข้ามาถึงที่นี่)
      */
     public function activateAfterAssignmentApproval(WorkOrder $task, User $admin): void
     {
         $task->loadMissing(['user.department', 'collaborators.department']);
-        $taskDepartmentId = $task->department_id ?: $task->user?->department_id;
 
         foreach ($task->collaborators->filter(fn (User $candidate) => $candidate->pivot?->status === 'pending') as $candidate) {
+            $task->collaborators()->updateExistingPivot($candidate->id, [
+                'status' => 'accepted',
+                'decided_by' => $admin->id,
+                'responded_at' => now(),
+            ]);
+            $task->unsetRelation('collaborators');
+            $task->load('collaborators');
+
             if ((int) $candidate->id === (int) $task->user_id) {
-                $task->collaborators()->updateExistingPivot($candidate->id, [
-                    'status' => 'accepted',
-                    'decided_by' => $admin->id,
-                    'responded_at' => now(),
-                ]);
-
                 continue;
             }
 
-            $sameDepartment = $taskDepartmentId
-                && (int) $candidate->department_id === (int) $taskDepartmentId;
-            $inviter = $candidate->pivot?->added_by ? User::find($candidate->pivot->added_by) : null;
-
-            // เกณฑ์ชุดเดียวกับ invite() — ผู้เชิญที่เป็นผู้อนุมัติของ candidate อยู่แล้ว
-            // ไม่ต้องรอใครอีก ถ้าไม่ตรงกันสองที่นี้ คำขอจะค้างในคิวที่ไม่มีใครไปกดได้
-            $inviterDecidesAlone = $inviter?->overseesDepartment($candidate->department_id) ?? false;
-
-            if ($sameDepartment || $inviter?->role === 'admin' || $inviterDecidesAlone || $candidate->isDepartmentHead()) {
-                $task->collaborators()->updateExistingPivot($candidate->id, [
-                    'status' => 'accepted',
-                    'decided_by' => $admin->id,
-                    'responded_at' => now(),
-                ]);
-                $task->unsetRelation('collaborators');
-                $task->load('collaborators');
-                $this->notifications->notify(
-                    [$candidate->id],
-                    'collaborator_added',
-                    'ถูกเพิ่มเข้าร่วมงาน',
-                    'งาน “'.$task->job_topic.'” ได้รับอนุมัติ และคุณถูกเพิ่มเป็นผู้ร่วมงานแล้ว',
-                    $task,
-                    $admin
-                );
-
-                continue;
-            }
-
-            $this->notifyApprovers($task, $candidate, $inviter ?? $admin);
+            $this->announceParticipation($task, $candidate, $admin, 'โปรเจกต์ “'.$task->job_topic.'” ได้รับอนุมัติ และคุณเข้าร่วมแล้ว');
         }
     }
 
@@ -173,32 +114,43 @@ class CollaboratorInvitationService
             ]);
     }
 
-    private function notifyApprovers(WorkOrder $task, User $candidate, User $actor): void
+    /**
+     * บอกผู้เข้าร่วมว่าเข้าร่วมแล้ว และบอกหัวหน้าแผนกต้นสังกัดเมื่อเป็นการข้ามแผนก
+     *
+     * ผู้เข้าร่วมข้ามแผนกต้องรู้จากตัวแจ้งเตือนเลยว่านี่เป็นงานข้ามแผนกของแผนกใด
+     * ไม่ต้องเปิดเข้าไปในโปรเจกต์ก่อนจึงจะเข้าใจบริบทว่าตัวเองไปช่วยงานของใคร
+     *
+     * $lead คือประโยคขึ้นต้นที่ต่างกันตามเส้นทาง (ถูกเพิ่มทันที หรือเพิ่งได้รับอนุมัติงาน)
+     * ส่วนหางประโยคที่บอกแผนกเจ้าของโปรเจกต์ใช้ชุดเดียวกันทั้งสองเส้นทาง
+     */
+    private function announceParticipation(WorkOrder $task, User $candidate, User $actor, ?string $lead = null): void
     {
         $candidate->loadMissing('department');
-        $notified = $this->notifications->notifyApprovalRequest(
-            $this->notifications->departmentApprovalRecipientIds($candidate->department_id),
-            'collaborator_approval_request',
-            'ขออนุมัติผู้ร่วมงานข้ามแผนก',
-            $actor->name.' ขอเพิ่ม '.$candidate->name.' ('.($candidate->department?->department_name ?? 'ไม่ระบุแผนก').') เข้าร่วมงาน “'.$task->job_topic.'”',
+        $crossDepartment = ProjectRoles::joinsAcrossDepartments($task, $candidate);
+        $projectDepartment = ProjectRoles::projectDepartmentName($task);
+
+        $lead ??= ($actor->role === 'admin' ? 'ผู้ดูแลระบบ' : $actor->name)
+            .' เพิ่มคุณเข้าร่วมโปรเจกต์ “'.$task->job_topic.'”';
+
+        $this->notifications->notify(
+            [$candidate->id],
+            'collaborator_added',
+            $crossDepartment ? 'คุณถูกเพิ่มเข้าร่วมโปรเจกต์ข้ามแผนก' : 'คุณถูกเพิ่มเข้าร่วมโปรเจกต์',
+            $crossDepartment
+                ? $lead.' — เป็นงานข้ามแผนก โปรเจกต์นี้เป็นของแผนก'.($projectDepartment ?? 'อื่น')
+                : $lead,
             $task,
-            $actor,
-            $candidate
+            $actor
         );
 
         /*
-         * คำขอที่ไม่มีผู้รับเลยคือคำขอที่ไม่มีวันถูกตัดสิน
+         * หัวหน้าแผนกต้นสังกัดของผู้เข้าร่วม "รับทราบ" ว่าลูกทีมไปร่วมโปรเจกต์ของแผนกอื่น
          *
-         * หลังจากกันกรณีผู้เชิญเป็นผู้อนุมัติของตัวเองแล้ว กรณีนี้ไม่ควรเกิดอีก แต่ถ้า
-         * เกิดขึ้นจริง (เช่นหัวหน้าแผนกถูกปิดบัญชีระหว่างทาง) ต้องเหลือร่องรอยไว้
-         * ไม่ใช่เงียบหายไปพร้อมกับผู้ร่วมงานที่ค้างอยู่ pending ตลอดกาล
+         * เป็นการแจ้งเพื่อติดตามเท่านั้น ไม่มีคำขอให้ตัดสิน และไม่มี fallback ไปหา admin
+         * เมื่อแผนกยังไม่มีหัวหน้า เพราะการเข้าร่วมเกิดขึ้นเสร็จแล้วตั้งแต่ต้น
          */
-        if ($notified->isEmpty()) {
-            AuditTrail::log('collaborator_approval_unrouted', $task,
-                'คำขอผู้ร่วมงานไม่มีผู้อนุมัติที่รับเรื่องได้: '.$task->job_topic, [
-                    'user_id' => $candidate->id,
-                    'department_id' => $candidate->department_id,
-                ]);
+        if ($crossDepartment) {
+            $this->notifications->notifyCrossDepartmentParticipation($task, $candidate, $actor);
         }
     }
 }

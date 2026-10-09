@@ -4,7 +4,6 @@ import {readFileSync} from 'node:fs';
 
 const source = readFileSync(new URL('../../resources/js/pages/admin/approvals.js', import.meta.url), 'utf8');
 const blade = readFileSync(new URL('../../resources/views/admin/approvals/components/assignment-queue.blade.php', import.meta.url), 'utf8');
-const collaboratorBlade = readFileSync(new URL('../../resources/views/admin/approvals/components/collaborator-queue.blade.php', import.meta.url), 'utf8');
 const indexBlade = readFileSync(new URL('../../resources/views/admin/approvals/index.blade.php', import.meta.url), 'utf8');
 const outgoingBlade = readFileSync(new URL('../../resources/views/admin/approvals/components/outgoing-queue.blade.php', import.meta.url), 'utf8');
 
@@ -13,8 +12,6 @@ test('assignment approval actions use SweetAlert2 confirmation', () => {
     assert.match(source, /result\.isConfirmed/);
     assert.match(blade, /data-assignment-approval-form/);
     assert.match(blade, /approval_status/);
-    assert.match(collaboratorBlade, /data-approval-kind="collaborator"/);
-    assert.match(collaboratorBlade, /name="status"/);
     assert.match(source, /form\.submit\(\)/);
 });
 
@@ -29,7 +26,21 @@ test('assignment approval UI contains no native browser dialogs', () => {
     for (const pattern of [/window\.alert\s*\(/, /window\.confirm\s*\(/, /(^|[^.\w])alert\s*\(/m, /(^|[^.\w])confirm\s*\(/m]) {
         assert.doesNotMatch(source, pattern);
         assert.doesNotMatch(blade, pattern);
-        assert.doesNotMatch(collaboratorBlade, pattern);
         assert.doesNotMatch(outgoingBlade, pattern);
     }
+});
+
+test('the collaborator approval queue is gone, replaced by a read-only tracking tab', () => {
+    // ผู้เข้าร่วมโปรเจกต์เข้าร่วมได้ทันที ไม่มีคิวอนุมัติผู้ร่วมงานอีกแล้ว
+    assert.doesNotMatch(indexBlade, /collaborator-queue/);
+    assert.doesNotMatch(indexBlade, /'collaborator' =>/);
+    assert.doesNotMatch(source, /collaborator/);
+
+    // แท็บที่เหลือสำหรับงานข้ามแผนกเป็นหน้าติดตาม ไม่มีปุ่มตัดสินใจ
+    assert.match(indexBlade, /'outgoing' => \['งานข้ามแผนกของทีม'/);
+    assert.doesNotMatch(outgoingBlade, /data-approval-form/);
+    assert.doesNotMatch(outgoingBlade, /<form/);
+    assert.doesNotMatch(outgoingBlade, /name="status"/);
+    assert.match(outgoingBlade, /หัวหน้าโปรเจกต์/);
+    assert.match(outgoingBlade, /กำลังเข้าร่วม/);
 });

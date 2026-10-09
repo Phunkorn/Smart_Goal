@@ -285,8 +285,8 @@ class WorkOrderShareService
     /**
      * รับผู้ขอเข้างานจริง
      *
-     * ผู้ตัดสินที่มาถึงจุดนี้ผ่านการตรวจอำนาจมาแล้วทั้งสองเส้นทาง จึงส่ง
-     * actorHasFinalSay: true เข้าไป ผลของ invite() จึงเป็น accepted เสมอ
+     * ผู้ตัดสินที่มาถึงจุดนี้ผ่านการตรวจอำนาจมาแล้วทั้งสองเส้นทาง การรับเข้าจึงเสร็จ
+     * ในขั้นนี้ ผลของ invite() เป็น accepted เสมอเมื่องานได้รับอนุมัติแล้ว
      *
      * @return array{status: int, message: string, collaborator_status: ?string}
      */
@@ -295,7 +295,7 @@ class WorkOrderShareService
         $task = $locked->share->workOrder;
         $requester = $locked->requester;
 
-        $collaboratorStatus = $this->invitations->invite($task, $requester, $decider, actorHasFinalSay: true);
+        $collaboratorStatus = $this->invitations->invite($task, $requester, $decider);
 
         if ($collaboratorStatus === null) {
             return [

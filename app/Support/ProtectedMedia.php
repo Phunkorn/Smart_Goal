@@ -53,6 +53,29 @@ final class ProtectedMedia
         return self::absolutePath(self::PROFILE_DISK, $path);
     }
 
+    /**
+     * ชื่อไฟล์ที่ควรใช้บน Content-Disposition — แหล่งความจริงเดียวของทุกชนิดไฟล์แนบ
+     *
+     * ถ้าไม่ส่งชื่อออกไปกับ response เบราว์เซอร์จะตั้งชื่อไฟล์จากส่วนท้ายของ URL
+     * ซึ่ง route ไฟล์แนบทุกเส้นลงท้ายด้วย id ผู้ใช้จึงได้ไฟล์ชื่อ "224" ที่ไม่มีนามสกุล
+     * และเปิดด้วยโปรแกรมเดิมไม่ได้
+     *
+     * ชื่อเดิมมาจากผู้ใช้ จึงตัด path separator ทั้งสองแบบออกก่อนคืนค่า
+     * มิฉะนั้น Symfony จะโยน InvalidArgumentException เมื่อชื่อมี / หรือ \ ติดมา
+     */
+    public static function dispositionName(?string $originalName, ?string $filePath): ?string
+    {
+        foreach ([$originalName, $filePath] as $candidate) {
+            $name = basename(str_replace('\\', '/', trim((string) $candidate)));
+
+            if ($name !== '' && $name !== '.' && $name !== '..') {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
     public static function isSafeRelativePath(?string $path): bool
     {
         if (! is_string($path) || $path === '' || str_contains($path, "\0") || str_contains($path, '\\')) {

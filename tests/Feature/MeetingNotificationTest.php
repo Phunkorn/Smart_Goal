@@ -90,9 +90,10 @@ class MeetingNotificationTest extends TestCase
         $meeting = Meeting::sole();
         $notification = SystemNotification::where('user_id', $attendee->id)->sole();
 
+        // คำเชิญเป็นแจ้งเตือนที่ "ขอคำตอบ" ปลายทางจึงต่อธง respond ให้หน้าเด้งกล่องยืนยันทันที
         $this->actingAs($attendee)
             ->get(route('notifications.open', $notification->id))
-            ->assertRedirect(route('meetings.show', $meeting));
+            ->assertRedirect(route('meetings.show', ['meeting' => $meeting->id, 'respond' => 1]));
 
         $this->assertNotNull($notification->fresh()->read_at);
     }

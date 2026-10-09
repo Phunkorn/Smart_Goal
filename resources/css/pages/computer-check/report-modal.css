@@ -1,0 +1,26 @@
+/*
+ * กล่องพรีวิวแบบตรวจ — เปิดจากไทม์ไลน์ ประวัติการตรวจ และรายงานปฏิบัติงาน
+ *
+ * เป็น modal จริง (มี backdrop, ล็อกการเลื่อนของหน้า, aria-modal, ดัก Escape)
+ * จึงใช้ modal-stack เป็นเจ้าของสถานะเปิด/ปิด/โฟกัส/การซ้อนชั้น
+ * ต่างจาก .cc-panel ที่เป็น popover/bottom sheet และดูแลตัวเอง
+ *
+ * z-index ไม่ได้ตั้งที่นี่ modal-stack เป็นคนใส่ให้ตามความลึกของชั้น
+ */
+.cc-report-modal { position:fixed; inset:0; display:grid; place-items:center; padding:20px; }
+.cc-report-modal[hidden] { display:none; }
+.cc-report-modal[data-modal-backdrop="on"] { background:rgba(22, 35, 61, .5); }
+
+.cc-report-modal__panel { display:grid; grid-template-rows:auto 1fr auto; width:min(900px, 100%); max-height:min(92vh, 1100px); overflow:hidden; border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-md); }
+
+.cc-report-modal__head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--border); }
+.cc-report-modal__title { margin:0 0 2px; color:var(--text); font-size:1rem; font-weight:600; }
+.cc-report-modal__meta { margin:0; color:var(--text-muted); font-size:.8rem; }
+.cc-report-modal__close { display:grid; place-items:center; width:38px; height:38px; flex:0 0 38px; border:0; border-radius:50%; background:var(--surface-2); color:var(--text-muted); }
+.cc-report-modal__close:hover { background:var(--red-dim); color:#a52236; }
+
+.cc-report-modal__viewer { min-height:0; background:var(--surface-2); }
+.cc-report-modal__frame { display:block; width:100%; height:100%; min-height:420px; border:0; background:#fff; }
+
+.cc-report-modal__foot { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--border); }
+.cc-report-modal__foot .btn { min-height:44px; }

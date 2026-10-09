@@ -45,6 +45,9 @@
         'removeHint' => 'กด × เพื่อนำออก',
         'help' => 'แสดงเฉพาะบัญชีที่เปิดใช้งาน',
         'help2' => 'การเปลี่ยนแผนกไม่ยกเลิกคนที่เลือกไว้',
+        'selectVisible' => 'เลือกทั้งหมดที่แสดง',
+        'selectDepartment' => 'เลือกทั้งแผนก',
+        'clear' => 'ล้างการเลือก',
     ], $labels ?? []);
 
     $selectedPeople = $people->whereIn('id', $selectedIds->all());
@@ -103,6 +106,22 @@
                 @endforeach
             </div>
 
+            {{--
+                เลือกทีละกลุ่ม — ป้ายของปุ่มซ้ายเปลี่ยนตามตัวกรองที่ใช้อยู่ (ดู applyFilters
+                ใน people-selector.js) เลือกแผนกไว้จะอ่านว่า "เลือกทั้งแผนก" ไม่ได้เลือกจะอ่านว่า
+                "เลือกทั้งหมดที่แสดง" เพราะคำว่าทั้งแผนกจะไม่ตรงทันทีถ้ามีคำค้นคั่นอยู่
+
+                ปุ่มล้างอยู่ที่นี่ที่เดียวทุก variant เดิมมีเฉพาะ team-manager
+            --}}
+            <div class="people-selector__bulk">
+                <button class="people-selector__bulk-action" type="button" data-people-select-visible
+                    data-visible-label="{{ $labels['selectVisible'] }}"
+                    data-department-label="{{ $labels['selectDepartment'] }}"
+                    @disabled($readOnly)>{{ $labels['selectVisible'] }}</button>
+                <button class="people-selector__bulk-action" type="button" data-people-clear
+                    @disabled($readOnly || $selectedIds->isEmpty())>{{ $labels['clear'] }}</button>
+            </div>
+
             <div class="people-selector__options" role="group" aria-labelledby="{{ $instanceId }}-label" data-people-options>
                 @foreach($people as $person)
                     @php
@@ -152,9 +171,9 @@
             </div>
 
             @if($isTeamManager)
+                {{-- ปุ่มล้างย้ายขึ้นไปอยู่แถวเลือกทีละกลุ่มแล้ว ที่นี่เหลือเฉพาะตัวนับ --}}
                 <div class="people-selector__selection-summary">
                     <span><i class="bi bi-info-circle" aria-hidden="true"></i> <strong data-people-summary-count>เลือกแล้ว {{ $selectedIds->count() }} คน</strong></span>
-                    <button type="button" data-people-clear @disabled($readOnly || $selectedIds->isEmpty())>ล้างการเลือก</button>
                 </div>
             @endif
         </div>

@@ -1,0 +1,74 @@
+/*
+ * รายการเครื่อง สรุปผล และประวัติการตรวจ
+ *
+ * ตารางประวัติแปลงเป็นการ์ดบนจอแคบด้วย data-label (ดู responsive.css)
+ * แทนการบีบคอลัมน์จนอ่านไม่ออก ตาม responsive contract ของโปรเจกต์
+ */
+
+/* ---------- รายการเครื่อง ---------- */
+
+.cc-list { display:grid; gap:8px; }
+.cc-list__row { display:grid; grid-template-columns:auto auto 1fr auto auto; align-items:center; gap:10px 14px; width:100%; min-height:56px; padding:10px 14px; border:1px solid var(--border); border-left-width:4px; border-radius:var(--radius-sm); background:var(--surface); color:var(--text); text-align:left; }
+.cc-list__row:hover { border-color:var(--accent); background:var(--accent-dim); }
+.cc-list__row--pending { border-left-color:#c2cbdb; }
+.cc-list__row--partial { border-left-color:var(--amber); }
+.cc-list__row--normal { border-left-color:var(--green); }
+.cc-list__row--issue { border-left-color:var(--red); }
+
+.cc-list__code { display:inline-flex; align-items:center; gap:7px; font-size:.92rem; font-weight:600; }
+.cc-list__code i { color:var(--text-muted); }
+.cc-list__zone { color:var(--text-muted); font-size:.78rem; }
+
+.cc-list__devices { display:inline-flex; gap:4px; }
+.cc-chip-inline { display:grid; place-items:center; width:26px; height:26px; border:1px solid var(--border); border-radius:6px; background:var(--surface-2); color:var(--text-muted); font-size:.72rem; font-weight:600; }
+.cc-chip-inline--normal { border-color:#8fdcb8; background:var(--green-dim); color:#06694a; }
+.cc-chip-inline--issue { border-color:#eda0ad; background:var(--red-dim); color:#a52236; }
+
+.cc-list__status { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; background:var(--surface-2); color:var(--text-muted); font-size:.78rem; }
+.cc-list__status--normal { background:var(--green-dim); color:#06694a; }
+.cc-list__status--issue { background:var(--red-dim); color:#a52236; }
+.cc-list__status--partial { background:var(--amber-dim); color:#8a5508; }
+
+.cc-list__note { grid-column:1 / -1; color:#a52236; font-size:.78rem; }
+.cc-list__chevron { color:var(--text-muted); }
+
+/* ---------- สรุปผล ---------- */
+
+.cc-summary { display:grid; gap:16px; padding:16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm); }
+.cc-summary__grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px; }
+.cc-summary__card { display:grid; gap:4px; padding:14px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-2); }
+.cc-summary__label { color:var(--text-muted); font-size:.78rem; }
+.cc-summary__value { color:var(--text); font-size:1.6rem; font-weight:700; line-height:1.1; }
+.cc-summary__card--normal { border-color:#b9ecd5; background:var(--green-dim); }
+.cc-summary__card--normal .cc-summary__value { color:#06694a; }
+.cc-summary__card--issue { border-color:#f6c6ce; background:var(--red-dim); }
+.cc-summary__card--issue .cc-summary__value { color:#a52236; }
+
+.cc-summary__heading { display:inline-flex; align-items:center; gap:7px; margin:0 0 8px; color:var(--text); font-size:.95rem; font-weight:600; }
+.cc-issue-list { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.cc-issue { display:grid; grid-template-columns:auto auto 1fr; gap:4px 14px; padding:10px 14px; border:1px solid #f6c6ce; border-radius:var(--radius-sm); background:var(--red-dim); }
+.cc-issue__code { color:#a52236; font-size:.9rem; font-weight:700; }
+.cc-issue__devices { color:#a52236; font-size:.82rem; }
+.cc-issue__note { grid-column:1 / -1; color:var(--text); font-size:.82rem; }
+.cc-issue--empty { display:block; border-color:var(--border); background:var(--surface-2); color:var(--text-muted); font-size:.84rem; }
+
+.cc-summary__foot { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding-top:14px; border-top:1px solid var(--border); }
+.cc-summary__foot .btn { min-height:46px; padding:0 20px; }
+.cc-summary__hint { margin:0; flex:1; color:var(--text-muted); font-size:.8rem; }
+.cc-summary__done { display:inline-flex; align-items:center; gap:7px; margin:0; flex:1; color:#06694a; font-size:.86rem; }
+
+/* ---------- ประวัติ ---------- */
+
+.cc-history { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm); }
+.cc-history__scroll { overflow-x:auto; }
+.cc-history__table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.cc-history__table th,
+.cc-history__table td { padding:11px 14px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+.cc-history__table thead th { color:var(--text-muted); font-size:.76rem; font-weight:500; }
+.cc-history__table .is-number { text-align:right; }
+.cc-history__table tbody tr:last-child td { border-bottom:0; }
+
+.cc-history__action { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 12px; border:1px solid var(--accent); border-radius:var(--radius-sm); background:var(--accent-dim); color:var(--accent-strong); font-size:.8rem; }
+.cc-history__action:hover { background:var(--accent); color:#fff; }
+.cc-history__action--resume { border-color:var(--amber); background:var(--amber-dim); color:#8a5508; }
+.cc-history__action--resume:hover { background:var(--amber); color:#fff; }

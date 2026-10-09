@@ -1,6 +1,7 @@
 import {projectPriorityClasses, projectPriorityMeta, statusClasses, statusMeta, taskPriorityClasses, taskPriorityMeta} from './priority-meta.js';
 import {canTransitionTo, confirmTaskTransition} from './task-transitions.js';
-import {synchronizeTaskManagement, synchronizeTaskSource} from './task-state.js';
+import {publishTaskState} from './task-state.js';
+import {taskStateStore} from './task-state-store.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -10,7 +11,7 @@ import {synchronizeTaskManagement, synchronizeTaskSource} from './task-state.js'
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const toast = document.querySelector('[data-toast]');
     const endpoint = (template, id) => template.replace('__ID__', id);
-    const management = JSON.parse(document.querySelector('[data-task-management-data]')?.textContent || '{}');
+    const management = taskStateStore(document);
 
     const notify = (message, ok = true) => {
         if (!toast) return;
@@ -111,6 +112,8 @@ import {synchronizeTaskManagement, synchronizeTaskSource} from './task-state.js'
         const priorityInput = row.querySelector('input[data-field="priority"]');
         if (statusInput) statusInput.value = String(task.status);
         if (priorityInput) priorityInput.value = String(task.priority);
+        // สิทธิ์เปลี่ยนไปพร้อมสถานะ ตัวเลือกที่เคยถูกปิดเพราะงานปิดแล้วต้องกลับมากดได้ทันที
+        refreshStatusControls(row);
     });
     table.addEventListener('click', async (event) => {
         const summary = event.target.closest('[data-table-status-menu] > summary, [data-table-priority-menu] > summary, [data-table-project-priority-menu] > summary');
@@ -137,13 +140,9 @@ import {synchronizeTaskManagement, synchronizeTaskSource} from './task-state.js'
                 const payload = await confirmTaskTransition(Number(row.dataset.status), value, management[String(row.dataset.id)]?.transitions || {});
                 if (!payload) return;
                 const data = await request(endpoint(workspace.dataset.statusTemplate, row.dataset.id), 'PATCH', payload);
-                synchronizeTaskManagement(management, row.dataset.id, data);
-                const actualStatus = Number(data.job_status ?? value);
-                updateStatusVisual(row, menu, actualStatus);
-                refreshStatusControls(row);
-                row.querySelector('input[data-field="status"]')?.setAttribute('value', String(value));
                 menu.removeAttribute('open');
-                synchronizeTaskSource(workspace, row.dataset.id, {status: actualStatus});
+                // state กลางและทุก representation ถูกวาดใหม่จาก listener mytasks:changed ด้านบน
+                publishTaskState(workspace, row.dataset.id, data, value);
                 notify('เปลี่ยนสถานะงานแล้ว');
             } catch (error) {
                 notify(error.message, false);

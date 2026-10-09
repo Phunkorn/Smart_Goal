@@ -17,6 +17,10 @@ import './task-request.js';
 import './user-task-create.js';
 import './task-details.js';
 import './task-share.js';
+import {initAttachmentDownload} from './attachment-download.js';
+
+// กล่องเลือกดาวน์โหลดไฟล์แนบ ใช้ markup และโมดูลเดียวกันทั้งหน้างานของฉันและ Workspace ของ Admin
+initAttachmentDownload(document);
 
 // ช่องวันที่ทุกช่องที่ประกาศ data-date-picker ใช้ปฏิทินของระบบแทนของเบราว์เซอร์
 useDatePickers();

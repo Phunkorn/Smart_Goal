@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\Department;
 use App\Models\Meeting;
+use App\Models\MeetingAttendee;
+use App\Models\MeetingAttendeeResponseEvent;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Support\CalendarAttendeeRoster;
+use App\Support\InvitationCandidates;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,8 +20,6 @@ use Illuminate\Support\Collection;
 final class MeetingQueryService
 {
     public const BUSINESS_TIMEZONE = 'Asia/Bangkok';
-
-    private const ATTENDEE_ROLES = ['admin', 'user', 'viewer'];
 
     public const PERIODS = [
         'upcoming' => 'กำลังจะมาถึง',
@@ -97,6 +98,27 @@ final class MeetingQueryService
         ];
     }
 
+    /**
+     * ตัวเลือกที่ฟอร์ม "นัดประชุม" ต้องใช้ โดยไม่ต้องดึงรายการประชุมทั้งหน้ามาด้วย
+     *
+     * ปฏิทินประชุมและนัดหมายเปิดฟอร์มนี้จากการ์ด "+ เพิ่ม" จึงต้องการแค่ตัวเลือก
+     * ไม่ต้องการ paginator ของ indexData()
+     *
+     * @return array<string, mixed>
+     */
+    public function meetingCreateFormData(User $viewer): array
+    {
+        if (! $viewer->can('create', Meeting::class)) {
+            return ['attendeeOptions' => collect(), 'attendeeDepartments' => collect(), 'projectOptions' => collect()];
+        }
+
+        return [
+            'attendeeOptions' => $this->attendeeOptions(old('attendees', [])),
+            'attendeeDepartments' => $this->attendeeDepartments(),
+            'projectOptions' => $this->meetingProjectOptions($viewer),
+        ];
+    }
+
     public function detailData(Request $request, User $viewer, Meeting $meeting): array
     {
         $meeting->load([
@@ -115,50 +137,151 @@ final class MeetingQueryService
             'attendeeDepartments' => $viewer->can('update', $meeting) ? $this->attendeeDepartments() : collect(),
             'projectOptions' => $viewer->can('update', $meeting) ? $this->meetingProjectOptions($viewer) : collect(),
             'inspectedEmployee' => $employeeIsRelated ? User::with('department')->find($employeeId) : null,
+            // คำเชิญของตัวเอง (null เมื่อผู้เปิดหน้าไม่ได้ถูกเชิญ) กับคำตอบของทุกคนซึ่งเป็นข้อมูล
+            // ของผู้สร้างประชุมคนเดียว — ดู MeetingPolicy::viewAttendeeResponses
+            'viewerInvitation' => $this->viewerInvitation($meeting, $viewer),
+            'attendeeResponseSummary' => $viewer->can('viewAttendeeResponses', $meeting)
+                ? $this->attendeeResponseSummary($meeting)
+                : null,
             'nowBangkok' => CarbonImmutable::now(self::BUSINESS_TIMEZONE),
+        ];
+    }
+
+    /**
+     * คำเชิญของผู้เปิดหน้านี้ สำหรับการ์ดตอบรับเข้าร่วมประชุม
+     *
+     * isReinvitation บอกว่าคำเชิญรอบนี้มาจากการที่ผู้สร้างประชุมกด "เชิญอีกครั้ง" เพื่อให้
+     * การ์ดพูดได้ตรงกว่าคำเชิญครั้งแรก อ่านจากประวัติที่ MeetingAttendeeResponseService
+     * เขียนไว้แล้ว ไม่ได้เพิ่มสถานะหรือคอลัมน์ใหม่เพื่อการแสดงผล
+     *
+     * คิวรีประวัติถูกถามเฉพาะตอนที่ยังรอตอบอยู่ สถานะที่ตอบแล้วไม่ใช้ข้อความนี้
+     *
+     * @return array{status: string, respondedAt: CarbonImmutable|null, declineReason: string|null, isReinvitation: bool}|null
+     */
+    public function viewerInvitation(Meeting $meeting, User $viewer): ?array
+    {
+        $meeting->loadMissing('attendees');
+        $invitation = $meeting->attendees->firstWhere('id', $viewer->id)?->pivot;
+
+        if (! $invitation) {
+            return null;
+        }
+
+        return [
+            'status' => $invitation->status,
+            'respondedAt' => $invitation->responded_at?->copy()->timezone(self::BUSINESS_TIMEZONE),
+            'declineReason' => $invitation->decline_reason,
+            // Blade ใช้ค่านี้แทนการเทียบกับค่าคงที่ของโมเดล จึงใช้การ์ดคำเชิญใบเดียวกันได้ทั้งสอง domain
+            'hasAccepted' => $invitation->hasAccepted(),
+            'isReinvitation' => $invitation->isAwaitingResponse()
+                && $this->latestInvitationEvent($meeting, $viewer) === MeetingAttendeeResponseEvent::EVENT_REINVITED,
+        ];
+    }
+
+    private function latestInvitationEvent(Meeting $meeting, User $viewer): ?string
+    {
+        return MeetingAttendeeResponseEvent::query()
+            ->forMeeting($meeting)
+            ->where('user_id', $viewer->id)
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->value('event');
+    }
+
+    /**
+     * คำตอบของผู้เข้าร่วมทุกคนในประชุมใบหนึ่ง พร้อมประวัติการตอบย้อนหลังของแต่ละคน
+     *
+     * ประวัติถูกดึงมาทีเดียวแล้วจัดกลุ่มในหน่วยความจำ ไม่ใช่คิวรีต่อผู้เข้าร่วมหนึ่งคน
+     *
+     * @return array{attendees: Collection<int, array<string, mixed>>, totals: array<string, int>}
+     */
+    public function attendeeResponseSummary(Meeting $meeting): array
+    {
+        $meeting->loadMissing('attendees.department');
+
+        $historyByAttendee = MeetingAttendeeResponseEvent::query()
+            ->forMeeting($meeting)
+            ->inChronologicalOrder()
+            ->get()
+            ->groupBy('user_id');
+
+        $attendees = $meeting->attendees
+            ->map(fn (User $meetingAttendee): array => [
+                'name' => $meetingAttendee->name,
+                'department' => $meetingAttendee->department?->department_name ?? 'ไม่ระบุแผนก',
+                'attendee' => $meetingAttendee,
+                'status' => $meetingAttendee->pivot->status,
+                'respondedAt' => $meetingAttendee->pivot->responded_at?->copy()->timezone(self::BUSINESS_TIMEZONE),
+                'declineReason' => $meetingAttendee->pivot->decline_reason,
+                'canBeReinvited' => $meetingAttendee->pivot->hasDeclined(),
+                'reinviteUrl' => route('meetings.attendance.reinvite', [$meeting, $meetingAttendee]),
+                'history' => collect($historyByAttendee[$meetingAttendee->id] ?? [])
+                    ->map(fn (MeetingAttendeeResponseEvent $responseEvent): array => [
+                        'event' => $responseEvent->event,
+                        'occurredAt' => $responseEvent->occurred_at->copy()->timezone(self::BUSINESS_TIMEZONE),
+                        'declineReason' => $responseEvent->decline_reason,
+                    ])
+                    ->values(),
+            ])
+            ->values();
+
+        return [
+            'attendees' => $attendees,
+            'totals' => [
+                MeetingAttendee::STATUS_ACCEPTED => $attendees->where('status', MeetingAttendee::STATUS_ACCEPTED)->count(),
+                MeetingAttendee::STATUS_PENDING => $attendees->where('status', MeetingAttendee::STATUS_PENDING)->count(),
+                MeetingAttendee::STATUS_DECLINED => $attendees->where('status', MeetingAttendee::STATUS_DECLINED)->count(),
+            ],
         ];
     }
 
     /**
      * ประชุมที่ทับซ้อนช่วงเวลาที่ขอ สำหรับวางบนปฏิทินของ Workspace
      *
-     * สิทธิ์ถูกบังคับที่ SQL ผ่าน visibleQuery() ตัวเดียวกับหน้ารายการประชุม
-     * ห้ามกรองสิทธิ์ฝั่ง frontend และห้ามดึงทั้งระบบโดยไม่มีขอบเขต
-     * เมื่อมี subject ให้จำกัดซ้ำเฉพาะประชุมที่บุคคลนั้นจัดหรือเข้าร่วม สำหรับหน้าตรวจงานสมาชิก
+     * สิทธิ์ถูกบังคับที่ SQL ผ่าน calendarScopedQuery() ห้ามกรองสิทธิ์ฝั่ง frontend
+     * และห้ามดึงทั้งระบบโดยไม่มีขอบเขต
      *
-     * ไม่มี subject แปลว่านี่คือ "ปฏิทินของฉัน" จึงต้องใช้ผู้ที่ล็อกอินเป็น subject
-     * visibleQuery() อย่างเดียวไม่พอสำหรับหัวหน้าแผนก เพราะมันคืนประชุมทุกใบที่คนในแผนก
-     * เป็นผู้จัดหรือเข้าร่วม ปฏิทินส่วนตัวของหัวหน้าจึงขึ้นประชุมที่ตัวเองไม่ได้จัด
-     * และไม่ได้ถูกเชิญ ปนกับนัดหมายจริงของตัวเองจนแยกไม่ออก
-     *
-     * Admin เป็นข้อยกเว้นที่ตั้งใจ: ปฏิทินของ Admin คือปฏิทินภาพรวมทั้งองค์กร
-     * (ดู MyTasksCalendarMeetingsTest::test_endpoint_scopes_results_per_viewer)
+     * ขอบเขตคือ "แผนกของผู้เปิดปฏิทิน" เสมอ ไม่มีโหมดล็อกกับสมาชิกคนเดียว —
+     * Workspace ของสมาชิกใช้รายการประชุม (indexData) ไม่ใช่ปฏิทินใบนี้
      *
      * ส่วนหน้ารายการประชุมยังใช้ visibleQuery() เต็มขอบเขตตามเดิม เพราะเป็นหน้ากำกับดูแล
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function calendarMeetings(User $viewer, CarbonInterface $from, CarbonInterface $to, ?User $subject = null): Collection
+    public function calendarMeetings(User $viewer, CarbonInterface $from, CarbonInterface $to): Collection
     {
         $windowStart = CarbonImmutable::instance($from)->utc();
         $windowEnd = CarbonImmutable::instance($to)->utc();
-        $subject ??= $viewer->role === 'admin' ? null : $viewer;
 
-        return $this->visibleQuery($viewer)
-            ->when($subject, function (Builder $query) use ($subject): void {
-                $query->where(function (Builder $related) use ($subject): void {
-                    $related->where('created_by', $subject->id)
-                        ->orWhereHas('attendees', fn (Builder $attendees) => $attendees->whereKey($subject->id));
-                });
-            })
-            // ปฏิทินแสดงผู้จัดและผู้เข้าร่วมเป็น avatar จึงต้อง eager load ไว้ตั้งแต่ต้น
-            // มิฉะนั้นการวาดตารางประชุมจะยิงคิวรีต่อหนึ่งแถว
-            ->with(['creator:id,name,profile_image', 'attendees:id,name,profile_image'])
+        return $this->calendarScopedQuery($viewer)
+            /*
+             * ผู้จัดกับผู้เข้าร่วมถูก eager load ไว้ตั้งแต่ต้น มิฉะนั้นการวาดตารางประชุม
+             * จะยิงคิวรีต่อหนึ่งแถว (และเอกสาร Export กวาดได้ถึง 366 วัน)
+             *
+             * คอลัมน์ของผู้เข้าร่วมต้องครบตามที่ RoleLabel::withDepartment() ใช้ —
+             * role, is_active, is_department_head, department_id — ไม่งั้น
+             * User::isDepartmentHead() จะอ่านค่าที่ไม่ได้ select เป็น null แล้ว
+             * หัวหน้าแผนกจะถูกแสดงเป็น "พนักงาน" แบบไม่มีอะไรฟ้อง
+             *
+             * attendees.department ก็ต้องมี department_id อยู่ใน select ด้านบนก่อน
+             * ไม่งั้นความสัมพันธ์จะ resolve เป็น null ทุกคนเงียบ ๆ
+             *
+             * ทั้งหมดเป็น constrained load สองคิวรีคงที่ ไม่ขึ้นกับจำนวนรายการ
+             */
+            ->with([
+                'creator:id,name,profile_image',
+                'attendees:id,name,department_id,role,is_department_head,is_active',
+                'attendees.department:id,department_name',
+            ])
             ->where('starts_at', '<=', $windowEnd)
             ->where('ends_at', '>=', $windowStart)
             ->orderBy('starts_at')
             ->orderBy('id')
-            ->get(['id', 'title', 'location', 'starts_at', 'ends_at', 'created_by'])
+            /*
+             * description เข้ามาเพื่อให้บล็อกรายงานรายนัดในเอกสาร Export มีเนื้อหา
+             * เหมือนฝั่งนัดหมาย (ของเดิมฝั่งประชุมส่ง detail เป็น null ตายตัว)
+             */
+            ->get(['id', 'title', 'description', 'location', 'starts_at', 'ends_at', 'created_by'])
             ->map(function (Meeting $meeting): array {
                 $startsAt = CarbonImmutable::instance($meeting->starts_at)->setTimezone(self::BUSINESS_TIMEZONE);
                 $endsAt = CarbonImmutable::instance($meeting->ends_at)->setTimezone(self::BUSINESS_TIMEZONE);
@@ -167,14 +290,12 @@ final class MeetingQueryService
                     'id' => 'meeting-'.$meeting->id,
                     'type' => 'meeting',
                     'title' => $meeting->title,
+                    'description' => $meeting->description,
                     'location' => $meeting->location ?: 'ไม่ระบุสถานที่',
                     'organizer' => $meeting->creator?->name ?? 'ไม่ระบุผู้จัด',
-                    'organizerAvatar' => $meeting->creator?->profile_image ? route('media.profile', $meeting->creator) : null,
                     // รูปเป็น URL ที่ผ่าน MediaController เสมอ ห้ามประกอบ path จาก storage ตรง ๆ
-                    'attendees' => $meeting->attendees->map(fn (User $person): array => [
-                        'name' => $person->name,
-                        'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
-                    ])->values()->all(),
+                    'organizerAvatar' => $meeting->creator?->profile_image ? route('media.profile', $meeting->creator) : null,
+                    'attendees' => CalendarAttendeeRoster::rows($meeting->attendees),
                     'start' => $startsAt->format('Y-m-d'),
                     'due' => $endsAt->format('Y-m-d'),
                     'startTime' => $startsAt->format('H:i'),
@@ -184,6 +305,44 @@ final class MeetingQueryService
                 ];
             })
             ->values();
+    }
+
+    /**
+     * ขอบเขตของ "ปฏิทินประชุมและนัดหมาย" — ระดับแผนก ไม่ใช่ปฏิทินส่วนตัว
+     *
+     * กติกา
+     * ---------------------------------------------------------------
+     *   1. ประชุมที่ "แผนกของผู้เปิดปฏิทินเป็นเจ้าของ" — ทุกบทบาทในแผนกเห็นทั้งหมด
+     *      แม้ไม่ได้ถูกเชิญ เพราะปฏิทินนี้คือตารางงานร่วมของแผนก
+     *   2. ประชุมที่ผู้เปิดปฏิทินจัดเอง หรือถูกเชิญเอง — เห็นเสมอ แม้เป็นของแผนกอื่น
+     *
+     * "เจ้าของแผนก" ของประชุมคือแผนกของผู้จัด (creator) ไม่ใช่แผนกของผู้เข้าร่วม
+     * ---------------------------------------------------------------
+     * ถ้านับแผนกของผู้เข้าร่วมด้วย ประชุมของแผนกอื่นที่เพียงเชิญคนในแผนกเราไปร่วม
+     * หนึ่งคน จะกลายเป็นประชุมที่คนทั้งแผนกเราเห็น ซึ่งเป็นการเปิดข้อมูลของแผนกนั้น
+     * ให้คนที่ไม่เกี่ยวข้องเลย — ตรงข้ามกับข้อกำหนดว่าผู้ที่ถูกเชิญข้ามแผนก
+     * ต้องเห็น "เฉพาะประชุมที่ตนได้รับเชิญ" ไม่ใช่ข้อมูลอื่นของแผนกนั้น
+     *
+     * การเห็นไม่เท่ากับสิทธิ์แก้ไข — MeetingPolicy::update()/delete() ไม่ถูกแตะ
+     * ยังเป็นของผู้จัดกับ admin เท่านั้น
+     *
+     * ไม่เรียก visibleQuery() เพราะกฎของหน้ารายการ (หัวหน้าแผนกเห็นประชุมทุกใบที่
+     * คนในแผนกเข้าร่วม) กว้างกว่ากฎของปฏิทินในมิติผู้เข้าร่วม การซ้อนสองกฎจะได้
+     * ขอบเขตที่อธิบายไม่ได้ว่ามาจากที่ไหน
+     */
+    public function calendarScopedQuery(User $viewer): Builder
+    {
+        return Meeting::query()->where(function (Builder $query) use ($viewer): void {
+            $query->where('created_by', $viewer->id)
+                ->orWhereHas('attendees', fn (Builder $attendees) => $attendees->whereKey($viewer->id));
+
+            // department_id ที่เป็น null ต้องไม่จับคู่กับ null ของคนอื่น ไม่งั้นผู้ใช้ที่ยัง
+            // ไม่ถูกจัดแผนกจะเห็นประชุมของทุกคนที่ยังไม่ถูกจัดแผนกเหมือนกัน
+            if ($viewer->department_id) {
+                $query->orWhereHas('creator', fn (Builder $creator) => $creator
+                    ->where('department_id', $viewer->department_id));
+            }
+        });
     }
 
     public function visibleQuery(User $viewer): Builder
@@ -209,20 +368,7 @@ final class MeetingQueryService
 
     public function eligibleAttendeeIds(array $attendeeIds): array
     {
-        $ids = collect($attendeeIds)
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        if ($ids->isEmpty()) {
-            return [];
-        }
-
-        return $this->attendeeEligibilityQuery()
-            ->whereKey($ids)
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+        return InvitationCandidates::eligibleIds($attendeeIds);
     }
 
     private function normalizeFilters(Request $request, User $viewer): array
@@ -319,7 +465,7 @@ final class MeetingQueryService
     /**
      * รายชื่อที่แสดงในตัวเลือก "ผู้เข้าร่วม" — จำกัดเฉพาะพนักงาน/หัวหน้าแผนก (role = user)
      *
-     * admin และ viewer ยังคง "เลือกได้" ในทางเทคนิคผ่าน attendeeEligibilityQuery()
+     * admin และ viewer ยังคง "เลือกได้" ในทางเทคนิคผ่าน InvitationCandidates::eligibleIds()
      * (ดู MeetingManagementTest::test_create_normalizes_duplicate_attendees_and_accepts_active_organizational_roles)
      * แต่ต้องไม่ปรากฏเป็นตัวเลือกให้เลือกใหม่ในรายการเรียกดู เพราะไม่ใช่ผู้ถูกเชิญปกติ
      *
@@ -330,30 +476,12 @@ final class MeetingQueryService
      */
     private function attendeeOptions(array $includeIds = [])
     {
-        $includeIds = collect($includeIds)->map(fn ($id) => (int) $id)->filter()->unique()->all();
-
-        return $this->attendeeEligibilityQuery()
-            ->where(fn (Builder $query) => $query
-                ->where('role', 'user')
-                ->when($includeIds !== [], fn (Builder $q) => $q->orWhereIn('id', $includeIds)))
-            ->with('department:id,department_name')
-            ->orderBy('name')
-            ->get(['id', 'name', 'role', 'department_id', 'profile_image']);
+        return InvitationCandidates::browsableOptions($includeIds);
     }
 
     private function attendeeDepartments()
     {
-        return Department::query()
-            ->orderBy('department_name')
-            ->get(['id', 'department_name']);
-    }
-
-    private function attendeeEligibilityQuery(): Builder
-    {
-        return User::query()
-            ->whereNull('deleted_at')
-            ->where('is_active', true)
-            ->whereIn('role', self::ATTENDEE_ROLES);
+        return InvitationCandidates::departments();
     }
 
     /**

@@ -33,22 +33,41 @@ class ApprovalWordingTest extends TestCase
         $response->assertDontSee('>pending<', false);
     }
 
+    /**
+     * หัวเรื่องต้องบอกขอบเขตจริงของผู้เปิดดู ไม่ใช่เรียกทุกคนว่าผู้ดูแลระบบ
+     *
+     * และต้องบอกบทบาทของหน้าให้ตรงด้วย: ของหัวหน้าแผนกที่ไม่มีคำขอค้างคือหน้าติดตาม
+     * ส่วนของ admin คือกล่องขาเข้าของคำขอ
+     */
     public function test_header_names_the_real_scope_instead_of_calling_every_viewer_an_admin(): void
     {
-        $it = Department::create(['department_name' => 'IT']);
+        [$it, $marketing] = [Department::create(['department_name' => 'IT']), Department::create(['department_name' => 'Marketing'])];
         $head = $this->departmentHead($it);
         $admin = $this->user('admin', $it);
 
+        // ไม่มีคำขอค้าง — หน้าของหัวหน้าแผนกคือหน้าติดตามงานข้ามแผนกของทีม
         $this->actingAs($head)->get(route('admin.approvals.index'))
             ->assertOk()
-            ->assertSee('DEPARTMENT APPROVALS')
+            ->assertSee('CROSS-DEPARTMENT TRACKING')
+            ->assertSee('งานข้ามแผนกของทีม')
             ->assertSee('แผนกIT')
+            ->assertDontSee('ADMIN APPROVALS')
+            ->assertDontSee('ทุกแผนกในระบบ')
             ->assertDontSee('จัดการคำขอที่ต้องได้รับการอนุมัติจากผู้ดูแลระบบ');
+
+        // มีคำขอค้าง — ยังบอกขอบเขตเป็นแผนกของเขาเอง ไม่ใช่ทั้งระบบ
+        $this->task($this->user('user', $marketing), $this->user('user', $it), $it, 'งานข้ามแผนกรออนุมัติ', 'pending');
+
+        $this->actingAs($head)->get(route('admin.approvals.index'))
+            ->assertOk()
+            ->assertSee('แผนกIT')
+            ->assertDontSee('ทุกแผนกในระบบ');
 
         $this->actingAs($admin)->get(route('admin.approvals.index'))
             ->assertOk()
             ->assertSee('ADMIN APPROVALS')
-            ->assertSee('ทุกแผนกในระบบ');
+            ->assertSee('ทุกแผนกในระบบ')
+            ->assertDontSee('CROSS-DEPARTMENT TRACKING');
     }
 
     public function test_approval_row_shows_the_task_details_so_the_head_is_not_deciding_blind(): void

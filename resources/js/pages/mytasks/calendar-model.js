@@ -79,59 +79,11 @@ export const normalizeCalendarEvent = (event) => {
     const normalized = normalizeCalendarTask(event);
     if (!normalized) return null;
 
-    const type = event?.type === 'meeting' ? 'meeting' : 'task';
-    if (type === 'meeting') return {...normalized, type};
-
     return {
         ...normalized,
-        type,
+        type: 'task',
         scheduleStart: normalized.start,
         scheduleStartStamp: normalized.startStamp,
-    };
-};
-
-export const calendarMonthKey = (year, month) => `${year}-${String(Number(month) + 1).padStart(2, '0')}`;
-
-/**
- * เดือนรอบ ๆ เดือนที่กำลังดูซึ่งยังไม่เคยโหลดประชุมมาก่อน
- * แยกเป็นฟังก์ชันบริสุทธิ์เพื่อให้ทดสอบ logic การ fetch ได้โดยไม่ต้องมี DOM
- */
-export const monthsNeedingFetch = (year, month, loadedKeys = [], padding = 1) => {
-    const loaded = new Set(loadedKeys);
-    const missing = [];
-
-    for (let offset = -padding; offset <= padding; offset += 1) {
-        const target = moveCalendarMonth(year, month, offset);
-        const key = calendarMonthKey(target.year, target.month);
-        if (!loaded.has(key)) missing.push({...target, key});
-    }
-
-    return missing;
-};
-
-/**
- * ช่วงวันที่ต่อเนื่องที่ครอบคลุมทุกเดือนที่ยังขาด
- * `keys` คือทุกเดือนภายในช่วง ไม่ใช่เฉพาะเดือนที่ขาด เพราะ 1 คำขอได้ข้อมูลมาทั้งช่วง
- */
-export const rangeForMonths = (months) => {
-    if (!months.length) return null;
-
-    const sorted = [...months].sort((left, right) => Date.UTC(left.year, left.month) - Date.UTC(right.year, right.month));
-    const first = sorted[0];
-    const last = sorted[sorted.length - 1];
-    const lastStamp = Date.UTC(last.year, last.month, 1);
-    const keys = [];
-    let cursor = {year: first.year, month: first.month};
-
-    while (Date.UTC(cursor.year, cursor.month, 1) <= lastStamp) {
-        keys.push(calendarMonthKey(cursor.year, cursor.month));
-        cursor = moveCalendarMonth(cursor.year, cursor.month, 1);
-    }
-
-    return {
-        start: calendarDateKey(Date.UTC(first.year, first.month, 1)),
-        end: calendarDateKey(Date.UTC(last.year, last.month + 1, 0)),
-        keys,
     };
 };
 
@@ -148,7 +100,7 @@ const eventOrder = (left, right) => (
  * งานถูกวางไว้ที่กำหนดส่ง เพราะการ์ดนี้ชื่อว่า "กำหนดส่งและนัดหมายในเดือนนี้"
  * ส่วนประชุมถูกวางไว้ที่เวลาเริ่ม เพราะประชุมเป็นนัดหมายไม่ใช่ช่วงงาน
  */
-export const agendaStamp = (event) => (event.type === 'meeting' ? event.startStamp : event.dueStamp);
+export const agendaStamp = (event) => event.dueStamp;
 
 /**
  * เรียงตามวันที่ที่แถวนั้นแสดงจริง ไม่ใช่ตามวันเริ่มงาน
@@ -177,32 +129,19 @@ export const buildCalendarAgenda = (events, year, month, todayKey) => {
     const todayTasks = todayStamp === null ? [] : normalizedEvents.filter((event) => (
         event.type === 'task' && event.dueStamp === todayStamp
     ));
-    const todayMeetings = todayStamp === null ? [] : normalizedEvents.filter((event) => (
-        event.type === 'meeting'
-        && event.startStamp <= todayStamp
-        && event.dueStamp >= todayStamp
-    ));
     const monthTasks = normalizedEvents.filter((event) => (
         event.type === 'task'
         && event.dueStamp >= monthStart
         && event.dueStamp <= monthEnd
     ));
-    // การ์ดรายเดือนแสดงประชุมครั้งเดียวตามวันเริ่ม แม้ประชุมจะคร่อมหลายวัน
-    const monthMeetings = normalizedEvents.filter((event) => (
-        event.type === 'meeting'
-        && event.startStamp >= monthStart
-        && event.startStamp <= monthEnd
-    ));
 
     return {
         // งานยึดวันสิ้นสุดแล้ว เงื่อนไขนี้จึงหมายถึง "ครบกำหนดวันนี้" โดยตรง
         todayTasks,
-        todayMeetings,
-        todayEvents: [...todayTasks, ...todayMeetings].sort(eventOrder),
+        todayEvents: [...todayTasks].sort(eventOrder),
         monthTasks,
-        monthMeetings,
         // เรียงตามวันที่ของแถว (กำหนดส่งของงาน / เวลาเริ่มของประชุม) จึงไล่วันที่ 1 ไปจนสิ้นเดือน
-        monthEvents: [...monthTasks, ...monthMeetings].sort(agendaOrder),
+        monthEvents: [...monthTasks].sort(agendaOrder),
     };
 };
 
@@ -261,10 +200,6 @@ const timelineEventOrder = (left, right) => (
  * ประชุมไม่ใช้ตัวกรองนี้และยังคงช่วงเวลาเดิมเสมอ
  */
 const displayRangeForEvent = (event, datePoints) => {
-    if (event.type === 'meeting') {
-        return {displayStartStamp: event.startStamp, displayDueStamp: event.dueStamp};
-    }
-
     const showStart = datePoints.start !== false;
     const showDue = datePoints.due !== false;
     if (showStart && !showDue) {
@@ -379,14 +314,8 @@ export const buildTimelineWeek = (events, weekDays, maxLanes = 4, datePoints = {
  */
 export const summarizeDayEvents = (events, maxVisible = 3) => {
     const counts = new Map();
-    let meetings = 0;
 
     events.forEach((event) => {
-        if (event.type === 'meeting') {
-            meetings += 1;
-            return;
-        }
-
         const priority = CALENDAR_PRIORITY_ORDER.includes(event.priority) ? event.priority : 2;
         counts.set(priority, (counts.get(priority) || 0) + 1);
     });
@@ -394,8 +323,6 @@ export const summarizeDayEvents = (events, maxVisible = 3) => {
     const groups = CALENDAR_PRIORITY_ORDER
         .filter((priority) => counts.has(priority))
         .map((priority) => ({key: `priority-${priority}`, type: 'task', priority, count: counts.get(priority)}));
-
-    if (meetings > 0) groups.push({key: 'meeting', type: 'meeting', priority: null, count: meetings});
 
     const limit = Math.max(1, Math.floor(Number(maxVisible) || 3));
 
@@ -429,9 +356,6 @@ export const buildMonthCalendar = (events, year, month, maxVisible = 3, options 
 
     const renderedDays = days.map((day) => {
         const dayEvents = placedEvents.filter((event) => {
-            if (event.type === 'meeting') {
-                return event.displayStartStamp <= day.stamp && event.displayDueStamp >= day.stamp;
-            }
             if (placement === 'points') {
                 return (datePoints.start && event.startStamp === day.stamp)
                     || (datePoints.due && event.dueStamp === day.stamp);
@@ -443,7 +367,6 @@ export const buildMonthCalendar = (events, year, month, maxVisible = 3, options 
             ...day,
             events: dayEvents,
             tasks: dayEvents.filter((event) => event.type === 'task'),
-            meetings: dayEvents.filter((event) => event.type === 'meeting'),
             ...summarizeDayEvents(dayEvents, maxVisible),
         };
     });

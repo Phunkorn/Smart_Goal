@@ -11,8 +11,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * มุมมอง "ประชุม" ในหน้างานของฉันใช้ partial และ service ชุดเดียวกับหน้า /meetings
- * สิทธิ์จึงต้องถูกบังคับที่ SQL ผ่าน MeetingQueryService::visibleQuery() เหมือนเดิม
+ * มุมมอง "ประชุม" ในหน้างานของฉันคือ "ปฏิทินประชุมและนัดหมาย"
+ *
+ * ขอบเขตการมองเห็นของการประชุมยังมาจาก MeetingQueryService::visibleQuery() ตัวเดิม
+ * ผ่าน MeetingAppointmentCalendarQuery จึงไม่มีกฎสิทธิ์ชุดที่สอง
+ *
+ * ตัวกรองประเภท ปฏิทินโปรเจกต์ และเอกสาร Export อยู่ใน MeetingAppointmentCalendarTest
  */
 class MyTasksMeetingViewTest extends TestCase
 {
@@ -36,15 +40,22 @@ class MyTasksMeetingViewTest extends TestCase
     public function test_member_meeting_view_only_shows_meetings_they_may_see(): void
     {
         $member = $this->user();
-        $stranger = $this->user();
+        /*
+         * ปฏิทินเป็นระดับแผนกแล้ว คนที่ "ไม่ควรเห็น" จึงต้องเป็นคนนอกแผนกของผู้เปิดหน้า
+         * ไม่ใช่เพื่อนร่วมแผนกที่ไม่ได้ถูกเชิญ ซึ่งตอนนี้เห็นได้โดยถูกต้อง
+         * (ขอบเขตอยู่ที่ MeetingQueryService::calendarScopedQuery และถูกตรึงไว้ครบใน
+         * DepartmentCalendarScopeTest)
+         */
+        $stranger = $this->user(department: Department::create(['department_name' => 'Finance']));
         $this->meeting($member, 'ประชุมของฉัน');
         $this->meeting($stranger, 'ประชุมของคนอื่น');
 
         $this->actingAs($member)
-            ->get(route('mytasks.index', ['view' => 'meeting', 'period' => 'all']))
+            ->get(route('mytasks.index', ['view' => 'meeting']))
             ->assertOk()
             ->assertSee('notion-database" data-view="meeting"', false)
             ->assertSee('mytasks-meeting-view', false)
+            ->assertSee('data-meeting-calendar', false)
             ->assertSee('ประชุมของฉัน')
             ->assertDontSee('ประชุมของคนอื่น');
     }
@@ -83,46 +94,23 @@ class MyTasksMeetingViewTest extends TestCase
             ->assertRedirect(route('board.index'));
     }
 
-    public function test_meeting_filters_stay_inside_the_meeting_view(): void
+    public function test_the_meeting_view_lands_on_the_calendar_with_its_own_header_and_actions(): void
     {
         $member = $this->user();
-        $this->meeting($member, 'ประชุมค้นเจอ');
-        $this->meeting($member, 'ประชุมอื่นที่ไม่ตรงคำค้น');
 
-        $content = $this->actingAs($member)
-            ->get(route('mytasks.index', ['view' => 'meeting', 'period' => 'all', 'search' => 'ค้นเจอ']))
+        $this->actingAs($member)
+            ->get(route('mytasks.index', ['view' => 'meeting']))
             ->assertOk()
-            ->assertSee('notion-database" data-view="meeting"', false)
-            ->assertSee('action="'.route('mytasks.index').'"', false)
-            ->assertSee('<input type="hidden" name="view" value="meeting">', false)
-            ->assertSee('href="'.route('mytasks.index', ['view' => 'meeting']).'"', false)
-            ->getContent();
-
-        // ตัวกรองมีผลกับรายการประชุมเท่านั้น ข้อมูลที่ฝังไว้ให้ปฏิทินเป็นคนละชุดและไม่ถูกกรอง
-        $list = $this->meetingListSection($content);
-        $this->assertStringContainsString('ประชุมค้นเจอ', $list);
-        $this->assertStringNotContainsString('ประชุมอื่นที่ไม่ตรงคำค้น', $list);
-    }
-
-    public function test_embedded_pagination_returns_to_my_tasks_with_the_meeting_view(): void
-    {
-        $member = $this->user();
-        for ($index = 1; $index <= 21; $index++) {
-            $this->meeting($member, 'ประชุมลำดับ '.$index);
-        }
-
-        $content = $this->actingAs($member)
-            ->get(route('mytasks.index', ['view' => 'meeting', 'period' => 'all']))
-            ->assertOk()
-            ->assertSee('meetings-page__pagination', false)
-            ->getContent();
-
-        $this->assertMatchesRegularExpression(
-            '#href="[^"]*/my-tasks\?[^"]*view=meeting[^"]*page=2#',
-            $content,
-            'ลิงก์หน้าถัดไปต้องกลับมาที่ /my-tasks พร้อม view=meeting'
-        );
-        $this->assertStringNotContainsString('href="'.route('meetings.index').'?', $content);
+            // หัวเรื่องและคำอธิบายต้องระบุแผนกเจ้าของปฏิทิน ไม่ใช่ถ้อยคำแบบ "ของคุณ"
+            ->assertSee('ปฏิทินประชุมและนัดหมาย แผนก'.$member->department->department_name)
+            ->assertSee('การประชุมและนัดหมายทั้งหมดของแผนก'.$member->department->department_name)
+            ->assertDontSee('จัดการการประชุมและนัดหมายของคุณในที่เดียว')
+            ->assertSee('data-calendar-grid', false)
+            ->assertSee('data-calendar-month-label', false)
+            ->assertSee('Export PDF')
+            // ไม่ใช่รายการการ์ดประชุมแบบเดิมอีกแล้ว
+            ->assertDontSee('meetings-page__pagination', false)
+            ->assertDontSee('meetings-page__list', false);
     }
 
     public function test_original_meetings_route_is_not_forced_into_the_meeting_view(): void
@@ -144,8 +132,9 @@ class MyTasksMeetingViewTest extends TestCase
         $member = $this->user();
         $meeting = $this->meeting($member, 'ประชุมของฉัน');
 
+        // กดประชุมบนปฏิทินแล้วต้องกลับเข้า Workspace ได้ ไม่ใช่ถูกทิ้งไว้ที่หน้า /meetings
         $this->actingAs($member)
-            ->get(route('mytasks.index', ['view' => 'meeting', 'period' => 'all']))
+            ->get(route('mytasks.index', ['view' => 'meeting']))
             ->assertOk()
             ->assertSee(route('meetings.show', ['meeting' => $meeting->id, 'from' => 'workspace']), false);
 
@@ -174,21 +163,12 @@ class MyTasksMeetingViewTest extends TestCase
             ->assertSee(route('meetings.show', ['meeting' => $meeting->id]), false);
     }
 
-    private function meetingListSection(string $content): string
-    {
-        $start = strpos($content, 'meetings-page__list');
-        $this->assertNotFalse($start, 'ไม่พบรายการประชุมในหน้า');
-        $end = strpos($content, '</section>', $start);
-        $this->assertNotFalse($end, 'รายการประชุมไม่ถูกปิดแท็ก');
-
-        return substr($content, $start, $end - $start);
-    }
-
-    private function user(string $role = 'user'): User
+    private function user(string $role = 'user', ?Department $department = null): User
     {
         return User::factory()->create([
             'role' => $role,
-            'department_id' => $role === 'user' ? $this->department->id : null,
+            // $department ชนะค่าเริ่มต้น ใช้กับเคสที่ต้องการคนนอกแผนกของผู้เปิดหน้าจริง ๆ
+            'department_id' => $department?->id ?? ($role === 'user' ? $this->department->id : null),
             'must_change_password' => false,
             'is_active' => true,
         ]);

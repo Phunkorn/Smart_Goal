@@ -124,6 +124,46 @@ final class WorkLogPresenter
                 ->map(fn (WorkLogAttachment $attachment): array => self::attachment($attachment))
                 ->values()
                 ->all(),
+            // แบบตรวจที่สร้างบันทึกนี้ขึ้นมา (ถ้ามี) — ปุ่ม "ดูแบบตรวจ" ใช้ค่านี้
+            'inspection' => self::inspectionLink($log),
+        ];
+    }
+
+    /**
+     * ลิงก์แบบตรวจของบันทึกที่มาจากรอบตรวจเช็กคอมพิวเตอร์
+     *
+     * คืน null เมื่อบันทึกนี้ไม่ได้มาจากแบบตรวจ ซึ่งเป็นกรณีปกติของบันทึกเกือบทั้งหมด
+     * ส่ง URL ของ route ที่ตรวจสิทธิ์ให้แล้วเท่านั้น ไม่ส่ง id ดิบให้ฝั่ง client
+     * ประกอบเส้นทางเอง ด้วยเหตุผลเดียวกับไฟล์แนบที่ต้องผ่าน MediaController
+     *
+     * เป็น public เพราะรายงานปฏิบัติงานก็ต้องการค่าเดียวกัน และต้องได้รูปแบบ
+     * เดียวกับที่ไทม์ไลน์ใช้ ไม่ใช่ประกอบลิงก์เองอีกชุดหนึ่ง
+     *
+     * ต้อง eager load ความสัมพันธ์ computerCheckSession มาก่อน ไม่งั้นคืน null
+     * โดยตั้งใจ แทนการยิง query เพิ่มทีละแถวในหน้าที่มีเป็นร้อยแถว
+     *
+     * @return array<string, string>|null
+     */
+    public static function inspectionLink(WorkLog $log): ?array
+    {
+        $session = $log->relationLoaded('computerCheckSession')
+            ? $log->computerCheckSession
+            : null;
+
+        if ($session === null || ! $session->isCompleted()) {
+            return null;
+        }
+
+        return [
+            'report_url' => route('daily-logs.computer-check.report', ['session' => $session->id]),
+            'label' => 'แบบตรวจเช็กคอมพิวเตอร์ประจำวัน',
+            'meta' => trim(sprintf(
+                '%s · %s',
+                $session->check_date === null
+                    ? ''
+                    : (TodayWorkspace::dateRangeLabel($session->check_date, $session->check_date) ?? ''),
+                ComputerCheckDesign::shiftFullLabel($session->shift)
+            ), ' ·'),
         ];
     }
 

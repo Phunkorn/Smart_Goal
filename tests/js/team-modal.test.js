@@ -82,7 +82,7 @@ test('Escape ปิดเฉพาะ Team Modal ไม่ทะลุไปป�
 test('สมาชิกปัจจุบันไม่ปรากฏซ้ำในรายการที่เพิ่มได้ และตัวนับแยกกัน', async (t) => {
     const ui = await openWorkspace(t, {
         team: {
-            collaborators: [
+            participants: [
                 {id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'accepted', is_active: true},
             ],
         },
@@ -93,17 +93,17 @@ test('สมาชิกปัจจุบันไม่ปรากฏซ้�
     const visible = rows.filter((row) => !row.hidden).map((row) => row.dataset.personId);
 
     assert.deepEqual(visible, ['2'], 'คนที่อยู่ในทีมแล้วต้องหายจากรายการ ไม่ใช่แสดงแบบจาง');
-    assert.equal(ui.document.querySelector('[data-team-count]').textContent, 'ทีมปัจจุบัน (2 คน)');
+    assert.equal(ui.document.querySelector('[data-team-count]').textContent, 'ผู้เข้าร่วม (1 คน)');
     assert.equal(ui.document.querySelector('[data-people-count]').textContent, 'เลือกเพิ่ม 0 คน');
     assert.equal(ui.document.querySelectorAll('[data-team-members] .team-member').length, 1, 'สมาชิกต้องแสดงครั้งเดียว');
 });
 
-test('บัญชีที่ถูกปิดแสดงสถานะปิดบัญชีและลบผู้รับผิดชอบหลักไม่ได้', async (t) => {
+test('บัญชีที่ถูกปิดแสดงสถานะปิดบัญชี และผู้ที่ถูกป้องกันไว้ลบไม่ได้', async (t) => {
     const ui = await openWorkspace(t, {
         team: {
-            collaborators: [
+            participants: [
                 {id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'accepted', is_active: false},
-                {id: 99, name: 'เจ้าของงาน', department: 'ไอที', status: 'accepted', is_active: true},
+                {id: 99, name: 'ผู้รับผิดชอบงาน', department: 'ไอที', status: 'accepted', is_assignee: true, is_active: true},
             ],
         },
     });
@@ -112,8 +112,8 @@ test('บัญชีที่ถูกปิดแสดงสถานะป�
     const html = ui.document.querySelector('[data-team-members]').innerHTML;
     assert.match(html, /team-state inactive/);
     assert.match(html, /ปิดบัญชี/);
-    assert.equal(ui.document.querySelector('[data-team-count]').textContent, 'ทีมปัจจุบัน (2 คน)', 'assignee ที่ซ้ำใน collaborators ต้องนับครั้งเดียวใน UI');
-    assert.equal(ui.document.querySelectorAll('[data-team-members] .team-member').length, 1);
+    assert.equal(ui.document.querySelector('[data-team-count]').textContent, 'ผู้เข้าร่วม (2 คน)');
+    assert.equal(ui.document.querySelectorAll('[data-team-members] .team-member').length, 2);
     // 99 อยู่ใน protected_ids จึงต้องไม่มีปุ่มลบ
     assert.equal(ui.document.querySelector('[data-remove-team-member="99"]'), null);
     assert.ok(ui.document.querySelector('[data-remove-team-member="1"]'));
@@ -126,14 +126,14 @@ test('ปุ่มยืนยันกดไม่ได้เมื่อย�
     const submit = ui.document.querySelector('[data-team-submit]');
     const label = ui.document.querySelector('[data-team-submit-label]');
     assert.equal(submit.disabled, true);
-    assert.equal(label.textContent, 'เพิ่มผู้ร่วมงาน (0 คน)');
+    assert.equal(label.textContent, 'เพิ่มผู้เข้าร่วม (0 คน)');
 
     const checkbox = ui.document.querySelector('[data-people-checkbox][value="2"]');
     checkbox.checked = true;
     checkbox.dispatchEvent(new ui.window.Event('change', {bubbles: true}));
 
     assert.equal(submit.disabled, false);
-    assert.equal(label.textContent, 'เพิ่มผู้ร่วมงาน (1 คน)');
+    assert.equal(label.textContent, 'เพิ่มผู้เข้าร่วม (1 คน)');
 });
 
 test('ยกเลิกคนที่เตรียมเพิ่มไม่ยิงคำขอไปที่ server', async (t) => {
@@ -173,10 +173,10 @@ test('ปิดแล้วเปิด Team Modal ใหม่ต้องล�
         [],
     );
     assert.equal(ui.document.querySelector('[data-people-stage]').hidden, true);
-    assert.equal(ui.document.querySelector('[data-team-submit-label]').textContent, 'เพิ่มผู้ร่วมงาน (0 คน)');
+    assert.equal(ui.document.querySelector('[data-team-submit-label]').textContent, 'เพิ่มผู้เข้าร่วม (0 คน)');
 });
 
-test('protected IDs ถูกกันจากตัวเลือกเพิ่มแม้ยังไม่อยู่ใน collaborators', async (t) => {
+test('protected IDs ถูกกันจากตัวเลือกเพิ่มแม้ยังไม่อยู่ในรายชื่อผู้เข้าร่วม', async (t) => {
     const ui = await openWorkspace(t, {team: {protected_ids: [99, 2]}});
     click(ui.manageTeam());
 
@@ -186,10 +186,10 @@ test('protected IDs ถูกกันจากตัวเลือกเพิ
     assert.deepEqual(visible, ['1']);
 });
 
-test('สถานะ pending และ rejected แสดงตามข้อมูล server โดยไม่เปลี่ยน workflow', async (t) => {
+test('สถานะที่ยังไม่เข้าร่วมแสดงตามข้อมูล server โดยไม่มีคำว่ารออนุมัติ', async (t) => {
     const ui = await openWorkspace(t, {
         team: {
-            collaborators: [
+            participants: [
                 {id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'pending', is_active: true},
                 {id: 2, name: 'สมหญิง ตั้งใจ', department: 'การตลาด', status: 'rejected', is_active: true},
             ],
@@ -199,13 +199,17 @@ test('สถานะ pending และ rejected แสดงตามข้อ�
 
     assert.equal(ui.document.querySelectorAll('.team-state.pending').length, 1);
     assert.equal(ui.document.querySelectorAll('.team-state.rejected').length, 1);
-    assert.match(ui.document.querySelector('.team-state.pending').textContent, /รออนุมัติ/);
-    assert.match(ui.document.querySelector('.team-state.rejected').textContent, /ไม่อนุมัติ/);
+    // pending เหลือความหมายเดียวคือ "งานยังไม่ถูกเปิด" ไม่ใช่รอหัวหน้าแผนกอนุมัติตัวคน
+    assert.match(ui.document.querySelector('.team-state.pending').textContent, /รอเปิดงาน/);
+    assert.match(ui.document.querySelector('.team-state.rejected').textContent, /ไม่ได้เข้าร่วม/);
+    const members = ui.document.querySelector('[data-team-members]').innerHTML;
+    assert.doesNotMatch(members, /รออนุมัติ/);
+    assert.doesNotMatch(members, /ไม่อนุมัติ/);
 });
 
-test('ลบสมาชิกปัจจุบันใช้ remove route เดิมและถามยืนยันก่อน', async (t) => {
+test('ลบผู้เข้าร่วมใช้ remove route เดิมและถามยืนยันก่อน', async (t) => {
     const ui = await openWorkspace(t, {
-        team: {collaborators: [{id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'accepted', is_active: true}]},
+        team: {participants: [{id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'accepted', is_active: true}]},
     });
     click(ui.manageTeam());
 
@@ -249,11 +253,11 @@ test('เปิดปิดรายละเอียดงานหลาย�
     assert.equal(ui.document.querySelectorAll('[data-team-modal]').length, 1, 'ต้องมี Team Modal ชุดเดียวในหน้า');
 });
 
-test('ผู้ที่ไม่มีสิทธิ์จัดการทีมเปิดดูได้แต่แก้ไม่ได้ และปุ่มไม่หลอกว่ากดได้', async (t) => {
+test('ผู้ที่ไม่มีสิทธิ์จัดการสมาชิกเปิดดูได้แต่แก้ไม่ได้ และปุ่มไม่หลอกว่ากดได้', async (t) => {
     const ui = await openWorkspace(t, {
         team: {
             can_manage: false,
-            collaborators: [{id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'accepted', is_active: true}],
+            participants: [{id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'accepted', is_active: true}],
         },
     });
     click(ui.manageTeam());
@@ -284,4 +288,31 @@ test('Admin Member Workspace ใช้ component และ JavaScript ชุด�
     assert.ok(ui.document.querySelector('[data-people-selector]'), 'ใช้ people-selector ตัวเดียวกับฝั่ง User');
     assert.equal(ui.document.querySelector('[data-people-checkbox]').name, 'collaborators[]', 'ต้องยิงไป route ของ Task ไม่ใช่ Meeting');
     assert.equal(ui.document.querySelectorAll('[data-team-modal]').length, 1);
+});
+
+test('หัวหน้าโปรเจกต์คือผู้สร้าง และผู้เข้าร่วมต่างแผนกได้ป้ายข้ามแผนก ไม่ใช่สถานะรออนุมัติ', async (t) => {
+    const ui = await openWorkspace(t, {
+        team: {
+            leader: {id: 99, name: 'สมปอง หัวหน้า', department: 'การตลาด', cross_department: false},
+            project_department: 'การตลาด',
+            participants: [
+                {id: 1, name: 'สมชาย ใจดี', department: 'ไอที', status: 'accepted', is_active: true, cross_department: true},
+                {id: 2, name: 'สมหญิง ตั้งใจ', department: 'การตลาด', status: 'accepted', is_active: true, cross_department: false},
+            ],
+        },
+    });
+    click(ui.manageTeam());
+
+    const owner = ui.document.querySelector('[data-team-owner]').innerHTML;
+    assert.match(owner, /สมปอง หัวหน้า/);
+    assert.match(owner, /หัวหน้าโปรเจกต์/);
+    assert.doesNotMatch(owner, /ผู้รับผิดชอบหลัก/);
+
+    const members = ui.document.querySelector('[data-team-members]').innerHTML;
+    assert.equal(ui.document.querySelectorAll('[data-team-members] .team-cross-department').length, 1,
+        'ป้ายข้ามแผนกต้องขึ้นเฉพาะคนที่มาจากแผนกอื่น');
+    assert.match(members, /ข้ามแผนก/);
+    // ทุกคนเข้าร่วมแล้วทันที ไม่มีคิวอนุมัติใด ๆ ในหน้านี้
+    assert.equal(ui.document.querySelectorAll('[data-team-members] .team-state.accepted').length, 2);
+    assert.equal(ui.document.querySelectorAll('[data-team-members] .team-state.pending').length, 0);
 });

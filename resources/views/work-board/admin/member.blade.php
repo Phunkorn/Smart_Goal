@@ -33,8 +33,11 @@
     // Controller เป็นผู้ตัดสินมุมมอง ค่า default ที่นี่ไว้กันหน้าพังหากถูก render จากที่อื่น
     $workspaceView = $workspaceView ?? 'table';
 
-    // แถบมุมมองใช้ pattern เดียวกับ "งานของฉัน" — "ประชุม" ถูก render จาก server เท่านั้น
-    // ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
+    // แถบมุมมองใช้ pattern เดียวกับ "งานของฉัน" — panel ประชุมและนัดหมายถูก render
+    // จาก server เท่านั้น ปุ่มจึงต้อง navigate ไม่ใช่สลับฝั่ง client
+    //
+    // ป้ายต้องตรงกับหน้า "งานของฉัน" ทุกคำ: "ปฏิทินงาน" คือปฏิทินของโปรเจกต์
+    // และ "ประชุมและนัดหมาย" คือปฏิทินประชุมและนัดหมายของแผนก
     $memberWorkspaceRoute = $viaDepartmentHead ? 'work-board.member' : 'admin.work-board.member';
     $departmentWorkspaceRoute = $viaDepartmentHead ? 'work-board.department' : 'admin.work-board.department';
     $memberWorkspaceParameters = $viaDepartmentHead
@@ -44,11 +47,11 @@
     $workspaceViews = [
         ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
         ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
-        ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทิน', 'controls' => 'mytasks-calendar'],
+        ['view' => 'calendar', 'icon' => 'bi-calendar3', 'label' => 'ปฏิทินงาน', 'controls' => 'mytasks-calendar'],
         [
             'view' => 'meeting',
             'icon' => 'bi-calendar-event-fill',
-            'label' => 'ประชุม',
+            'label' => 'ประชุมและนัดหมาย',
             'href' => route($memberWorkspaceRoute, [...$memberWorkspaceParameters, 'view' => 'meeting']),
         ],
     ];

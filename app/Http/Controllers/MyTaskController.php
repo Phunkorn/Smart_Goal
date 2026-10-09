@@ -7,6 +7,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Models\WorkOrderListAttachment;
 use App\Services\CollaboratorInvitationService;
+use App\Services\MeetingAppointmentCalendarQuery;
 use App\Services\MeetingQueryService;
 use App\Services\NotificationService;
 use App\Services\TaskCommentService;
@@ -23,7 +24,6 @@ use App\Support\TaskScopeOptions;
 use App\Support\TodayWorkspace;
 use App\Support\WorkOrderApprovalResolver;
 use App\Support\WorkOrderAssignee;
-use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -69,12 +69,6 @@ class MyTaskController extends Controller
     /** คีย์ session ที่จำมุมมองล่าสุดของผู้ใช้ ต้องตรงกับที่ AuthController เขียนตอน login */
     public const WORKSPACE_VIEW_SESSION_KEY = 'mytasks.view';
 
-    /** เพดานช่วงเวลาต่อ 1 คำขอของ endpoint ปฏิทิน กันการดึงประชุมทั้งระบบ */
-    private const CALENDAR_RANGE_MAX_DAYS = 366;
-
-    /** ประชุมที่ฝังมากับ HTML ตั้งต้น: เดือนปัจจุบัน บวกกันชนหน้าหลัง 1 เดือน */
-    private const CALENDAR_PRELOAD_MONTHS = 1;
-
     public function index(Request $request): View|RedirectResponse
     {
         $user = Auth::user();
@@ -111,6 +105,8 @@ class MyTaskController extends Controller
                 'openShare',
                 'images',
                 'children.user.department',
+                // หัวหน้าโปรเจกต์ของงานย่อย (ProjectRoles::leader) ถูกอ่านใน workspace-interactions
+                'children.creator.department',
                 'children.taskList',
                 'children.collaborators.department',
                 'children.openShare',
@@ -215,27 +211,40 @@ class MyTaskController extends Controller
         // ถ้อยคำของตัวกรองมาจาก Support ตัวเดียว เพื่อให้ทุก role เห็นคำอธิบายชุดเดียวกัน
         $taskScopeOptions = TaskScopeOptions::forUser($user);
         $taskScopeActive = TaskScopeOptions::active($user, $taskScope);
-        $taskScopeCount = $workspaceWorkOrders->count();
+        /*
+         * ตัวเลขของตัวกรองนับ "งานของผู้ใช้" เท่านั้น
+         *
+         * งานแม่ที่ปรากฏเพราะงานย่อยที่เขาร่วม (WorkOrderPolicy::viewAsContext) ถูกวาดในบอร์ด
+         * เพื่อเป็นบริบท แต่ไม่ใช่งานของเขา การนับรวมจะทำให้ตัวเลขบอกว่ามีงานมากกว่าที่ต้องทำจริง
+         */
+        $taskScopeCount = $workspaceWorkOrders
+            ->reject(fn (WorkOrder $workOrder) => $user->can('viewAsContext', $workOrder))
+            ->count();
 
-        // ประชุมถูก query ต่อเมื่อผู้ใช้เปิดมุมมองนั้นจริง เพื่อไม่ให้ทุกการเปิดหน้างานมีคิวรีเพิ่ม
-        $meetings = app(MeetingQueryService::class);
-        $meetingData = $workspaceView === 'meeting'
-            ? $meetings->indexData($request, $user)
+        /*
+         * ปฏิทินประชุมและนัดหมายถูก query ต่อเมื่อผู้ใช้เปิดมุมมองนั้นจริง เพื่อไม่ให้ทุกการ
+         * เปิดหน้างานมีคิวรีเพิ่ม
+         *
+         * การประชุมไม่ถูกส่งเข้าปฏิทินโปรเจกต์ (data-view="calendar") อีกต่อไป ปฏิทินนั้น
+         * แสดงเฉพาะโปรเจกต์ งาน และกำหนดส่ง ส่วนการประชุมกับนัดหมายอยู่ในปฏิทินของตัวเอง
+         */
+        $meetingCalendarData = $workspaceView === 'meeting'
+            ? app(MeetingAppointmentCalendarQuery::class)->calendarPageData(
+                $user,
+                $request->query('month'),
+                $request->query('type')
+            )
             : [];
 
-        // ฝังเฉพาะช่วงแคบ ๆ ให้ปฏิทินวาดรอบแรกได้ทันทีโดยไม่ต้องรอ fetch (จึงไม่กระพริบ)
-        $calendarWindow = $this->calendarPreloadWindow();
-        $calendarMeetings = $meetings->calendarMeetings($user, $calendarWindow['from'], $calendarWindow['to']);
-        $calendarMeetingRange = [
-            'start' => $calendarWindow['from']->format('Y-m-d'),
-            'end' => $calendarWindow['to']->format('Y-m-d'),
-        ];
+        // ตัวเลือกผู้เข้าร่วม/โปรเจกต์ของฟอร์มสร้างประชุม ซึ่งเปิดจากการ์ด "+ เพิ่ม" ในปฏิทิน
+        $meetingCreateData = $workspaceView === 'meeting'
+            ? app(MeetingQueryService::class)->meetingCreateFormData($user)
+            : [];
 
         return view('tasks.index', compact(
             'workspaceView',
-            'meetingData',
-            'calendarMeetings',
-            'calendarMeetingRange',
+            'meetingCalendarData',
+            'meetingCreateData',
             'taskLists',
             'archivedTaskLists',
             'archivedProjectTasks',
@@ -256,45 +265,6 @@ class MyTaskController extends Controller
             'taskScopeActive',
             'taskScopeCount'
         ));
-    }
-
-    /**
-     * ประชุมของช่วงเดือนที่ปฏิทินร้องขอ
-     *
-     * ปฏิทินเลือกปีได้ ±5 ปีและกดเดือนถัดไปได้ไม่จำกัด การฝัง JSON ล่วงหน้าอย่างเดียว
-     * จึงทำให้ประชุมหายเงียบ ๆ เมื่อเลื่อนไกล endpoint นี้เติมให้ทีละช่วงโดยมีเพดานชัดเจน
-     */
-    public function calendarMeetings(Request $request): JsonResponse
-    {
-        $user = Auth::user();
-        abort_if($user->role === 'viewer', 403);
-
-        $validated = $request->validate([
-            'start' => ['required', 'date_format:Y-m-d'],
-            'end' => ['required', 'date_format:Y-m-d', 'after_or_equal:start'],
-            'subject_user_id' => ['nullable', 'integer', 'exists:users,id'],
-        ]);
-        $subject = isset($validated['subject_user_id'])
-            ? User::query()->findOrFail((int) $validated['subject_user_id'])
-            : null;
-
-        if ($subject) {
-            abort_unless(
-                $user->role === 'admin'
-                    || ($user->isDepartmentHead() && $user->overseesDepartment($subject->department_id))
-                    || $user->is($subject),
-                403
-            );
-        }
-
-        $from = CarbonImmutable::createFromFormat('Y-m-d', $validated['start'], MeetingQueryService::BUSINESS_TIMEZONE)->startOfDay();
-        $to = CarbonImmutable::createFromFormat('Y-m-d', $validated['end'], MeetingQueryService::BUSINESS_TIMEZONE)->endOfDay();
-
-        abort_if($from->diffInDays($to) > self::CALENDAR_RANGE_MAX_DAYS, 422, 'ช่วงเวลาที่ขอกว้างเกินไป');
-
-        return response()->json([
-            'meetings' => app(MeetingQueryService::class)->calendarMeetings($user, $from, $to, $subject),
-        ]);
     }
 
     /**
@@ -336,19 +306,6 @@ class MyTaskController extends Controller
         }
 
         return $view;
-    }
-
-    /**
-     * @return array{from: CarbonImmutable, to: CarbonImmutable}
-     */
-    private function calendarPreloadWindow(): array
-    {
-        $now = CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE);
-
-        return [
-            'from' => $now->subMonthsNoOverflow(self::CALENDAR_PRELOAD_MONTHS)->startOfMonth(),
-            'to' => $now->addMonthsNoOverflow(self::CALENDAR_PRELOAD_MONTHS)->endOfMonth(),
-        ];
     }
 
     /**
@@ -1009,6 +966,51 @@ class MyTaskController extends Controller
             'job_id' => $workOrder->job_id,
             'job_status' => $workOrder->job_status,
             'transitions' => $transitions->capabilities($workOrder, $request->user()),
+        ]);
+    }
+
+    /**
+     * การ์ด kanban ของงานใบเดียว สำหรับแทรกเข้าหน้าโดยไม่โหลดหน้าใหม่
+     *
+     * มุมมอง kanban แสดงงานที่ปิดแล้วเฉพาะใบที่ปิดวันนี้ (TodayWorkspace::workspaceTable)
+     * งานที่ปิดไปก่อนหน้านั้นจึงไม่มีการ์ดอยู่ในหน้าเลย เมื่อผู้ใช้เปิดงานนั้นอีกครั้งจากบอร์ด
+     * หรือจากโมดัล ฝั่งหน้าจอไม่มีการ์ดให้ย้ายคอลัมน์ ของเดิมต้องรอให้ผู้ใช้โหลดหน้าใหม่เอง
+     *
+     * ที่นี่คืน markup ชุดเดียวกับที่หน้าใช้ (tasks.partials.kanban-card) ไม่ใช่ markup
+     * ชุดที่สองที่เขียนใน JavaScript ซึ่งจะเพี้ยนจากกันทันทีที่มีใครแก้การ์ดฝั่งใดฝั่งเดียว
+     */
+    public function kanbanCard(Request $request, WorkOrder $workOrder): JsonResponse
+    {
+        $this->authorize('view', $workOrder);
+
+        $user = $request->user();
+
+        // การ์ดเป็นของมุมมอง "งานของฉัน" ซึ่งแสดงเฉพาะงานที่ผู้ใช้มีส่วนร่วมจริง
+        // งานแม่ที่เห็นเป็นบริบทและงานของคนอื่นในโปรเจกต์ไม่มีการ์ดในมุมมองนี้อยู่แล้ว
+        if (! $user->can('participate', $workOrder) || $workOrder->parent_job_id !== null) {
+            return response()->json(['ok' => false, 'card' => null], 404);
+        }
+
+        $workOrder->loadMissing([
+            'taskList',
+            'user.department',
+            'creator.department',
+            'collaborators.department',
+            'children',
+            'images',
+        ]);
+        CrossDepartmentWork::restrictChildren(collect([$workOrder]), $user);
+
+        return response()->json([
+            'ok' => true,
+            'job_id' => (int) $workOrder->job_id,
+            'job_status' => (int) $workOrder->job_status,
+            'card' => view('tasks.partials.kanban-card', [
+                'task' => $workOrder,
+                'unreadCommentCounts' => app(TaskCommentService::class)
+                    ->unreadCounts(collect([$workOrder->job_id]), $user),
+                'workspaceSubject' => $user,
+            ])->render(),
         ]);
     }
 

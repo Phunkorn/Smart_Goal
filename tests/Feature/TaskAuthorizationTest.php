@@ -99,6 +99,9 @@ class TaskAuthorizationTest extends TestCase
                 'files' => [[
                     'name' => 'evidence.png',
                     'url' => route('media.task-attachments.show', $task->images()->firstOrFail()),
+                    // ลิงก์บังคับดาวน์โหลด กล่อง "ดาวน์โหลดไฟล์แนบ" ใช้ค่านี้
+                    // ชื่อบนดิสก์ถูก hash ชื่อเดิมของผู้ใช้จึงต้องมาจาก Content-Disposition ของ server
+                    'download_url' => route('media.task-attachments.show', [$task->images()->firstOrFail(), 'download' => 1]),
                     'delete_url' => route('tasks.attachments.destroy', [$task->job_id, $task->images()->firstOrFail()]),
                 ]],
             ]);
@@ -122,7 +125,7 @@ class TaskAuthorizationTest extends TestCase
         Storage::disk('local')->assertExists($attachment->file_path);
     }
 
-    public function test_admin_approves_collaborator_invitation_and_owner_can_remove_them(): void
+    public function test_project_leader_adds_a_participant_immediately_and_can_remove_them(): void
     {
         $owner = $this->user();
         $candidate = $this->user();
@@ -133,26 +136,24 @@ class TaskAuthorizationTest extends TestCase
             ->postJson(route('tasks.collaborators.store', $task), [
                 'collaborators' => [$candidate->id],
             ])
-            ->assertOk();
+            ->assertOk()
+            ->assertExactJson([
+                'ok' => true,
+                'message' => 'เพิ่มผู้เข้าร่วมโปรเจกต์แล้ว',
+            ]);
 
-        $this->assertSame('pending', $task->collaborators()->findOrFail($candidate->id)->pivot->status);
-
-        $this->actingAs($candidate)
-            ->patch(route('tasks.invitation.respond', $task), ['status' => 'accepted'])
-            ->assertForbidden();
-
-        $this->actingAs($admin)
-            ->patchJson(route('admin.tasks.collaborators.approval', [$task, $candidate]), ['status' => 'accepted'])
-            ->assertOk();
-
-        $this->assertSame('accepted', $task->collaborators()->findOrFail($candidate->id)->pivot->status);
+        // เข้าร่วมทันที ไม่มีสถานะรออนุมัติและไม่มีใครต้องมาตัดสิน
+        $pivot = $task->collaborators()->findOrFail($candidate->id)->pivot;
+        $this->assertSame('accepted', $pivot->status);
+        $this->assertSame($owner->id, $pivot->decided_by);
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $admin->id]);
 
         $this->actingAs($owner)
             ->deleteJson(route('tasks.collaborators.destroy', [$task, $candidate]))
             ->assertOk()
             ->assertExactJson([
                 'ok' => true,
-                'message' => 'นำผู้ร่วมงานออกจากทีมแล้ว',
+                'message' => 'นำผู้เข้าร่วมออกจากโปรเจกต์แล้ว',
             ]);
 
         $this->assertDatabaseMissing('work_order_collaborators', [

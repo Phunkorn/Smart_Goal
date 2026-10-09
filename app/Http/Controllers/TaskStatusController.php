@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RespondsWithTaskResult;
-use App\Models\JobImage;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\CollaboratorInvitationService;
@@ -13,6 +12,7 @@ use App\Support\ApprovalPresenter;
 use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
+use App\Support\TaskAttachmentPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +58,7 @@ class TaskStatusController extends Controller
         $message = (int) $validated['job_status'] === 4 ? 'ปิดงานสำเร็จ' : 'ปรับสถานะงานสำเร็จ';
 
         if ($request->expectsJson()) {
-            return response()->json([
+            return response()->json(array_filter([
                 'ok' => true,
                 'message' => $message,
                 'job_id' => $job->job_id,
@@ -67,10 +67,38 @@ class TaskStatusController extends Controller
                 // สิทธิ์ของ Workspace เปลี่ยนพร้อมสถานะงาน จึงต้องส่งค่าชุดใหม่กลับไป
                 // ไม่เช่นนั้นงานที่เพิ่งเปิดอีกครั้งจะยังแนบไฟล์/คอมเมนต์ไม่ได้จนกว่าจะ reload
                 'interactions' => $this->interactionPayload($job, $user),
-            ]);
+                // ปิดหรือเปิดงานย่อยทำให้ "ด่านงานย่อย" ของงานแม่เปลี่ยน สถานะใหม่ของงานแม่
+                // จึงต้องมาจาก server ด้วย ไม่ใช่ให้ฝั่งหน้าจอนับแถวงานย่อยใน DOM เอง
+                // ซึ่งเป็นแหล่งความจริงที่สองและนับผิดได้เมื่อแถวถูกตัดด้วยสิทธิ์
+                'parent' => $this->parentPayload($job, $user, $transitions),
+            ], static fn ($value) => $value !== null));
         }
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * สถานะและสิทธิ์ชุดใหม่ของงานแม่ — null เมื่องานที่เปลี่ยนไม่ใช่งานย่อย
+     *
+     * @return array<string, mixed>|null
+     */
+    private function parentPayload(WorkOrder $job, User $user, TaskStatusTransitionService $transitions): ?array
+    {
+        if ($job->parent_job_id === null) {
+            return null;
+        }
+
+        $parent = WorkOrder::with('collaborators')->find($job->parent_job_id);
+
+        if ($parent === null || ! $user->can('view', $parent)) {
+            return null;
+        }
+
+        return [
+            'job_id' => (int) $parent->job_id,
+            'job_status' => (int) $parent->job_status,
+            'transitions' => $transitions->capabilities($parent, $user),
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -83,13 +111,7 @@ class TaskStatusController extends Controller
             'is_closed' => (int) $job->job_status === 4,
             'can_upload' => $canUpload,
             'upload_url' => $canUpload ? route('tasks.attachments.store', $job->job_id) : null,
-            'files' => $job->loadMissing('images')->images->map(fn (JobImage $file) => [
-                'name' => $file->original_name ?? basename($file->file_path),
-                'url' => route('media.task-attachments.show', $file),
-                'delete_url' => $canUpload
-                    ? route('tasks.attachments.destroy', [$job->job_id, $file])
-                    : null,
-            ])->values()->all(),
+            'files' => TaskAttachmentPresenter::files($job->loadMissing('images'), $canUpload),
             'can_comment' => $canComment,
             'comment_url' => $canComment ? route('tasks.comments.store', $job) : null,
         ];

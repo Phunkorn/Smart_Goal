@@ -116,8 +116,15 @@ export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]
         ? `<select data-people-department-select><option value="">แผนกทั้งหมด</option>${departmentOptions}</select>`
         : '';
     const selectionSummary = isTeamManager
-        ? `<div class="people-selector__selection-summary"><div data-people-summary-count>เลือกแล้ว ${selected.length} คน</div><button type="button" data-people-clear>ล้างการเลือก</button></div>`
+        ? `<div class="people-selector__selection-summary"><div data-people-summary-count>เลือกแล้ว ${selected.length} คน</div></div>`
         : '';
+    // แถวเลือกทีละกลุ่ม — ต้องมีทุก variant เหมือน components/people-selector.blade.php
+    const bulkActions = `<div class="people-selector__bulk">
+                    <button type="button" data-people-select-visible
+                        data-visible-label="เลือกทั้งหมดที่แสดง" data-department-label="เลือกทั้งแผนก"
+                        ${readOnly ? ' disabled' : ''}>เลือกทั้งหมดที่แสดง</button>
+                    <button type="button" data-people-clear${readOnly || !selected.length ? ' disabled' : ''}>ล้างการเลือก</button>
+                </div>`;
     const stageOpen = isTeamManager ? `<section data-people-stage${selected.length ? '' : ' hidden'}>` : '';
     const stageClose = isTeamManager ? '</section>' : '';
 
@@ -133,6 +140,7 @@ export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]
                     <button type="button" data-people-department data-department-id="" aria-pressed="true" class="is-active">ทั้งหมด</button>
                     ${filters}
                 </div>
+                ${bulkActions}
                 <div class="people-selector__options" data-people-options>
                     ${options}
                     <p data-people-empty hidden>ไม่พบรายชื่อ</p>

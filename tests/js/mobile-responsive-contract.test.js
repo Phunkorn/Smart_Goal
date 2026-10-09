@@ -257,7 +257,8 @@ test('the month grid supports a responsive four-lane timeline and the priority s
     for (const tone of ['urgent', 'quick', 'important', 'flexible']) {
         assert.match(source, new RegExp(`\\.mytasks-calendar__legend-item\\.priority-${tone}\\s*\\{[^}]*--calendar-legend-border:[^}]*--calendar-legend-background:`, 's'));
     }
-    assert.match(source, /\.mytasks-calendar__legend-item--meeting\s*\{[^}]*--calendar-legend-border:[^}]*--calendar-legend-background:/s);
+    // การประชุมย้ายไปปฏิทินของตัวเองแล้ว คำอธิบายสีของปฏิทินนี้จึงเหลือเฉพาะความสำคัญของงาน
+    assert.doesNotMatch(source, /mytasks-calendar__legend-item--meeting/);
     // ระดับที่เลิกใช้แล้วต้องไม่มีสไตล์ค้างไว้ ไม่งั้นมันจะกลับมาโผล่เมื่อมีข้อมูลเก่าหลุดเข้ามา
     assert.doesNotMatch(source, /priority-routine/, 'สไตล์ของระดับ routine ต้องถูกลบออกจริง ไม่ใช่แค่ไม่ถูกเรียก');
     assert.match(mobile, /\.mytasks-calendar__legend\s*\{[^}]*width:\s*100%/s);
@@ -393,11 +394,10 @@ test('summary cards stack full width and use the same ten-column table', async (
      */
     assert.match(script, /today: \['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'\]/);
     assert.match(script, /due: \['index', 'title', 'project', 'subtasks', 'owner', 'collaborators', 'priority', 'time', 'dueTime', 'closure'\]/);
-    assert.match(script, /today: \['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'\]/);
-    assert.match(script, /due: \['index', 'title', 'project', 'subtasks', 'organizer', 'attendees', 'blank', 'time', 'dueTime', 'closure'\]/);
+    // ไม่มีลำดับช่องของการประชุมในปฏิทินนี้อีกแล้ว
+    assert.doesNotMatch(script, /MEETING_LAYOUTS/);
     const agendaStart = blade.indexOf('<div class="mytasks-calendar-agenda"');
-    const agendaEnd = blade.indexOf('@if($calendarShowsMeetings)', agendaStart);
-    const agendaMarkup = blade.slice(agendaStart, agendaEnd);
+    const agendaMarkup = blade.slice(agendaStart, blade.indexOf('</section>', blade.indexOf('mytasks-calendar-month-agenda-title', agendaStart)));
     assert.equal((agendaMarkup.match(/<span role="columnheader">/g) || []).length, 20);
     assert.equal((agendaMarkup.match(/<span role="columnheader">เวลา<\/span>/g) || []).length, 2);
     assert.equal((agendaMarkup.match(/<span role="columnheader">เวลากำหนดส่ง<\/span>/g) || []).length, 2);
@@ -423,13 +423,12 @@ test('every calendar table declares its own column track and matches the blade h
         `\\.calendar-table--${variant}\\s*(?:,[^{]*)?\\{\\s*--calendar-columns:([^;]*);`,
     );
 
-    for (const variant of ['today', 'due', 'day-task', 'day-meeting']) {
+    for (const variant of ['today', 'due', 'day-task']) {
         assert.match(source, declaration(variant), variant);
         assert.match(blade, new RegExp(`calendar-table--${variant}`), variant);
     }
 
     // จำนวนคอลัมน์ใน CSS ต้องเท่ากับจำนวนช่องที่ calendar.js วางจริงในแต่ละแบบ
-    // TASK_LAYOUTS กับ MEETING_LAYOUTS ต่างก็มีคีย์ชื่อ `day` จึงต้องอ่านทีละก้อน
     const block = (name) => {
         const from = script.indexOf(`const ${name} = {`);
         return script.slice(from, script.indexOf('};', from));
@@ -441,10 +440,7 @@ test('every calendar table declares its own column track and matches the blade h
 
     assert.equal(trackLength('today'), layoutLength('TASK_LAYOUTS', 'today'));
     assert.equal(trackLength('due'), layoutLength('TASK_LAYOUTS', 'due'));
-    assert.equal(trackLength('today'), layoutLength('MEETING_LAYOUTS', 'today'));
-    assert.equal(trackLength('due'), layoutLength('MEETING_LAYOUTS', 'due'));
     assert.equal(trackLength('day-task'), layoutLength('TASK_LAYOUTS', 'day'));
-    assert.equal(trackLength('day-meeting'), layoutLength('MEETING_LAYOUTS', 'day'));
     assert.match(script, /item\.dataset\.label = CELL_LABELS\[column\]/);
     assert.match(source, /\.calendar-table__cell::before\s*\{[^}]*content:\s*attr\(data-label\)/s);
 });
@@ -466,10 +462,10 @@ test('calendar view removes the outer database card and keeps only the content c
     assert.match(agenda, /\.mytasks-calendar-agenda__section\s*\{[^}]*border:\s*1px solid #dde4ee[^}]*box-shadow:/s);
 });
 
-test('every priority level tints the whole day cell, meetings included', async () => {
+test('every priority level tints the whole day cell', async () => {
     const base = await css('resources/css/components/task-workspace/calendar/base.css');
 
-    for (const tone of ['urgent', 'quick', 'important', 'flexible', 'meeting']) {
+    for (const tone of ['urgent', 'quick', 'important', 'flexible']) {
         assert.match(
             base,
             new RegExp(`\\.mytasks-calendar__day\\.is-tone-${tone}\\s*\\{[^}]*--calendar-tone:[^}]*background:`, 's'),
@@ -501,9 +497,9 @@ test('the calendar day modal owns its own layer and reuses the shared table', as
     assert.doesNotMatch(blade, /data-calendar-popover/);
     assert.match(blade, /data-calendar-day-modal/);
 
-    // งานกับการประชุมแยก section กันเสมอ
+    // modal รายวันของปฏิทินนี้มีเฉพาะงาน การประชุมและนัดหมายอยู่ในปฏิทินของตัวเอง
     assert.match(blade, /data-calendar-day-tasks/);
-    assert.match(blade, /data-calendar-day-meetings/);
+    assert.doesNotMatch(blade, /data-calendar-day-meetings/);
 });
 
 test('admin member profile owns a desktop/tablet/mobile composition instead of scrolling sideways', async () => {

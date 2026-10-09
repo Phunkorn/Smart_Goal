@@ -1,0 +1,103 @@
+/*
+ * Responsive ของหน้าตรวจเช็กคอมพิวเตอร์
+ *
+ * มือถือเป็นกรณีใช้งานหลัก เพราะผู้ตรวจถือโทรศัพท์เดินตรวจเครื่องจริง
+ * สิ่งที่ต้องไม่เปลี่ยนบนมือถือ: ผังห้องยังเป็นผังเดิม ตำแหน่งโต๊ะไม่ถูกจัดใหม่
+ * และไม่กลายเป็นลิสต์ — ย่อ/ขยาย/เลื่อนได้แทน
+ *
+ * จุดตัดตาม docs/UI_DESIGN_SYSTEM.md: 1180 / 820 / 560
+ */
+
+/* ---------- เดสก์ท็อป: ผังตรงกลาง แผงตรวจอยู่ขวา ---------- */
+
+@media (min-width: 1024px) {
+    .cc-view[data-cc-view="plan"] { display:grid; grid-template-columns:minmax(0, 1fr) 360px; align-items:start; gap:16px; }
+    /* แผงถูกซ่อนด้วย [hidden] ตอนยังไม่เลือกเครื่อง จึงต้องกันไม่ให้คอลัมน์ยุบ */
+    .cc-view[data-cc-view="plan"] .cc-panel[hidden] { display:block; visibility:hidden; }
+    .cc-panel__surface { position:sticky; top:16px; max-height:calc(100vh - 32px); overflow:auto; }
+}
+
+@media (max-width: 1179px) {
+    .cc-start { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .cc-start__action,
+    .cc-start__hint { grid-column:span 2; }
+}
+
+/* ---------- แท็บเล็ต/มือถือ ---------- */
+
+@media (max-width: 1023px) {
+    .computer-check { padding:14px 14px 32px; }
+
+    .cc-summary__grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+
+    /* รายการเครื่องเป็นการ์ดสองบรรทัด แทนการบีบห้าคอลัมน์จนอ่านไม่ออก */
+    .cc-list__row { grid-template-columns:auto 1fr auto; }
+    .cc-list__devices { grid-column:1 / -1; }
+
+    /*
+     * แผงตรวจกลายเป็น bottom sheet — มาร์กอัปชุดเดิม เปลี่ยนแค่การวาง
+     *
+     * ไม่ใช่กล่องเต็มจอ: สูงไม่เกิน 82vh เพื่อให้ยังเห็นผังห้องด้านหลัง
+     * ปุ่มหลักอยู่ขอบล่างให้กดด้วยนิ้วโป้งได้ และเผื่อ safe-area ของจอมีติ่ง
+     */
+    .cc-panel { position:fixed; inset:0; z-index:1100; display:block; }
+    .cc-panel[hidden] { display:none; }
+
+    .cc-panel__scrim { position:absolute; inset:0; display:block; background:rgba(22, 35, 61, .38); }
+
+    .cc-panel__surface { position:absolute; right:0; bottom:0; left:0; max-height:82vh; overflow:auto; border:0; border-radius:16px 16px 0 0; box-shadow:0 -6px 24px rgba(22, 35, 61, .18); padding-bottom:env(safe-area-inset-bottom, 0); }
+
+    .cc-panel__grip { display:block; width:42px; height:4px; margin:8px auto 2px; border-radius:999px; background:#d4dbe8; }
+
+    .cc-panel__head { position:sticky; top:0; z-index:1; background:var(--surface); }
+
+    /* ปุ่มบันทึก/ยกเลิกติดขอบล่างเสมอ ไม่ต้องเลื่อนลงไปหา */
+    .cc-panel__foot { position:sticky; bottom:0; padding:12px 0 4px; background:var(--surface); }
+
+    .cc-plan__stage { min-height:62vh; }
+}
+
+@media (max-width: 819px) {
+    .cc-head__identity { gap:10px; }
+    .cc-head__title { font-size:1.2rem; }
+    .cc-tabs { overflow-x:auto; flex-wrap:nowrap; padding-bottom:4px; }
+    .cc-tabs__tab { flex:0 0 auto; }
+
+    .cc-summary__foot .btn { width:100%; }
+    .cc-summary__hint,
+    .cc-summary__done { flex:1 1 100%; }
+
+    /* ตารางประวัติกลายเป็นการ์ด — หัวคอลัมน์มาจาก data-label ของแต่ละช่อง */
+    .cc-history__table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+    .cc-history__table tbody tr { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:2px 10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+    .cc-history__table td { display:grid; grid-template-columns:auto 1fr; gap:8px; padding:3px 0; border:0; white-space:normal; }
+    .cc-history__table td::before { content:attr(data-label); color:var(--text-muted); font-size:.74rem; }
+    .cc-history__table .is-number { text-align:left; }
+    .cc-history__table td[data-label="แบบตรวจ"] { grid-column:1 / -1; margin-top:6px; }
+    .cc-history__table td[data-label="แบบตรวจ"]::before { display:none; }
+
+    .cc-report-modal { padding:0; }
+    .cc-report-modal__panel { width:100%; max-height:100vh; height:100%; border-radius:0; }
+    .cc-report-modal__foot .btn { flex:1; }
+}
+
+@media (max-width: 560px) {
+    .cc-start { grid-template-columns:minmax(0, 1fr); }
+    .cc-start__action,
+    .cc-start__hint { grid-column:span 1; }
+    .cc-summary__grid { grid-template-columns:minmax(0, 1fr); }
+    .cc-progress { gap:8px 12px; }
+    .cc-plan { padding:10px; }
+    .cc-plan__toolbar { gap:8px; }
+    .cc-plan__multi { flex:1; }
+
+    /* สามสถานะเรียงแนวตั้งบนจอแคบมาก เพื่อให้ปุ่มกว้างพอสำหรับนิ้วโป้ง */
+    .cc-tristate { grid-template-columns:minmax(0, 1fr); }
+    .cc-tristate__option span { justify-content:flex-start; padding:0 12px; }
+}
+
+/* ผู้ใช้ที่ตั้งค่าลดการเคลื่อนไหว ต้องไม่เจอ transition ของผังและแผง */
+@media (prefers-reduced-motion: reduce) {
+    .cc-station__desk,
+    .cc-plan__canvas { transition:none; }
+}

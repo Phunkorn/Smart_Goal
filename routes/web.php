@@ -2,11 +2,16 @@
 
 use App\Http\Controllers\AdminApprovalController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\AppointmentAttendeeResponseController;
+use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ComputerCheckController;
 use App\Http\Controllers\DailyBriefController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\MeetingAttendeeResponseController;
+use App\Http\Controllers\MeetingCalendarController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\NotificationController;
@@ -109,6 +114,57 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/meetings/{meeting}/edit-form', [MeetingController::class, 'editForm'])
         ->name('meetings.edit-form');
 
+    /*
+     * การตอบรับเข้าร่วมประชุม — สองเส้นทางแรกไม่รับรหัสผู้ตอบโดยเจตนา ผู้ใช้ตอบได้เฉพาะ
+     * ของตัวเองจาก session ที่ล็อกอินอยู่ จึงไม่มีทางยิงเปลี่ยนสถานะของคนอื่น
+     * สิทธิ์ถูกบังคับที่ MeetingPolicy::respondToInvitation / reinviteAttendee
+     */
+    Route::post('/meetings/{meeting}/attendance/accept', [MeetingAttendeeResponseController::class, 'acceptInvitation'])
+        ->name('meetings.attendance.accept');
+
+    Route::post('/meetings/{meeting}/attendance/decline', [MeetingAttendeeResponseController::class, 'declineInvitation'])
+        ->name('meetings.attendance.decline');
+
+    Route::post('/meetings/{meeting}/attendance/{attendee}/reinvite', [MeetingAttendeeResponseController::class, 'reinviteAttendee'])
+        ->name('meetings.attendance.reinvite');
+
+    /*
+     * ปฏิทินประชุมและนัดหมาย — หน้าแรกถูกเรนเดอร์พร้อม Workspace (มุมมอง view=meeting)
+     * สองเส้นทางนี้รับเฉพาะการเปลี่ยนเดือน/ตัวกรองแบบไม่โหลดหน้าใหม่ และเอกสารสำหรับพิมพ์
+     */
+    Route::get('/meeting-calendar/events', [MeetingCalendarController::class, 'calendarEvents'])
+        ->name('meeting-calendar.events');
+
+    Route::get('/meeting-calendar/export', [MeetingCalendarController::class, 'exportCalendarPdf'])
+        ->name('meeting-calendar.export');
+
+    // นัดหมาย — คนละ domain กับการประชุม ไม่มีผู้เข้าร่วมและไม่มีการตอบรับ
+    Route::post('/appointments', [AppointmentController::class, 'store'])
+        ->name('appointments.store');
+
+    Route::get('/appointments/{appointment}', [AppointmentController::class, 'show'])
+        ->name('appointments.show');
+
+    Route::patch('/appointments/{appointment}', [AppointmentController::class, 'update'])
+        ->name('appointments.update');
+
+    Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy'])
+        ->name('appointments.destroy');
+
+    /*
+     * การตอบรับเข้าร่วมนัดหมาย — รูปแบบเดียวกับของประชุม สองเส้นทางแรกไม่รับรหัสผู้ตอบ
+     * โดยเจตนา ผู้ใช้ตอบได้เฉพาะของตัวเองจาก session ที่ล็อกอินอยู่
+     * สิทธิ์ถูกบังคับที่ AppointmentPolicy::respondToInvitation / reinviteAttendee
+     */
+    Route::post('/appointments/{appointment}/attendance/accept', [AppointmentAttendeeResponseController::class, 'acceptInvitation'])
+        ->name('appointments.attendance.accept');
+
+    Route::post('/appointments/{appointment}/attendance/decline', [AppointmentAttendeeResponseController::class, 'declineInvitation'])
+        ->name('appointments.attendance.decline');
+
+    Route::post('/appointments/{appointment}/attendance/{attendee}/reinvite', [AppointmentAttendeeResponseController::class, 'reinviteAttendee'])
+        ->name('appointments.attendance.reinvite');
+
     // หน้าหลักและบอร์ดภาพรวม
     Route::redirect('/dashboard', '/board')
         ->name('dashboard');
@@ -148,6 +204,19 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         Route::get('/', [DepartmentController::class, 'index'])->name('index');
         Route::post('/', [DepartmentController::class, 'store'])->name('store');
         Route::patch('/{department}', [DepartmentController::class, 'update'])->name('update');
+
+        /*
+         * สิทธิ์ใช้งาน "ตรวจเช็กคอมพิวเตอร์ประจำวัน" รายแผนก
+         *
+         * ประกาศไว้หลัง PATCH /{department} ได้เพราะเส้นทางนี้ลึกกว่าหนึ่งชั้น
+         * จึงไม่ถูกอ่านเป็นค่าของ {department}
+         *
+         * middleware('admin') ของกลุ่มเป็นชั้นแรก และ DepartmentController
+         * ตรวจ role ซ้ำอีกชั้นเหมือนทุก action ของกลุ่มนี้
+         */
+        Route::patch('/{department}/computer-check-access', [DepartmentController::class, 'updateComputerCheckAccess'])
+            ->name('computer-check-access');
+
         Route::delete('/{department}', [DepartmentController::class, 'destroy'])->name('destroy');
     });
 
@@ -168,10 +237,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/admin/tasks/{id}/approval', [TaskStatusController::class, 'updateApproval'])
         ->middleware('role:admin,user')
         ->name('admin.tasks.approval');
-
-    Route::patch('/admin/tasks/{id}/collaborators/{user}/approval', [TaskCollaboratorController::class, 'decideCollaborator'])
-        ->middleware('role:admin,user')
-        ->name('admin.tasks.collaborators.approval');
 
     Route::delete('/admin/tasks/{id}', [TaskController::class, 'destroy'])
         ->middleware('admin')
@@ -243,9 +308,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::delete('/admin/trash/{trash}', [TrashController::class, 'purge'])
         ->middleware('admin')
         ->name('admin.trash.purge');
-
-    Route::patch('/tasks/{id}/invitation', [TaskCollaboratorController::class, 'respondInvitation'])
-        ->name('tasks.invitation.respond');
 
     // การตั้งค่าส่วนตัว
     Route::get('/settings', [SettingsController::class, 'index'])
@@ -389,6 +451,16 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/my-tasks/{job_id}/status', [MyTaskController::class, 'updateStatus'])
         ->name('mytasks.updateStatus');
 
+    /*
+     * การ์ด kanban ของงานใบเดียว
+     *
+     * มุมมอง kanban ถูกสไลซ์ฝั่ง server (งานที่ปิดไปก่อนวันนี้ไม่มีการ์ดในหน้า) งานที่ถูก
+     * เปิดอีกครั้งจึงไม่มีการ์ดให้ย้ายคอลัมน์ ฝั่งหน้าจอดึง fragment นี้มาแทรกแทนการ
+     * โหลดหน้าใหม่ ซึ่งจะทำให้ผู้ใช้เสีย scroll ตัวกรอง และโมดัลที่เปิดค้างไว้
+     */
+    Route::get('/my-tasks/{workOrder}/kanban-card', [MyTaskController::class, 'kanbanCard'])
+        ->name('mytasks.kanban-card');
+
     Route::post('/my-tasks/{job_id}/priority', [MyTaskController::class, 'updatePriority'])
         ->name('mytasks.updatePriority');
 
@@ -468,10 +540,6 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::match(['post', 'patch'], '/my-tasks/{job_id}/due-date', [MyTaskController::class, 'updateDueDate'])
         ->name('mytasks.updateDueDate');
 
-    // ปฏิทินขอประชุมทีละช่วงเดือน สิทธิ์ถูกบังคับที่ SQL ผ่าน MeetingQueryService::visibleQuery()
-    Route::get('/my-tasks/calendar/meetings', [MyTaskController::class, 'calendarMeetings'])
-        ->name('mytasks.calendar.meetings');
-
     Route::get('/my-tasks', [MyTaskController::class, 'index'])
         ->name('mytasks.index');
 
@@ -481,6 +549,29 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::prefix('daily-logs')->name('daily-logs.')->middleware('role:admin,user')->group(function (): void {
         Route::get('/', [WorkLogController::class, 'index'])->name('index');
         Route::get('/routine-status', [WorkLogController::class, 'routineStatus'])->name('routine-status');
+
+        /*
+         * ตรวจเช็กคอมพิวเตอร์ประจำวัน — ผังห้อง Call Center แบบกดได้
+         *
+         * ประกาศไว้ก่อน route ที่รับ {workLog} เพื่อให้ "computer-check" ถูกอ่าน
+         * เป็นเส้นทางคงที่เสมอ ไม่ใช่ค่าของพารามิเตอร์
+         *
+         * สิทธิ์ถูกบังคับที่ ComputerCheckSessionPolicy ทีละใบ ส่วน role:admin,user
+         * ของกลุ่มด้านนอกเป็นการกัน viewer ชั้นที่สอง ไม่ใช่แหล่งความจริงของสิทธิ์
+         */
+        Route::prefix('computer-check')->name('computer-check.')->group(function (): void {
+            Route::get('/', [ComputerCheckController::class, 'index'])->name('index');
+            Route::post('/', [ComputerCheckController::class, 'store'])->name('store');
+            Route::patch('/{session}/workstations/{workstation}', [ComputerCheckController::class, 'saveResult'])
+                ->name('results.update');
+            Route::post('/{session}/mark-normal', [ComputerCheckController::class, 'markNormal'])
+                ->name('mark-normal');
+            Route::post('/{session}/complete', [ComputerCheckController::class, 'complete'])
+                ->name('complete');
+            // แบบตรวจ A4 — อ่านอย่างเดียว เปิดได้ทั้งแบบเต็มหน้าและฝังใน iframe
+            Route::get('/{session}/report', [ComputerCheckController::class, 'report'])->name('report');
+        });
+
         Route::post('/', [WorkLogController::class, 'store'])->name('store');
         Route::patch('/{workLog}', [WorkLogController::class, 'update'])->name('update');
         Route::delete('/{workLog}', [WorkLogController::class, 'destroy'])->name('destroy');

@@ -109,8 +109,8 @@ async function boot(t, {withCalendar = true, viewHistory = true, statusFilterHid
                         <dd data-calendar-detail-priority></dd>
                         <dd data-calendar-detail-start></dd>
                         <dd data-calendar-detail-due></dd>
-                        <dd data-calendar-detail-assignee></dd>
-                        <dd data-calendar-detail-collaborators></dd>
+                        <dd data-calendar-detail-leader></dd>
+                        <dd data-calendar-detail-participants></dd>
                         <div data-calendar-detail-attachments></div>
                         <button type="button" data-calendar-detail-close></button>
                     </div>

@@ -1,13 +1,11 @@
 @php
     /**
-     * ปฏิทินรวมงานและการประชุม โดย Member Workspace ใช้สมาชิกที่กำลังตรวจเป็น subject
-     * เพื่อไม่ให้ประชุมส่วนตัวของ Admin/หัวหน้าแผนกปนกับข้อมูลของสมาชิกคนนั้น
+     * ปฏิทินของโปรเจกต์และงาน — แสดงเฉพาะงาน กำหนดส่ง และกำหนดการที่เกี่ยวกับโปรเจกต์
+     *
+     * การประชุมและนัดหมายไม่อยู่ในปฏิทินนี้ ทั้งสองอย่างมีปฏิทินของตัวเองที่มุมมอง
+     * "ปฏิทินประชุมและนัดหมาย" (data-view="meeting") และถูกตัดออกจากแหล่งข้อมูลของ
+     * ปฏิทินนี้จริง ไม่ใช่แค่ซ่อนด้วย CSS — ดู MeetingAppointmentCalendarQuery
      */
-    $calendarShowsMeetings = isset($calendarMeetings);
-    $calendarMeetings = $calendarMeetings ?? collect();
-    $calendarMeetingRange = $calendarMeetingRange ?? null;
-    $calendarMeetingSubject = $calendarMeetingSubject ?? null;
-
     // ลำดับและป้ายกำกับของโทนสี ต้องตรงกับ CALENDAR_PRIORITY_ORDER ใน calendar-model.js
     $calendarPriorityLegend = [
         'urgent' => 'สำคัญด่วน',
@@ -17,18 +15,7 @@
     ];
 @endphp
 
-<section class="mytasks-calendar" id="mytasks-calendar" data-calendar data-view-panel="calendar" role="tabpanel" aria-hidden="true" aria-labelledby="mytasks-calendar-title"
-    @if($calendarShowsMeetings)
-        data-meetings-endpoint="{{ route('mytasks.calendar.meetings') }}"
-        @if($calendarMeetingSubject)
-            data-meetings-subject-user-id="{{ $calendarMeetingSubject->id }}"
-        @endif
-        @if($calendarMeetingRange)
-            data-meetings-loaded-start="{{ $calendarMeetingRange['start'] }}"
-            data-meetings-loaded-end="{{ $calendarMeetingRange['end'] }}"
-        @endif
-    @endif
->
+<section class="mytasks-calendar" id="mytasks-calendar" data-calendar data-view-panel="calendar" role="tabpanel" aria-hidden="true" aria-labelledby="mytasks-calendar-title">
     {{--
         ปฏิทินเป็นการ์ดของตัวเองหนึ่งใบ แยกขาดจากการ์ดสรุปด้านล่าง
         ตัว <section> ชั้นนอกทำหน้าที่เป็น "พื้น" สีเทาอ่อนให้การ์ดทุกใบลอยขึ้นมา
@@ -40,9 +27,6 @@
                 @foreach($calendarPriorityLegend as $tone => $label)
                     <span class="mytasks-calendar__legend-item priority-{{ $tone }}"><i aria-hidden="true"></i>{{ $label }}</span>
                 @endforeach
-                @if($calendarShowsMeetings)
-                    <span class="mytasks-calendar__legend-item mytasks-calendar__legend-item--meeting"><i aria-hidden="true"></i>การประชุม</span>
-                @endif
             </p>
 
             {{--
@@ -99,9 +83,6 @@
             <div class="mytasks-calendar__heading-text">
                 <div class="mytasks-calendar__heading-line">
                     <h2 id="mytasks-calendar-title" data-calendar-title aria-live="polite"></h2>
-                    @if($calendarShowsMeetings)
-                        <span class="mytasks-calendar__loading" data-calendar-loading role="status" aria-live="polite" hidden><i class="bi bi-arrow-repeat" aria-hidden="true"></i> กำลังโหลดการประชุม</span>
-                    @endif
                     <span class="mytasks-calendar__filtered" data-calendar-filtered role="status" aria-live="polite" hidden></span>
                 </div>
                 <p class="mytasks-calendar__display-note" data-calendar-display-note aria-live="polite">
@@ -141,7 +122,7 @@
                     <span role="columnheader">โปรเจกต์ / สถานที่</span>
                     <span role="columnheader">งานย่อย</span>
                     <span role="columnheader">ผู้รับผิดชอบ</span>
-                    <span role="columnheader">ผู้ร่วมงาน</span>
+                    <span role="columnheader">ผู้เข้าร่วม</span>
                     <span role="columnheader">ความสำคัญ</span>
                     <span role="columnheader">เวลา</span>
                     <span role="columnheader">เวลากำหนดส่ง</span>
@@ -182,7 +163,7 @@
                     <span role="columnheader">โปรเจกต์ / สถานที่</span>
                     <span role="columnheader">งานย่อย</span>
                     <span role="columnheader">ผู้รับผิดชอบ</span>
-                    <span role="columnheader">ผู้ร่วมงาน</span>
+                    <span role="columnheader">ผู้เข้าร่วม</span>
                     <span role="columnheader">ความสำคัญ</span>
                     <span role="columnheader">เวลา</span>
                     <span role="columnheader">เวลากำหนดส่ง</span>
@@ -212,17 +193,12 @@
 
     </div>
 
-    @if($calendarShowsMeetings)
-        {{-- ประชุมของช่วงเดือนตั้งต้น ฝังมาเพื่อให้รอบแรกวาดได้ทันทีโดยไม่ต้องรอ fetch --}}
-        {{-- คง JSON_HEX_* ตามค่าเริ่มต้นของ @json ไว้ เพื่อไม่ให้ชื่อประชุมหลุดออกจาก <script> ได้ --}}
-        <script type="application/json" data-calendar-meetings>@json($calendarMeetings, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)</script>
-    @endif
 </section>
 
 {{--
     รายการของวันที่ถูกคลิกบนปฏิทิน — เป็น modal เต็มรูปแบบ (backdrop, ล็อก body, จัดการ focus)
     จึงต้องเดินผ่าน modalStack เหมือนกล่องอื่นในหน้านี้ ห้ามสลับ hidden เอง
-    งานกับการประชุมแยกเป็นคนละ section เพราะคอลัมน์ของสองอย่างนี้ไม่เหมือนกัน
+    แสดงเฉพาะงานของวันนั้น การประชุมและนัดหมายไม่อยู่ในปฏิทินนี้แล้ว
     แถวถูกวาดโดย calendar.js ด้วยตัวสร้างแถวชุดเดียวกับการ์ดใต้ปฏิทิน
 --}}
 {{--
@@ -251,27 +227,13 @@
                         <span role="columnheader">งาน</span>
                         <span role="columnheader">โปรเจกต์</span>
                         <span role="columnheader">เจ้าของ</span>
-                        <span role="columnheader">ผู้ร่วมงาน</span>
+                        <span role="columnheader">ผู้เข้าร่วม</span>
                         <span role="columnheader">ความสำคัญ</span>
                         <span role="columnheader">สถานะ</span>
                         <span role="columnheader">วันที่เริ่ม</span>
                         <span role="columnheader">กำหนดส่ง</span>
                     </div>
                     <div class="calendar-table__body" role="rowgroup" data-calendar-day-task-list></div>
-                </div>
-            </section>
-
-            <section class="mytasks-calendar-day__group" data-calendar-day-meetings hidden>
-                <h3><i class="bi bi-calendar-event" aria-hidden="true"></i> การประชุม <b data-calendar-day-meeting-count></b></h3>
-                <div class="calendar-table calendar-table--day-meeting" role="table">
-                    <div class="calendar-table__head" role="row">
-                        <span role="columnheader">การประชุม</span>
-                        <span role="columnheader">เวลา</span>
-                        <span role="columnheader">ผู้จัด</span>
-                        <span role="columnheader">ผู้เข้าร่วม</span>
-                        <span role="columnheader">สถานที่</span>
-                    </div>
-                    <div class="calendar-table__body" role="rowgroup" data-calendar-day-meeting-list></div>
                 </div>
             </section>
         </div>
@@ -306,7 +268,7 @@
                     <span role="columnheader">โปรเจกต์ / สถานที่</span>
                     <span role="columnheader">งานย่อย</span>
                     <span role="columnheader">ผู้รับผิดชอบ</span>
-                    <span role="columnheader">ผู้ร่วมงาน</span>
+                    <span role="columnheader">ผู้เข้าร่วม</span>
                     <span role="columnheader">ความสำคัญ</span>
                     <span role="columnheader">เวลา</span>
                     <span role="columnheader">เวลากำหนดส่ง</span>
@@ -331,7 +293,7 @@
         <section class="mytasks-calendar-detail__card" role="dialog" aria-modal="true" aria-labelledby="calendar-detail-title">
             <header><div><span>CALENDAR TASK</span><h2 id="calendar-detail-title" data-calendar-detail-title></h2><small data-calendar-detail-project></small></div><button type="button" data-calendar-detail-close aria-label="ปิดข้อมูลงาน"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header>
             <div class="mytasks-calendar-detail__body">
-                <dl class="mytasks-calendar-detail__meta"><div><dt>สถานะ</dt><dd data-calendar-detail-status></dd></div><div><dt>ความสำคัญ</dt><dd data-calendar-detail-priority></dd></div><div><dt>วันที่เริ่ม</dt><dd data-calendar-detail-start></dd></div><div><dt>กำหนดส่ง</dt><dd data-calendar-detail-due></dd></div><div><dt>ผู้รับผิดชอบ</dt><dd data-calendar-detail-assignee></dd></div><div><dt>ผู้ร่วมงาน</dt><dd data-calendar-detail-collaborators></dd></div></dl>
+                <dl class="mytasks-calendar-detail__meta"><div><dt>สถานะ</dt><dd data-calendar-detail-status></dd></div><div><dt>ความสำคัญ</dt><dd data-calendar-detail-priority></dd></div><div><dt>วันที่เริ่ม</dt><dd data-calendar-detail-start></dd></div><div><dt>กำหนดส่ง</dt><dd data-calendar-detail-due></dd></div><div><dt>หัวหน้าโปรเจกต์</dt><dd data-calendar-detail-leader></dd></div><div><dt>ผู้เข้าร่วม</dt><dd data-calendar-detail-participants></dd></div></dl>
 
                 <section><h3>ไฟล์แนบ</h3><div data-calendar-detail-attachments></div></section>
             </div>

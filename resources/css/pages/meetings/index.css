@@ -101,6 +101,9 @@
 .meetings-page__detail-meta div { min-width: 0; }
 .meetings-page__detail-meta dt { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; color: var(--text-muted); font-size: .75rem; }
 .meetings-page__detail-meta dd { margin: 0; font-weight: 400; }
+/* ลิงก์แผนที่ของสถานที่ — ใช้ได้ทั้งหน้าประชุมและหน้านัดหมาย */
+.meetings-page__map-link { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; color: var(--accent); font-size: .78rem; font-weight: 700; }
+.meetings-page__map-link:hover { color: var(--accent-strong); text-decoration: underline; }
 .meetings-page__panel-head { justify-content: space-between; gap: 10px; margin-bottom: 16px; }
 .meetings-page__panel-head p { margin: 3px 0 0; color: var(--text-muted); font-size: .75rem; }
 .meetings-page__panel-head > span { padding: 4px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); font-size: .72rem; font-weight: 800; }

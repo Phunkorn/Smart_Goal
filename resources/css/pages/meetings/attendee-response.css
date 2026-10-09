@@ -1,0 +1,235 @@
+/*
+ * การตอบรับเข้าร่วมประชุม — ป้ายสถานะ, modal สถานะผู้เข้าร่วม และข้อความเหตุผลที่กรอกไม่ผ่าน
+ *
+ * ใช้โทเคนสีชุดเดิมของระบบ (foundations/tokens.css) และรูปแบบป้ายเดียวกับ
+ * .meetings-page__status ที่หัวหน้าหน้ารายละเอียดใช้อยู่ ไม่สร้างชุดสีใหม่และใช้สีพื้นทึบเท่านั้น
+ * ปุ่มตอบรับ/ไม่ว่าง/สถานะผู้เข้าร่วม ใช้ .meetings-page__button เดิมทั้งหมด ไม่มีคลาสปุ่มใหม่
+ */
+.meeting-rsvp__badge {
+    display: inline-flex;
+    width: max-content;
+    align-items: center;
+    gap: 5px;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: .72rem;
+    font-weight: 800;
+}
+
+.meeting-rsvp__badge--pending { color: #8a5a06; background: var(--amber-dim); }
+.meeting-rsvp__badge--accepted { color: #087a4a; background: var(--green-dim); }
+.meeting-rsvp__badge--declined { color: var(--red); background: var(--red-dim); }
+
+.meeting-rsvp__error {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 8px 0 0;
+    color: var(--red);
+    font-size: .76rem;
+}
+
+.meeting-rsvp-decline__intro { margin: 0 0 14px; color: var(--text-muted); font-size: .8rem; line-height: 1.6; }
+
+/* กล่องยืนยันที่เด้งจากการแจ้งเตือน — บอกว่ากำลังตอบนัดไหนก่อนจะให้กดปุ่ม */
+.meeting-rsvp-confirm__intro { margin: 0 0 14px; color: var(--text-muted); font-size: .82rem; line-height: 1.6; }
+.meeting-rsvp-confirm__subject { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius-sm); background: var(--accent-dim); }
+.meeting-rsvp-confirm__subject strong { color: var(--text); font-size: .96rem; font-weight: 800; }
+.meeting-rsvp-confirm__subject span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: .8rem; }
+.meeting-rsvp-confirm__actions { gap: 10px; }
+.meeting-rsvp-confirm__actions form { margin: 0; }
+.meeting-rsvp-confirm__actions .meetings-page__button { min-height: 46px; }
+.meeting-form-modal .form-control.is-invalid { border-color: var(--red); }
+.meeting-form-modal .form-control.is-invalid:focus { box-shadow: 0 0 0 3px var(--red-dim); }
+
+/*
+ * การ์ดคำเชิญเข้าร่วมประชุม — อยู่ใต้หัวเรื่องและเหนือรายละเอียด ต้องเด่นกว่าแผงข้อมูลทั่วไป
+ * เล็กน้อยแต่ยังเป็นการ์ดหน้าตาเดียวกับ .meetings-page__panel (เส้นขอบ + รัศมีเดียวกัน)
+ *
+ * ความเด่นมาจากแถบสีด้านซ้ายกับพื้นหลังอ่อนของโทเคนเดิมเท่านั้น ไม่ใช้สีทึบเต็มการ์ด
+ */
+.meeting-rsvp-card {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding: 18px 22px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.meeting-rsvp-card--pending { border-left-color: var(--accent); background: var(--accent-dim); }
+
+/*
+ * ยังไม่ตอบ = สิ่งเดียวที่ผู้ใช้ต้องลงมือทำบนหน้านี้ แบนเนอร์จึงได้น้ำหนักเต็ม
+ * แถบซ้ายหนาขึ้น เงาเข้มขึ้น และหัวเรื่องใหญ่ขึ้น เพื่อไม่ให้กลืนไปกับแผงรายละเอียด
+ * สถานะที่ตอบแล้วยังเป็นการ์ดเบา ๆ เหมือนเดิม
+ */
+.meeting-rsvp-card--awaiting {
+    border-left-width: 6px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow-md);
+}
+
+.meeting-rsvp-card--awaiting .meeting-rsvp-card__copy h2 { font-size: 1.18rem; }
+.meeting-rsvp-card--awaiting .meeting-rsvp-card__copy p { color: var(--text); font-size: .88rem; }
+.meeting-rsvp-card--awaiting .meeting-rsvp-card__icon { width: 48px; height: 48px; font-size: 1.3rem; }
+.meeting-rsvp-card--awaiting .meeting-rsvp-card__actions .meetings-page__button { min-height: 48px; padding: 0 22px; }
+
+/* บรรทัดวัน-เวลาในแบนเนอร์ ผู้ใช้ตัดสินใจได้โดยไม่ต้องเลื่อนลงไปอ่านรายละเอียด */
+.meeting-rsvp-card__schedule {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    width: max-content;
+    max-width: 100%;
+    padding: 5px 11px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: .8rem;
+    font-weight: 700;
+}
+.meeting-rsvp-card--accepted { border-left-color: var(--green); background: var(--green-dim); }
+.meeting-rsvp-card--declined { border-left-color: var(--red); background: var(--red-dim); }
+
+.meeting-rsvp-card__header { display: flex; align-items: flex-start; gap: 14px; }
+
+.meeting-rsvp-card__icon {
+    display: grid;
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 1.15rem;
+}
+
+.meeting-rsvp-card--pending .meeting-rsvp-card__icon { color: var(--accent); }
+.meeting-rsvp-card--accepted .meeting-rsvp-card__icon { color: #087a4a; }
+.meeting-rsvp-card--declined .meeting-rsvp-card__icon { color: var(--red); }
+
+.meeting-rsvp-card__copy { display: grid; min-width: 0; gap: 6px; }
+.meeting-rsvp-card__copy h2 { margin: 0; color: var(--text); font-size: 1rem; font-weight: 800; }
+.meeting-rsvp-card__copy p { margin: 0; color: var(--text-muted); font-size: .82rem; line-height: 1.6; }
+/* ไต่ specificity ให้ชนะ .meeting-rsvp-card__copy p ด้านบน แทนการบังคับด้วย priority flag */
+.meeting-rsvp-card__copy .meeting-rsvp-card__reason { color: var(--text); }
+.meeting-rsvp-card__copy .meeting-rsvp-card__status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
+.meeting-rsvp-card__answered-at { color: var(--text-muted); font-size: .76rem; }
+
+/* ปุ่มเรียงแนวนอนบนจอกว้าง และเต็มความกว้างทีละปุ่มเมื่อที่แคบลง */
+.meeting-rsvp-card__actions { display: flex; flex-wrap: wrap; gap: 10px; padding-left: 56px; }
+.meeting-rsvp-card__actions form { margin: 0; }
+
+/*
+ * แถบปุ่มติดขอบล่างของจอ — เฉพาะจอเล็ก บนเดสก์ท็อปไม่มีแถบนี้เลย
+ * ซ่อนด้วย display:none เป็นค่าเริ่มต้นแล้วค่อยเปิดใน media query เพื่อให้เดสก์ท็อป
+ * ไม่ต้องโหลดอะไรมาวางทับหน้าจอโดยไม่จำเป็น
+ */
+.meeting-rsvp-mobile-actions { display: none; }
+
+@media (max-width: 767.98px) {
+    .meeting-rsvp-card { padding: 16px; }
+    .meeting-rsvp-card__actions { padding-left: 0; }
+    .meeting-rsvp-card__actions form { flex: 1 1 100%; }
+    .meeting-rsvp-card__actions > .meetings-page__button,
+    .meeting-rsvp-card__actions form .meetings-page__button { width: 100%; }
+
+    .meeting-rsvp-mobile-actions {
+        position: fixed;
+        z-index: 1020;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: grid;
+        gap: 8px;
+        padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        box-shadow: 0 -4px 16px rgba(22, 35, 61, .10);
+    }
+
+    .meeting-rsvp-mobile-actions__prompt {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: .74rem;
+        text-align: center;
+    }
+
+    /* ลำดับบนจอเล็ก: "ไม่ว่าง" ซ้าย ปุ่มหลักขวา — สลับด้วย CSS ไม่ใช่ markup ชุดที่สอง */
+    .meeting-rsvp-mobile-actions__buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .meeting-rsvp-mobile-actions__buttons .meeting-rsvp-actions__accept { order: 2; margin: 0; }
+    .meeting-rsvp-mobile-actions__buttons > .meetings-page__button { order: 1; }
+
+    .meeting-rsvp-mobile-actions .meetings-page__button {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    /* เว้นที่ให้แถบปุ่ม ไม่ให้ทับเนื้อหาแถวสุดท้ายของหน้า */
+    .meetings-page--awaiting-invitation-response { padding-bottom: 104px; }
+}
+
+.meeting-rsvp__totals { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+
+.meeting-rsvp__list { display: grid; margin: 0; padding: 0; list-style: none; }
+
+.meeting-rsvp__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 2px;
+    border-bottom: 1px solid var(--border);
+}
+
+.meeting-rsvp__list > .meeting-rsvp__row:last-child { border-bottom: 0; }
+
+.meeting-rsvp__avatar {
+    display: grid;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--accent-strong);
+    font-size: .85rem;
+    font-style: normal;
+    font-weight: 800;
+}
+
+.meeting-rsvp__avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.meeting-rsvp__copy { display: grid; min-width: 0; flex: 1 1 auto; gap: 5px; justify-items: start; }
+.meeting-rsvp__copy strong { color: var(--text); font-size: .86rem; font-weight: 700; }
+.meeting-rsvp__copy small { color: var(--text-muted); font-size: .74rem; }
+.meeting-rsvp__reason { color: var(--text); }
+
+.meeting-rsvp__history { width: 100%; }
+.meeting-rsvp__history summary { color: var(--accent); cursor: pointer; font-size: .72rem; font-weight: 700; }
+.meeting-rsvp__history ol { display: grid; gap: 4px; margin: 8px 0 0; padding-left: 18px; }
+.meeting-rsvp__history li { color: var(--text-muted); font-size: .72rem; line-height: 1.6; }
+.meeting-rsvp__history span { color: var(--text); font-weight: 700; }
+.meeting-rsvp__history time { margin-left: 6px; }
+.meeting-rsvp__history em { display: block; font-style: normal; }
+
+.meeting-rsvp__reinvite { flex: 0 0 auto; margin: 0; }
+.meeting-rsvp__reinvite .meetings-page__button { min-height: 34px; padding: 0 12px; font-size: .74rem; }
+
+/*
+ * มือถือ: ปุ่ม "เชิญอีกครั้ง" ลงมาอยู่ใต้ชื่อเต็มความกว้างแทนการบีบชื่อกับสถานะให้แคบลง
+ * ค่าเบรกพอยต์ตรงกับ pages/meetings/responsive.css ที่หน้านี้ใช้อยู่แล้ว
+ */
+@media (max-width: 520px) {
+    .meeting-rsvp__row { flex-wrap: wrap; }
+    .meeting-rsvp__reinvite { flex-basis: 100%; padding-left: 52px; }
+    .meeting-rsvp__reinvite .meetings-page__button { width: 100%; }
+}

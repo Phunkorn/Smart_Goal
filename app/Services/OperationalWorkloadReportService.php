@@ -729,6 +729,14 @@ final class OperationalWorkloadReportService
             // ค่าว่างเป็น "—" ทั้งบนหน้าจอและใน CSV สองช่องทางจึงตรงกันทุกตัวอักษร
             'reason' => $this->reasonsOf($log, $status),
             'note' => trim((string) $log->details) ?: '—',
+            /*
+             * แบบตรวจของรายการที่มาจากรอบตรวจเช็กคอมพิวเตอร์
+             *
+             * ตั้งใจไม่อยู่ใน DAILY_HEADERS/dailyCells() เพราะไฟล์ CSV เป็นข้อมูล
+             * ตัวอักษรล้วน การยัด URL ลงไปจะทำให้คอลัมน์ของ CSV เปลี่ยนไปจากเดิม
+             * ค่านี้จึงมีไว้ให้หน้าจอใช้วาดปุ่มเท่านั้น
+             */
+            'inspection' => WorkLogPresenter::inspectionLink($log),
         ];
     }
 
@@ -807,7 +815,8 @@ final class OperationalWorkloadReportService
         $key = implode(':', [md5(implode(',', $userIds)), $departmentId ?? 0, $month->format('Y-m')]);
 
         return $this->logCache[$key] ??= $this->scopedLogQuery($userIds, $departmentId)
-            ->with(['category:id,name', 'participants:id,name', 'sharedFrom.user:id,name', 'sharedFrom.participants:id,name'])
+            // computerCheckSession โหลดมาด้วยเพื่อให้แถวรู้ว่ามีแบบตรวจให้เปิดย้อนหลังไหม
+            ->with(['category:id,name', 'participants:id,name', 'sharedFrom.user:id,name', 'sharedFrom.participants:id,name', 'computerCheckSession'])
             ->whereDate('work_date', '>=', $month->startOfMonth()->toDateString())
             ->whereDate('work_date', '<=', $month->endOfMonth()->toDateString())
             ->orderBy('work_date')
