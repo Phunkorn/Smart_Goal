@@ -2,6 +2,8 @@ import {statusMeta, taskPriorityMeta, unsupportedStatusMeta} from './priority-me
 import {modalStack} from '../../components/modal-stack.js';
 import {attachmentStore} from './attachment-store.js';
 import {readSubtasks} from '../../components/subtask-modal.js';
+// ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ตาราง และโมดัล ไม่มีสำเนาแยก
+import {dueClockLabel, isDueTimeUnset} from './due-time.js';
 import {
     buddhistYear,
     buildCalendarAgenda,
@@ -144,6 +146,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
                 due: row.dataset.due || '',
                 // ปฏิทินยังวางงานด้วยความละเอียดระดับวันเหมือนเดิม เวลากำหนดส่งเป็นข้อมูลแสดงผลล้วน
                 dueTime: row.dataset.dueTime || '',
+                dueTimeUnset: isDueTimeUnset(row.dataset.dueTimeUnset),
                 // อ่านด้วยตัวช่วยตัวเดียวกับกล่องงานย่อย ข้อมูลเสียหายจึงกลายเป็นรายการว่างแทนที่จะพังทั้งปฏิทิน
                 subtasks: readSubtasks(row),
             });
@@ -227,7 +230,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         detail.querySelector('[data-calendar-detail-priority]').textContent = (taskPriorityMeta[Number(row.dataset.priority)] || taskPriorityMeta[2]).label;
         detail.querySelector('[data-calendar-detail-start]').textContent = displayDate(row.dataset.start);
         // ผู้ใช้เปิดดูรายละเอียดจากปฏิทินเพื่อรู้ว่า "ต้องส่งเมื่อไหร่" เวลาจึงต้องอยู่คู่กับวัน
-        const detailDueTime = row.dataset.dueTime ? ` ${row.dataset.dueTime} น.` : '';
+        const detailDueTime = ` ${dueClockLabel(row.dataset.dueTime || '', row.dataset.dueTimeUnset, '')}`.trimEnd();
         detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due) + detailDueTime;
         // บทบาทในโปรเจกต์มาจาก App\Support\ProjectRoles ผ่าน [data-team-data] ชุดเดียวกับ Team Modal
         detail.querySelector('[data-calendar-detail-leader]').textContent = team.leader?.name || 'ไม่ระบุ';
@@ -390,7 +393,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         ),
         dueTime: (event) => cell(
             'is-due',
-            element('strong', '', event.dueTime ? `${event.dueTime} น.` : '—'),
+            element('strong', '', dueClockLabel(event.dueTime, event.dueTimeUnset, '—')),
         ),
     };
 

@@ -3,9 +3,8 @@
 namespace App\Services;
 
 use App\Models\Appointment;
-use App\Models\Meeting;
-use App\Models\User;
 use App\Support\CalendarAttendeeRoster;
+use App\Support\MeetingCalendarScope;
 use App\Support\ThaiDate;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -54,12 +53,15 @@ final class MeetingAppointmentCalendarQuery
     }
 
     /**
-     * เหตุการณ์ทั้งหมดที่ผู้ใช้เห็นได้ในช่วงวันที่ขอ เรียงตามวันแล้วตามเวลาเริ่ม
+     * เหตุการณ์ทั้งหมดที่ปฏิทินใบนี้แสดงได้ในช่วงวันที่ขอ เรียงตามวันแล้วตามเวลาเริ่ม
+     *
+     * ขอบเขตมาจาก MeetingCalendarScope ก้อนเดียว ทั้งการวาดตาราง การเปลี่ยนเดือน
+     * ผ่าน API และเอกสาร Export จึงเห็นชุดเดียวกันเสมอ
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function calendarEventsForUser(
-        User $viewer,
+    public function calendarEvents(
+        MeetingCalendarScope $scope,
         CarbonImmutable $fromDate,
         CarbonImmutable $toDate,
         string $type = self::TYPE_ALL
@@ -67,11 +69,11 @@ final class MeetingAppointmentCalendarQuery
         $events = collect();
 
         if ($type !== self::TYPE_APPOINTMENT) {
-            $events = $events->concat($this->meetingEventsForDateRange($viewer, $fromDate, $toDate));
+            $events = $events->concat($this->meetingEventsForDateRange($scope, $fromDate, $toDate));
         }
 
         if ($type !== self::TYPE_MEETING) {
-            $events = $events->concat($this->appointmentEventsForDateRange($viewer, $fromDate, $toDate));
+            $events = $events->concat($this->appointmentEventsForDateRange($scope, $fromDate, $toDate));
         }
 
         return $events
@@ -87,10 +89,10 @@ final class MeetingAppointmentCalendarQuery
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function meetingEventsForDateRange(User $viewer, CarbonImmutable $fromDate, CarbonImmutable $toDate): Collection
+    public function meetingEventsForDateRange(MeetingCalendarScope $scope, CarbonImmutable $fromDate, CarbonImmutable $toDate): Collection
     {
         return $this->meetings
-            ->calendarMeetings($viewer, $fromDate->startOfDay(), $toDate->endOfDay())
+            ->calendarMeetings($scope, $fromDate->startOfDay(), $toDate->endOfDay())
             ->map(fn (array $meeting): array => [
                 'type' => self::TYPE_MEETING,
                 'typeLabel' => self::TYPE_LABELS[self::TYPE_MEETING],
@@ -122,21 +124,34 @@ final class MeetingAppointmentCalendarQuery
     }
 
     /**
-     * นัดหมายของผู้ใช้ในช่วงวันที่ขอ
+     * นัดหมายในช่วงวันที่ขอ ตามขอบเขตของปฏิทินใบนี้
      *
-     * จำกัดด้วย visibleTo() ให้ตรงกับ AppointmentPolicy::view() เป๊ะ ๆ — เห็นได้เฉพาะ
-     * ผู้สร้างกับผู้ที่ถูกเชิญ ไม่มีบทบาทใดเห็นของคนอื่น การกรองจึงอยู่ที่ SQL ไม่ใช่ที่หน้าจอ
+     * ขอบเขตแบบ "ของผู้ดูเอง" จำกัดด้วย visibleTo() ให้ตรงกับ AppointmentPolicy::view()
+     * เป๊ะ ๆ — ผู้สร้าง, ผู้ที่ถูกเชิญ, หรือใบที่ผู้สร้างเลือกแชร์ให้แผนกของผู้ดู
+     *
+     * ขอบเขตแบบแผนก (Member Workspace) เอาเฉพาะใบที่ "ผู้สร้างเลือกแชร์ให้แผนกนั้น"
+     * ---------------------------------------------------------------
+     * นัดหมายที่เป็น 'personal' ไม่หลุดเข้าปฏิทินของแผนกเลย แม้ผู้เปิดดูเป็น admin —
+     * ตัวตัดสินคือ visibility ที่เจ้าของเลือกเอง ไม่ใช่บทบาทของผู้อ่าน
+     * (ดู Appointment::scopeSharedWithDepartment และ AppointmentPolicy::view
+     * ซึ่งต้องตรงกันเป๊ะ ๆ ไม่งั้นปฏิทินจะขึ้นรายการที่กดเข้าไปแล้วเจอ 403)
+     *
+     * การกรองอยู่ที่ SQL ทั้งสองแบบ ไม่ใช่ที่หน้าจอ
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function appointmentEventsForDateRange(User $viewer, CarbonImmutable $fromDate, CarbonImmutable $toDate): Collection
+    public function appointmentEventsForDateRange(MeetingCalendarScope $scope, CarbonImmutable $fromDate, CarbonImmutable $toDate): Collection
     {
-        if (! $viewer->can('viewAny', Appointment::class)) {
+        if (! $scope->viewer->can('viewAny', Appointment::class)) {
             return collect();
         }
 
         return Appointment::query()
-            ->visibleTo($viewer)
+            ->when(
+                $scope->department,
+                fn ($query) => $query->sharedWithDepartment($scope->department->id),
+                fn ($query) => $query->visibleTo($scope->viewer)
+            )
             ->withinDateRange($fromDate->format('Y-m-d'), $toDate->format('Y-m-d'))
             /*
              * คอลัมน์ของผู้เข้าร่วมต้องครบตามที่ RoleLabel::withDepartment() ใช้
@@ -181,7 +196,7 @@ final class MeetingAppointmentCalendarQuery
      *
      * @return array<string, mixed>
      */
-    public function calendarPageData(User $viewer, ?string $requestedMonth, ?string $requestedType): array
+    public function calendarPageData(MeetingCalendarScope $scope, ?string $requestedMonth, ?string $requestedType): array
     {
         $month = $this->resolveMonth($requestedMonth);
         $type = self::normalizeType($requestedType);
@@ -194,7 +209,14 @@ final class MeetingAppointmentCalendarQuery
             'calendarMonth' => $month,
             // ปฏิทินนี้เป็นปฏิทินของแผนก หัวเรื่องจึงต้องบอกว่าแผนกไหน
             // ผู้ใช้ที่ยังไม่ถูกจัดแผนกเห็นเฉพาะเรื่องของตัวเอง หัวเรื่องจึงต้องไม่โกหก
-            'calendarDepartmentName' => $viewer->loadMissing('department')->department?->department_name,
+            'calendarDepartmentName' => $scope->departmentName(),
+            /*
+             * พารามิเตอร์ที่ต้องติดไปกับ endpoint เปลี่ยนเดือน/ตัวกรอง และ Export
+             *
+             * ถ้าไม่ติดไป การกดเปลี่ยนเดือนในปฏิทินของแผนก IT จะยิง API แบบไม่มีขอบเขต
+             * แล้วได้ปฏิทินของผู้เปิดดูกลับมาแทน — หน้าเดิมแต่ข้อมูลคนละชุด
+             */
+            'calendarScopeQuery' => $scope->routeQuery(),
             'calendarMonthLabel' => ThaiDate::month($month),
             'calendarMonthValue' => $month->format('Y-m'),
             'calendarPreviousMonth' => $month->subMonth()->format('Y-m'),
@@ -202,7 +224,7 @@ final class MeetingAppointmentCalendarQuery
             'calendarGridStart' => $gridStart,
             'calendarGridEnd' => $gridEnd,
             'calendarType' => $type,
-            'calendarEvents' => $this->calendarEventsForUser($viewer, $gridStart, $gridEnd, $type),
+            'calendarEvents' => $this->calendarEvents($scope, $gridStart, $gridEnd, $type),
             'calendarToday' => CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE)->startOfDay(),
         ];
     }

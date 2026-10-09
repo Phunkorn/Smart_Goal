@@ -193,6 +193,12 @@ class DailyBriefService
             return $progress['progress_label'];
         }
 
+        // ผู้ใช้ที่เลือก "ไม่ระบุเวลากำหนดส่ง" ไม่ได้ตั้งเวลา 23:59 น. ไว้เอง
+        // การพูดว่า "ภายใน 23:59 น." จึงเป็นการอ้างเวลาที่เขาไม่เคยตกลง
+        if (TodayWorkspace::dueTimeIsUnset($task)) {
+            return 'ภายในวันนี้';
+        }
+
         $start = TodayWorkspace::clockTime($task->job_start_at);
         $due = TodayWorkspace::clockTime($task->job_due_at);
 

@@ -1,4 +1,6 @@
 import {boardFilterStateFrom, boardTaskMatches} from './pages/mytasks/task-filter-state.js';
+// ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ปฏิทิน และโมดัล ไม่มีสำเนาแยก
+import {dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
 
 (() => {
     const root = document.querySelector('[data-workspace]');
@@ -109,8 +111,7 @@ import {boardFilterStateFrom, boardTaskMatches} from './pages/mytasks/task-filte
 
         const timeLabel = row.querySelector('[data-due-time-label]');
         if (timeLabel) {
-            const clock = row.dataset.dueTime || '';
-            timeLabel.textContent = clock ? `ส่งภายใน ${clock} น.` : 'ไม่มีเวลากำหนดส่ง';
+            timeLabel.textContent = dueWithinLabel(row.dataset.dueTime || '', row.dataset.dueTimeUnset);
         }
     };
 
@@ -133,7 +134,11 @@ import {boardFilterStateFrom, boardTaskMatches} from './pages/mytasks/task-filte
                 await request(url(template, id), 'POST', {job_priority: +event.target.value});
                 row.dataset.priority = event.target.value;
             } else if (field === 'due') {
-                const data = await request(url(template, id), 'POST', {job_due_at: event.target.value});
+                // ธงมาจากช่องที่ผู้ใช้เพิ่งกด ไม่ใช่จากแถว — ปฏิทินเขียน data-time-unset ลงช่องนั้นก่อนยิง change
+                const data = await request(url(template, id), 'POST', {
+                    job_due_at: event.target.value,
+                    job_due_time_unset: event.target.dataset.timeUnset === '1',
+                });
 
                 /*
                  * ช่องกำหนดส่งส่งค่ามาเป็น 'Y-m-dTH:i' แต่ data-due ต้องเป็นวันล้วนต่อไป
@@ -143,6 +148,10 @@ import {boardFilterStateFrom, boardTaskMatches} from './pages/mytasks/task-filte
                 const [dueDate = '', dueTime = ''] = String(event.target.value || '').split('T');
                 row.dataset.due = data?.job_due_at ?? dueDate;
                 row.dataset.dueTime = data?.job_due_time ?? dueTime;
+                // เจตนาที่ถูกบันทึกจริงมาจาก server เท่านั้น ช่องและแถวจึงถือค่าเดียวกันหลังบันทึก
+                const dueUnset = isDueTimeUnset(data?.job_due_time_unset);
+                row.dataset.dueTimeUnset = dueUnset ? '1' : '0';
+                event.target.dataset.timeUnset = dueUnset ? '1' : '0';
                 paintDueCell(row);
             }
             toast('บันทึกการเปลี่ยนแปลงแล้ว');

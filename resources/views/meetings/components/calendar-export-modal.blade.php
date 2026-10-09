@@ -24,8 +24,21 @@
             </div>
             <form method="GET" action="{{ route('meeting-calendar.export') }}" target="_blank"
                 data-calendar-export-form
-                data-calendar-export-endpoint="{{ route('meeting-calendar.events') }}">
+                data-calendar-export-endpoint="{{ route('meeting-calendar.events', $calendarScopeQuery ?? []) }}">
                 <div class="modal-body">
+                    {{--
+                        ขอบเขตของเอกสารต้องเท่ากับขอบเขตของปฏิทินที่กด Export มา
+
+                        ต้องเป็น input ไม่ใช่ query string ใน action= เพราะฟอร์ม GET
+                        ของเบราว์เซอร์ทิ้ง query string ของ action ทั้งก้อนตอน submit
+                        แล้วเอกสารจะเงียบ ๆ กลายเป็นปฏิทินของผู้กดเอง
+
+                        ค่านี้ไม่ใช่การกรองสิทธิ์ที่ฟอร์ม — MeetingCalendarController
+                        ตรวจสิทธิ์ของแผนกที่ขอมาทุกครั้ง (MeetingCalendarScope::forDepartment)
+                    --}}
+                    @isset($calendarScopeQuery['department'])
+                        <input type="hidden" name="department" value="{{ $calendarScopeQuery['department'] }}">
+                    @endisset
                     <fieldset class="meeting-calendar__export-types">
                         <legend class="form-label">ประเภท</legend>
                         @foreach ([\App\Services\MeetingAppointmentCalendarQuery::TYPE_ALL => 'ทั้งหมด', \App\Services\MeetingAppointmentCalendarQuery::TYPE_MEETING => 'ประชุม', \App\Services\MeetingAppointmentCalendarQuery::TYPE_APPOINTMENT => 'นัดหมาย'] as $exportType => $exportLabel)

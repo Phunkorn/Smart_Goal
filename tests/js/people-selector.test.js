@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {click, clickCheckbox, mountDom, peopleSelectorMarkup, typeInto} from './helpers/dom.js';
 import {
     derivePeopleState,
@@ -18,6 +19,16 @@ const PEOPLE = [
     {id: 3, name: 'ปิติ รักงาน', department: 'ไอที', departmentId: 10},
 ];
 const DEPARTMENTS = [{id: 10, name: 'ไอที'}, {id: 20, name: 'การตลาด'}];
+
+const dialogsCss = readFileSync(new URL('../../resources/css/components/task-workspace/dialogs.css', import.meta.url), 'utf8');
+
+/** เนื้อในของกฎ CSS หนึ่งกฎ ระบุด้วย selector เต็ม ๆ พร้อมปีกกาเปิด */
+function ruleBody(css, selectorWithBrace) {
+    const start = css.indexOf(selectorWithBrace);
+    assert.notEqual(start, -1, `ไม่พบกฎ ${selectorWithBrace}`);
+
+    return css.slice(start, css.indexOf('}', start));
+}
 
 function mountSelector(options = {}) {
     const env = mountDom();
@@ -112,6 +123,103 @@ test('Team variant ซิงก์ dropdown กับ chips และล้า�
     assert.deepEqual(selectedIdsOf(ui.root), []);
     assert.equal(ui.root.querySelector('[data-people-stage]').hidden, true);
     assert.equal(ui.root.querySelector('[data-people-clear]').disabled, true);
+});
+
+/* ---------- โครงคอลัมน์ในโมดัลทีม ---------- */
+
+/*
+ * Regression: รายชื่อในโมดัลทีมทะลุกรอบการ์ดแล้วถูกตัดท้ายทิ้ง
+ *
+ * คอลัมน์ซ้ายเคยกำหนดความสูงแถวด้วยมือเป็น grid-template-rows 5 แถว
+ * ขณะที่กล่องมีลูกจริง 6 ตัว (หัวเรื่อง / ช่องค้นหา+ดร็อปดาวน์ / ปุ่มกรองแผนก /
+ * แถวเลือกทีละกลุ่ม / รายชื่อ / ตัวนับ) แถว minmax(0,1fr) จึงไปตกที่
+ * "แถวเลือกทีละกลุ่ม" แทนรายชื่อ รายชื่อกลายเป็น auto สูงเท่าเนื้อหาจริง
+ * เลื่อนในตัวเองไม่ได้ แล้วล้นไปถูก .team-modal-card (overflow:hidden) ตัดทิ้ง
+ *
+ * เทสต์นี้ตรึงว่า "รายชื่อ" ต้องเป็นแถวที่กินที่ที่เหลือ และคอลัมน์ต้องไม่กลับไป
+ * นับแถวด้วยมืออีก เพราะการเพิ่มแถวใหม่ในอนาคตจะทำให้พลาดแบบเดิมซ้ำ
+ * (jsdom ไม่คิด layout จริง จึงตรวจที่ตัวสัญญาใน CSS ไม่ใช่ความสูงที่วัดได้)
+ */
+test('คอลัมน์รายชื่อในโมดัลทีมให้รายชื่อเป็นแถวที่กินที่ที่เหลือ ไม่ใช่นับแถวด้วยมือ', () => {
+    const browser = ruleBody(dialogsCss, '.team-modal .people-selector-field--team-manager .people-selector__browser {');
+
+    assert.match(browser, /display:\s*flex/);
+    assert.match(browser, /flex-direction:\s*column/);
+    assert.ok(
+        ! browser.includes('grid-template-rows'),
+        'ห้ามนับแถวด้วยมือ จำนวนแถวต้องไม่ผูกกับจำนวนลูกที่ Blade วาด'
+    );
+
+    const options = ruleBody(dialogsCss, '.team-modal .people-selector-field--team-manager .people-selector__options {');
+
+    assert.match(options, /flex:\s*1 1 0/, 'รายชื่อต้องเป็นแถวเดียวที่ยืดได้');
+    assert.match(options, /min-height:\s*0/, 'ไม่มี min-height:0 แถวที่ยืดได้จะไม่ยอมหดให้ scroll');
+});
+
+/* ---------- ดร็อปดาวน์แผนก ---------- */
+
+/*
+ * Regression: ตัวกรองแผนกในโมดัลทีมเป็น <select> ดิบของเบราว์เซอร์
+ *
+ * กล่องรอบนอกถูกจัดสไตล์ไว้ แต่ "แผงรายการ" ที่กางออกมาเป็น popup ของระบบปฏิบัติการ
+ * ซึ่ง CSS แตะไม่ได้เลย ผู้ใช้จึงเห็นรายการหน้าตาหลุดจากดีไซน์ของทั้งระบบ
+ *
+ * ระบบมีดร็อปดาวน์กลางอยู่แล้ว (components/select-dropdown.js) ที่ตัวกรองสถานะ
+ * และหน้ารายงานใช้ ตัวเลือกบุคคลแค่ไม่ได้ opt in เข้าไปใช้ — ห้ามเขียนชุดใหม่
+ */
+test('ตัวกรองแผนกถูกยกระดับเป็นดร็อปดาวน์ของระบบ ไม่ใช่ <select> ดิบของเบราว์เซอร์', (t) => {
+    const ui = mountSelector({variant: 'team-manager'});
+    t.after(ui.cleanup);
+
+    const box = ui.root.querySelector('.people-selector__department-select');
+    const select = box.querySelector('[data-people-department-select]');
+    const trigger = box.querySelector('.sg-select__trigger');
+
+    assert.ok(trigger, 'ต้องมีปุ่มของดร็อปดาวน์ที่สคริปต์วาดให้');
+    assert.equal(box.querySelector('.sg-select__panel')?.getAttribute('role'), 'listbox');
+    assert.equal(trigger.getAttribute('aria-haspopup'), 'listbox');
+    // <select> เดิมยังอยู่เป็นแหล่งความจริงเดียวของค่าที่กรอง แต่ถูกซ่อนจากสายตา
+    assert.ok(select.classList.contains('sg-select__native'), '<select> เดิมต้องยังอยู่ในฟอร์ม');
+    assert.equal(trigger.textContent.trim(), 'แผนกทั้งหมด');
+    // ชื่อที่ screen reader อ่านมาจาก <label for> ของกล่อง ไม่ใช่ปุ่มเปล่า ๆ
+    assert.match(trigger.getAttribute('aria-labelledby') || '', /-department-filter-label /);
+});
+
+test('เลือกแผนกจากแผงดร็อปดาวน์แล้วรายชื่อถูกกรองจริง ตั้งแต่กดปุ่มจนเห็นผล', (t) => {
+    const ui = mountSelector({variant: 'team-manager'});
+    t.after(ui.cleanup);
+
+    const box = ui.root.querySelector('.people-selector__department-select');
+    const dropdown = box.querySelector('.sg-select');
+
+    click(box.querySelector('.sg-select__trigger'));
+    assert.equal(dropdown.classList.contains('is-open'), true, 'กดปุ่มแล้วแผงต้องกาง');
+
+    click([...box.querySelectorAll('.sg-select__option')].find((item) => item.dataset.value === '20'));
+
+    assert.deepEqual(ui.visibleIds(), ['2']);
+    assert.equal(box.querySelector('.sg-select__trigger').textContent.trim(), 'การตลาด');
+    assert.equal(dropdown.classList.contains('is-open'), false, 'เลือกแล้วต้องปิดแผง');
+    // ปุ่มกรองแผนกชุดเดิมต้องขยับตามด้วย ตัวกรองทั้งสองทางคือค่าเดียวกัน
+    assert.equal(ui.root.querySelector('[data-people-department][data-department-id="20"]').getAttribute('aria-pressed'), 'true');
+});
+
+/*
+ * ดร็อปดาวน์กลางซิงก์ป้ายบนปุ่มจาก event 'change' เท่านั้น
+ * setActiveDepartment() เคยตั้ง select.value ตรง ๆ โดยไม่ยิง event ป้ายจึงค้าง
+ * ชื่อแผนกเดิมขณะที่รายชื่อถูกกรองด้วยแผนกใหม่แล้ว — อ่านแล้วขัดกันเอง
+ */
+test('กดปุ่มกรองแผนกแล้วป้ายบนดร็อปดาวน์ต้องเปลี่ยนตาม ไม่ค้างชื่อแผนกเดิม', (t) => {
+    const ui = mountSelector({variant: 'team-manager'});
+    t.after(ui.cleanup);
+
+    click(ui.root.querySelector('[data-people-department][data-department-id="10"]'));
+
+    assert.deepEqual(ui.visibleIds(), ['1', '3']);
+    assert.equal(ui.root.querySelector('.sg-select__trigger').textContent.trim(), 'ไอที');
+
+    click(ui.root.querySelector('[data-people-department][data-department-id=""]'));
+    assert.equal(ui.root.querySelector('.sg-select__trigger').textContent.trim(), 'แผนกทั้งหมด');
 });
 
 test('เลือกหลายคนแล้วขึ้นเป็น chip พร้อมจำนวน', (t) => {

@@ -92,6 +92,8 @@
                     $role = $employee->isDepartmentHead()
                         ? $roleMeta['department_head']
                         : ($roleMeta[$employee->role] ?? $roleMeta['user']);
+                    $visibilitySummary = \App\Support\DepartmentTaskVisibility::summary($employee);
+                    $visibilityGranted = \App\Support\DepartmentTaskVisibility::isGranted($employee);
                     $searchText = Str::lower(implode(' ', array_filter([
                         $employee->name,
                         $employee->username,
@@ -99,6 +101,7 @@
                         $employee->phone,
                         optional($employee->department)->department_name,
                         $role['label'],
+                        $visibilitySummary,
                     ])));
                 @endphp
                 <article class="employee-card" data-employee-card data-employee-role="{{ $employee->role }}" data-search="{{ $searchText }}">
@@ -134,6 +137,15 @@
                             <span class="employee-password-state"><i class="bi bi-key" aria-hidden="true"></i>รอตั้งรหัสผ่านใหม่</span>
                         @endif
                     </div>
+
+                    {{-- ขอบเขตการมองเห็นงาน — บรรทัดเดียวเสมอ ไม่ใช่แถวใน <dl> เพราะคอลัมน์
+                         ป้ายกำกับกว้างคงที่และ nowrap จะตัดรายชื่อแผนกทิ้ง
+                         เน้นด้วยสีเฉพาะคนที่ถูกมอบสิทธิ์เพิ่ม ค่าเริ่มต้นอยู่เงียบ ๆ --}}
+                    @if($visibilitySummary)
+                        <p class="employee-visibility-state {{ $visibilityGranted ? 'is-granted' : '' }}">
+                            <i class="bi bi-eye" aria-hidden="true"></i><span>การมองเห็นงาน:</span> {{ $visibilitySummary }}
+                        </p>
+                    @endif
 
                     {{-- ป้ายกำกับไม่มีไอคอน — คำบอกความหมายอยู่แล้ว ไอคอนสามตัวต่อการ์ด
                          กลายเป็นเสียงรบกวนเมื่อเรียงกันสามใบต่อแถว --}}

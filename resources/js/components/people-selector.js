@@ -7,6 +7,8 @@
  * นั่นคือเหตุผลที่คนที่เลือกไว้ไม่หายเมื่อผู้ใช้เปลี่ยนคำค้นหรือแผนก
  */
 
+import {initSelectDropdowns} from './select-dropdown.js';
+
 export function normalizeKeyword(value) {
     return String(value ?? '').trim().toLocaleLowerCase('th');
 }
@@ -134,6 +136,17 @@ export function refreshPeopleSelector(root) {
 export function initializePeopleSelector(root) {
     if (!root || root.dataset.peopleInitialized === 'true') return;
     root.dataset.peopleInitialized = 'true';
+
+    /*
+     * ดร็อปดาวน์แผนกใช้คอมโพเนนต์กลาง (select-dropdown.js) ไม่ใช่ <select> เปล่า
+     *
+     * ผูกที่นี่ ไม่ใช่ที่สคริปต์ของแต่ละหน้า เพราะตัวเลือกบุคคลถูกฝังในหลายหน้า
+     * (โมดัลทีมของงาน ฟอร์มประชุม ฟอร์มนัดหมาย) ถ้าปล่อยให้แต่ละหน้าผูกเอง
+     * หน้าที่ลืมผูกจะได้ dropdown ดิบของเบราว์เซอร์ที่ไม่มีสไตล์ของระบบเลย
+     *
+     * เรียกซ้ำได้ เพราะ enhanceSelect() กันการผูกซ้ำด้วย data-sg-select-ready
+     */
+    initSelectDropdowns(root);
 
     const search = root.querySelector('[data-people-search]');
     const departmentSelect = root.querySelector('[data-people-department-select]');
@@ -280,6 +293,12 @@ export function initializePeopleSelector(root) {
         });
         if (departmentSelect && departmentSelect.value !== activeDepartment) {
             departmentSelect.value = activeDepartment;
+            /*
+             * ดร็อปดาวน์กลางซิงก์ป้ายบนปุ่มจาก event 'change' เท่านั้น การตั้ง .value
+             * ตรง ๆ ไม่ยิง event ให้เอง ถ้าไม่ยิงตรงนี้ ปุ่มจะค้างชื่อแผนกเดิม
+             * ขณะที่รายชื่อถูกกรองด้วยแผนกใหม่แล้ว
+             */
+            departmentSelect.dispatchEvent(new Event('change', {bubbles: true}));
         }
         applyFilters();
     };
@@ -287,7 +306,12 @@ export function initializePeopleSelector(root) {
     departmentButtons.forEach((button) => {
         button.addEventListener('click', () => setActiveDepartment(button.dataset.departmentId));
     });
-    departmentSelect?.addEventListener('change', () => setActiveDepartment(departmentSelect.value));
+    departmentSelect?.addEventListener('change', () => {
+        // event ที่ setActiveDepartment ยิงเองเพื่อซิงก์ป้ายปุ่มต้องไม่วนกลับมาทำงานซ้ำ
+        if (departmentSelect.value === activeDepartment) return;
+
+        setActiveDepartment(departmentSelect.value);
+    });
 
     checkboxes.forEach((checkbox) => checkbox.addEventListener('change', renderChips));
     clearButton?.addEventListener('click', () => clearPeopleSelection(root));

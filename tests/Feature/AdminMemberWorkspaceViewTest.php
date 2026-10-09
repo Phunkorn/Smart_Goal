@@ -13,11 +13,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Admin Member Workspace มี 4 มุมมอง (ตาราง / บอร์ด / ปฏิทิน / ประชุม)
- * โดยมุมมอง "ประชุม" ใช้ partial และ MeetingQueryService ชุดเดียวกับหน้า /meetings
+ * Admin Member Workspace มี 4 มุมมอง (ตาราง / บอร์ด / ปฏิทินงาน / ประชุมและนัดหมาย)
  *
- * scope ของประชุมต้องมาจากสมาชิกที่ route ผูกไว้เท่านั้น ห้ามมาจาก `?employee=`
- * เพราะ Admin มองเห็นประชุมทั้งระบบผ่าน visibleQuery() อยู่แล้ว
+ * มุมมอง "ประชุมและนัดหมาย" ใช้ปฏิทินใบเดียวกับหน้า "งานของฉัน" ทั้ง Blade, CSS และ JS
+ * ขอบเขตเป็นของ "แผนกที่ route ผูกมา" ไม่ใช่ของสมาชิกคนนั้นและไม่ใช่ของผู้ที่ล็อกอิน
+ * (ดู MeetingCalendarScope) ส่วนเมทริกซ์สิทธิ์ของขอบเขตนั้นถูกตรึงไว้ใน
+ * MemberWorkspaceDepartmentCalendarTest
  */
 class AdminMemberWorkspaceViewTest extends TestCase
 {
@@ -214,137 +215,58 @@ class AdminMemberWorkspaceViewTest extends TestCase
         $this->assertNotNull($pendingPrimary);
     }
 
-    public function test_meeting_view_shows_only_meetings_the_member_created_or_attends(): void
-    {
-        $admin = $this->user('admin');
-        $member = $this->user();
-        $teammate = $this->user();
-
-        $this->meeting($member, 'ประชุมที่สมาชิกสร้างเอง');
-        $this->meeting($teammate, 'ประชุมที่สมาชิกเข้าร่วม')->attendees()->sync([$member->id]);
-        $this->meeting($teammate, 'ประชุมของคนอื่นล้วน ๆ');
-        // Admin เห็นประชุมทั้งระบบผ่าน visibleQuery() ประชุมของตัวเองจึงต้องถูกกรองออกด้วย
-        $this->meeting($admin, 'ประชุมของผู้ดูแลเอง');
-
-        $response = $this->actingAs($admin)
-            ->get(route('admin.work-board.member', [$this->department, $member, 'view' => 'meeting', 'period' => 'all']))
-            ->assertOk()
-            ->assertSee('mytasks-meeting-view', false)
-            ->assertSee('การประชุมที่ '.$member->name.' เป็นผู้สร้างหรือผู้เข้าร่วม');
-
-        $list = $this->meetingListSection($response->getContent());
-        $this->assertStringContainsString('ประชุมที่สมาชิกสร้างเอง', $list);
-        $this->assertStringContainsString('ประชุมที่สมาชิกเข้าร่วม', $list);
-        $this->assertStringNotContainsString('ประชุมของคนอื่นล้วน ๆ', $list);
-        $this->assertStringNotContainsString('ประชุมของผู้ดูแลเอง', $list);
-    }
-
-    public function test_crafted_employee_query_cannot_move_the_meeting_view_to_another_member(): void
-    {
-        $admin = $this->user('admin');
-        $member = $this->user();
-        $teammate = $this->user();
-        $this->meeting($member, 'ประชุมของสมาชิกในหน้านี้');
-        $this->meeting($teammate, 'ประชุมของสมาชิกคนอื่น');
-
-        $response = $this->actingAs($admin)
-            ->get(route('admin.work-board.member', [
-                $this->department,
-                $member,
-                'view' => 'meeting',
-                'period' => 'all',
-                'employee' => $teammate->id,
-            ]))
-            ->assertOk();
-
-        $list = $this->meetingListSection($response->getContent());
-        $this->assertStringContainsString('ประชุมของสมาชิกในหน้านี้', $list);
-        $this->assertStringNotContainsString('ประชุมของสมาชิกคนอื่น', $list);
-    }
-
-    public function test_inactive_member_meeting_view_never_widens_to_the_whole_organisation(): void
-    {
-        // route เปิดสมาชิกที่ปิดใช้งานได้ (ตรวจแค่แผนกกับ role) แต่ normalizeEmployeeId()
-        // ตัดสมาชิกที่ is_active = false ทิ้ง ถ้าปล่อยให้ scope มาจาก ?employee= จะกลายเป็นเห็นทั้งระบบ
-        $admin = $this->user('admin');
-        $member = $this->user();
-        $member->update(['is_active' => false]);
-        $teammate = $this->user();
-        $this->meeting($member, 'ประชุมของสมาชิกที่ปิดใช้งาน');
-        $this->meeting($teammate, 'ประชุมที่ต้องไม่หลุดออกมา');
-
-        $response = $this->actingAs($admin)
-            ->get(route('admin.work-board.member', [$this->department, $member, 'view' => 'meeting', 'period' => 'all']))
-            ->assertOk();
-
-        $list = $this->meetingListSection($response->getContent());
-        $this->assertStringContainsString('ประชุมของสมาชิกที่ปิดใช้งาน', $list);
-        $this->assertStringNotContainsString('ประชุมที่ต้องไม่หลุดออกมา', $list);
-    }
-
-    public function test_meeting_view_hides_the_employee_switcher_and_the_create_action(): void
+    /**
+     * มุมมอง "ประชุมและนัดหมาย" คือปฏิทินของแผนก ไม่ใช่รายการประชุมของสมาชิกอีกแล้ว
+     *
+     * UI เก่า (รายการการ์ดประชุมที่กรองตามสมาชิก พร้อมตัวกรอง ช่องค้นหา และ pagination)
+     * ถูกลบทิ้ง ไม่ได้ซ่อนไว้ใต้ปฏิทิน — ถ้ามันกลับมา แปลว่ามีสองแหล่งวาดอยู่พร้อมกัน
+     * ขอบเขตรายละเอียดอยู่ใน MemberWorkspaceDepartmentCalendarTest
+     */
+    public function test_the_meeting_view_renders_the_shared_department_calendar_and_not_the_old_list(): void
     {
         $admin = $this->user('admin');
         $member = $this->user();
         $this->meeting($member, 'ประชุมของสมาชิก');
 
         $this->actingAs($admin)
-            ->get(route('admin.work-board.member', [$this->department, $member, 'view' => 'meeting', 'period' => 'all']))
+            ->get(route('admin.work-board.member', [$this->department, $member, 'view' => 'meeting']))
             ->assertOk()
-            // สลับไปดูคนอื่นจากในหน้าของสมาชิกไม่ได้
+            ->assertSee('mytasks-meeting-view', false)
+            // ปฏิทินใบเดียวกับหน้า "งานของฉัน"
+            ->assertSee('data-meeting-calendar', false)
+            ->assertSee('data-calendar-grid', false)
+            ->assertSee('ปฏิทินประชุมและนัดหมาย แผนก'.$this->department->department_name)
+            // UI เก่าต้องไม่เหลืออยู่เลย
+            ->assertDontSee('meetings-page__list', false)
+            ->assertDontSee('meetings-page__pagination', false)
             ->assertDontSee('<select name="employee">', false)
-            // สร้างประชุมจะ redirect ไป meetings.show ซึ่งพา Admin ออกจาก Member Workspace
-            ->assertDontSee('data-meeting-create', false)
-            ->assertDontSee('id="createMeetingModal"', false)
-            ->assertDontSee('นัดประชุม');
+            ->assertDontSee('การประชุมที่ '.$member->name.' เป็นผู้สร้างหรือผู้เข้าร่วม');
     }
 
-    public function test_meeting_filters_and_pagination_stay_inside_the_member_workspace(): void
+    /**
+     * หน้านี้อ่านอย่างเดียว ปุ่มสร้างจึงต้องไม่มี — ทั้งปุ่ม "เพิ่ม" และโมดัลเลือกประเภท
+     *
+     * ไม่ใช่เรื่องความสวยงาม: การสร้างจากที่นี่จะ redirect ไป meetings.show
+     * ซึ่งพาผู้ดูออกจาก Member Workspace ไปเลย
+     */
+    public function test_the_member_calendar_offers_viewing_tools_but_no_create_action(): void
     {
         $admin = $this->user('admin');
         $member = $this->user();
-        for ($index = 1; $index <= 25; $index++) {
-            $this->meeting($member, 'ประชุมลำดับ '.$index);
-        }
 
-        $workspaceUrl = route('admin.work-board.member', [$this->department, $member]);
-        $content = $this->actingAs($admin)
-            ->get(route('admin.work-board.member', [$this->department, $member, 'view' => 'meeting', 'period' => 'all']))
+        $this->actingAs($admin)
+            ->get(route('admin.work-board.member', [$this->department, $member, 'view' => 'meeting']))
             ->assertOk()
-            ->assertSee('action="'.$workspaceUrl.'"', false)
-            ->assertSee('<input type="hidden" name="view" value="meeting">', false)
-            ->assertSee('meetings-page__pagination', false)
-            ->getContent();
-
-        $this->assertMatchesRegularExpression(
-            '#href="[^"]*/members/'.$member->id.'\?[^"]*view=meeting[^"]*page=2#',
-            $content,
-            'ลิงก์หน้าถัดไปต้องกลับมาที่ Member Workspace พร้อม view=meeting'
-        );
-        $this->assertStringNotContainsString('href="'.route('meetings.index').'?', $content);
-    }
-
-    public function test_meeting_search_never_escapes_the_member_scope(): void
-    {
-        $admin = $this->user('admin');
-        $member = $this->user();
-        $teammate = $this->user();
-        $this->meeting($member, 'ประชุมสรุปงาน');
-        $this->meeting($teammate, 'ประชุมสรุปงบประมาณ');
-
-        $response = $this->actingAs($admin)
-            ->get(route('admin.work-board.member', [
-                $this->department,
-                $member,
-                'view' => 'meeting',
-                'period' => 'all',
-                'search' => 'ประชุมสรุป',
-            ]))
-            ->assertOk();
-
-        $list = $this->meetingListSection($response->getContent());
-        $this->assertStringContainsString('ประชุมสรุปงาน', $list);
-        $this->assertStringNotContainsString('ประชุมสรุปงบประมาณ', $list);
+            // ฟังก์ชันดูต้องครบ
+            ->assertSee('data-calendar-month-step="previous"', false)
+            ->assertSee('data-calendar-month-step="next"', false)
+            ->assertSee('data-calendar-today-step', false)
+            ->assertSee('data-calendar-type-filter', false)
+            ->assertSee('id="calendarDayEventsModal"', false)
+            ->assertSee('id="calendarExportModal"', false)
+            // สร้างไม่ได้
+            ->assertDontSee('id="calendarCreateTypeModal"', false)
+            ->assertDontSee('data-meeting-modal-trigger="calendarCreateTypeModal"', false);
     }
 
     public function test_non_admin_roles_can_never_reach_the_member_meeting_view(): void
@@ -508,16 +430,6 @@ class AdminMemberWorkspaceViewTest extends TestCase
             ->get(route('work-board.member', [$this->department, $member, 'workspace' => 1, 'task_scope' => 'today']))
             ->assertOk()
             ->assertViewHas('workspaceTasks', fn ($tasks) => $tasks->pluck('job_id')->all() === [$activeToday->job_id]);
-    }
-
-    private function meetingListSection(string $content): string
-    {
-        $start = strpos($content, 'meetings-page__list');
-        $this->assertNotFalse($start, 'ไม่พบรายการประชุมในหน้า');
-        $end = strpos($content, '</section>', $start);
-        $this->assertNotFalse($end, 'รายการประชุมไม่ถูกปิดแท็ก');
-
-        return substr($content, $start, $end - $start);
     }
 
     private function user(string $role = 'user'): User

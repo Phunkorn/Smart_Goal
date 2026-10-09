@@ -418,7 +418,18 @@
                 <span class="task-workspace__cell-icon tone-date"><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
                 <span class="task-workspace__cell-body">
                     <span class="task-workspace__cell-label">กำหนดส่ง</span>
-                    <input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" name="job_due_at" class="task-workspace__date" required>
+                    {{--
+                        data-time-optional เปิดตัวเลือก "ไม่ระบุเวลากำหนดส่ง" ในปฏิทินของช่องนี้
+                        ให้ตรงกับคอลัมน์เวลากำหนดส่งของบอร์ดและเซลล์กำหนดส่งของตาราง
+
+                        เมื่อผู้ใช้เลือกไม่ระบุเวลา ช่อง datetime-local ถูกซ่อนและแทนด้วยข้อความ
+                        ด้านล่าง เพราะช่องของเบราว์เซอร์แสดงได้แต่ "วัน + เวลา" เสมอ มันจะขึ้น
+                        23:59 น. ซึ่งเป็นขณะเวลาที่ระบบใช้ตัดสินความล่าช้า ไม่ใช่เวลาที่ผู้ใช้ตั้งไว้
+                        ช่องยังอยู่ในฟอร์ม (ซ่อน ไม่ปิดการใช้งาน) การกดที่เซลล์จึงเปิดปฏิทินใบเดียวกัน
+                        และติ๊กกลับได้ — ไม่ใช่ UI สองชุดที่ต้องซิงก์กันเอง
+                    --}}
+                    <input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-time-optional name="job_due_at" class="task-workspace__date" required>
+                    <output class="task-workspace__cell-static" data-workspace-due-unset hidden></output>
                 </span>
             </label>
 

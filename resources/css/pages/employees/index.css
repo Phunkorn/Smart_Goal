@@ -82,6 +82,18 @@
 .employee-role--viewer { border-color: var(--border); background: transparent; color: var(--text-muted); }
 .employee-password-state { background: var(--amber-dim); color: var(--amber); }
 
+/*
+ * ขอบเขตการมองเห็นงานบนการ์ด — บรรทัดเดียว ตัวเงียบเป็นค่าเริ่มต้น
+ *
+ * ค่าเริ่มต้น ("เฉพาะงานที่เกี่ยวข้อง") ใช้สีเดียวกับข้อความกำกับอื่น เพราะไม่ใช่ข้อยกเว้น
+ * คนที่ถูกมอบสิทธิ์เพิ่มจึงเป็นรายการเดียวที่มีสีในบรรทัดนี้ ไม่ต้องอ่านทุกใบเพื่อหาคนพิเศษ
+ */
+.employee-visibility-state { display: flex; min-width: 0; align-items: baseline; gap: 5px; margin: 0; color: var(--text-muted); font-size: .72rem; line-height: 1.4; }
+.employee-visibility-state i { color: var(--text-muted); font-size: .7rem; }
+.employee-visibility-state > span { flex: 0 0 auto; font-weight: 600; }
+.employee-visibility-state.is-granted { color: var(--blue); }
+.employee-visibility-state.is-granted i { color: var(--blue); }
+
 .employee-meta { display: grid; gap: 9px; margin: 0; }
 .employee-meta > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; }
 .employee-meta dt { display: flex; align-items: center; color: var(--text-muted); font-size: .7rem; font-weight: 600; }

@@ -1287,11 +1287,7 @@
     font-size: 17px;
 }
 
-.task-workspace .task-inline-files .file-tone-word { color: #2b579a; }
-.task-workspace .task-inline-files .file-tone-excel { color: #217346; }
-.task-workspace .task-inline-files .file-tone-ppt { color: #d24726; }
-.task-workspace .task-inline-files .file-tone-image { color: #7c3aed; }
-.task-workspace .task-inline-files .file-tone-other { color: #64748b; }
+/* สีของ .file-tone-* อยู่ที่ task-workspace/attachments.css ที่เดียว ห้ามประกาศซ้ำที่นี่ */
 
 /* ---------- รายการไทม์ไลน์ ---------- */
 

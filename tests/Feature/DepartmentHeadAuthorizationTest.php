@@ -108,13 +108,27 @@ class DepartmentHeadAuthorizationTest extends TestCase
             ->assertSee('"can_work":false', false)
             ->assertSee('"can_manage_team":false', false);
 
+        /*
+         * มุมมอง "ประชุมและนัดหมาย" ของหัวหน้าต้องยังอยู่ใน Workspace เต็ม และต้องเป็น
+         * ปฏิทินของแผนกที่กำลังเปิดดู ไม่ใช่รายการประชุมของสมาชิกคนนั้น
+         *
+         * เดิมข้อนี้ถูกตรึงด้วย input ซ่อน name="workspace" ของฟอร์มตัวกรองในรายการประชุม
+         * ปฏิทินไม่มีฟอร์มที่ navigate ออกไปแล้ว (เปลี่ยนเดือน/ตัวกรองใช้ fetch กับ
+         * replaceState บน URL เดิม) ตัวที่ต้องพิสูจน์จึงเป็นลิงก์ของแถบมุมมองซึ่งยัง
+         * ต้องพา ?workspace=1 ติดไป ไม่งั้นกดสลับมุมมองแล้วตกกลับไปหน้าดูงานวันนี้
+         */
         $this->actingAs($head)
             ->get(route('work-board.member', [$sales, $member, 'workspace' => 1, 'view' => 'meeting']))
             ->assertOk()
             ->assertSee('<!DOCTYPE html>', false)
             ->assertSee('class="notion-viewbar"', false)
             ->assertSee('notion-database" data-view="meeting"', false)
-            ->assertSee('name="workspace" value="1"', false);
+            ->assertSee(
+                'href="'.e(route('work-board.member', [$sales, $member, 'workspace' => 1, 'view' => 'meeting'])).'"',
+                false
+            )
+            ->assertSee('ปฏิทินประชุมและนัดหมาย แผนก'.$sales->department_name)
+            ->assertSee('data-meeting-calendar', false);
         // สมาชิกแผนกอื่นดูได้แค่งานวันนี้ ไม่มีลิงก์เข้า Workspace และเปิดตรงก็ยังโดนปฏิเสธ
         $this->actingAs($head)->get(route('work-board.member', [$it, $outsider]))
             ->assertOk()

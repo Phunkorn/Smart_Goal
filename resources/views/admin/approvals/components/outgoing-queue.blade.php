@@ -1,4 +1,5 @@
 @php
+    use App\Support\RoleLabel;
     use App\Support\WorkBoardDesign;
 @endphp
 
@@ -167,7 +168,12 @@
                         </span>
                         <span class="cross-dept-track__member-copy">
                             <strong>{{ $member->name }}</strong>
-                            <small>พนักงานแผนก{{ $member->department?->department_name ?? 'ไม่ระบุ' }}</small>
+                            {{--
+                                บทบาทมาจาก RoleLabel ที่เดียวทั้งระบบ — ของเดิมเขียน "พนักงานแผนก…" ไว้ตรงนี้
+                                จึงเรียกหัวหน้าแผนกที่ไปร่วมโปรเจกต์ต่างแผนกว่าพนักงาน (users.is_department_head
+                                เป็นธงแยก ไม่ใช่ค่าใน users.role) withDepartment() ให้ "หัวหน้าแผนก · IT" ได้ในบรรทัดเดียว
+                            --}}
+                            <small>{{ RoleLabel::withDepartment($member) }}</small>
                         </span>
                         <span class="admin-approvals-status is-green">
                             <i class="bi bi-people" aria-hidden="true"></i>กำลังเข้าร่วม
@@ -226,8 +232,20 @@
                                         <span class="cross-dept-track__chip">
                                             <i class="bi bi-folder2-open" aria-hidden="true"></i>{{ $project }}
                                         </span>
-                                        <span class="cross-dept-track__chip">
-                                            <i class="bi bi-person-badge" aria-hidden="true"></i>หัวหน้าโปรเจกต์ {{ $leader?->name ?? 'ไม่ระบุ' }}
+                                        {{--
+                                            หัวหน้าโปรเจกต์ — รูปจริงถ้ามี ไม่งั้นตัวย่อชื่อ ตาม
+                                            components/user-avatar-content ที่เดียวทั้งระบบ
+                                            ไม่มีหัวหน้า (งานเก่าที่ created_by ว่าง) ก็ยังเป็นป้ายไอคอนเดิม
+                                        --}}
+                                        <span class="cross-dept-track__chip cross-dept-track__chip--leader">
+                                            @if($leader)
+                                                <span class="cross-dept-track__avatar cross-dept-track__avatar--xs" aria-hidden="true">
+                                                    @include('components.user-avatar-content', ['user' => $leader, 'avatarUpper' => true])
+                                                </span>
+                                            @else
+                                                <i class="bi bi-person-badge" aria-hidden="true"></i>
+                                            @endif
+                                            <span>หัวหน้าโปรเจกต์ {{ $leader?->name ?? 'ไม่ระบุ' }}</span>
                                         </span>
                                         @if($task->parent && ! $isNested)
                                             <span class="cross-dept-track__chip cross-dept-track__chip--parent">
@@ -248,9 +266,10 @@
                                     <small>เริ่ม {{ $task->job_start_at?->timezone('Asia/Bangkok')->format('d/m/Y') ?? '-' }}</small>
                                 </p>
 
-                                <a class="btn btn-sm btn-outline-primary cross-dept-track__action" href="{{ $boardUrl }}"
+                                <a class="cross-dept-track__action" href="{{ $boardUrl }}"
                                     aria-label="ดูงาน {{ $task->job_topic }} ของ {{ $member->name }} ในบอร์ด">
-                                    <i class="bi bi-kanban" aria-hidden="true"></i> ดูงาน
+                                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                    <span>ดูงาน</span>
                                 </a>
                             </article>
                         @endforeach

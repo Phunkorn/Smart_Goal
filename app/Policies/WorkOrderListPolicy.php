@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\User;
 use App\Models\WorkOrderList;
+use App\Support\DepartmentTaskVisibility;
 
 /**
  * รวม authorization logic ของ WorkOrderList ที่แต่เดิมกระจายอยู่เป็น
@@ -21,7 +22,21 @@ class WorkOrderListPolicy
             return true;
         }
 
-        return $list->workOrders()->involving($user)->exists();
+        if ($list->workOrders()->involving($user)->exists()) {
+            return true;
+        }
+
+        /*
+         * ผู้ได้รับสิทธิ์ดูงานของแผนกเปิดโปรเจกต์ที่มีงานของแผนกนั้นได้
+         *
+         * ไม่งั้นไฟล์แนบระดับโปรเจกต์ (MediaController::projectAttachment) จะ 403
+         * ทั้งที่งานทุกใบในโปรเจกต์นั้นเปิดอ่านได้จาก WorkOrderPolicy::view() แล้ว
+         * คิวรีกับ policy ต้องให้ผลสอดคล้องกัน ไม่ใช่ขัดกันคนละหน้าจอ
+         */
+        $grantedDepartmentIds = DepartmentTaskVisibility::departmentIdsFor($user);
+
+        return $grantedDepartmentIds !== []
+            && $list->workOrders()->inDepartments($grantedDepartmentIds)->exists();
     }
 
     /**

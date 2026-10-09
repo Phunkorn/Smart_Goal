@@ -3,8 +3,11 @@
  * data-due-time ซึ่งเก็บเวลาไทยแยกจากวัน เพราะปฏิทินและการจัดกลุ่มทำงานระดับวัน
  */
 import {taskStateStore} from './task-state-store.js';
+// ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ตาราง และปฏิทิน ไม่มีสำเนาแยก
+import {dueWithinLabel, isDueTimeUnset} from './due-time.js';
 
-const mutableFields = ['topic', 'status', 'priority', 'start', 'due', 'startTime', 'dueTime'];
+/* 'dueTimeUnset' คือ data-due-time-unset — เจตนา "ไม่ระบุเวลากำหนดส่ง" ซึ่งแยกจากค่าเวลา */
+const mutableFields = ['topic', 'status', 'priority', 'start', 'due', 'startTime', 'dueTime', 'dueTimeUnset'];
 
 export const synchronizeTaskManagement = (management, id, response = {}, eventTarget = globalThis.document) => {
     const meta = management?.[String(id)];
@@ -132,11 +135,16 @@ export const synchronizeTaskSource = (workspace, id, changes, eventTarget = docu
         // ช่องกำหนดส่งของแถวตารางเป็น datetime-local จึงต้องได้ค่ารวมวันกับเวลา
         const input = row.querySelector('input[data-field="due"]');
         const clock = Object.hasOwn(changes, 'dueTime') ? changes.dueTime : row.dataset.dueTime;
+        const unset = isDueTimeUnset(row.dataset.dueTimeUnset);
         const due = String(changes.due ?? '');
-        if (input) input.value = due && clock ? `${due}T${clock}` : due;
+        if (input) {
+            input.value = due && clock ? `${due}T${clock}` : due;
+            // ช่องต้องถือเจตนาเดียวกับแถว ไม่งั้นการแก้ครั้งถัดไปจะส่งเจตนาเก่ากลับไปทับ
+            input.dataset.timeUnset = unset ? '1' : '0';
+        }
 
         const timeLabel = row.querySelector('[data-due-time-label]');
-        if (timeLabel) timeLabel.textContent = clock ? `ส่งภายใน ${clock} น.` : 'ไม่มีเวลากำหนดส่ง';
+        if (timeLabel) timeLabel.textContent = dueWithinLabel(clock, unset);
     }
     if (Object.hasOwn(changes, 'topic')) {
         const title = row.querySelector('.row-title strong');
@@ -152,6 +160,7 @@ export const synchronizeTaskSource = (workspace, id, changes, eventTarget = docu
         due: row.dataset.due || '',
         startTime: row.dataset.startTime || '',
         dueTime: row.dataset.dueTime || '',
+        dueTimeUnset: isDueTimeUnset(row.dataset.dueTimeUnset),
     };
     if (state.transitions) detail.transitions = state.transitions;
     if (state.interactions) detail.interactions = state.interactions;

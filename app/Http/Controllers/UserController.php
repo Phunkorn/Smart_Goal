@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\AuditTrail;
+use App\Support\DepartmentTaskVisibility;
 use App\Support\PasswordPolicy;
 use App\Support\UserSessionSecurity;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ class UserController extends Controller
     {
         abort_unless(in_array(Auth::user()?->role, ['admin', 'viewer'], true), 403);
 
-        $employees = User::with('department')
+        $employees = User::with(['department', 'visibleDepartments'])
             ->where('role', 'user')
             ->orderBy('name')
             ->get()
@@ -79,10 +80,16 @@ class UserController extends Controller
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
             'is_department_head' => $validated['role'] === 'user' && $validated['is_department_head'],
+            // สิทธิ์ดูงานของแผนกมีได้เฉพาะ role user — รูปแบบเดียวกับบรรทัดด้านบน
+            'task_visibility_scope' => $validated['role'] === 'user'
+                ? $validated['task_visibility_scope']
+                : DepartmentTaskVisibility::SCOPE_INVOLVED,
             'must_change_password' => true,
             'is_active' => $validated['is_active'],
             'profile_image' => $profilePath,
         ]);
+
+        $this->syncVisibleDepartments($employee, $validated);
 
         AuditTrail::log('created', $employee, 'Admin created '.$this->accountAuditLabel($accountContext).': '.$employee->name, [
             'after' => $this->auditUserPayload($employee),
@@ -121,6 +128,9 @@ class UserController extends Controller
             'role' => $validated['role'],
             'department_id' => $validated['role'] === 'user' ? $validated['department_id'] : null,
             'is_department_head' => $validated['role'] === 'user' && $validated['is_department_head'],
+            'task_visibility_scope' => $validated['role'] === 'user'
+                ? $validated['task_visibility_scope']
+                : DepartmentTaskVisibility::SCOPE_INVOLVED,
             'is_active' => $validated['is_active'],
         ];
 
@@ -148,6 +158,7 @@ class UserController extends Controller
         }
 
         $user->forceFill($data)->save();
+        $this->syncVisibleDepartments($user, $validated);
         $user->refresh();
 
         if (! $user->is_active || $credentialsChanged) {
@@ -275,12 +286,35 @@ class UserController extends Controller
     {
         $isDepartmentHead = $accountContext === self::CONTEXT_EMPLOYEE
             && $request->input('role') === 'department_head';
+
+        /*
+         * สิทธิ์ดูงานของแผนกเป็นของบัญชีพนักงานเท่านั้น และรายชื่อแผนกมีความหมายเฉพาะ
+         * โหมด "กำหนดเอง" — บังคับ payload ให้สะอาดก่อน validate ที่เดียว เหมือนที่ทำกับ
+         * role/department_id/is_department_head ด้านล่าง
+         *
+         * ค่าตั้งต้นถูกเติมที่นี่เสมอ กฎ required จึงไม่มีทาง fail กับฟอร์มหรือคำขอเดิม
+         * ที่ยังไม่ส่งฟิลด์นี้มา พฤติกรรมของผู้ใช้เดิมทุกคนจึงไม่เปลี่ยน
+         */
+        $visibilityScope = $accountContext === self::CONTEXT_SYSTEM
+            ? DepartmentTaskVisibility::SCOPE_INVOLVED
+            : (string) ($request->input('task_visibility_scope') ?: DepartmentTaskVisibility::SCOPE_INVOLVED);
+
         $request->merge([
             'username' => User::normalizeUsername($request->input('username')),
             'email' => $request->filled('email') ? trim((string) $request->input('email')) : null,
             'role' => $isDepartmentHead ? 'user' : $request->input('role'),
             'department_id' => $accountContext === self::CONTEXT_SYSTEM ? null : $request->input('department_id'),
             'is_department_head' => $isDepartmentHead,
+            'task_visibility_scope' => $visibilityScope,
+            'visible_department_ids' => $visibilityScope === DepartmentTaskVisibility::SCOPE_CUSTOM
+                ? array_values(array_unique(array_map(
+                    'intval',
+                    array_filter(
+                        (array) $request->input('visible_department_ids', []),
+                        fn ($id) => $id !== '' && $id !== null
+                    )
+                )))
+                : [],
         ]);
 
         if ($user) {
@@ -304,6 +338,14 @@ class UserController extends Controller
             'password' => $passwordRule,
             'role' => ['required', Rule::in($accountContext === self::CONTEXT_SYSTEM ? ['admin', 'viewer'] : ['user'])],
             'is_department_head' => ['required', 'boolean'],
+            'task_visibility_scope' => ['required', Rule::in(DepartmentTaskVisibility::SCOPES)],
+            // "กำหนดเอง" ที่ไม่เลือกแผนกเลยคือสิทธิ์ที่ไม่ให้อะไร ให้เลือกโหมด
+            // "เฉพาะงานที่เกี่ยวข้อง" อย่างชัดเจนแทน (Laravel ถือ [] ว่าว่าง จึงไม่ผ่าน required)
+            'visible_department_ids' => [
+                'array',
+                Rule::requiredIf(fn () => $visibilityScope === DepartmentTaskVisibility::SCOPE_CUSTOM),
+            ],
+            'visible_department_ids.*' => ['integer', 'exists:departments,id'],
             'is_active' => ['required', 'boolean'],
             'department_id' => $accountContext === self::CONTEXT_EMPLOYEE
                 ? ['nullable', 'required_if:role,user', 'exists:departments,id']
@@ -311,8 +353,29 @@ class UserController extends Controller
             'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ], [
             'password.confirmed' => 'รหัสผ่านทั้งสองช่องไม่ตรงกัน',
+            'visible_department_ids.required' => 'กรุณาเลือกแผนกที่ต้องการให้มองเห็นงานอย่างน้อย 1 แผนก',
             ...PasswordPolicy::messages(),
         ]);
+    }
+
+    /**
+     * สิทธิ์ "ดูงานของแผนก" — อัปเดต pivot ให้ตรงกับโหมดที่เลือกไว้
+     *
+     * โหมดอื่นนอกจาก "กำหนดเอง" ต้องล้างรายชื่อทิ้ง ไม่ใช่เก็บค้างไว้ เพราะแถวที่ค้าง
+     * จะกลับมามีผลเองทันทีที่ใครสลับโหมดกลับ ซึ่งเป็นการคืนสิทธิ์ที่ admin ถอนไปแล้ว
+     *
+     * โหมด own_department ไม่เก็บแผนกลง pivot โดยตั้งใจ — อ่านจาก users.department_id
+     * ตอนคิวรี สิทธิ์จึงย้ายตามผู้ใช้เมื่อ admin ย้ายแผนก (DepartmentTaskVisibility)
+     */
+    private function syncVisibleDepartments(User $user, array $validated): void
+    {
+        $departmentIds = $user->role === 'user'
+            && $validated['task_visibility_scope'] === DepartmentTaskVisibility::SCOPE_CUSTOM
+                ? ($validated['visible_department_ids'] ?? [])
+                : [];
+
+        $user->visibleDepartments()->sync($departmentIds);
+        $user->unsetRelation('visibleDepartments');
     }
 
     private function assertAccountContext(User $user, string $accountContext): void
@@ -368,6 +431,20 @@ class UserController extends Controller
     {
         $payload = $user->attributesToArray();
         unset($payload['password'], $payload['remember_token']);
+
+        /*
+         * รายชื่อแผนกของสิทธิ์ "ดูงานของแผนก" ไม่ใช่คอลัมน์ของ users จึงต้องใส่เอง
+         * ไม่งั้นบันทึกตรวจสอบจะเห็นแค่โหมดเปลี่ยน แต่ไม่เห็นว่าแผนกไหนถูกเพิ่มหรือถอน
+         *
+         * อ่านใหม่จากฐานข้อมูลเสมอ ไม่ใช้ relation ที่ค้างในหน่วยความจำ ไม่งั้นภาพ "after"
+         * จะยังเป็นชุดเดิมก่อน sync()
+         */
+        $payload['visible_department_ids'] = $user->visibleDepartments()
+            ->pluck('departments.id')
+            ->map(fn ($id) => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
 
         return $payload;
     }

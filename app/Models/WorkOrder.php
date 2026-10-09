@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\DepartmentTaskVisibility;
 use App\Support\TaskParticipation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,7 @@ class WorkOrder extends Model
         'delete_request_reason',
         'job_start_at',
         'job_due_at',
+        'job_due_time_unset',
         'job_completed_at',
         'paused_at',
         'late_at',
@@ -58,6 +60,7 @@ class WorkOrder extends Model
         return [
             'job_start_at' => 'datetime',
             'job_due_at' => 'datetime',
+            'job_due_time_unset' => 'boolean',
             'job_completed_at' => 'datetime',
             'paused_at' => 'datetime',
             'late_at' => 'datetime',
@@ -322,7 +325,15 @@ class WorkOrder extends Model
             return $query;
         }
 
-        return $query->where(function (Builder $query) use ($user): void {
+        /*
+         * สิทธิ์ "ดูงานของแผนก" ที่ admin มอบให้เป็นรายคน — ถามครั้งเดียวต่อคิวรี
+         *
+         * คำตอบมาจาก App\Support\DepartmentTaskVisibility ที่เดียว ร่วมกับ
+         * WorkOrderPolicy::view() เพื่อไม่ให้ policy กับคิวรีตอบคนละอย่าง
+         */
+        $grantedDepartmentIds = DepartmentTaskVisibility::departmentIdsFor($user);
+
+        return $query->where(function (Builder $query) use ($user, $grantedDepartmentIds): void {
             $query->involving($user)
                 /*
                  * งานแม่ของงานย่อยที่ผู้ใช้ร่วมอยู่ — เห็นเพื่อเป็น "บริบท" เท่านั้น
@@ -366,7 +377,20 @@ class WorkOrder extends Model
                                     ->where('work_order_collaborators.status', 'accepted')));
                     }))
                 ->when($user->isDepartmentHead(), fn (Builder $visible) => $visible
-                    ->orWhere(fn (Builder $departmentTasks) => $departmentTasks->inDepartmentOf($user)));
+                    ->orWhere(fn (Builder $departmentTasks) => $departmentTasks->inDepartmentOf($user)))
+                /*
+                 * สิทธิ์ดูงานของแผนกที่ admin มอบให้พนักงานเป็นรายคน — อ่านอย่างเดียว
+                 *
+                 * ไม่ทำให้ผู้ใช้เป็นผู้มีส่วนร่วมของงานใบใด involving() กับ
+                 * TaskParticipation ไม่ถูกแตะ รายงานและภาระงานจึงไม่เปลี่ยน
+                 * ส่วน approval_status = 'approved' ถูกบังคับอยู่ใน inDepartments() แล้ว
+                 *
+                 * เกณฑ์ต้องตรงกับ WorkOrderPolicy::view() ทุกประการ และ viewAsContext()
+                 * ต้องปฏิเสธสาขานี้ด้วย มิฉะนั้น CrossDepartmentWork::restrictChildren()
+                 * จะตัดงานย่อยของแผนกที่เขาได้รับสิทธิ์ออกทั้งหมด
+                 */
+                ->when($grantedDepartmentIds !== [], fn (Builder $visible) => $visible
+                    ->orWhere(fn (Builder $granted) => $granted->inDepartments($grantedDepartmentIds)));
         });
     }
 
@@ -379,13 +403,40 @@ class WorkOrder extends Model
      */
     public function scopeInDepartmentOf(Builder $query, User $user): Builder
     {
+        return $query->inDepartments([$user->department_id]);
+    }
+
+    /**
+     * งานที่อนุมัติแล้วซึ่งปลายทางอยู่ในแผนกชุดนี้ — นิยาม "งานของแผนก" ที่เดียวของระบบ
+     *
+     * แยกออกมาจาก scopeInDepartmentOf() เพื่อให้สิทธิ์ที่มอบได้หลายแผนกพร้อมกัน
+     * (App\Support\DepartmentTaskVisibility) ใช้ SQL ชุดเดียวกัน ไม่ใช่เขียนนิยาม
+     * "ปลายทางของงาน" ขึ้นใหม่เป็นชุดที่สี่
+     *
+     * approval_status = 'approved' ถูกบังคับที่นี่ สิทธิ์ใดที่เข้ามาทางนี้จึงไม่มีทาง
+     * เห็นงานที่ยังไม่อนุมัติหรือถูกปฏิเสธ
+     *
+     * ชุดว่างคือ "ไม่ตรงกับงานใบใด" — whereIn([]) ของ Laravel แปลเป็นเงื่อนไขเท็จ
+     * ซึ่งเป็นพฤติกรรมเดิมของ scopeInDepartmentOf() ตอนผู้ใช้ไม่มีแผนกอยู่แล้ว
+     *
+     * @param  array<int, int|string|null>  $departmentIds
+     */
+    public function scopeInDepartments(Builder $query, array $departmentIds): Builder
+    {
+        $ids = collect($departmentIds)
+            ->reject(fn ($id) => $id === null || $id === '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         return $query->where('approval_status', 'approved')
-            ->where(function (Builder $destination) use ($user): void {
-                $destination->where('department_id', $user->department_id)
+            ->where(function (Builder $destination) use ($ids): void {
+                $destination->whereIn('department_id', $ids)
                     ->orWhere(fn (Builder $fallback) => $fallback
                         ->whereNull('department_id')
                         ->whereHas('user', fn (Builder $assignee) => $assignee
-                            ->where('department_id', $user->department_id)));
+                            ->whereIn('department_id', $ids)));
             });
     }
 }

@@ -10,6 +10,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Support\CalendarAttendeeRoster;
 use App\Support\InvitationCandidates;
+use App\Support\MeetingCalendarScope;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -241,19 +242,20 @@ final class MeetingQueryService
      * สิทธิ์ถูกบังคับที่ SQL ผ่าน calendarScopedQuery() ห้ามกรองสิทธิ์ฝั่ง frontend
      * และห้ามดึงทั้งระบบโดยไม่มีขอบเขต
      *
-     * ขอบเขตคือ "แผนกของผู้เปิดปฏิทิน" เสมอ ไม่มีโหมดล็อกกับสมาชิกคนเดียว —
-     * Workspace ของสมาชิกใช้รายการประชุม (indexData) ไม่ใช่ปฏิทินใบนี้
+     * ขอบเขตมาจาก MeetingCalendarScope — ของผู้เปิดปฏิทินเอง (ปฏิทินหลัก) หรือของแผนก
+     * ที่ route ผูกมา (Member Workspace) ไม่มีโหมดล็อกกับสมาชิกคนเดียว เพราะปฏิทิน
+     * ของ Workspace คือ "ตารางของแผนก" ไม่ใช่รายการประชุมของคนนั้น
      *
      * ส่วนหน้ารายการประชุมยังใช้ visibleQuery() เต็มขอบเขตตามเดิม เพราะเป็นหน้ากำกับดูแล
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function calendarMeetings(User $viewer, CarbonInterface $from, CarbonInterface $to): Collection
+    public function calendarMeetings(MeetingCalendarScope $scope, CarbonInterface $from, CarbonInterface $to): Collection
     {
         $windowStart = CarbonImmutable::instance($from)->utc();
         $windowEnd = CarbonImmutable::instance($to)->utc();
 
-        return $this->calendarScopedQuery($viewer)
+        return $this->calendarScopedQuery($scope)
             /*
              * ผู้จัดกับผู้เข้าร่วมถูก eager load ไว้ตั้งแต่ต้น มิฉะนั้นการวาดตารางประชุม
              * จะยิงคิวรีต่อหนึ่งแถว (และเอกสาร Export กวาดได้ถึง 366 วัน)
@@ -329,9 +331,27 @@ final class MeetingQueryService
      * ไม่เรียก visibleQuery() เพราะกฎของหน้ารายการ (หัวหน้าแผนกเห็นประชุมทุกใบที่
      * คนในแผนกเข้าร่วม) กว้างกว่ากฎของปฏิทินในมิติผู้เข้าร่วม การซ้อนสองกฎจะได้
      * ขอบเขตที่อธิบายไม่ได้ว่ามาจากที่ไหน
+     *
+     * ปฏิทินที่ถูกล็อกกับแผนก (Member Workspace) ใช้กฎข้อ 1 ของแผนกนั้นล้วน ๆ
+     * ---------------------------------------------------------------
+     * ไม่ผสมข้อ 2 ของผู้เปิดดูเข้าไปด้วยโดยตั้งใจ ไม่งั้นปฏิทินของแผนก IT ที่ Admin
+     * เปิดดูจะมีประชุมส่วนตัวของ Admin ปนอยู่ ซึ่งไม่ใช่ตารางของแผนก IT
+     * และหัวหน้าแผนกจะเห็นประชุมข้ามแผนกที่ตนถูกเชิญโผล่ในปฏิทินของลูกทีม
+     *
+     * ขอบเขตแบบแผนกไม่เปิดกว้างกว่าที่ผู้เปิดดูมีสิทธิ์อยู่แล้ว — สิทธิ์เปิดปฏิทิน
+     * ของแผนกถูกตัดสินตอนสร้าง scope (MeetingCalendarScope::forDepartment)
      */
-    public function calendarScopedQuery(User $viewer): Builder
+    public function calendarScopedQuery(MeetingCalendarScope $scope): Builder
     {
+        if ($department = $scope->department) {
+            return Meeting::query()->whereHas(
+                'creator',
+                fn (Builder $creator) => $creator->where('department_id', $department->id)
+            );
+        }
+
+        $viewer = $scope->viewer;
+
         return Meeting::query()->where(function (Builder $query) use ($viewer): void {
             $query->where('created_by', $viewer->id)
                 ->orWhereHas('attendees', fn (Builder $attendees) => $attendees->whereKey($viewer->id));

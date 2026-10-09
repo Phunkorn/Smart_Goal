@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {mountDom, click, pressKey} from './helpers/dom.js';
+import {mountDom, click, clickCheckbox, pressKey} from './helpers/dom.js';
 
 const read = (path) => readFile(new URL('../../' + path, import.meta.url), 'utf8');
 
@@ -457,4 +457,137 @@ test('inside a Bootstrap modal the popover is appended to the modal, not to body
      */
     const popover = ui.document.querySelector('.sg-date-picker');
     assert.equal(popover.closest('.modal')?.id, 'createMeetingModal');
+});
+
+/*
+ * "ไม่ระบุเวลากำหนดส่ง" — งานที่มีวันครบกำหนด แต่ผู้ใช้ไม่ได้ตั้งเวลานัดจริง
+ *
+ * ตัวเลือกอยู่ในปฏิทินใบเดียวกับที่เลือกวัน ไม่ใช่ปุ่มแยกข้างช่อง เพราะมันเป็นคุณสมบัติ
+ * ของกำหนดส่งค่าเดียวกัน และเปิดให้เฉพาะช่องที่ประกาศ data-time-optional เท่านั้น
+ * ช่องนัดประชุมกับช่องวันเริ่มต้องมีเวลาจริงเสมอ การโชว์แถวนี้ให้ทุกช่องจะทำให้ผู้ใช้
+ * ติ๊กในที่ที่ปลายทางไม่รับค่านี้ แล้วเห็นว่า "ติ๊กแล้วไม่มีอะไรเกิดขึ้น"
+ */
+
+const dueCellMarkup = ({unset = '0'} = {}) => `
+    <div class="my-tasks-page">
+        <article class="board-reference-row" data-board-task data-task-id="7" data-due="2026-09-10" data-due-time="17:00" data-due-time-unset="${unset}">
+            <label class="board-due-time board-due-time-editable">
+                <i class="bi bi-clock"></i>
+                <span data-board-due-time>17:00 น.</span>
+                <input type="datetime-local" data-date-picker data-default-time="17:00" data-board-field="due" data-time-optional data-time-unset="${unset}" value="2026-09-10T17:00" aria-label="เลือกเวลากำหนดส่ง">
+            </label>
+        </article>
+    </div>
+`;
+
+const bootDueCell = async (t, options) => {
+    const ui = mountDom(`<!doctype html><html><body>${dueCellMarkup(options)}</body></html>`);
+    t.after(() => ui.cleanup());
+
+    const picker = await import(`../../resources/js/components/date-picker.js?due=${Math.random()}`);
+    picker.useDatePickers();
+
+    return ui;
+};
+
+test('a due field offers "no due time" and ticking it saves through the normal change path', async (t) => {
+    const ui = await bootDueCell(t);
+    const input = ui.document.querySelector('input[data-board-field="due"]');
+
+    /*
+     * นับเฉพาะ change ของช่องจริง — checkbox ของปฏิทินยิง change ของตัวเองด้วยตามปกติ
+     * แต่ popover อยู่ที่ body ซึ่งอยู่นอก [data-project-board] และ [data-workspace]
+     * event นั้นจึงไม่เคยถึงตัวจัดการที่บันทึกค่า
+     */
+    const changes = [];
+    ui.document.addEventListener('change', (event) => {
+        if (event.target === input) changes.push(event.target.dataset.timeUnset);
+    });
+
+    click(ui.document.querySelector('.board-due-time-editable'));
+    const popover = ui.document.querySelector('.sg-date-picker');
+    const unsetRow = popover.querySelector('.sg-date-picker__time-unset');
+
+    assert.equal(unsetRow.hidden, false, 'ช่องที่ประกาศ data-time-optional ต้องเห็นแถวนี้');
+    assert.equal(popover.querySelector('.sg-date-picker__time').hidden, false);
+    assert.equal(unsetRow.querySelector('input').checked, false);
+
+    clickCheckbox(unsetRow.querySelector('input'));
+
+    // ค่าของช่องต้องยังเป็น 'Y-m-dTH:i' ที่ถูกต้อง ไม่ใช่ถูกล้างส่วนเวลาออก
+    // ไม่งั้นเบราว์เซอร์จะทิ้งค่าทั้งช่อง และทุกจุดที่เรียงกำหนดส่งจะเสียค่าอ้างอิง
+    assert.equal(input.value, '2026-09-10T17:00');
+    assert.equal(input.dataset.timeUnset, '1', 'เจตนาเดินทางไปกับ dataset ของช่อง');
+    assert.deepEqual(changes, ['1'], 'ต้องยิง change หนึ่งครั้งผ่านเส้นทางบันทึกเดิม');
+
+    // เวลา 23:59 ที่ค้างอยู่เป็นขณะเวลาของระบบ ไม่ใช่เวลาที่ผู้ใช้ตั้ง จึงต้องไม่โชว์คู่กัน
+    assert.equal(popover.querySelector('.sg-date-picker__time').hidden, true);
+    assert.equal(popover.hidden, false, 'ติ๊กแล้วต้องยังเลือกวันต่อได้');
+});
+
+test('a field that already has no due time opens with the option ticked and can be turned back on', async (t) => {
+    const ui = await bootDueCell(t, {unset: '1'});
+    const input = ui.document.querySelector('input[data-board-field="due"]');
+
+    click(ui.document.querySelector('.board-due-time-editable'));
+    const popover = ui.document.querySelector('.sg-date-picker');
+    const checkbox = popover.querySelector('.sg-date-picker__time-unset input');
+
+    assert.equal(checkbox.checked, true, 'สถานะต้องอ่านจากช่อง ไม่ใช่เริ่มที่ไม่ติ๊กทุกครั้ง');
+    assert.equal(popover.querySelector('.sg-date-picker__time').hidden, true);
+
+    clickCheckbox(checkbox);
+
+    assert.equal(input.dataset.timeUnset, '0');
+    assert.equal(popover.querySelector('.sg-date-picker__time').hidden, false, 'ติ๊กกลับได้ แถวเวลาจึงต้องกลับมา');
+});
+
+test('picking another day keeps the "no due time" intent', async (t) => {
+    const ui = await bootDueCell(t, {unset: '1'});
+    const input = ui.document.querySelector('input[data-board-field="due"]');
+
+    click(ui.document.querySelector('.board-due-time-editable'));
+    const popover = ui.document.querySelector('.sg-date-picker');
+    click(popover.querySelector('[data-date-value="2026-09-15"]'));
+
+    assert.equal(input.value, '2026-09-15T17:00');
+    assert.equal(input.dataset.timeUnset, '1', 'เลือกวันใหม่ต้องไม่ล้างเจตนาที่ตั้งไว้');
+});
+
+test('fields that must carry a real time never show the option', async (t) => {
+    const meeting = await bootMeeting(t);
+    click(meeting.document.querySelector('input[name="starts_at"]'));
+    assert.equal(meeting.document.querySelector('.sg-date-picker__time-unset').hidden, true, 'การนัดประชุมต้องมีเวลาจริงเสมอ');
+
+    const board = await boot(t);
+    click(board.ui.document.querySelector('.board-start-editable'));
+    assert.equal(board.ui.document.querySelector('.sg-date-picker__time-unset').hidden, true, 'วันเริ่มงานไม่มีตัวเลือกนี้');
+});
+
+test('every view reads the due-time label from one module, and the due fields opt in from Blade', async () => {
+    const shared = await read('resources/js/pages/mytasks/due-time.js');
+    const board = await read('resources/views/tasks/partials/project-board-card.blade.php');
+    const subtask = await read('resources/views/tasks/components/task-detail-row.blade.php');
+    const tableRow = await read('resources/views/tasks/partials/notion-task-row.blade.php');
+    const modal = await read('resources/views/tasks/partials/workspace-interactions.blade.php');
+
+    // ข้อความมีแหล่งเดียว ไม่เช่นนั้นบอร์ดจะขึ้น "ไม่ระบุเวลา" ขณะที่ตารางยังขึ้น "23:59 น."
+    assert.match(shared, /UNSET_DUE_TIME_LABEL = 'ไม่ระบุเวลา'/);
+    for (const view of [
+        'resources/js/mytasks-project-board.js',
+        'resources/js/mytasks-notion.js',
+        'resources/js/mytasks-task-modal.js',
+        'resources/js/pages/mytasks/task-state.js',
+        'resources/js/pages/mytasks/calendar.js',
+    ]) {
+        const source = await read(view);
+        assert.match(source, /from '\.{1,2}(\/pages\/mytasks)?\/due-time\.js'/, `${view} ต้องอ่านป้ายจากโมดูลร่วม`);
+        assert.doesNotMatch(source, /'ไม่ระบุเวลา/, `${view} ต้องไม่เขียนข้อความซ้ำเอง`);
+    }
+
+    // ทั้งสามจุดที่ผู้ใช้แก้กำหนดส่งได้ต้องประกาศตัวเลือกนี้ตรงกัน
+    assert.match(board, /data-board-field="due" data-time-optional data-time-unset=/);
+    assert.match(subtask, /data-board-field="due" data-time-optional data-time-unset=/);
+    assert.match(tableRow, /data-field="due" data-time-optional data-time-unset=/);
+    assert.match(modal, /data-time-optional name="job_due_at"/);
 });

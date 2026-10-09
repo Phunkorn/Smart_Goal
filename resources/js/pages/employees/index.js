@@ -1,3 +1,5 @@
+import {initSelectDropdowns} from '../../components/select-dropdown.js';
+
 export const normalizeEmployeeSearch = (value) => String(value ?? '').trim().toLocaleLowerCase('th');
 
 export const employeeMatchesSearch = (searchText, query) => (
@@ -47,6 +49,33 @@ const syncRoleFields = (form) => {
 };
 
 /**
+ * ซิงก์ช่องเลือกแผนกของ "ขอบเขตการมองเห็นงาน" ให้ตรงกับโหมดที่เลือกไว้
+ *
+ * ไม่ล้างเครื่องหมายถูกตอนสลับโหมด — fieldset ที่ disabled ไม่ถูกส่งไปกับฟอร์มอยู่แล้ว
+ * และฝั่ง server ล้างให้แน่นอนอีกชั้น (UserController::syncVisibleDepartments)
+ * การเก็บไว้ทำให้ admin ที่กดสลับไปมาไม่เสียรายการที่เลือกไปแล้ว
+ *
+ * admin กับผู้เข้าชมไม่มีสิทธิ์ชุดนี้ (App\Support\DepartmentTaskVisibility) จึงปิดทั้งบล็อก
+ * ส่วนหัวหน้าแผนกยังเลือกได้ เพราะสิทธิ์นี้บวกเพิ่มจากสิทธิ์หัวหน้าเดิมได้ตามปกติ
+ *
+ * การปิดที่นี่เป็นเรื่องหน้าจอเท่านั้น สิทธิ์จริงยังตัดสินฝั่ง server
+ */
+export const syncVisibilityFields = (form) => {
+    const options = [...form.querySelectorAll('[data-visibility-scope]')];
+    const departments = form.querySelector('[data-visibility-departments]');
+    if (options.length === 0 || ! departments) return;
+
+    const role = form.querySelector('[data-user-role]');
+    const supported = ['user', 'department_head'].includes(role?.value ?? 'user');
+    const selected = options.find((option) => option.checked)?.value ?? 'involved';
+    const isCustom = supported && selected === 'custom';
+
+    options.forEach((option) => { option.disabled = ! supported; });
+    departments.hidden = ! isCustom;
+    departments.disabled = ! isCustom;
+};
+
+/**
  * ข้อความ constraint ของเบราว์เซอร์เป็นภาษาอังกฤษเสมอ ("Please match the requested format.")
  * ซึ่งอ่านไม่ออกสำหรับผู้ใช้ และไม่บอกด้วยว่ากฎข้อไหนไม่ผ่าน
  * แยกเป็นฟังก์ชันบริสุทธิ์เพื่อให้เทสต์ตรวจข้อความได้โดยไม่ต้องเปิดเบราว์เซอร์
@@ -79,8 +108,16 @@ const bindUsernameValidity = (form) => {
 const initializeEmployeeForms = (page) => {
     document.querySelectorAll('[data-employee-form]').forEach((form) => {
         syncRoleFields(form);
+        syncVisibilityFields(form);
+        initSelectDropdowns(form);
         bindUsernameValidity(form);
-        form.querySelector('[data-user-role]')?.addEventListener('change', () => syncRoleFields(form));
+        form.querySelector('[data-user-role]')?.addEventListener('change', () => {
+            syncRoleFields(form);
+            syncVisibilityFields(form);
+        });
+        form.querySelectorAll('[data-visibility-scope]').forEach((option) => {
+            option.addEventListener('change', () => syncVisibilityFields(form));
+        });
 
         form.querySelector('[data-profile-input]')?.addEventListener('change', (event) => {
             const preview = form.querySelector('[data-profile-preview]');

@@ -100,6 +100,19 @@ class Appointment extends Model
     }
 
     /**
+     * นัดหมายที่ถูก "แชร์ให้แผนก" นี้ — ขอบเขตนัดหมายของปฏิทินระดับแผนก
+     *
+     * ตัวตัดสินคือ visibility ที่ผู้สร้างเลือกเอง ไม่ใช่บทบาทของผู้อ่าน นัดหมายที่เป็น
+     * 'personal' จึงไม่มีทางหลุดเข้าปฏิทินของแผนกเลย แม้ผู้เปิดดูจะเป็น admin
+     * (ดู AppointmentPolicy::view ซึ่งต้องตรงกับ scope นี้เป๊ะ ๆ)
+     */
+    public function scopeSharedWithDepartment(Builder $query, int|string $departmentId): Builder
+    {
+        return $query->where('visibility', self::VISIBILITY_DEPARTMENT)
+            ->where('department_id', $departmentId);
+    }
+
+    /**
      * นัดหมายที่ผู้ใช้คนนี้เห็นได้ — ผู้สร้าง, ผู้ที่ถูกเชิญ,
      * หรือนัดหมายที่ตั้งขอบเขตเป็น "แผนก" ของแผนกเดียวกับผู้ใช้
      *

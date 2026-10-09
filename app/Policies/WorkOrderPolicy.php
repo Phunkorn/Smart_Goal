@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Support\DepartmentTaskVisibility;
 use App\Support\TaskParticipation;
 
 /**
@@ -62,6 +63,20 @@ class WorkOrderPolicy
             || $this->isTaskParticipant($workOrder, $user)
             || $this->overseesMemberOnTask($workOrder, $user)
             /*
+             * สิทธิ์ "ดูงานของแผนก" ที่ admin มอบให้พนักงานเป็นรายคน
+             *
+             * อ่านอย่างเดียวเหมือนสาขา participatesInChild ด้านล่าง — ไม่ถูกเติมให้
+             * work/comment/manageTeam/manageSubtasks/share/submitForReview/review/
+             * reopen/delete เพราะทุกตัววัดจาก isTaskParticipant() หรือ isTaskEditor()
+             * ซึ่งผู้รับสิทธิ์ไม่เคยเข้าเกณฑ์ จึงเป็นเท็จต่อไปโดยไม่ต้องเขียนข้อยกเว้นเพิ่ม
+             *
+             * สาขานี้อยู่ใต้ early return ของงานที่ยังไม่อนุมัติด้านบน สิทธิ์นี้จึงไม่มีทาง
+             * เปิดงานที่ยังรออนุมัติหรือถูกปฏิเสธให้เห็น
+             *
+             * เกณฑ์ต้องตรงกับ WorkOrder::scopeVisibleInProjectsFor() ทุกประการ
+             */
+            || $this->hasGrantedDepartmentAccess($workOrder, $user)
+            /*
              * สิทธิ์ระดับโปรเจกต์ให้เฉพาะคนในแผนกเดียวกับงานใบนั้น
              *
              * คนต่างแผนกที่ถูกเชิญมาช่วยงานหนึ่งใบ เคยได้เห็นงานทุกใบในโปรเจกต์นั้น
@@ -113,6 +128,10 @@ class WorkOrderPolicy
         return ! $this->isTaskParticipant($workOrder, $user)
             && ! $user->overseesDepartment($this->destinationDepartmentId($workOrder))
             && ! $this->overseesMemberOnTask($workOrder, $user)
+            // สิทธิ์ดูงานของแผนกเป็นสาขาของตัวเอง ไม่ใช่ "เห็นเพราะงานย่อย" ถ้าลืมปฏิเสธที่นี่
+            // CrossDepartmentWork::restrictChildren() จะตัดงานย่อยของแผนกที่เขาได้รับสิทธิ์
+            // ออกทั้งหมด และ MyTaskController::index() จะหักงานใบนั้นออกจากตัวนับตัวกรองด้วย
+            && ! $this->hasGrantedDepartmentAccess($workOrder, $user)
             && ! $this->hasProjectLevelAccess($workOrder, $user);
     }
 
@@ -266,6 +285,10 @@ class WorkOrderPolicy
             || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
             || $this->isTaskParticipant($workOrder, $user)
             || $this->overseesMemberOnTask($workOrder, $user)
+            // ผู้ได้รับสิทธิ์ดูงานของแผนกอ่านบทสนทนาได้ เพราะไทม์ไลน์คือเนื้อของรายละเอียดงาน
+            // ถ้าปิดไว้ แท็บสนทนาจะว่างโดยไม่มีคำอธิบาย ส่วนการ "เขียน" ยังอยู่ที่ comment()
+            // ซึ่งวัดจาก isTaskParticipant()/overseesDepartment() เท่านั้น ไม่ถูกเติมสิทธิ์นี้
+            || $this->hasGrantedDepartmentAccess($workOrder, $user)
             || ($workOrder->work_order_list_id
                 && in_array((int) $workOrder->work_order_list_id, $this->acceptedProjectIds($user), true))
             // ผู้ที่เห็นงานแม่เป็นบริบทต้องอ่านบทสนทนาของงานนั้นได้ ไม่งั้นบริบทขาดไปครึ่งหนึ่ง
@@ -406,6 +429,17 @@ class WorkOrderPolicy
     }
 
     /** สิทธิ์เหมาทั้งโปรเจกต์ของคนในแผนกเดียวกับงานใบนั้น */
+    /**
+     * สิทธิ์ดูงานของแผนกที่ admin มอบให้เป็นรายคน — ถาม App\Support\DepartmentTaskVisibility ที่เดียว
+     *
+     * ปลายทางของงานอ่านจาก destinationDepartmentId() ตัวเดียวกับที่หัวหน้าแผนกใช้
+     * จึงไม่มีนิยาม "งานของแผนกไหน" ชุดใหม่เกิดขึ้น
+     */
+    private function hasGrantedDepartmentAccess(WorkOrder $workOrder, User $user): bool
+    {
+        return DepartmentTaskVisibility::covers($user, $this->destinationDepartmentId($workOrder));
+    }
+
     private function hasProjectLevelAccess(WorkOrder $workOrder, User $user): bool
     {
         return $workOrder->work_order_list_id

@@ -252,10 +252,11 @@ class ComputerCheckController extends Controller
             return null;
         }
 
+        // รอบของ "แผนกของผู้ที่เปิดดู" เสมอ ไม่ใช่รอบใดก็ได้ของวันนั้นในระบบ
+        // การเปิดใบของแผนกอื่นทำได้ทาง ?session=<id> ซึ่งผ่าน policy ข้างบน
         $session = ComputerCheckSession::query()
             ->with(['checkerOne:id,name', 'checkerTwo:id,name'])
-            ->whereDate('check_date', $date)
-            ->where('shift', $shift)
+            ->forDayShift($date, $shift, $viewer->department_id)
             ->first();
 
         return $session !== null && Gate::forUser($viewer)->allows('view', $session) ? $session : null;

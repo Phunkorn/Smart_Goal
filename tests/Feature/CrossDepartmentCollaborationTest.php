@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Support\RoleLabel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -350,6 +351,75 @@ class CrossDepartmentCollaborationTest extends TestCase
         $this->actingAs($accountHead)->get(route('admin.approvals.index', ['approval_queue' => 'outgoing']))
             ->assertOk()
             ->assertDontSee('ทดสอบข้ามแผนก');
+    }
+
+    /**
+     * บทบาทในการ์ดของพนักงาน — หัวหน้าแผนกต้องไม่ถูกเรียกว่าพนักงาน
+     *
+     * "หัวหน้าแผนก" เป็นธงแยก (users.is_department_head) ไม่ใช่ค่าใน users.role
+     * การ์ดนี้เคยเขียนข้อความบทบาทเองว่า "พนักงานแผนก…" จึงมองข้ามธงนั้น และหัวหน้าแผนก
+     * ที่ไปร่วมโปรเจกต์ของแผนกอื่นก็ขึ้นเป็นพนักงานทั้งที่เป็นหัวหน้า
+     */
+    public function test_outgoing_tab_names_a_participating_department_head_as_head_not_member(): void
+    {
+        $task = $this->accountTask('ทดสอบข้ามแผนก');
+        $task->collaborators()->attach($this->itHead->id, ['status' => 'accepted']);
+        $task->collaborators()->attach($this->itMember->id, ['status' => 'accepted']);
+
+        $response = $this->actingAs($this->itHead)
+            ->get(route('admin.approvals.index', ['approval_queue' => 'outgoing']))
+            ->assertOk()
+            // หัวหน้าแผนกที่ไปร่วมงานต่างแผนกยังต้องอยู่ในรายการเหมือนเดิม
+            ->assertSee($this->itHead->name)
+            ->assertSee($this->itMember->name)
+            ->assertSee('หัวหน้าแผนก · IT')
+            ->assertSee('พนักงาน · IT')
+            // ข้อความบทบาทที่ฝังไว้ในการ์ดของเดิมหายไปแล้ว — ไม่ใช้คำว่า "พนักงานแผนก" ใน <small> อีก
+            // (หัวเรื่องของหน้ายังมีประโยค "ติดตามว่าพนักงานแผนกIT…" ซึ่งเป็นคำบรรยาย ไม่ใช่ป้ายบทบาท)
+            ->assertDontSee('<small>พนักงานแผนก', false);
+
+        $html = $response->getContent();
+        $this->assertStringContainsString(RoleLabel::withDepartment($this->itHead->fresh()), $html);
+        $this->assertStringContainsString(RoleLabel::withDepartment($this->itMember->fresh()), $html);
+    }
+
+    /**
+     * หัวหน้าโปรเจกต์ในป้ายของแถวงานต้องมีรูปจริง ไม่ใช่ไอคอนคนเดียวกันทุกแถว
+     * ทั้งสองกรณีมาจาก components/user-avatar-content ที่เดียว (รูปถ้ามี ไม่งั้นตัวย่อชื่อ)
+     */
+    public function test_outgoing_tab_shows_the_project_leader_avatar(): void
+    {
+        $this->accountOwner->update(['name' => 'Wanida Account', 'profile_image' => 'profile-images/leader.jpg']);
+        $withPhoto = $this->accountTask('งานที่หัวหน้ามีรูป');
+        $withPhoto->collaborators()->attach($this->itMember->id, ['status' => 'accepted']);
+
+        $plainLeader = $this->user($this->account, ['name' => 'Kittipong Account', 'profile_image' => null]);
+        $withoutPhoto = $this->accountTask('งานที่หัวหน้าไม่มีรูป', [
+            'user_id' => $plainLeader->id,
+            'created_by' => $plainLeader->id,
+            'leader_user_id' => $plainLeader->id,
+        ]);
+        $withoutPhoto->collaborators()->attach($this->itMember->id, ['status' => 'accepted']);
+
+        $response = $this->actingAs($this->itHead)
+            ->get(route('admin.approvals.index', ['approval_queue' => 'outgoing']))
+            ->assertOk()
+            ->assertSee('cross-dept-track__avatar--xs', false)
+            ->assertSee('หัวหน้าโปรเจกต์ Wanida Account')
+            ->assertSee('หัวหน้าโปรเจกต์ Kittipong Account')
+            // รูปจริงเสิร์ฟผ่าน MediaController ไม่ใช่ URL ของ storage โดยตรง
+            ->assertSee(route('media.profile', $this->accountOwner), false)
+            ->assertDontSee('profile-images/leader.jpg');
+
+        // หัวหน้าที่ไม่มีรูปได้ตัวย่อชื่อในวงกลมเดียวกัน ไม่ได้หายไปและไม่ได้กลายเป็นรูปว่าง
+        $this->assertStringContainsString(
+            '<span class="cross-dept-track__avatar cross-dept-track__avatar--xs" aria-hidden="true">',
+            $response->getContent()
+        );
+        $this->assertMatchesRegularExpression(
+            '/cross-dept-track__avatar--xs" aria-hidden="true">\s*K\s*<\/span>/u',
+            $response->getContent()
+        );
     }
 
     /** URL ในเกาะ JSON ถูก json_encode มาแล้ว เครื่องหมาย / จึงกลายเป็น \/ */

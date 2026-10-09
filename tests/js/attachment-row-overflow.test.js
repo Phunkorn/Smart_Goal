@@ -45,6 +45,13 @@ const LISTS = [
         list: '.attachment-download-modal__list',
         row: '.attachment-download-modal__row',
     },
+    {
+        // กล่องนี้ใช้กฎก้อนเดียวกับกล่องดาวน์โหลด จึงอ่านจากไฟล์เดียวกัน
+        name: 'กล่องไฟล์แนบของบอร์ด',
+        file: 'resources/css/components/task-workspace/attachments.css',
+        list: '.board-attachment-modal__list',
+        row: '.board-attachment-modal__row',
+    },
 ];
 
 for (const {name, file, list, row} of LISTS) {
@@ -64,15 +71,18 @@ for (const {name, file, list, row} of LISTS) {
     });
 }
 
-test('รายการไฟล์ในกล่องไฟล์แนบของบอร์ดก็บีบแถวเหมือนกัน', async () => {
-    const css = await read('resources/css/pages/mytasks/project-board.css');
-
-    // กล่องนี้ใช้สามคอลัมน์ (ไอคอน / ชื่อ / ปุ่มเปิดไฟล์) ช่องชื่อต้องเป็นช่องที่หดได้
-    assert.match(
-        declaration(css, '.board-attachment-modal__list>a', 'grid-template-columns') || '',
-        /minmax\(\s*0\s*,\s*1fr\s*\)/,
-    );
-});
+/*
+ * ชิ้นส่วนของแถวไฟล์ในกล่องไฟล์แนบของบอร์ด กับ property ที่เป็นหัวใจของชิ้นนั้น
+ *
+ * ทุก selector นับจาก .board-attachment-modal__row เพราะ JS ห่อลิงก์ไว้ในแถว
+ * (ที่ว่างของปุ่มลบ) ลิงก์จึงไม่ใช่ลูกตรงของ list
+ */
+const BOARD_FILE_PARTS = [
+    ['.board-attachment-modal__row > a', 'flex'],
+    ['.board-attachment-modal__row > a > i:first-child', 'font-size'],
+    ['.board-attachment-modal__row > a > span', 'text-overflow'],
+    ['.board-attachment-modal__row > a > i:last-child', 'width'],
+];
 
 /* ---------- ปุ่มดาวน์โหลดในกล่องไฟล์แนบของบอร์ด ---------- */
 
@@ -141,4 +151,94 @@ test('งานที่ยังไม่มีไฟล์แนบไม่�
     const ui = await bootBoard(t, []);
 
     assert.equal(ui.download.hidden, true);
+});
+
+/*
+ * กฎหน้าตาต้องจับ markup จริงที่ JS สร้าง
+ *
+ * ของเดิมเขียนเป็น `.board-attachment-modal__list > a` ตั้งแต่ตอนที่ลิงก์ยังเป็นลูกตรงของ list
+ * พอเพิ่มปุ่มลบ ลิงก์ถูกย้ายไปอยู่ใต้ .board-attachment-modal__row กฎจึงไม่จับอะไรเลย
+ * ผลคือรายการไฟล์กลายเป็นลิงก์เปล่าเรียงลงมาเป็นคอลัมน์ ไม่มีกรอบ ไม่มีชิปไอคอน
+ * และชื่อไฟล์ยาวไม่ตัดด้วย ellipsis ทั้งที่ไฟล์ CSS ยังมีกฎครบทุกบรรทัด
+ *
+ * jsdom ไม่คำนวณ layout แต่ตรวจได้ว่า selector ของกฎตรงกับอิลิเมนต์จริงหรือไม่
+ */
+test('กฎหน้าตาแถวไฟล์ของบอร์ดต้องตรงกับ markup ที่ JS สร้างจริง', async (t) => {
+    // กฎของแถวนี้อยู่สองไฟล์: ส่วนที่ใช้ร่วมกับกล่องดาวน์โหลด และส่วนของบอร์ดเอง
+    const css = [
+        await read('resources/css/components/task-workspace/attachments.css'),
+        await read('resources/css/pages/mytasks/project-board.css'),
+    ].join('\n');
+
+    const ui = await bootBoard(t, [
+        {name: 'สรุปงาน.docx', url: '/media/task-attachments/1', download_url: '/media/task-attachments/1?download=1'},
+    ]);
+
+    const row = ui.document.querySelector('[data-board-attachment-list] .board-attachment-modal__row');
+    assert.ok(row, 'กล่องต้องสร้างแถวไฟล์ออกมา');
+
+    for (const [selector, property] of BOARD_FILE_PARTS) {
+        assert.ok(declaration(css, selector, property), `CSS ต้องยังมีกฎ ${selector}`);
+
+        const inner = selector.replace('.board-attachment-modal__row > ', '');
+        assert.ok(row.querySelector(inner), `${selector} ต้องจับอิลิเมนต์จริงในแถว`);
+    }
+});
+
+/*
+ * ไอคอนต้องเป็นชุดเดียวกับกล่องดาวน์โหลดและการ์ดไฟล์แนบ
+ *
+ * ก่อนหน้านี้กล่องนี้ fix ไว้ที่ bi-file-earmark ใบเดียวทุกไฟล์ ทั้งที่ iconFor()/toneFor()
+ * เป็นแหล่งความจริงร่วมอยู่แล้ว ผู้ใช้จึงแยกไม่ออกว่าไฟล์ไหนเป็น Word/Excel/รูป
+ */
+test('ไอคอนไฟล์ในกล่องของบอร์ดมาจากตารางชนิดไฟล์ชุดเดียวกับกล่องดาวน์โหลด', async (t) => {
+    const ui = await bootBoard(t, [
+        {name: 'สรุปงาน.docx', url: '/media/task-attachments/1'},
+        {name: 'ยอดขาย.xlsx', url: '/media/task-attachments/2'},
+        {name: '123.jpg', url: '/media/task-attachments/3'},
+        {name: 'แบบแปลน.pdf', url: '/media/task-attachments/4'},
+        {name: 'ไฟล์ไม่รู้จัก.bin', url: '/media/task-attachments/5'},
+    ]);
+
+    const icons = [...ui.document.querySelectorAll('[data-board-attachment-list] a > i:first-child')]
+        .map((icon) => icon.className);
+
+    assert.deepEqual(icons, [
+        'bi bi-file-earmark-word file-tone-word',
+        'bi bi-file-earmark-excel file-tone-excel',
+        'bi bi-file-earmark-image file-tone-image',
+        'bi bi-file-earmark-pdf file-tone-pdf',
+        'bi bi-file-earmark file-tone-other',
+    ]);
+});
+
+/*
+ * โทนสีไอคอนต้องมีชุดเดียวในระบบ
+ *
+ * เคยถูกคัดลอกไว้ทั้งใน attachments.css และ workspace-modal.css แล้วหลุดจากกันจริง
+ * (ชุดใน workspace-modal.css ขาด pdf กับ zip ไฟล์สองชนิดนั้นจึงเป็นสีเทาในการ์ดไฟล์แนบ
+ * แต่เป็นสีแดง/ส้มในกล่องดาวน์โหลด)
+ */
+test('ตารางสีไอคอนตามชนิดไฟล์ถูกประกาศที่เดียว', async () => {
+    const files = [
+        'resources/css/components/task-workspace/attachments.css',
+        'resources/css/components/task-workspace/workspace-modal.css',
+        'resources/css/pages/mytasks/project-board.css',
+    ];
+
+    const heads = [];
+    for (const file of files) {
+        const source = (await read(file)).replace(/\/\*[\s\S]*?\*\//g, '');
+        heads.push(...[...source.matchAll(/([^{}]*\.file-tone-[a-z]+)\s*\{/g)].map(([, head]) => head.trim()));
+    }
+
+    assert.deepEqual(heads, [
+        '.file-tone-word',
+        '.file-tone-excel',
+        '.file-tone-ppt',
+        '.file-tone-image',
+        '.file-tone-pdf',
+        '.file-tone-zip',
+        '.file-tone-other',
+    ]);
 });

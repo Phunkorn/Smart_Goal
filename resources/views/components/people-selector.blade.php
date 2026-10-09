@@ -85,17 +85,29 @@
                 </label>
 
                 @if($isTeamManager)
-                    <label class="people-selector__department-select">
+                    {{--
+                        data-sg-select = ดร็อปดาวน์กลางของระบบ (components/select-dropdown.js)
+                        ตัวเดียวกับที่ตัวกรองสถานะและหน้ารายงานใช้ ห้ามเขียนดร็อปดาวน์ชุดใหม่ที่นี่
+
+                        <select> เดิมยังเป็นแหล่งความจริงเดียวของค่าที่กรอง สคริปต์แค่วาดปุ่มกับ
+                        แผงรายการทับไว้ ถ้า JavaScript ไม่ทำงานผู้ใช้ยังได้ dropdown ของเบราว์เซอร์
+
+                        ชื่อที่ screen reader อ่านมาจาก <label for> ไม่ใช่ aria-label เพราะ
+                        enhanceSelect() ย้ายชื่อจาก label ไปใส่ปุ่มที่มันสร้าง ส่วน aria-label
+                        บน <select> ยังต้องมีไว้สำหรับกรณีที่สคริปต์ไม่ทำงาน
+                    --}}
+                    <div class="people-selector__department-select" data-sg-select>
                         <i class="bi bi-funnel" aria-hidden="true"></i>
-                        <span class="visually-hidden">กรองตามแผนก</span>
-                        <select data-people-department-select aria-label="กรองตามแผนก" @disabled($readOnly)>
+                        <label class="visually-hidden" for="{{ $instanceId }}-department-filter">กรองตามแผนก</label>
+                        <select id="{{ $instanceId }}-department-filter" data-people-department-select aria-label="กรองตามแผนก" @disabled($readOnly)>
                             <option value="">แผนกทั้งหมด</option>
                             @foreach($departments as $department)
                                 <option value="{{ $department->id }}">{{ $department->department_name }}</option>
                             @endforeach
                         </select>
+                        {{-- ลูกศรสำรองสำหรับกรณีที่สคริปต์ไม่ทำงาน ถูกซ่อนเมื่อดร็อปดาวน์ผูกสำเร็จ --}}
                         <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                    </label>
+                    </div>
                 @endif
             </div>
 

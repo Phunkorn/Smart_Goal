@@ -96,7 +96,25 @@ final class CrossDepartmentWork
 
         $destination = self::destinationDepartmentId($task);
 
-        return $destination !== null && (int) $subject->department_id !== $destination;
+        if ($destination === null) {
+            return false;
+        }
+
+        /*
+         * ผู้ที่ admin มอบสิทธิ์ "ดูงานของแผนกนี้" ให้ ไม่ใช่คนนอกของงานในแผนกนั้น
+         *
+         * ถ้ายังนับเป็นคนนอก restrictChildren() จะตัดงานย่อยออกทุกใบ เพราะเขาไม่ได้ร่วม
+         * งานใบไหนเลยโดยนิยามของสิทธิ์นี้ เขาจะเห็นแต่หัวงานที่ว่างเปล่า ทั้งที่
+         * WorkOrderPolicy::view() อนุญาตให้เปิดงานย่อยแต่ละใบได้อยู่แล้ว
+         *
+         * ต่างจากคนต่างแผนกที่ถูกเชิญมาช่วยงานใบเดียว ซึ่งการตัดงานย่อยยังต้องคงไว้
+         * เพราะเขาไม่มีสิทธิ์บนแผนกนั้น มีแต่สิทธิ์บนงานที่เขาร่วม
+         */
+        if (DepartmentTaskVisibility::covers($subject, $destination)) {
+            return false;
+        }
+
+        return (int) $subject->department_id !== $destination;
     }
 
     /**

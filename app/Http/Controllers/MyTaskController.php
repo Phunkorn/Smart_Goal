@@ -16,6 +16,7 @@ use App\Support\AttachmentPolicy;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\CrossDepartmentWork;
+use App\Support\MeetingCalendarScope;
 use App\Support\ProjectCreatorSummary;
 use App\Support\ProtectedMedia;
 use App\Support\ScheduleChangeNote;
@@ -230,7 +231,8 @@ class MyTaskController extends Controller
          */
         $meetingCalendarData = $workspaceView === 'meeting'
             ? app(MeetingAppointmentCalendarQuery::class)->calendarPageData(
-                $user,
+                // ปฏิทินหลักยังเป็นปฏิทินของผู้ใช้เอง — แผนกของตนบวกใบที่ตนจัด/ถูกเชิญ
+                MeetingCalendarScope::forViewer($user),
                 $request->query('month'),
                 $request->query('type')
             )
@@ -1043,7 +1045,10 @@ class MyTaskController extends Controller
     {
         $validated = $request->validate([
             'job_due_at' => 'required|date',
+            // "ไม่ระบุเวลากำหนดส่ง" — ผู้เรียกเก่าที่ไม่ส่งคีย์นี้มาต้องได้พฤติกรรมเดิมทุกอย่าง
+            'job_due_time_unset' => ['sometimes', 'boolean'],
         ]);
+        $dueTimeUnset = $request->boolean('job_due_time_unset');
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorize('work', $workOrder);
@@ -1051,7 +1056,10 @@ class MyTaskController extends Controller
 
         $before = $workOrder->attributesToArray();
         $previousDueAt = $workOrder->job_due_at;
-        $workOrder->update(['job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME)]);
+        $workOrder->update([
+            'job_due_at' => TodayWorkspace::parseDueInput($validated['job_due_at'], $dueTimeUnset),
+            'job_due_time_unset' => $dueTimeUnset,
+        ]);
         if (! TodayWorkspace::reconcileLateAfterScheduleChange($workOrder)) {
             TodayWorkspace::normalizeLateForTransition($workOrder);
         }
@@ -1075,6 +1083,7 @@ class MyTaskController extends Controller
             'job_id' => $workOrder->job_id,
             'job_due_at' => TodayWorkspace::calendarDate($workOrder->job_due_at),
             'job_due_time' => TodayWorkspace::clockTime($workOrder->job_due_at),
+            'job_due_time_unset' => TodayWorkspace::dueTimeIsUnset($workOrder),
             'job_status' => (int) $workOrder->job_status,
             'transitions' => $transitions->capabilities($workOrder, $request->user()),
         ]);

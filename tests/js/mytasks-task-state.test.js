@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {synchronizeCompletedTaskGroup, synchronizeTaskManagement} from '../../resources/js/pages/mytasks/task-state.js';
+import {synchronizeCompletedTaskGroup, synchronizeTaskManagement, synchronizeTaskSource} from '../../resources/js/pages/mytasks/task-state.js';
 import {mountDom} from './helpers/dom.js';
 
 test('completed tasks move into the project completed group without reloading', (t) => {
@@ -129,4 +129,45 @@ test('a parent moving into the completed group carries its finished subtasks alo
         group.querySelector('[data-board-subtask]').closest('[data-board-task]:not([data-board-subtask])'),
         parent,
     );
+});
+
+/*
+ * แถวต้นทาง ([data-workspace-task-source]) เป็นสิ่งที่โมดัล ตาราง และปฏิทินอ่านทั้งหมด
+ * การบันทึก "ไม่ระบุเวลากำหนดส่ง" จากบอร์ดจึงต้องไปถึงที่นั่นด้วย ไม่ใช่แค่แถวของบอร์ด
+ * ไม่เช่นนั้นผู้ใช้สลับไปมุมมองตารางหรือเปิดโมดัลจะเห็นเวลา 23:59 น. ที่เขาไม่ได้ตั้งไว้
+ */
+test('an unset due time reaches the source row that every other view reads', (t) => {
+    const dom = mountDom(`
+        <div data-workspace>
+            <div data-workspace-task-source>
+                <div class="notion-row" data-row data-id="4" data-due="2026-10-15" data-due-time="17:00" data-due-time-unset="0">
+                    <label class="row-duration">
+                        <small class="row-duration-time" data-due-time-label>ส่งภายใน 17:00 น.</small>
+                        <input class="cell-date" type="datetime-local" data-field="due" data-time-optional data-time-unset="0" value="2026-10-15T17:00">
+                    </label>
+                </div>
+            </div>
+        </div>
+    `);
+    t.after(() => dom.cleanup());
+
+    const workspace = dom.document.querySelector('[data-workspace]');
+    const row = dom.document.querySelector('[data-row]');
+    const detail = synchronizeTaskSource(workspace, 4, {
+        due: '2026-10-15',
+        dueTime: '23:59',
+        dueTimeUnset: '1',
+    });
+
+    assert.equal(row.querySelector('[data-due-time-label]').textContent, 'ไม่ระบุเวลากำหนดส่ง');
+    // ค่าในช่องยังเป็น datetime-local ที่ถูกต้อง เจตนาเดินทางแยกไปที่ dataset
+    assert.equal(row.querySelector('input[data-field="due"]').value, '2026-10-15T23:59');
+    assert.equal(row.querySelector('input[data-field="due"]').dataset.timeUnset, '1');
+    assert.equal(detail.dueTimeUnset, true, 'มุมมองที่ฟัง mytasks:changed ต้องได้เจตนาไปด้วย');
+
+    // ตั้งเวลาจริงกลับมาแล้วป้ายต้องกลับเป็นเวลา ไม่ใช่ค้างคำว่าไม่ระบุ
+    synchronizeTaskSource(workspace, 4, {due: '2026-10-15', dueTime: '09:30', dueTimeUnset: '0'});
+
+    assert.equal(row.querySelector('[data-due-time-label]').textContent, 'ส่งภายใน 09:30 น.');
+    assert.equal(row.querySelector('input[data-field="due"]').dataset.timeUnset, '0');
 });

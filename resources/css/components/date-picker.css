@@ -314,6 +314,56 @@ input[data-date-picker] {
 }
 
 /*
+ * แถว "ไม่ระบุเวลากำหนดส่ง" — ตัวเลือกของแถวเวลา ไม่ใช่ปุ่มสั่งงานของกล่อง
+ *
+ * จึงกินสี น้ำหนักตัวอักษร และขนาดตัวอักษรชุดเดียวกับ .sg-date-picker__time
+ * ไม่ใช่ชุดของปุ่มใน footer ที่หนากว่าและมีกรอบของตัวเอง
+ */
+.sg-date-picker__time-unset {
+    margin-top: 8px;
+    color: #4a5b76;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.sg-date-picker__time-unset[hidden] {
+    display: none;
+}
+
+/*
+ * เส้นคั่นเป็นของ "กลุ่มเรื่องเวลา" ไม่ใช่ของแถวใดแถวหนึ่ง
+ * เมื่อผู้ใช้ติ๊กไม่ระบุเวลา แถวเวลาถูกซ่อน แถวนี้จึงรับเส้นคั่นต่อ
+ * ไม่เช่นนั้นกลุ่มนี้จะลอยติดปฏิทินโดยไม่มีอะไรแบ่ง
+ */
+.sg-date-picker__time[hidden] + .sg-date-picker__time-unset {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eef2f8;
+}
+
+.sg-date-picker__time-unset > label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.sg-date-picker__time-unset input {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    margin: 0;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.sg-date-picker__time-unset input:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, .35);
+    outline-offset: 2px;
+}
+
+/*
  * กล่องที่เปิดปฏิทินได้มีหลายระดับ: Bootstrap modal ของหน้าประชุม (1055),
  * Task Workspace (1200) และชั้นย่อยของมัน (1300-1400) ปฏิทินต้องอยู่เหนือทั้งหมด
  */

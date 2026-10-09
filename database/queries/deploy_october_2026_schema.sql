@@ -5,11 +5,18 @@
  | Preconditions:
  |   1. Back up the production database.
  |   2. Select the Smart Goal database before running this script.
- |   3. The audit must report all 24 items as missing, as shown before this file
+ |   3. The audit must report all 25 items as missing, as shown before this file
  |      was generated. Do not run this script a second time.
  |
  | The migration records are inserted last. If phpMyAdmin reports any error,
  | stop and run the audit again before attempting anything else.
+ |
+ | computer_check_sessions is created with its unique key already scoped to the
+ | department (department_id, check_date, shift), which is what migration
+ | 2026_10_09_000001 enforces. One inspection sheet per department per day per
+ | shift - not one for the whole system. If this script was already run with the
+ | older global unique key (check_date, shift), do not edit the table by hand:
+ | run php artisan migrate, which applies that migration as an ALTER.
  */
 
 SET NAMES utf8mb4;
@@ -74,7 +81,7 @@ CREATE TABLE `computer_check_sessions` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `computer_check_sessions_day_shift_unique` (`check_date`, `shift`),
+  UNIQUE KEY `cc_sessions_dept_day_shift_unique` (`department_id`, `check_date`, `shift`),
   KEY `computer_check_sessions_work_log_id_foreign` (`work_log_id`),
   KEY `computer_check_sessions_checker_1_id_foreign` (`checker_1_id`),
   KEY `computer_check_sessions_checker_2_id_foreign` (`checker_2_id`),
@@ -240,7 +247,8 @@ VALUES
   ('2026_10_08_000003_create_appointment_attendees_table', @smart_goal_migration_batch),
   ('2026_10_08_000004_create_appointment_attendee_response_events_table', @smart_goal_migration_batch),
   ('2026_10_08_000005_add_department_scope_to_appointments_table', @smart_goal_migration_batch),
-  ('2026_10_08_000006_add_computer_check_access_to_departments_table', @smart_goal_migration_batch);
+  ('2026_10_08_000006_add_computer_check_access_to_departments_table', @smart_goal_migration_batch),
+  ('2026_10_09_000001_scope_computer_check_sessions_unique_to_department', @smart_goal_migration_batch);
 
 SELECT
   DATABASE() AS `database_name`,

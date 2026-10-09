@@ -1,0 +1,31 @@
+/**
+ * ป้ายเวลากำหนดส่งฝั่งหน้าจอ — คู่กับ App\Support\TodayWorkspace::dueTimeLabel()
+ *
+ * ทุกมุมมองของ Task Workspace (บอร์ด ตาราง ปฏิทิน โมดัล) วาดป้ายนี้ใหม่เองหลังบันทึก
+ * โดยไม่โหลดหน้า ถ้าแต่ละไฟล์เขียนเงื่อนไขของตัวเอง มุมมองหนึ่งจะขึ้น "23:59 น."
+ * ขณะที่อีกมุมมองบอกว่า "ไม่ระบุเวลา" สำหรับงานใบเดียวกัน
+ *
+ * "ไม่ระบุเวลา" ตัดสินจากธงเจตนา (data-due-time-unset) ไม่ใช่จากเวลาที่เก็บไว้
+ * เพราะ job_due_at ของงานที่ไม่ระบุเวลายังถือ 23:59 น. ไว้ให้วงจรสถานะล่าช้าใช้
+ */
+
+/** ข้อความแทนเวลาที่ผู้ใช้เลือกไม่ระบุ — ต้องตรงกับ TodayWorkspace::UNSET_DUE_TIME_LABEL */
+export const UNSET_DUE_TIME_LABEL = 'ไม่ระบุเวลา';
+
+/**
+ * ธงเจตนาเดินทางมาหลายรูป: '1' จาก dataset, true จาก JSON ของ server
+ * และ 'true' เมื่อถูกเขียนลง dataset ผ่าน String(boolean) — รับทุกรูปที่เกิดขึ้นจริง
+ */
+export const isDueTimeUnset = (value) => value === true || value === 1 || value === '1' || value === 'true';
+
+/** ป้ายเวลาล้วน เช่น "17:00 น." — ใช้ในคอลัมน์เวลาของบอร์ดและช่องของปฏิทิน */
+export const dueClockLabel = (clock, unset, empty = '-') => {
+    if (isDueTimeUnset(unset)) return UNSET_DUE_TIME_LABEL;
+
+    return clock ? `${clock} น.` : empty;
+};
+
+/** ป้ายเต็มประโยคของเซลล์กำหนดส่งในตาราง ซึ่งอ่านคู่กับช่วงวันบรรทัดบน */
+export const dueWithinLabel = (clock, unset) => (isDueTimeUnset(unset) || !clock
+    ? 'ไม่ระบุเวลากำหนดส่ง'
+    : `ส่งภายใน ${clock} น.`);

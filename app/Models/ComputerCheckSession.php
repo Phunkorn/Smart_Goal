@@ -89,4 +89,24 @@ class ComputerCheckSession extends Model
     {
         return $query->orderByDesc('check_date')->orderByDesc('started_at')->orderByDesc('id');
     }
+
+    /**
+     * รอบของวัน+กะ "ของแผนกหนึ่ง" — แหล่งความจริงเดียวของการค้นหารอบ
+     *
+     * ต้องมีแผนกเสมอ เพราะสิทธิ์ใช้งานฟังก์ชันนี้เป็นรายแผนก
+     * (App\Support\ComputerCheckAccess) ใบตรวจจึงเป็นของแผนก ไม่ใช่ของทั้งระบบ
+     * ถ้าค้นหาแบบไม่ระบุแผนก แผนกที่กดเริ่มรอบเป็นคนที่สองจะได้ใบของแผนกแรก
+     * กลับมา ซึ่งตัวเองไม่ได้เป็นผู้ตรวจ จึงติ๊กผลไม่ได้เลยและไม่มีข้อความบอกว่าทำไม
+     */
+    public function scopeForDayShift(
+        Builder $query,
+        string $date,
+        string $shift,
+        int|string|null $departmentId
+    ): Builder {
+        return $query
+            ->whereDate('check_date', $date)
+            ->where('shift', $shift)
+            ->where('department_id', $departmentId);
+    }
 }

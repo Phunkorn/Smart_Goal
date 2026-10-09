@@ -112,8 +112,14 @@ export function peopleSelectorMarkup({instanceId = 'demo', inputName = 'people[]
     const departmentOptions = departments.map((department) =>
         `<option value="${department.id}">${department.name}</option>`
     ).join('');
+    // โครงเดียวกับ components/people-selector.blade.php — data-sg-select คือดร็อปดาวน์กลางของระบบ
     const searchToolsEnd = isTeamManager
-        ? `<select data-people-department-select><option value="">แผนกทั้งหมด</option>${departmentOptions}</select>`
+        ? `<div class="people-selector__department-select" data-sg-select>
+                        <i class="bi bi-funnel" aria-hidden="true"></i>
+                        <label class="visually-hidden" for="${instanceId}-department-filter">กรองตามแผนก</label>
+                        <select id="${instanceId}-department-filter" data-people-department-select aria-label="กรองตามแผนก"${readOnly ? ' disabled' : ''}><option value="">แผนกทั้งหมด</option>${departmentOptions}</select>
+                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                    </div>`
         : '';
     const selectionSummary = isTeamManager
         ? `<div class="people-selector__selection-summary"><div data-people-summary-count>เลือกแล้ว ${selected.length} คน</div></div>`

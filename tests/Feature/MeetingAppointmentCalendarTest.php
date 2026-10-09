@@ -10,6 +10,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Services\MeetingAppointmentCalendarQuery;
 use App\Services\MeetingQueryService;
+use App\Support\MeetingCalendarScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -791,8 +792,8 @@ class MeetingAppointmentCalendarTest extends TestCase
 
             DB::flushQueryLog();
             DB::enableQueryLog();
-            app(MeetingAppointmentCalendarQuery::class)->calendarEventsForUser(
-                $member,
+            app(MeetingAppointmentCalendarQuery::class)->calendarEvents(
+                MeetingCalendarScope::forViewer($member),
                 CarbonImmutable::parse('2026-10-01'),
                 CarbonImmutable::parse('2026-10-31'),
                 MeetingAppointmentCalendarQuery::TYPE_MEETING

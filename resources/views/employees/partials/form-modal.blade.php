@@ -11,6 +11,14 @@
     if (! $useOldValues && ($employee?->is_department_head ?? false)) $selectedRole = 'department_head';
     $selectedDepartment = $value('department_id', $employee->department_id ?? '');
     $selectedStatus = (string) $value('is_active', $employee->is_active ?? true);
+    $visibilityOptions = \App\Support\DepartmentTaskVisibility::options();
+    $selectedVisibilityScope = (string) $value(
+        'task_visibility_scope',
+        $employee?->task_visibility_scope ?? \App\Support\DepartmentTaskVisibility::SCOPE_INVOLVED
+    );
+    $selectedVisibleDepartments = array_map('intval', (array) ($useOldValues
+        ? old('visible_department_ids', [])
+        : ($employee?->visibleDepartments->pluck('id')->all() ?? [])));
     $titleId = $modalId.'Title';
 @endphp
 
@@ -88,7 +96,7 @@
                             <h3 id="{{ $modalId }}AccessTitle">สิทธิ์และองค์กร</h3>
                         </div>
                         <div class="row g-2">
-                            <div class="{{ $isSystemAccount ? 'col-md-6' : 'col-md-4' }}">
+                            <div class="{{ $isSystemAccount ? 'col-md-6' : 'col-md-4' }}" data-sg-select>
                                 <label for="{{ $modalId }}Role" class="form-label">สิทธิ์การใช้งาน</label>
                                 <select id="{{ $modalId }}Role" name="role" class="form-select" required data-user-role>
                                     @if($isSystemAccount)
@@ -101,7 +109,7 @@
                                 </select>
                             </div>
                             @unless($isSystemAccount)
-                            <div class="col-md-4">
+                            <div class="col-md-4" data-sg-select>
                                 <label for="{{ $modalId }}Department" class="form-label">แผนก</label>
                                 <select id="{{ $modalId }}Department" name="department_id" class="form-select" data-user-department>
                                     <option value="">เลือกแผนก</option>
@@ -111,7 +119,7 @@
                                 </select>
                             </div>
                             @endunless
-                            <div class="{{ $isSystemAccount ? 'col-md-6' : 'col-md-4' }}">
+                            <div class="{{ $isSystemAccount ? 'col-md-6' : 'col-md-4' }}" data-sg-select>
                                 <label for="{{ $modalId }}Status" class="form-label">สถานะบัญชี</label>
                                 <select id="{{ $modalId }}Status" name="is_active" class="form-select" required>
                                     <option value="1" @selected($selectedStatus === '1')>เปิดใช้งาน</option>
@@ -121,6 +129,49 @@
                         </div>
                         <p class="employee-form-help">{{ $isSystemAccount ? 'Admin จัดการระบบได้เต็มรูปแบบ ส่วนผู้เข้าชมดูข้อมูลภาพรวมได้โดยแก้ไขไม่ได้' : 'พนักงานและหัวหน้าแผนกต้องมีแผนก บัญชีที่ปิดใช้งานจะถูกนำออกจากระบบทุกอุปกรณ์' }}</p>
                     </section>
+
+                    @unless($isSystemAccount)
+                        {{-- ขอบเขตการมองเห็นงาน — เป็นสิทธิ์ "ดู" อย่างเดียว ไม่ใช่สิทธิ์ร่วมงาน
+                             และไม่ทำให้ผู้ใช้ถูกนับเป็นผู้มีส่วนร่วมของงานใบใด
+                             การซ่อน/ปิดช่องที่นี่เป็นเรื่องหน้าจอเท่านั้น สิทธิ์จริงตัดสินฝั่ง server ที่
+                             WorkOrderPolicy::view() และ WorkOrder::scopeVisibleInProjectsFor() --}}
+                        <section class="employee-form-section employee-form-section--visibility" aria-labelledby="{{ $modalId }}VisibilityTitle">
+                            <div class="employee-form-section__header">
+                                <h3 id="{{ $modalId }}VisibilityTitle">ขอบเขตการมองเห็นงาน</h3>
+                            </div>
+                            <p class="employee-form-help">กำหนดว่าผู้ใช้งานสามารถมองเห็นงานของแผนกใดได้บ้าง</p>
+                            <div class="employee-visibility-options" role="radiogroup" aria-labelledby="{{ $modalId }}VisibilityTitle">
+                                @foreach($visibilityOptions as $scopeValue => $option)
+                                    @php($scopeInputId = $modalId.'Visibility'.\Illuminate\Support\Str::studly($scopeValue))
+                                    <label class="employee-visibility-option" for="{{ $scopeInputId }}">
+                                        <input id="{{ $scopeInputId }}" type="radio" name="task_visibility_scope"
+                                            value="{{ $scopeValue }}" @checked($selectedVisibilityScope === $scopeValue)
+                                            data-visibility-scope>
+                                        <span>
+                                            <strong>{{ $option['label'] }}</strong>
+                                            <em>{{ $option['hint'] }}</em>
+                                        </span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            {{-- ตั้งต้นเป็น hidden disabled ฝั่ง server เพื่อให้ถูกแม้ JS ยังไม่รัน
+                                 ฟิลด์ใน fieldset ที่ disabled ไม่ถูกส่งไปกับฟอร์ม --}}
+                            <fieldset class="employee-visibility-departments" data-visibility-departments hidden disabled>
+                                <legend>แผนกที่มองเห็นงานได้</legend>
+                                @forelse($departments as $department)
+                                    <label class="employee-visibility-department">
+                                        <input type="checkbox" name="visible_department_ids[]" value="{{ $department->id }}"
+                                            @checked(in_array((int) $department->id, $selectedVisibleDepartments, true))>
+                                        <span>{{ $department->department_name }}</span>
+                                    </label>
+                                @empty
+                                    <p class="employee-form-help">ยังไม่มีแผนกในระบบ</p>
+                                @endforelse
+                            </fieldset>
+                            @if($useOldValues) @error('visible_department_ids')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
+                            <p class="employee-form-help">สิทธิ์นี้เป็นการ "ดู" อย่างเดียว ผู้รับสิทธิ์เปิดอ่านรายละเอียดงาน งานย่อย ไฟล์แนบ และบทสนทนาของแผนกนั้นได้ แต่แก้ไข เปลี่ยนสถานะ มอบหมาย คอมเมนต์ หรือจัดการทีมไม่ได้ และไม่ถูกนับเป็นผู้มีส่วนร่วมในรายงานหรือภาระงาน</p>
+                        </section>
+                    @endunless
 
                     @if(! $isEdit)
                         <section class="employee-form-section employee-form-section--temporary-password" aria-labelledby="{{ $modalId }}PasswordTitle">

@@ -48,9 +48,11 @@ class ComputerCheckService
         $businessDay = $this->businessDay($checkDate);
         $date = $businessDay->format('Y-m-d');
 
+        // ใบตรวจเป็นของแผนก ไม่ใช่ของทั้งระบบ — ค้นหาผ่าน scope เดียวเสมอ
+        $departmentId = $actor->department_id;
+
         $existing = ComputerCheckSession::query()
-            ->whereDate('check_date', $date)
-            ->where('shift', $shift)
+            ->forDayShift($date, $shift, $departmentId)
             ->first();
 
         if ($existing !== null) {
@@ -66,11 +68,11 @@ class ComputerCheckService
         $this->assertEligibleSecondChecker($actor, $checkerTwoId);
 
         try {
-            return DB::transaction(function () use ($actor, $date, $shift, $checkerTwoId): ComputerCheckSession {
+            return DB::transaction(function () use ($actor, $date, $shift, $checkerTwoId, $departmentId): ComputerCheckSession {
                 $session = ComputerCheckSession::create([
                     // แผนกเป็น snapshot ตอนเปิดรอบ เพื่อให้ประวัติยังอยู่กับหัวหน้า
                     // แผนกที่ดูแลอยู่ในตอนนั้น แม้ผู้ตรวจจะย้ายแผนกภายหลัง
-                    'department_id' => $actor->department_id,
+                    'department_id' => $departmentId,
                     'check_date' => $date,
                     'shift' => $shift,
                     'checker_1_id' => $actor->id,
@@ -98,8 +100,7 @@ class ComputerCheckService
             });
         } catch (QueryException $exception) {
             $raced = ComputerCheckSession::query()
-                ->whereDate('check_date', $date)
-                ->where('shift', $shift)
+                ->forDayShift($date, $shift, $departmentId)
                 ->first();
 
             if ($raced === null) {

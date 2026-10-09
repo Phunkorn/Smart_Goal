@@ -9,10 +9,14 @@ import {boardFilterStateFrom, boardTaskMatches, parametersForTaskWorkspace} from
 import {publishTaskState, synchronizeCompletedTaskGroup, synchronizeTaskManagement, synchronizeTaskSource} from './pages/mytasks/task-state.js';
 import {taskStateStore} from './pages/mytasks/task-state-store.js';
 import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
+// ไอคอนตามชนิดไฟล์ใช้ตารางเดียวกับการ์ดไฟล์แนบและกล่องดาวน์โหลด ไม่มีสำเนาแยก
+import {iconFor, toneFor} from './pages/mytasks/attachment-icons.js';
 // ปุ่มลบไฟล์แนบใช้โมดูลเดียวกับการ์ด "ไฟล์แนบ" ใน Task Workspace ไม่มีสำเนาแยก
 import {attachmentDeleteButton, confirmAttachmentDelete, deleteTaskAttachment} from './pages/mytasks/attachment-delete.js';
 import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
+// ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับตาราง ปฏิทิน และโมดัล ไม่มีสำเนาแยก
+import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -146,7 +150,21 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             const title = ownControls(task, '.board-reference-task__title')[0];
             if (title) title.textContent = task.dataset.topic;
         }
-        if (Object.hasOwn(change, 'due')) task.dataset.due = String(change.due || '');
+        /*
+         * กำหนดการที่ถูกแก้จากที่อื่น (โมดัลรายละเอียดงาน ตาราง ปฏิทิน) ต้องวาดป้ายของบอร์ดใหม่
+         *
+         * ของเดิมเขียนแค่ data-due แล้วไม่วาดป้าย คอลัมน์กำหนดส่งและคอลัมน์เวลาจึงค้าง
+         * ค่าเก่าไว้จนผู้ใช้โหลดหน้าใหม่ และหลังมีตัวเลือก "ไม่ระบุเวลากำหนดส่ง"
+         * ความค้างนั้นกลายเป็นสองมุมมองที่บอกคนละอย่างสำหรับงานใบเดียวกัน
+         */
+        if (Object.hasOwn(change, 'due') || Object.hasOwn(change, 'start')) {
+            if (Object.hasOwn(change, 'due')) task.dataset.due = String(change.due || '');
+            if (Object.hasOwn(change, 'dueTime')) task.dataset.dueTime = String(change.dueTime || '');
+            if (Object.hasOwn(change, 'start')) task.dataset.start = String(change.start || '');
+            if (Object.hasOwn(change, 'startTime')) task.dataset.startTime = String(change.startTime || '');
+            if (Object.hasOwn(change, 'dueTimeUnset')) applyDueTimeUnset(task, isDueTimeUnset(change.dueTimeUnset));
+            paintScheduleLabels(task);
+        }
 
         if (Object.hasOwn(change, 'priority') && taskPriorityMeta[Number(change.priority)]) {
             const priority = Number(change.priority);
@@ -213,6 +231,22 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         task.dataset[field === 'start' ? 'startTime' : 'dueTime'] = time;
     };
 
+    /*
+     * เจตนา "ไม่ระบุเวลากำหนดส่ง" อยู่คนละที่กับค่าเวลา
+     *
+     * data-due-time ยังถือ 23:59 ไว้เพราะเป็นขณะเวลาที่ตัดสินความล่าช้า ส่วนสิ่งที่บอกว่า
+     * ผู้ใช้ไม่ได้ตั้งเวลานั้นเองคือธงนี้ ช่องกรอกทุกช่องของกำหนดส่งต้องถือธงเดียวกัน
+     * ไม่งั้นช่องที่ถือค่าเก่าจะส่งเจตนาเก่ากลับไปทับในการแก้ครั้งถัดไป
+     */
+    const applyDueTimeUnset = (task, unset) => {
+        task.dataset.dueTimeUnset = unset ? '1' : '0';
+        ownControls(task, '[data-board-field="due"]').forEach((input) => {
+            input.dataset.timeUnset = unset ? '1' : '0';
+        });
+    };
+
+    const dueTimeIsUnset = (task) => task.dataset.dueTimeUnset === '1';
+
     const paintScheduleLabels = (task) => {
         [['start', '[data-board-start-label]'], ['due', '[data-board-due-label]']].forEach(([field, selector]) => {
             const value = task.dataset[field] || '';
@@ -237,8 +271,7 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
         // คอลัมน์เวลากำหนดส่งอ่านค่าจาก dataset ชุดเดียวกัน จึงตามการแก้ไขทุกครั้งโดยไม่ต้องรีโหลด
         const dueTime = ownControls(task, '[data-board-due-time]')[0];
         if (dueTime) {
-            const clock = task.dataset.dueTime || '';
-            dueTime.textContent = clock ? `${clock} น.` : '-';
+            dueTime.textContent = dueClockLabel(task.dataset.dueTime || '', dueTimeIsUnset(task));
         }
     };
 
@@ -393,11 +426,13 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
             link.target = '_blank';
             link.rel = 'noopener';
             const icon = document.createElement('i');
-            icon.className = 'bi bi-file-earmark';
+            icon.className = `bi ${iconFor(file.name)} file-tone-${toneFor(file.name)}`;
+            icon.setAttribute('aria-hidden', 'true');
             const name = document.createElement('span');
             name.textContent = file.name;
             const open = document.createElement('i');
             open.className = 'bi bi-box-arrow-up-right';
+            open.setAttribute('aria-hidden', 'true');
             link.append(icon, name, open);
             // แถวไฟล์ครอบลิงก์กับปุ่มลบไว้ด้วยกัน เพราะปุ่มลบต้องไม่อยู่ในลิงก์เปิดไฟล์
             const row = document.createElement('div');
@@ -975,18 +1010,24 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                 const shiftedDue = currentDue && control.value > currentDue ? control.value : currentDue;
                 const dueMoved = shiftedDue !== currentDue;
 
+                /*
+                 * แก้วันเริ่มต้องไม่ล้างเจตนา "ไม่ระบุเวลากำหนดส่ง" ของอีกข้าง
+                 * endpoint เดียวกันเขียนทั้งสองค่า คีย์นี้จึงต้องเดินทางไปทุกครั้ง ไม่ใช่เฉพาะตอนแก้กำหนดส่ง
+                 */
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
                     job_start_at: control.value,
                     job_due_at: shiftedDue,
+                    job_due_time_unset: dueTimeIsUnset(task),
                 });
                 synchronizeTaskManagement(management, id, data);
                 applyScheduleValue(task, 'start', data.job_start_at ? `${data.job_start_at}T${data.job_start_time ?? ''}` : control.value);
                 if (data.job_due_at) applyScheduleValue(task, 'due', `${data.job_due_at}T${data.job_due_time ?? ''}`);
                 else applyScheduleValue(task, 'due', shiftedDue);
+                applyDueTimeUnset(task, data.job_due_time_unset === true);
                 task.dataset.status = String(data.job_status ?? task.dataset.status);
                 paintScheduleLabels(task);
                 scheduleNotice = dueMoved ? 'เลื่อนวันที่เริ่มแล้ว และเลื่อนกำหนดส่งตามไปด้วย' : '';
-                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, startTime: task.dataset.startTime || '', dueTime: task.dataset.dueTime || '', status: Number(task.dataset.status)});
+                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, startTime: task.dataset.startTime || '', dueTime: task.dataset.dueTime || '', dueTimeUnset: task.dataset.dueTimeUnset, status: Number(task.dataset.status)});
             } else if (field === 'due') {
                 if (!control.value) throw new Error('ต้องเลือกกำหนดส่ง');
 
@@ -995,26 +1036,34 @@ import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
                 const shiftedStart = currentStart && control.value < currentStart ? control.value : currentStart;
                 const startMoved = shiftedStart !== currentStart;
 
+                // ธงมาจากช่องที่ผู้ใช้เพิ่งกด ไม่ใช่จากแถว — ปฏิทินเขียน data-time-unset ลงช่องนั้นก่อนยิง change
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
                     job_start_at: shiftedStart,
                     job_due_at: control.value,
+                    job_due_time_unset: control.dataset.timeUnset === '1',
                 });
                 synchronizeTaskManagement(management, id, data);
                 if (data.job_start_at) applyScheduleValue(task, 'start', `${data.job_start_at}T${data.job_start_time ?? ''}`);
                 else applyScheduleValue(task, 'start', shiftedStart);
                 applyScheduleValue(task, 'due', data.job_due_at ? `${data.job_due_at}T${data.job_due_time ?? ''}` : control.value);
+                applyDueTimeUnset(task, data.job_due_time_unset === true);
                 task.dataset.status = String(data.job_status ?? task.dataset.status);
                 paintScheduleLabels(task);
                 scheduleNotice = startMoved ? 'เลื่อนกำหนดส่งแล้ว และเลื่อนวันที่เริ่มตามมาด้วย' : '';
-                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, startTime: task.dataset.startTime || '', dueTime: task.dataset.dueTime || '', status: Number(task.dataset.status)});
+                synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, startTime: task.dataset.startTime || '', dueTime: task.dataset.dueTime || '', dueTimeUnset: task.dataset.dueTimeUnset, status: Number(task.dataset.status)});
             }
             notify(scheduleNotice || 'บันทึกการเปลี่ยนแปลงแล้ว');
             filterBoard();
         } catch (error) {
             notify(error.message, false);
             if (field === 'start') control.value = scheduleValue(task, 'start');
-            else if (field === 'due') control.value = scheduleValue(task, 'due');
-            else window.location.reload();
+            else if (field === 'due') {
+                control.value = scheduleValue(task, 'due');
+                // บันทึกไม่สำเร็จ ช่องต้องกลับไปถือเจตนาเดิมของแถว ไม่ใช่ค้างค่าที่ผู้ใช้เพิ่งติ๊ก
+                applyDueTimeUnset(task, dueTimeIsUnset(task));
+            } else {
+                window.location.reload();
+            }
         } finally {
             control.disabled = false;
         }

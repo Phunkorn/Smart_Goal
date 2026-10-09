@@ -28,6 +28,8 @@ class TaskCollaboratorSelectorTest extends TestCase
         'data-people-count',
         'data-people-variant="team-manager"',
         'data-people-department-select',
+        // ตัวกรองแผนกต้องใช้ดร็อปดาวน์กลางของระบบ ไม่ใช่ <select> ดิบที่สไตล์ของแผงรายการแตะไม่ได้
+        'data-sg-select',
         'data-people-clear',
         'name="collaborators[]"',
         'data-team-submit',

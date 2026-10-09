@@ -536,6 +536,13 @@
     font-size: 1.05rem;
 }
 
+/* ขนาดสำหรับวางในป้ายข้อความ — สูงเท่าบรรทัดของ .cross-dept-track__chip พอดี */
+.cross-dept-track__avatar--xs {
+    width: 20px;
+    height: 20px;
+    font-size: .62rem;
+}
+
 .cross-dept-track__avatar img {
     width: 100%;
     height: 100%;
@@ -544,21 +551,22 @@
 
 .cross-dept-track__tasks { display: grid; }
 
+/*
+ * แถวงานเป็นพื้นขาวล้วนทุกถังสถานะ — ของเดิมมีรางสีซ้ายและพื้นหลังแดงอ่อนของงานล่าช้า
+ * ซ้อนกับป้ายสถานะในแถวเดียวกัน กลายเป็นการบอกเรื่องเดิมสามครั้งและทำให้การ์ดดูลาย
+ * สถานะอ่านจากป้าย .admin-approvals-status ที่ยังคงสีไว้ตามเดิมที่เดียว
+ */
 .cross-dept-track__task {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(145px, auto) auto;
     gap: 14px;
     align-items: center;
-    padding: 13px 16px 13px 20px;
+    padding: 13px 16px;
+    background: var(--approvals-surface);
     line-height: 1.5;
 }
 
 .cross-dept-track__task + .cross-dept-track__task { border-top: 1px solid var(--approvals-line); }
-
-/* รางสีด้านซ้ายบอกถังสถานะโดยไม่ต้องอ่านป้าย — โทนเดียวกับป้ายสถานะของแถว */
-.cross-dept-track__task[data-bucket="late"] { box-shadow: inset 4px 0 0 #ef4444; background: #fffbfb; }
-.cross-dept-track__task[data-bucket="active"] { box-shadow: inset 4px 0 0 #60a5fa; }
-.cross-dept-track__task[data-bucket="done"] { box-shadow: inset 4px 0 0 #34d399; }
 
 /* งานย่อยเยื้องเข้ามาใต้งานแม่ที่อยู่แถวบน */
 .cross-dept-track__task.is-nested .cross-dept-track__body { padding-left: 14px; }
@@ -593,6 +601,15 @@
 }
 
 .cross-dept-track__chip--dept { color: #1d4ed8; font-weight: 600; }
+
+/*
+ * ชื่อยาวขึ้นบรรทัดใหม่ได้โดยไม่ดันป้ายอื่นออกนอกการ์ด
+ * align-items เป็น flex-start ไม่ใช่ center เพราะเมื่อชื่อตัดสองบรรทัดบนจอแคบ
+ * การจัดกึ่งกลางจะดันรูปไปลอยอยู่ระหว่างบรรทัด รูปสูง 20px เท่ากับบรรทัดเดียวพอดี
+ * (.8rem × line-height 1.5 ≈ 19px) บรรทัดเดียวจึงยังดูตรงกลางเหมือนเดิม
+ */
+.cross-dept-track__chip--leader { gap: 7px; align-items: flex-start; }
+.cross-dept-track__chip--leader > span { min-width: 0; overflow-wrap: anywhere; }
 /* ม่วงเฉดเดียวกับป้ายงานข้ามแผนกบนบอร์ด (.cross-department-marker) */
 .cross-dept-track__chip--parent { color: #6d28d9; }
 
@@ -612,10 +629,42 @@
 }
 
 .cross-dept-track__due strong { color: var(--approvals-ink); font-weight: 600; }
-.cross-dept-track__task[data-bucket="late"] .cross-dept-track__due strong { color: #b91c1c; }
 .cross-dept-track__schedule small { color: #94a3b8; font-size: .76rem; }
 
-.cross-dept-track__action { font-size: .8rem; font-weight: 500; white-space: nowrap; }
+/*
+ * ปุ่มดูงาน — ไม่ใช้ .btn ของ Bootstrap แล้ว เพราะต้องคุมความสูงให้เท่าบรรทัดของแถว
+ * ปลายทางและพฤติกรรมยังเป็นลิงก์เดิมไปที่ Workspace ของพนักงานคนนั้น
+ */
+.cross-dept-track__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: .82rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.cross-dept-track__action i { font-size: .88rem; }
+
+.cross-dept-track__action:hover {
+    border-color: var(--approvals-accent);
+    background: var(--approvals-accent);
+    color: #fff;
+}
+
+.cross-dept-track__action:focus-visible {
+    outline: 2px solid var(--approvals-accent);
+    outline-offset: 2px;
+}
 
 .cross-dept-track__no-result {
     display: flex;
@@ -643,7 +692,7 @@
     .cross-dept-track__member-stats { width: 100%; margin-left: 0; }
 
     /* แถวงานซ้อนลงมาเป็นก้อนเดียว ลำดับการอ่านยังเหมือนเดิม */
-    .cross-dept-track__task { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px 14px 14px 18px; }
+    .cross-dept-track__task { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px; }
     .cross-dept-track__action { justify-self: start; }
 }
 
@@ -657,6 +706,6 @@
     .cross-dept-track__filter { flex: 1 1 auto; justify-content: center; padding: 8px 10px; }
     .cross-dept-track { padding: 2px 14px 16px; }
     .cross-dept-track__member-head { padding: 12px 14px; }
-    .cross-dept-track__task { padding: 14px 12px 14px 16px; }
-    .cross-dept-track__action { width: 100%; text-align: center; }
+    .cross-dept-track__task { padding: 14px 12px; }
+    .cross-dept-track__action { width: 100%; }
 }

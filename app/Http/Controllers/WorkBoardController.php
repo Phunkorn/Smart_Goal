@@ -8,10 +8,11 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use App\Services\DepartmentWorkBoardQuery;
-use App\Services\MeetingQueryService;
+use App\Services\MeetingAppointmentCalendarQuery;
 use App\Services\MemberWorkloadQuery;
 use App\Services\TaskCommentService;
 use App\Support\CrossDepartmentWork;
+use App\Support\MeetingCalendarScope;
 use App\Support\ProjectCreatorSummary;
 use App\Support\TaskCollaboratorOptions;
 use App\Support\TaskScopeOptions;
@@ -309,13 +310,27 @@ class WorkBoardController extends Controller
         $workspaceTasks = TodayWorkspace::workspaceTable($scopedJobs);
         $unreadCommentCounts = app(TaskCommentService::class)->unreadCounts($allJobs->pluck('job_id'), $request->user());
 
-        // ประชุมถูก query ต่อเมื่อ Admin เปิดมุมมองนั้นจริง เหมือนที่หน้า "งานของฉัน" ทำ
-        // scope มาจาก $user ที่ route ผูกมา ไม่ใช่ `?employee=` จึงแก้ค่าจาก URL ให้ข้ามไปดูคนอื่นไม่ได้
-        $meetingData = [];
+        /*
+         * มุมมอง "ประชุมและนัดหมาย" คือปฏิทินของแผนก ไม่ใช่รายการประชุมของสมาชิกคนนั้น
+         *
+         * ขอบเขตมาจาก $department ที่ route ผูกมาและผ่านการตรวจแล้ว ไม่ใช่แผนกของผู้ที่
+         * ล็อกอินอยู่ — Admin ที่เปิด Workspace ของพนักงานแผนก IT จึงเห็นปฏิทินแผนก IT
+         * และเปิดของ Marketing ก็เห็นปฏิทินแผนก Marketing ไม่ใช่ทุกแผนกรวมกัน
+         * ส่วนหัวหน้าแผนกเห็นปฏิทินของแผนกทั้งแผนก ไม่ถูกกรองเหลือเฉพาะใบที่สมาชิก
+         * คนนั้นเข้าร่วม (เดิมใช้ MeetingQueryService::indexData() ซึ่งกรองตามสมาชิก)
+         *
+         * query ต่อเมื่อเปิดมุมมองนั้นจริง เหมือนที่หน้า "งานของฉัน" ทำ
+         */
+        $meetingCalendarData = [];
         if ($workspaceView === 'meeting') {
             Gate::authorize('viewAny', Meeting::class);
-            $meetingData = app(MeetingQueryService::class)->indexData($request, $request->user(), $user);
+            $meetingCalendarData = app(MeetingAppointmentCalendarQuery::class)->calendarPageData(
+                MeetingCalendarScope::forDepartment($request->user(), $department),
+                $request->query('month'),
+                $request->query('type')
+            );
         }
+
         return view('work-board.admin.member', [
             'workspaceView' => $workspaceView,
             'isReadOnlyWorkspace' => $isReadOnlyWorkspace,
@@ -323,7 +338,7 @@ class WorkBoardController extends Controller
             // admin ใช้ admin.work-board.* ส่วนหัวหน้าแผนกใช้ work-board.* ซึ่งเป็นคนละกลุ่ม
             // middleware กัน (admin เข้ากลุ่ม role:user ไม่ได้)
             'viaDepartmentHead' => $viaDepartmentHead,
-            'meetingData' => $meetingData,
+            'meetingCalendarData' => $meetingCalendarData,
             'department' => $department,
             'departmentTone' => WorkBoardDesign::departmentTone($department),
             'departmentCode' => WorkBoardDesign::departmentCode($department),

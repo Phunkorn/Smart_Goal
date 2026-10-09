@@ -509,14 +509,18 @@ class TaskController extends Controller
         $validated = $request->validate([
             'job_start_at' => ['required', 'date'],
             'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
+            // "ไม่ระบุเวลากำหนดส่ง" — ผู้เรียกเก่าที่ไม่ส่งคีย์นี้มาต้องได้พฤติกรรมเดิมทุกอย่าง
+            'job_due_time_unset' => ['sometimes', 'boolean'],
         ]);
+        $dueTimeUnset = $request->boolean('job_due_time_unset');
 
         $before = $job->attributesToArray();
         $previousStartAt = $job->job_start_at;
         $previousDueAt = $job->job_due_at;
         $job->update([
             'job_start_at' => TodayWorkspace::parseBusinessInput($validated['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
-            'job_due_at' => TodayWorkspace::parseBusinessInput($validated['job_due_at'], TodayWorkspace::DEFAULT_DUE_TIME),
+            'job_due_at' => TodayWorkspace::parseDueInput($validated['job_due_at'], $dueTimeUnset),
+            'job_due_time_unset' => $dueTimeUnset,
         ]);
         if (! TodayWorkspace::reconcileLateAfterScheduleChange($job)) {
             TodayWorkspace::normalizeLateForTransition($job);
@@ -546,6 +550,7 @@ class TaskController extends Controller
                 'job_due_at' => TodayWorkspace::calendarDate($job->job_due_at),
                 'job_start_time' => TodayWorkspace::clockTime($job->job_start_at),
                 'job_due_time' => TodayWorkspace::clockTime($job->job_due_at),
+                'job_due_time_unset' => TodayWorkspace::dueTimeIsUnset($job),
                 'job_status' => (int) $job->job_status,
                 'transitions' => $transitions->capabilities($job, $user),
             ]);

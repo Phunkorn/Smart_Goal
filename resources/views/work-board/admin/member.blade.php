@@ -8,6 +8,19 @@
         'resources/css/pages/mytasks.css',
         'resources/js/pages/mytasks/index.js',
     ])
+    {{--
+        ปฏิทินประชุมและนัดหมายใช้ไฟล์ชุดเดียวกับหน้า "งานของฉัน" และโหลดเฉพาะเมื่อ
+        เปิดมุมมองนั้นจริง เหตุผลเดียวกับ tasks/index.blade.php
+        meetings.css มาด้วยเพราะปฏิทินใช้ปุ่มและเปลือก modal ชุดเดียวกับหน้าประชุม
+    --}}
+    @if (($workspaceView ?? null) === 'meeting')
+        @vite([
+            'resources/css/pages/meetings.css',
+            'resources/css/pages/meeting-calendar.css',
+            'resources/js/pages/meetings/index.js',
+            'resources/js/pages/meeting-calendar/index.js',
+        ])
+    @endif
 @endpush
 
 @section('content')
@@ -43,7 +56,6 @@
     $memberWorkspaceParameters = $viaDepartmentHead
         ? [$department, $member, 'workspace' => 1]
         : [$department, $member];
-    $memberWorkspaceBaseQuery = $viaDepartmentHead ? ['workspace' => 1] : [];
     $workspaceViews = [
         ['view' => 'table', 'icon' => 'bi-table', 'label' => 'ตาราง'],
         ['view' => 'board', 'icon' => 'bi-layout-three-columns', 'label' => 'บอร์ด'],
@@ -132,19 +144,21 @@
 
             @if($workspaceView === 'meeting')
                 {{--
-                    ใช้ partial ชุดเดียวกับหน้า /meetings และมุมมอง "ประชุม" ของงานของฉัน
-                    ห้ามคัดลอก HTML หรือ JavaScript ซ้ำ
+                    ปฏิทินประชุมและนัดหมายใบเดียวกับหน้า "งานของฉัน" — Blade, CSS และ JS
+                    ชุดเดียวกันทั้งหมด ห้ามคัดลอก HTML หรือ JavaScript ซ้ำ
 
-                    scope ของรายการถูกบังคับที่ MeetingQueryService ฝั่ง server ด้วย $member
-                    ส่วน meetingCanCreate=false เพราะการสร้างประชุมจะ redirect ไป meetings.show
-                    ซึ่งพา Admin ออกจาก Member Workspace
+                    ขอบเขตคือแผนกของ Workspace นี้ ไม่ใช่รายการประชุมของสมาชิกคนนั้น และ
+                    ไม่ใช่แผนกของผู้ที่ล็อกอิน — ถูกบังคับที่ server ด้วย
+                    MeetingCalendarScope::forDepartment() ใน WorkBoardController::adminMember()
+
+                    calendarCanCreate = false เพราะหน้านี้อ่านอย่างเดียวทั้ง Admin และ
+                    หัวหน้าแผนก และการสร้างจะ redirect ไป meetings.show ซึ่งพาผู้ใช้
+                    ออกจาก Member Workspace (สิทธิ์จริงยังอยู่ที่ MeetingPolicy ตามเดิม)
                 --}}
-                <div class="mytasks-meeting-view" data-view-panel="meeting" role="tabpanel" aria-label="การประชุมของ {{ $member->name }}">
-                    @include('meetings.components.meeting-list', array_merge($meetingData, [
-                        'meetingFormAction' => route($memberWorkspaceRoute, [$department, $member]),
-                        'meetingBaseQuery' => [...$memberWorkspaceBaseQuery, 'view' => 'meeting'],
-                        'meetingEmbedded' => true,
-                        'meetingCanCreate' => false,
+                <div class="mytasks-meeting-view" data-view-panel="meeting" role="tabpanel"
+                    aria-label="ปฏิทินประชุมและนัดหมาย แผนก{{ $department->department_name }}">
+                    @include('meetings.components.meeting-appointment-calendar', array_merge($meetingCalendarData, [
+                        'calendarCanCreate' => false,
                     ]))
                 </div>
             @endif

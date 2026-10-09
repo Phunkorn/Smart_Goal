@@ -92,8 +92,10 @@ export function taskWorkspaceMarkup({
      data-due-template="/my-tasks/__ID__/due-date">
     <div data-workspace-task-source>
         <div class="notion-row" data-row data-id="${taskId}" data-topic="งานทดสอบ" data-project="โปรเจกต์ทดสอบ"
-             data-status="2" data-priority="2" data-start="2026-08-01" data-due="2026-08-05" data-assignee="เจ้าของงาน">
+             data-status="2" data-priority="2" data-start="2026-08-01" data-start-time="09:00" data-due="2026-08-05" data-due-time="17:00" data-due-time-unset="0" data-assignee="เจ้าของงาน">
             <button type="button" class="row-title" data-open-task-modal><strong>งานทดสอบ</strong></button>
+            <small class="row-duration-time" data-due-time-label>ส่งภายใน 17:00 น.</small>
+            <input class="cell-date" type="datetime-local" data-field="due" data-time-optional data-time-unset="0" value="2026-08-05T17:00">
         </div>
     </div>
     <div class="board-reference-list" data-board-list-body>
@@ -206,8 +208,9 @@ export function taskWorkspaceMarkup({
             </details>
             <output data-static-priority hidden></output>
 
-            <input type="date" name="job_start_at" class="task-workspace__date">
-            <input type="date" name="job_due_at" class="task-workspace__date">
+            <input type="datetime-local" name="job_start_at" data-date-picker data-default-time="00:00" class="task-workspace__date">
+            <input type="datetime-local" name="job_due_at" data-date-picker data-default-time="17:00" data-time-optional class="task-workspace__date">
+            <output class="task-workspace__cell-static" data-workspace-due-unset hidden></output>
             <output data-workspace-assignee></output>
             <input name="assignee" type="hidden">
 

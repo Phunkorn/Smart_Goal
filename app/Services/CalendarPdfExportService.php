@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\User;
+use App\Support\MeetingCalendarScope;
 use App\Support\ThaiDate;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -46,14 +46,14 @@ final class CalendarPdfExportService
     /**
      * เอกสารหนึ่งฉบับ: หัวเรื่อง ช่วงวันที่ และรายการที่เรียงตามวันแล้วตามเวลาเริ่ม
      *
-     * การเรียงมาจาก calendarEventsForUser() ซึ่งเรียง date ASC แล้ว startTime ASC
+     * การเรียงมาจาก calendarEvents() ซึ่งเรียง date ASC แล้ว startTime ASC
      * อยู่แล้ว จึงไม่เรียงซ้ำที่นี่
      *
      * @param  array<int, string>|null  $selectedKeys  เมื่อไม่ใช่ null ให้เอาเฉพาะรายการที่คีย์ตรง
      * @return array{heading: string, typeLabel: string, rangeLabel: string, events: Collection<int, array<string, mixed>>, eventParts: Collection<int, array<string, mixed>>}
      */
     public function exportCalendarPdf(
-        User $viewer,
+        MeetingCalendarScope $scope,
         CarbonImmutable $fromDate,
         CarbonImmutable $toDate,
         string $type,
@@ -62,12 +62,21 @@ final class CalendarPdfExportService
         $type = MeetingAppointmentCalendarQuery::normalizeType($type);
 
         $events = $this->selectedEvents(
-            $this->calendar->calendarEventsForUser($viewer, $fromDate, $toDate, $type),
+            $this->calendar->calendarEvents($scope, $fromDate, $toDate, $type),
             $selectedKeys
         );
 
         return [
-            'heading' => self::HEADINGS[$type],
+            /*
+             * เอกสารของปฏิทินที่ล็อกกับแผนกต้องบอกแผนกไว้บนกระดาษ
+             *
+             * เอกสารถูกพิมพ์ออกไปแล้วอยู่ต่อโดยไม่มี URL ติดไปด้วย ถ้าหัวเรื่องเขียนแค่
+             * "ปฏิทินประชุมและนัดหมาย" เอกสารของแผนก IT กับของแผนก Marketing จะแยก
+             * จากกันไม่ออกเลยหลังพิมพ์
+             */
+            'heading' => $scope->isDepartmentScoped() && $scope->departmentName()
+                ? self::HEADINGS[$type].' แผนก'.$scope->departmentName()
+                : self::HEADINGS[$type],
             'typeLabel' => $type === MeetingAppointmentCalendarQuery::TYPE_ALL
                 ? 'ทั้งหมด'
                 : MeetingAppointmentCalendarQuery::typeLabel($type),
@@ -117,7 +126,7 @@ final class CalendarPdfExportService
      * การจัดกลุ่มกับการตั้งป้ายวันอยู่ที่นี่ ไม่ใช่ใน Blade เพื่อให้ชั้นแสดงผล
      * ไม่ต้องตัดสินถ้อยคำหรือลำดับเอง (และรูปแบบวัน พ.ศ. ยังมีที่เดียวคือ ThaiDate)
      *
-     * groupBy() รักษาลำดับเดิมไว้ และ calendarEventsForUser() เรียง date ASC
+     * groupBy() รักษาลำดับเดิมไว้ และ calendarEvents() เรียง date ASC
      * แล้ว startTime ASC มาแล้ว จึงไม่ต้องเรียงซ้ำ
      *
      * @param  Collection<int, array<string, mixed>>  $events
@@ -139,7 +148,7 @@ final class CalendarPdfExportService
      * กรองเหลือเฉพาะรายการที่ผู้ใช้ติ๊กเลือก
      *
      * ความปลอดภัยไม่ได้มาจากรายการคีย์ที่ส่งมา แต่มาจากลำดับของการทำงาน:
-     * รายการตั้งต้นมาจาก calendarEventsForUser() ซึ่งจำกัดสิทธิ์ที่ SQL มาแล้ว
+     * รายการตั้งต้นมาจาก calendarEvents() ซึ่งจำกัดสิทธิ์ที่ SQL มาแล้ว
      * การเลือกจึงเป็นการ "ตัดออก" เท่านั้น ส่งคีย์ของรายการที่ไม่มีสิทธิ์เห็นมา
      * ก็ไม่มีอะไรให้จับคู่ ไม่ใช่การดึงข้อมูลเพิ่ม
      *

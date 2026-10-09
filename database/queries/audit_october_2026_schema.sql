@@ -20,6 +20,7 @@ expected_migrations AS (
     UNION ALL SELECT '2026_10_08_000004_create_appointment_attendee_response_events_table'
     UNION ALL SELECT '2026_10_08_000005_add_department_scope_to_appointments_table'
     UNION ALL SELECT '2026_10_08_000006_add_computer_check_access_to_departments_table'
+    UNION ALL SELECT '2026_10_09_000001_scope_computer_check_sessions_unique_to_department'
 ),
 expected_tables AS (
     SELECT 'computer_check_workstations' AS table_name, '2026_10_06_000001_create_computer_check_workstations_table' AS source_migration
@@ -120,7 +121,7 @@ expected_columns AS (
 expected_indexes AS (
     SELECT 'computer_check_workstations' AS table_name, 'computer_check_workstations_code_unique' AS index_name, '2026_10_06_000001_create_computer_check_workstations_table' AS source_migration
     UNION ALL SELECT 'computer_check_workstations', 'computer_check_workstations_listing_index', '2026_10_06_000001_create_computer_check_workstations_table'
-    UNION ALL SELECT 'computer_check_sessions', 'computer_check_sessions_day_shift_unique', '2026_10_06_000002_create_computer_check_sessions_table'
+    UNION ALL SELECT 'computer_check_sessions', 'cc_sessions_dept_day_shift_unique', '2026_10_09_000001_scope_computer_check_sessions_unique_to_department'
     UNION ALL SELECT 'computer_check_sessions', 'computer_check_sessions_day_status_index', '2026_10_06_000002_create_computer_check_sessions_table'
     UNION ALL SELECT 'computer_check_sessions', 'computer_check_sessions_department_index', '2026_10_06_000002_create_computer_check_sessions_table'
     UNION ALL SELECT 'computer_check_results', 'computer_check_results_session_station_unique', '2026_10_06_000003_create_computer_check_results_table'

@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Models\Appointment;
 use App\Models\AppointmentAttendee;
 use App\Models\User;
+use App\Support\MeetingCalendarScope;
 
 /**
  * นัดหมายเป็นเรื่องของผู้สร้างกับผู้ที่ถูกเชิญ — เว้นใบที่ผู้สร้างเลือกเปิดให้แผนก
@@ -16,9 +17,16 @@ use App\Models\User;
  *
  * ขอบเขต "แผนก" ที่เพิ่มเข้ามาพร้อมปฏิทินระดับแผนก
  * ---------------------------------------------------------------
- * ตัวตัดสินคือ appointments.visibility ซึ่ง "ผู้สร้างเลือกเอง" ไม่ใช่บทบาทของผู้อ่าน
- * นัดหมายทุกใบที่มีอยู่ก่อนฟีเจอร์นี้เป็น 'personal' (ดู migration
+ * ตัวตัดสินด่านแรกคือ appointments.visibility ซึ่ง "ผู้สร้างเลือกเอง" ไม่ใช่บทบาท
+ * ของผู้อ่าน นัดหมายทุกใบที่มีอยู่ก่อนฟีเจอร์นี้เป็น 'personal' (ดู migration
  * add_department_scope_to_appointments_table) จึงไม่มีใบไหนถูกเปิดเผยย้อนหลัง
+ * และนัดหมายส่วนตัวของคนอื่นยังไม่มีทางผ่านของ admin หรือหัวหน้าแผนกเลย
+ *
+ * ด่านที่สองคือ "เปิดปฏิทินของแผนกเจ้าของได้หรือไม่" (MeetingCalendarScope::allows)
+ * ซึ่งรวม admin ด้วย เพราะ admin เปิด Member Workspace ของทุกแผนกได้และหน้านั้น
+ * ต้องแสดงปฏิทินของแผนกนั้นจริง ๆ ไม่ใช่ปฏิทินของ admin เอง
+ * ด่านนี้จึงไม่ใช่ "บทบาทสูงกว่าอ่านได้ทุกอย่าง" — มันทำงานได้เฉพาะกับใบที่
+ * เจ้าของกดแชร์ให้แผนกไว้แล้วเท่านั้น
  *
  * การเห็นข้ามแผนกไม่เท่ากับสิทธิ์แก้ไข — update()/delete()/viewAttendeeResponses()
  * ยังเป็นของผู้สร้างคนเดียวทั้งหมด
@@ -43,16 +51,19 @@ class AppointmentPolicy
     }
 
     /**
-     * ผู้สร้าง, ผู้ที่ถูกเชิญ, หรือคนในแผนกเจ้าของเมื่อนัดหมายถูกตั้งเป็นขอบเขต "แผนก"
+     * ผู้สร้าง, ผู้ที่ถูกเชิญ, หรือผู้ที่เปิดปฏิทินของแผนกเจ้าของได้เมื่อนัดหมายถูก
+     * ตั้งเป็นขอบเขต "แผนก"
      *
-     * ต้องตรงกับ Appointment::scopeVisibleTo() เป๊ะ ๆ — ถ้าสองที่นี้ไม่ตรงกัน
-     * ปฏิทินจะขึ้นรายการที่กดเข้าไปแล้วเจอ 403 หรือแย่กว่านั้นคือกลับกัน
+     * ต้องครอบคลุมทุกใบที่ขึ้นบนปฏิทินได้ ไม่งั้นปฏิทินจะขึ้นรายการที่กดเข้าไปแล้ว
+     * เจอ 403 — ฝั่งคิวรีมีสองขอบเขตที่ต้องตรงกับที่นี่:
+     *   - ปฏิทินของผู้ดูเอง → Appointment::scopeVisibleTo()
+     *   - ปฏิทินของแผนก → Appointment::scopeSharedWithDepartment()
      */
     public function view(User $user, Appointment $appointment): bool
     {
         return $this->isCreatedBy($user, $appointment)
             || $this->isInvited($user, $appointment)
-            || $this->isInOwningDepartment($user, $appointment);
+            || $this->isSharedWithACalendarTheyCanOpen($user, $appointment);
     }
 
     public function create(User $user): bool
@@ -117,15 +128,27 @@ class AppointmentPolicy
     }
 
     /**
-     * อยู่ในแผนกเจ้าของของนัดหมายที่เปิดเป็นขอบเขต "แผนก" หรือไม่
+     * นัดหมายใบนี้ถูกแชร์ให้แผนกที่ผู้อ่าน "เปิดปฏิทินของแผนกนั้นได้" หรือไม่
+     *
+     * เงื่อนไขแรกและเงื่อนไขที่ตัดสินจริงคือ visibility ซึ่งผู้สร้างเลือกเอง
+     * นัดหมาย 'personal' ตกทันทีสำหรับทุกบทบาท ไม่มีทางผ่านของ admin หรือหัวหน้าแผนก
+     * บนนัดหมายส่วนตัวของคนอื่น — กติกาเดิมของไฟล์นี้ยังอยู่ครบ
+     *
+     * ส่วน "ใครเปิดปฏิทินของแผนกไหนได้" ใช้กฎก้อนเดียวกับปฏิทินเอง
+     * (MeetingCalendarScope::allows) จึงไม่มีทางที่ปฏิทินจะขึ้นรายการที่กดเข้าไป
+     * แล้วเจอ 403 หรือกลับกัน คือกดได้แต่ไม่โผล่บนปฏิทิน
+     * ผู้ใช้ที่ไม่มีแผนกยังไม่จับคู่กับนัดหมายที่ไม่มีแผนกเจ้าของ เพราะ allows()
+     * ปฏิเสธ departmentId ที่เป็น null ตั้งแต่บรรทัดแรก
+     *
+     * ผลที่เพิ่มจากเดิม: admin เปิดนัดหมายที่ถูกแชร์ให้แผนกได้ทุกแผนก เพราะ
+     * Member Workspace ของทุกแผนกเปิดได้อยู่แล้วและต้องแสดงปฏิทินของแผนกนั้น
+     * (ข้อกำหนด "แยกสิทธิ์ดูปฏิทินออกจากสิทธิ์สร้าง/แก้ไข/ลบ")
+     * ส่วนคนในแผนกเดียวกันยังเห็นเท่าเดิมทุกกรณี
      *
      * การมองเห็นเท่านั้น ไม่ได้ให้สิทธิ์แก้หรือลบ — update()/delete() ยังเป็นของ
      * ผู้สร้างคนเดียวตามเดิม และ viewAttendeeResponses() ก็ไม่เปิดตาม
-     *
-     * ผู้ใช้ที่ไม่มีแผนก (department_id เป็น null) ต้องไม่จับคู่กับนัดหมายที่ไม่มี
-     * แผนกเจ้าของ จึงตรวจว่าทั้งสองค่ามีจริงก่อนเทียบ
      */
-    private function isInOwningDepartment(User $user, Appointment $appointment): bool
+    private function isSharedWithACalendarTheyCanOpen(User $user, Appointment $appointment): bool
     {
         // ไม่เรียก canOwnAppointments() ที่นี่ — viewer เห็นปฏิทินของแผนกตัวเองได้
         // แต่ยังเป็นเจ้าของนัดหมายไม่ได้ ซึ่งคุมที่ create()/update() ตามเดิม
@@ -133,8 +156,7 @@ class AppointmentPolicy
             return false;
         }
 
-        return (bool) $user->department_id
-            && (int) $appointment->department_id === (int) $user->department_id;
+        return MeetingCalendarScope::allows($user, $appointment->department_id);
     }
 
     private function canOwnAppointments(User $user): bool

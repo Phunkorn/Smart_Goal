@@ -10,6 +10,20 @@
     ส่วนนี้ไม่คิวรีและไม่รวมข้อมูลสอง domain เอง
 --}}
 @php
+    /*
+     * ขอบเขตของปฏิทินใบนี้ถูกตัดสินมาแล้วฝั่ง server (MeetingCalendarScope) ส่วนนี้แค่
+     * ส่งต่อให้ endpoint เปลี่ยนเดือน/ตัวกรอง และฟอร์ม Export อยู่ในขอบเขตเดียวกัน
+     * ค่าว่างคือปฏิทินของผู้ใช้เอง ซึ่งเป็นพฤติกรรมของปฏิทินหลัก
+     */
+    $calendarScopeQuery = $calendarScopeQuery ?? [];
+    /*
+     * "ดูปฏิทินได้" คนละเรื่องกับ "สร้างได้"
+     *
+     * ค่าตั้งต้นมาจาก MeetingPolicy ตามเดิม แต่หน้าที่ยืมปฏิทินไปใช้แบบอ่านอย่างเดียว
+     * (Member Workspace) ส่งค่า false มาปิดปุ่มสร้างได้ โดยไม่ต้องมีปฏิทินอีกใบ
+     * การปิดปุ่มนี้ไม่ใช่การกันสิทธิ์ — สิทธิ์จริงยังถูกบังคับที่ MeetingPolicy::create()
+     */
+    $calendarCanCreate = $calendarCanCreate ?? auth()->user()?->can('create', App\Models\Meeting::class) ?? false;
     $calendarTypeOptions = [
         \App\Services\MeetingAppointmentCalendarQuery::TYPE_ALL => 'ทั้งหมด',
         \App\Services\MeetingAppointmentCalendarQuery::TYPE_MEETING => 'ประชุม',
@@ -28,7 +42,7 @@
     $calendarWeekdayLabels = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 @endphp
 <section class="meeting-calendar" data-meeting-calendar
-    data-calendar-events-endpoint="{{ route('meeting-calendar.events') }}"
+    data-calendar-events-endpoint="{{ route('meeting-calendar.events', $calendarScopeQuery) }}"
     data-calendar-month="{{ $calendarMonthValue }}" data-calendar-type="{{ $calendarType }}"
     data-calendar-today="{{ $calendarToday->format('Y-m-d') }}">
 
@@ -54,13 +68,13 @@
                 aria-controls="calendarExportModal" aria-haspopup="dialog">
                 <i class="bi bi-filetype-pdf" aria-hidden="true"></i> Export PDF
             </button>
-            @can('create', App\Models\Meeting::class)
+            @if ($calendarCanCreate)
                 <button class="meetings-page__button meetings-page__button--primary" type="button"
                     data-meeting-modal-trigger="calendarCreateTypeModal" aria-controls="calendarCreateTypeModal"
                     aria-haspopup="dialog">
                     <i class="bi bi-plus-lg" aria-hidden="true"></i> เพิ่ม
                 </button>
-            @endcan
+            @endif
         </div>
     </header>
 
@@ -126,8 +140,11 @@
     <script type="application/json" data-calendar-payload>@json($calendarPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)</script>
 </section>
 
-@can('create', App\Models\Meeting::class)
+@if ($calendarCanCreate)
     @include('meetings.components.calendar-create-type-modal')
-@endcan
+@endif
 @include('meetings.components.calendar-day-events-modal')
-@include('meetings.components.calendar-export-modal', ['calendarType' => $calendarType])
+@include('meetings.components.calendar-export-modal', [
+    'calendarType' => $calendarType,
+    'calendarScopeQuery' => $calendarScopeQuery,
+])

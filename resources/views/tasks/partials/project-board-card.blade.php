@@ -106,7 +106,9 @@
                         $dueMoment = $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at) : null;
                         $startLabel = $startMoment ? $startMoment->day.' '.$thaiMonths[$startMoment->month].' '.($startMoment->year + 543) : '-';
                         $dueLabel = $dueMoment ? $dueMoment->day.' '.$thaiMonths[$dueMoment->month].' '.($dueMoment->year + 543) : 'ไม่มีกำหนด';
-                        $dueTimeLabel = \App\Support\TodayWorkspace::timeLabel($task->job_due_at) ?? '-';
+                        // "ไม่ระบุเวลา" กับ "17:00 น." ต่างกันที่ job_due_time_unset ไม่ใช่ที่เวลาที่เก็บไว้
+                        $dueTimeUnset = \App\Support\TodayWorkspace::dueTimeIsUnset($task);
+                        $dueTimeLabel = \App\Support\TodayWorkspace::dueTimeLabel($task);
                         $assigneeName = $task->user?->name ?? auth()->user()->name;
                         // เก็บข้อความที่ใช้ค้นหาแยกจากข้อความบนหน้าจอ เพราะชื่อคนใน avatar อยู่ใน
                         // title/aria-label ซึ่ง textContent อ่านไม่พบ โดยเฉพาะเมื่อผู้ใช้มีรูปโปรไฟล์
@@ -171,7 +173,7 @@
                         $crossDepartment = \App\Support\CrossDepartmentWork::marker($task, $workspaceSubject);
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
-                    <article class="board-reference-row task-priority-{{ $priority[1] }} {{ $isReadOnlyTask ? 'is-readonly' : '' }} {{ $taskIsContextOnly ? 'is-context-only' : '' }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-participate="{{ $taskIsMine ? 1 : 0 }}" data-context-only="{{ $taskIsContextOnly ? 1 : 0 }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-cross-department="{{ $crossDepartment ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-search-text="{{ $taskSearchText }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
+                    <article class="board-reference-row task-priority-{{ $priority[1] }} {{ $isReadOnlyTask ? 'is-readonly' : '' }} {{ $taskIsContextOnly ? 'is-context-only' : '' }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-participate="{{ $taskIsMine ? 1 : 0 }}" data-context-only="{{ $taskIsContextOnly ? 1 : 0 }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-cross-department="{{ $crossDepartment ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-search-text="{{ $taskSearchText }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-due-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
                         <div class="board-reference-task">
                             @include('tasks.components.task-details', ['task' => $task, 'taskIsContextOnly' => $taskIsContextOnly])
                         </div>
@@ -201,7 +203,7 @@
                             <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
                         @endif
                         @if($hasScheduleControls)
-                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกวันที่และเวลากำหนดส่ง"></label>
+                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกวันที่และเวลากำหนดส่ง"></label>
                         @else
                             <span class="board-due {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $dueLabel }}</span>
                         @endif
@@ -211,7 +213,7 @@
                             ของค่าเดียวกัน ไม่ใช่สองค่าที่ต้องซิงก์กันเอง
                         --}}
                         @if($hasScheduleControls)
-                            <label class="board-due-time board-due-time-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกเวลากำหนดส่ง"></label>
+                            <label class="board-due-time board-due-time-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกเวลากำหนดส่ง"></label>
                         @else
                             <span class="board-due-time {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span></span>
                         @endif

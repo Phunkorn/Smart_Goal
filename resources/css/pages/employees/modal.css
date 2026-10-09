@@ -16,13 +16,16 @@
 .employee-form-modal .form-control, .employee-form-modal .form-select, .employee-reset-modal .form-control { min-height: 42px; border-color: var(--border); border-radius: var(--radius-sm); font-size: .82rem; }
 .employee-form-modal .form-control:focus, .employee-form-modal .form-select:focus, .employee-reset-modal .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 .employee-form-modal .form-select:disabled { background-color: var(--surface-2); color: var(--text-muted); }
+.employee-form-modal .sg-select { width: 100%; }
+.employee-form-modal .sg-select__trigger { min-height: 42px; font-size: .82rem; }
+.employee-form-modal .sg-select__panel { z-index: 40; }
 .employee-form-help { margin: 4px 0 0; color: var(--text-muted); font-size: .69rem; line-height: 1.4; }
 .employee-profile-preview { display: none; width: 88px; height: 88px; margin-top: 10px; border: 1px dashed var(--border); border-radius: 16px; background: var(--surface-2); object-fit: cover; }
 .employee-profile-preview.is-visible { display: block; }
 .employee-form-modal__footer { gap: 8px; padding: 11px 18px; border-top-color: var(--border); }
 
 .employee-form-modal--create .modal-dialog { max-width: 760px; }
-.employee-form-modal--create .employee-form-modal__content { overflow: hidden; background: var(--surface); }
+.employee-form-modal--create .employee-form-modal__content { overflow: visible; background: var(--surface); }
 .employee-form-modal--create .employee-form-modal__header { padding: 13px 18px; background: var(--surface); }
 .employee-form-modal--create .employee-form-modal__icon { width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .employee-form-modal--create .employee-form-modal__body { gap: 0; padding: 0 18px; background: var(--surface); }
@@ -33,6 +36,7 @@
 .employee-form-modal--create .row { --bs-gutter-x: .875rem; --bs-gutter-y: .625rem; }
 .employee-form-modal--create .form-label { margin-bottom: 3px; font-size: .73rem; }
 .employee-form-modal--create .form-control, .employee-form-modal--create .form-select { min-height: 40px; }
+.employee-form-modal--create .sg-select__trigger { min-height: 40px; }
 .employee-form-modal--create .employee-form-help { margin-top: 4px; font-size: .67rem; line-height: 1.35; }
 .employee-form-modal--create .employee-form-section--temporary-password { margin: 1px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow-sm); }
 .employee-form-modal--create .employee-form-modal__footer { padding: 10px 18px; background: var(--surface); }
@@ -53,7 +57,8 @@
 
 .employee-form-modal--employee.employee-form-modal--create .employee-form-section--account,
 .employee-form-modal--employee.employee-form-modal--create .employee-form-section--contact,
-.employee-form-modal--employee.employee-form-modal--create .employee-form-section--access {
+.employee-form-modal--employee.employee-form-modal--create .employee-form-section--access,
+.employee-form-modal--employee.employee-form-modal--create .employee-form-section--visibility {
     grid-column: 1 / -1;
 }
 
@@ -65,6 +70,10 @@
 .employee-form-modal--employee.employee-form-modal--create .form-select {
     min-height: 38px;
     padding-block: 6px;
+}
+
+.employee-form-modal--employee.employee-form-modal--create .sg-select__trigger {
+    min-height: 38px;
 }
 
 .employee-form-modal--employee.employee-form-modal--create .employee-form-section--temporary-password,
@@ -95,6 +104,31 @@
 .employee-reset-modal__notice { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 16px; padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--amber-dim); color: var(--text); font-size: .73rem; line-height: 1.5; }
 .employee-reset-modal__notice i { flex: 0 0 auto; color: var(--amber); }
 .employee-reset-modal__input-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+
+/*
+ * ขอบเขตการมองเห็นงาน — ตัวเลือกเป็นการ์ดเตี้ย ๆ ไม่ใช่ radio เปล่า
+ *
+ * สามตัวเลือกนี้ต่างกันที่ "ผลลัพธ์" ไม่ใช่ที่ชื่อ จึงต้องมีคำอธิบายกำกับทุกตัว
+ * ใช้ token ชุดเดียวกับส่วนอื่นของโมดัล (--surface-2 สำหรับพื้นที่ยุบ, --accent สำหรับตัวที่เลือก)
+ */
+.employee-visibility-options { display: grid; gap: 6px; }
+.employee-visibility-option { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; }
+.employee-visibility-option:hover { border-color: var(--accent); }
+.employee-visibility-option input { margin-top: 2px; flex: 0 0 auto; accent-color: var(--accent); }
+.employee-visibility-option span { display: grid; gap: 1px; min-width: 0; }
+.employee-visibility-option strong { color: var(--text); font-size: .79rem; font-weight: 700; }
+.employee-visibility-option em { color: var(--text-muted); font-size: .68rem; font-style: normal; line-height: 1.35; }
+.employee-visibility-option:has(input:checked) { border-color: var(--accent); background: var(--accent-dim); }
+.employee-visibility-option:has(input:checked) strong { color: var(--accent-strong); }
+.employee-visibility-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.employee-visibility-option:has(input:disabled) { background: var(--surface-2); cursor: not-allowed; opacity: .6; }
+
+.employee-visibility-departments { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; margin: 8px 0 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.employee-visibility-departments[hidden] { display: none; }
+.employee-visibility-departments legend { grid-column: 1 / -1; float: none; width: auto; margin: 0 0 2px; padding: 0; color: var(--text-muted); font-size: .7rem; font-weight: 700; }
+.employee-visibility-department { display: flex; align-items: center; gap: 7px; min-width: 0; margin: 0; color: var(--text); font-size: .76rem; cursor: pointer; }
+.employee-visibility-department input { flex: 0 0 auto; accent-color: var(--accent); }
+.employee-visibility-department span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 560px) {
     .employee-form-modal .modal-dialog, .employee-reset-modal .modal-dialog { margin: 10px; }

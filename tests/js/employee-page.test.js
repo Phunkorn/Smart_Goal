@@ -5,10 +5,13 @@ import {
     employeeMatchesSearch,
     formatTemporaryPassword,
     normalizeEmployeeSearch,
+    syncVisibilityFields,
     usernameValidationMessage,
 } from '../../resources/js/pages/employees/index.js';
+import {clickCheckbox, mountDom} from './helpers/dom.js';
 
 const source = readFileSync(new URL('../../resources/js/pages/employees/index.js', import.meta.url), 'utf8');
+const entryCss = readFileSync(new URL('../../resources/css/pages/employees.css', import.meta.url), 'utf8');
 const employeeCss = readFileSync(new URL('../../resources/css/pages/employees/index.css', import.meta.url), 'utf8');
 const modalCss = readFileSync(new URL('../../resources/css/pages/employees/modal.css', import.meta.url), 'utf8');
 const pageSource = readFileSync(new URL('../../resources/views/employees/index.blade.php', import.meta.url), 'utf8');
@@ -46,6 +49,15 @@ test('employee form modal uses compact natural page scrolling', () => {
     assert.match(modalSource, />บัญชีผู้ใช้งาน<\/label>/);
     assert.match(modalCss, /employee-form-modal--employee\.employee-form-modal--create \.modal-dialog\s*\{[^}]*max-width:\s*680px/s);
     assert.match(modalCss, /employee-form-section--temporary-password,[^{]+employee-form-section--profile\s*\{[^}]*background:\s*var\(--surface-2\)/s);
+});
+
+test('employee form selects reuse the styled dropdown component without clipping the panel', () => {
+    assert.match(entryCss, /@import '\.\.\/components\/select-dropdown\.css';/);
+    assert.match(source, /import \{initSelectDropdowns\} from '\.\.\/\.\.\/components\/select-dropdown\.js';/);
+    assert.match(source, /initSelectDropdowns\(form\)/);
+    assert.equal((modalSource.match(/data-sg-select/g) ?? []).length, 3);
+    assert.match(modalCss, /\.employee-form-modal--create \.employee-form-modal__content\s*\{[^}]*overflow:\s*visible/s);
+    assert.match(modalCss, /\.employee-form-modal \.sg-select__trigger\s*\{[^}]*min-height:\s*42px/s);
 });
 
 test('create employee uses one simple temporary password field with create-only styling', () => {
@@ -141,4 +153,102 @@ test('username constraint messages are Thai and never demand a dot', () => {
     assert.match(modalSource, /data-username-input/);
     // คำใบ้ต้องไม่ทำให้เข้าใจว่าจุดเป็นสิ่งจำเป็น
     assert.match(modalSource, /จะใส่ \. - _ เพิ่มด้วยก็ได้ \(ไม่บังคับ\)/);
+});
+
+const visibilityFormMarkup = (role = 'user', scope = 'involved') => `
+    <form data-employee-form>
+        <select data-user-role>
+            <option value="user" ${role === 'user' ? 'selected' : ''}>user</option>
+            <option value="department_head" ${role === 'department_head' ? 'selected' : ''}>head</option>
+            <option value="admin" ${role === 'admin' ? 'selected' : ''}>admin</option>
+        </select>
+        <div class="employee-visibility-options">
+            <input type="radio" name="task_visibility_scope" value="involved" data-visibility-scope ${scope === 'involved' ? 'checked' : ''}>
+            <input type="radio" name="task_visibility_scope" value="own_department" data-visibility-scope ${scope === 'own_department' ? 'checked' : ''}>
+            <input type="radio" name="task_visibility_scope" value="custom" data-visibility-scope ${scope === 'custom' ? 'checked' : ''}>
+        </div>
+        <fieldset data-visibility-departments hidden disabled>
+            <label><input type="checkbox" name="visible_department_ids[]" value="7"></label>
+        </fieldset>
+    </form>
+`;
+
+test('department visibility picker reveals its department list only for the custom option', () => {
+    const dom = mountDom(`<!doctype html><html><body>${visibilityFormMarkup()}</body></html>`);
+
+    try {
+        const form = dom.window.document.querySelector('[data-employee-form]');
+        const fieldset = form.querySelector('[data-visibility-departments]');
+        const options = [...form.querySelectorAll('[data-visibility-scope]')];
+        const custom = options.find((option) => option.value === 'custom');
+        const own = options.find((option) => option.value === 'own_department');
+        const checkbox = form.querySelector('input[name="visible_department_ids[]"]');
+
+        // ค่าเริ่มต้นต้องปิดไว้ และ markup จาก server ก็ปิดมาแต่ต้น
+        syncVisibilityFields(form);
+        assert.equal(fieldset.hidden, true);
+        assert.equal(fieldset.disabled, true);
+
+        // เลือก "กำหนดเอง" แล้วรายการแผนกต้องเปิด
+        options.forEach((option) => { option.checked = false; });
+        custom.checked = true;
+        syncVisibilityFields(form);
+        assert.equal(fieldset.hidden, false);
+        assert.equal(fieldset.disabled, false);
+
+        // ติ๊กแผนกไว้ แล้วสลับโหมดกลับ — ต้องปิดแต่ไม่ล้างสิ่งที่เลือกไว้
+        clickCheckbox(checkbox);
+        assert.equal(checkbox.checked, true);
+        custom.checked = false;
+        own.checked = true;
+        syncVisibilityFields(form);
+        assert.equal(fieldset.hidden, true);
+        assert.equal(fieldset.disabled, true);
+        assert.equal(checkbox.checked, true, 'การสลับโหมดต้องไม่ทิ้งรายการที่ admin เลือกไว้แล้ว');
+    } finally {
+        dom.cleanup();
+    }
+});
+
+test('department visibility is closed for accounts that never use it', () => {
+    const dom = mountDom(`<!doctype html><html><body>${visibilityFormMarkup('admin', 'custom')}</body></html>`);
+
+    try {
+        const form = dom.window.document.querySelector('[data-employee-form]');
+        syncVisibilityFields(form);
+
+        // admin เห็นทุกงานอยู่แล้ว สิทธิ์ชุดนี้จึงไม่มีความหมาย และ server บีบกลับเป็น involved
+        form.querySelectorAll('[data-visibility-scope]').forEach((option) => {
+            assert.equal(option.disabled, true);
+        });
+        assert.equal(form.querySelector('[data-visibility-departments]').disabled, true);
+    } finally {
+        dom.cleanup();
+    }
+});
+
+test('visibility section sits before the create-only password block and is wired up', () => {
+    assert.match(modalSource, /employee-form-section--visibility/);
+    assert.match(modalSource, /name="task_visibility_scope"/);
+    assert.match(modalSource, /name="visible_department_ids\[\]"/);
+    assert.match(modalSource, />ขอบเขตการมองเห็นงาน</);
+
+    /*
+     * ลำดับนี้ load-bearing — เทสต์ "create employee uses one simple temporary password field"
+     * ตัดช่วงจาก @if(! $isEdit) ถึง section --profile แล้วนับ name="password"
+     * ถ้าส่วนนี้หลุดเข้าไปในช่วงนั้น ตัวนับจะเพี้ยนและเทสต์นั้นจะพังแบบอ่านสาเหตุไม่ออก
+     */
+    assert.ok(
+        modalSource.indexOf('employee-form-section--visibility') < modalSource.indexOf('@if(! $isEdit)'),
+        'ส่วนขอบเขตการมองเห็นงานต้องอยู่ก่อนบล็อกรหัสผ่านชั่วคราว'
+    );
+
+    // บัญชีระบบไม่มีสิทธิ์ชุดนี้ ส่วนนี้จึงต้องอยู่ใน @unless($isSystemAccount)
+    const sectionStart = modalSource.lastIndexOf('@unless($isSystemAccount)', modalSource.indexOf('employee-form-section--visibility'));
+    assert.notEqual(sectionStart, -1);
+
+    assert.match(source, /syncVisibilityFields\(form\)/);
+    assert.match(modalCss, /\.employee-visibility-departments\[hidden\]\s*\{[^}]*display:\s*none/s);
+    assert.match(employeeCss, /\.employee-visibility-state\s*\{/);
+    assert.match(pageSource, />การมองเห็นงาน:<\/span>/);
 });

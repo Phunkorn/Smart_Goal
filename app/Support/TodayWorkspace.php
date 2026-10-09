@@ -24,6 +24,17 @@ final class TodayWorkspace
     public const DEFAULT_DUE_TIME = '17:00';
 
     /**
+     * เวลาไทยที่เก็บลง job_due_at เมื่อผู้ใช้เลือก "ไม่ระบุเวลากำหนดส่ง" — สิ้นวันทำการ
+     *
+     * เป็นเพียง "ขณะเวลา" ที่ใช้ตัดสินความล่าช้า ไม่ใช่ค่าสัญลักษณ์ที่บอกว่าไม่ระบุเวลา
+     * สิ่งที่บอกเจตนาคือ work_orders.job_due_time_unset เท่านั้น
+     */
+    public const UNSET_DUE_CLOCK = '23:59';
+
+    /** ข้อความที่ทุกมุมมองใช้แทนเวลากำหนดส่งที่ผู้ใช้เลือกไม่ระบุ */
+    public const UNSET_DUE_TIME_LABEL = 'ไม่ระบุเวลา';
+
+    /**
      * วงจรสถานะล่าช้าอัตโนมัติต้องแตะเฉพาะงานที่ได้รับอนุมัติแล้ว
      * งานที่ยัง 'pending' (มอบหมายข้ามแผนก รอ Admin ตัดสินใจ) หรือถูก 'rejected'
      * ห้ามถูกดันเป็น "ล่าช้า" ก่อนที่ Admin จะอนุมัติ
@@ -36,6 +47,17 @@ final class TodayWorkspace
     /** สถานะ "เสร็จแล้ว/ปิดงาน" */
     private const DONE_STATUS = 4;
 
+    /**
+     * ต้องหา job_id ให้ครบก่อน แล้วค่อยสั่ง update ด้วยคีย์ ห้าม update ผ่าน $query ตรง ๆ
+     *
+     * ผู้เรียกบางรายส่งคิวรีที่มีเงื่อนไขอ้าง work_orders ซ้อนอยู่ข้างใน เช่น
+     * MemberWorkloadQuery::forMemberWorkspace() ที่ใช้ orWhereHas('children')
+     * MySQL ห้าม UPDATE ที่ subquery อ่านตารางเดียวกับที่กำลังเขียน (error 1093)
+     * หน้า Member Workspace จึงพัง 500 ทุกครั้งบนฐานข้อมูลจริง
+     *
+     * SQLite ที่ชุดทดสอบใช้ยอมให้ทำแบบนั้น ความต่างจึงไม่โผล่จนขึ้น MySQL
+     * เทสต์ที่กันเรื่องนี้ไว้วัดจาก "รูป SQL" ไม่ใช่ผลลัพธ์ เพราะ SQLite ทำให้ล้มไม่ได้
+     */
     public static function synchronizeLate(Builder $query): void
     {
         // งานที่ "พักงาน" ค้างไว้จนเลยกำหนดส่ง ต้องกลายเป็นล่าช้าเหมือนงานที่กำลังทำ
@@ -44,10 +66,25 @@ final class TodayWorkspace
         // เทียบกับ now() ตรง ๆ ได้เพราะทั้ง job_due_at และ now() เป็น UTC ทั้งคู่
         // การเทียบ "ขณะเวลา" ไม่ต้องแปลง timezone ก่อน — เวลาไทย 16:00 กับ UTC 09:00
         // คือขณะเดียวกัน กำหนดส่ง 17 มิ.ย. 16:00 จึงกลายเป็นล่าช้าตอน 16:00 ตามที่ผู้ใช้ตั้งไว้จริง
-        (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
+        //
+        // จับเวลาไว้ค่าเดียวทั้งการเทียบและการบันทึก ไม่ให้สองค่าเคลื่อนจากกัน
+        $now = now();
+
+        $lateJobIds = (clone $query)->where('approval_status', self::AUTOMATED_APPROVAL_STATUS)
             ->whereIn('job_status', self::LATE_ELIGIBLE_STATUSES)
-            ->whereNotNull('job_due_at')->where('job_due_at', '<', now())
-            ->update(['job_status' => 6, 'late_at' => now()]);
+            ->whereNotNull('job_due_at')->where('job_due_at', '<', $now)
+            ->pluck('work_orders.job_id');
+
+        if ($lateJobIds->isEmpty()) {
+            return;
+        }
+
+        // แบ่งก้อนเพื่อไม่ให้ whereIn ยาวเกิน max_allowed_packet เมื่อมีงานค้างจำนวนมาก
+        foreach ($lateJobIds->chunk(500) as $chunk) {
+            WorkOrder::query()
+                ->whereIn('work_orders.job_id', $chunk->all())
+                ->update(['job_status' => 6, 'late_at' => $now]);
+        }
     }
 
     public static function normalizeLateForTransition(WorkOrder $task): bool
@@ -241,6 +278,62 @@ final class TodayWorkspace
     public static function timeLabel(?CarbonInterface $date): ?string
     {
         return $date ? self::businessMoment($date)->format('H:i').' น.' : null;
+    }
+
+    /**
+     * งานนี้เลือก "ไม่ระบุเวลากำหนดส่ง" ไว้หรือไม่
+     *
+     * คำตอบมาจากคอลัมน์ job_due_time_unset ที่เดียว ห้ามเดาจากเวลาใน job_due_at
+     * เพราะผู้ใช้เลือก 23:59 น. เป็นเวลานัดจริงได้ และสองกรณีนั้นต้องแสดงต่างกัน
+     */
+    public static function dueTimeIsUnset(?WorkOrder $task): bool
+    {
+        return (bool) ($task?->job_due_time_unset);
+    }
+
+    /**
+     * ป้ายเวลากำหนดส่งที่ทุกมุมมองใช้ร่วมกัน — บอร์ด ตาราง การ์ด kanban และโมดัล
+     *
+     * รวมไว้ที่นี่เพราะข้อความ "ไม่ระบุเวลา" ต้องตรงกันทุกที่ ถ้าแต่ละ Blade เขียน
+     * เงื่อนไขของตัวเอง มุมมองหนึ่งจะแสดงเวลา 23:59 น. ขณะที่อีกมุมมองบอกว่าไม่ระบุ
+     */
+    public static function dueTimeLabel(?WorkOrder $task, string $empty = '-'): string
+    {
+        if (self::dueTimeIsUnset($task)) {
+            return self::UNSET_DUE_TIME_LABEL;
+        }
+
+        return self::timeLabel($task?->job_due_at) ?? $empty;
+    }
+
+    /**
+     * ขณะเวลาที่ต้องเก็บลง job_due_at เมื่อผู้ใช้เลือก "ไม่ระบุเวลากำหนดส่ง"
+     *
+     * สิ้นวันทำการตามเวลาไทยของวันที่ผู้ใช้เลือก งานจึงกลายเป็นล่าช้าเมื่อหมดวันนั้นจริง
+     * ไม่ใช่ตอน 17:00 น. ตามค่าตั้งต้นที่ผู้ใช้ไม่ได้เลือกเอง
+     */
+    public static function endOfBusinessDay(?CarbonInterface $date): ?CarbonInterface
+    {
+        if (! $date) {
+            return null;
+        }
+
+        return self::businessMoment($date)
+            ->setTimeFromTimeString(self::UNSET_DUE_CLOCK)
+            ->utc();
+    }
+
+    /**
+     * แปลงกำหนดส่งที่ผู้ใช้กรอกให้เป็นค่าที่พร้อมเก็บ โดยคิดสถานะ "ไม่ระบุเวลา" ไปด้วย
+     *
+     * ทุก endpoint ที่แก้กำหนดส่งต้องผ่านเมธอดนี้ ไม่ใช่เรียก parseBusinessInput()
+     * แล้วปรับเวลาเอง ไม่งั้นแต่ละ endpoint จะเก็บเวลาคนละค่าสำหรับเจตนาเดียวกัน
+     */
+    public static function parseDueInput(mixed $value, bool $timeUnset): ?CarbonInterface
+    {
+        $due = self::parseBusinessInput($value, self::DEFAULT_DUE_TIME);
+
+        return $timeUnset ? self::endOfBusinessDay($due) : $due;
     }
 
     /**

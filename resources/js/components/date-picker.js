@@ -190,7 +190,16 @@ const render = () => {
     }));
 
     parts.todayButton.disabled = !isSelectable(today, bounds);
-    parts.timeRow.hidden = !withTime;
+    /*
+     * ช่องเวลาหายไปเมื่อผู้ใช้เลือก "ไม่ระบุเวลา" ไม่ใช่แค่ถูกปิดการใช้งาน
+     *
+     * ค่าที่ค้างอยู่ในช่องคือ 23:59 ซึ่งเป็นขณะเวลาที่ระบบใช้ตัดสินความล่าช้าเท่านั้น
+     * ไม่ใช่เวลาที่ผู้ใช้ตั้งไว้ การโชว์มันค้างไว้ข้าง ๆ คำว่า "ไม่ระบุเวลา"
+     * จึงเป็นการบอกสองอย่างที่ขัดกันในกล่องเดียว
+     */
+    parts.timeRow.hidden = !withTime || state.timeUnset;
+    parts.timeUnsetRow.hidden = !withTime || !state.timeOptional;
+    parts.timeUnsetInput.checked = state.timeUnset;
     parts.confirmButton.hidden = !multiple;
     parts.confirmButton.textContent = `ใช้ ${selectedDates.size} วัน`;
     parts.confirmButton.disabled = selectedDates.size === 0;
@@ -367,6 +376,24 @@ const build = () => {
     timeInput.setAttribute('aria-label', 'เลือกเวลา');
     timeRow.append(timeLabel, timeInput);
 
+    /*
+     * "ไม่ระบุเวลากำหนดส่ง" — เปิดให้เฉพาะช่องที่ประกาศ data-time-optional
+     *
+     * ช่องนัดประชุมและวันเริ่มงานต้องมีเวลาจริงเสมอ ถ้าแถวนี้ขึ้นให้ทุกช่อง ผู้ใช้จะติ๊ก
+     * ในที่ที่ปลายทางไม่รับค่านี้ แล้วเห็นว่า "ติ๊กแล้วไม่มีอะไรเกิดขึ้น"
+     *
+     * เจตนาเดินทางไปกับ dataset ของช่อง ไม่ใช่ไปกับ value เพราะ value ของ
+     * datetime-local ต้องเป็น 'Y-m-dTH:i' ที่ถูกต้องตลอด การล้างส่วนเวลาออกจะทำให้
+     * เบราว์เซอร์ทิ้งค่าทั้งช่อง และทุกจุดที่เรียง/เทียบกำหนดส่งจะเสียค่าอ้างอิงไปด้วย
+     */
+    const timeUnsetRow = element('div', 'sg-date-picker__time-unset');
+    timeUnsetRow.hidden = true;
+    const timeUnsetField = element('label');
+    const timeUnsetInput = element('input');
+    timeUnsetInput.type = 'checkbox';
+    timeUnsetField.append(timeUnsetInput, element('span', null, 'ไม่ระบุเวลากำหนดส่ง'));
+    timeUnsetRow.append(timeUnsetField);
+
     const footer = element('div', 'sg-date-picker__footer');
     const todayButton = element('button', 'sg-date-picker__today', 'วันนี้');
     todayButton.type = 'button';
@@ -377,7 +404,7 @@ const build = () => {
     closeButton.type = 'button';
     footer.append(todayButton, confirmButton, closeButton);
 
-    popover.append(header, weekdays, grid, timeRow, footer);
+    popover.append(header, weekdays, grid, timeRow, timeUnsetRow, footer);
     document.body.append(popover);
 
     previous.addEventListener('click', () => move(-1));
@@ -443,7 +470,20 @@ const build = () => {
         state.input.dispatchEvent(new Event('change', {bubbles: true}));
     });
 
-    return {monthSelect, yearSelect, grid, todayButton, confirmButton, closeButton, timeRow, timeInput};
+    /*
+     * ติ๊กแล้วบันทึกทันทีเหมือนการแก้เวลา ผู้ใช้จึงไม่ต้องกดยืนยันอีกชั้น
+     * ค่าในช่องไม่ถูกแตะ — server เป็นผู้ย้ายเวลาไปสิ้นวันแล้วตอบค่าจริงกลับมาให้วาดใหม่
+     */
+    timeUnsetInput.addEventListener('change', () => {
+        if (!state?.timeOptional) return;
+
+        state.timeUnset = timeUnsetInput.checked;
+        state.input.dataset.timeUnset = state.timeUnset ? '1' : '0';
+        render();
+        state.input.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+
+    return {monthSelect, yearSelect, grid, todayButton, confirmButton, closeButton, timeRow, timeInput, timeUnsetRow, timeUnsetInput};
 };
 
 /**
@@ -471,6 +511,8 @@ export const openDatePicker = (input, anchor = input) => {
     if (popover.parentElement !== host) host.append(popover);
 
     const withTime = input.type === 'datetime-local';
+    // เฉพาะช่องที่ปลายทางรับ "ไม่ระบุเวลา" ได้จริงเท่านั้นที่ได้แถวติ๊กนี้
+    const timeOptional = withTime && input.hasAttribute('data-time-optional');
     const {date: datePart, time: timePart} = splitDateTimeValue(input.value);
     const current = parseDateValue(withTime ? datePart : input.value) || new Date();
     const multiple = !withTime
@@ -488,6 +530,8 @@ export const openDatePicker = (input, anchor = input) => {
         withTime,
         multiple,
         selectedDates,
+        timeOptional,
+        timeUnset: timeOptional && input.dataset.timeUnset === '1',
         // ช่องที่ยังว่างเริ่มที่เวลาตั้งต้นของช่องนั้น ผู้ใช้จึงไม่ต้องพิมพ์เวลาจากศูนย์ทุกครั้ง
         time: withTime ? (timePart || initialTimeFor(input)) : '',
         year: current.getFullYear(),

@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Department;
 use App\Models\Meeting;
 use App\Services\CalendarPdfExportService;
 use App\Services\MeetingAppointmentCalendarQuery;
 use App\Services\MeetingQueryService;
+use App\Support\MeetingCalendarScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +26,9 @@ class MeetingCalendarController extends Controller
     /** เพดานช่วงวันที่ของเอกสารหนึ่งฉบับ กัน export ที่กวาดทั้งฐานข้อมูล */
     private const EXPORT_RANGE_MAX_DAYS = 366;
 
+    /** ?department= ของทั้งสอง endpoint ใช้กฎชุดเดียวกัน จึงประกาศไว้ที่เดียว */
+    private const DEPARTMENT_RULES = ['nullable', 'integer', 'exists:departments,id'];
+
     public function calendarEvents(Request $request, MeetingAppointmentCalendarQuery $calendar): JsonResponse
     {
         Gate::authorize('viewAny', Meeting::class);
@@ -32,6 +37,7 @@ class MeetingCalendarController extends Controller
             'start' => ['required', 'date_format:Y-m-d'],
             'end' => ['required', 'date_format:Y-m-d', 'after_or_equal:start'],
             'type' => ['nullable', 'string'],
+            'department' => self::DEPARTMENT_RULES,
         ]);
 
         [$fromDate, $toDate] = $this->businessDayRange($validated['start'], $validated['end']);
@@ -40,8 +46,8 @@ class MeetingCalendarController extends Controller
 
         return response()->json([
             'type' => MeetingAppointmentCalendarQuery::normalizeType($validated['type'] ?? null),
-            'events' => $calendar->calendarEventsForUser(
-                $request->user(),
+            'events' => $calendar->calendarEvents(
+                $this->calendarScope($request, $validated),
                 $fromDate,
                 $toDate,
                 MeetingAppointmentCalendarQuery::normalizeType($validated['type'] ?? null)
@@ -70,6 +76,7 @@ class MeetingCalendarController extends Controller
              */
             'selected' => ['nullable', 'array'],
             'selected.*' => ['string', 'regex:/^(meeting|appointment):[1-9][0-9]*$/'],
+            'department' => self::DEPARTMENT_RULES,
         ], [
             'from_date.required' => 'กรุณาระบุวันที่เริ่มต้น',
             'from_date.date_format' => 'รูปแบบวันที่เริ่มต้นไม่ถูกต้อง',
@@ -88,12 +95,37 @@ class MeetingCalendarController extends Controller
             : null;
 
         return view('meeting-calendar.export', $export->exportCalendarPdf(
-            $request->user(),
+            $this->calendarScope($request, $validated),
             $fromDate,
             $toDate,
             MeetingAppointmentCalendarQuery::normalizeType($validated['type'] ?? null),
             $selectedKeys
         ));
+    }
+
+    /**
+     * ปฏิทินใบที่ถูกขอมา — ของผู้เรียกเอง หรือของแผนกที่ส่ง ?department= มา
+     *
+     * `?department=` คือ "ปฏิทินของแผนกไหน" ไม่ใช่ตัวกรองที่หน้าจอ สิทธิ์ถูกตรวจที่
+     * MeetingCalendarScope::forDepartment() ซึ่งโยน AuthorizationException (403) ทันที
+     * เมื่อผู้เรียกเปิดปฏิทินของแผนกนั้นไม่ได้ จึงแก้ค่าจาก URL ไปดูแผนกอื่นไม่ได้
+     *
+     * ขอบเขตก้อนเดียวกันถูกใช้ทั้งการวาดตาราง การเปลี่ยนเดือน และเอกสาร Export
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function calendarScope(Request $request, array $validated): MeetingCalendarScope
+    {
+        $departmentId = $validated['department'] ?? null;
+
+        if ($departmentId === null) {
+            return MeetingCalendarScope::forViewer($request->user());
+        }
+
+        return MeetingCalendarScope::forDepartment(
+            $request->user(),
+            Department::findOrFail($departmentId)
+        );
     }
 
     /** @return array{0: CarbonImmutable, 1: CarbonImmutable} */

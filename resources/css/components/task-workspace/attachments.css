@@ -223,15 +223,28 @@
  * ของชื่อไฟล์เต็ม ๆ ชื่อไฟล์ยาวจะดันแถวให้กว้างเกินการ์ด แล้วไอคอนดาวน์โหลดท้ายแถว
  * หลุดออกนอกขอบจนมองไม่เห็น การตัดชื่อด้วย ellipsis ที่ span อย่างเดียวไม่พอ
  * เพราะกริดยอมให้ไอเท็มล้นคอลัมน์ได้ตั้งแต่ตอนคิดขนาดราง
+ *
+ * ---
+ *
+ * รายการไฟล์แนบหนึ่งชุด — สูตรเดียวใช้ทั้งกล่องเลือกดาวน์โหลดและกล่องไฟล์แนบของบอร์ด
+ *
+ * สองกล่องนี้แสดงไฟล์ชุดเดียวกันของงานเดียวกัน ผู้ใช้สลับไปมาระหว่างกันได้ในคลิกเดียว
+ * (ปุ่มดาวน์โหลดอยู่บนหัวกล่องไฟล์แนบ) ถ้าแต่ละกล่องมีสูตรแถวของตัวเอง ความสูง ขอบ
+ * และสีไอคอนจะเพี้ยนกันทันทีที่แก้ฝั่งใดฝั่งหนึ่ง จึงประกาศที่นี่ที่เดียว
+ *
+ * selector ของบอร์ดอยู่ในกฎเดียวกันนี้โดยตั้งใจ ส่วนที่เป็นของบอร์ดล้วน ๆ
+ * (ลิงก์เปิดไฟล์และปุ่มลบ) ยังอยู่ที่ pages/mytasks/project-board.css ตามเดิม
  */
-.attachment-download-modal__list {
+.attachment-download-modal__list,
+.board-attachment-modal__list {
     display: grid;
     align-content: start;
     gap: 7px;
     grid-template-columns: minmax(0, 1fr);
 }
 
-.attachment-download-modal__row {
+.attachment-download-modal__row,
+.board-attachment-modal__row {
     display: flex;
     min-width: 0;
     align-items: center;
@@ -258,12 +271,14 @@
     cursor: pointer;
 }
 
-.attachment-download-modal__row > label > i {
+.attachment-download-modal__row > label > i,
+.board-attachment-modal__row > a > i:first-child {
     flex: 0 0 auto;
     font-size: 17px;
 }
 
-.attachment-download-modal__row > label > span {
+.attachment-download-modal__row > label > span,
+.board-attachment-modal__row > a > span {
     overflow: hidden;
     font-size: 13px;
     line-height: var(--thai-line-height, 1.6);
@@ -271,16 +286,12 @@
     white-space: nowrap;
 }
 
-/* ไอคอนตามชนิดไฟล์ใช้สีชุดเดียวกับการ์ดไฟล์แนบ กวาดตาหาไฟล์ที่ต้องการได้เร็วเท่ากัน */
-.attachment-download-modal__row .file-tone-word { color: #2b579a; }
-.attachment-download-modal__row .file-tone-excel { color: #217346; }
-.attachment-download-modal__row .file-tone-ppt { color: #d24726; }
-.attachment-download-modal__row .file-tone-image { color: #7c3aed; }
-.attachment-download-modal__row .file-tone-pdf { color: #d93025; }
-.attachment-download-modal__row .file-tone-zip { color: #b45309; }
-.attachment-download-modal__row .file-tone-other { color: #64748b; }
-
-.attachment-download-modal__row > a {
+/*
+ * ปุ่มไอคอนท้ายแถว — ดาวน์โหลดไฟล์นี้ (กล่องดาวน์โหลด) หรือเปิดไฟล์ในแท็บใหม่ (กล่องของบอร์ด)
+ * คนละการกระทำแต่เป็นตำแหน่งและขนาดเดียวกัน จึงใช้กล่องใบเดียวกัน
+ */
+.attachment-download-modal__row > a,
+.board-attachment-modal__row > a > i:last-child {
     display: grid;
     width: 32px;
     height: 32px;
@@ -291,10 +302,29 @@
     text-decoration: none;
 }
 
-.attachment-download-modal__row > a:hover {
+.attachment-download-modal__row > a:hover,
+.board-attachment-modal__row > a:hover > i:last-child {
     background: #eef4ff;
     color: #2563eb;
 }
+
+/*
+ * โทนสีไอคอนตามชนิดไฟล์ — แหล่งความจริงเดียวของทุกกล่องที่แสดงไฟล์แนบ
+ *
+ * ชื่อคลาสมาจาก toneFor() ใน pages/mytasks/attachment-icons.js ซึ่งการ์ดไฟล์แนบ
+ * กล่องดาวน์โหลด และกล่องไฟล์แนบของบอร์ด เรียกใช้ร่วมกันอยู่แล้ว
+ * ก่อนหน้านี้ตารางสีถูกคัดลอกไว้สองที่และหลุดจากกันแล้ว (ชุดหนึ่งไม่มี pdf กับ zip)
+ *
+ * ไม่ผูกกับกล่องใดกล่องหนึ่ง เพราะไม่มีกฎไหนตั้งสีให้ <i> โดยตรง มีแต่สีที่สืบทอดมาจากลิงก์
+ * ซึ่งแพ้การจับตรงตัวของคลาสนี้เสมอ ไม่ว่าจะมี specificity เท่าไร
+ */
+.file-tone-word { color: #2b579a; }
+.file-tone-excel { color: #217346; }
+.file-tone-ppt { color: #d24726; }
+.file-tone-image { color: #7c3aed; }
+.file-tone-pdf { color: #d93025; }
+.file-tone-zip { color: #b45309; }
+.file-tone-other { color: #64748b; }
 
 .attachment-download-modal__empty {
     display: grid;

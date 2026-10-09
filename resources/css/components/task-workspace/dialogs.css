@@ -487,9 +487,32 @@
     background: #fff;
 }
 
+/*
+ * คอลัมน์ซ้ายเป็น flex ไม่ใช่ grid ที่นับแถวด้วยมือ
+ *
+ * ของเดิมเขียน grid-template-rows: auto auto auto minmax(0,1fr) auto = 5 แถว
+ * แต่กล่องนี้มีลูก 6 ตัว (หัวเรื่อง / ช่องค้นหา+ดร็อปดาวน์ / ปุ่มกรองแผนก /
+ * แถวเลือกทีละกลุ่ม / รายชื่อ / ตัวนับ) แถวยืดหยุ่นจึงไปตกที่ "แถวเลือกทีละกลุ่ม"
+ * แทนที่จะเป็นรายชื่อ ผลคือรายชื่อสูงเท่าเนื้อหาจริง เลื่อนในตัวเองไม่ได้
+ * แล้วทะลุกรอบไปถูก .team-modal-card (overflow:hidden) ตัดท้ายทิ้ง
+ *
+ * flex ไม่ต้องนับลูก การเพิ่มหรือถอดแถวในอนาคตจึงทำให้พลาดแบบเดิมอีกไม่ได้
+ */
 .team-modal .people-selector-field--team-manager .people-selector__browser {
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    display: flex;
+    flex-direction: column;
     gap: 12px;
+}
+
+/* ทุกแถวสูงตามเนื้อหาของตัวเอง ห้ามถูกบีบเมื่อที่ไม่พอ */
+.team-modal .people-selector-field--team-manager .people-selector__browser > * {
+    flex: 0 0 auto;
+}
+
+/* รายชื่อเป็นแถวเดียวที่กินที่ที่เหลือและเลื่อนในตัวเอง */
+.team-modal .people-selector-field--team-manager .people-selector__options {
+    flex: 1 1 0;
+    min-height: 0;
 }
 
 .team-modal .people-selector-field--team-manager .people-selector__selected {
@@ -538,18 +561,85 @@
     color: var(--sg-muted);
 }
 
+.team-modal .people-selector__department-select:focus-within {
+    border-color: var(--sg-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+}
+
 .team-modal .people-selector__department-select > i:first-child {
     width: 40px;
+    flex: 0 0 40px;
     text-align: center;
 }
 
+/*
+ * ลูกศรสำรอง — ใช้เฉพาะตอนที่ JavaScript ไม่ทำงาน เพราะ appearance:none
+ * ลบลูกศรของเบราว์เซอร์ทิ้งไปแล้ว ถ้าไม่มีอะไรแทนผู้ใช้จะไม่รู้ว่าช่องนี้กดได้
+ *
+ * เมื่อดร็อปดาวน์กลางผูกสำเร็จ มันวาด .sg-select__caret ของตัวเองมาให้
+ * ตัวสำรองจึงต้องหายไป ไม่งั้นจะมีลูกศรสองอันซ้อนกัน
+ */
 .team-modal .people-selector__department-select > i:last-child {
     width: 34px;
+    flex: 0 0 34px;
     text-align: center;
     pointer-events: none;
 }
 
-.team-modal .people-selector__department-select select {
+.team-modal .people-selector__department-select:has(.sg-select) > i:last-child {
+    display: none;
+}
+
+/*
+ * กล่องเป็นเจ้าของเส้นขอบและพื้นหลัง ปุ่มของดร็อปดาวน์จึงต้องโปร่งและไม่มีขอบ
+ * ไม่งั้นจะเห็นกรอบซ้อนกันสองชั้น — แนวเดียวกับ .notion-filter ของตัวกรองสถานะ
+ */
+.team-modal .people-selector__department-select .sg-select {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.team-modal .people-selector__department-select .sg-select__trigger {
+    min-height: 42px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--sg-ink);
+    font-size: 12px;
+}
+
+.team-modal .people-selector__department-select .sg-select__trigger:hover,
+.team-modal .people-selector__department-select .sg-select__trigger:focus-visible {
+    border-color: transparent;
+    outline: 0;
+}
+
+/*
+ * แผงรายการเกาะขอบขวาของกล่องแล้วขยายไปทางซ้าย
+ *
+ * ช่องกรองกว้างแค่ 190px ตามแถว search-tools ชื่อแผนกยาวกว่านั้นจะถูกตัดด้วย …
+ * จึงให้แผงกว้างตามเนื้อหาจริงแต่ไม่น้อยกว่าตัวกล่องและไม่เกิน 280px
+ * ยึดขวาเพราะกล่องอยู่ขวาสุดของคอลัมน์ซ้าย การขยายไปทางซ้ายจึงไม่ล้นกรอบ
+ */
+.team-modal .people-selector__department-select .sg-select__panel {
+    right: 0;
+    left: auto;
+    width: max-content;
+    min-width: 100%;
+    max-width: 280px;
+    max-height: min(320px, 46vh);
+    border-color: var(--sg-line2);
+    border-radius: 11px;
+    box-shadow: 0 18px 42px -18px rgba(15, 23, 42, .42);
+}
+
+.team-modal .people-selector__department-select .sg-select__option {
+    font-size: 12px;
+}
+
+/* ช่องเปล่าของเบราว์เซอร์ตอนที่สคริปต์ไม่ทำงาน — ดร็อปดาวน์กลางซ่อน <select> เองเมื่อผูกแล้ว */
+.team-modal .people-selector__department-select select:not(.sg-select__native) {
     width: 100%;
     min-width: 0;
     height: 42px;

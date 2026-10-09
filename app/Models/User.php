@@ -24,6 +24,7 @@ class User extends Authenticatable
         'department_id',
         'role',
         'is_department_head',
+        'task_visibility_scope',
         'must_change_password',
         'is_active',
         'profile_image',
@@ -31,6 +32,17 @@ class User extends Authenticatable
         'telegram_username',
         'telegram_linked_at',
         'telegram_notifications_enabled',
+    ];
+
+    /**
+     * ค่าตั้งต้นของขอบเขตการมองเห็นงาน — ต้องมีที่ชั้นโมเดลด้วย ไม่ใช่แค่ default ของคอลัมน์
+     *
+     * default ของฐานข้อมูลมีผลตอน INSERT เท่านั้น instance ที่เพิ่งสร้างจึงถือค่า null
+     * อยู่จนกว่าจะ refresh() และโค้ดที่อ่านค่าทันทีจะเจอ null ไม่ใช่ 'involved'
+     * ประกาศไว้ที่นี่ทำให้ทุก instance ตอบเหมือนกันเสมอ
+     */
+    protected $attributes = [
+        'task_visibility_scope' => 'involved',
     ];
 
     protected $hidden = [
@@ -122,6 +134,22 @@ class User extends Authenticatable
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    /**
+     * แผนกที่ admin อนุญาตให้ผู้ใช้คนนี้ "ดูงาน" ได้ — ใช้กับโหมด custom เท่านั้น
+     *
+     * เป็นสิทธิ์อ่านล้วน ๆ ไม่ใช่การเป็นสมาชิกแผนก แผนกต้นสังกัดยังอยู่ที่
+     * users.department_id เพียงที่เดียว และความเป็น "ผู้มีส่วนร่วม" ของงานยังอ่านจาก
+     * App\Support\TaskParticipation ที่เดียวตามเดิม ไม่ถูกแตะที่นี่
+     *
+     * โหมด own_department ไม่เก็บแถวที่นี่โดยตั้งใจ — ดู
+     * App\Support\DepartmentTaskVisibility::departmentIdsFor()
+     */
+    public function visibleDepartments(): BelongsToMany
+    {
+        return $this->belongsToMany(Department::class, 'user_task_visibility_departments')
+            ->withTimestamps();
     }
 
     public function taskLists(): HasMany

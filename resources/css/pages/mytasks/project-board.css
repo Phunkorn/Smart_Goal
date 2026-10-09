@@ -43,7 +43,7 @@
 @media(max-width:1100px){.my-tasks-page .board-reference-list{min-width:1330px}.my-tasks-page .notion-table-scroll{overflow-x:auto}.my-tasks-page .board-reference-columns,.my-tasks-page .board-reference-row{--board-columns: minmax(200px,2fr) 122px 85px 120px 98px 98px 72px 100px 113px 113px 30px}.my-tasks-page .board-reference-columns>span,.my-tasks-page .board-reference-row>*{padding-right:7px;padding-left:7px}}
 @media(max-width:760px){.my-tasks-page .board-reference-columns{display:none}.my-tasks-page .board-reference-row{position:relative;--board-columns:1fr 1fr;gap:12px 8px;padding:14px 36px 14px 12px}.my-tasks-page .board-reference-row>*{padding:0}.my-tasks-page .board-reference-task{grid-column:1/-1}.my-tasks-page .board-reference-menu{position:absolute;top:12px;right:7px}.my-tasks-page .board-project-add span{display:none}}
 
-.board-attachment-modal{z-index:1200;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.42);backdrop-filter:blur(3px)}.board-attachment-modal:not([hidden]){display:flex}.board-attachment-modal__card{width:min(640px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;border:1px solid #d9e0eb;border-radius:14px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22)}.board-attachment-modal__card>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid #e5e9f0}.board-attachment-modal__card>header>div{display:grid;gap:2px}.board-attachment-modal__card>header span{font-size:10px;font-weight:700;letter-spacing:.12em;color:#94a3b8}.board-attachment-modal__card>header strong{font-size:21px;color:#0f172a}.board-attachment-modal__card>header small{color:#64748b}.board-attachment-modal__body{display:grid;gap:14px;padding:22px 24px}.board-attachment-modal__list{display:grid;gap:8px}.board-attachment-modal__list>a{display:grid;grid-template-columns:34px minmax(0,1fr) 20px;align-items:center;min-height:52px;padding:8px 12px;border:1px solid #e1e7ef;border-radius:10px;background:#fff;color:#334155;text-decoration:none}.board-attachment-modal__list>a:hover{border-color:#b8cef0;background:#f7faff;color:#2563eb}.board-attachment-modal__list>a>i:first-child{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#edf4ff;color:#2563eb;font-size:16px}.board-attachment-modal__list>a>span{overflow:hidden;padding:0 9px;font-size:13px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.board-attachment-modal__empty{display:grid;place-items:center;gap:5px;padding:32px 16px;border:1px dashed #d7e0eb;border-radius:10px;color:#8290a4;text-align:center}.board-attachment-modal__empty[hidden],.board-attachment-modal__upload[hidden]{display:none}.board-attachment-modal__empty>i{font-size:24px}.board-attachment-modal__empty>strong{color:#475569}.board-attachment-modal__empty>span,.board-attachment-modal__upload label small{font-size:11px}.board-attachment-modal__upload{display:grid;gap:10px}.board-attachment-modal__upload label{display:flex;align-items:center;gap:12px;padding:14px;border:1px dashed #adc5e8;border-radius:10px;background:#f7faff;color:#2563eb;cursor:pointer}.board-attachment-modal__upload label>i{font-size:24px}.board-attachment-modal__upload label>span{display:grid}.board-attachment-modal__upload label small{color:#718096;font-weight:400}.board-attachment-modal__upload input{position:absolute;width:1px;height:1px;opacity:0}.board-attachment-modal__card>footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #e5e9f0}@media(max-width:640px){.board-attachment-modal{padding:10px;align-items:flex-end}.board-attachment-modal__card{width:100%;max-height:92vh;border-radius:14px 14px 0 0}.board-attachment-modal__body{padding:18px}.board-attachment-modal__card>header,.board-attachment-modal__card>footer{padding-left:18px;padding-right:18px}}
+.board-attachment-modal{z-index:1200;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.42);backdrop-filter:blur(3px)}.board-attachment-modal:not([hidden]){display:flex}.board-attachment-modal__card{width:min(640px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;border:1px solid #d9e0eb;border-radius:14px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22)}.board-attachment-modal__card>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid #e5e9f0}.board-attachment-modal__card>header>div{display:grid;gap:2px}.board-attachment-modal__card>header span{font-size:10px;font-weight:700;letter-spacing:.12em;color:#94a3b8}.board-attachment-modal__card>header strong{font-size:21px;color:#0f172a}.board-attachment-modal__card>header small{color:#64748b}.board-attachment-modal__body{display:grid;gap:14px;padding:22px 24px}.board-attachment-modal__empty{display:grid;place-items:center;gap:5px;padding:32px 16px;border:1px dashed #d7e0eb;border-radius:10px;color:#8290a4;text-align:center}.board-attachment-modal__empty[hidden],.board-attachment-modal__upload[hidden]{display:none}.board-attachment-modal__empty>i{font-size:24px}.board-attachment-modal__empty>strong{color:#475569}.board-attachment-modal__empty>span,.board-attachment-modal__upload label small{font-size:11px}.board-attachment-modal__upload{display:grid;gap:10px}.board-attachment-modal__upload label{display:flex;align-items:center;gap:12px;padding:14px;border:1px dashed #adc5e8;border-radius:10px;background:#f7faff;color:#2563eb;cursor:pointer}.board-attachment-modal__upload label>i{font-size:24px}.board-attachment-modal__upload label>span{display:grid}.board-attachment-modal__upload label small{color:#718096;font-weight:400}.board-attachment-modal__upload input{position:absolute;width:1px;height:1px;opacity:0}.board-attachment-modal__card>footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid #e5e9f0}@media(max-width:640px){.board-attachment-modal{padding:10px;align-items:flex-end}.board-attachment-modal__card{width:100%;max-height:92vh;border-radius:14px 14px 0 0}.board-attachment-modal__body{padding:18px}.board-attachment-modal__card>header,.board-attachment-modal__card>footer{padding-left:18px;padding-right:18px}}
 
 /*
  * หัวกล่องไฟล์แนบของบอร์ดมีสองปุ่ม (ดาวน์โหลด / ปิด) จับคู่ไว้ในกลุ่มเดียว
@@ -64,33 +64,43 @@
 /*
  * แถวไฟล์ในกล่องไฟล์แนบ = ลิงก์เปิดไฟล์ + ปุ่มลบ
  *
- * ปุ่มลบต้องอยู่นอกลิงก์ ไม่ใช่ข้างใน เพราะการกดปุ่มในลิงก์จะเปิดไฟล์ไปด้วย
- * กฎเดิม `.board-attachment-modal__list > a` ยังใช้จัดหน้าตาของลิงก์ตามเดิม
- * ที่นี่เพิ่มเฉพาะการวางปุ่มลบท้ายแถว
+ * กรอบแถว ระยะ ไอคอนตามชนิดไฟล์ และปุ่มไอคอนท้ายแถว ใช้สูตรเดียวกับกล่องเลือกดาวน์โหลด
+ * ประกาศไว้ที่ components/task-workspace/attachments.css ที่เดียว ห้ามคัดลอกค่ามาที่นี่
+ * เพราะสองกล่องนี้แสดงไฟล์ชุดเดียวกันและสลับไปมาได้ในคลิกเดียว
  *
- * ขนาดปุ่ม 40px เป็นเป้าสัมผัสขั้นต่ำของจอมือถือ ซึ่งเป็นทางเข้าหลักของกล่องนี้
+ * เหลือไว้ที่นี่เฉพาะส่วนที่กล่องของบอร์ดมีอยู่กล่องเดียว คือตัวลิงก์เปิดไฟล์
+ * (กล่องดาวน์โหลดใช้ <label> + checkbox แทน) และปุ่มลบ
+ *
+ * ปุ่มลบต้องอยู่นอกลิงก์ ไม่ใช่ข้างใน เพราะการกดปุ่มในลิงก์จะเปิดไฟล์ไปด้วย
+ *
+ * selector ของลิงก์ต้องนับจาก __row ไม่ใช่ `__list > a` เพราะลิงก์ไม่ใช่ลูกตรงของ list
+ * มันอยู่ใต้แถวตั้งแต่เพิ่มปุ่มลบ กฎที่เขียนเป็น `__list > a` จะไม่จับอะไรเลย
+ * แล้วรายการไฟล์จะกลายเป็นลิงก์เปล่า ๆ เรียงลงมาไม่มีกรอบ
  */
-.board-attachment-modal__row {
+.board-attachment-modal__row > a {
     display: flex;
+    min-width: 0;
+    flex: 1;
     align-items: center;
     gap: 8px;
-    min-width: 0;
+    color: #40516a;
+    text-decoration: none;
 }
 
-.board-attachment-modal__row > a {
-    flex: 1;
-    min-width: 0;
+.board-attachment-modal__row > a:hover {
+    color: #2563eb;
 }
 
+/* ขนาดปุ่ม 36px เป็นเป้าสัมผัสของจอมือถือ ซึ่งเป็นทางเข้าหลักของกล่องนี้ */
 .board-attachment-modal__row > .attachment-delete {
     display: grid;
     place-items: center;
-    width: 40px;
-    height: 40px;
-    flex: 0 0 40px;
-    border: 1px solid #e1e7ef;
-    border-radius: 10px;
-    background: #fff;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
     color: #64748b;
     font-size: 15px;
     cursor: pointer;
@@ -98,9 +108,22 @@
 
 .board-attachment-modal__row > .attachment-delete:hover,
 .board-attachment-modal__row > .attachment-delete:focus-visible {
-    border-color: #f3c0c0;
     background: #fff1f1;
     color: #dc2626;
+}
+
+/* จอสัมผัสไม่มี hover ปุ่มลบจึงต้องอ่านออกตั้งแต่ยังไม่ถูกแตะ และกดโดนง่าย
+ * ค่าชุดเดียวกับปุ่มลบของการ์ดไฟล์แนบใน Task Workspace */
+@media (max-width: 640px), (hover: none) {
+    .board-attachment-modal__row > .attachment-delete {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+        border: 1px solid #e1e7ef;
+        border-radius: 10px;
+        background: #fff;
+        color: #dc2626;
+    }
 }
 
 .board-attachment-modal__row > .attachment-delete[disabled] {

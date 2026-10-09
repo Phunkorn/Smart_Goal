@@ -253,7 +253,8 @@ test('days remaining is counted in whole days around the given today', () => {
 });
 
 test('successful mutations synchronize the shared task row and emit one common event', () => {
-    const fields = {status: {value: '2'}, priority: {value: '2'}, due: {value: '2026-08-20'}};
+    // ช่องกำหนดส่งเป็น element จริงที่ถือเจตนา "ไม่ระบุเวลา" ไว้ที่ dataset ด้วย
+    const fields = {status: {value: '2'}, priority: {value: '2'}, due: {value: '2026-08-20', dataset: {timeUnset: '0'}}};
     const title = {textContent: 'Original'};
     const row = {
         dataset: {id: '17', topic: 'Original', status: '2', priority: '2', start: '2026-08-19', due: '2026-08-20'},
@@ -281,6 +282,7 @@ test('successful mutations synchronize the shared task row and emit one common e
     assert.equal(fields.status.value, '3');
     assert.equal(fields.priority.value, '4');
     assert.equal(fields.due.value, '2026-08-25');
+    assert.equal(fields.due.dataset.timeUnset, '0', 'แถวนี้ยังมีเวลากำหนดส่งจริง');
     assert.equal(title.textContent, 'Updated');
     assert.equal(events.length, 1);
     assert.equal(events[0].type, 'mytasks:changed');
