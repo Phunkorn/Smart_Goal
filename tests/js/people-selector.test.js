@@ -156,6 +156,69 @@ test('คอลัมน์รายชื่อในโมดัลทีม�
     assert.match(options, /min-height:\s*0/, 'ไม่มี min-height:0 แถวที่ยืดได้จะไม่ยอมหดให้ scroll');
 });
 
+/*
+ * ต่ำกว่า 1100px โมดัลทีมเหลือคอลัมน์เดียวและกล่องรายชื่อสูงตามเนื้อหา
+ * flex: 1 1 0 ในกล่องแบบนั้นมีฐานความสูงเป็น 0 และไม่มีที่เหลือให้ยืด รายชื่อจึงยุบหาย
+ * แล้วล้นไปทับกล่องผู้เข้าร่วมด้านล่าง (เห็นชัดที่ 850–910px)
+ */
+test('โมดัลทีมแบบคอลัมน์เดียวให้รายชื่อสูงตามเนื้อหาและเลื่อนในตัวเอง', () => {
+    const stacked = dialogsCss.slice(dialogsCss.indexOf('@media (max-width: 1099.98px)'), dialogsCss.indexOf('@media (max-width: 767.98px)'));
+    const options = ruleBody(stacked, '.team-modal .people-selector-field--team-manager .people-selector__options {');
+
+    assert.match(options, /flex:\s*0 0 auto/, 'รายชื่อต้องไม่ใช้ฐานความสูง 0 เมื่อกล่องแม่สูงตามเนื้อหา');
+    assert.match(options, /max-height:\s*min\(/, 'รายชื่อต้องมีเพดานความสูง ไม่ดันผู้เข้าร่วมปัจจุบันลงไปไกล');
+    assert.ok(! /overflow:\s*visible/.test(options), 'รายชื่อต้องเลื่อนในตัวเอง ห้ามล้นออกนอกกล่อง');
+});
+
+/*
+ * กล่อง "ผู้เข้าร่วม" ยุบเหลือ 28px บนมือถือและแท็บเล็ต (วัดจริงที่ 390px)
+ *
+ * body เป็น flex จึงยืด selector ให้สูงเท่าตัวเอง grid ข้างในต้องบีบแถว และแถวเดียวที่บีบได้
+ * คือกล่องผู้เข้าร่วมซึ่งมี overflow: hidden กฎมือถือเดิมเขียน selector สั้นกว่ากฎหลัก
+ * จึงแพ้ specificity และไม่เคยมีผล
+ */
+test('โมดัลทีมแบบคอลัมน์เดียวไม่บีบกล่องผู้เข้าร่วมจนรายชื่อหาย', () => {
+    const stacked = dialogsCss.slice(dialogsCss.indexOf('@media (max-width: 1099.98px)'), dialogsCss.indexOf('@media (max-width: 767.98px)'));
+
+    assert.match(ruleBody(stacked, '.team-manager__body {'), /display:\s*block/, 'body ต้องไม่ยืด selector ให้สูงเท่าตัวเอง');
+    // selector นี้ปรากฏในกฎรวมก่อนหน้าด้วย จึงจับคู่ทั้งกฎแทนการหยิบตัวแรกที่เจอ
+    assert.match(
+        stacked,
+        /\.team-modal \.people-selector-field--team-manager \.people-selector__selected \{\s*overflow:\s*visible/,
+        'ต้องใช้ selector เดียวกับกฎหลัก ไม่งั้นแพ้ specificity',
+    );
+    assert.match(ruleBody(stacked, '.team-modal .team-current {'), /flex:\s*0 0 auto/);
+});
+
+/*
+ * บนมือถือ ข้อความแจ้งเตือนในท้ายโมดัลตกไปเป็นคอลัมน์ที่สองแล้วล้นขอบการ์ด
+ * เพราะ base เปิด flex-wrap ไว้และกฎมือถือเปลี่ยนทิศเป็น column โดยไม่ปิด wrap
+ */
+test('ท้ายโมดัลทีมบนมือถืออยู่ในการ์ดและเว้น safe area', () => {
+    const phone = dialogsCss.slice(dialogsCss.indexOf('@media (max-width: 767.98px)'), dialogsCss.indexOf('@media (max-width: 430px)'));
+
+    assert.match(ruleBody(phone, '.team-manager__footer-primary {'), /flex-wrap:\s*nowrap/);
+    assert.match(ruleBody(phone, '.team-manager__footer {'), /env\(safe-area-inset-bottom/);
+    assert.match(ruleBody(phone, '.team-manager__actions {'), /grid-template-columns:\s*minmax\(0, 1fr\) auto/, 'ปุ่มหลักกับปุ่มปิดอยู่แถวเดียว');
+    assert.match(phone, /\.team-modal \.team-member \{[^}]*flex-wrap:\s*wrap/, 'แถวสมาชิกต้องขึ้นบรรทัดใหม่ได้ ชื่อจึงไม่ถูกบีบ');
+});
+
+/*
+ * โน้ตบุ๊กที่ขยายหน้าจอ 125–150% กว้างพอสำหรับสองคอลัมน์แต่เตี้ยมาก
+ * ส่วนที่สูงคงที่กินที่จนรายชื่อ (แถวเดียวที่หดได้) เหลือความสูง 0
+ */
+test('โมดัลทีมบนจอกว้างแต่เตี้ยกันรายชื่อไว้ไม่ให้ถูกบีบจนหาย', () => {
+    const start = dialogsCss.indexOf('@media (min-width: 1100px) and (max-height: 820px)');
+    assert.notEqual(start, -1, 'ต้องมีกฎสำหรับจอกว้างแต่เตี้ย');
+    const short = dialogsCss.slice(start, dialogsCss.indexOf('@media (max-width: 1099.98px)'));
+
+    const options = ruleBody(short, '.team-modal .people-selector-field--team-manager .people-selector__options {');
+    assert.match(options, /min-height:\s*132px/, 'รายชื่อต้องเห็นได้อย่างน้อยสองแถว');
+
+    const browser = ruleBody(short, '.team-modal .people-selector-field--team-manager .people-selector__browser {');
+    assert.match(browser, /overflow-y:\s*auto/, 'เมื่อที่ไม่พอจริง ๆ คอลัมน์ต้องเลื่อนได้ ห้ามถูกตัดทิ้ง');
+});
+
 /* ---------- ดร็อปดาวน์แผนก ---------- */
 
 /*

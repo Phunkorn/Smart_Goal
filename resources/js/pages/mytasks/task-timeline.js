@@ -1,5 +1,5 @@
 import {taskStateStore} from './task-state-store.js';
-import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
+import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldRevealComments, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
 import {modalStack} from '../../components/modal-stack.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
 
@@ -229,22 +229,64 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         }
     };
 
+    /*
+     * พาการ์ดแชทมาอยู่ในจอเมื่อผู้ใช้ตั้งใจเปิดมาอ่านแชท
+     *
+     * บนจอแคบการ์ดเรียงลงมาเป็นชั้นเดียว การ์ดแชทอยู่ใต้ข้อมูลงานและไฟล์แนบ ส่วนบน Desktop
+     * การ์ดอยู่ในจออยู่แล้ว block: 'nearest' จึงไม่ขยับอะไร
+     * ต้องรอหนึ่งเฟรม เพราะ modalStack โฟกัสตัวควบคุมแรกของโมดัลใน requestAnimationFrame
+     * ซึ่งดึงหน้ากลับขึ้นไปบนสุด เฟรมที่ขอทีหลังทำงานทีหลังเสมอ
+     */
+    const revealTimeline = () => requestAnimationFrame(() => panel.scrollIntoView?.({block: 'nearest'}));
+
     const selectUpdates = (source) => {
         tab = 'updates';
         document.body.dataset.realtimeTaskId = String(taskId);
         render({scroll: 'bottom'});
         document.dispatchEvent(new CustomEvent('smartgoal:realtime-refresh'));
         if (shouldMarkCommentsRead(source, tab)) markRead();
+        if (shouldRevealComments(source)) revealTimeline();
     };
 
+    const receiptsKey = (readers) => JSON.stringify(Array.isArray(readers) ? readers : []);
+
+    const patchReceipts = (item) => {
+        const content = panel.querySelector(`[data-comment-id="${CSS.escape(String(item.id))}"] .task-timeline-entry__content`);
+        if (!content) return;
+
+        content.querySelector('.task-timeline-entry__readers')?.remove();
+        // entry() วางแถวคนอ่านไว้ท้ายสุดของ content เสมอ
+        content.insertAdjacentHTML('beforeend', readReceipts(item));
+    };
+
+    /*
+     * วาดเฉพาะแถว "อ่านแล้ว" ของฟองที่รายชื่อคนอ่านเปลี่ยนจริง
+     *
+     * realtime-sync ส่งรายชื่อคนอ่านของงานที่เปิดอยู่มาทุกรอบ (ทุก 3 วินาที) แม้ไม่มีอะไรเปลี่ยน
+     * ของเดิม render() ใหม่ทั้งรายการทุกรอบ ฟอง รูป และ avatar ทุกใบจึงถูกสร้างและโหลดซ้ำ
+     * รายการแชทเลยกระพริบตลอดเวลาที่เปิดงานค้างไว้
+     */
     const mergeReceipts = (receiptTaskId, receipts) => {
         const updates = timeline[String(receiptTaskId)]?.updates;
         if (!updates || !receipts) return;
-        updates.forEach((item) => {
-            if (item.is_comment === false) return;
-            item.readers = receipts[String(item.id)] || [];
+
+        const changed = updates.filter((item) => {
+            if (item.is_comment === false) return false;
+
+            const readers = receipts[String(item.id)] || [];
+            if (receiptsKey(item.readers) === receiptsKey(readers)) return false;
+
+            item.readers = readers;
+            return true;
         });
-        if (String(taskId) === String(receiptTaskId) && tab === 'updates' && !modal.hidden) render();
+        if (!changed.length || String(taskId) !== String(receiptTaskId) || tab !== 'updates' || modal.hidden) return;
+
+        const items = panel.querySelector('[data-timeline-items]');
+        const followLatest = isNearBottom(items);
+        const heightBefore = items.scrollHeight;
+        changed.forEach(patchReceipts);
+        // แถวคนอ่านเพิ่มความสูงใต้ฟอง คนที่อยู่ท้ายรายการอยู่แล้วต้องยังเห็นข้อความล่าสุดครบ
+        if (followLatest && items.scrollHeight > heightBefore) items.scrollTop = items.scrollHeight;
     };
 
     const triggerTaskId = (trigger) => trigger?.dataset.taskId

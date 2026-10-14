@@ -233,6 +233,21 @@
 .meeting-calendar__event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 
 /*
+ * รายการที่จบไปแล้ว — ขีดฆ่าเวลากับชื่อเรื่อง แล้วจางลงให้รายการที่ยังมาไม่ถึงเด่นกว่า
+ *
+ * ขีดทั้งเวลาและชื่อเรื่อง เพราะบนมือถือชื่อเรื่องถูกซ่อน
+ * เวลาที่ถูกขีดจึงต้องบอกเรื่องนี้ได้ด้วยตัวเอง
+ * สีประเภทยังอยู่ครบ คำอธิบายสีด้านล่างจึงยังใช้ได้กับรายการที่จบแล้ว
+ * hover/focus คืนความเข้มเต็ม เพราะชิปยังกดไปดูรายละเอียดได้ตามเดิม
+ */
+.meeting-calendar__event.is-ended { opacity: .62; }
+.meeting-calendar__event.is-ended:hover,
+.meeting-calendar__event.is-ended:focus-visible { opacity: 1; }
+.meeting-calendar__event.is-ended .meeting-calendar__event-time,
+.meeting-calendar__event.is-ended .meeting-calendar__event-title,
+.meeting-calendar__legend-item--ended { text-decoration: line-through; }
+
+/*
  * การ์ดเลือกประเภทใน "+ เพิ่ม" — ยืมรูปทรงจากตัวเลือกประเภทงานของบันทึกประจำวัน
  * (.log-modal__type-grid) แต่ใช้โทเคนสีของระบบและอยู่ในเปลือก modal ของ Bootstrap
  * ชุดเดียวกับฟอร์มประชุม เพื่อให้หน้านี้มีเจ้าของสถานะ overlay คนเดียว

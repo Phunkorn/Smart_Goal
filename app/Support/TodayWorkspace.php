@@ -35,6 +35,14 @@ final class TodayWorkspace
     public const UNSET_DUE_TIME_LABEL = 'ไม่ระบุเวลา';
 
     /**
+     * ข้อความที่ทุกมุมมองใช้กับงานที่ไม่มีวันครบกำหนดเลย (job_due_at เป็น null)
+     *
+     * คนละเรื่องกับ UNSET_DUE_TIME_LABEL ซึ่งยังมีวันส่งอยู่ งานที่ไม่มีกำหนดส่ง
+     * ไม่ถูกดันเป็นล่าช้าเอง เพราะไม่มีขณะเวลาให้วงจรสถานะล่าช้าเทียบ
+     */
+    public const NO_DUE_LABEL = 'ไม่มีกำหนดส่ง';
+
+    /**
      * วงจรสถานะล่าช้าอัตโนมัติต้องแตะเฉพาะงานที่ได้รับอนุมัติแล้ว
      * งานที่ยัง 'pending' (มอบหมายข้ามแผนก รอ Admin ตัดสินใจ) หรือถูก 'rejected'
      * ห้ามถูกดันเป็น "ล่าช้า" ก่อนที่ Admin จะอนุมัติ
@@ -235,8 +243,14 @@ final class TodayWorkspace
 
     private static function isWithinActiveRange(WorkOrder $task, CarbonInterface $today): bool
     {
-        if (! $task->job_start_at || ! $task->job_due_at) {
+        if (! $task->job_start_at) {
             return false;
+        }
+
+        // งานที่ไม่มีกำหนดส่งไม่มีปลายช่วง จึงอยู่ในรายการของวันนี้ตั้งแต่วันเริ่มจนกว่าจะปิดงาน
+        // ถ้าตัดออกเหมือนงานที่ข้อมูลไม่ครบ งานจะหายจาก "วันนี้" ทันทีที่ผู้ใช้เลือกไม่มีกำหนดส่ง
+        if (! $task->job_due_at) {
+            return $today->gte(self::businessDate($task->job_start_at));
         }
 
         $start = self::businessDate($task->job_start_at);
@@ -292,6 +306,17 @@ final class TodayWorkspace
     }
 
     /**
+     * งานนี้เลือก "ไม่มีกำหนดส่ง" ไว้หรือไม่ — คำตอบคือ job_due_at เป็น null ที่เดียว
+     *
+     * ไม่มีธงแยกเหมือน dueTimeIsUnset() เพราะงานที่ไม่มีกำหนดส่งไม่มีขณะเวลาให้เก็บเลย
+     * (ดู migration 2026_10_12_000001)
+     */
+    public static function dueIsUnset(?WorkOrder $task): bool
+    {
+        return $task !== null && $task->job_due_at === null;
+    }
+
+    /**
      * ป้ายเวลากำหนดส่งที่ทุกมุมมองใช้ร่วมกัน — บอร์ด ตาราง การ์ด kanban และโมดัล
      *
      * รวมไว้ที่นี่เพราะข้อความ "ไม่ระบุเวลา" ต้องตรงกันทุกที่ ถ้าแต่ละ Blade เขียน
@@ -299,6 +324,11 @@ final class TodayWorkspace
      */
     public static function dueTimeLabel(?WorkOrder $task, string $empty = '-'): string
     {
+        // งานที่ไม่มีกำหนดส่งไม่มีเวลาให้พูดถึงเลย ไม่ว่าธงไม่ระบุเวลาจะค้างค่าอะไรไว้
+        if (self::dueIsUnset($task)) {
+            return $empty;
+        }
+
         if (self::dueTimeIsUnset($task)) {
             return self::UNSET_DUE_TIME_LABEL;
         }
@@ -329,8 +359,13 @@ final class TodayWorkspace
      * ทุก endpoint ที่แก้กำหนดส่งต้องผ่านเมธอดนี้ ไม่ใช่เรียก parseBusinessInput()
      * แล้วปรับเวลาเอง ไม่งั้นแต่ละ endpoint จะเก็บเวลาคนละค่าสำหรับเจตนาเดียวกัน
      */
-    public static function parseDueInput(mixed $value, bool $timeUnset): ?CarbonInterface
+    public static function parseDueInput(mixed $value, bool $timeUnset, bool $dueUnset = false): ?CarbonInterface
     {
+        // "ไม่มีกำหนดส่ง" ชนะทุกอย่าง — ปฏิทินยังส่งวันเดิมที่ค้างในช่องมาด้วย ซึ่งต้องไม่ถูกเก็บ
+        if ($dueUnset) {
+            return null;
+        }
+
         $due = self::parseBusinessInput($value, self::DEFAULT_DUE_TIME);
 
         return $timeUnset ? self::endOfBusinessDay($due) : $due;

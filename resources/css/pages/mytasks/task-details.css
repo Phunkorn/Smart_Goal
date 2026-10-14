@@ -30,6 +30,53 @@
     cursor: pointer;
 }
 
+/*
+ * ชื่องานในแถวของตารางขึ้นบรรทัดใหม่ได้และแสดงครบ ไม่ตัดด้วยจุดไข่ปลา
+ *
+ * กฎกลางของ .board-reference-task__title เป็น nowrap + ellipsis ชื่อที่ยาวกว่าคอลัมน์จึง
+ * อ่านไม่ได้เลยถ้าไม่เปิดงาน ที่นี่ระบุผ่านปุ่มกางงานย่อยเพื่อให้ชนะทั้งกฎกลางและกฎมือถือ
+ * ที่ตัดเหลือสองบรรทัด โดยไม่ไปแตะชื่อที่ใช้คลาสเดียวกันในที่อื่น
+ */
+.my-tasks-page .board-task-details__toggle > .board-reference-task__title {
+    display: block;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+/*
+ * คอลัมน์ชื่องานแคบ (ตารางกำลังเลื่อนแนวนอน หรือการ์ดบนมือถือ) — ตัวนับงานย่อยลงไปอยู่ใต้ชื่อ
+ *
+ * ตัวนับกว้างราว 67px ถ้าอยู่บรรทัดเดียวกับชื่อในคอลัมน์ 280px ชื่อจะเหลือ 125px
+ * ชื่อยาวจึงแตกเป็นเจ็ดบรรทัด (วัดจริงที่ 882px) ย้ายลงมาแล้วชื่อได้ราว 190px
+ *
+ * ใช้ container query เพราะสิ่งที่ตัดสินคือความกว้างของช่องชื่องานเอง ไม่ใช่ของจอ:
+ * จอเดียวกันช่องนี้กว้างต่างกันตาม Sidebar ที่กางหรือพับ จอกว้างที่ช่องชื่อยาวพอ
+ * ตัวนับยังอยู่ท้ายบรรทัดเหมือนเดิม เบราว์เซอร์ที่ไม่รองรับก็ได้เลย์เอาต์เดิมนั้น
+ */
+.my-tasks-page .board-reference-row > .board-reference-task {
+    container-type: inline-size;
+}
+
+@container (max-width: 360px) {
+    /* สองบรรทัดชิดกันพอให้อ่านเป็นก้อนเดียว และแถวไม่สูงขึ้นเกินจำเป็น */
+    .my-tasks-page .board-task-details__toggle {
+        row-gap: 1px;
+    }
+
+    .my-tasks-page .board-task-details__toggle > small {
+        grid-column: 2 / -1;
+        grid-row: 2;
+        justify-self: start;
+    }
+
+    /* ป้ายงานแม่ใช้บรรทัดที่สองอยู่ก่อน เมื่อตัวนับลงมาด้วยจึงต้องถอยไปบรรทัดที่สาม */
+    .my-tasks-page .board-task-details__toggle > .board-task-details__context {
+        grid-row: 3;
+    }
+}
+
 .my-tasks-page .board-task-details__toggle:hover {
     background: #f1f6fd;
 }
@@ -213,8 +260,17 @@
     content: "";
 }
 
+/*
+ * ชื่องานย่อยขึ้นบรรทัดใหม่ได้และแสดงครบเหมือนชื่องานแม่
+ *
+ * overflow-wrap อย่างเดียวไม่พอ: span ตัวนี้ใช้คลาส .board-reference-task__title ร่วมกับงานแม่
+ * ซึ่งเป็น nowrap + ellipsis ชื่อยาวจึงยังถูกตัดอยู่บรรทัดเดียว ต้องคืนค่าทั้งชุด
+ */
 .my-tasks-page .board-task-detail [data-task-detail-title] {
+    overflow: visible;
     overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
 }
 
 /* ชื่องานย่อยคือปุ่มเปิดโมดัล จึงต้องดูเป็นข้อความปกติแต่กดได้จริง */
@@ -301,6 +357,16 @@
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
+}
+
+/*
+ * ป้ายนี้ยาวราว 170px ถ้าอยู่บรรทัดเดียวกับชื่องานจะกินที่ของชื่อจนเหลือ 0
+ * จึงลงมาอยู่บรรทัดถัดไปใต้ชื่อ ชื่องานได้ความกว้างเต็มของตัวเองก่อนเสมอ
+ */
+.my-tasks-page .board-task-details__toggle > .board-task-details__context {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    justify-self: start;
 }
 
 .my-tasks-page .board-task-details__context > i {

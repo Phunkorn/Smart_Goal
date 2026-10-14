@@ -18,6 +18,7 @@ import {askStartRequirements} from './routine-start-dialog.js';
 import {initEntryForm} from './entry-form.js';
 import {initParticipantPickers} from './participants.js';
 import {initPlanCalendar} from './plan-calendar.js';
+import {initProjectTaskFilters} from './project-task-filter.js';
 import {initRoutinePanel} from './routines.js';
 import {initTimeline} from './timeline.js';
 
@@ -52,6 +53,8 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
     // ใช้ delegation บน document จึงรองรับแถวที่ถูกวาดใหม่จาก AJAX ด้วย
     initInspectionReportModal({doc});
     initPlanCalendar({root});
+    // ช่องงานในฟอร์มบันทึกงานและงานประจำแสดงเฉพาะงานของโปรเจกต์ที่เลือก
+    initProjectTaskFilters({root});
     // ดร็อปดาวน์แบบสไลด์ชุดเดียวของทั้งหน้า: ตัวกรองปฏิทิน ตัวกรองสถานะ ตัวเลือกสมาชิก
     // ตัวเลือกเดือนของสรุปรายเดือน และช่องเลือกในกล่องเพิ่มงาน
     initSelectDropdowns(root, '.daily-plan__filters select, [data-status-filter], [data-member-select], [data-month-select], .log-modal select.form-select');

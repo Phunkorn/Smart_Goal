@@ -1049,14 +1049,119 @@
     }
 }
 
+/*
+ * จอกว้างแต่เตี้ย — โน้ตบุ๊กที่ Windows ขยายหน้าจอ 125–150% กว้างพอสำหรับสองคอลัมน์
+ * แต่สูงเหลือเพียง 520–700px
+ *
+ * หัวโมดัล ท้ายโมดัล และแถวควบคุมของคอลัมน์ซ้ายสูงคงที่รวมกันราว 570px รายชื่อเป็นแถวเดียว
+ * ที่ยืดหดได้ จึงเป็นตัวที่ถูกบีบจนหายเมื่อจอเตี้ยกว่านั้น ที่นี่ย่อส่วนที่สูงคงที่ลงแทน
+ * และกันรายชื่อไว้ไม่ให้เตี้ยกว่าสองแถว ถ้ายังไม่พอ คอลัมน์ซ้ายเลื่อนในตัวเอง
+ */
+@media (min-width: 1100px) and (max-height: 820px) {
+    .team-modal {
+        padding: 12px;
+    }
+
+    .team-modal .team-modal-card {
+        height: min(780px, calc(100dvh - 24px));
+        max-height: calc(100dvh - 24px);
+    }
+
+    .team-modal .team-modal-card > .team-modal__header {
+        align-items: center;
+        padding: 10px 20px;
+    }
+
+    /* ไอคอนขึ้นมาอยู่ข้างชื่อ ไม่กินบรรทัดของตัวเอง */
+    .team-modal .team-modal-card > .team-modal__header > .team-modal__heading {
+        display: flex;
+        gap: 12px;
+    }
+
+    .team-modal__heading-icon {
+        width: 36px;
+        height: 36px;
+        flex-basis: 36px;
+        font-size: 18px;
+    }
+
+    .team-modal .team-modal-card > .team-modal__header strong {
+        font-size: 18px;
+    }
+
+    .team-modal__heading-copy {
+        gap: 0;
+    }
+
+    .team-modal__header > button {
+        width: 38px;
+        height: 38px;
+        flex-basis: 38px;
+    }
+
+    .team-manager__body {
+        padding: 12px 20px;
+    }
+
+    .team-modal .people-selector-field--team-manager > .people-selector {
+        gap: 14px;
+    }
+
+    .team-modal .people-selector-field--team-manager .people-selector__browser,
+    .team-modal .people-selector-field--team-manager .people-selector__selected {
+        padding: 14px;
+    }
+
+    .team-modal .people-selector-field--team-manager .people-selector__browser {
+        gap: 8px;
+        overflow-y: auto;
+    }
+
+    .team-modal .people-selector-field--team-manager .people-selector__options {
+        min-height: 132px;
+    }
+
+    .team-modal .people-selector__search input,
+    .team-modal .people-selector__department-select {
+        min-height: 40px;
+    }
+
+    .team-modal .people-selector__selection-summary {
+        min-height: 34px;
+        padding-block: 5px;
+    }
+
+    .team-modal .team-current__head {
+        margin-bottom: 10px;
+    }
+
+    .team-manager__footer {
+        min-height: 56px;
+        padding: 8px 20px;
+    }
+
+    .team-manager__actions button {
+        min-height: 40px;
+    }
+}
+
 @media (max-width: 1099.98px) {
     .team-modal .team-modal-card {
         height: min(900px, calc(100dvh - 32px));
         max-height: calc(100dvh - 32px);
     }
 
+    /*
+     * เนื้อหาเลื่อนชั้นเดียวที่ตัว body — ต้องเป็น block ไม่ใช่ flex
+     *
+     * ถ้ายังเป็น flex กล่อง selector ถูกยืดให้สูงเท่า body แล้ว grid ข้างในต้องบีบแถวให้พอดี
+     * แถวที่บีบได้คือกล่องผู้เข้าร่วม (overflow: hidden) จึงยุบเหลือแค่ padding 28px
+     * รายชื่อสมาชิกหายไปทั้งกล่อง ทั้งที่ body เลื่อนได้และมีที่ให้เต็มที่
+     */
     .team-manager__body {
+        display: block;
         overflow-y: auto;
+        overscroll-behavior: contain;
         padding: 16px;
     }
 
@@ -1075,15 +1180,36 @@
         min-height: auto;
     }
 
-    .team-modal .people-selector__options,
+    /*
+     * เมื่อเหลือคอลัมน์เดียว กล่องรายชื่อสูงตามเนื้อหา ไม่มี "ที่ที่เหลือ" ให้แบ่งอีกแล้ว
+     * flex: 1 1 0 ของจอกว้างจึงยุบรายชื่อเหลือ 0 แล้วล้นไปทับกล่องผู้เข้าร่วมด้านล่าง
+     * ที่นี่ให้รายชื่อสูงตามจริงแต่ไม่เกินครึ่งจอ และเลื่อนในตัวเอง
+     * ผู้เข้าร่วมปัจจุบันจึงไม่ถูกดันลงไปไกลเมื่อมีพนักงานหลายสิบคน
+     */
+    .team-modal .people-selector-field--team-manager .people-selector__options {
+        flex: 0 0 auto;
+        max-height: min(420px, 46dvh);
+    }
+
     .team-modal .team-current .team-member-list,
     .team-modal .people-selector__chips {
         max-height: none;
         overflow: visible;
     }
 
-    .team-modal .people-selector__selected {
+    /* selector เดียวกับกฎหลัก (overflow: hidden) ไม่งั้น specificity แพ้และกล่องยังตัดรายชื่อทิ้ง */
+    .team-modal .people-selector-field--team-manager .people-selector__selected {
         overflow: visible;
+    }
+
+    .team-modal .team-current {
+        flex: 0 0 auto;
+        overflow: visible;
+    }
+
+    /* เมื่อข้อความแจ้งเตือนดันปุ่มลงบรรทัดใหม่ ปุ่มยังชิดขวาเหมือนตอนอยู่บรรทัดเดียวกัน */
+    .team-manager__actions {
+        margin-left: auto;
     }
 }
 
@@ -1100,13 +1226,20 @@
         border-radius: 14px;
     }
 
-    .team-modal__header {
+    .team-modal .team-modal-card > .team-modal__header {
+        align-items: center;
         gap: 10px;
-        padding: 14px;
+        padding: 10px 12px;
     }
 
-    .team-modal__heading {
+    /* ไอคอนอยู่ข้างชื่อ หัวโมดัลสูงแถวเดียว ที่เหลือเป็นของเนื้อหา */
+    .team-modal .team-modal-card > .team-modal__header > .team-modal__heading {
+        display: flex;
         gap: 10px;
+    }
+
+    .team-modal__heading-copy {
+        gap: 0;
     }
 
     .team-modal__heading-icon {
@@ -1116,8 +1249,8 @@
         font-size: 18px;
     }
 
-    .team-modal__heading-copy strong {
-        font-size: 18px;
+    .team-modal .team-modal-card > .team-modal__header strong {
+        font-size: 17px;
     }
 
     .team-modal__heading-copy small {
@@ -1162,41 +1295,94 @@
         max-width: 88px;
     }
 
-    .team-modal .team-role-badge,
-    .team-modal .team-state {
-        max-width: 96px;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    /*
+     * แถวสมาชิกสองบรรทัด: ชื่อกับปุ่มนำออกอยู่บรรทัดแรก ป้ายแผนก/ข้ามแผนก/สถานะลงบรรทัดถัดไป
+     *
+     * บรรทัดเดียวไม่พอสำหรับ avatar + ชื่อ + ป้ายสามใบ + ปุ่ม บนจอ 375px ชื่อจะเหลือความกว้าง 0
+     * avatar ถูกยกออกจาก flow เพื่อให้ป้ายบรรทัดล่างเริ่มตรงกับชื่อ
+     */
+    .team-modal .team-member {
+        position: relative;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        padding: 10px 10px 10px 60px;
     }
 
+    .team-modal .team-member > .team-avatar {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+    }
+
+    .team-modal .team-person {
+        flex: 1 0 100%;
+    }
+
+    .team-modal .team-member:has(> button) .team-person {
+        flex-basis: calc(100% - 42px);
+    }
+
+    .team-modal .team-member > button {
+        order: 1;
+    }
+
+    .team-modal .team-member > .team-department,
+    .team-modal .team-member > .team-cross-department,
+    .team-modal .team-member > .team-role-badge,
+    .team-modal .team-member > .team-state {
+        order: 2;
+    }
+
+    /* ชื่อยาวขึ้นบรรทัดใหม่ได้ ไม่ถูกตัดด้วยจุดไข่ปลา อีเมลยังตัดเหมือนเดิม */
+    .team-modal .team-person strong {
+        overflow: visible;
+        overflow-wrap: anywhere;
+        white-space: normal;
+    }
+
+    /*
+     * nowrap สำคัญ: base เปิด flex-wrap ไว้ พอเปลี่ยนเป็น column ข้อความแจ้งเตือนจะตกไปเป็น
+     * "คอลัมน์ที่สอง" ทางขวาแล้วล้นขอบโมดัล แทนที่จะลงมาอยู่ใต้คำแนะนำ
+     */
     .team-manager__footer-primary {
         align-items: stretch;
         flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 6px;
         width: 100%;
     }
 
+    .team-manager__footer-primary .team-manager__notice {
+        flex: 0 0 auto;
+    }
+
+    /* ท้ายโมดัลอยู่ในการ์ดเสมอ และเว้นแถบ home indicator ของ iPhone */
     .team-manager__footer {
         align-items: stretch;
         flex-direction: column;
-        padding: 10px;
+        gap: 8px;
+        min-height: 0;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
     }
 
     .team-manager__hint {
         align-items: flex-start;
     }
 
+    /* ปุ่มหลักกับปุ่มปิดอยู่แถวเดียว ท้ายโมดัลจึงไม่กินความสูงของรายชื่อ */
     .team-manager__actions {
         display: grid;
         width: 100%;
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
     }
 
     .team-manager__actions button,
     .team-manager__actions [data-team-submit] {
         width: 100%;
         min-width: 0;
-        min-height: 46px;
-        padding-inline: 10px;
+        min-height: 44px;
+        padding-inline: 14px;
     }
 }
 
@@ -1209,18 +1395,16 @@
         max-width: 48vw;
     }
 
-    /* ป้ายแผนกยอมตัดทิ้งได้บนจอแคบ แต่ป้าย "ข้ามแผนก" คือสาระที่หายไปไม่ได้ */
-    .team-modal .people-selector__department-badge,
-    .team-modal .team-department {
+    /*
+     * ป้ายแผนกในรายชื่อที่เลือกได้ยอมตัดทิ้งบนจอแคบ เพราะแถวนั้นยังเป็นบรรทัดเดียว
+     * แถวสมาชิกปัจจุบันมีบรรทัดป้ายของตัวเองแล้ว จึงแสดงป้ายแผนกได้ครบ
+     */
+    .team-modal .people-selector__department-badge {
         display: none;
     }
 
     .team-modal .team-cross-department {
         padding: 3px 6px;
-    }
-
-    .team-manager__actions {
-        grid-template-columns: 1fr;
     }
 }
 

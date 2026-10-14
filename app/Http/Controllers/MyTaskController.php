@@ -126,6 +126,8 @@ class MyTaskController extends Controller
             ])
             ->withCount('images')
             ->orderByRaw('job_status = 4 asc')
+            // MySQL เรียง NULL ขึ้นก่อนเมื่อเรียงจากน้อยไปมาก งานที่ไม่มีกำหนดส่งจึงต้องถูกดันไปท้ายเอง
+            ->orderByRaw('job_due_at is null asc')
             ->orderBy('job_due_at')
             ->latest('job_id')
             ->get();
@@ -1043,12 +1045,16 @@ class MyTaskController extends Controller
 
     public function updateDueDate(Request $request, int $job_id, TaskStatusTransitionService $transitions): JsonResponse
     {
+        // "ไม่มีกำหนดส่ง" — ผู้เรียกเก่าที่ไม่ส่งคีย์นี้มายังต้องส่งกำหนดส่งเหมือนเดิมทุกอย่าง
+        $dueUnset = $request->boolean('job_due_unset');
         $validated = $request->validate([
-            'job_due_at' => 'required|date',
+            'job_due_at' => $dueUnset ? ['nullable', 'date'] : ['required', 'date'],
+            'job_due_unset' => ['sometimes', 'boolean'],
             // "ไม่ระบุเวลากำหนดส่ง" — ผู้เรียกเก่าที่ไม่ส่งคีย์นี้มาต้องได้พฤติกรรมเดิมทุกอย่าง
             'job_due_time_unset' => ['sometimes', 'boolean'],
         ]);
-        $dueTimeUnset = $request->boolean('job_due_time_unset');
+        // งานที่ไม่มีวันส่งไม่มีเวลาให้ "ไม่ระบุ" ธงนี้จึงต้องไม่ค้างไว้รอวันที่ผู้ใช้ตั้งกำหนดส่งใหม่
+        $dueTimeUnset = ! $dueUnset && $request->boolean('job_due_time_unset');
 
         $workOrder = $this->baseWorkOrderQuery()->findOrFail($job_id);
         $this->authorize('work', $workOrder);
@@ -1057,7 +1063,7 @@ class MyTaskController extends Controller
         $before = $workOrder->attributesToArray();
         $previousDueAt = $workOrder->job_due_at;
         $workOrder->update([
-            'job_due_at' => TodayWorkspace::parseDueInput($validated['job_due_at'], $dueTimeUnset),
+            'job_due_at' => TodayWorkspace::parseDueInput($validated['job_due_at'] ?? null, $dueTimeUnset, $dueUnset),
             'job_due_time_unset' => $dueTimeUnset,
         ]);
         if (! TodayWorkspace::reconcileLateAfterScheduleChange($workOrder)) {
@@ -1070,7 +1076,7 @@ class MyTaskController extends Controller
             'due_date_changed',
             $workOrder,
             ScheduleChangeNote::describe('เปลี่ยนกำหนดส่งงาน: '.$workOrder->job_topic, [
-                ['label' => 'กำหนดส่ง', 'from' => $previousDueAt, 'to' => $workOrder->job_due_at],
+                ['label' => 'กำหนดส่ง', 'from' => $previousDueAt, 'to' => $workOrder->job_due_at, 'empty' => TodayWorkspace::NO_DUE_LABEL],
             ]),
             [
                 'before' => $before,
@@ -1083,6 +1089,7 @@ class MyTaskController extends Controller
             'job_id' => $workOrder->job_id,
             'job_due_at' => TodayWorkspace::calendarDate($workOrder->job_due_at),
             'job_due_time' => TodayWorkspace::clockTime($workOrder->job_due_at),
+            'job_due_unset' => TodayWorkspace::dueIsUnset($workOrder),
             'job_due_time_unset' => TodayWorkspace::dueTimeIsUnset($workOrder),
             'job_status' => (int) $workOrder->job_status,
             'transitions' => $transitions->capabilities($workOrder, $request->user()),

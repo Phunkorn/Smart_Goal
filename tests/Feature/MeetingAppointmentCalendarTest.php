@@ -218,6 +218,57 @@ class MeetingAppointmentCalendarTest extends TestCase
         $this->assertSame(route('appointments.show', Appointment::sole()), $payload['events'][0]['detailUrl']);
     }
 
+    /*
+     * รายการที่จบไปแล้วถูกขีดฆ่าบนปฏิทิน — เซิร์ฟเวอร์เป็นคนตัดสินตามเวลาไทย
+     * เวลาปัจจุบันของเทสต์คือ 7 ต.ค. 2569 09:00 น. (ดู setUp)
+     */
+    public function test_each_calendar_event_says_whether_it_has_already_ended(): void
+    {
+        $member = $this->user();
+        $this->meeting($member, 'ประชุมเมื่อวาน', '2026-10-06 10:00');
+        $this->meeting($member, 'ประชุมเช้านี้ที่จบแล้ว', '2026-10-07 07:00');
+        $this->meeting($member, 'ประชุมที่กำลังดำเนินอยู่', '2026-10-07 08:30');
+        $this->meeting($member, 'ประชุมสัปดาห์หน้า', '2026-10-15 10:00');
+        // 00:30 น. เวลาไทยยังเป็นวันที่ 6 ใน UTC — ต้องตัดสินจากเวลาไทย ไม่ใช่วันที่ที่เก็บไว้
+        $this->meeting($member, 'ประชุมหลังเที่ยงคืน', '2026-10-07 00:30');
+        $this->appointment($member, 'นัดเมื่อวาน', '2026-10-06');
+        // helper ตั้งเวลาสิ้นสุดเป็น 10:30 น. นัดวันนี้ที่เริ่มไปแล้วจึงยังไม่จบ
+        $this->appointment($member, 'นัดวันนี้ที่ยังไม่จบ', '2026-10-07', '08:00');
+
+        $openEndedToday = $this->appointment($member, 'นัดวันนี้ไม่ระบุเวลาสิ้นสุด', '2026-10-07', '07:00');
+        $openEndedToday->update(['ends_at_time' => null]);
+        $openEndedYesterday = $this->appointment($member, 'นัดเมื่อวานไม่ระบุเวลาสิ้นสุด', '2026-10-06', '07:00');
+        $openEndedYesterday->update(['ends_at_time' => null]);
+
+        $ended = collect($this->actingAs($member)
+            ->getJson(route('meeting-calendar.events', ['start' => '2026-10-01', 'end' => '2026-10-31']))
+            ->assertOk()
+            ->json('events'))
+            ->pluck('hasEnded', 'title')
+            ->all();
+
+        // ลำดับของ event ตามวันและเวลา ไม่เกี่ยวกับสิ่งที่เทสต์นี้พิสูจน์ จึงเทียบแบบไม่สนลำดับ
+        $this->assertEquals([
+            'ประชุมเมื่อวาน' => true,
+            'ประชุมเช้านี้ที่จบแล้ว' => true,
+            'ประชุมที่กำลังดำเนินอยู่' => false,
+            'ประชุมสัปดาห์หน้า' => false,
+            'ประชุมหลังเที่ยงคืน' => true,
+            'นัดเมื่อวาน' => true,
+            'นัดวันนี้ที่ยังไม่จบ' => false,
+            // ไม่รู้ว่าจบกี่โมง จึงยังไม่ขีดฆ่าจนกว่าจะพ้นวันนั้น
+            'นัดวันนี้ไม่ระบุเวลาสิ้นสุด' => false,
+            'นัดเมื่อวานไม่ระบุเวลาสิ้นสุด' => true,
+        ], $ended);
+
+        // รอบแรกของหน้า (JSON ที่ฝังมากับ Blade) ต้องมีธงเดียวกัน ไม่ใช่เฉพาะตอนเปลี่ยนเดือน
+        $this->actingAs($member)
+            ->get(route('mytasks.index', ['view' => 'meeting', 'month' => '2026-10']))
+            ->assertOk()
+            ->assertSee('"hasEnded":true', false)
+            ->assertSee('"hasEnded":false', false);
+    }
+
     public function test_the_calendar_endpoint_rejects_a_bad_or_unbounded_range(): void
     {
         $member = $this->user();

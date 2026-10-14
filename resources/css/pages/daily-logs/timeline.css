@@ -6,7 +6,8 @@
 .daily-log .log-timeline__status-control { width:140px; }
 .daily-log .log-timeline__status-control .form-select,
 .daily-log .log-timeline__status-control .sg-select__trigger { border-color:#dbe5f4; border-radius:9px; color:#445b7d; font-size:.8rem; font-weight:300; }
-.daily-log .log-timeline__scroll { min-width:0; overflow-x:auto; }
+/* รูปแบบของการ์ดขึ้นกับความกว้างของกรอบรายการ ไม่ใช่ของหน้าจอ — ดู @container ท้ายไฟล์ */
+.daily-log .log-timeline__scroll { min-width:0; overflow-x:auto; container-type:inline-size; container-name:log-timeline; }
 /*
  * คอลัมน์สถานะต้องกว้างพอให้ป้าย เวลาที่กำลังทำ และเหตุผลที่เริ่มช้า ขึ้นบรรทัดใหม่ได้
  * โดยไม่ไปดันปุ่มในคอลัมน์ Action ส่วน Action กว้างพอสำหรับปุ่มสองปุ่มกับปุ่ม ⋯
@@ -80,18 +81,56 @@
 @media (prefers-reduced-motion: reduce) {
   .daily-log .log-row-menu { animation:none; }
 }
-@media (max-width:575px) {
+/*
+ * การ์ดมีสามรูปแบบ เลือกตามความกว้างของกรอบรายการ (.log-timeline__scroll)
+ *
+ * ตารางเจ็ดคอลัมน์ต้องใช้ 980px (คอลัมน์ขั้นต่ำ 884 + ช่องไฟ 72 + padding 24) ความกว้างที่เหลือให้กรอบ
+ * ขึ้นกับทั้งหน้าจอและ Sidebar ที่กาง/ย่อ: จอ 1366px กาง Sidebar เหลือ 988px พอดี แต่ครึ่งจอ (800–960px)
+ * เหลือเพียง 674–834px เดิมจึงกลายเป็นตารางที่ต้องเลื่อนแนวนอนหาคอลัมน์สถานะกับปุ่ม
+ * @media ตอบเรื่องนี้ไม่ได้เพราะไม่รู้สถานะ Sidebar จึงถามจากกรอบโดยตรง
+ *
+ *   980px ขึ้นไป   ตารางเจ็ดคอลัมน์ (กฎหลักด้านบน)
+ *   600–979px     การ์ดสองแถว: ชื่องานกับสถานะ / ประเภท โปรเจกต์ ผู้ร่วมงาน และปุ่ม
+ *   ต่ำกว่า 600px  การ์ดเรียงลงคอลัมน์เดียว (จอโทรศัพท์)
+ */
+@container log-timeline (width < 980px) {
   .daily-log .log-timeline__columns { display:none; }
-  .daily-log .log-timeline__scroll { overflow-x:visible; }
-  .daily-log .log-card { grid-template-columns:48px minmax(0,1fr); min-width:0; gap:6px 10px; }
-  .daily-log .log-card__time { grid-row:1 / 3; align-self:start; }
-  .daily-log .log-card__name { grid-column:2; }
+  .daily-log .log-card { min-width:0; align-items:start; }
+  .daily-log .log-card__type { display:flex; align-items:center; gap:6px; }
+  .daily-log .log-card__type-label { flex:none; white-space:nowrap; }
+  .daily-log .log-card__type small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* ไอคอนโฟลเดอร์อยู่บรรทัดเดียวกับชื่อโปรเจกต์ ชื่องานย่อยลงบรรทัดถัดไป */
+  .daily-log .log-card__project { display:flex; flex-wrap:wrap; align-items:center; gap:3px 6px; border-left:0; padding-left:0; }
+  .daily-log .log-card__project > span { flex:1 1 0; min-width:0; }
+  .daily-log .log-card__project > small { flex:1 1 100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* ดูแบบตรวจ + เสร็จงาน + ไม่ได้ทำ + ⋯ กว้างเกินช่องปุ่มของการ์ด ให้ขึ้นบรรทัดใหม่แทนการล้นกรอบ */
+  .daily-log .log-card__actions { flex-wrap:wrap; }
+  /* ขีด "—" มีไว้ให้คอลัมน์ของตารางไม่โหว่ การ์ดไม่มีคอลัมน์ให้เทียบ จึงเหลือเป็นขีดลอย ๆ */
+  .daily-log .log-card__muted { display:none; }
+}
+@container log-timeline (600px <= width < 980px) {
+  .daily-log .log-card { grid-template-columns:56px minmax(0,1fr) minmax(0,1fr) 84px 190px; gap:8px 12px; }
+  .daily-log .log-card__time { grid-column:1; grid-row:1 / 3; }
+  .daily-log .log-card__name { grid-column:2 / 5; grid-row:1; }
+  .daily-log .log-card__state { grid-column:5; grid-row:1; justify-items:end; text-align:right; }
+  .daily-log .log-card__type { grid-column:2; grid-row:2; align-self:center; }
+  .daily-log .log-card__project { grid-column:3; grid-row:2; align-self:center; }
+  .daily-log .log-card__people { grid-column:4; grid-row:2; align-self:center; }
+  .daily-log .log-card__actions { grid-column:5; grid-row:2; align-self:center; }
+}
+@container log-timeline (width < 600px) {
+  .daily-log .log-card { grid-template-columns:48px minmax(0,1fr); gap:6px 10px; }
+  .daily-log .log-card__time { grid-row:1 / 3; }
+  .daily-log .log-card__name,
   .daily-log .log-card__type,
   .daily-log .log-card__project,
   .daily-log .log-card__people,
   .daily-log .log-card__state,
   .daily-log .log-card__actions { grid-column:2; }
-  .daily-log .log-card__type { display:flex; align-items:center; gap:6px; }
-  .daily-log .log-card__project { border-left:0; padding-left:0; }
   .daily-log .log-card__actions { justify-content:flex-start; }
+  /* ช่องที่เหลือแต่ขีด "—" ซึ่งถูกซ่อนไปแล้ว ไม่ต้องกินแถวกับช่องไฟของการ์ด */
+  .daily-log .log-card__project:has(> .log-card__muted:only-child),
+  .daily-log .log-card__people:has(> .log-card__muted:only-child) { display:none; }
+  /* ปุ่ม "…" เดิม 25px เล็กกว่าปลายนิ้ว และดันไปชิดขวาให้ห่างจากปุ่มเริ่ม/เสร็จงาน */
+  .daily-log .log-card__menu-trigger { min-width:36px; min-height:36px; margin-left:auto; }
 }

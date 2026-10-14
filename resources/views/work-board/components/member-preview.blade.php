@@ -108,7 +108,7 @@
                                 @case('late'){{ $overdueDays > 0 ? 'ล่าช้า '.$overdueDays.' วัน' : 'เลยกำหนดแล้ว' }}@break
                                 @case('due_today')กำหนดส่งวันนี้@break
                                 @case('starts_today')เริ่มวันนี้@break
-                                @default{{ 'กำหนดส่ง '.(TodayWorkspace::dateRangeLabel($task->job_due_at, $task->job_due_at) ?? 'ไม่ระบุ') }}
+                                @default{{ $task->job_due_at ? 'กำหนดส่ง '.(TodayWorkspace::dateRangeLabel($task->job_due_at, $task->job_due_at) ?? 'ไม่ระบุ') : TodayWorkspace::NO_DUE_LABEL }}
                             @endswitch
                         </time>
                     </div>

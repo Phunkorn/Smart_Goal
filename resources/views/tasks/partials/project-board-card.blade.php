@@ -50,8 +50,13 @@
                 && (int) ($project->work_orders_count ?? 0) > 0
                 && ! (bool) ($project->has_incomplete_work_orders ?? true);
         @endphp
-            <header class="board-project-group__header project-tone-{{ $project ? $projectPriority[1] : 'neutral' }}" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}" data-detail-project-target="{{ $hasDetailDropTarget ? 1 : 0 }}">
-                <button type="button" class="board-project-collapse" data-board-collapse aria-label="ย่อหรือขยายโปรเจกต์"><i class="bi bi-caret-down-fill"></i></button>
+            {{--
+                โปรเจกต์พับไว้เป็นค่าเริ่มต้น วาดมาจาก server เพื่อไม่ให้หน้ากางเต็มแล้วค่อยหุบตอน JS ทำงาน
+                คลาสทั้งสามชุด (หัวโปรเจกต์ แถวงาน กลุ่มงานที่เสร็จแล้ว) ต้องไปด้วยกันเสมอ
+                JS เป็นคนกางโปรเจกต์ที่ผู้ใช้เปิดค้างไว้ (pages/mytasks/board-project-collapse.js)
+            --}}
+            <header class="board-project-group__header is-collapsed project-tone-{{ $project ? $projectPriority[1] : 'neutral' }}" data-project-header data-project-key="{{ $projectKey }}" data-project-name="{{ $projectName }}" data-detail-project-target="{{ $hasDetailDropTarget ? 1 : 0 }}">
+                <button type="button" class="board-project-collapse" data-board-collapse aria-expanded="false" aria-label="ย่อหรือขยายโปรเจกต์"><i class="bi bi-caret-down-fill"></i></button>
                 <i class="board-project-folder bi bi-folder-fill" aria-hidden="true"></i>
                 <strong class="board-project-group__title">{{ $projectName }}</strong>
                 <span><b data-board-visible-count data-board-total-count="{{ $projectTasks->count() }}">{{ $projectTasks->count() }}</b> งาน</span>
@@ -87,7 +92,7 @@
 
                 @foreach($projectTasks as $task)
                     @if((int) $task->job_status === 4 && (int) $task->job_id === (int) $firstCompletedId)
-                        <details class="board-completed-group" data-completed-group data-project-key="{{ $projectKey }}">
+                        <details class="board-completed-group is-project-collapsed" data-completed-group data-project-key="{{ $projectKey }}">
                             <summary data-completed-toggle aria-expanded="false"><i class="bi bi-caret-right-fill"></i><strong>งานที่เสร็จแล้ว</strong><span>{{ $completedProjectTasks->count() }} งาน</span></summary>
                             <div class="board-completed-group__rows">
                     @endif
@@ -105,7 +110,7 @@
                         $startMoment = $task->job_start_at ? \App\Support\TodayWorkspace::businessMoment($task->job_start_at) : null;
                         $dueMoment = $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at) : null;
                         $startLabel = $startMoment ? $startMoment->day.' '.$thaiMonths[$startMoment->month].' '.($startMoment->year + 543) : '-';
-                        $dueLabel = $dueMoment ? $dueMoment->day.' '.$thaiMonths[$dueMoment->month].' '.($dueMoment->year + 543) : 'ไม่มีกำหนด';
+                        $dueLabel = $dueMoment ? $dueMoment->day.' '.$thaiMonths[$dueMoment->month].' '.($dueMoment->year + 543) : \App\Support\TodayWorkspace::NO_DUE_LABEL;
                         // "ไม่ระบุเวลา" กับ "17:00 น." ต่างกันที่ job_due_time_unset ไม่ใช่ที่เวลาที่เก็บไว้
                         $dueTimeUnset = \App\Support\TodayWorkspace::dueTimeIsUnset($task);
                         $dueTimeLabel = \App\Support\TodayWorkspace::dueTimeLabel($task);
@@ -173,7 +178,7 @@
                         $crossDepartment = \App\Support\CrossDepartmentWork::marker($task, $workspaceSubject);
                     @endphp
                     @include('tasks.partials.task-support-source', ['task' => $task, 'adminSenderName' => $taskAdminSenderName, 'taskLinkMode' => $taskLinkMode])
-                    <article class="board-reference-row task-priority-{{ $priority[1] }} {{ $isReadOnlyTask ? 'is-readonly' : '' }} {{ $taskIsContextOnly ? 'is-context-only' : '' }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-participate="{{ $taskIsMine ? 1 : 0 }}" data-context-only="{{ $taskIsContextOnly ? 1 : 0 }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-cross-department="{{ $crossDepartment ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-search-text="{{ $taskSearchText }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-due-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
+                    <article class="board-reference-row is-project-collapsed task-priority-{{ $priority[1] }} {{ $isReadOnlyTask ? 'is-readonly' : '' }} {{ $taskIsContextOnly ? 'is-context-only' : '' }}" data-board-task data-detail-target="{{ $canManageTaskDetails ? 1 : 0 }}" data-project-key="{{ $projectKey }}" data-task-id="{{ $task->job_id }}" data-participate="{{ $taskIsMine ? 1 : 0 }}" data-context-only="{{ $taskIsContextOnly ? 1 : 0 }}" data-topic="{{ $task->job_topic }}" data-status="{{ $task->job_status }}" data-can-review="{{ auth()->user()->can('review', $task) ? 1 : 0 }}" data-late="{{ $taskIsLate ? 1 : 0 }}" data-cross-department="{{ $crossDepartment ? 1 : 0 }}" data-project-name="{{ $projectName }}" data-search-text="{{ $taskSearchText }}" data-start="{{ \App\Support\TodayWorkspace::calendarDate($task->job_start_at) }}" data-due="{{ \App\Support\TodayWorkspace::calendarDate($task->job_due_at) }}" data-due-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_due_at) }}" data-due-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" data-start-time="{{ \App\Support\TodayWorkspace::clockTime($task->job_start_at) }}">
                         <div class="board-reference-task">
                             @include('tasks.components.task-details', ['task' => $task, 'taskIsContextOnly' => $taskIsContextOnly])
                         </div>
@@ -203,7 +208,7 @@
                             <span class="board-start"><i class="bi bi-calendar-plus"></i>{{ $startLabel }}</span>
                         @endif
                         @if($hasScheduleControls)
-                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกวันที่และเวลากำหนดส่ง"></label>
+                            <label class="board-due board-due-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i><span data-board-due-label>{{ $dueLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" data-due-optional data-due-unset="{{ $task->job_due_at ? 0 : 1 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกวันที่และเวลากำหนดส่ง"></label>
                         @else
                             <span class="board-due {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi {{ $taskIsLate ? 'bi-exclamation-triangle' : 'bi-calendar3' }}"></i>{{ $dueLabel }}</span>
                         @endif
@@ -213,7 +218,7 @@
                             ของค่าเดียวกัน ไม่ใช่สองค่าที่ต้องซิงก์กันเอง
                         --}}
                         @if($hasScheduleControls)
-                            <label class="board-due-time board-due-time-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกเวลากำหนดส่ง"></label>
+                            <label class="board-due-time board-due-time-editable {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}{{ $canEditSchedule ? '' : ' is-locked' }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span><input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-board-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" data-due-optional data-due-unset="{{ $task->job_due_at ? 0 : 1 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" data-range-partner="start" @disabled(! $canEditSchedule) aria-label="เลือกเวลากำหนดส่ง"></label>
                         @else
                             <span class="board-due-time {{ $taskIsLate ? 'is-late' : ($taskIsSoon ? 'is-soon' : '') }}"><i class="bi bi-clock" aria-hidden="true"></i><span data-board-due-time>{{ $dueTimeLabel }}</span></span>
                         @endif

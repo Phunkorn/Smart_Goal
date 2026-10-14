@@ -26,7 +26,7 @@ SET NAMES utf8mb4;
 /* -------------------------------------------------------------------------- */
 
 CREATE TABLE `computer_check_workstations` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,git
   `code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
   `zone` varchar(2) COLLATE utf8mb4_unicode_ci NOT NULL,
   `position_x` smallint unsigned NOT NULL,

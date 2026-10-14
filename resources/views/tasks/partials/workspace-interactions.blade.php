@@ -427,14 +427,18 @@
                         23:59 น. ซึ่งเป็นขณะเวลาที่ระบบใช้ตัดสินความล่าช้า ไม่ใช่เวลาที่ผู้ใช้ตั้งไว้
                         ช่องยังอยู่ในฟอร์ม (ซ่อน ไม่ปิดการใช้งาน) การกดที่เซลล์จึงเปิดปฏิทินใบเดียวกัน
                         และติ๊กกลับได้ — ไม่ใช่ UI สองชุดที่ต้องซิงก์กันเอง
+
+                        data-due-optional เปิดตัวเลือก "ไม่มีกำหนดส่ง" ในปฏิทินใบเดียวกัน (job_due_at เป็น null)
+                        เซลล์แสดงข้อความแทนช่องด้วย <output> ตัวเดียวกัน เพราะช่องของเบราว์เซอร์แสดงค่าว่างไม่ได้ความ
                     --}}
-                    <input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-time-optional name="job_due_at" class="task-workspace__date" required>
+                    <input type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-due-optional data-time-optional name="job_due_at" class="task-workspace__date" required>
                     <output class="task-workspace__cell-static" data-workspace-due-unset hidden></output>
                 </span>
             </label>
 
             <div class="task-workspace__cell">
-                <span class="task-workspace__cell-icon tone-person"><i class="bi bi-person" aria-hidden="true"></i></span>
+                {{-- mytasks-task-modal.js แทนไอคอนด้วยรูปโปรไฟล์ของผู้รับผิดชอบจาก [data-owner-data] ไอคอนคือค่าตั้งต้นเมื่อยังไม่มีรูป --}}
+                <span class="task-workspace__cell-icon tone-person" data-workspace-assignee-avatar><i class="bi bi-person" aria-hidden="true"></i></span>
                 <span class="task-workspace__cell-body">
                     <span class="task-workspace__cell-label">ผู้รับผิดชอบ</span>
                     {{-- ผู้รับผิดชอบเปลี่ยนได้จากหน้าจัดการทีมเท่านั้น ที่นี่จึงเป็นข้อมูลอ่านอย่างเดียวเสมอ --}}

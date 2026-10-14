@@ -11,7 +11,7 @@ import {extensionOf, iconFor, toneFor} from './pages/mytasks/attachment-icons.js
 // การลบไฟล์แนบใช้โมดูลร่วมกับกล่องไฟล์แนบที่เปิดจากปุ่มคลิปหนีบ ไม่มีสำเนาแยก
 import {confirmAttachmentDelete, deleteTaskAttachment} from './pages/mytasks/attachment-delete.js';
 // ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ตาราง และปฏิทิน ไม่มีสำเนาแยก
-import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
+import {NO_DUE_LABEL, dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
 // ป้ายวันแบบ พ.ศ. ใบเดียวกับที่ปฏิทินของช่องวันที่แสดง ผู้ใช้จึงเห็นวันเดียวกันทั้งก่อนและหลังเลือก
 import {parseDateValue, thaiDateLabel} from './components/date-picker.js';
 
@@ -98,6 +98,11 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
     const renameButton = form.querySelector('[data-rename-task]');
     const projectLabel = form.querySelector('[data-workspace-project]');
     const assigneeOutput = form.querySelector('[data-workspace-assignee]');
+    const assigneeAvatar = form.querySelector('[data-workspace-assignee-avatar]');
+    // ไอคอนที่ Blade วาดไว้คือค่าตั้งต้น เก็บไว้คืนเมื่องานที่เปิดถัดไปไม่มีรูปโปรไฟล์
+    const assigneeFallbackIcon = assigneeAvatar?.firstElementChild?.cloneNode(true) || null;
+    // ชุดเดียวกับกล่องข้อมูลผู้รับผิดชอบและปฏิทิน ทุก URL ผ่าน MediaController แล้ว
+    const owners = JSON.parse(document.querySelector('[data-owner-data]')?.textContent || '{}');
     const staticStatus = form.querySelector('[data-static-status]');
     const staticPriority = form.querySelector('[data-static-priority]');
     const statusMenu = form.querySelector('[data-modal-status-menu]');
@@ -107,8 +112,29 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
     const dueUnsetOutput = form.querySelector('[data-workspace-due-unset]');
     let snapshot = null;
 
+    /** วาดรูปโปรไฟล์ของผู้รับผิดชอบลงในช่องไอคอน ไม่มีรูปก็กลับเป็นไอคอนเดิม */
+    const paintAssigneeAvatar = (owner) => {
+        if (!assigneeAvatar) return;
+        const url = owner?.avatar_url || '';
+        assigneeAvatar.classList.toggle('has-avatar', Boolean(url));
+
+        if (!url) {
+            assigneeAvatar.replaceChildren(...(assigneeFallbackIcon ? [assigneeFallbackIcon.cloneNode(true)] : []));
+            return;
+        }
+
+        const image = document.createElement('img');
+        image.src = url;
+        // ชื่อผู้รับผิดชอบอยู่ข้างรูปอยู่แล้ว รูปจึงเป็นของตกแต่งสำหรับโปรแกรมอ่านจอ
+        image.alt = '';
+        assigneeAvatar.replaceChildren(image);
+    };
+
     /** เจตนา "ไม่ระบุเวลากำหนดส่ง" ของช่องในโมดัล เก็บไว้ที่ dataset ของช่องเหมือนทุกมุมมอง */
     const dueTimeUnset = () => dueInput.dataset.timeUnset === '1';
+
+    /** เจตนา "ไม่มีกำหนดส่ง" (job_due_at เป็น null) — ปฏิทินเขียนลง dataset ของช่องเดียวกัน */
+    const dueUnset = () => dueInput.dataset.dueUnset === '1';
 
     /*
      * วาดเซลล์กำหนดส่งใหม่จากเจตนาที่ช่องถืออยู่
@@ -117,11 +143,18 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
      * เมื่อไม่ระบุเวลา — ไม่ใช่โชว์ 23:59 น. ที่ผู้ใช้ไม่ได้ตั้งไว้เอง
      */
     const paintDueCell = () => {
+        const noDue = dueUnset();
         const unset = dueTimeUnset();
-        dueInput.hidden = unset;
+        dueInput.hidden = unset || noDue;
+        // ช่องที่ซ่อนและว่างแต่ยัง required จะทำให้เบราว์เซอร์บล็อกการ submit โดยไม่บอกผู้ใช้ว่าติดที่ไหน
+        dueInput.required = !noDue;
         if (!dueUnsetOutput) return;
 
-        dueUnsetOutput.hidden = !unset;
+        dueUnsetOutput.hidden = !unset && !noDue;
+        if (noDue) {
+            dueUnsetOutput.textContent = NO_DUE_LABEL;
+            return;
+        }
         if (!unset) return;
 
         const [day = ''] = String(dueInput.value || '').split('T');
@@ -140,10 +173,12 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         job_status: form.elements.job_status.value,
         job_priority: form.elements.job_priority.value,
         job_start_at: form.elements.job_start_at.value,
-        job_due_at: form.elements.job_due_at.value,
+        // ช่องยังค้างวันเดิมไว้ให้ติ๊กกลับได้ แต่ค่าที่ผู้ใช้ตั้งใจคือ "ไม่มี" จึงต้องไม่รายงานวันนั้นออกไป
+        job_due_at: dueUnset() ? '' : form.elements.job_due_at.value,
         // เจตนาเป็นค่าที่ผู้ใช้แก้ได้จริง จึงต้องอยู่ในชุดที่ตรวจ Unsaved Changes ด้วย
         // ไม่งั้นการติ๊ก "ไม่ระบุเวลา" อย่างเดียวจะถูกนับว่า "ไม่มีการเปลี่ยนแปลง"
         job_due_time_unset: dueTimeUnset() ? '1' : '0',
+        job_due_unset: dueUnset() ? '1' : '0',
     });
 
     const setRenameMode = (editing) => {
@@ -216,9 +251,12 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         form.elements.job_start_at.value = joinSchedule(row.dataset.start, row.dataset.startTime);
         // แถวต้นทางเป็นเจ้าของเจตนา ช่องในโมดัลจึงอ่านจากที่นั่น ไม่เก็บสถานะของตัวเองไว้ข้ามการเปิด
         dueInput.dataset.timeUnset = isDueTimeUnset(row.dataset.dueTimeUnset) ? '1' : '0';
+        // data-due ว่างคืองานที่ไม่มีกำหนดส่ง — ไม่มีธงแยกที่แถว (ดู pages/mytasks/due-time.js)
+        dueInput.dataset.dueUnset = row.dataset.due ? '0' : '1';
         paintDueCell();
         form.elements.assignee.value = row.dataset.assignee || '';
         if (assigneeOutput) assigneeOutput.textContent = row.dataset.assignee || 'ไม่ระบุ';
+        paintAssigneeAvatar(owners[String(row.dataset.id)]);
         if (staticStatus) staticStatus.textContent = statusMeta[Number(form.elements.job_status.value)]?.label || unsupportedStatusMeta.label;
         if (staticPriority) staticPriority.textContent = taskPriorityMeta[Number(form.elements.job_priority.value)]?.label || '';
 
@@ -353,7 +391,8 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
             const currentDue = activeRow.querySelector('[data-field="due"]');
             const datesChanged = 'job_start_at' in changed
                 || 'job_due_at' in changed
-                || 'job_due_time_unset' in changed;
+                || 'job_due_time_unset' in changed
+                || 'job_due_unset' in changed;
 
             // ส่งเฉพาะค่าที่เปลี่ยนจริง — job_details ไม่ถูกส่งอีกต่อไป ข้อมูลเดิมในคอลัมน์จึงคงอยู่
             if ('job_topic' in changed) {
@@ -364,22 +403,30 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
             let canonicalStatus = Number(values.job_status);
             let canonicalDue = values.job_due_at;
             let canonicalDueUnset = values.job_due_time_unset === '1';
+            let canonicalNoDue = values.job_due_unset === '1';
             let canonicalTransitions = null;
             const jobs = [];
             if ('job_priority' in changed) jobs.push(request(endpoint(workspace.dataset.priorityTemplate, id), 'POST', {job_priority: values.job_priority}));
             if (datesChanged) {
                 let scheduleResult = null;
-                const dueUnsetPayload = values.job_due_time_unset === '1';
+                const noDuePayload = values.job_due_unset === '1';
+                // งานที่ไม่มีวันส่งไม่มีเวลาให้ "ไม่ระบุ" — server ล้างธงนี้อยู่แล้ว ที่นี่แค่ไม่ส่งค่าที่ขัดกันไป
+                const dueUnsetPayload = !noDuePayload && values.job_due_time_unset === '1';
+                const duePayload = noDuePayload ? null : values.job_due_at;
                 if (workspace.dataset.scheduleTemplate) {
-                    scheduleResult = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {job_start_at: values.job_start_at, job_due_at: values.job_due_at, job_due_time_unset: dueUnsetPayload});
+                    scheduleResult = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {job_start_at: values.job_start_at, job_due_at: duePayload, job_due_unset: noDuePayload, job_due_time_unset: dueUnsetPayload});
                 } else if (workspace.dataset.dueTemplate) {
-                    scheduleResult = await request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: values.job_due_at, job_due_time_unset: dueUnsetPayload});
+                    scheduleResult = await request(endpoint(workspace.dataset.dueTemplate, id), 'POST', {job_due_at: duePayload, job_due_unset: noDuePayload, job_due_time_unset: dueUnsetPayload});
                 }
                 if (scheduleResult) {
                     canonicalStatus = Number(scheduleResult.job_status ?? canonicalStatus);
                     canonicalDueUnset = isDueTimeUnset(scheduleResult.job_due_time_unset);
+                    canonicalNoDue = scheduleResult.job_due_unset === true;
                     // server ตอบกลับวันกับเวลาแยกกัน ประกอบคืนให้ครบก่อนใช้เป็นค่าอ้างอิง
-                    canonicalDue = scheduleResult.job_due_at
+                    // งานที่ไม่มีกำหนดส่งตอบวันกลับมาเป็นค่าว่าง ซึ่งคือค่าจริง ไม่ใช่ "ไม่ได้ส่งมา"
+                    canonicalDue = canonicalNoDue
+                        ? ''
+                        : scheduleResult.job_due_at
                         ? (scheduleResult.job_due_time
                             ? `${scheduleResult.job_due_at}T${scheduleResult.job_due_time}`
                             : scheduleResult.job_due_at)
@@ -404,6 +451,7 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
             values.job_status = String(canonicalStatus);
             values.job_due_at = canonicalDue;
             values.job_due_time_unset = canonicalDueUnset ? '1' : '0';
+            values.job_due_unset = canonicalNoDue ? '1' : '0';
 
             activeRow.dataset.topic = values.job_topic;
             activeRow.dataset.status = values.job_status;
@@ -433,8 +481,10 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
             if (currentDue) {
                 currentDue.value = values.job_due_at;
                 currentDue.dataset.timeUnset = canonicalDueUnset ? '1' : '0';
+                currentDue.dataset.dueUnset = canonicalNoDue ? '1' : '0';
             }
             dueInput.dataset.timeUnset = canonicalDueUnset ? '1' : '0';
+            dueInput.dataset.dueUnset = canonicalNoDue ? '1' : '0';
             paintDueCell();
 
             snapshot = JSON.stringify(values);

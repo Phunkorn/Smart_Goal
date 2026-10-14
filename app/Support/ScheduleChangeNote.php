@@ -26,7 +26,7 @@ final class ScheduleChangeNote
     /**
      * ประกอบข้อความบันทึกกิจกรรมจากรายการวันที่ที่ถูกแก้
      *
-     * @param  array<int, array{label: string, from: mixed, to: mixed}>  $fields
+     * @param  array<int, array{label: string, from: mixed, to: mixed, empty?: string}>  $fields
      */
     public static function describe(string $headline, array $fields): string
     {
@@ -40,7 +40,9 @@ final class ScheduleChangeNote
                 continue;
             }
 
-            $parts[] = $field['label'].' '.self::stamp($from).' → '.self::stamp($to).self::shift($from, $to);
+            // กำหนดส่งที่ว่างคือ "ไม่มีกำหนดส่ง" ที่ผู้ใช้เลือกเอง ไม่ใช่ข้อมูลที่ขาด ผู้เรียกจึงบอกคำของมันมาได้
+            $empty = $field['empty'] ?? 'ไม่ระบุ';
+            $parts[] = $field['label'].' '.self::stamp($from, $empty).' → '.self::stamp($to, $empty).self::shift($from, $to);
         }
 
         // ผู้ใช้กดบันทึกโดยไม่ได้แก้วันที่จริง ข้อความจึงต้องไม่ห้อยเครื่องหมายค้างไว้
@@ -83,9 +85,9 @@ final class ScheduleChangeNote
         return $from !== null && $to !== null && $from->equalTo($to);
     }
 
-    private static function stamp(?CarbonInterface $value): string
+    private static function stamp(?CarbonInterface $value, string $empty = 'ไม่ระบุ'): string
     {
-        return $value?->locale('th')->translatedFormat('j M Y H:i') ?? 'ไม่ระบุ';
+        return $value?->locale('th')->translatedFormat('j M Y H:i') ?? $empty;
     }
 
     private static function toBusinessTime(mixed $value): ?CarbonInterface

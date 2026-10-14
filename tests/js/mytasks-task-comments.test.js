@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from '../../resources/js/pages/mytasks/task-comments-model.js';
+import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldRevealComments, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from '../../resources/js/pages/mytasks/task-comments-model.js';
 import {click, pressKey} from './helpers/dom.js';
 import {mountTaskWorkspace} from './helpers/task-workspace-fixture.js';
 
@@ -256,6 +256,95 @@ test('realtime read receipt ไม่ดึง scroll กลับลงล่�
     }}));
 
     assert.equal(items.scrollTop, 24);
+});
+
+/*
+ * realtime-sync ส่งรายชื่อคนอ่านของงานที่เปิดอยู่มาทุกรอบ (ทุก 3 วินาที) แม้ไม่มีอะไรเปลี่ยน
+ * ของเดิมวาดรายการแชทใหม่ทั้งก้อนทุกรอบ รูปและ avatar ทุกใบจึงถูกโหลดซ้ำจนแชทกระพริบ
+ * ฟองเดิมต้องเป็น node ตัวเดิมตลอด — ถ้าถูกสร้างใหม่แปลว่ารายการถูกเขียนทับอีกแล้ว
+ */
+test('realtime receipt แตะเฉพาะแถวคนอ่าน และรอบที่ข้อมูลเหมือนเดิมต้องไม่แตะ DOM เลย', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    captureFetch();
+
+    ui.compose().value = 'ข้อความของฉัน';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    const items = ui.taskModal.querySelector('[data-timeline-items]');
+    const bubble = items.querySelector('[data-comment-id="99"]');
+    const receive = (receipts) => ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:comment-receipts', {detail: {task_id: 7, receipts}}));
+    const admin = {id: 2, name: 'Admin', avatar_url: null, read_at: '1 ก.ย. 2026 13:27'};
+
+    receive({'99': [admin]});
+    assert.equal(items.querySelector('[data-comment-id="99"]'), bubble, 'มีคนอ่านเพิ่มต้องไม่สร้างฟองใหม่');
+    assert.equal(bubble.querySelectorAll('.task-timeline-reader').length, 1);
+
+    const reader = bubble.querySelector('.task-timeline-reader');
+    receive({'99': [{...admin}]});
+    receive({'99': [{...admin}]});
+    assert.equal(items.querySelector('[data-comment-id="99"]'), bubble, 'รอบ poll ที่ข้อมูลเหมือนเดิมต้องไม่สร้างฟองใหม่');
+    assert.equal(bubble.querySelector('.task-timeline-reader'), reader, 'รอบ poll ที่ข้อมูลเหมือนเดิมต้องไม่แตะแถวคนอ่าน');
+    assert.equal(bubble.querySelectorAll('.task-timeline-entry__readers').length, 1);
+
+    receive({});
+    assert.equal(items.querySelector('[data-comment-id="99"]'), bubble);
+    assert.equal(bubble.querySelector('.task-timeline-entry__readers'), null, 'ไม่มีคนอ่านแล้วต้องเอาแถวคนอ่านออก');
+});
+
+test('แถวคนอ่านที่เพิ่มใต้ข้อความล่าสุดต้องไม่ดันข้อความล่าสุดหลุดจอ แต่ไม่ดึงคนที่กำลังอ่านข้อความเก่า', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    click(ui.boardTitle());
+    captureFetch();
+
+    ui.compose().value = 'ข้อความของฉัน';
+    pressKey(ui.compose(), 'Enter');
+    await flush();
+
+    const items = ui.taskModal.querySelector('[data-timeline-items]');
+    // jsdom ไม่มี layout จึงจำลองว่าแถวคนอ่านหนึ่งแถวสูง 24px
+    Object.defineProperties(items, {
+        scrollHeight: {configurable: true, get: () => 1000 + (items.querySelectorAll('.task-timeline-entry__readers').length * 24)},
+        clientHeight: {configurable: true, value: 300},
+    });
+    const receive = (receipts) => ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:comment-receipts', {detail: {task_id: 7, receipts}}));
+
+    items.scrollTop = 700;
+    receive({'99': [{id: 2, name: 'Admin', avatar_url: null}]});
+    assert.equal(items.scrollTop, 1024, 'อยู่ท้ายรายการอยู่แล้วต้องตามลงไปให้เห็นแถวคนอ่าน');
+
+    receive({});
+    items.scrollTop = 100;
+    receive({'99': [{id: 3, name: 'Member', avatar_url: null}]});
+    assert.equal(items.scrollTop, 100, 'กำลังอ่านข้อความเก่าต้องไม่ถูกดึงลงล่าง');
+});
+
+test('เปิดจากไอคอนคอมเมนต์หรือลิงก์แจ้งเตือนต้องพาไปที่การ์ดแชท เปิดจากชื่องานไม่ต้อง', () => {
+    assert.equal(shouldRevealComments('comment-icon'), true);
+    assert.equal(shouldRevealComments('deep-link'), true);
+    assert.equal(shouldRevealComments('modal'), false);
+    assert.equal(shouldRevealComments('tab'), false);
+});
+
+/*
+ * บนจอแคบการ์ดเรียงลงมาเป็นชั้นเดียว การ์ดแชทอยู่ใต้ข้อมูลงานและไฟล์แนบ
+ * คนที่กดไอคอนคอมเมนต์ต้องไม่ต้องเลื่อนหาแชทเอง
+ */
+test('กดไอคอนคอมเมนต์เลื่อนการ์ดแชทมาอยู่ในจอ ส่วนกดชื่องานไม่เลื่อนหน้า', async (t) => {
+    const reveals = async (trigger) => {
+        const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+        captureFetch();
+        const calls = [];
+        ui.taskModal.querySelector('[data-task-timeline]').scrollIntoView = (options) => calls.push(options);
+        click(trigger(ui));
+        await flush();
+
+        return calls;
+    };
+
+    assert.deepEqual(await reveals((ui) => ui.boardTitle()), []);
+    assert.deepEqual(await reveals((ui) => ui.boardComment()), [{block: 'nearest'}]);
 });
 
 test('ข้อความ realtime ใหม่ไม่ดึง scroll ถ้าผู้ใช้กำลังอ่านข้อความเก่า', async (t) => {

@@ -156,7 +156,10 @@ const render = () => {
 
     const {input, year, month, withTime, multiple, selectedDates} = state;
     // ช่องที่มีเวลาด้วยเก็บค่าเป็น 'Y-m-dTH:i' ปฏิทินจึงเทียบเฉพาะครึ่งหน้าที่เป็นวัน
-    const selected = withTime ? splitDateTimeValue(input.value).date : (input.value || '');
+    // งานที่เลือก "ไม่มีกำหนดส่ง" ไม่มีวันใดถูกเลือก แม้ช่องจะยังค้างวันเดิมไว้ให้ติ๊กกลับได้
+    const selected = state.dueUnset
+        ? ''
+        : (withTime ? splitDateTimeValue(input.value).date : (input.value || ''));
     const today = toDateValue(new Date());
     const bounds = {
         min: withTime ? splitDateTimeValue(input.min).date : (input.min || ''),
@@ -197,9 +200,12 @@ const render = () => {
      * ไม่ใช่เวลาที่ผู้ใช้ตั้งไว้ การโชว์มันค้างไว้ข้าง ๆ คำว่า "ไม่ระบุเวลา"
      * จึงเป็นการบอกสองอย่างที่ขัดกันในกล่องเดียว
      */
-    parts.timeRow.hidden = !withTime || state.timeUnset;
-    parts.timeUnsetRow.hidden = !withTime || !state.timeOptional;
+    parts.timeRow.hidden = !withTime || state.timeUnset || state.dueUnset;
+    // ไม่มีวันส่งก็ไม่มีเวลาให้ "ไม่ระบุ" — แถวนั้นจึงหายไปพร้อมแถวเวลา
+    parts.timeUnsetRow.hidden = !withTime || !state.timeOptional || state.dueUnset;
     parts.timeUnsetInput.checked = state.timeUnset;
+    parts.dueUnsetRow.hidden = !state.dueOptional;
+    parts.dueUnsetInput.checked = state.dueUnset;
     parts.confirmButton.hidden = !multiple;
     parts.confirmButton.textContent = `ใช้ ${selectedDates.size} วัน`;
     parts.confirmButton.disabled = selectedDates.size === 0;
@@ -240,8 +246,17 @@ const commit = (dateValue) => {
     }
     // เลือกวันใหม่ต้องไม่ทำให้เวลาที่ตั้งไว้หายไป จึงประกอบกลับด้วยเวลาที่ค้างอยู่ในกล่อง
     const value = withTime ? joinDateTimeValue(dateValue, state.time) : dateValue;
+    /*
+     * เลือกวันคือการบอกว่า "มีกำหนดส่งแล้ว" เจตนาไม่มีกำหนดส่งจึงถูกล้างที่นี่
+     * และต้องยิง change แม้วันที่เลือกจะตรงกับวันเดิมที่ค้างในช่อง — ไม่งั้นผู้ฟังไม่รู้ว่าเจตนาเปลี่ยน
+     */
+    const restoresDue = state.dueOptional && input.dataset.dueUnset === '1';
+    if (restoresDue) {
+        state.dueUnset = false;
+        input.dataset.dueUnset = '0';
+    }
 
-    if (input.value !== value) {
+    if (input.value !== value || restoresDue) {
         input.value = value;
         // ตัวจัดการเดิมของบอร์ดฟัง 'change' แบบ delegated จึงต้อง bubble ขึ้นไปถึง document
         input.dispatchEvent(new Event('change', {bubbles: true}));
@@ -394,6 +409,24 @@ const build = () => {
     timeUnsetField.append(timeUnsetInput, element('span', null, 'ไม่ระบุเวลากำหนดส่ง'));
     timeUnsetRow.append(timeUnsetField);
 
+    /*
+     * "ไม่มีกำหนดส่ง" — งานไม่มีวันครบกำหนดเลย เปิดให้เฉพาะช่องที่ประกาศ data-due-optional
+     *
+     * คนละเรื่องกับแถวบน: "ไม่ระบุเวลา" ยังมีวันส่งและยังล่าช้าได้ ส่วนตัวเลือกนี้ทำให้
+     * job_due_at เป็น null งานจึงไม่ถูกดันเป็นล่าช้าเอง ช่องวันเริ่มและช่องนัดประชุมต้องมีวันเสมอ
+     * จึงไม่ประกาศ attribute นี้และไม่เห็นแถวนี้
+     *
+     * เจตนาเดินทางไปกับ dataset ของช่อง (data-due-unset) เหมือนแถวบน ค่าในช่องไม่ถูกล้าง
+     * ผู้ใช้จึงติ๊กกลับแล้วได้วันเดิมคืนในกล่องที่ยังไม่ได้บันทึก (เช่น โมดัลรายละเอียดงาน)
+     */
+    const dueUnsetRow = element('div', 'sg-date-picker__due-unset');
+    dueUnsetRow.hidden = true;
+    const dueUnsetField = element('label');
+    const dueUnsetInput = element('input');
+    dueUnsetInput.type = 'checkbox';
+    dueUnsetField.append(dueUnsetInput, element('span', null, 'ไม่มีกำหนดส่ง'));
+    dueUnsetRow.append(dueUnsetField);
+
     const footer = element('div', 'sg-date-picker__footer');
     const todayButton = element('button', 'sg-date-picker__today', 'วันนี้');
     todayButton.type = 'button';
@@ -404,7 +437,7 @@ const build = () => {
     closeButton.type = 'button';
     footer.append(todayButton, confirmButton, closeButton);
 
-    popover.append(header, weekdays, grid, timeRow, timeUnsetRow, footer);
+    popover.append(header, weekdays, grid, timeRow, timeUnsetRow, dueUnsetRow, footer);
     document.body.append(popover);
 
     previous.addEventListener('click', () => move(-1));
@@ -467,6 +500,8 @@ const build = () => {
         if (state.input.value === value) return;
 
         state.input.value = value;
+        // ตั้งเวลาได้ก็แปลว่ามีกำหนดส่งแล้ว (ผู้ใช้เลิกติ๊ก "ไม่มีกำหนดส่ง" แล้วพิมพ์เวลาก่อนเลือกวัน)
+        if (state.dueOptional) state.input.dataset.dueUnset = '0';
         state.input.dispatchEvent(new Event('change', {bubbles: true}));
     });
 
@@ -483,7 +518,32 @@ const build = () => {
         state.input.dispatchEvent(new Event('change', {bubbles: true}));
     });
 
-    return {monthSelect, yearSelect, grid, todayButton, confirmButton, closeButton, timeRow, timeInput, timeUnsetRow, timeUnsetInput};
+    /*
+     * ติ๊กแล้วบันทึกทันทีเหมือนแถวบน
+     *
+     * เลิกติ๊กมีสองกรณี: ช่องยังค้างวันเดิมไว้ ก็คืนวันนั้นทันที แต่ถ้าช่องว่าง (งานถูกบันทึกเป็น
+     * ไม่มีกำหนดส่งไปแล้ว) กล่องไม่เดาวันให้ เพราะวันที่เดาอาจอยู่ก่อนวันเริ่มงาน
+     * เจตนาเดิมจึงยังอยู่จนกว่าผู้ใช้จะเลือกวันจริงในตาราง
+     */
+    dueUnsetInput.addEventListener('change', () => {
+        if (!state?.dueOptional) return;
+
+        state.dueUnset = dueUnsetInput.checked;
+        if (!state.dueUnset && !state.input.value) {
+            render();
+            return;
+        }
+
+        state.input.dataset.dueUnset = state.dueUnset ? '1' : '0';
+        if (state.dueUnset && state.timeOptional) {
+            state.timeUnset = false;
+            state.input.dataset.timeUnset = '0';
+        }
+        render();
+        state.input.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+
+    return {monthSelect, yearSelect, grid, todayButton, confirmButton, closeButton, timeRow, timeInput, timeUnsetRow, timeUnsetInput, dueUnsetRow, dueUnsetInput};
 };
 
 /**
@@ -513,6 +573,8 @@ export const openDatePicker = (input, anchor = input) => {
     const withTime = input.type === 'datetime-local';
     // เฉพาะช่องที่ปลายทางรับ "ไม่ระบุเวลา" ได้จริงเท่านั้นที่ได้แถวติ๊กนี้
     const timeOptional = withTime && input.hasAttribute('data-time-optional');
+    // เช่นเดียวกัน: เฉพาะช่องกำหนดส่งของงานเท่านั้นที่ปลายทางรับ "ไม่มีกำหนดส่ง" ได้
+    const dueOptional = withTime && input.hasAttribute('data-due-optional');
     const {date: datePart, time: timePart} = splitDateTimeValue(input.value);
     const current = parseDateValue(withTime ? datePart : input.value) || new Date();
     const multiple = !withTime
@@ -532,6 +594,8 @@ export const openDatePicker = (input, anchor = input) => {
         selectedDates,
         timeOptional,
         timeUnset: timeOptional && input.dataset.timeUnset === '1',
+        dueOptional,
+        dueUnset: dueOptional && input.dataset.dueUnset === '1',
         // ช่องที่ยังว่างเริ่มที่เวลาตั้งต้นของช่องนั้น ผู้ใช้จึงไม่ต้องพิมพ์เวลาจากศูนย์ทุกครั้ง
         time: withTime ? (timePart || initialTimeFor(input)) : '',
         year: current.getFullYear(),

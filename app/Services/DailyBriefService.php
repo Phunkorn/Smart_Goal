@@ -144,6 +144,8 @@ class DailyBriefService
         TodayWorkspace::synchronizeLate($query);
 
         $tasks = (clone $query)->with('taskList')
+            // MySQL เรียง NULL ขึ้นก่อนเมื่อเรียงจากน้อยไปมาก งานที่ไม่มีกำหนดส่งจึงต้องถูกดันไปท้ายเอง
+            ->orderByRaw('job_due_at is null asc')
             ->orderBy('job_due_at')
             ->get();
 
@@ -181,6 +183,11 @@ class DailyBriefService
 
         if ($overdueDays > 0) {
             return 'เลยกำหนด '.$overdueDays.' วัน';
+        }
+
+        // งานที่ไม่มีกำหนดส่งอยู่ในรายการวันนี้ตั้งแต่วันเริ่ม ป้ายจึงต้องบอกเหตุผล ไม่ใช่เว้นว่าง
+        if (TodayWorkspace::dueIsUnset($task)) {
+            return TodayWorkspace::NO_DUE_LABEL;
         }
 
         $progress = TodayWorkspace::timeProgress($task);

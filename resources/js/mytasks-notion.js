@@ -1,6 +1,7 @@
 import {boardFilterStateFrom, boardTaskMatches} from './pages/mytasks/task-filter-state.js';
 // ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ปฏิทิน และโมดัล ไม่มีสำเนาแยก
-import {dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
+import {NO_DUE_LABEL, dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
+import {projectKeyForList, rememberProjectExpanded} from './pages/mytasks/board-project-collapse.js';
 
 (() => {
     const root = document.querySelector('[data-workspace]');
@@ -101,6 +102,8 @@ import {dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
     const paintDueCell = (row) => {
         const dueLabel = row.querySelector('[data-due-label]');
         const date = row.dataset.due || '';
+        // data-due ว่างคืองานที่ไม่มีกำหนดส่ง — ป้ายต้องบอกอย่างนั้น ไม่ใช่ค้างวันเดิมไว้
+        if (dueLabel && !date) dueLabel.textContent = NO_DUE_LABEL;
         if (dueLabel && date) {
             // ต่อท้ายด้วย Z ให้ตรงกับ timeZone:'UTC' ของตัวจัดรูปแบบ ไม่งั้นเครื่องที่ +07:00 จะเลื่อนวันย้อนไปหนึ่งวัน
             const parsed = new Date(`${date}T00:00:00Z`);
@@ -111,7 +114,7 @@ import {dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
 
         const timeLabel = row.querySelector('[data-due-time-label]');
         if (timeLabel) {
-            timeLabel.textContent = dueWithinLabel(row.dataset.dueTime || '', row.dataset.dueTimeUnset);
+            timeLabel.textContent = dueWithinLabel(row.dataset.dueTime || '', row.dataset.dueTimeUnset, Boolean(date));
         }
     };
 
@@ -135,9 +138,12 @@ import {dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
                 row.dataset.priority = event.target.value;
             } else if (field === 'due') {
                 // ธงมาจากช่องที่ผู้ใช้เพิ่งกด ไม่ใช่จากแถว — ปฏิทินเขียน data-time-unset ลงช่องนั้นก่อนยิง change
+                // "ไม่มีกำหนดส่ง" เดินทางมาทางเดียวกัน ค่าที่ค้างในช่องตอนนั้นคือวันเดิมซึ่งต้องไม่ถูกส่งไป
+                const dueUnsetIntent = event.target.dataset.dueUnset === '1';
                 const data = await request(url(template, id), 'POST', {
-                    job_due_at: event.target.value,
-                    job_due_time_unset: event.target.dataset.timeUnset === '1',
+                    job_due_at: dueUnsetIntent ? null : event.target.value,
+                    job_due_unset: dueUnsetIntent,
+                    job_due_time_unset: !dueUnsetIntent && event.target.dataset.timeUnset === '1',
                 });
 
                 /*
@@ -145,9 +151,12 @@ import {dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
                  * เพราะการจัดกลุ่มและการเรียงของตารางเทียบสตริงวันตรง ๆ ถ้าเก็บเวลาไว้ด้วย
                  * งานวันเดียวกันแต่คนละเวลาจะถูกแยกเป็นคนละกลุ่ม เวลาจึงแยกไปอยู่ data-due-time
                  */
-                const [dueDate = '', dueTime = ''] = String(event.target.value || '').split('T');
+                const [dueDate = '', dueTime = ''] = dueUnsetIntent ? [] : String(event.target.value || '').split('T');
                 row.dataset.due = data?.job_due_at ?? dueDate;
                 row.dataset.dueTime = data?.job_due_time ?? dueTime;
+                // ช่องต้องถือค่าจริงหลังบันทึก: งานที่ไม่มีกำหนดส่งคือช่องว่าง ไม่ใช่วันเดิมที่ค้างอยู่
+                if (!row.dataset.due) event.target.value = '';
+                event.target.dataset.dueUnset = row.dataset.due ? '0' : '1';
                 // เจตนาที่ถูกบันทึกจริงมาจาก server เท่านั้น ช่องและแถวจึงถือค่าเดียวกันหลังบันทึก
                 const dueUnset = isDueTimeUnset(data?.job_due_time_unset);
                 row.dataset.dueTimeUnset = dueUnset ? '1' : '0';
@@ -194,6 +203,8 @@ import {dueWithinLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
                     ? {job_topic: title}
                     : {job_topic: title, work_order_list_id: +add.dataset.listId};
                 await request(quickUrl, 'POST', payload);
+                // บอร์ดพับโปรเจกต์ไว้เป็นค่าเริ่มต้น กางโปรเจกต์นี้ไว้ให้เห็นรายการที่เพิ่งเพิ่มหลังโหลดหน้าใหม่
+                rememberProjectExpanded(projectKeyForList(add.dataset.listId));
                 await Swal.fire({icon: 'success', title: 'เพิ่มรายการแล้ว', timer: 900, showConfirmButton: false});
                 location.reload();
             } catch (error) {

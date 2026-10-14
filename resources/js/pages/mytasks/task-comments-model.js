@@ -7,6 +7,14 @@ export function shouldMarkCommentsRead(source, tab) {
 }
 
 /**
+ * เปิดจากไอคอนคอมเมนต์หรือลิงก์แจ้งเตือนคือการมาอ่านแชทโดยตรง หน้าจอจึงต้องพาไปที่การ์ดแชท
+ * ส่วนการเปิดงานจากชื่องาน ('modal') ยังเริ่มที่ข้อมูลงานด้านบนตามเดิม
+ */
+export function shouldRevealComments(source) {
+    return source === 'deep-link' || source === 'comment-icon';
+}
+
+/**
  * Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่
  *
  * ระหว่างที่ IME กำลังประกอบคำ (ภาษาไทยและ CJK) ปุ่ม Enter คือการยืนยันคำ ไม่ใช่การส่ง

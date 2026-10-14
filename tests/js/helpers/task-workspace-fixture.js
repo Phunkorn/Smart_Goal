@@ -16,6 +16,8 @@ export function taskWorkspaceMarkup({
     // งานที่สองสำหรับเทสต์ที่ต้องสลับระหว่างสองงาน (เช่น ตรวจว่าฉบับร่างไม่รั่วข้ามงาน)
     secondTaskId = null,
     secondMentionable = [],
+    // รูปร่างเดียวกับ [data-owner-data] ของ workspace-interactions.blade.php
+    owners = {},
 } = {}) {
     const teamData = {
         [String(taskId)]: {
@@ -95,7 +97,7 @@ export function taskWorkspaceMarkup({
              data-status="2" data-priority="2" data-start="2026-08-01" data-start-time="09:00" data-due="2026-08-05" data-due-time="17:00" data-due-time-unset="0" data-assignee="เจ้าของงาน">
             <button type="button" class="row-title" data-open-task-modal><strong>งานทดสอบ</strong></button>
             <small class="row-duration-time" data-due-time-label>ส่งภายใน 17:00 น.</small>
-            <input class="cell-date" type="datetime-local" data-field="due" data-time-optional data-time-unset="0" value="2026-08-05T17:00">
+            <input class="cell-date" type="datetime-local" data-field="due" data-time-optional data-time-unset="0" data-due-optional data-due-unset="0" value="2026-08-05T17:00">
         </div>
     </div>
     <div class="board-reference-list" data-board-list-body>
@@ -136,7 +138,7 @@ export function taskWorkspaceMarkup({
 </div>
 
 <script type="application/json" data-team-data>${JSON.stringify(teamData)}</script>
-<script type="application/json" data-owner-data>{}</script>
+<script type="application/json" data-owner-data>${JSON.stringify(owners)}</script>
 <script type="application/json" data-attachment-data>{}</script>
 <script type="application/json" data-timeline-data>{}</script>
 <script type="application/json" data-task-management-data>${JSON.stringify(managementData)}</script>
@@ -209,8 +211,9 @@ export function taskWorkspaceMarkup({
             <output data-static-priority hidden></output>
 
             <input type="datetime-local" name="job_start_at" data-date-picker data-default-time="00:00" class="task-workspace__date">
-            <input type="datetime-local" name="job_due_at" data-date-picker data-default-time="17:00" data-time-optional class="task-workspace__date">
+            <input type="datetime-local" name="job_due_at" data-date-picker data-default-time="17:00" data-due-optional data-time-optional class="task-workspace__date" required>
             <output class="task-workspace__cell-static" data-workspace-due-unset hidden></output>
+            <span class="task-workspace__cell-icon tone-person" data-workspace-assignee-avatar><i class="bi bi-person" aria-hidden="true"></i></span>
             <output data-workspace-assignee></output>
             <input name="assignee" type="hidden">
 

@@ -18,6 +18,14 @@ export const UNSET_DUE_TIME_LABEL = 'ไม่ระบุเวลา';
  */
 export const isDueTimeUnset = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
+/**
+ * ข้อความของงานที่ไม่มีวันครบกำหนดเลย — ต้องตรงกับ TodayWorkspace::NO_DUE_LABEL
+ *
+ * คนละเรื่องกับ UNSET_DUE_TIME_LABEL ซึ่งยังมีวันส่งอยู่ งานที่ไม่มีกำหนดส่งคือ data-due ว่าง
+ * (job_due_at เป็น null) ไม่มีธงแยกที่แถว ส่วนช่องกรอกถือ data-due-unset ไว้ให้ปฏิทินอ่าน
+ */
+export const NO_DUE_LABEL = 'ไม่มีกำหนดส่ง';
+
 /** ป้ายเวลาล้วน เช่น "17:00 น." — ใช้ในคอลัมน์เวลาของบอร์ดและช่องของปฏิทิน */
 export const dueClockLabel = (clock, unset, empty = '-') => {
     if (isDueTimeUnset(unset)) return UNSET_DUE_TIME_LABEL;
@@ -26,6 +34,11 @@ export const dueClockLabel = (clock, unset, empty = '-') => {
 };
 
 /** ป้ายเต็มประโยคของเซลล์กำหนดส่งในตาราง ซึ่งอ่านคู่กับช่วงวันบรรทัดบน */
-export const dueWithinLabel = (clock, unset) => (isDueTimeUnset(unset) || !clock
-    ? 'ไม่ระบุเวลากำหนดส่ง'
-    : `ส่งภายใน ${clock} น.`);
+export const dueWithinLabel = (clock, unset, hasDue = true) => {
+    // บรรทัดบนบอกแล้วว่า "ไม่มีกำหนดส่ง" บรรทัดเวลาจึงเว้นว่าง ไม่ใช่บอกว่าไม่ระบุเวลา
+    if (!hasDue) return '';
+
+    return isDueTimeUnset(unset) || !clock
+        ? 'ไม่ระบุเวลากำหนดส่ง'
+        : `ส่งภายใน ${clock} น.`;
+};

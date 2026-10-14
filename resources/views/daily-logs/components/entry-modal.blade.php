@@ -140,7 +140,7 @@
                                 <select class="form-select" id="logEntryTask" name="job_id" data-entry-task>
                                     <option value="">ไม่เกี่ยวข้อง</option>
                                     @foreach($tasks as $task)
-                                        <option value="{{ $task->job_id }}">{{ $task->job_topic }}</option>
+                                        <option value="{{ $task->job_id }}" data-project-id="{{ $task->work_order_list_id }}">{{ $task->job_topic }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -302,7 +302,7 @@
                                         <label class="form-label" for="routineTask">รายการงาน</label>
                                         <select class="form-select" id="routineTask" name="job_id">
                                             <option value="">ไม่เกี่ยวข้อง</option>
-                                            @foreach($tasks as $task)<option value="{{ $task->job_id }}">{{ $task->job_topic }}</option>@endforeach
+                                            @foreach($tasks as $task)<option value="{{ $task->job_id }}" data-project-id="{{ $task->work_order_list_id }}">{{ $task->job_topic }}</option>@endforeach
                                         </select>
                                     </div>
                                 </div>

@@ -110,6 +110,43 @@ test('ชิปเหตุการณ์บอกประเภทด้ว�
     assert.equal(appointmentChip.getAttribute('href'), '/appointments/1');
 });
 
+test('รายการที่จบไปแล้วถูกขีดฆ่า และบอกเป็นคำใน aria-label ไม่ใช่ด้วยเส้นอย่างเดียว', (t) => {
+    const env = mountDom();
+    t.after(env.cleanup);
+    const grid = env.document.createElement('div');
+    env.document.body.append(grid);
+
+    renderMonthGrid(grid, '2026-10', [
+        {...event('meeting', '2026-10-06', 'ประชุมเมื่อวาน'), hasEnded: true},
+        {...event('appointment', '2026-10-06', 'นัดเมื่อวาน', '13:30'), hasEnded: true},
+        {...event('meeting', '2026-10-08', 'ประชุมพรุ่งนี้'), hasEnded: false},
+        // payload รุ่นเก่าที่ไม่มีธงนี้ต้องไม่ถูกขีดฆ่า
+        event('appointment', '2026-10-09', 'นัดที่ไม่มีธง'),
+    ], '2026-10-07');
+
+    const chip = (date) => grid.querySelector(`[data-calendar-day="${date}"] [data-calendar-event]`);
+    const endedChips = [...grid.querySelectorAll('[data-calendar-day="2026-10-06"] [data-calendar-event]')];
+
+    assert.equal(endedChips.length, 2);
+    endedChips.forEach((ended) => assert.equal(ended.classList.contains('is-ended'), true));
+    assert.match(endedChips[0].getAttribute('aria-label'), /^ประชุม 09:00 ประชุมเมื่อวาน \(จบแล้ว\)$/);
+    assert.match(endedChips[1].getAttribute('aria-label'), /^นัดหมาย 13:30 นัดเมื่อวาน \(จบแล้ว\)$/);
+    // ชิปที่จบแล้วยังเป็นลิงก์ไปหน้ารายละเอียดตามเดิม
+    assert.equal(endedChips[0].getAttribute('href'), '/meetings/1');
+
+    assert.equal(chip('2026-10-08').classList.contains('is-ended'), false);
+    assert.match(chip('2026-10-08').getAttribute('aria-label'), /^ประชุม 09:00 ประชุมพรุ่งนี้$/);
+    assert.equal(chip('2026-10-09').classList.contains('is-ended'), false);
+
+    // เส้นขีดฆ่าอยู่ที่เวลาและชื่อเรื่อง — บนมือถือชื่อเรื่องถูกซ่อน เวลาจึงต้องถูกขีดด้วย
+    assert.match(
+        calendarCss,
+        /\.meeting-calendar__event\.is-ended \.meeting-calendar__event-time,\s*\.meeting-calendar__event\.is-ended \.meeting-calendar__event-title,[^{]*\{[^}]*text-decoration: line-through/s,
+    );
+    // คำอธิบายใต้ปฏิทินบอกว่าเส้นขีดฆ่าหมายถึงอะไร
+    assert.match(calendarBlade, /meeting-calendar__legend-item--ended">จบแล้ว</);
+});
+
 test('ไอคอนในชิปเป็นตัวเสริม ข้อความยังอ่านได้เองทั้งเวลาและชื่อเรื่อง', (t) => {
     const env = mountDom();
     t.after(env.cleanup);

@@ -1,8 +1,7 @@
-@media (max-width: 900px) {
-  .daily-log__controls { width:100%; }
-}
 @media (max-width: 640px) {
   .daily-log__title { font-size:1.3rem; }
+  .daily-log__tabs,
+  .daily-log__controls { flex:1 1 100%; }
   .daily-log__controls { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
   .daily-log__member-form,
   .daily-log__member-select,
@@ -11,7 +10,6 @@
   .daily-log__month-field .sg-select__panel { right:auto; left:-13px; width:calc(100% + 24px); }
   .daily-log__date-nav { justify-content:space-between; }
   .daily-log .log-launcher__button { width:100%; justify-content:center; }
-  .daily-log .log-card__menu-trigger { margin-left:auto; }
   .daily-log .participant-picker__summary { width:100%; justify-content:center; }
   .daily-log .log-modal { padding:0; }
   .daily-log .log-modal__panel { width:100%; max-height:100vh; border-radius:0; }
@@ -22,6 +20,4 @@
   /* แท็บสามใบแบ่งความกว้างเท่ากัน ไม่ให้ "สรุปรายเดือน" หลุดขอบแล้วต้องปัดหา */
   .daily-log__tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; overflow:visible; }
   .daily-log__tabs a { min-width:0; padding:10px 4px; }
-  /* ปุ่ม "…" ของการ์ดบันทึกงานเดิม 25px เล็กกว่าปลายนิ้ว */
-  .daily-log .log-card__menu-trigger { min-width:36px; min-height:36px; }
 }

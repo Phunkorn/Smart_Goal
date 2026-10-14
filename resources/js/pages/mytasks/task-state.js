@@ -4,7 +4,7 @@
  */
 import {taskStateStore} from './task-state-store.js';
 // ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ตาราง และปฏิทิน ไม่มีสำเนาแยก
-import {dueWithinLabel, isDueTimeUnset} from './due-time.js';
+import {NO_DUE_LABEL, dueWithinLabel, isDueTimeUnset} from './due-time.js';
 
 /* 'dueTimeUnset' คือ data-due-time-unset — เจตนา "ไม่ระบุเวลากำหนดส่ง" ซึ่งแยกจากค่าเวลา */
 const mutableFields = ['topic', 'status', 'priority', 'start', 'due', 'startTime', 'dueTime', 'dueTimeUnset'];
@@ -141,10 +141,15 @@ export const synchronizeTaskSource = (workspace, id, changes, eventTarget = docu
             input.value = due && clock ? `${due}T${clock}` : due;
             // ช่องต้องถือเจตนาเดียวกับแถว ไม่งั้นการแก้ครั้งถัดไปจะส่งเจตนาเก่ากลับไปทับ
             input.dataset.timeUnset = unset ? '1' : '0';
+            // เช่นเดียวกับ "ไม่มีกำหนดส่ง" ซึ่งก็คือกำหนดส่งที่ว่าง
+            input.dataset.dueUnset = due ? '0' : '1';
         }
 
         const timeLabel = row.querySelector('[data-due-time-label]');
-        if (timeLabel) timeLabel.textContent = dueWithinLabel(clock, unset);
+        if (timeLabel) timeLabel.textContent = dueWithinLabel(clock, unset, Boolean(due));
+        // ป้ายวันของงานที่ยังมีกำหนดส่งถูกวาดโดยเจ้าของมุมมองนั้นเอง ที่นี่ดูแลเฉพาะกรณีไม่มีกำหนดส่ง
+        const dueLabel = row.querySelector('[data-due-label]');
+        if (dueLabel && !due) dueLabel.textContent = NO_DUE_LABEL;
     }
     if (Object.hasOwn(changes, 'topic')) {
         const title = row.querySelector('.row-title strong');

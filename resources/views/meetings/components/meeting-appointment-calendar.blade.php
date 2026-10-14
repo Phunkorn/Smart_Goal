@@ -130,6 +130,8 @@
                 <span class="meeting-calendar__legend-swatch"></span>{{ $typeLabel }}
             </li>
         @endforeach
+        {{-- รายการที่จบไปแล้วถูกขีดฆ่าในตาราง ตัวอย่างนี้ใช้คลาสเดียวกับเส้นขีดของชิป --}}
+        <li class="meeting-calendar__legend-item meeting-calendar__legend-item--ended">จบแล้ว</li>
     </ul>
 
     {{--

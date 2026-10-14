@@ -15,7 +15,7 @@
     $dueMoment = $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at) : null;
     $dueLabel = $dueMoment
         ? $dueMoment->day.' '.$thaiMonths[$dueMoment->month].' '.str_pad((string)(($dueMoment->year + 543) % 100), 2, '0', STR_PAD_LEFT)
-        : 'ไม่มีกำหนด';
+        : \App\Support\TodayWorkspace::NO_DUE_LABEL;
     $startLabel = $startMoment
         ? $startMoment->day.' '.$thaiMonths[$startMoment->month]
         : '-';
@@ -83,8 +83,8 @@
     <label class="row-duration {{ $isLate ? 'is-late' : '' }} {{ $canWork ? '' : 'is-readonly' }}">
         <span class="row-duration-copy"><span>{{ $startLabel }}</span><i class="bi bi-arrow-right"></i><span data-due-label>{{ $dueLabel }}</span></span>
         {{-- เวลากำหนดส่งอยู่บรรทัดที่สองของเซลล์เดียวกัน ช่วงวันจึงยังอ่านได้ในบรรทัดเดียวเหมือนเดิม --}}
-        <small class="row-duration-time" data-due-time-label>{{ $dueTimeLabel ? 'ส่งภายใน '.$dueTimeLabel : 'ไม่ระบุเวลากำหนดส่ง' }}</small>
-        @if($canWork)<input class="cell-date" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" aria-label="แก้ไขวันที่และเวลากำหนดส่ง">@endif
+        <small class="row-duration-time" data-due-time-label>{{ ! $task->job_due_at ? '' : ($dueTimeLabel ? 'ส่งภายใน '.$dueTimeLabel : 'ไม่ระบุเวลากำหนดส่ง') }}</small>
+        @if($canWork)<input class="cell-date" type="datetime-local" data-date-picker data-default-time="{{ \App\Support\TodayWorkspace::DEFAULT_DUE_TIME }}" data-field="due" data-time-optional data-time-unset="{{ $dueTimeUnset ? 1 : 0 }}" data-due-optional data-due-unset="{{ $task->job_due_at ? 0 : 1 }}" value="{{ \App\Support\TodayWorkspace::calendarDateTime($task->job_due_at) }}" aria-label="แก้ไขวันที่และเวลากำหนดส่ง">@endif
     </label>
     <button type="button" class="row-collaborators" data-manage-team="{{ $task->job_id }}" title="{{ $canManageTeam ? 'จัดการผู้เข้าร่วม' : 'ดูผู้เข้าร่วม' }}">
         <span class="collaborator-stack">

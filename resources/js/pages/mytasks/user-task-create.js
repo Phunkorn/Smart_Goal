@@ -1,3 +1,5 @@
+import {projectKeyForList, rememberProjectExpanded} from './board-project-collapse.js';
+
 const modal = document.querySelector('[data-user-task-create-modal]');
 const form = modal?.querySelector('[data-user-task-create-form]');
 
@@ -219,6 +221,8 @@ if (modal && form) {
              *
              * ใช้ query string ตัวเดิมของหน้าต่อ เพื่อไม่ให้ตัวกรองขอบเขตงานที่เลือกไว้หายไป
              */
+            // โปรเจกต์บนบอร์ดพับไว้เป็นค่าเริ่มต้น จึงต้องกางโปรเจกต์ของงานใหม่ไว้ให้ ไม่เช่นนั้นจะมองไม่เห็นงานที่เพิ่งสร้าง
+            rememberProjectExpanded(projectKeyForList(payload.list_id));
             const destination = new URL(window.location.href);
             destination.searchParams.set('view', 'board');
             window.location.assign(destination);

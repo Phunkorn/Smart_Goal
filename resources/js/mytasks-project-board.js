@@ -16,7 +16,8 @@ import {attachmentDeleteButton, confirmAttachmentDelete, deleteTaskAttachment} f
 import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
 import {syncSubtaskGate} from './pages/mytasks/subtask-gate.js';
 // ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับตาราง ปฏิทิน และโมดัล ไม่มีสำเนาแยก
-import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
+import {NO_DUE_LABEL, dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
+import {expandedProjectKeys, rememberProjectExpanded} from './pages/mytasks/board-project-collapse.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -247,6 +248,14 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
 
     const dueTimeIsUnset = (task) => task.dataset.dueTimeUnset === '1';
 
+    /*
+     * "ไม่มีกำหนดส่ง" ไม่มีธงของตัวเองที่แถว — data-due ว่างคือคำตอบ (job_due_at เป็น null)
+     *
+     * ต่างจาก "ไม่ระบุเวลา" ที่ต้องมีธงเพราะ data-due-time ยังถือ 23:59 ไว้ งานที่ไม่มีกำหนดส่ง
+     * ไม่มีค่าใดค้างให้ตีความผิด ส่วนช่องกรอกถือ data-due-unset ไว้ให้ปฏิทินรู้ว่าต้องติ๊กแถวไหน
+     */
+    const dueIsUnset = (task) => !task.dataset.due;
+
     const paintScheduleLabels = (task) => {
         [['start', '[data-board-start-label]'], ['due', '[data-board-due-label]']].forEach(([field, selector]) => {
             const value = task.dataset[field] || '';
@@ -261,17 +270,27 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
             const next = scheduleValue(task, field);
             ownControls(task, `[data-board-field="${field}"]`).forEach((input) => {
                 input.value = next;
+                // ช่องกำหนดส่งทุกช่องต้องถือเจตนาเดียวกับแถว ไม่งั้นปฏิทินจะเปิดมาพร้อมแถวติ๊กที่ไม่ตรงความจริง
+                if (field === 'due') input.dataset.dueUnset = value ? '0' : '1';
             });
 
             const label = ownControls(task, selector)[0];
             const date = new Date(`${value}T00:00:00`);
             if (label && value && !Number.isNaN(date.getTime())) label.textContent = thaiDate.format(date);
+            else if (label && field === 'due' && !value) label.textContent = NO_DUE_LABEL;
         });
 
         // คอลัมน์เวลากำหนดส่งอ่านค่าจาก dataset ชุดเดียวกัน จึงตามการแก้ไขทุกครั้งโดยไม่ต้องรีโหลด
         const dueTime = ownControls(task, '[data-board-due-time]')[0];
         if (dueTime) {
-            dueTime.textContent = dueClockLabel(task.dataset.dueTime || '', dueTimeIsUnset(task));
+            dueTime.textContent = dueIsUnset(task)
+                ? '-'
+                : dueClockLabel(task.dataset.dueTime || '', dueTimeIsUnset(task));
+        }
+
+        // งานที่ไม่มีกำหนดส่งเลยกำหนดไม่ได้และใกล้ครบกำหนดไม่ได้ สีเตือนที่ server วาดไว้จึงต้องหายไปด้วย
+        if (dueIsUnset(task)) {
+            ownControls(task, '.board-due, .board-due-time').forEach((cell) => cell.classList.remove('is-late', 'is-soon'));
         }
     };
 
@@ -281,6 +300,29 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
 
     const headerForTask = (task) => [...cardGrid.querySelectorAll('[data-project-header]')]
         .find((header) => header.dataset.projectKey === task.dataset.projectKey);
+
+    /*
+     * ที่เดียวที่พับหรือกางโปรเจกต์ — หัวโปรเจกต์ แถวงาน และกลุ่มงานที่เสร็จแล้วต้องไปด้วยกันเสมอ
+     * ทั้งปุ่มลูกศร การคืนค่าที่ผู้ใช้กางค้างไว้ และตัวกรอง เรียกผ่านฟังก์ชันนี้ทั้งหมด
+     */
+    const setProjectCollapsed = (header, collapsed) => {
+        header.classList.toggle('is-collapsed', collapsed);
+        tasksForProject(header).forEach((task) => task.classList.toggle('is-project-collapsed', collapsed));
+        [...cardGrid.querySelectorAll('[data-completed-group]')]
+            .find((group) => group.dataset.projectKey === header.dataset.projectKey)
+            ?.classList.toggle('is-project-collapsed', collapsed);
+        header.querySelector('[data-board-collapse]')?.setAttribute('aria-expanded', String(!collapsed));
+    };
+
+    // ค้นหาหรือกรองสถานะคือการ "หางาน" ผลลัพธ์จึงต้องเห็นได้เลยโดยไม่ต้องไล่กางทีละโปรเจกต์
+    // ปุ่ม "เฉพาะงานของฉัน" เป็นการเลือกขอบเขตของบอร์ด ไม่ใช่การหางาน จึงยังพับตามค่าเริ่มต้น
+    const filterRevealsProjects = (state) => Boolean(state.search.trim() || state.status);
+
+    // Blade วาดทุกโปรเจกต์แบบพับ ที่นี่กางเฉพาะโปรเจกต์ที่ผู้ใช้เปิดค้างไว้ก่อนหน้าโหลดใหม่
+    const rememberedExpanded = expandedProjectKeys();
+    cardGrid.querySelectorAll('[data-project-header].is-collapsed').forEach((header) => {
+        if (rememberedExpanded.has(header.dataset.projectKey)) setProjectCollapsed(header, false);
+    });
 
     const refreshProjectArchiveAction = (taskOrHeader) => {
         const header = taskOrHeader?.matches?.('[data-project-header]')
@@ -570,6 +612,21 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
             header.hidden = visibleInProject === 0 && !emptyProjectMatch;
             const count = header.querySelector('[data-board-visible-count]');
             if (count) count.textContent = visibleInProject;
+
+            /*
+             * โปรเจกต์ที่พับอยู่และมีผลลัพธ์ ถูกกางให้ชั่วคราวระหว่างค้นหาหรือกรองสถานะ
+             * แล้วพับกลับเมื่อล้างตัวกรอง — data-filter-reveal จำว่าใครเป็นคนกาง
+             * 'auto' คือตัวกรองกางให้ 'user' คือผู้ใช้กดลูกศรเองระหว่างกรอง ซึ่งตัวกรองต้องไม่ไปยุ่งอีก
+             */
+            if (filterRevealsProjects(state)) {
+                if (visibleInProject > 0 && header.classList.contains('is-collapsed') && !header.dataset.filterReveal) {
+                    setProjectCollapsed(header, false);
+                    header.dataset.filterReveal = 'auto';
+                }
+            } else if (header.dataset.filterReveal) {
+                if (header.dataset.filterReveal === 'auto') setProjectCollapsed(header, true);
+                delete header.dataset.filterReveal;
+            }
         });
 
         // กลุ่มงานเสร็จแล้วต้องหายไปพร้อมแถวข้างในเมื่อกำลังดูคิวตรวจหรือสถานะอื่น
@@ -828,10 +885,12 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
         const collapse = event.target.closest('[data-board-collapse]');
         if (collapse) {
             const header = collapse.closest('[data-project-header]');
-            const collapsed = header?.classList.toggle('is-collapsed');
-            tasksForProject(header).forEach((task) => task.classList.toggle('is-project-collapsed', collapsed));
-            board.querySelector(`[data-completed-group][data-project-key="${CSS.escape(header.dataset.projectKey)}"]`)?.classList.toggle('is-project-collapsed', collapsed);
-            collapse.setAttribute('aria-expanded', String(!collapsed));
+            if (!header) return;
+            const collapsed = !header.classList.contains('is-collapsed');
+            setProjectCollapsed(header, collapsed);
+            // ผู้ใช้กดเองระหว่างกรอง ตัวกรองจึงต้องไม่กางซ้ำหรือพับกลับให้อีก
+            if (filterRevealsProjects(currentFilterState())) header.dataset.filterReveal = 'user';
+            rememberProjectExpanded(header.dataset.projectKey, !collapsed);
             return;
         }
 
@@ -1016,7 +1075,9 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
                  */
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
                     job_start_at: control.value,
-                    job_due_at: shiftedDue,
+                    job_due_at: shiftedDue || null,
+                    // เช่นเดียวกัน: แก้วันเริ่มของงานที่ไม่มีกำหนดส่งต้องไม่ถูกปฏิเสธว่าไม่ได้ส่งกำหนดส่งมา
+                    job_due_unset: dueIsUnset(task),
                     job_due_time_unset: dueTimeIsUnset(task),
                 });
                 synchronizeTaskManagement(management, id, data);
@@ -1029,23 +1090,29 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
                 scheduleNotice = dueMoved ? 'เลื่อนวันที่เริ่มแล้ว และเลื่อนกำหนดส่งตามไปด้วย' : '';
                 synchronizeTaskSource(workspace, id, {start: task.dataset.start, due: task.dataset.due, startTime: task.dataset.startTime || '', dueTime: task.dataset.dueTime || '', dueTimeUnset: task.dataset.dueTimeUnset, status: Number(task.dataset.status)});
             } else if (field === 'due') {
-                if (!control.value) throw new Error('ต้องเลือกกำหนดส่ง');
+                // "ไม่มีกำหนดส่ง" มาจากช่องที่ผู้ใช้เพิ่งกดเช่นกัน — ปฏิทินเขียน data-due-unset ก่อนยิง change
+                // ค่าที่ค้างในช่องตอนนั้นคือวันเดิม ซึ่งต้องไม่ถูกส่งไปและต้องไม่ลากวันเริ่มตาม
+                const dueUnset = control.dataset.dueUnset === '1';
+                if (!dueUnset && !control.value) throw new Error('ต้องเลือกกำหนดส่ง');
 
                 // เหตุผลเดียวกับช่องวันเริ่ม: เลือกวันไหนก็ได้ แล้วลากปลายทางอีกข้างตามมา
                 const currentStart = scheduleValue(task, 'start');
-                const shiftedStart = currentStart && control.value < currentStart ? control.value : currentStart;
+                const shiftedStart = !dueUnset && currentStart && control.value < currentStart ? control.value : currentStart;
                 const startMoved = shiftedStart !== currentStart;
 
                 // ธงมาจากช่องที่ผู้ใช้เพิ่งกด ไม่ใช่จากแถว — ปฏิทินเขียน data-time-unset ลงช่องนั้นก่อนยิง change
                 const data = await request(endpoint(workspace.dataset.scheduleTemplate, id), 'PATCH', {
                     job_start_at: shiftedStart,
-                    job_due_at: control.value,
-                    job_due_time_unset: control.dataset.timeUnset === '1',
+                    job_due_at: dueUnset ? null : control.value,
+                    job_due_unset: dueUnset,
+                    job_due_time_unset: !dueUnset && control.dataset.timeUnset === '1',
                 });
                 synchronizeTaskManagement(management, id, data);
                 if (data.job_start_at) applyScheduleValue(task, 'start', `${data.job_start_at}T${data.job_start_time ?? ''}`);
                 else applyScheduleValue(task, 'start', shiftedStart);
-                applyScheduleValue(task, 'due', data.job_due_at ? `${data.job_due_at}T${data.job_due_time ?? ''}` : control.value);
+                // คำตอบของ server เป็นค่าจริง: job_due_unset บอกว่างานไม่มีกำหนดส่งแล้ว ไม่ใช่ว่า server ลืมส่งวันกลับมา
+                if (data.job_due_unset === true) applyScheduleValue(task, 'due', '');
+                else applyScheduleValue(task, 'due', data.job_due_at ? `${data.job_due_at}T${data.job_due_time ?? ''}` : control.value);
                 applyDueTimeUnset(task, data.job_due_time_unset === true);
                 task.dataset.status = String(data.job_status ?? task.dataset.status);
                 paintScheduleLabels(task);
@@ -1061,6 +1128,9 @@ import {dueClockLabel, isDueTimeUnset} from './pages/mytasks/due-time.js';
                 control.value = scheduleValue(task, 'due');
                 // บันทึกไม่สำเร็จ ช่องต้องกลับไปถือเจตนาเดิมของแถว ไม่ใช่ค้างค่าที่ผู้ใช้เพิ่งติ๊ก
                 applyDueTimeUnset(task, dueTimeIsUnset(task));
+                ownControls(task, '[data-board-field="due"]').forEach((input) => {
+                    input.dataset.dueUnset = dueIsUnset(task) ? '1' : '0';
+                });
             } else {
                 window.location.reload();
             }

@@ -55,10 +55,12 @@ class WorkOrderSubtaskController extends Controller
                 'approval_status' => $workOrder->approval_status,
                 'approved_by' => $workOrder->approved_by,
                 'approved_at' => $workOrder->approved_at,
-                // work_orders.job_start_at / job_due_at เป็น NOT NULL ในฐานข้อมูลจริง
-                // งานย่อยจึงต้องมีช่วงเวลาเสมอ ตั้งต้นจากงานแม่แล้วผู้ใช้ค่อยแก้ในโมดัล
+                // work_orders.job_start_at เป็น NOT NULL ในฐานข้อมูลจริง งานย่อยจึงต้องมีวันเริ่มเสมอ
+                // ตั้งต้นจากงานแม่แล้วผู้ใช้ค่อยแก้ในโมดัล
                 'job_start_at' => $workOrder->job_start_at ?? now(),
-                'job_due_at' => $workOrder->job_due_at ?? $workOrder->job_start_at ?? now(),
+                // งานแม่ที่ "ไม่มีกำหนดส่ง" ส่งต่อความหมายนั้นให้งานย่อย ไม่ใช่ยัดวันเริ่มให้เป็นกำหนดส่ง
+                // ซึ่งจะทำให้งานย่อยล่าช้าทันทีทั้งที่งานแม่ไม่มีกำหนด
+                'job_due_at' => $workOrder->job_due_at,
             ]);
         });
 

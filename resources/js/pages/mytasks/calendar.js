@@ -3,7 +3,7 @@ import {modalStack} from '../../components/modal-stack.js';
 import {attachmentStore} from './attachment-store.js';
 import {readSubtasks} from '../../components/subtask-modal.js';
 // ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ตาราง และโมดัล ไม่มีสำเนาแยก
-import {dueClockLabel, isDueTimeUnset} from './due-time.js';
+import {NO_DUE_LABEL, dueClockLabel, isDueTimeUnset} from './due-time.js';
 import {
     buddhistYear,
     buildCalendarAgenda,
@@ -58,6 +58,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     const json = (selector) => { const node = document.querySelector(selector); return node ? JSON.parse(node.textContent || '{}') : {}; };
     const teamData = json('[data-team-data]');
+    const ownerData = json('[data-owner-data]');
     // อ็อบเจกต์เดียวกับบอร์ดและโมดัลรายละเอียดงาน ปฏิทินจึงเห็นไฟล์ที่เพิ่งแนบทันที
     const attachmentData = attachmentStore(document);
 
@@ -160,7 +161,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
      */
     const matchesSearch = (event, term) => {
         if (!term) return true;
-        const haystack = [event.title, event.project, event.assignee, ...(teamOf(event.taskId).collaborators || []).map((person) => person.name)];
+        const haystack = [event.title, event.project, event.assignee, ...collaboratorsOf(event.taskId).map((person) => person.name)];
 
         return haystack.filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
     };
@@ -178,6 +179,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     };
 
     const eventDateLabel = (event) => {
+        // งานที่ไม่มีกำหนดส่งถูกวางไว้ที่วันเริ่ม วันนั้นจึงต้องไม่ถูกอ่านออกมาเป็นกำหนดส่ง
+        if (event.noDue) return NO_DUE_LABEL;
+
         const due = dateFormatter.format(new Date(event.dueStamp));
         if (event.startStamp === event.dueStamp) return due;
         return `${dateFormatter.format(new Date(event.startStamp))} – ${due}`;
@@ -231,7 +235,9 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
         detail.querySelector('[data-calendar-detail-start]').textContent = displayDate(row.dataset.start);
         // ผู้ใช้เปิดดูรายละเอียดจากปฏิทินเพื่อรู้ว่า "ต้องส่งเมื่อไหร่" เวลาจึงต้องอยู่คู่กับวัน
         const detailDueTime = ` ${dueClockLabel(row.dataset.dueTime || '', row.dataset.dueTimeUnset, '')}`.trimEnd();
-        detail.querySelector('[data-calendar-detail-due]').textContent = displayDate(row.dataset.due) + detailDueTime;
+        detail.querySelector('[data-calendar-detail-due]').textContent = row.dataset.due
+            ? displayDate(row.dataset.due) + detailDueTime
+            : NO_DUE_LABEL;
         // บทบาทในโปรเจกต์มาจาก App\Support\ProjectRoles ผ่าน [data-team-data] ชุดเดียวกับ Team Modal
         detail.querySelector('[data-calendar-detail-leader]').textContent = team.leader?.name || 'ไม่ระบุ';
         detail.querySelector('[data-calendar-detail-participants]').textContent = (team.participants || [])
@@ -252,7 +258,7 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     /* ---------- avatar ---------- */
 
     /**
-     * แหล่งข้อมูลคือ [data-team-data] ที่ workspace-interactions ฝังไว้แล้ว
+     * แหล่งข้อมูลคือ [data-team-data] และ [data-owner-data] ที่ workspace-interactions ฝังไว้แล้ว
      * ไม่มีการประกอบ path รูปเอง ทุก URL ผ่าน MediaController แล้ว
      */
     const makeAvatar = (person, className = '') => {
@@ -284,6 +290,16 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
 
     const teamOf = (taskId) => teamData[String(taskId)] || {};
 
+    /*
+     * ผู้รับผิดชอบอ่านจาก [data-owner-data] ไม่ใช่ [data-team-data]
+     * ผู้สร้างที่ทำงานเองคือหัวหน้าโปรเจกต์ จึงไม่อยู่ใน participants (App\Support\ProjectRoles)
+     * การหา is_assignee จากรายชื่อนั้นจึงพลาดงานกลุ่มนี้ทั้งหมด
+     */
+    const ownerOf = (taskId) => ownerData[String(taskId)] || null;
+
+    /** ผู้รับผิดชอบมีคอลัมน์ของตัวเองแล้ว คอลัมน์ผู้เข้าร่วมจึงเหลือเฉพาะคนที่ถูกเพิ่มเข้ามา */
+    const collaboratorsOf = (taskId) => (teamOf(taskId).participants || []).filter((person) => !person.is_assignee);
+
     /* ---------- ตัวสร้างช่องของตาราง ---------- */
 
     const toneOf = (event) => (taskPriorityMeta[event.priority] || taskPriorityMeta[2]).className;
@@ -313,8 +329,8 @@ document.querySelectorAll('[data-workspace]').forEach((workspace) => {
     const taskCellFactory = {
         title: titleCell,
         project: (event) => cell('is-muted', element('span', '', event.project)),
-        owner: (event) => cell('is-people', makeAvatar(teamOf(event.taskId).assignee, 'is-owner')),
-        collaborators: (event) => cell('is-people', makeAvatarStack(teamOf(event.taskId).collaborators || [], 'ไม่มี')),
+        owner: (event) => cell('is-people', makeAvatar(ownerOf(event.taskId), 'is-owner')),
+        collaborators: (event) => cell('is-people', makeAvatarStack(collaboratorsOf(event.taskId), 'ไม่มี')),
         /*
          * ป้ายความสำคัญใช้สีของระดับตัวเอง ไม่ใช่สีเทากลาง ๆ เหมือนแท็กทั่วไป
          * คลาส priority-* เป็นตัวพาสีมาให้ (นิยามอยู่ใน agenda.css) จึงเป็นชุดสีเดียว

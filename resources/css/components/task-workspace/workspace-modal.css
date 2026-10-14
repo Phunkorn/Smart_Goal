@@ -4,7 +4,8 @@
  * เลย์เอาต์: Header / Summary Bar / สองคอลัมน์ (ไฟล์แนบ + ไทม์ไลน์) / Footer
  * Desktop ตั้งแต่ 1100px: Header กับ Footer อยู่กับที่ ไม่มี scroll ในตัวหน้า
  * มีเพียงไทม์ไลน์และรายการไฟล์เท่านั้นที่เลื่อนภายในตัวเองเมื่อรายการยาวเกิน
- * Tablet และ Mobile: เรียงลงเป็นชั้นเดียว ใช้ scroll ของทั้งหน้าแทน ไม่มี nested scroll
+ * Tablet และ Mobile: เรียงลงเป็นชั้นเดียว ใช้ scroll ของทั้งหน้าแทน
+ * ยกเว้นรายการแชทที่ยังเลื่อนในกรอบของตัวเอง เพื่อให้เปิดมาเจอข้อความล่าสุดเสมอ
  */
 
 .task-workspace-modal {
@@ -43,15 +44,17 @@
 
 .task-workspace {
     display: flex;
-    width: min(1180px, 100%);
+    width: min(1280px, 100%);
     /*
      * ต้องมี height ที่แน่นอน ไม่ใช่แค่ max-height
      * ถ้ามีแต่ max-height กล่องจะยุบตามเนื้อหา ทำให้ไทม์ไลน์ยังไม่ scroll
      * จนกว่าข้อความจะดันการ์ดจนชนเพดาน (ประมาณ 6 ข้อความ)
-     * 760px คือค่าที่ดีไซน์ก่อนหน้าใช้จริงมาแล้ว (modal.css:13)
+     *
+     * เพดาน 900px: ส่วนหัว แถบสรุป และ footer สูงคงที่ ความสูงที่เพิ่มจึงตกเป็นของรายการแชท
+     * ทั้งหมด เพดานเดิม 760px เหลือพื้นที่อ่านแชทไม่ถึง 300px แม้บนจอ 1080p
      * ส่วน calc(100dvh - 48px) คือหัก padding 24px บนล่างของ overlay
      */
-    height: min(760px, calc(100dvh - 48px));
+    height: min(900px, calc(100dvh - 48px));
     max-height: calc(100dvh - 48px);
     flex-direction: column;
     overflow: hidden;
@@ -237,6 +240,18 @@
 .task-workspace__cell-icon.tone-date { background: #eaf1ff; color: #3b6fd4; }
 .task-workspace__cell-icon.tone-person { background: #eef2f7; color: #52647b; }
 .task-workspace__cell-icon.tone-team { background: #e9f0ff; color: #4257c4; }
+
+/* ช่องผู้รับผิดชอบแสดงรูปโปรไฟล์แทนไอคอนเมื่อมีรูป วงกลมเหมือน avatar จุดอื่นของ Workspace */
+.task-workspace__cell-icon.has-avatar {
+    overflow: hidden;
+    border-radius: 50%;
+}
+
+.task-workspace__cell-icon.has-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
 
 .task-workspace__cell-body {
     display: grid;
@@ -592,11 +607,19 @@
     color: #2563eb;
 }
 
+/*
+ * คอลัมน์ต้องเป็น minmax(0, 1fr) ไม่ใช่ auto (บั๊กเดียวกับ .task-inline-files ด้านล่าง)
+ *
+ * คอลัมน์ auto กว้างตามเนื้อหาที่หดไม่ได้ของฟองใดฟองหนึ่ง ข้อความอ้างอิงของการตอบกลับ
+ * เป็น nowrap จึงดันคอลัมน์ให้กว้างกว่ากรอบ แล้วฟองทุกใบซึ่งคิดความกว้างเป็นเปอร์เซ็นต์ของ
+ * คอลัมน์ก็ล้นตามไปด้วย ผลคือแถบเลื่อนแนวนอนและฟองฝั่งขวาถูกตัดหาย
+ */
 .task-workspace__timeline-items {
     display: grid;
     min-height: 0;
     align-content: start;
     flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     padding: 14px;
     overflow: auto;
@@ -993,7 +1016,7 @@
     background: #dc2626;
 }
 
-/* รูปในฟองแชท กดเปิดขนาดเต็มได้ที่แท็บใหม่ */
+/* รูปในฟองแชท กดแล้วเปิดกล่องดูรูปขนาดเต็ม */
 .task-workspace .task-timeline-entry__images {
     display: flex;
     flex-wrap: wrap;
@@ -1001,17 +1024,30 @@
     margin-top: 6px;
 }
 
+/*
+ * กรอบรูปมีขนาดตายตัวตั้งแต่ก่อนรูปโหลด
+ *
+ * ของเดิมสูงตามรูปจริง (height: auto) กรอบจึงสูง 0 จนกว่ารูปจะโหลดเสร็จ รายการแชทที่เพิ่ง
+ * เลื่อนไปท้ายสุดจึงยาวขึ้นทีหลัง ข้อความล่าสุดหลุดออกนอกจอทุกครั้งที่ข้อความท้าย ๆ มีรูป
+ * รูปถูกครอบด้วย object-fit อยู่แล้ว ภาพเต็มดูได้จากกล่องดูรูป
+ */
 .task-workspace .task-timeline-entry__image {
-    display: inline-flex;
-    max-width: 170px;
+    display: block;
+    width: 170px;
+    max-width: 100%;
+    aspect-ratio: 4 / 3;
+    padding: 0;
     overflow: hidden;
+    border: 0;
     border-radius: 8px;
+    background: #e8eef7;
+    cursor: zoom-in;
 }
 
 .task-workspace .task-timeline-entry__image img {
+    display: block;
     width: 100%;
-    height: auto;
-    max-height: 170px;
+    height: 100%;
     object-fit: cover;
 }
 
@@ -1091,6 +1127,91 @@
 
 /* ---------- Responsive ---------- */
 
+/*
+ * จอกว้างแต่เตี้ย — โน้ตบุ๊กที่ Windows ขยายหน้าจอ 125–150% กว้างพอสำหรับเลย์เอาต์ Desktop
+ * แต่สูงเหลือเพียง 520–700px
+ *
+ * ส่วนหัว แถบสรุป ช่องพิมพ์ และ footer สูงคงที่รวมกันราว 400px รายการแชทกับรายการไฟล์
+ * เป็นส่วนเดียวที่หดได้ จึงเหลือที่อ่านไม่ถึงหนึ่งข้อความและทั้งโมดัลดูใหญ่เกินจอ
+ * ที่นี่ย่อส่วนที่สูงคงที่ลง ความสูงที่ได้คืนตกเป็นของรายการแชททั้งหมด
+ * (คู่กับกฎเดียวกันของ .team-modal ใน dialogs.css)
+ */
+@media (min-width: 1100px) and (max-height: 820px) {
+    .task-workspace-modal {
+        padding: 12px;
+    }
+
+    .task-workspace {
+        height: min(900px, calc(100dvh - 24px));
+        max-height: calc(100dvh - 24px);
+    }
+
+    .task-workspace__header {
+        padding: 9px 56px 9px 20px;
+    }
+
+    .task-workspace__title {
+        margin-top: 0;
+    }
+
+    .task-workspace__title h2 {
+        font-size: 17px;
+    }
+
+    /* คำโปรยไม่มีข้อมูลของงาน บนจอเตี้ยให้บรรทัดนั้นกับรายการแชทแทน */
+    .task-workspace__subtitle {
+        display: none;
+    }
+
+    .task-workspace__close {
+        top: 10px;
+    }
+
+    .task-workspace__summary {
+        margin: 10px 14px 0;
+    }
+
+    .task-workspace__cell {
+        gap: 8px;
+        padding: 7px 10px;
+    }
+
+    .task-workspace__panels {
+        gap: 10px;
+        padding: 10px 14px;
+    }
+
+    .task-workspace__panel-head {
+        padding: 8px 12px;
+    }
+
+    .task-workspace__timeline-items {
+        gap: 10px;
+        padding: 10px 12px;
+    }
+
+    .task-workspace .task-timeline__compose {
+        margin: 0 10px 10px;
+        padding-block: 4px;
+    }
+
+    /* สองบรรทัดครึ่งแทนสี่บรรทัด ยังยืดเองได้ด้วย resize: vertical เหมือนเดิม */
+    .task-workspace .task-timeline__compose textarea {
+        min-height: 58px;
+        max-height: 130px;
+        padding: 6px 0;
+    }
+
+    .task-workspace__footer {
+        gap: 10px;
+        padding: 8px 14px;
+    }
+
+    .task-workspace__actions button {
+        min-height: 34px;
+    }
+}
+
 @media (max-width: 1099px) {
     .task-workspace-modal {
         padding: 0;
@@ -1126,13 +1247,19 @@
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .task-workspace__panel-body,
-    .task-workspace__timeline-items {
+    .task-workspace__panel-body {
         overflow: visible;
     }
 
+    /*
+     * รายการแชทเป็นข้อยกเว้นของกฎเลื่อนชั้นเดียว
+     *
+     * ถ้าปล่อยให้ยาวตามเนื้อหา ผู้ใช้ต้องเลื่อนผ่านทุกข้อความก่อนจะถึงข้อความล่าสุดกับ
+     * ช่องพิมพ์ซึ่งอยู่ล่างสุดของหน้า จำกัดความสูงไว้ให้ทั้งการ์ดแชท (แท็บ รายการ ช่องพิมพ์)
+     * พอดีหนึ่งหน้าจอ แล้วให้ task-timeline.js เลื่อนรายการไปท้ายสุดเหมือนบน Desktop
+     */
     .task-workspace__timeline-items {
-        max-height: none;
+        max-height: min(60dvh, 520px);
     }
 
     .task-workspace__panel--files .task-workspace__panel-body {
@@ -1362,7 +1489,14 @@
     overflow-wrap: anywhere;
 }
 
+/*
+ * ฟองเป็น flex item ของคอลัมน์ที่ไม่ยืดเต็ม ความกว้างจึงคิดจากเนื้อหา และไม่ยอมแคบกว่า
+ * เนื้อหาที่หดไม่ได้ (ข้อความอ้างอิงแบบ nowrap) ต้องจำกัดไว้ที่ความกว้างของคอลัมน์เอง
+ * ไม่งั้น text-overflow: ellipsis ของข้อความอ้างอิงจะไม่มีวันทำงาน
+ */
 .task-workspace .task-timeline-entry__bubble {
+    min-width: 0;
+    max-width: 100%;
     margin: 3px 0 4px;
     padding: 9px 12px;
     border-radius: 5px 16px 16px;

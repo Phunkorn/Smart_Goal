@@ -139,7 +139,18 @@ function eventChip(doc, event) {
     const chip = element(doc, 'a', `meeting-calendar__event meeting-calendar__event--${event.type}`);
     chip.href = event.detailUrl || '#';
     chip.dataset.calendarEvent = event.type;
-    chip.setAttribute('aria-label', `${TYPE_LABELS[event.type] ?? event.type} ${event.startTime} ${event.title}`);
+
+    /*
+     * รายการที่จบไปแล้วถูกขีดฆ่า — เซิร์ฟเวอร์เป็นคนตัดสินว่าจบหรือยังตามเวลาไทย
+     * (MeetingAppointmentCalendarQuery::hasEnded) ที่นี่ไม่เทียบกับนาฬิกาของเครื่องผู้ใช้
+     * เส้นขีดฆ่าเป็นสิ่งที่ตาเห็นอย่างเดียว aria-label จึงต้องบอกเป็นคำด้วย
+     */
+    const hasEnded = event.hasEnded === true;
+    chip.classList.toggle('is-ended', hasEnded);
+    chip.setAttribute(
+        'aria-label',
+        `${TYPE_LABELS[event.type] ?? event.type} ${event.startTime} ${event.title}${hasEnded ? ' (จบแล้ว)' : ''}`,
+    );
 
     const icon = element(doc, 'i', `bi ${TYPE_ICONS[event.type] ?? 'bi-dot'}`);
     icon.setAttribute('aria-hidden', 'true');

@@ -319,14 +319,16 @@ input[data-date-picker] {
  * จึงกินสี น้ำหนักตัวอักษร และขนาดตัวอักษรชุดเดียวกับ .sg-date-picker__time
  * ไม่ใช่ชุดของปุ่มใน footer ที่หนากว่าและมีกรอบของตัวเอง
  */
-.sg-date-picker__time-unset {
+.sg-date-picker__time-unset,
+.sg-date-picker__due-unset {
     margin-top: 8px;
     color: #4a5b76;
     font-size: 11px;
     font-weight: 700;
 }
 
-.sg-date-picker__time-unset[hidden] {
+.sg-date-picker__time-unset[hidden],
+.sg-date-picker__due-unset[hidden] {
     display: none;
 }
 
@@ -334,14 +336,19 @@ input[data-date-picker] {
  * เส้นคั่นเป็นของ "กลุ่มเรื่องเวลา" ไม่ใช่ของแถวใดแถวหนึ่ง
  * เมื่อผู้ใช้ติ๊กไม่ระบุเวลา แถวเวลาถูกซ่อน แถวนี้จึงรับเส้นคั่นต่อ
  * ไม่เช่นนั้นกลุ่มนี้จะลอยติดปฏิทินโดยไม่มีอะไรแบ่ง
+ *
+ * แถว "ไม่มีกำหนดส่ง" (.sg-date-picker__due-unset) ใช้หน้าตาชุดเดียวกัน และรับเส้นคั่นต่ออีกทอด
+ * เมื่อทั้งแถวเวลาและแถวไม่ระบุเวลาถูกซ่อนเพราะงานไม่มีวันส่งเลย
  */
-.sg-date-picker__time[hidden] + .sg-date-picker__time-unset {
+.sg-date-picker__time[hidden] + .sg-date-picker__time-unset,
+.sg-date-picker__time[hidden] + .sg-date-picker__time-unset[hidden] + .sg-date-picker__due-unset {
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid #eef2f8;
 }
 
-.sg-date-picker__time-unset > label {
+.sg-date-picker__time-unset > label,
+.sg-date-picker__due-unset > label {
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -349,7 +356,8 @@ input[data-date-picker] {
     cursor: pointer;
 }
 
-.sg-date-picker__time-unset input {
+.sg-date-picker__time-unset input,
+.sg-date-picker__due-unset input {
     width: 14px;
     height: 14px;
     flex: 0 0 auto;
@@ -358,7 +366,8 @@ input[data-date-picker] {
     cursor: pointer;
 }
 
-.sg-date-picker__time-unset input:focus-visible {
+.sg-date-picker__time-unset input:focus-visible,
+.sg-date-picker__due-unset input:focus-visible {
     outline: 2px solid rgba(37, 99, 235, .35);
     outline-offset: 2px;
 }

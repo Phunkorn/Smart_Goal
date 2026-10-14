@@ -105,7 +105,7 @@
             @else
                 กำหนดส่ง
                 {{-- เวลาอ่านจาก dueTimeLabel() ที่เดียว งานที่เลือก "ไม่ระบุเวลา" จึงไม่ขึ้น 23:59 น. --}}
-                {{ $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at)->locale('th')->translatedFormat('j M Y').' '.\App\Support\TodayWorkspace::dueTimeLabel($task, '') : 'ไม่มีกำหนด' }}
+                {{ $task->job_due_at ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at)->locale('th')->translatedFormat('j M Y').' '.\App\Support\TodayWorkspace::dueTimeLabel($task, '') : \App\Support\TodayWorkspace::NO_DUE_LABEL }}
             @endif
         </span>
 

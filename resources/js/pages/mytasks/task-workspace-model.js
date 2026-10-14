@@ -11,6 +11,10 @@ export const WORKSPACE_FIELDS = Object.freeze([
     'job_priority',
     'job_start_at',
     'job_due_at',
+    // เจตนาของกำหนดส่ง ("ไม่ระบุเวลา" / "ไม่มีกำหนดส่ง") ไม่ได้อยู่ในค่าของช่อง
+    // ถ้าไม่นับเป็นฟิลด์ การติ๊กอย่างเดียวจะถูกมองว่า "ไม่มีการเปลี่ยนแปลง" และไม่ถูกบันทึก
+    'job_due_time_unset',
+    'job_due_unset',
 ]);
 
 /**

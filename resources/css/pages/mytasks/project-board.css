@@ -892,10 +892,20 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
     overflow-x: auto;
 }
 
+/*
+ * ขั้นต่ำของคอลัมน์ชื่องานคือ 280px ไม่ใช่ 140px
+ *
+ * 140px กันได้แค่ "คอลัมน์หายทั้งคอลัมน์" แต่ในคอลัมน์นั้นยังมีลูกศร ตัวนับงานย่อย และปุ่ม
+ * เปิดงานซึ่งกว้างคงที่รวมกันราว 135px ชื่องานจึงเหลือความกว้าง 0 ทุกแถว (วัดจริงที่ 882px)
+ * ทั้งที่ถูก render ครบใน DOM ชื่องานคือสิ่งที่ผู้ใช้อ่านก่อนเสมอ จึงต้องได้ที่ก่อนข้อมูลประกอบ
+ * ตารางเลื่อนแนวนอนอยู่แล้ว ความกว้างที่เพิ่มจึงไปอยู่ในระยะเลื่อน ไม่ได้บีบคอลัมน์อื่น
+ *
+ * min-width ของ .board-reference-list ต้องเท่ากับผลรวมของทุกคอลัมน์เสมอ (280 + 992)
+ */
 .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
 .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
     --board-columns:
-        minmax(140px, 1fr)
+        minmax(280px, 1fr)
         122px
         144px
         105px
@@ -909,7 +919,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
 }
 
 .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
-    min-width: 1140px;
+    min-width: 1272px;
 }
 
 @media (min-width: 992px) {
@@ -920,7 +930,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
     body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
 body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
         --board-columns:
-        minmax(140px, 1fr)
+        minmax(280px, 1fr)
         113px
         135px
         100px
@@ -932,12 +942,27 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
         76px
         34px;
     }
+
+    /* คอลัมน์ของชุดนี้แคบกว่า ผลรวมจึงเป็น 280 + 937 */
+    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
+        min-width: 1217px;
+    }
 }
 
 /* มือถือใช้เลย์เอาต์ 2 คอลัมน์เดิม กฎบอร์ดด้านบน specificity สูงกว่าจึงต้องคืนค่าให้ชัด */
 @media (max-width: 760px) {
     .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
         --board-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    /*
+     * min-width ของตารางต้องถูกคืนเป็น 0 ด้วยเหตุผลเดียวกัน
+     *
+     * บนมือถือแต่ละงานเป็นการ์ด ไม่ใช่แถวตาราง แต่ min-width ของ Desktop ยังค้างอยู่
+     * การ์ดจึงกว้างเท่าตาราง (1140px บนจอ 375px) ผู้ใช้ต้องเลื่อนไปทางขวาเพื่ออ่านการ์ดใบเดียว
+     */
+    .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
+        min-width: 0;
     }
 
     .my-tasks-page [data-board-toolbar] {

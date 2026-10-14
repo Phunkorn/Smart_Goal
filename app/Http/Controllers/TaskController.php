@@ -506,20 +506,26 @@ class TaskController extends Controller
         $this->authorize('work', $job);
         abort_if((int) $job->job_status === 4 && $user?->role !== 'admin', 403);
 
+        // "ไม่มีกำหนดส่ง" — ผู้เรียกเก่าที่ไม่ส่งคีย์นี้มายังต้องส่งกำหนดส่งเหมือนเดิมทุกอย่าง
+        $dueUnset = $request->boolean('job_due_unset');
         $validated = $request->validate([
             'job_start_at' => ['required', 'date'],
-            'job_due_at' => ['required', 'date', 'after_or_equal:job_start_at'],
+            'job_due_at' => $dueUnset
+                ? ['nullable', 'date']
+                : ['required', 'date', 'after_or_equal:job_start_at'],
+            'job_due_unset' => ['sometimes', 'boolean'],
             // "ไม่ระบุเวลากำหนดส่ง" — ผู้เรียกเก่าที่ไม่ส่งคีย์นี้มาต้องได้พฤติกรรมเดิมทุกอย่าง
             'job_due_time_unset' => ['sometimes', 'boolean'],
         ]);
-        $dueTimeUnset = $request->boolean('job_due_time_unset');
+        // งานที่ไม่มีวันส่งไม่มีเวลาให้ "ไม่ระบุ" ธงนี้จึงต้องไม่ค้างไว้รอวันที่ผู้ใช้ตั้งกำหนดส่งใหม่
+        $dueTimeUnset = ! $dueUnset && $request->boolean('job_due_time_unset');
 
         $before = $job->attributesToArray();
         $previousStartAt = $job->job_start_at;
         $previousDueAt = $job->job_due_at;
         $job->update([
             'job_start_at' => TodayWorkspace::parseBusinessInput($validated['job_start_at'], TodayWorkspace::DEFAULT_START_TIME),
-            'job_due_at' => TodayWorkspace::parseDueInput($validated['job_due_at'], $dueTimeUnset),
+            'job_due_at' => TodayWorkspace::parseDueInput($validated['job_due_at'] ?? null, $dueTimeUnset, $dueUnset),
             'job_due_time_unset' => $dueTimeUnset,
         ]);
         if (! TodayWorkspace::reconcileLateAfterScheduleChange($job)) {
@@ -533,7 +539,7 @@ class TaskController extends Controller
             $job,
             ScheduleChangeNote::describe('เปลี่ยนช่วงเวลางาน: '.$job->job_topic, [
                 ['label' => 'วันเริ่ม', 'from' => $previousStartAt, 'to' => $job->job_start_at],
-                ['label' => 'กำหนดส่ง', 'from' => $previousDueAt, 'to' => $job->job_due_at],
+                ['label' => 'กำหนดส่ง', 'from' => $previousDueAt, 'to' => $job->job_due_at, 'empty' => TodayWorkspace::NO_DUE_LABEL],
             ]),
             [
                 'before' => $before,
@@ -550,6 +556,7 @@ class TaskController extends Controller
                 'job_due_at' => TodayWorkspace::calendarDate($job->job_due_at),
                 'job_start_time' => TodayWorkspace::clockTime($job->job_start_at),
                 'job_due_time' => TodayWorkspace::clockTime($job->job_due_at),
+                'job_due_unset' => TodayWorkspace::dueIsUnset($job),
                 'job_due_time_unset' => TodayWorkspace::dueTimeIsUnset($job),
                 'job_status' => (int) $job->job_status,
                 'transitions' => $transitions->capabilities($job, $user),

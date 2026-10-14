@@ -64,6 +64,11 @@ export const normalizeCalendarTask = (task) => {
         dueStamp,
         start: calendarDateKey(startStamp),
         due: calendarDateKey(dueStamp),
+        /*
+         * งานที่ไม่มีกำหนดส่งถูกวางเป็นงานวันเดียวที่วันเริ่ม (dueStamp ตกมาเท่ากับ startStamp)
+         * ธงนี้กันไม่ให้วันเริ่มนั้นถูกอ่านเป็น "กำหนดส่ง" ในรายการครบกำหนดและจุดกำหนดส่งของเส้นงาน
+         */
+        noDue: parsedDue === null,
     };
 };
 
@@ -127,10 +132,11 @@ export const buildCalendarAgenda = (events, year, month, todayKey) => {
     const monthEnd = Date.UTC(Number(year), Number(month) + 1, 0);
     const todayStamp = parseCalendarDate(todayKey);
     const todayTasks = todayStamp === null ? [] : normalizedEvents.filter((event) => (
-        event.type === 'task' && event.dueStamp === todayStamp
+        event.type === 'task' && !event.noDue && event.dueStamp === todayStamp
     ));
     const monthTasks = normalizedEvents.filter((event) => (
         event.type === 'task'
+        && !event.noDue
         && event.dueStamp >= monthStart
         && event.dueStamp <= monthEnd
     ));
@@ -237,6 +243,8 @@ export const buildTimelineWeek = (events, weekDays, maxLanes = 4, datePoints = {
     const hiddenByDate = {};
     const candidates = events
         .filter((event) => event.type === 'task')
+        // เปิดดูเฉพาะจุดกำหนดส่ง งานที่ไม่มีกำหนดส่งก็ไม่มีจุดให้แสดง
+        .filter((event) => !(event.noDue && datePoints.start === false))
         .map((event) => ({...event, ...displayRangeForEvent(event, datePoints)}))
         .filter((event) => event.displayStartStamp <= weekEnd && event.displayDueStamp >= weekStart)
         .sort(timelineEventOrder);
@@ -276,7 +284,7 @@ export const buildTimelineWeek = (events, weekDays, maxLanes = 4, datePoints = {
                 continuesBefore: event.displayStartStamp < runStartStamp,
                 continuesAfter: event.displayDueStamp > runDueStamp,
                 showStartMarker: datePoints.start !== false && event.startStamp >= runStartStamp && event.startStamp <= runDueStamp,
-                showDueMarker: datePoints.due !== false && event.dueStamp >= runStartStamp && event.dueStamp <= runDueStamp,
+                showDueMarker: datePoints.due !== false && !event.noDue && event.dueStamp >= runStartStamp && event.dueStamp <= runDueStamp,
             });
 
             if (dayIndex !== null) runStart = dayIndex;

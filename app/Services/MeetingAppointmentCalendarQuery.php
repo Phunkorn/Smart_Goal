@@ -91,6 +91,8 @@ final class MeetingAppointmentCalendarQuery
      */
     public function meetingEventsForDateRange(MeetingCalendarScope $scope, CarbonImmutable $fromDate, CarbonImmutable $toDate): Collection
     {
+        $now = CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE);
+
         return $this->meetings
             ->calendarMeetings($scope, $fromDate->startOfDay(), $toDate->endOfDay())
             ->map(fn (array $meeting): array => [
@@ -102,6 +104,7 @@ final class MeetingAppointmentCalendarQuery
                 'endDate' => $meeting['due'],
                 'startTime' => $meeting['startTime'],
                 'endTime' => $meeting['endTime'],
+                'hasEnded' => self::hasEnded($meeting['due'], $meeting['endTime'], $now),
                 'location' => $meeting['location'],
                 'owner' => $meeting['organizer'],
                 'attendeeCount' => count($meeting['attendees']),
@@ -146,6 +149,8 @@ final class MeetingAppointmentCalendarQuery
             return collect();
         }
 
+        $now = CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE);
+
         return Appointment::query()
             ->when(
                 $scope->department,
@@ -167,16 +172,20 @@ final class MeetingAppointmentCalendarQuery
             ->orderBy('appointment_date')
             ->orderBy('starts_at_time')
             ->get()
-            ->map(function (Appointment $appointment): array {
+            ->map(function (Appointment $appointment) use ($now): array {
+                $date = $appointment->appointment_date->format('Y-m-d');
+                $endTime = $appointment->ends_at_time ? substr((string) $appointment->ends_at_time, 0, 5) : null;
+
                 return [
                     'type' => self::TYPE_APPOINTMENT,
                     'typeLabel' => self::TYPE_LABELS[self::TYPE_APPOINTMENT],
                     'id' => $appointment->id,
                     'title' => $appointment->title,
-                    'date' => $appointment->appointment_date->format('Y-m-d'),
-                    'endDate' => $appointment->appointment_date->format('Y-m-d'),
+                    'date' => $date,
+                    'endDate' => $date,
                     'startTime' => substr((string) $appointment->starts_at_time, 0, 5),
-                    'endTime' => $appointment->ends_at_time ? substr((string) $appointment->ends_at_time, 0, 5) : null,
+                    'endTime' => $endTime,
+                    'hasEnded' => self::hasEnded($date, $endTime, $now),
                     'location' => $appointment->location ?: 'ไม่ระบุสถานที่',
                     'owner' => $appointment->creator?->name ?? 'บัญชีที่ถูกลบ',
                     'attendeeCount' => $appointment->attendees->count(),
@@ -227,6 +236,29 @@ final class MeetingAppointmentCalendarQuery
             'calendarEvents' => $this->calendarEvents($scope, $gridStart, $gridEnd, $type),
             'calendarToday' => CarbonImmutable::now(MeetingQueryService::BUSINESS_TIMEZONE)->startOfDay(),
         ];
+    }
+
+    /**
+     * รายการนี้ "จบไปแล้ว" หรือยัง ตามเวลาไทย — ปฏิทินใช้ขีดฆ่ารายการที่ผ่านไปแล้ว
+     *
+     * เกณฑ์เดียวกับตัวกรอง "ที่ผ่านมา" ของหน้าประชุม (MeetingQueryService: ends_at < now)
+     * คือนับจากเวลา "สิ้นสุด" ไม่ใช่เวลาเริ่ม ประชุมที่กำลังดำเนินอยู่จึงยังไม่ถูกขีดฆ่า
+     *
+     * นัดหมายไม่บังคับเวลาสิ้นสุด ใบที่ไม่ระบุจึงถือว่าจบเมื่อพ้นวันนั้นไปแล้ว
+     * เพราะไม่มีข้อมูลพอจะบอกว่าจบกี่โมง และการขีดฆ่านัดที่ยังไม่จบแย่กว่าขีดช้าไปหนึ่งวัน
+     *
+     * วันที่และเวลาที่รับเข้ามาเป็นเวลาไทยอยู่แล้ว (รูปร่างเดียวกับที่ส่งให้หน้าจอ)
+     * จึงเทียบกับ now ของเวลาไทยตรง ๆ ไม่มีการแปลงเขตเวลาซ้ำ
+     */
+    private static function hasEnded(string $endDate, ?string $endTime, CarbonImmutable $now): bool
+    {
+        $endsAt = CarbonImmutable::createFromFormat('!Y-m-d', $endDate, MeetingQueryService::BUSINESS_TIMEZONE);
+
+        $endsAt = $endTime
+            ? $endsAt->setTimeFromTimeString($endTime)
+            : $endsAt->endOfDay();
+
+        return $endsAt->lt($now);
     }
 
     private function resolveMonth(?string $requestedMonth): CarbonImmutable

@@ -21,16 +21,24 @@
 .daily-log .sg-select__option-copy strong,
 .daily-log .sg-select__option[aria-selected="true"] { font-weight:300; }
 
-.daily-log__header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:16px; }
+/*
+ * หัวหน้า: หัวเรื่องกินเต็มแถว ถัดลงมาแท็บอยู่ซ้าย ตัวควบคุมอยู่ขวา
+ *
+ * เดิมเป็น grid สองคอลัมน์ที่คอลัมน์ขวากว้างตามตัวควบคุม (auto) พอหน้าจอเหลือครึ่งจอ
+ * คอลัมน์ซ้ายถูกบีบเหลือไม่ถึง 180px หัวเรื่องจึงตัดคำทีละพยางค์ และแท็บล้นไปซ้อนตัวเลือกสมาชิก
+ * ตอนนี้ใช้ flex-wrap: แถวไม่พอเมื่อไร ตัวควบคุมลงแถวใหม่ทั้งชุดและชิดซ้ายเอง
+ * (space-between กับของชิ้นเดียวในแถว = ชิดซ้าย) จึงไม่ต้องเดา breakpoint ตามสถานะ Sidebar
+ */
+.daily-log__header { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; }
+.daily-log__heading { flex:1 1 100%; min-width:0; }
 .daily-log__title { margin:0 0 2px; color:#111827; font-size:1.5rem; font-weight:500; letter-spacing:-.01em; }
 .daily-log__subtitle { margin:0; color:#7382a0; font-size:.85rem; }
 
-.daily-log__controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }
-.daily-log__tabs { display:flex; align-items:center; gap:10px; grid-column:1; grid-row:2; }
-.daily-log__tabs a { min-width:92px; padding:10px 14px; border:1px solid #e0e9f5; border-radius:8px; background:#fff; color:#455a7c; font-size:.82rem; font-weight:300; text-align:center; text-decoration:none; }
+.daily-log__controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; min-width:0; }
+.daily-log__tabs { display:flex; flex:0 0 auto; align-items:center; gap:10px; max-width:100%; }
+.daily-log__tabs a { min-width:92px; padding:10px 14px; border:1px solid #e0e9f5; border-radius:8px; background:#fff; color:#455a7c; font-size:.82rem; font-weight:300; text-align:center; text-decoration:none; white-space:nowrap; }
 .daily-log__tabs a.is-active { border-color:#1261dc; background:#1261dc; color:#fff; box-shadow:0 0 0 3px #e1ecff; }
 .daily-log__tabs a:focus-visible { outline:2px solid #1261dc; outline-offset:2px; }
-.daily-log__controls { grid-column:2; grid-row:2; }
 .daily-log__member-form { display:flex; align-items:center; gap:8px; }
 .daily-log__member-select { min-width:190px; border-radius:10px; font-size:.85rem; }
 
@@ -77,10 +85,4 @@
 .daily-log__main { display:grid; gap:16px; min-width:0; }
 @media (max-width:767px) {
   .daily-log { padding:16px 12px 30px; }
-  .daily-log__header { grid-template-columns:minmax(0,1fr); }
-  .daily-log__tabs,
-  .daily-log__controls { grid-column:1; grid-row:auto; }
-  .daily-log__tabs { overflow-x:auto; }
-  .daily-log__tabs a { white-space:nowrap; }
-  .daily-log__controls { justify-content:flex-start; }
 }

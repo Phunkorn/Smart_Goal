@@ -18,7 +18,7 @@
     $viewerRequest = $share->viewer_request ?? null;
     $dueLabel = $task?->job_due_at
         ? \App\Support\TodayWorkspace::businessMoment($task->job_due_at)->format('j M Y')
-        : 'ไม่มีกำหนด';
+        : \App\Support\TodayWorkspace::NO_DUE_LABEL;
     $parent = $task?->parent;
 @endphp
 <article class="shares-card" data-share-card="{{ $share->id }}">
