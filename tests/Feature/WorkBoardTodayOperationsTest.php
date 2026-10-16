@@ -74,7 +74,7 @@ class WorkBoardTodayOperationsTest extends TestCase
             ->assertSee('ยังไม่เริ่ม');
     }
 
-    public function test_a_teammate_does_not_see_other_peoples_daily_work(): void
+    public function test_a_teammate_does_not_see_other_peoples_daily_work_on_the_member_cards(): void
     {
         $response = $this->actingAs($this->teammate)->get(route('work-board.department', $this->department))->assertOk();
         $members = $response->viewData('members')->keyBy('id');
@@ -83,11 +83,59 @@ class WorkBoardTodayOperationsTest extends TestCase
         // เห็นของตัวเองได้ เท่ากับที่เห็นในหน้าบันทึกงานของตัวเอง
         $this->assertNotNull($members[$this->teammate->id]->board_operations);
         $response->assertDontSee('นอกสถานที่ · สาขาบางนา');
+    }
 
+    /**
+     * แท็บ "งานปฏิบัติ" ใน Preview — พนักงานเห็นได้ระดับภาพรวม (WorkLogPolicy::viewTodaySummary)
+     * คือชื่องาน ประเภท เวลา และสถานะ แต่ไม่เห็นสถานที่
+     * ซึ่งเป็นรายละเอียดระดับหน้าบันทึกงาน (viewDay) ที่มีแค่ตัวเอง หัวหน้าแผนก และ admin
+     */
+    public function test_a_teammate_sees_the_operations_tab_at_department_calendar_level(): void
+    {
         $this->actingAs($this->teammate)->get(route('work-board.member', [$this->department, $this->member]))
             ->assertOk()
-            ->assertDontSee('งานปฏิบัติวันนี้')
-            ->assertDontSee('ติดตั้งเครื่องพิมพ์');
+            ->assertSee('data-preview-tab="operations"', false)
+            ->assertSee('งานปฏิบัติวันนี้')
+            ->assertSee('ติดตั้งเครื่องพิมพ์')
+            ->assertSee('สำรองข้อมูล')
+            ->assertDontSee('สาขาบางนา');
+
+        // หัวหน้าแผนกยังเห็นสถานที่ครบเหมือนเดิม
+        $this->actingAs($this->head)->get(route('work-board.member', [$this->department, $this->member]))
+            ->assertOk()
+            ->assertSee('สาขาบางนา');
+    }
+
+    /** เปิดดูสมาชิกแผนกอื่นก็ต้องเห็นว่าวันนี้เขามีงานปฏิบัติอะไร — ระดับภาพรวมเหมือนเพื่อนแผนกเดียวกัน */
+    public function test_an_employee_from_another_department_also_sees_the_operations_summary(): void
+    {
+        $sales = Department::create(['department_name' => 'Sales']);
+        $outsider = User::factory()->create([
+            'role' => 'user', 'department_id' => $sales->id, 'is_active' => true, 'must_change_password' => false,
+        ]);
+
+        $this->actingAs($outsider)->get(route('work-board.member', [$this->department, $this->member]))
+            ->assertOk()
+            ->assertSee('data-preview-tab="operations"', false)
+            ->assertSee('งานปฏิบัติวันนี้')
+            ->assertSee('ติดตั้งเครื่องพิมพ์')
+            ->assertDontSee('สาขาบางนา');
+
+        // หัวหน้าแผนกอื่นก็เห็นระดับเดียวกัน — รายละเอียดเต็มยังเป็นของหัวหน้าแผนกนั้นเท่านั้น
+        $salesHead = User::factory()->create([
+            'role' => 'user', 'department_id' => $sales->id, 'is_department_head' => true, 'is_active' => true, 'must_change_password' => false,
+        ]);
+        $this->actingAs($salesHead)->get(route('work-board.member', [$this->department, $this->member]))
+            ->assertOk()
+            ->assertSee('ติดตั้งเครื่องพิมพ์')
+            ->assertDontSee('สาขาบางนา');
+
+        // การ์ดสมาชิกในหน้ารายชื่อแผนกยังใช้กติกาเดิม (viewDay) — คนนอกแผนกไม่เห็นป้ายงานปฏิบัติ
+        $members = $this->actingAs($outsider)->get(route('work-board.department', $this->department))
+            ->assertOk()
+            ->viewData('members')
+            ->keyBy('id');
+        $this->assertNull($members[$this->member->id]->board_operations);
     }
 
     public function test_admin_sees_the_same_status_on_the_admin_board(): void

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\User;
+use App\Models\WorkOrder;
 
 /**
  * สิทธิ์ "ดูงานของแผนก" ที่ admin มอบให้พนักงานเป็นรายคน — แหล่งความจริงเดียว
@@ -119,6 +120,18 @@ final class DepartmentTaskVisibility
         return $names->isEmpty()
             ? 'กำหนดเอง (ยังไม่ได้เลือกแผนก)'
             : $names->join(', ');
+    }
+
+    /**
+     * งานใบนี้อยู่ในแผนกที่ผู้ใช้ได้สิทธิ์ดูหรือไม่
+     *
+     * แผนกของงานอ่านจาก CrossDepartmentWork::destinationDepartmentId() ตัวเดียวกับ
+     * WorkOrderPolicy::view() จึงไม่มีนิยาม "งานของแผนกไหน" ชุดใหม่ ใช้ตัดสินว่าแถวไหน
+     * ควรถูกวาด (เช่นมุมมองบอร์ด kanban ของ "งานของฉัน") ไม่ใช่ตัวให้สิทธิ์เขียน
+     */
+    public static function coversTask(?User $user, WorkOrder $task): bool
+    {
+        return self::covers($user, CrossDepartmentWork::destinationDepartmentId($task));
     }
 
     /** ผู้ใช้คนนี้ถูกมอบสิทธิ์ดูงานของแผนกเพิ่มไว้หรือไม่ — ใช้เน้นป้ายบนการ์ด */

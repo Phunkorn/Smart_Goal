@@ -6,11 +6,12 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
+use App\Support\DepartmentTaskVisibility;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * ปุ่ม "เฉพาะงานของฉัน" บนมุมมองบอร์ด
+ * ตัวกรอง "งานทั้งหมด / งานของฉัน / งานของทีม" และผู้รับผิดชอบ (แทนปุ่ม "เฉพาะงานของฉัน" เดิม)
  *
  * ผู้ที่ถูกเชิญร่วมงานหนึ่งใบในโปรเจกต์ จะเห็นงานพี่น้องทุกใบในโปรเจกต์นั้นแบบ read-only
  * ตามสิทธิ์ระดับโปรเจกต์ ซึ่งเป็นพฤติกรรมที่ถูกต้องและต้องไม่ถูกแตะ ปุ่มนี้เป็นเพียง
@@ -97,7 +98,7 @@ class MyTasksBoardMineFilterTest extends TestCase
         $this->assertSame('0', $this->participationFlag($html, $parent->job_id));
     }
 
-    public function test_the_toggle_renders_once_and_starts_switched_off_on_the_board(): void
+    public function test_the_owner_filter_renders_once_and_starts_on_all_tasks_on_the_board(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $worker = $this->user($department);
@@ -107,16 +108,21 @@ class MyTasksBoardMineFilterTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertSame(1, substr_count($html, 'data-board-mine-toggle'), 'ปุ่มต้อง render เพียงครั้งเดียว');
-        $this->assertStringContainsString('aria-pressed="false"', $html);
+        $this->assertSame(1, substr_count($html, 'data-board-assignee-filter'), 'ตัวกรองต้อง render เพียงครั้งเดียว');
+        $this->assertStringNotContainsString('data-board-mine-toggle', $html, 'ปุ่มสลับเดิมต้องถูกแทนที่ ไม่ใช่วางซ้อน');
+        // ปุ่ม "งานทั้งหมด / งานของฉัน / งานของทีม" ซ้ำกับตัวกรองขอบเขตงาน จึงต้องไม่ถูก render
+        $this->assertStringNotContainsString('data-board-owner-option', $html);
+        $this->assertStringNotContainsString('mytasks-owner-filter__segments', $html);
+        $this->assertStringContainsString('data-task-scope-menu', $html, 'ตัวกรองขอบเขตงานยังทำหน้าที่เลือกงานของใคร');
+        // ค่าเริ่มต้นต้องเป็นผู้รับผิดชอบทุกคน บอร์ดตอนโหลดหน้าจึงแสดงทั้งโปรเจกต์เหมือนเดิม
+        $this->assertMatchesRegularExpression('/<option value="" [^>]*>ผู้รับผิดชอบทุกคน<\/option>/', $html);
 
-        // ค่าเริ่มต้นต้องเป็นปิด บอร์ดตอนโหลดหน้าจึงแสดงทั้งโปรเจกต์เหมือนเดิม
-        preg_match('/<div class="mytasks-mine-filter"[^>]*>/', $html, $wrapper);
-        $this->assertNotEmpty($wrapper, 'ไม่พบตัวครอบของปุ่ม');
-        $this->assertStringNotContainsString('hidden', $wrapper[0], 'มุมมองบอร์ดต้องเห็นปุ่ม');
+        $wrapper = $this->filterWrapper($html);
+        $this->assertStringNotContainsString('hidden', $wrapper, 'มุมมองบอร์ดต้องเห็นตัวกรอง');
+        $this->assertStringContainsString('data-owner-filter-views="board"', $wrapper);
     }
 
-    public function test_the_toggle_is_hidden_outside_the_board_view(): void
+    public function test_the_owner_filter_is_hidden_on_the_kanban_without_a_department_grant(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $worker = $this->user($department);
@@ -126,10 +132,54 @@ class MyTasksBoardMineFilterTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        preg_match('/<div class="mytasks-mine-filter"[^>]*>/', $html, $wrapper);
-        $this->assertNotEmpty($wrapper);
-        // มุมมองตารางกรองด้วย ability participate ที่ฝั่ง server อยู่แล้ว ปุ่มที่นั่นจึงไม่มีผล
-        $this->assertStringContainsString('hidden', $wrapper[0]);
+        // บอร์ด kanban ของคนทั่วไปวาดเฉพาะงานของตัวเองที่ฝั่ง server ตัวกรองที่นั่นจึงไม่มีผล
+        $wrapper = $this->filterWrapper($html);
+        $this->assertStringContainsString('hidden', $wrapper);
+        $this->assertStringContainsString('data-owner-filter-views="board"', $wrapper);
+    }
+
+    public function test_a_department_grant_turns_the_owner_filter_on_for_the_kanban_too(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $worker = $this->user($department);
+        $worker->forceFill(['task_visibility_scope' => DepartmentTaskVisibility::SCOPE_OWN_DEPARTMENT])->save();
+
+        $html = $this->actingAs($worker->fresh())
+            ->get(route('mytasks.index', ['view' => 'table']))
+            ->assertOk()
+            ->getContent();
+
+        $wrapper = $this->filterWrapper($html);
+        $this->assertStringNotContainsString('hidden', $wrapper);
+        $this->assertStringContainsString('data-owner-filter-views="board table"', $wrapper);
+    }
+
+    /**
+     * รายชื่อผู้รับผิดชอบในตัวกรองมาจากงานที่ถูกวาดอยู่ในหน้าเท่านั้น
+     */
+    public function test_the_assignee_filter_lists_only_people_whose_tasks_are_on_the_page(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $assigner = $this->user($department);
+        $worker = $this->user($department);
+        $stranger = $this->user($department);
+        $project = $this->list($assigner);
+
+        $mine = $this->task($worker, $assigner, $project, 'งานของฉัน');
+        $this->invite($mine, $worker, $assigner);
+        $this->task($assigner, $assigner, $project, 'งานของผู้มอบหมาย');
+        $this->task($stranger, $stranger, $this->list($stranger), 'งานที่ฉันมองไม่เห็น');
+
+        $html = $this->actingAs($worker)->get(route('mytasks.index', ['view' => 'board']))->assertOk()->getContent();
+
+        // ตัดเฉพาะ <select> ของตัวกรองนี้ — หน้าเดียวกันมี <option> ของโปรเจกต์ที่ใช้เลขซ้ำกันได้
+        $this->assertSame(1, preg_match('/<select data-board-assignee-filter.*?<\/select>/s', $html, $select));
+        $this->assertStringContainsString('<option value="'.$assigner->id.'"', $select[0]);
+        $this->assertStringContainsString('<option value="'.$worker->id.'"', $select[0]);
+        $this->assertStringNotContainsString('<option value="'.$stranger->id.'"', $select[0]);
+        // แถวต้องพกผู้รับผิดชอบไว้ให้ตัวกรอง และแสดงชื่อข้างรูป
+        $this->assertMatchesRegularExpression('/data-task-id="'.$mine->job_id.'"\s+data-participate="1"\s+data-assignee="'.$worker->id.'"/', $html);
+        $this->assertStringContainsString('data-board-owner-name>'.e($assigner->name).'</span>', $html);
     }
 
     /**
@@ -154,6 +204,15 @@ class MyTasksBoardMineFilterTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString('data-board-mine-toggle', $html);
+        $this->assertStringNotContainsString('data-board-owner-option', $html);
+    }
+
+    private function filterWrapper(string $html): string
+    {
+        preg_match('/<div class="mytasks-owner-filter"[^>]*>/', $html, $wrapper);
+        $this->assertNotEmpty($wrapper, 'ไม่พบตัวครอบของตัวกรอง');
+
+        return $wrapper[0];
     }
 
     /**

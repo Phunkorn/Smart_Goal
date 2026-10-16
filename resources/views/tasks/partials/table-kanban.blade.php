@@ -17,9 +17,26 @@ $workspaceContext = $workspaceContext ?? 'user';
  * ใช้ ability participate ไม่ใช่ work เพราะ work ปฏิเสธงานที่ปิดแล้วทุกใบ
  * ถ้ากรองด้วย work คอลัมน์ "เสร็จแล้ว" จะว่างเปล่าทั้งที่เป็นงานของเจ้าของเอง
  *
+ * "เป็นงานของใคร" ถามกับเจ้าของ Workspace ($workspaceSubject) ไม่ใช่ผู้ที่ล็อกอิน
+ * หน้า "งานของฉัน" สองคนนี้คือคนเดียวกัน แต่ใน Member Workspace ผู้เปิดดูคือหัวหน้าแผนก
+ * หรือเพื่อนร่วมแผนก ถ้าถามกับผู้เปิดดู บอร์ดจะเหลือเฉพาะงานที่ "ผู้เปิดดู" อยู่ด้วย
+ * แทนที่จะเป็นงานของสมาชิกที่กำลังถูกดู
+ *
+ * ข้อยกเว้นเดียว: พนักงานที่ admin มอบสิทธิ์ดูงานของแผนก (own_department/custom) เห็นงาน
+ * ของแผนกนั้นที่หน้า "งานของฉัน" อยู่แล้ว บอร์ดนี้จึงวาดงานเหล่านั้นด้วย มิฉะนั้นตัวกรอง
+ * "งานของทีม" จะว่างทุกครั้งในมุมมองนี้ การ์ดพวกนี้ลากไม่ได้และไม่มีปุ่มขั้นถัดไป เพราะ
+ * table-kanban.js อ่านสิทธิ์เปลี่ยนสถานะจาก server (transitions) ซึ่งเป็นเท็จสำหรับคนนอกงาน
+ * — เพิ่มแค่การ "เห็น" ไม่ได้เพิ่มสิทธิ์แก้ไขใด ๆ
+ *
  * บอร์ดไม่ถูกแตะ — มันอ่านจาก $allTasks ชุดเต็มใน project-board-card.blade.php
  */
-$kanbanTasks = $allTasks->filter(fn ($task) => auth()->user()->can('participate', $task))->values();
+$kanbanSubject = $workspaceSubject ?? auth()->user();
+$kanbanIncludesGrantedTasks = $workspaceContext === 'user'
+    && \App\Support\DepartmentTaskVisibility::isGranted(auth()->user());
+$kanbanTasks = $allTasks->filter(
+    fn ($task) => \Illuminate\Support\Facades\Gate::forUser($kanbanSubject)->allows('participate', $task)
+        || ($kanbanIncludesGrantedTasks && \App\Support\DepartmentTaskVisibility::coversTask(auth()->user(), $task))
+)->values();
 
 $workspaceLists = collect([(object) ['id' => 0, 'name' => 'วันนี้']]);
 $defaultKanbanList = $workspaceLists->first();

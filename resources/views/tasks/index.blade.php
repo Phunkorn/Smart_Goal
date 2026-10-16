@@ -90,7 +90,7 @@
 
         @include('tasks.partials.status-filter')
 
-        {{-- ปุ่มสลับ "เฉพาะงานของฉัน" ต้องอยู่ก่อนปุ่มคลังโปรเจกต์เสมอ
+        {{-- ตัวกรองผู้รับผิดชอบต้องอยู่ก่อนปุ่มคลังโปรเจกต์เสมอ
              เพราะ .mytasks-view-controls__archive เป็นตัวถือ margin-inline-start:auto
              ถ้าแทรกหลังจากนั้น จะมี auto margin สองตัวแล้วแถวจะถูกแบ่งช่องว่างครึ่งหนึ่ง --}}
         @include('tasks.partials.mine-filter')
@@ -131,10 +131,7 @@
                 ])
                 <div class="project-board-empty" data-board-empty hidden>
                     <i class="bi bi-kanban"></i>
-                    {{-- ข้อความต้องบอกว่าตัวกรองไหนเป็นคนซ่อน ไม่งั้นผู้ใช้ที่เพิ่งกด
-                         "เฉพาะงานของฉัน" จะเข้าใจว่าโปรเจกต์นี้ไม่มีงานเหลือแล้วจริง ๆ --}}
                     <p data-board-empty-generic>ไม่พบงานในบอร์ดตามตัวกรองที่เลือก</p>
-                    <p data-board-empty-mine hidden>คุณยังไม่ได้รับมอบหมายงานในบอร์ดนี้ — กด “เฉพาะงานของฉัน” อีกครั้งเพื่อดูงานทั้งโปรเจกต์</p>
                 </div>
             </div>
 

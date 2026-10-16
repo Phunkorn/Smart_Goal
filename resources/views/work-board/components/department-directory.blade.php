@@ -40,12 +40,24 @@
         id="workBoardMemberPreview"
         aria-labelledby="workBoardMemberPreviewTitle"
         data-member-preview-panel>
+        {{--
+            ส่วนหัวของแผง: รูป ชื่อ บทบาทในระบบ แผนก และสรุปบทบาทในโปรเจกต์
+            ช่อง data-preview-header-* ถูกเติมโดย department.js จาก <template data-preview-header>
+            ที่มากับ member-preview.blade.php — เนื้อหามีแหล่งเดียวคือ server ไม่ใช่ข้อความที่ JS ประกอบเอง
+        --}}
         <div class="offcanvas-header wb-member-preview-panel__header">
-            <div>
-                <span>ภาพรวมงาน</span>
-                <h2 class="offcanvas-title" id="workBoardMemberPreviewTitle" data-preview-panel-title>งานของสมาชิก</h2>
+            <div class="wb-member-preview-panel__bar">
+                <span class="wb-member-preview-panel__eyebrow">ภาพรวมงานสมาชิก</span>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="ปิดแผงงานของสมาชิก"></button>
             </div>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="ปิดแผงงานของสมาชิก"></button>
+            <div class="wb-member-preview-panel__heading">
+                <span class="wb-member-preview-panel__avatar" data-preview-header-avatar hidden></span>
+                <div class="wb-member-preview-panel__text">
+                    <h2 class="offcanvas-title" id="workBoardMemberPreviewTitle" data-preview-panel-title>งานของสมาชิก</h2>
+                    <div class="wb-member-preview-panel__meta" data-preview-header-meta hidden></div>
+                </div>
+                <div class="wb-member-preview-panel__action" data-preview-header-action hidden></div>
+            </div>
         </div>
 
         <div class="offcanvas-body wb-member-preview-panel__body" aria-live="polite">

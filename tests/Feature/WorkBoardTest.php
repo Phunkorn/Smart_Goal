@@ -209,7 +209,13 @@ class WorkBoardTest extends TestCase
             ->assertDontSee('Sensitive update note')
             ->assertDontSee('hidden-plan.pdf')
             ->assertDontSee('application/pdf')
-            ->assertDontSee('Hidden Collaborator')
+            /*
+             * ผู้ดูคนนี้เป็นผู้สร้างงาน (หัวหน้าโปรเจกต์) และเป็นคนเพิ่ม Hidden Collaborator เอง
+             * WorkOrderPolicy::view() จึงอนุญาต — บทบาทในโปรเจกต์แสดงกับทุกคนที่มีสิทธิ์ดูงานใบนั้น
+             * กรณีเพื่อนร่วมแผนกที่ไม่มีสิทธิ์ดูงาน ชื่อทีมยังถูกซ่อนเหมือนเดิม ดู
+             * MemberPreviewProjectRolesTest::test_teammate_without_view_permission_sees_no_team_names
+             */
+            ->assertSee('Hidden Collaborator')
             ->assertDontSee('data-attachment', false)
             ->assertDontSee('data-preview-task-link', false)
             ->assertDontSee('tasks/', false);

@@ -37,6 +37,7 @@
 /* ตัวย่อชื่อกับรูปซ้อนช่องเดียวกัน รูปโหลดไม่ขึ้นแล้วตัวย่อชื่อจึงโผล่แทนที่ ไม่ใช่โผล่ใต้รูป */
 .wb-avatar > * { grid-area: 1 / 1; }
 .wb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.wb-avatar--xs { width: 22px; height: 22px; border-width: 1.5px; font-size: 8px; }
 .wb-avatar--sm { width: 28px; height: 28px; }
 .wb-avatar--md { width: 36px; height: 36px; }
 .wb-avatar--lg { width: 48px; height: 48px; }

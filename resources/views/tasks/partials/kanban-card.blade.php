@@ -56,6 +56,8 @@
     data-reviewable-subtasks="{{ $kanbanReviewableChildren }}"
     data-late="{{ (int) $task->job_status === 6 ? 1 : 0 }}"
     data-cross-department="{{ \App\Support\CrossDepartmentWork::marker($task, $workspaceSubject ?? auth()->user()) ? 1 : 0 }}"
+    {{-- ตัวกรองผู้รับผิดชอบ — ค่าเดียวกับแถวในมุมมองตาราง --}}
+    data-assignee="{{ $task->user_id }}"
 >
     <button
         type="button"

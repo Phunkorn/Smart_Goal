@@ -2,6 +2,7 @@ import {publishTaskState} from './task-state.js';
 import {taskStateStore} from './task-state-store.js';
 import {canDragTask, canTransitionTo, confirmTaskTransition, lockReason, nextStepHint} from './task-transitions.js';
 import {boardTaskMatches} from './task-filter-state.js';
+import {OWNER_FILTER_EVENT, initializeOwnerFilter, ownerFilterState} from './owner-filter.js';
 
 export const selectMobileKanbanStatus = (panel, status, {focus = false} = {}) => {
     const value = String(status);
@@ -95,6 +96,9 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
     const root = document.querySelector('[data-workspace]'); const kanban = root?.querySelector('[data-kanban]'); if (!root || !kanban) return;
     const management = taskStateStore(document);
     const statusFilter = root.querySelector('[data-filter]');
+    // ตัวกรองผู้รับผิดชอบตัวเดียวกับมุมมองตาราง — มีผลที่นี่เฉพาะเมื่อ server วาดงานของทีมมาด้วย
+    // (ผู้ได้รับสิทธิ์ดูงานของแผนก) หน้าอื่นได้ค่าว่างจาก ownerFilterState() จึงไม่กรองอะไร
+    initializeOwnerFilter(root);
     // งานที่กำลังรอ fragment อยู่ กันการยิงซ้ำเมื่อ event มาหลายรอบติดกัน
     const pendingCards = new Set();
 
@@ -112,6 +116,9 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
         const columnHomeOfFilter = {late: '6', my_review: '3', awaiting_review: '3', cross_department: '2'};
         const fallbackStatus = columnHomeOfFilter[status] ?? status;
 
+        // data-view="table" คือมุมมองนี้ (แท็บ "บอร์ด") ตัวกรองมีผลเมื่อ server ประกาศให้มีผลเท่านั้น
+        const owner = ownerFilterState(root, 'table');
+
         panel.querySelectorAll('[data-kanban-card]').forEach((card) => {
             card.hidden = !boardTaskMatches({
                 searchable: card.textContent,
@@ -120,7 +127,8 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
                 reviewableSubtasks: card.dataset.reviewableSubtasks,
                 late: card.dataset.late,
                 crossDepartment: card.dataset.crossDepartment,
-            }, {search: '', status});
+                assignee: card.dataset.assignee,
+            }, {search: '', status, ...owner});
         });
 
         panel.querySelectorAll('[data-kanban-column]').forEach((column) => {
@@ -159,6 +167,7 @@ export const initializeMobileKanbanStatusTabs = (panel) => {
 
     kanban.querySelectorAll('[data-kanban-panel]').forEach(initializeMobileKanbanStatusTabs);
     statusFilter?.addEventListener('change', refresh);
+    root.addEventListener(OWNER_FILTER_EVENT, refresh);
     refresh();
 
     /**

@@ -1,22 +1,44 @@
 {{--
-    ปุ่มสลับ "เฉพาะงานของฉัน" — ตัวกรองการแสดงผลฝั่ง client ล้วน ๆ
+    ตัวกรองตามผู้รับผิดชอบ — ตัวกรองการแสดงผลฝั่ง client ล้วน ๆ
 
-    ผู้ใช้ที่ถูกเชิญร่วมงานหนึ่งใบในโปรเจกต์ จะเห็นงานพี่น้องทุกใบในโปรเจกต์นั้นแบบ read-only
-    ตามสิทธิ์ระดับโปรเจกต์ (WorkOrder::scopeVisibleInProjectsFor) ซึ่งถูกต้องแล้ว
-    ปุ่มนี้ไม่ได้เปลี่ยนสิทธิ์หรือชุดงานที่ server ส่งมาเลยแม้แต่น้อย มันเพียงซ่อนแถวที่
-    data-participate="0" เพื่อให้ผู้ใช้เห็นชัดว่าตัวเองอยู่ในงานไหนบ้าง
+    การเลือก "งานของใคร" (งานที่รับผิดชอบ / ร่วมทำ / มอบหมาย ฯลฯ) เป็นหน้าที่ของตัวกรองขอบเขตงาน
+    (tasks/partials/scope-menu.blade.php) ที่อยู่ข้าง ๆ แล้ว ที่นี่จึงไม่มีปุ่มชุดนั้นซ้ำอีก
 
-    ค่าเริ่มต้นต้องเป็น "ปิด" เสมอ บอร์ดตอนโหลดหน้าจึงยังแสดงทั้งโปรเจกต์เหมือนเดิม
+    ผู้ใช้เห็นงานของคนอื่นได้จากสิทธิ์ระดับโปรเจกต์ หัวหน้าแผนก หรือสิทธิ์ดูงานของแผนก
+    (own_department/custom) ที่ server ส่งมาแล้วทั้งหมด ตัวกรองนี้ไม่เปลี่ยนสิทธิ์หรือชุดงาน
+    ที่ server ส่งมาเลย มันเพียงซ่อนแถวตาม data-assignee (work_orders.user_id) ที่ server ใส่มา
 
-    เฉพาะมุมมองบอร์ดเท่านั้น — มุมมองตารางกรองด้วย ability participate ที่ฝั่ง server
-    อยู่แล้ว (table-kanban.blade.php) ปุ่มที่นั่นจึงไม่มีผลและจะทำให้ผู้ใช้สับสน
+    ค่าเริ่มต้นคือ "ผู้รับผิดชอบทุกคน" เสมอ หน้าเพิ่งโหลดจึงแสดงเท่ากับที่ server ส่งมา
+
+    มุมมองที่ตัวกรองนี้มีผล — server เป็นผู้ประกาศผ่าน data-owner-filter-views:
+      board  (แท็บ "ตาราง") เห็นงานทั้งโปรเจกต์อยู่แล้ว จึงมีเสมอ
+      table  (แท็บ "บอร์ด") ปกติวาดเฉพาะงานของตัวเอง ตัวกรองจึงไม่มีผล ยกเว้นผู้ที่ได้รับสิทธิ์
+             ดูงานของแผนก ซึ่ง table-kanban.blade.php วาดงานของแผนกให้ด้วย
     ค่า hidden ตั้งต้นที่นี่เป็นเพียงการกันหน้ากระพริบ ตัวตัดสินจริงคือ applyView()
     ใน mytasks-views.js ซึ่งคำนวณใหม่ทุกครั้งที่สลับมุมมอง
 --}}
-<div class="mytasks-mine-filter" data-board-mine-filter {{ $workspaceView !== 'board' ? 'hidden' : '' }}>
-    <button type="button" class="mytasks-mine-filter__button" data-board-mine-toggle
-            aria-pressed="false" title="ซ่อนงานในโปรเจกต์ที่คุณไม่ได้ร่วมทำ">
-        <i class="bi bi-person-check" aria-hidden="true"></i>
-        <span>เฉพาะงานของฉัน</span>
-    </button>
+@php
+    $ownerFilterViews = \App\Support\DepartmentTaskVisibility::isGranted(auth()->user())
+        ? ['board', 'table']
+        : ['board'];
+    // รายชื่อผู้รับผิดชอบมาจากงานที่ถูกวาดอยู่ในหน้านี้เท่านั้น จึงไม่มีชื่อที่ผู้ใช้ไม่มีสิทธิ์เห็นหลุดมา
+    $ownerFilterAssignees = $activeTasks->merge($completedTasks)
+        ->pluck('user')
+        ->filter()
+        ->unique('id')
+        ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+        ->values();
+@endphp
+<div class="mytasks-owner-filter" data-board-mine-filter
+    data-owner-filter-views="{{ implode(' ', $ownerFilterViews) }}"
+    {{ in_array($workspaceView, $ownerFilterViews, true) ? '' : 'hidden' }}>
+    <div class="notion-filter mytasks-owner-filter__assignee" data-sg-select>
+        <i class="bi bi-person-circle" aria-hidden="true"></i>
+        <select data-board-assignee-filter aria-label="กรองตามผู้รับผิดชอบ">
+            <option value="" data-icon="bi-people" data-description="แสดงงานของผู้รับผิดชอบทุกคน">ผู้รับผิดชอบทุกคน</option>
+            @foreach($ownerFilterAssignees as $person)
+                <option value="{{ $person->id }}" data-icon="bi-person">{{ $person->name }}{{ (int) $person->id === (int) auth()->id() ? ' (ฉัน)' : '' }}</option>
+            @endforeach
+        </select>
+    </div>
 </div>

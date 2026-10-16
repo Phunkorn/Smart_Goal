@@ -104,30 +104,29 @@ class WorkBoardController extends Controller
     {
         $this->ensurePreviewMember($department, $user);
 
-        // สิทธิ์เต็มผูกกับ "แผนกที่ตนดูแล" ไม่ใช่ role — หัวหน้าที่เปิดดูแผนกอื่น
-        // จะตกไปใช้มุมมองเดียวกับผู้ใช้ทั่วไปด้านล่าง คือเห็นเฉพาะงานวันนี้ของคนนั้น
-        if ($request->user()->overseesDepartment($department->id)) {
+        /*
+         * ทางเข้า Workspace (อ่านอย่างเดียว) ตัดสินที่ WorkOrderPolicy::viewMemberWorkspace() ที่เดียว
+         *
+         * หัวหน้าที่ดูแลแผนกนี้ และพนักงานที่ได้สิทธิ์ "เห็นทุกคนในแผนกของตนเอง" ที่เปิดดู
+         * สมาชิกแผนกเดียวกัน ผ่าน คนอื่นทั้งหมด (รวมหัวหน้าที่เปิดดูแผนกอื่น) ได้มุมมองเดียวกับ
+         * ผู้ใช้ทั่วไป คือเห็นเฉพาะ Preview — ?workspace=1 ที่พิมพ์เองก็ไม่เปิด Workspace ให้
+         */
+        if (Gate::allows('viewMemberWorkspace', [WorkOrder::class, $user])) {
             if ($request->boolean('workspace')) {
                 return $this->adminMember($request, $department, $user, true);
             }
 
             return view('work-board.components.member-preview', [
-                'department' => $department,
-                'member' => $user,
-                'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
-                'operations' => $this->departmentWorkBoard->memberOperations($user, $request->user()),
-                'isAdmin' => true,
+                ...$this->previewData($request, $department, $user),
+                'canOpenWorkspace' => true,
                 'workspaceRouteName' => 'work-board.member',
                 'workspaceRouteParameters' => [$department, $user, 'workspace' => 1],
             ]);
         }
 
         return view('work-board.components.member-preview', [
-            'department' => $department,
-            'member' => $user,
-            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
-            'operations' => $this->departmentWorkBoard->memberOperations($user, $request->user()),
-            'isAdmin' => false,
+            ...$this->previewData($request, $department, $user),
+            'canOpenWorkspace' => false,
         ]);
     }
 
@@ -149,12 +148,24 @@ class WorkBoardController extends Controller
         $this->ensurePreviewMember($department, $user);
 
         return view('work-board.components.member-preview', [
+            ...$this->previewData($request, $department, $user),
+            'canOpenWorkspace' => true,
+        ]);
+    }
+
+    /**
+     * ข้อมูลของแผง Preview ที่ทุกเส้นทางใช้ร่วมกัน — ต่างกันแค่ "เปิด Workspace ได้ไหม"
+     *
+     * @return array<string, mixed>
+     */
+    private function previewData(Request $request, Department $department, User $user): array
+    {
+        return [
             'department' => $department,
             'member' => $user,
-            'tasks' => $this->departmentWorkBoard->previewTasks($department, $user),
+            ...$this->departmentWorkBoard->memberPreview($user, $request->user()),
             'operations' => $this->departmentWorkBoard->memberOperations($user, $request->user()),
-            'isAdmin' => true,
-        ]);
+        ];
     }
 
     /**
@@ -163,7 +174,8 @@ class WorkBoardController extends Controller
      * $viaDepartmentHead บอกว่าเข้ามาทางเส้นของหัวหน้าแผนก (work-board.member) ไม่ใช่ทาง
      * admin (admin.work-board.member) ซึ่งต่างกันสองเรื่อง:
      *
-     *   1. สิทธิ์เข้าถึง — หัวหน้าต้องดูแลแผนกนั้นจริง ส่วน admin เข้าได้ทุกแผนกอยู่แล้ว
+     *   1. สิทธิ์เข้าถึง — หัวหน้าต้องดูแลแผนกนั้นจริง (หรือเป็นพนักงานที่ได้สิทธิ์ own_department
+     *      ของแผนกเดียวกัน ดู WorkOrderPolicy::viewMemberWorkspace) ส่วน admin เข้าได้ทุกแผนก
      *   2. ขอบเขตข้อมูล — หัวหน้าเห็นเฉพาะงานที่อนุมัติแล้ว ส่วน admin เห็นงานที่ยังรอ
      *      อนุมัติด้วย เพราะการมองเห็นทั้งระบบเป็นหน้าที่ของผู้ดูแลระบบ
      *
@@ -176,8 +188,21 @@ class WorkBoardController extends Controller
         abort_unless((int) $user->department_id === (int) $department->id && $user->role === 'user', 404);
 
         if ($viaDepartmentHead) {
-            abort_unless($request->user()->overseesDepartment($department->id), 403);
+            // หัวหน้าที่ดูแลแผนกนี้ หรือผู้ได้สิทธิ์ "เห็นทุกคนในแผนกของตนเอง" — ดู WorkOrderPolicy
+            Gate::authorize('viewMemberWorkspace', [WorkOrder::class, $user]);
         }
+
+        /*
+         * ผู้ที่เข้ามาด้วยสิทธิ์ดูงานของแผนก (ไม่ใช่ admin และไม่ใช่หัวหน้าที่ดูแลแผนกนี้)
+         * เห็นได้เฉพาะงานที่ WorkOrderPolicy::view() อนุญาตให้ "ตัวเขาเอง" เห็น
+         *
+         * ชุดงานของ Workspace เป็นของสมาชิก จึงอาจมีงานข้ามแผนกที่สมาชิกไปร่วม ซึ่งสิทธิ์
+         * own_department ไม่ครอบคลุม ถ้าไม่ตัดตรงนี้ การเปิด Workspace ของเพื่อนจะกลายเป็น
+         * ทางลัดไปเห็นงานของแผนกอื่น หัวหน้าแผนกไม่ถูกตัดเพราะกติกาเดิมของหัวหน้าให้เห็น
+         * ทุกงานที่ลูกทีมอยู่ (WorkOrderPolicy::overseesMemberOnTask) อยู่แล้ว
+         */
+        $viewer = $request->user();
+        $limitToViewerScope = $viaDepartmentHead && ! $viewer->overseesDepartment($department->id);
 
         // ไม่มีใครเขียนในหน้านี้ได้อีกแล้ว ทั้ง admin และหัวหน้าแผนก
         $isReadOnlyWorkspace = true;
@@ -233,6 +258,15 @@ class WorkBoardController extends Controller
             ])
             ->withCount('images')
             ->get();
+
+        if ($limitToViewerScope) {
+            $allJobs = $allJobs->filter(fn (WorkOrder $job) => $viewer->can('view', $job))->values();
+            // งานย่อยถูกวาดจาก relation children ของงานแม่ ไม่ใช่จากแถวของตัวเอง จึงต้องตัดที่นั่นด้วย
+            $allJobs->each(fn (WorkOrder $job) => $job->setRelation(
+                'children',
+                $job->children->filter(fn (WorkOrder $child) => $viewer->can('view', $child))->values()
+            ));
+        }
 
         // สมาชิกที่ไปร่วมงานข้ามแผนก — Workspace ของเขาแสดงเฉพาะงานย่อยที่เขามีส่วนร่วม
         // กติกาเดียวกับ MyTaskController::index() ผู้เปิดดู (หัวหน้า/admin) จึงเห็นเท่ากับเจ้าตัว
@@ -290,6 +324,13 @@ class WorkBoardController extends Controller
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+        if ($limitToViewerScope) {
+            // โปรเจกต์ของสมาชิกที่ไม่มีงานให้ผู้ดูเห็นเลย ต้องผ่าน WorkOrderListPolicy::view() เอง
+            $taskLists = $taskLists
+                ->filter(fn (WorkOrderList $list) => $allJobs->contains('work_order_list_id', $list->id)
+                    || $viewer->can('view', $list))
+                ->values();
+        }
         $manageableTaskLists = $taskLists
             ->filter(fn (WorkOrderList $list) => ! $isReadOnlyWorkspace && $request->user()->can('manage', $list))
             ->values();

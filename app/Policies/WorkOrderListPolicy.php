@@ -35,8 +35,36 @@ class WorkOrderListPolicy
          */
         $grantedDepartmentIds = DepartmentTaskVisibility::departmentIdsFor($user);
 
-        return $grantedDepartmentIds !== []
-            && $list->workOrders()->inDepartments($grantedDepartmentIds)->exists();
+        if ($grantedDepartmentIds !== []
+            && $list->workOrders()->inDepartments($grantedDepartmentIds)->exists()) {
+            return true;
+        }
+
+        return $this->overseesEmptyProject($user, $list);
+    }
+
+    /**
+     * โปรเจกต์ที่ยังไม่มีงานเลย ใช้แผนกของเจ้าของโปรเจกต์เป็นแผนกของมัน
+     *
+     * ทุกสาขาด้านบนอ่านแผนกจากงานในโปรเจกต์ โปรเจกต์ที่เพิ่งสร้างจึงไม่มีใครเห็นนอกจาก
+     * เจ้าของและ admin แม้แต่หัวหน้าแผนกของเจ้าของเอง ("โปรเจกต์ที่สร้างวันนี้" ใน Member
+     * Preview ต้องแสดงโปรเจกต์ที่ยังไม่มีงานได้) สาขานี้ให้เฉพาะคนที่เห็นงานทุกใบของแผนกนั้น
+     * อยู่แล้ว คือหัวหน้าแผนกที่ดูแล และผู้ได้รับสิทธิ์ดูงานของแผนกนั้น — อ่านอย่างเดียว
+     *
+     * เมื่อโปรเจกต์มีงานใบแรกแล้ว สาขานี้ไม่มีผลอีก สิทธิ์กลับไปตัดสินจากงานตามเดิม
+     */
+    private function overseesEmptyProject(User $user, WorkOrderList $list): bool
+    {
+        $owner = $list->relationLoaded('user') ? $list->user : $list->user()->first();
+        $ownerDepartmentId = $owner?->department_id;
+
+        if ($ownerDepartmentId === null
+            || (! $user->overseesDepartment($ownerDepartmentId)
+                && ! DepartmentTaskVisibility::covers($user, $ownerDepartmentId))) {
+            return false;
+        }
+
+        return ! $list->workOrders()->exists();
     }
 
     /**

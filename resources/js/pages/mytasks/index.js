@@ -24,4 +24,4 @@ initAttachmentDownload(document);
 
 // ช่องวันที่ทุกช่องที่ประกาศ data-date-picker ใช้ปฏิทินของระบบแทนของเบราว์เซอร์
 useDatePickers();
-initSelectDropdowns(document, '[data-board-status-filter] select');
+initSelectDropdowns(document, '[data-board-status-filter] select, select[data-board-assignee-filter]');

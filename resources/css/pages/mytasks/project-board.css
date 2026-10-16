@@ -911,15 +911,16 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         105px
         105px
         105px
-        87px
+        150px
         129px
         76px
         81px
         38px;
 }
 
+/* คอลัมน์ผู้รับผิดชอบกว้างขึ้นเพื่อให้ชื่ออยู่ข้างรูป (87 → 150) ผลรวมจึงเป็น 280 + 1055 */
 .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
-    min-width: 1272px;
+    min-width: 1335px;
 }
 
 @media (min-width: 992px) {
@@ -936,16 +937,16 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
         100px
         100px
         100px
-        83px
+        144px
         124px
         72px
         76px
         34px;
     }
 
-    /* คอลัมน์ของชุดนี้แคบกว่า ผลรวมจึงเป็น 280 + 937 */
+    /* คอลัมน์ของชุดนี้แคบกว่า ผลรวมจึงเป็น 280 + 998 (ผู้รับผิดชอบ 83 → 144 เพื่อให้มีชื่อ) */
     body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
-        min-width: 1217px;
+        min-width: 1278px;
     }
 }
 
@@ -1548,4 +1549,35 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
 .my-tasks-page .board-due-time-editable.is-locked:hover,
 .my-tasks-page .board-due-time-editable.is-locked:focus-within {
     color: inherit;
+}
+
+/*
+ * ผู้รับผิดชอบ = รูป + ชื่อ — งานของคนในทีมแยกออกได้ทันทีโดยไม่ต้องเปิดรายละเอียด
+ *
+ * ปุ่มเดิมเป็นวงกลมรูปเดียว (width/height 37px) จึงต้องคืนความกว้างให้ยืดตามชื่อ
+ * ชื่อยาวถูกตัดด้วย ellipsis ภายในคอลัมน์ ส่วนชื่อเต็มอยู่ที่ title/aria-label ของปุ่มแล้ว
+ */
+.my-tasks-page .board-reference-row > .board-owner {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    min-height: 37px;
+    padding: 3px 9px 3px 3px;
+    border-radius: 999px;
+    justify-self: start;
+}
+
+.my-tasks-page .board-owner__name {
+    min-width: 0;
+    overflow: hidden;
+    color: #263650;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

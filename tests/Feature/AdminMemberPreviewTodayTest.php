@@ -64,11 +64,23 @@ class AdminMemberPreviewTodayTest extends TestCase
             ->assertSee('งานกำลังทำอยู่')
             ->assertSee('งานเริ่มวันนี้')
             // งานพักยังนับเป็น Today ตามนิยามเดิมของ TodayWorkspace
-            ->assertSee('งานพักไว้')
-            ->assertDontSee('งานอนาคต')
-            ->assertDontSee('งานที่จบไปแล้ว')
-            // Preview คือ actionable work งานที่เสร็จแล้วจึงถูกตัดออกแม้จะเสร็จวันนี้
-            ->assertDontSee('งานที่เพิ่งเสร็จวันนี้');
+            ->assertSee('งานพักไว้');
+
+        /*
+         * Preview วันนี้คือ actionable work งานที่เสร็จแล้วจึงถูกตัดออกจากแท็บวันนี้แม้จะเสร็จวันนี้
+         * แท็บ "งานทั้งหมด" เป็นภาพรวมทุกใบของสมาชิกรวมงานที่ปิดแล้ว จึงเช็กเฉพาะแท็บวันนี้
+         */
+        $today = $this->todaySection($response->getContent());
+        $this->assertStringNotContainsString('งานที่จบไปแล้ว', $today);
+        $this->assertStringNotContainsString('งานที่เพิ่งเสร็จวันนี้', $today);
+        $this->assertStringContainsString('งานที่จบไปแล้ว', $this->panel($response->getContent(), 'all'));
+
+        /*
+         * งานที่ยังไม่ถึงวันเริ่มต้องไม่อยู่ในรายการ "งานที่ต้องจัดการวันนี้"
+         * แต่ถูกสร้างวันนี้ (เวลาของเทสต์ถูกตรึงไว้ ทุกงานจึงสร้างวันนี้) จึงไปอยู่หมวด "สร้างวันนี้" แทน
+         */
+        $this->assertStringNotContainsString('งานอนาคต', $this->todaySection($response->getContent()));
+        $this->assertStringContainsString('งานอนาคต', $this->createdTodaySection($response->getContent()));
 
         $this->assertSame(5, $this->previewTaskCount($response->getContent()));
         $this->assertNotNull($overdue->fresh());
@@ -163,16 +175,19 @@ class AdminMemberPreviewTodayTest extends TestCase
         $this->task('งานเก่าที่เสร็จแล้ว', 4, now()->subWeeks(2), now()->subWeek(), ['job_completed_at' => now()->subWeek()]);
         $this->task('งานอนาคต', 2, now()->addDays(2), now()->addDays(5));
 
-        $this->actingAs($this->admin)
+        $response = $this->actingAs($this->admin)
             ->get(route('admin.work-board.member.preview', [$this->department, $this->member]))
             ->assertOk()
             ->assertSee('data-preview-empty', false)
             ->assertSee('วันนี้ไม่มีงานที่ต้องติดตาม')
-            ->assertDontSee('งานเก่าที่เสร็จแล้ว')
-            ->assertDontSee('งานอนาคต')
+            // งานอนาคตไม่ใช่งานของวันนี้ แต่ถูกสร้างวันนี้ จึงอยู่หมวด "สร้างวันนี้" เท่านั้น
+            ->assertSeeInOrder(['data-preview-empty', 'data-preview-created-today', 'งานอนาคต'], false)
             // CTA ต้องอยู่เสมอเพื่อให้ Admin เข้าไปดูงานทั้งหมดในพื้นที่งานเต็มได้
             ->assertSee('เปิดพื้นที่งานของสมาชิก')
             ->assertSee('href="'.route('admin.work-board.member', [$this->department, $this->member]).'"', false);
+
+        // งานที่เสร็จแล้วไม่อยู่ในแท็บวันนี้ (อยู่ใน "งานทั้งหมด" ซึ่งเป็นภาพรวมทุกใบ)
+        $this->assertStringNotContainsString('งานเก่าที่เสร็จแล้ว', $this->todaySection($response->getContent()));
     }
 
     public function test_full_member_workspace_still_shows_finished_work(): void
@@ -207,6 +222,29 @@ class AdminMemberPreviewTodayTest extends TestCase
     }
 
     /** นับเฉพาะ attribute data-preview-task ตัวจริง ไม่ให้ไปตรงกับ -list / -link / -count / -timing */
+    /** HTML ของรายการ "งานที่ต้องจัดการวันนี้" เท่านั้น */
+    /** HTML ของแผงแท็บเดียว — ตั้งแต่ data-preview-tabpanel ของแท็บนั้นถึงแผงถัดไป */
+    private function panel(string $html, string $key): string
+    {
+        $start = strpos($html, 'data-preview-tabpanel="'.$key.'"');
+        $this->assertNotFalse($start, 'ไม่พบแผง '.$key);
+        $next = strpos($html, 'data-preview-tabpanel="', $start + 1);
+
+        return $next === false ? substr($html, $start) : substr($html, $start, $next - $start);
+    }
+
+    /** HTML ของแท็บ "งานวันนี้" เท่านั้น */
+    private function todaySection(string $content): string
+    {
+        return $this->panel($content, 'today');
+    }
+
+    /** HTML ของแท็บ "สร้างวันนี้" เท่านั้น */
+    private function createdTodaySection(string $content): string
+    {
+        return $this->panel($content, 'created');
+    }
+
     private function previewTaskCount(string $content): int
     {
         return preg_match_all('/data-preview-task(?![-\w])/', $content);

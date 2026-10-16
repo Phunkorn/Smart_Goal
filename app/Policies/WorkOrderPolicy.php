@@ -100,6 +100,38 @@ class WorkOrderPolicy
     }
 
     /**
+     * เปิด Member Workspace (อ่านอย่างเดียว) ของสมาชิกคนนี้ได้หรือไม่
+     *
+     * เรียกโดยระบุคลาสเสมอ เพราะ argument ตัวแรกเป็น User ไม่ใช่ WorkOrder:
+     *
+     *     Gate::allows('viewMemberWorkspace', [WorkOrder::class, $member]);
+     *
+     *   - admin ดูแลทุกแผนก (route ฝั่ง admin มี middleware ของตัวเองอยู่แล้ว)
+     *   - หัวหน้าแผนกเปิดได้เฉพาะสมาชิกของแผนกที่ตนดูแล — กติกาเดิมของ WorkBoardController
+     *   - พนักงานที่ admin มอบสิทธิ์ "เห็นทุกคนในแผนกของตนเอง" เปิดได้เฉพาะสมาชิกแผนกเดียวกัน
+     *
+     * โหมด "กำหนดเอง" (custom) ไม่ได้สิทธิ์นี้โดยตั้งใจ — สิทธิ์นั้นมอบการ "เห็นงาน" ของแผนกอื่น
+     * ไม่ใช่การเปิดพื้นที่งานของคนในแผนกอื่น การขยายไปถึงตรงนั้นเกินกว่าที่ถูกขอ
+     *
+     * เป็นสิทธิ์อ่านล้วน ๆ Workspace ที่เปิดจากสิทธิ์นี้ถูกบังคับอ่านอย่างเดียวที่ controller
+     * และงานแต่ละใบยังต้องผ่าน view() ของผู้ที่เปิดดูอีกชั้น
+     */
+    public function viewMemberWorkspace(User $viewer, User $member): bool
+    {
+        if ($viewer->role === 'viewer' || $member->role !== 'user' || $member->department_id === null) {
+            return false;
+        }
+
+        if ($viewer->role === 'admin') {
+            return true;
+        }
+
+        return $viewer->overseesDepartment($member->department_id)
+            || ($viewer->task_visibility_scope === DepartmentTaskVisibility::SCOPE_OWN_DEPARTMENT
+                && DepartmentTaskVisibility::covers($viewer, $member->department_id));
+    }
+
+    /**
      * งานใบนี้ปรากฏกับผู้ใช้คนนี้ "เพื่อเป็นบริบทของงานย่อยที่เขาร่วม" เท่านั้นหรือไม่
      *
      * ตอบจริงเมื่อ view() เป็นจริงได้ด้วยสาขา participatesInChild() สาขาเดียว — ผู้ใช้

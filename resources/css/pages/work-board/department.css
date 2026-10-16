@@ -206,30 +206,165 @@
 }
 
 .work-board-department-page .wb-member-preview-panel {
-    --bs-offcanvas-width: min(460px, 100vw);
+    --bs-offcanvas-width: min(520px, 100vw);
     border-left: 1px solid #dbe3ee;
     box-shadow: -14px 0 38px rgba(24, 39, 75, .12);
 }
 
+/*
+ * ส่วนหัวของแผง Preview — แถบชื่อแผง แล้วตามด้วย รูป | ชื่อ บทบาทในระบบ แผนก สรุปบทบาทในโปรเจกต์ | ปุ่มเปิดพื้นที่งาน
+ * header อยู่นอกพื้นที่เลื่อน จึงค้างอยู่ด้านบนขณะเลื่อนดูรายการงาน
+ */
 .work-board-department-page .wb-member-preview-panel__header {
-    min-height: 76px;
-    padding: 16px 20px;
+    /* .offcanvas เป็น flex คอลัมน์ ถ้าปล่อยให้หดได้ แถวสรุปบทบาทจะล้นลงไปใต้เนื้อหาที่เลื่อนได้ (วัดได้ที่ 375px) */
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px 20px 18px;
     border-bottom: 1px solid #e4e9f1;
 }
 
-.work-board-department-page .wb-member-preview-panel__header > div > span {
-    display: block;
-    margin-bottom: 2px;
-    color: #8290a5;
-    font-size: 10px;
-    font-weight: 700;
+.work-board-department-page .wb-member-preview-panel__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.work-board-department-page .wb-member-preview-panel__eyebrow {
+    color: var(--wb-ink);
+    font-size: 14px;
+    font-weight: 750;
+}
+
+.work-board-department-page .wb-member-preview-panel__bar .btn-close {
+    margin: 0;
+}
+
+.work-board-department-page .wb-member-preview-panel__heading {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+}
+
+.work-board-department-page .wb-member-preview-panel__avatar[hidden],
+.work-board-department-page .wb-member-preview-panel__meta[hidden],
+.work-board-department-page .wb-member-preview-panel__action[hidden] {
+    display: none;
+}
+
+.work-board-department-page .wb-member-preview-panel__avatar {
+    display: inline-flex;
+}
+
+.work-board-department-page .wb-member-preview-panel__avatar .wb-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 14px;
+}
+
+.work-board-department-page .wb-member-preview-panel__text {
+    min-width: 0;
 }
 
 .work-board-department-page .wb-member-preview-panel__header h2 {
+    /* ชื่อคือสิ่งที่ต้องอ่านออกก่อน — ขึ้นได้สองบรรทัดแทนการตัดเหลือครึ่งชื่อ */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     margin: 0;
+    overflow: hidden;
     color: var(--wb-ink);
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 750;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.work-board-department-page .wb-member-preview-panel__meta {
+    display: grid;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+/* บทบาทในระบบ • แผนก — ข้อมูลของ "คน" จึงเป็นข้อความเรียบบรรทัดเดียว ชื่อแผนกยาวถูกตัดด้วย ellipsis */
+.work-board-department-page .wb-member-preview-panel__identity {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--wb-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.work-board-department-page .wb-member-preview-panel__system-role {
+    flex: 0 0 auto;
+    color: #43536d;
+    font-weight: 650;
+}
+
+.work-board-department-page .wb-member-preview-panel__separator {
+    flex: 0 0 auto;
+    color: #b6c0cf;
+}
+
+.work-board-department-page .wb-member-preview-panel__department {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.work-board-department-page .wb-member-preview-panel__roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+}
+
+/* บทบาทในโปรเจกต์ — สรุปจำนวนในส่วนหัว */
+.work-board-department-page .wb-project-role {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: #43536d;
+    background: #f1f4f9;
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.work-board-department-page .wb-project-role b {
+    color: var(--wb-ink);
+    font-weight: 800;
+}
+
+.work-board-department-page .wb-project-role--leader,
+.work-board-department-page .wb-project-role--leader b {
+    color: #1d4ed8;
+}
+
+.work-board-department-page .wb-project-role--leader {
+    background: #edf3ff;
+}
+
+.work-board-department-page .wb-member-preview-panel__action {
+    display: grid;
+    justify-items: center;
+    gap: 5px;
+}
+
+.work-board-department-page .wb-member-preview__workspace-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .work-board-department-page .wb-member-preview-panel__body {
@@ -267,26 +402,6 @@
     background: #fff;
     font-size: 12px;
     font-weight: 700;
-}
-
-.work-board-department-page .wb-member-preview__person {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 2px 0 16px;
-}
-
-.work-board-department-page .wb-member-preview__person h3 {
-    margin: 0;
-    color: var(--wb-ink);
-    font-size: 17px;
-    font-weight: 750;
-}
-
-.work-board-department-page .wb-member-preview__person p {
-    margin: 3px 0 0;
-    color: var(--wb-muted);
-    font-size: 11px;
 }
 
 .work-board-department-page .wb-member-preview__readonly {
@@ -328,21 +443,21 @@
     line-height: 1.5;
 }
 
-/* CTA เข้าพื้นที่งานของสมาชิก แสดงเฉพาะ Admin และแยกจาก action ของรายการงาน */
+/* ปุ่มเปิดพื้นที่งานของสมาชิก (อ่านอย่างเดียว) — แสดงเฉพาะผู้ที่ WorkOrderPolicy::viewMemberWorkspace() อนุญาต */
 .work-board-department-page .wb-member-preview__workspace-link {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 44px;
-    margin-bottom: 20px;
-    padding: 10px 14px;
+    min-height: 40px;
+    padding: 0 16px;
     border: 1px solid var(--wb-blue);
-    border-radius: 11px;
+    border-radius: 10px;
     color: #fff;
     background: var(--wb-blue);
     font-size: 12.5px;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .work-board-department-page .wb-member-preview__workspace-link:hover {
@@ -353,6 +468,114 @@
 .work-board-department-page .wb-member-preview__workspace-link:focus-visible {
     outline: 3px solid rgba(37, 99, 235, .28);
     outline-offset: 2px;
+}
+
+.work-board-department-page .wb-member-preview__workspace-hint {
+    color: var(--wb-muted);
+    font-size: 10.5px;
+}
+
+/* ตัวเลขสรุป — กล่องขาวเรียบ ตัวเลขสีหมึก สีอยู่ที่ไอคอนเล็ก ๆ เท่านั้น */
+.work-board-department-page .wb-preview-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 18px;
+}
+
+.work-board-department-page .wb-preview-summary__item {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #e6ebf2;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.work-board-department-page .wb-preview-summary dt {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--wb-muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.work-board-department-page .wb-preview-summary dt i {
+    flex: 0 0 auto;
+    color: #8a97ab;
+    font-size: 12px;
+}
+
+.work-board-department-page .wb-preview-summary__item--active dt i { color: var(--wb-blue); }
+.work-board-department-page .wb-preview-summary__item--dueSoon dt i { color: #b45309; }
+.work-board-department-page .wb-preview-summary__item--done dt i { color: #0f766e; }
+
+.work-board-department-page .wb-preview-summary dd {
+    margin: 4px 0 0;
+    color: var(--wb-ink);
+    font-size: 20px;
+    font-weight: 750;
+    line-height: 1.1;
+}
+
+/* แท็บของแผง — เส้นใต้แบบเรียบ แท็บที่เลือกเป็นสีน้ำเงินหลัก */
+.work-board-department-page .wb-preview-tabs {
+    display: flex;
+    gap: 20px;
+    margin: 0 0 16px;
+    overflow-x: auto;
+    border-bottom: 1px solid #e4e9f1;
+    scrollbar-width: none;
+}
+
+.work-board-department-page .wb-preview-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.work-board-department-page .wb-preview-tabs__tab {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 2px 11px;
+    border: 0;
+    background: transparent;
+    color: #5d6b82;
+    font-size: 12.5px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.work-board-department-page .wb-preview-tabs__tab b {
+    margin-left: 2px;
+    font-weight: 700;
+}
+
+.work-board-department-page .wb-preview-tabs__tab b::before { content: "("; }
+.work-board-department-page .wb-preview-tabs__tab b::after { content: ")"; }
+
+.work-board-department-page .wb-preview-tabs__tab.is-active {
+    color: var(--wb-blue);
+}
+
+.work-board-department-page .wb-preview-tabs__tab.is-active::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--wb-blue);
+}
+
+.work-board-department-page .wb-preview-tabs__tab:focus-visible {
+    border-radius: 6px;
+    outline: 2px solid rgba(37, 99, 235, .35);
+    outline-offset: -2px;
+}
+
+.work-board-department-page .wb-preview-tabpanel[hidden] {
+    display: none;
 }
 
 .work-board-department-page .wb-member-preview__section-heading {
@@ -371,18 +594,21 @@
 
 .work-board-department-page .wb-preview-task-list {
     display: grid;
-    gap: 9px;
+    gap: 10px;
 }
 
+/*
+ * การ์ดงาน: ชื่องาน + สถานะ → โปรเจกต์ · บทบาท · ความสำคัญ → หัวหน้าโปรเจกต์ · ผู้เข้าร่วม | วันที่
+ */
 .work-board-department-page .wb-preview-task {
     min-width: 0;
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) auto;
-    gap: 10px;
-    align-items: center;
-    padding: 12px;
-    border: 1px solid #e0e6ef;
-    border-radius: 11px;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding: 14px;
+    border: 1px solid #e3e8f0;
+    border-radius: 12px;
     color: inherit;
     background: #fff;
 }
@@ -399,11 +625,11 @@
 }
 
 .work-board-department-page .wb-preview-task__icon {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     display: grid;
     place-items: center;
-    border-radius: 9px;
+    border-radius: 10px;
     background: color-mix(in srgb, currentColor 10%, white);
 }
 
@@ -416,7 +642,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 8px;
+    gap: 10px;
 }
 
 .work-board-department-page .wb-preview-task__title-row h5 {
@@ -424,44 +650,142 @@
     overflow: hidden;
     margin: 0;
     color: var(--wb-ink);
-    font-size: 12px;
+    font-size: 13.5px;
     font-weight: 700;
+    line-height: 1.4;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .work-board-department-page .wb-preview-task__title-row .wb-status {
     flex: 0 0 auto;
-    padding: 3px 7px;
-    font-size: 9px;
+    padding: 3px 9px;
+    font-size: 10.5px;
 }
 
-.work-board-department-page .wb-preview-task__content > p {
+.work-board-department-page .wb-preview-task__context {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+    color: #6b7a90;
+    font-size: 11.5px;
+}
+
+.work-board-department-page .wb-preview-task__project {
+    min-width: 0;
+    flex: 0 1 auto;
     overflow: hidden;
-    margin: 4px 0 7px;
-    color: #718097;
-    font-size: 10.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.work-board-department-page .wb-preview-task__meta {
+/* บทบาทของสมาชิกในงานใบนี้ — คนละเรื่องกับบทบาทในระบบที่อยู่ในส่วนหัว */
+.work-board-department-page .wb-preview-task__member-role {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: #43536d;
+    background: #f1f4f9;
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.work-board-department-page .wb-preview-task__member-role.is-leader {
+    color: #1d4ed8;
+    background: #edf3ff;
+}
+
+.work-board-department-page .wb-preview-task__context .wb-priority {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.work-board-department-page .wb-preview-task__footer {
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    color: #8590a2;
-    font-size: 9.5px;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #f0f3f8;
 }
 
-.work-board-department-page .wb-preview-task__meta .wb-priority,
-.work-board-department-page .wb-preview-task__meta time {
+.work-board-department-page .wb-preview-task__people {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.work-board-department-page .wb-preview-person--leader {
+    flex: 0 1 auto;
+}
+
+.work-board-department-page .wb-preview-person[data-preview-participants] {
+    flex: 0 0 auto;
+}
+
+.work-board-department-page .wb-preview-person {
+    min-width: 0;
+    max-width: 100%;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    color: #55657d;
+    font-size: 11.5px;
+}
+
+.work-board-department-page .wb-preview-person > i {
+    color: #8a97ab;
+    font-size: 13px;
+}
+
+.work-board-department-page .wb-preview-person strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--wb-ink);
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.work-board-department-page .wb-preview-person strong.is-empty {
+    color: #8590a2;
+    font-weight: 500;
+}
+
+/* หัวหน้าโปรเจกต์ — ดาวเล็กข้างรูปบอกบทบาท ส่วนข้อความเต็มอยู่ใน title และ visually-hidden */
+.work-board-department-page .wb-preview-person > i.wb-preview-person__mark {
+    color: #1d4ed8;
+    font-size: 10px;
+}
+
+.work-board-department-page .wb-preview-task__timing {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #6b7a90;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.work-board-department-page .wb-preview-task__timing.is-late {
+    color: #b42318;
 }
 
 .work-board-department-page .wb-preview-task__arrow {
+    align-self: center;
     color: #8ca0bd;
     font-size: 11px;
 }
@@ -483,6 +807,97 @@
     margin: 0;
     color: var(--wb-muted);
     font-size: 11px;
+}
+
+/* แท็บงานทั้งหมดวาดได้จำกัดจำนวน — บอกให้รู้ว่ายังมีอีกและไปดูต่อที่ไหน */
+.work-board-department-page .wb-preview-all__more {
+    margin: 12px 0 0;
+    color: var(--wb-muted);
+    font-size: 11.5px;
+    text-align: center;
+}
+
+.work-board-department-page .wb-preview-all__more a {
+    color: var(--wb-blue);
+    font-weight: 650;
+}
+
+/* สร้างวันนี้ */
+.work-board-department-page .wb-preview-created {
+    display: grid;
+    gap: 9px;
+}
+
+.work-board-department-page .wb-preview-created__empty {
+    margin: 0;
+    padding: 12px;
+    border: 1px dashed #d9e2f0;
+    border-radius: 11px;
+    color: #8290a4;
+    font-size: 12px;
+    text-align: center;
+}
+
+.work-board-department-page .wb-preview-project {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid #e0e6ef;
+    border-radius: 11px;
+    background: #fff;
+}
+
+.work-board-department-page .wb-preview-project__icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    color: var(--wb-blue);
+    background: #edf3ff;
+}
+
+.work-board-department-page .wb-preview-project__body {
+    min-width: 0;
+}
+
+.work-board-department-page .wb-preview-project__body h5 {
+    margin: 0;
+    overflow: hidden;
+    color: var(--wb-ink);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.work-board-department-page .wb-preview-project__body p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 0;
+    color: #8590a2;
+    font-size: 10px;
+}
+
+.work-board-department-page .wb-preview-project__badge {
+    padding: 1px 7px;
+    border-radius: 999px;
+    color: var(--wb-blue);
+    background: #edf3ff;
+    font-weight: 700;
+}
+
+.work-board-department-page .wb-preview-project__count {
+    max-width: 130px;
+    color: #66758f;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-align: right;
 }
 
 @media (max-width: 1100px) {
@@ -560,10 +975,115 @@
         padding-inline: 14px;
     }
 
-    .work-board-department-page .wb-preview-task__meta {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 4px;
+    .work-board-department-page .wb-member-preview-panel__header {
+        padding-inline: 14px;
+    }
+
+    .work-board-department-page .wb-member-preview-panel__heading {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .work-board-department-page .wb-member-preview-panel__action {
+        grid-column: 1 / -1;
+    }
+
+    .work-board-department-page .wb-member-preview__workspace-link {
+        width: 100%;
+    }
+
+    .work-board-department-page .wb-member-preview-panel__header {
+        gap: 10px;
+        padding-top: 12px;
+        padding-bottom: 14px;
+    }
+
+    .work-board-department-page .wb-member-preview-panel__avatar .wb-avatar {
+        width: 44px;
+        height: 44px;
+        font-size: 12px;
+    }
+
+    .work-board-department-page .wb-member-preview-panel__header h2 {
+        font-size: 17px;
+    }
+
+    .work-board-department-page .wb-member-preview__workspace-hint {
+        display: none;
+    }
+
+    .work-board-department-page .wb-member-preview__workspace-link {
+        min-height: 38px;
+    }
+
+    /* สี่แท็บแบ่งความกว้างเท่า ๆ กัน ป้ายสั้นพอที่จะไม่ต้องเลื่อนข้างที่ 375px */
+    .work-board-department-page .wb-preview-tabs {
+        gap: 0;
+    }
+
+    .work-board-department-page .wb-preview-tabs__tab {
+        flex: 1 1 0;
+        min-width: 0;
+        padding-inline: 4px;
+        font-size: 12px;
+        text-align: center;
+    }
+
+    /* สรุปเป็นแถวเดียวสี่ช่อง — กล่อง 2×2 ดันแท็บลงไปเกือบครึ่งจอ */
+    .work-board-department-page .wb-preview-summary {
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+
+    .work-board-department-page .wb-preview-summary__item {
+        padding: 8px;
+        border-radius: 10px;
+    }
+
+    .work-board-department-page .wb-preview-summary dt i {
+        display: none;
+    }
+
+    .work-board-department-page .wb-preview-summary dd {
+        font-size: 17px;
+    }
+
+    /* จอแคบ วันที่ลงบรรทัดใหม่ได้ ชื่อคนจึงไม่ถูกบีบเหลือไม่กี่ตัวอักษร */
+    .work-board-department-page .wb-preview-task__footer {
+        flex-wrap: wrap;
+        gap: 6px 12px;
+    }
+
+    .work-board-department-page .wb-preview-task__timing {
+        margin-left: 0;
+    }
+
+    .work-board-department-page .wb-preview-task {
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .work-board-department-page .wb-preview-task__icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    /* จอแคบให้ชื่องานขึ้นได้สองบรรทัด อ่านง่ายกว่าตัดเหลือคำเดียว */
+    .work-board-department-page .wb-preview-task__title-row h5 {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        white-space: normal;
+    }
+
+    .work-board-department-page .wb-preview-project {
+        grid-template-columns: 34px minmax(0, 1fr);
+    }
+
+    .work-board-department-page .wb-preview-project__count {
+        grid-column: 2;
+        max-width: none;
+        text-align: left;
     }
 }
 

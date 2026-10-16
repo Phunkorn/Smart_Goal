@@ -1,4 +1,5 @@
 import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} from './pages/mytasks/task-filter-state.js';
+import {ownerFilterViews} from './pages/mytasks/owner-filter.js';
 
 (() => {
     const workspace = document.querySelector('[data-workspace]');
@@ -28,13 +29,14 @@ import {boardFilterStateFrom, normalizeTaskScope, parametersForTaskWorkspace} fr
     const statusFilter = workspace.querySelector('[data-board-status-filter]');
     const STATUS_FILTER_VIEWS = ['table', 'board'];
     /*
-     * ปุ่ม "เฉพาะงานของฉัน" มีความหมายเฉพาะมุมมองบอร์ด
+     * ตัวกรอง "งานของใคร" มีผลเฉพาะมุมมองที่ server ประกาศไว้ใน data-owner-filter-views
      *
-     * มุมมองตารางกรองด้วย ability participate ที่ฝั่ง server อยู่แล้ว ปุ่มที่นั่นจึงไม่มีผล
-     * ส่วนปฏิทินจัดวางงานตามวัน การซ่อนงานจะทำให้ช่องวันหายไปเฉย ๆ โดยไม่บอกอะไร
+     * มุมมอง board วาดงานทั้งโปรเจกต์ จึงมีเสมอ ส่วนมุมมอง table (kanban) วาดเฉพาะงานของ
+     * ตัวเอง ยกเว้นผู้ได้รับสิทธิ์ดูงานของแผนก (ดู tasks/partials/mine-filter.blade.php)
+     * ปฏิทินจัดวางงานตามวัน การซ่อนงานจะทำให้ช่องวันหายไปเฉย ๆ โดยไม่บอกอะไร จึงไม่มี
      */
     const mineFilter = workspace.querySelector('[data-board-mine-filter]');
-    const MINE_FILTER_VIEWS = ['board'];
+    const MINE_FILTER_VIEWS = ownerFilterViews(workspace);
     const scopeControl = workspace.querySelector('[data-task-scope-control]');
     if (!database) return;
     if (!tabs.length) {

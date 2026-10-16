@@ -17,11 +17,11 @@ test('task scope normalization only accepts the five supported values', () => {
 test('board filter state restores valid URL values and rejects invalid state', () => {
     assert.deepEqual(
         boardFilterStateFrom(new URLSearchParams('search=Printer&status=late&due_sort=desc')),
-        {search: 'Printer', status: 'late', dueSort: 'desc', mine: false},
+        {search: 'Printer', status: 'late', dueSort: 'desc', assignee: ''},
     );
     assert.deepEqual(
         boardFilterStateFrom(new URLSearchParams('status=99&due_sort=random')),
-        {search: '', status: '', dueSort: '', mine: false},
+        {search: '', status: '', dueSort: '', assignee: ''},
     );
 });
 
@@ -159,55 +159,60 @@ test('board search reads the explicit searchable text rendered for names hidden 
     assert.match(boardRow, /\$assigneeName/);
 });
 
-test('the mine flag round-trips through the url exactly like the other board filters', () => {
-    assert.equal(boardFilterStateFrom('mine=1').mine, true);
-
-    // ค่าเริ่มต้นต้องเป็นปิดเสมอ บอร์ดตอนโหลดหน้าจึงยังแสดงทั้งโปรเจกต์เหมือนเดิม
-    assert.equal(boardFilterStateFrom('').mine, false);
-    assert.equal(boardFilterStateFrom('mine=0').mine, false);
-    assert.equal(boardFilterStateFrom('mine=true').mine, false);
-    assert.equal(boardFilterStateFrom('mine=yes').mine, false);
+test('the assignee filter round-trips through the url and stale owner links are dropped', () => {
+    // ปุ่ม "งานทั้งหมด / งานของฉัน / งานของทีม" ถูกถอดออกแล้ว (ตัวกรองขอบเขตงานทำหน้าที่นี้)
+    // ลิงก์เก่าที่ยังพก ?owner= หรือ ?mine=1 จึงไม่มีผลกับบอร์ดอีก
+    assert.equal('owner' in boardFilterStateFrom('owner=mine'), false);
+    assert.equal('mine' in boardFilterStateFrom('mine=1'), false);
 
     const enabled = parametersForTaskWorkspace(
-        new URLSearchParams('open_task=42'),
-        {search: '', status: '', dueSort: '', mine: true},
+        new URLSearchParams('open_task=42&mine=1&owner=team'),
+        {search: '', status: '', dueSort: '', assignee: '7'},
         'all',
     );
-    assert.equal(enabled.get('mine'), '1');
+    assert.equal(enabled.get('assignee'), '7');
+    assert.equal(enabled.has('mine'), false, 'พารามิเตอร์ของปุ่มที่ถูกถอดต้องไม่ค้างใน URL');
+    assert.equal(enabled.has('owner'), false, 'พารามิเตอร์ของปุ่มที่ถูกถอดต้องไม่ค้างใน URL');
     assert.equal(enabled.get('open_task'), '42', 'พารามิเตอร์อื่นต้องไม่หายไป');
 
     const disabled = parametersForTaskWorkspace(
-        new URLSearchParams('mine=1&open_task=42'),
-        {search: '', status: '', dueSort: '', mine: false},
+        new URLSearchParams('assignee=7&open_task=42'),
+        {search: '', status: '', dueSort: '', assignee: ''},
         'all',
     );
-    assert.equal(disabled.has('mine'), false, 'ปิดปุ่มแล้วพารามิเตอร์ต้องหายจาก URL');
+    assert.equal(disabled.has('assignee'), false, 'กลับไปผู้รับผิดชอบทุกคนแล้วพารามิเตอร์ต้องหายจาก URL');
     assert.equal(disabled.get('open_task'), '42');
 });
 
-test('the mine filter only narrows, never resurrects a row another filter removed', () => {
-    const mine = {searchable: 'งานของฉัน', status: '2', late: '1', participate: '1'};
-    const sibling = {searchable: 'งานของเพื่อนร่วมโปรเจกต์', status: '2', late: '1', participate: '0'};
-
-    // ปิดอยู่ = ไม่สนใจความเป็นเจ้าของเลย บอร์ดจึงเหมือนเดิมทุกประการ
-    assert.equal(boardTaskMatches(sibling, {search: '', status: '', mine: false}), true);
-    assert.equal(boardTaskMatches(sibling, {search: '', status: ''}), true);
-
-    // เปิดอยู่ = ตัดงานที่ไม่ได้ร่วมออก
-    assert.equal(boardTaskMatches(mine, {search: '', status: '', mine: true}), true);
-    assert.equal(boardTaskMatches(sibling, {search: '', status: '', mine: true}), false);
-
-    // ประกอบกับตัวกรองอื่นเป็น AND ได้ผลลัพธ์เป็นอินเตอร์เซกชันเสมอ
-    assert.equal(boardTaskMatches(mine, {search: '', status: 'late', mine: true}), true);
-    assert.equal(boardTaskMatches(mine, {search: '', status: '4', mine: true}), false);
-    assert.equal(boardTaskMatches(mine, {search: 'ของฉัน', status: '', mine: true}), true);
-    assert.equal(boardTaskMatches(mine, {search: 'ไม่มีคำนี้', status: '', mine: true}), false);
-
-    // แถวที่ไม่มี attribute เลยต้องไม่ถูกนับว่าเป็นงานของเรา
-    assert.equal(boardTaskMatches({searchable: 'x', status: '2'}, {search: '', status: '', mine: true}), false);
+test('the assignee filter only accepts a user id', () => {
+    assert.equal(boardFilterStateFrom('assignee=12').assignee, '12');
+    assert.equal(boardFilterStateFrom('assignee=0').assignee, '');
+    assert.equal(boardFilterStateFrom('assignee=abc').assignee, '');
+    assert.equal(boardFilterStateFrom('assignee=1;DROP').assignee, '');
 });
 
-test('every board filter caller forwards the participation flag from the server', async () => {
+test('the assignee filter only narrows, never resurrects a row another filter removed', () => {
+    const mine = {searchable: 'งานของฉัน', status: '2', late: '1', assignee: '5'};
+    const sibling = {searchable: 'งานของเพื่อนร่วมโปรเจกต์', status: '2', late: '1', assignee: '9'};
+
+    // ไม่เลือกผู้รับผิดชอบ = บอร์ดเหมือนเดิมทุกประการ
+    assert.equal(boardTaskMatches(sibling, {search: '', status: ''}), true);
+    assert.equal(boardTaskMatches(sibling, {search: '', status: '', assignee: ''}), true);
+
+    // ผู้รับผิดชอบเทียบกับ data-assignee ตรง ๆ
+    assert.equal(boardTaskMatches(sibling, {search: '', status: '', assignee: '9'}), true);
+    assert.equal(boardTaskMatches(mine, {search: '', status: '', assignee: '9'}), false);
+
+    // ประกอบกับตัวกรองอื่นเป็น AND ได้ผลลัพธ์เป็นอินเตอร์เซกชันเสมอ
+    assert.equal(boardTaskMatches(mine, {search: '', status: 'late', assignee: '5'}), true);
+    assert.equal(boardTaskMatches(mine, {search: '', status: '4', assignee: '5'}), false);
+    assert.equal(boardTaskMatches(mine, {search: 'ไม่มีคำนี้', status: '', assignee: '5'}), false);
+
+    // แถวที่ไม่มี attribute ผู้รับผิดชอบต้องไม่ผ่านตัวกรองที่เลือกคนไว้
+    assert.equal(boardTaskMatches({searchable: 'x', status: '2'}, {search: '', status: '', assignee: '5'}), false);
+});
+
+test('every board filter caller forwards the assignee from the server', async () => {
     const [boardScript, viewsScript, boardRow, subtaskRow, filterPartial, indexView] = await Promise.all([
         readFile(new URL('../../resources/js/mytasks-project-board.js', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/js/mytasks-views.js', import.meta.url), 'utf8'),
@@ -217,30 +222,37 @@ test('every board filter caller forwards the participation flag from the server'
         readFile(new URL('../../resources/views/tasks/index.blade.php', import.meta.url), 'utf8'),
     ]);
 
-    // งานแม่และงานย่อยต้องส่ง flag เข้าตัวกรองทั้งคู่ ไม่งั้นงานย่อยของเราจะหายไปพร้อมงานแม่
-    assert.match(boardScript, /participate: hasOwnSubtask \? '1' : task\.dataset\.participate/);
-    assert.match(boardScript, /participate: subtask\.dataset\.participate/);
-    // การยกเว้นให้งานแม่ต้องผ่าน boardTaskMatches เสมอ ห้ามปลดเงื่อนไข task.hidden ทีหลัง
+    // งานแม่ต้องผ่าน boardTaskMatches เสมอ ห้ามปลดเงื่อนไข task.hidden ทีหลัง
     // ไม่งั้นงานแม่จะโผล่ข้ามตัวกรองสถานะและคำค้นที่ตัดมันทิ้งไปแล้ว
     assert.match(boardScript, /task\.hidden = !taskMatches && reviewSubtasks\.length === 0;/);
+    // ตัวกรอง "งานของฉัน/งานของทีม" ถูกถอดออก — ฝั่ง client ไม่อ่าน data-participate อีกแล้ว
+    assert.doesNotMatch(boardScript, /dataset\.participate/);
 
-    // ความเป็นเจ้าของตัดสินที่ server ด้วย ability participate ที่เดียว
+    // แถวงานยังพก flag ความเป็นเจ้าของจาก server (ability participate) เหมือนเดิม
     assert.match(boardRow, /can\('participate', \$task\)/);
-    assert.match(boardRow, /data-participate="\{\{ \$taskIsMine \? 1 : 0 \}\}"/);
     assert.match(subtaskRow, /can\('participate', \$detail\)/);
-    assert.match(subtaskRow, /data-participate="\{\{ \$detailIsMine \? 1 : 0 \}\}"/);
 
-    // ปุ่มต้องเริ่มที่ "ปิด" เสมอ
-    assert.match(filterPartial, /aria-pressed="false"/);
-    assert.match(filterPartial, /data-board-mine-toggle/);
+    // ผู้รับผิดชอบของตัวกรองมาจาก work_orders.user_id ที่ server ใส่ไว้บนแถว
+    assert.match(boardRow, /data-assignee="\{\{ \$task->user_id \}\}"/);
+    assert.match(boardScript, /assignee: task\.dataset\.assignee/);
+
+    // ปุ่ม "งานทั้งหมด / งานของฉัน / งานของทีม" ซ้ำกับตัวกรองขอบเขตงาน จึงถูกถอดออกทั้งชุด
+    assert.doesNotMatch(filterPartial, /data-board-owner-option/);
+    assert.doesNotMatch(filterPartial, /mytasks-owner-filter__segments/);
+    assert.doesNotMatch(filterPartial, /data-board-mine-toggle/, 'ปุ่มสลับเดิมต้องถูกถอดออก ไม่ใช่วางซ้อนกัน');
+    assert.match(filterPartial, /data-board-assignee-filter/);
+    assert.doesNotMatch(indexView, /data-board-empty-mine/);
 
     // และต้องอยู่ก่อนปุ่มคลังโปรเจกต์ ซึ่งเป็นตัวถือ margin-inline-start:auto ของแถว
     assert.ok(
         indexView.indexOf("tasks.partials.mine-filter") < indexView.indexOf('data-open-completed-projects'),
-        'ปุ่มเฉพาะงานของฉันต้องอยู่ก่อนปุ่มคลังโปรเจกต์',
+        'ตัวกรองผู้รับผิดชอบต้องอยู่ก่อนปุ่มคลังโปรเจกต์',
     );
 
-    // แสดงเฉพาะมุมมองบอร์ด และต้องคำนวณใหม่ทุกครั้งที่สลับมุมมอง ไม่ใช่เชื่อค่าจาก Blade
-    assert.match(viewsScript, /const MINE_FILTER_VIEWS = \['board'\];/);
+    // มุมมองที่ตัวกรองมีผลถูกประกาศจาก server (มุมมอง kanban เฉพาะผู้ได้สิทธิ์ดูงานของแผนก)
+    // และต้องคำนวณใหม่ทุกครั้งที่สลับมุมมอง ไม่ใช่เชื่อค่าจาก Blade
+    assert.match(filterPartial, /DepartmentTaskVisibility::isGranted\(auth\(\)->user\(\)\)/);
+    assert.match(filterPartial, /data-owner-filter-views=/);
+    assert.match(viewsScript, /const MINE_FILTER_VIEWS = ownerFilterViews\(workspace\);/);
     assert.match(viewsScript, /mineFilter\.hidden = ! MINE_FILTER_VIEWS\.includes\(view\)/);
 });
