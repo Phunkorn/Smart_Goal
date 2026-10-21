@@ -50,53 +50,55 @@ class OperationalWorkloadReportTest extends TestCase
 
         $this->actingAs($viewer)
             ->get(route('reports.index'))
+            ->assertRedirect(route('reports.operational'));
+
+        $this->actingAs($viewer)->get(route('board.index'))
             ->assertOk()
-            ->assertDontSee(route('reports.operational'), false);
+            ->assertDontSee('href="'.route('reports.operational').'"', false)
+            ->assertSee('href="'.route('reports.projects').'"', false);
     }
 
     /**
-     * ทุกคนที่เปิดรายงานนี้ได้ต้องมีทางไปถึงจากหน้าเลือกรายงาน ไม่ใช่ต้องรู้ URL เอง
+     * ทุกคนที่เปิดรายงานนี้ได้ต้องมีทางไปถึงจาก Sidebar
      */
-    public function test_the_entry_card_appears_for_everyone_who_can_open_it(): void
+    public function test_the_sidebar_link_appears_for_everyone_who_can_open_it(): void
     {
         $department = Department::create(['department_name' => 'IT']);
 
         foreach ([$this->user(null, false, 'admin'), $this->user($department, true), $this->user($department)] as $actor) {
             $this->actingAs($actor)
-                ->get(route('reports.index'))
+                ->get(route('reports.projects'))
                 ->assertOk()
                 ->assertSee('รายงานปฏิบัติงาน')
-                ->assertSee(route('reports.operational'), false);
+                ->assertSee('href="'.route('reports.operational').'"', false);
         }
     }
 
     /**
-     * พนักงานเห็นสองรายงานเท่านั้น — รายงานตัวเอง และรายงานปฏิบัติงาน
+     * พนักงานและหัวหน้าแผนกเห็นสองเมนูรายงานใน Sidebar
      */
-    public function test_a_member_landing_offers_exactly_two_reports(): void
+    public function test_member_and_head_sidebar_offer_both_reports(): void
     {
         $member = $this->user(Department::create(['department_name' => 'IT']));
 
-        $response = $this->actingAs($member)->get(route('reports.index'))->assertOk();
+        $response = $this->actingAs($member)->get(route('mytasks.index'))->assertOk();
 
         $response->assertSee('รายงานโปรเจกต์')
             ->assertSee('รายงานปฏิบัติงาน')
-            ->assertSee(route('reports.projects'), false)
-            ->assertSee(route('reports.operational'), false)
-            ->assertDontSee(route('reports.organization'), false)
-            ->assertDontSee(route('reports.employees.index'), false);
+            ->assertSee('href="'.route('reports.projects').'"', false)
+            ->assertSee('href="'.route('reports.operational').'"', false)
+            ->assertDontSee('รายงานแผนก');
 
-        $this->assertSame(2, substr_count($response->getContent(), 'report-choice report-choice--'));
         // รายงานภาพรวมองค์กรถูกยกเลิก ลิงก์เดิมพาไปรายงานโปรเจกต์ ซึ่งพนักงานเห็นเฉพาะงานของตัวเอง
         $this->actingAs($member)->get('/reports/organization')->assertRedirect('/reports/projects');
         $this->actingAs($member)->get(route('reports.projects'))->assertOk()->assertViewHas('isPersonalReport', true);
 
         $head = $this->user($member->department, true);
-        $headResponse = $this->actingAs($head)->get(route('reports.index'))->assertOk();
-
-        // หัวหน้าแผนก: รายงานโปรเจกต์ (มีภาพรวมแผนก) และรายงานปฏิบัติงาน
-        $this->assertSame(2, substr_count($headResponse->getContent(), 'report-choice report-choice--'));
-        $headResponse->assertDontSee('/my-reports', false);
+        $this->actingAs($head)->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee('href="'.route('reports.projects').'"', false)
+            ->assertSee('href="'.route('reports.operational').'"', false)
+            ->assertDontSee('รายงานแผนก');
     }
 
     /**

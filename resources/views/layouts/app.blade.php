@@ -80,10 +80,7 @@
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดรวม</span>
                 </a>
-                <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-bar-chart-line"></i>
-                    <span class="nav-item__label">รายงาน</span>
-                </a>
+                @include('layouts.partials.report-nav')
             @elseif ($isViewer)
                 <div class="nav-section-label">ภาพรวม</div>
 
@@ -96,10 +93,7 @@
                     <i class="bi bi-easel"></i>
                     <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
-                <a href="{{ route('reports.index') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-bar-chart-line"></i>
-                    <span class="nav-item__label">รายงาน</span>
-                </a>
+                @include('layouts.partials.report-nav')
             @else
                 {{--
                     พนักงานและหัวหน้าแผนก
@@ -147,21 +141,7 @@
                     <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
 
-                {{--
-                    รายงานเป็นการสรุปย้อนหลัง คนละจังหวะกับการลงมือทำงาน จึงแยกหัวข้อ
-
-                    ทั้งหัวหน้าแผนกและพนักงานเข้าหน้าเลือกประเภทรายงานก่อน
-                    เดิมพนักงานถูกส่งตรงไป reports.my ทำให้ไม่มีทางไปถึงรายงาน
-                    ปฏิบัติงานของตัวเองได้เลย ส่วนรายการการ์ดในหน้านั้นมาจาก
-                    ReportController::landingCards() ซึ่งเป็นผู้ตัดสินสิทธิ์
-                --}}
-                <div class="nav-section-label">รายงาน</div>
-
-                <a href="{{ route('reports.index') }}"
-                    class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-clipboard-data"></i>
-                    <span class="nav-item__label">{{ $isDepartmentHead ? 'รายงานแผนก' : 'รายงาน' }}</span>
-                </a>
+                @include('layouts.partials.report-nav')
             @endif
 
             @stack('sidebar_nav_extra')
@@ -477,6 +457,8 @@
             const openButton = document.querySelector('[data-sidebar-open]');
             const closeTargets = document.querySelectorAll('[data-sidebar-close]');
             const navLinks = document.querySelectorAll('.sidebar .nav-item');
+            const reportNav = document.querySelector('.sidebar .report-nav');
+            const reportToggle = reportNav?.querySelector('.report-nav__toggle');
             const isDesktop = () => window.innerWidth > 991;
 
             const remember = (collapsed) => {
@@ -532,7 +514,16 @@
             });
 
             closeTargets.forEach((target) => target.addEventListener('click', closeSidebar));
-            navLinks.forEach((link) => link.addEventListener('click', () => {
+            reportToggle?.addEventListener('click', (event) => {
+                if (! isDesktop() || ! body.classList.contains('sidebar-collapsed')) return;
+
+                event.preventDefault();
+                body.classList.remove('sidebar-collapsed');
+                reportNav.open = true;
+                remember(false);
+                syncState();
+            });
+            document.querySelectorAll('.sidebar a.nav-item').forEach((link) => link.addEventListener('click', () => {
                 if (! isDesktop()) closeSidebar();
             }));
 

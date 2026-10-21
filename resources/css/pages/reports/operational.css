@@ -190,7 +190,20 @@
     border-radius: 14px;
     background: #fff;
     box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+    /* การ์ดเป็นปุ่มเปิดกล่องรายการ — ล้างสไตล์ปุ่มของเบราว์เซอร์ และบอกว่ากดได้ด้วยภาษาเดียวกับ .report-kpi--linked */
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
+
+.operational-kpi:hover { border-color: #93b4fa; box-shadow: 0 10px 24px -16px rgba(15, 23, 42, .5); transform: translateY(-2px); }
+.operational-kpi:focus-visible { outline: 0; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .16); }
+.operational-kpi__more { flex: 0 0 auto; align-self: center; margin-left: auto; color: #b4c2d6; font-size: .8rem; transition: color .18s ease, transform .18s ease; }
+.operational-kpi:hover .operational-kpi__more,
+.operational-kpi:focus-visible .operational-kpi__more { color: #2563eb; transform: translateX(2px); }
 
 .operational-kpi__icon {
     display: grid;
@@ -501,4 +514,12 @@
     .operational-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .operational-kpi { flex-direction: column; gap: 6px; padding: 10px 12px; }
     .operational-kpi__icon { width: 30px; height: 30px; flex-basis: 30px; border-radius: 9px; font-size: .9rem; }
+    /* การ์ดเรียงแนวตั้ง ลูกศรจะไปตกกลางล่างการ์ด ทั้งใบกดได้อยู่แล้วจึงไม่แสดง */
+    .operational-kpi__more { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .operational-kpi,
+    .operational-kpi__more { transition: none; }
+    .operational-kpi:hover { transform: none; }
 }

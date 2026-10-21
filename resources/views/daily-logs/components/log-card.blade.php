@@ -99,7 +99,7 @@
             @elseif($presented['routine'] && $presented['status'] === 'in_progress')
                 <button type="button" class="log-card__action log-card__action--primary" data-row-complete>เสร็จงาน</button>
                 <button type="button" class="log-card__action log-card__action--quiet" data-row-skip>ไม่ได้ทำ</button>
-            @elseif(! $presented['routine'] && ! $presented['is_done'] && ! $presented['is_skipped'])
+            @elseif(! $presented['routine'] && ! $presented['is_done'] && ! $presented['is_skipped'] && ! $presented['is_future_day'])
                 <button type="button" class="log-card__action" data-row-complete>ทำเสร็จแล้ว</button>
             @endif
             {{-- เสร็จแล้ว / ไม่ได้ทำ เป็นสถานะสุดท้าย จึงไม่มีปุ่มย้อนสถานะ (ดู WorkLogService::markDone) --}}

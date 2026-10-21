@@ -155,6 +155,70 @@
             white-space: nowrap;
         }
 
+        .sidebar-nav .report-nav__toggle {
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .sidebar-nav .report-nav__toggle::-webkit-details-marker {
+            display: none;
+        }
+
+        .sidebar-nav .report-nav__chevron {
+            width: auto;
+            margin-left: auto;
+            font-size: .75rem;
+            transition: transform 250ms ease-in-out;
+        }
+
+        .sidebar-nav .report-nav[open] .report-nav__chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-nav .report-nav__submenu {
+            margin-left: 1.6rem;
+        }
+
+        @supports selector(::details-content) {
+            .sidebar-nav .report-nav::details-content {
+                display: grid;
+                grid-template-rows: 0fr;
+                overflow: clip;
+                opacity: 0;
+                transition:
+                    grid-template-rows 250ms ease-in-out,
+                    opacity 250ms ease-in-out,
+                    content-visibility 250ms ease-in-out allow-discrete;
+            }
+
+            .sidebar-nav .report-nav[open]::details-content {
+                grid-template-rows: 1fr;
+                opacity: 1;
+            }
+
+            .sidebar-nav .report-nav__submenu {
+                min-height: 0;
+                overflow: clip;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .sidebar-nav .report-nav::details-content,
+            .sidebar-nav .report-nav__chevron {
+                transition: none;
+            }
+        }
+
+        .sidebar-nav .report-nav__link {
+            min-height: 42px;
+            padding-left: 1.35rem;
+            font-size: .82rem;
+        }
+
+        .sidebar-nav .report-nav__link.active::before {
+            display: none;
+        }
+
         .nav-item__count {
             flex: 0 0 auto;
             margin-left: auto;
@@ -313,6 +377,16 @@
             /* แถบข้างย่อ: ป้ายที่สองเป็นจุดถัดลงมา ไม่ทับจุดแรก */
             body.sidebar-collapsed .nav-item__count + .nav-item__count {
                 top: 16px;
+            }
+
+            body.sidebar-collapsed .sidebar-nav .report-nav__submenu,
+            body.sidebar-collapsed .sidebar-nav .report-nav__chevron {
+                display: none;
+            }
+
+            body.sidebar-collapsed .sidebar-nav .report-nav--active > .report-nav__toggle {
+                background: var(--accent-dim);
+                color: var(--accent-strong);
             }
 
             body.sidebar-collapsed .sidebar-foot {

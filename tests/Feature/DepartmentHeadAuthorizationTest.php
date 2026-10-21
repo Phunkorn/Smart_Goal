@@ -433,10 +433,9 @@ class DepartmentHeadAuthorizationTest extends TestCase
     }
 
     /**
-     * เมนู "รายงานแผนก" ต้องพาไปหน้าเลือกประเภทรายงานก่อน ไม่ใช่กระโดดข้ามไปภาพรวมเลย
-     * และหน้าเลือกพนักงานต้องไม่โฆษณา "ทุกแผนก" ให้คนที่ดูได้แผนกเดียว
+     * หัวหน้าแผนกเลือกหน้ารายงานจาก Sidebar ได้ และตัวเลือกพนักงานยังจำกัดอยู่ในแผนก
      */
-    public function test_head_report_menu_lands_on_the_report_chooser_and_hides_cross_department_options(): void
+    public function test_head_report_menu_links_to_scoped_reports(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $sales = Department::create(['department_name' => 'Sales']);
@@ -446,13 +445,14 @@ class DepartmentHeadAuthorizationTest extends TestCase
         // สรุปประจำวันมีหัวข้อ "ประกาศทุกแผนก" ของตัวเอง ไม่ใช่ตัวเลือกของหน้ารายงาน
         $this->acknowledgeDailyBrief($head);
 
-        // เมนูต้องชี้ไปหน้าเลือกประเภทรายงาน ไม่ใช่ /reports/organization
         $this->actingAs($head)->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee(route('reports.index'), false)
+            ->assertSee('href="'.route('reports.operational').'"', false)
+            ->assertSee('href="'.route('reports.projects').'"', false)
+            ->assertDontSee('รายงานแผนก')
             ->assertDontSee('href="'.route('reports.organization').'"', false);
 
-        $this->actingAs($head)->get(route('reports.index'))->assertOk();
+        $this->actingAs($head)->get(route('reports.index'))->assertRedirect(route('reports.operational'));
 
         // รายงานโปรเจกต์: ช่องเลือกพนักงานมีเฉพาะแผนกตัวเอง และต้องไม่มีตัวเลือก "ทุกแผนก" ที่ให้ผลเท่ากัน
         $this->actingAs($head)->get(route('reports.projects'))

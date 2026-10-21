@@ -78,7 +78,16 @@ test('the report and its details page share one header, filter card, sort contro
     assert.match(js, /id: 'projectTrendChart', key: 'trend'/);
     assert.match(js, /id: 'projectStatusChart', key: 'status'/);
     assert.match(js, /id: 'projectBreakdownChart', key: 'breakdown'/);
-    assert.doesNotMatch(index, /projectStatusByProjectChart|project-report__status-legend|data-chart-kind="line"/);
+    assert.doesNotMatch(index, /projectStatusByProjectChart|project-report__status-legend/);
+    // แนวโน้มเป็นกราฟเส้น สถานะเป็นโดนัทพร้อมตารางป้าย/จำนวน/% — สองใบแรกไม่ซ้ำรูปแบบกัน และไม่มีกราฟแท่งเหลือ
+    assert.match(index, /project-report__chart-card--trend" data-report-chart data-chart-kind="line"/);
+    assert.match(index, /project-report__chart-card--status" data-report-chart data-chart-kind="doughnut"/);
+    assert.doesNotMatch(index, /data-chart-kind="(bar|horizontal-bar)"/);
+    // การ์ดตัวเลขทุกใบเป็นปุ่มเปิดกล่องรายการ กล่องเป็น component ร่วมกับรายงานปฏิบัติงาน
+    assert.match(index, /<button type="button" class="project-report__kpi [^>]*\s+data-kpi-open data-kpi-label="\{\{ \$kpi\['label'\] \}\}" data-kpi-url="\{\{ route\('reports\.projects\.kpi', \['kpi' => \$kpi\['key'\], \.\.\.\$query\]\) \}\}"/);
+    assert.doesNotMatch(index, /<article class="project-report__kpi /);
+    assert.match(index, /@include\('reports\.components\.kpi-modal'/);
+    assert.match(js, /initKpiDetailModal\(page\)/);
     // กราฟงานที่ปิดได้รายคน (ภาพรวมแผนก) เป็นโดนัท พร้อมตารางชื่อ/จำนวน/% ข้างวง
     assert.match(index, /project-report__chart-card--breakdown" data-report-chart data-chart-kind="doughnut"/);
     assert.match(index, /class="project-report__donut-legend"/);

@@ -16,6 +16,7 @@ import './calendar.js';
 import './task-request.js';
 import './user-task-create.js';
 import './task-details.js';
+import './task-reorder.js';
 import './task-share.js';
 import {initAttachmentDownload} from './attachment-download.js';
 

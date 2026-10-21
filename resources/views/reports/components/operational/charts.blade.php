@@ -6,10 +6,11 @@
     @param Collection $workTypes
     @param string $totalHoursText
     @param string $dailyDescription
+    @param array $chartData  ข้อมูลกราฟชุดเดียวกับ JSON island id="report-chart-data" — ใช้ตัดสินสถานะแรกของการ์ด (ReportChartState)
 --}}
 <div class="operational-grid operational-grid--charts">
     <article class="report-panel operational-card operational-chart-card operational-chart-card--daily"
-        data-report-chart data-chart-kind="bar" data-chart-state="loading" aria-labelledby="operational-daily-hours-title">
+        data-report-chart data-chart-kind="bar" data-chart-state="{{ \App\Support\ReportChartState::initial($chartData['daily']['routine'], $chartData['daily']['field']) }}" aria-labelledby="operational-daily-hours-title">
         <div class="operational-card__heading">
             <div>
                 <h2 id="operational-daily-hours-title"><i class="bi bi-bar-chart" aria-hidden="true"></i> ชั่วโมงงานรายวัน</h2>
@@ -25,7 +26,7 @@
     </article>
 
     <article class="report-panel operational-card operational-chart-card operational-chart-card--types"
-        data-report-chart data-chart-kind="doughnut" data-chart-state="loading" aria-labelledby="operational-work-type-title">
+        data-report-chart data-chart-kind="doughnut" data-chart-state="{{ \App\Support\ReportChartState::initial($chartData['workTypes']['values']) }}" aria-labelledby="operational-work-type-title">
         <div class="operational-card__heading">
             <div>
                 <h2 id="operational-work-type-title"><i class="bi bi-pie-chart" aria-hidden="true"></i> สัดส่วนประเภทงาน</h2>

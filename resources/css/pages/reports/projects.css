@@ -165,7 +165,20 @@
     border-radius: 14px;
     background: #fff;
     box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+    /* การ์ดเป็นปุ่มเปิดกล่องรายการ — ล้างสไตล์ปุ่มของเบราว์เซอร์ และบอกว่ากดได้ด้วยภาษาเดียวกับ .report-kpi--linked */
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
+
+.project-report__kpi:hover { border-color: #93b4fa; box-shadow: 0 10px 24px -16px rgba(15, 23, 42, .5); transform: translateY(-2px); }
+.project-report__kpi:focus-visible { outline: 0; border-color: var(--pr-blue-solid); box-shadow: 0 0 0 3px rgba(37, 99, 235, .16); }
+.project-report__kpi-more { flex: 0 0 auto; margin-left: auto; color: #b4c2d6; font-size: .8rem; transition: color .18s ease, transform .18s ease; }
+.project-report__kpi:hover .project-report__kpi-more,
+.project-report__kpi:focus-visible .project-report__kpi-more { color: var(--pr-blue-solid); transform: translateX(2px); }
 
 .project-report__kpi--indigo { --pr-kpi-tone: #4338ca; --pr-kpi-soft: #eef2ff; }
 .project-report__kpi--violet { --pr-kpi-tone: #6d28d9; --pr-kpi-soft: #f5f3ff; }
@@ -475,8 +488,13 @@ a.project-report__page:focus-visible { outline: 3px solid rgba(37, 99, 235, .2);
     .project-report__kpi { flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; }
     .project-report__kpi-icon { width: 30px; height: 30px; flex-basis: 30px; border-radius: 9px; font-size: .95rem; }
     .project-report__kpi-label { white-space: normal; line-height: 1.3; }
+    /* การ์ดเรียงแนวตั้ง ลูกศรจะไปตกกลางล่างการ์ด ทั้งใบกดได้อยู่แล้วจึงไม่แสดง */
+    .project-report__kpi-more { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .project-report__table tbody tr { transition: none; }
+    .project-report__kpi,
+    .project-report__kpi-more { transition: none; }
+    .project-report__kpi:hover { transform: none; }
 }

@@ -1,109 +1,208 @@
-.daily-log .daily-month { display:grid; gap:20px; padding:22px; border:1px solid #e3ebf7; border-radius:12px; background:#fff; }
-
-/* สีประจำสถานะ — ใช้ร่วมกันระหว่างชิ้นโดนัทกับจุดสีในคำอธิบาย ให้มีแหล่งเดียว */
-.daily-log .daily-month [data-status] { --status-color:#c3cddb; }
-.daily-log .daily-month [data-status="done"] { --status-color:#17a589; }
-.daily-log .daily-month [data-status="in_progress"] { --status-color:#2f6fe4; }
-.daily-log .daily-month [data-status="open"] { --status-color:#f2a93b; }
-.daily-log .daily-month [data-status="overdue"] { --status-color:#e5534b; }
-.daily-log .daily-month [data-status="skipped"] { --status-color:#a3b1c4; }
-.daily-log .daily-month [data-status="not_started"] { --status-color:#d9434f; }
-.daily-log .daily-month [data-status="unfinished"] { --status-color:#e07b39; }
-.daily-log .daily-month [data-status="absent"] { --status-color:#b8437c; }
-.daily-log .daily-month [data-status="cancelled"] { --status-color:#6b7a90; }
-
-.daily-log .daily-month__overview { display:grid; grid-template-columns:minmax(260px,340px) minmax(0,1fr); gap:16px; align-items:stretch; }
-.daily-log .daily-month__card-title { margin:0; color:#172c51; font-size:.86rem; font-weight:500; }
-.daily-log .daily-month__status-card,
-.daily-log .daily-month__block { display:grid; gap:14px; margin:0; padding:18px; border:1px solid #e3ebf7; border-radius:10px; background:#fbfcff; }
-.daily-log .daily-month__status-card { align-content:start; justify-items:center; }
-.daily-log .daily-month__status-card .daily-month__card-title { justify-self:start; }
-
-/* โดนัท */
-.daily-log .daily-month__donut { position:relative; width:min(200px,100%); aspect-ratio:1; }
-.daily-log .daily-month__donut svg { display:block; width:100%; height:100%; transform:rotate(-90deg); overflow:visible; }
-.daily-log .daily-month__donut circle { fill:none; stroke-width:5.2; }
-.daily-log .daily-month__donut-track { stroke:#edf2fa; }
-.daily-log .daily-month__donut-segment {
-  stroke:var(--status-color);
-  stroke-linecap:butt;
-  transition:stroke-width .18s ease;
-  animation:daily-month-donut-draw .9s cubic-bezier(.22,.8,.3,1) both;
-  animation-delay:calc(var(--segment-index, 0) * .12s + .1s);
+/*
+ * สรุปรายเดือน — ตัวเลขหลัก 4 ใบ, กราฟกิจกรรมรายวัน, สัดส่วนงาน
+ *
+ * ส่วนนอกสุดไม่มีกรอบ/พื้นของตัวเอง การ์ดแต่ละใบวางบนพื้นหน้า (--bg) โดยตรง
+ * เพื่อไม่ให้เกิดการ์ดซ้อนการ์ด สีใช้ชุดเดียวกับส่วนอื่นของหน้าบันทึกงาน
+ */
+.daily-log .daily-month {
+  --dm-ink:#172c51;
+  --dm-text:#365373;
+  --dm-muted:var(--text-muted, #64748b);
+  --dm-line:#e3ebf7;
+  --dm-track:#edf2fa;
+  --dm-surface:var(--surface, #fff);
+  --dm-blue:#1261dc;
+  --dm-blue-soft:#eaf2ff;
+  --dm-teal:#17a589;
+  --dm-teal-ink:#127a6c;
+  --dm-teal-soft:#e6f6f4;
+  --dm-indigo:#4f5bd5;
+  --dm-indigo-soft:#eef0fd;
+  --dm-amber:#e3962b;
+  --dm-amber-ink:#a8601a;
+  --dm-amber-soft:#fff4e5;
+  --dm-shadow:0 1px 2px rgba(22,35,61,.04), 0 2px 8px rgba(22,35,61,.04);
+  --dm-shadow-hover:0 2px 4px rgba(22,35,61,.05), 0 8px 20px rgba(22,35,61,.07);
+  display:grid;
+  gap:16px;
 }
-.daily-log .daily-month__donut-segment:hover { stroke-width:6.4; }
-.daily-log .daily-month__donut-center { position:absolute; inset:0; display:grid; place-content:center; justify-items:center; gap:2px; animation:daily-month-pop .5s ease-out .35s both; }
-.daily-log .daily-month__donut-center strong { color:#172c51; font-size:2rem; font-weight:500; line-height:1; }
-.daily-log .daily-month__donut-center small { color:#7b8ca7; font-size:.76rem; }
 
-/* คำอธิบายสี */
-.daily-log .daily-month__legend { display:grid; gap:6px; width:100%; margin:0; padding:0; list-style:none; }
-.daily-log .daily-month__legend li { display:grid; grid-template-columns:auto minmax(0,1fr) auto 3.4em; align-items:center; gap:9px; padding:7px 10px; border-radius:8px; background:#fff; color:#365373; font-size:.8rem; animation:daily-month-rise .4s ease-out both; animation-delay:calc(var(--legend-index, 0) * .07s + .45s); }
-.daily-log .daily-month__swatch { width:10px; height:10px; border-radius:3px; background:var(--status-color); }
-.daily-log .daily-month__legend-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.daily-log .daily-month__legend strong { color:#172c51; font-weight:500; }
-.daily-log .daily-month__legend small { color:#7b8ca7; font-size:.74rem; text-align:right; }
+/* หัวของส่วน */
+.daily-log .daily-month__intro { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; }
+.daily-log .daily-month__title { margin:0; color:var(--dm-ink); font-size:1.05rem; font-weight:500; }
+.daily-log .daily-month__lead { margin:0; color:var(--dm-text); font-size:.8rem; }
+
+/* การ์ดพื้นฐาน */
+.daily-log .daily-month__kpi,
+.daily-log .daily-month__card,
+.daily-log .daily-month__empty {
+  border:1px solid var(--dm-line);
+  border-radius:12px;
+  background:var(--dm-surface);
+  box-shadow:var(--dm-shadow);
+  animation:daily-month-rise .45s cubic-bezier(.22,.8,.3,1) both;
+}
 
 /* ตัวเลขหลัก */
-.daily-log .daily-month__details { display:grid; gap:16px; align-content:start; }
-.daily-log .daily-month__metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.daily-log .daily-month__metric { display:grid; gap:5px; align-content:start; padding:16px; border-radius:9px; background:#f5f8fe; animation:daily-month-rise .4s ease-out both; }
-.daily-log .daily-month__metric:nth-child(2) { animation-delay:.06s; }
-.daily-log .daily-month__metric:nth-child(3) { animation-delay:.12s; }
-.daily-log .daily-month__metric:nth-child(4) { animation-delay:.18s; }
-.daily-log .daily-month__metric small { display:flex; align-items:center; gap:6px; color:#7b8ca7; font-size:.74rem; }
-.daily-log .daily-month__metric strong { color:#1261dc; font-size:1.35rem; font-weight:400; }
-.daily-log .daily-month__metric em { color:#7b8ca7; font-size:.72rem; font-style:normal; }
-.daily-log .daily-month__metric--rate { background:#e9f7f3; }
-.daily-log .daily-month__metric--rate strong { color:#127a6c; }
-.daily-log .daily-month__metric--rate .daily-month__bar > span { background:#17a589; }
+.daily-log .daily-month__kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0; padding:0; list-style:none; }
+.daily-log .daily-month__kpi {
+  --tone:var(--dm-blue); --tone-soft:var(--dm-blue-soft); --tone-ink:var(--dm-blue);
+  display:grid; grid-template-rows:auto auto 1fr; align-content:start; gap:6px; min-width:0; padding:16px 18px;
+  transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.daily-log .daily-month__kpi:nth-child(2) { animation-delay:.05s; }
+.daily-log .daily-month__kpi:nth-child(3) { animation-delay:.1s; }
+.daily-log .daily-month__kpi:nth-child(4) { animation-delay:.15s; }
+.daily-log .daily-month__kpi[data-tone="teal"] { --tone:var(--dm-teal); --tone-soft:var(--dm-teal-soft); --tone-ink:var(--dm-teal-ink); }
+.daily-log .daily-month__kpi[data-tone="indigo"] { --tone:var(--dm-indigo); --tone-soft:var(--dm-indigo-soft); --tone-ink:var(--dm-indigo); }
+.daily-log .daily-month__kpi[data-tone="amber"] { --tone:var(--dm-amber); --tone-soft:var(--dm-amber-soft); --tone-ink:var(--dm-amber-ink); }
+.daily-log .daily-month__kpi-label { display:flex; align-items:center; gap:8px; color:var(--dm-muted); font-size:.78rem; }
+.daily-log .daily-month__kpi-label i { display:grid; place-items:center; flex:none; width:26px; height:26px; border-radius:8px; background:var(--tone-soft); color:var(--tone-ink); font-size:.85rem; }
+.daily-log .daily-month__kpi-value { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; color:var(--dm-ink); font-size:1.6rem; font-weight:500; line-height:1.2; font-variant-numeric:tabular-nums; }
+.daily-log .daily-month__kpi-value small { color:var(--dm-muted); font-size:.78rem; font-weight:300; }
+.daily-log .daily-month__kpi-badge { align-self:center; padding:2px 8px; border-radius:999px; background:var(--tone-soft); color:var(--tone-ink); font-size:.75rem; font-weight:500; }
+.daily-log .daily-month__kpi-meta { align-self:end; overflow:hidden; color:var(--dm-muted); font-size:.75rem; line-height:1.45; text-overflow:ellipsis; }
 
-/* แถบสัดส่วน */
-.daily-log .daily-month__bar { display:block; height:6px; overflow:hidden; border-radius:999px; background:#e6edf8; }
-.daily-log .daily-month__bar > span { display:block; width:100%; height:100%; border-radius:inherit; background:#2f6fe4; transform:scaleX(var(--bar-value, 0)); transform-origin:left center; animation:daily-month-bar .8s cubic-bezier(.22,.8,.3,1) .3s both; }
-.daily-log .daily-month__bar--teal > span { background:#17a589; }
-.daily-log .daily-month__bar--amber > span { background:#f2a93b; }
+/* แถวล่าง: กราฟกว้างซ้าย สัดส่วนงานขวา */
+.daily-log .daily-month__grid { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr); gap:12px; align-items:stretch; }
+.daily-log .daily-month__card { display:grid; align-content:start; gap:18px; min-width:0; padding:18px 20px; animation-delay:.18s; transition:box-shadow .2s ease; }
+.daily-log .daily-month__card--breakdown { animation-delay:.24s; }
+.daily-log .daily-month__card-head { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:12px; }
+.daily-log .daily-month__card-title { margin:0; color:var(--dm-ink); font-size:.95rem; font-weight:500; }
+.daily-log .daily-month__card-sub { margin:2px 0 0; color:var(--dm-muted); font-size:.76rem; }
 
-/* รายการแยกประเภท / หมวด */
-.daily-log .daily-month__rows { display:grid; gap:12px; margin:0; padding:0; list-style:none; }
-.daily-log .daily-month__rows--grid { grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:24px; }
-.daily-log .daily-month__rows li { display:flex; align-items:center; gap:12px; color:#365373; font-size:.82rem; }
-.daily-log .daily-month__rows li > small { flex:none; min-width:4.5em; color:#7b8ca7; font-size:.74rem; text-align:right; }
-.daily-log .daily-month__row-icon { display:grid; flex:none; place-items:center; width:32px; height:32px; border-radius:9px; background:#eaf2ff; color:#1261d9; }
-.daily-log .daily-month__row-icon--teal { background:#e6f6f4; color:#127a6c; }
-.daily-log .daily-month__row-icon--amber { background:#fff4e5; color:#b0661b; }
-.daily-log .daily-month__row-main { display:grid; flex:1; gap:6px; min-width:0; }
-.daily-log .daily-month__row-line { display:flex; justify-content:space-between; gap:10px; }
-.daily-log .daily-month__row-line > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.daily-log .daily-month__row-line strong { flex:none; color:#172c51; font-weight:400; }
+.daily-log .daily-month__peak { display:grid; justify-items:end; gap:1px; margin:0; text-align:right; }
+.daily-log .daily-month__peak small { color:var(--dm-muted); font-size:.75rem; }
+.daily-log .daily-month__peak strong { color:var(--dm-ink); font-size:.9rem; font-weight:500; }
+.daily-log .daily-month__peak span { color:var(--dm-blue); font-size:.76rem; }
 
-.daily-log .daily-month__empty { display:grid; justify-items:center; gap:8px; margin:0; padding:36px 16px; border:1px dashed #d8e3f3; border-radius:10px; color:#798ba5; text-align:center; font-size:.82rem; }
-.daily-log .daily-month__empty i { color:#b7c6dc; font-size:2rem; }
-.daily-log .daily-month__empty p { margin:0; }
+/* กราฟกิจกรรมรายวัน */
+/* กราฟยืดเต็มความสูงที่เหลือของการ์ด เมื่อการ์ดสัดส่วนงานข้าง ๆ สูงกว่า */
+.daily-log .daily-month__card--activity { grid-template-rows:auto minmax(0,1fr) auto; }
+.daily-log .daily-month__chart { position:relative; display:flex; flex-direction:column; min-height:0; padding-top:18px; }
+.daily-log .daily-month__chart-max { position:absolute; top:0; left:0; color:var(--dm-muted); font-size:.72rem; line-height:1; }
+.daily-log .daily-month__chart::before { content:""; position:absolute; top:18px; right:0; left:0; border-top:1px dashed var(--dm-line); }
+.daily-log .daily-month__days { flex:1 1 auto; display:grid; grid-template-columns:repeat(var(--day-count, 31), minmax(0,1fr)); gap:4px; margin:0; padding:0; list-style:none; }
+.daily-log .daily-month__day { position:relative; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(180px,1fr) auto; gap:6px; min-width:0; outline:none; }
+.daily-log .daily-month__day[tabindex] { cursor:default; }
+.daily-log .daily-month__bar-track { position:relative; display:flex; align-items:flex-end; border-radius:5px 5px 2px 2px; transition:background-color .15s ease; }
+.daily-log .daily-month__day:hover .daily-month__bar-track,
+.daily-log .daily-month__day:focus .daily-month__bar-track { background:var(--dm-blue-soft); }
+.daily-log .daily-month__bar-fill {
+  display:block; width:100%; max-width:28px; margin:0 auto; height:max(4px, calc(var(--bar-value, 0) * 100%)); border-radius:5px 5px 2px 2px; background:#8fb4f0;
+  transform-origin:bottom center; animation:daily-month-grow-y .7s cubic-bezier(.22,.8,.3,1) both; animation-delay:calc(var(--day-index, 0) * 14ms + .25s);
+  transition:background-color .15s ease;
+}
+.daily-log .daily-month__day[data-state="timed"] .daily-month__bar-fill { background:var(--dm-blue); opacity:.85; }
+.daily-log .daily-month__day[data-state="timed"]:hover .daily-month__bar-fill,
+.daily-log .daily-month__day[data-state="timed"]:focus .daily-month__bar-fill { opacity:1; }
+.daily-log .daily-month__day[data-state="empty"] .daily-month__bar-fill { height:2px; background:var(--dm-track); animation:none; }
+/* มีบันทึกแต่ไม่ระบุเวลา — จุดที่ฐาน ให้เห็นว่ามีงานวันนั้นโดยไม่หลอกว่ามีชั่วโมง */
+.daily-log .daily-month__day[data-state="untimed"] .daily-month__bar-fill { width:6px; height:6px; margin:0 auto 1px; border-radius:50%; background:var(--dm-amber); }
+.daily-log .daily-month__day.is-future .daily-month__bar-fill { opacity:.5; }
 
-@keyframes daily-month-donut-draw { from { stroke-dasharray:0 100; } }
-@keyframes daily-month-pop { from { opacity:0; transform:scale(.8); } }
-@keyframes daily-month-rise { from { opacity:0; transform:translateY(6px); } }
-@keyframes daily-month-bar { from { transform:scaleX(0); } }
+.daily-log .daily-month__day-num { color:var(--dm-muted); font-size:.72rem; line-height:1; text-align:center; font-variant-numeric:tabular-nums; visibility:hidden; }
+.daily-log .daily-month__day.is-tick .daily-month__day-num { visibility:visible; color:var(--dm-muted); }
+.daily-log .daily-month__day.is-today .daily-month__day-num { justify-self:center; visibility:visible; padding:2px 0; width:20px; border-radius:999px; background:var(--dm-blue); color:#fff; }
+
+.daily-log .daily-month__tip {
+  position:absolute; bottom:calc(100% - 4px); left:50%; z-index:3; display:grid; gap:2px; width:max-content; max-width:200px;
+  padding:7px 10px; border-radius:8px; background:var(--dm-ink); box-shadow:0 8px 20px -8px rgba(15,23,42,.45); color:#dfe7f5; font-size:.75rem; line-height:1.4; white-space:nowrap;
+  opacity:0; pointer-events:none; transform:translate(-50%, 4px); transition:opacity .15s ease, transform .15s ease;
+}
+.daily-log .daily-month__tip strong { color:#fff; font-weight:500; }
+.daily-log .daily-month__day[data-edge="start"] .daily-month__tip { left:0; transform:translate(0, 4px); }
+.daily-log .daily-month__day[data-edge="end"] .daily-month__tip { right:0; left:auto; transform:translate(0, 4px); }
+.daily-log .daily-month__day:hover .daily-month__tip,
+.daily-log .daily-month__day:focus .daily-month__tip { opacity:1; transform:translate(-50%, 0); }
+.daily-log .daily-month__day[data-edge="start"]:hover .daily-month__tip,
+.daily-log .daily-month__day[data-edge="start"]:focus .daily-month__tip,
+.daily-log .daily-month__day[data-edge="end"]:hover .daily-month__tip,
+.daily-log .daily-month__day[data-edge="end"]:focus .daily-month__tip { transform:translate(0, 0); }
+.daily-log .daily-month__day:focus-visible .daily-month__bar-track { box-shadow:0 0 0 2px var(--dm-blue); }
+
+.daily-log .daily-month__legend { display:flex; flex-wrap:wrap; gap:6px 18px; margin:0; padding:0; list-style:none; color:var(--dm-muted); font-size:.75rem; }
+.daily-log .daily-month__legend li { display:inline-flex; align-items:center; gap:7px; }
+.daily-log .daily-month__legend-bar { width:10px; height:12px; border-radius:3px 3px 1px 1px; background:var(--dm-blue); opacity:.85; }
+.daily-log .daily-month__legend-dot { width:6px; height:6px; border-radius:50%; background:var(--dm-amber); }
+.daily-log .daily-month__legend-today { width:14px; height:10px; border-radius:999px; background:var(--dm-blue); }
+
+/* สัดส่วนงาน */
+.daily-log .daily-month__group { display:grid; align-content:start; gap:10px; }
+.daily-log .daily-month__group + .daily-month__group { padding-top:18px; border-top:1px solid var(--dm-line); }
+.daily-log .daily-month__group-title { margin:0; color:var(--dm-text); font-size:.8rem; font-weight:500; }
+
+.daily-log .daily-month__kinds { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.daily-log .daily-month__kinds li { display:grid; grid-template-columns:auto minmax(0,1fr) auto 5.2em; align-items:center; gap:10px; color:var(--dm-text); font-size:.82rem; }
+.daily-log .daily-month__kind-dot { width:9px; height:9px; border-radius:3px; background:var(--dm-blue); }
+.daily-log .daily-month__kinds li[data-tone="teal"] .daily-month__kind-dot { background:var(--dm-teal); }
+.daily-log .daily-month__kind-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .daily-month__kinds strong { color:var(--dm-ink); font-variant-numeric:tabular-nums; }
+.daily-log .daily-month__kinds small { color:var(--dm-muted); font-size:.75rem; text-align:right; }
+
+/* หมวดงาน — รายการเรียงอันดับแบบตาราง ไม่มีแถบ คั่นแถวด้วยเส้นบาง ๆ */
+.daily-log .daily-month__categories { display:grid; margin:0; padding:0; list-style:none; }
+.daily-log .daily-month__categories li { display:grid; grid-template-columns:20px minmax(0,1fr) auto; align-items:center; gap:12px; padding:10px 0; animation:daily-month-rise .4s ease-out both; animation-delay:calc(var(--row-index, 0) * .05s + .3s); }
+.daily-log .daily-month__categories li + li { border-top:1px solid #f0f4fa; }
+.daily-log .daily-month__categories li:first-child { padding-top:2px; }
+.daily-log .daily-month__category-rank { color:var(--dm-muted); font-size:.78rem; text-align:center; font-variant-numeric:tabular-nums; }
+.daily-log .daily-month__categories li:first-child .daily-month__category-rank { color:var(--dm-blue); font-weight:500; }
+.daily-log .daily-month__category-main,
+.daily-log .daily-month__category-value { display:grid; gap:1px; min-width:0; }
+.daily-log .daily-month__category-value { justify-items:end; text-align:right; }
+.daily-log .daily-month__category-name { overflow:hidden; color:var(--dm-text); font-size:.84rem; text-overflow:ellipsis; white-space:nowrap; }
+.daily-log .daily-month__category-value strong { color:var(--dm-ink); font-size:.86rem; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.daily-log .daily-month__categories small { color:var(--dm-muted); font-size:.75rem; font-variant-numeric:tabular-nums; }
+.daily-log .daily-month__more { margin:0; color:var(--dm-muted); font-size:.75rem; }
+
+/* ไม่มีข้อมูล */
+.daily-log .daily-month__empty { display:grid; justify-items:center; gap:6px; padding:48px 20px; text-align:center; }
+.daily-log .daily-month__empty-icon { display:grid; place-items:center; width:52px; height:52px; margin-bottom:6px; border-radius:14px; background:var(--dm-blue-soft); color:var(--dm-blue); font-size:1.4rem; }
+.daily-log .daily-month__empty h3 { margin:0; color:var(--dm-ink); font-size:.95rem; font-weight:500; }
+.daily-log .daily-month__empty p { max-width:360px; margin:0; color:var(--dm-muted); font-size:.8rem; }
+
+/* Hover เบา ๆ เฉพาะอุปกรณ์ที่มีเมาส์ */
+@media (hover:hover) {
+  .daily-log .daily-month__kpi:hover { border-color:#d3dff1; box-shadow:var(--dm-shadow-hover); transform:translateY(-1px); }
+  .daily-log .daily-month__card:hover { box-shadow:var(--dm-shadow-hover); }
+}
+
+@keyframes daily-month-rise { from { opacity:0; transform:translateY(8px); } }
+@keyframes daily-month-grow-y { from { transform:scaleY(0); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .daily-log .daily-month__donut-segment,
-  .daily-log .daily-month__donut-center,
-  .daily-log .daily-month__legend li,
-  .daily-log .daily-month__metric,
-  .daily-log .daily-month__bar > span { animation:none; }
+  .daily-log .daily-month__kpi,
+  .daily-log .daily-month__card,
+  .daily-log .daily-month__empty,
+  .daily-log .daily-month__categories li,
+  .daily-log .daily-month__bar-fill { animation:none; }
+  .daily-log .daily-month__kpi,
+  .daily-log .daily-month__tip { transition:none; }
 }
 
+/* จอกลาง: กราฟเต็มแถว สัดส่วนงานลงแถวถัดไป */
+@media (max-width:1180px) {
+  .daily-log .daily-month__grid { grid-template-columns:minmax(0,1fr); }
+  .daily-log .daily-month__card--breakdown { grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:28px; }
+  .daily-log .daily-month__card--breakdown .daily-month__card-head { grid-column:1 / -1; }
+  .daily-log .daily-month__card--breakdown .daily-month__group + .daily-month__group { padding-top:0; border-top:0; }
+}
 @media (max-width:900px) {
-  .daily-log .daily-month__overview { grid-template-columns:minmax(0,1fr); }
-  .daily-log .daily-month__status-card { grid-template-columns:auto minmax(0,1fr); align-items:center; justify-items:stretch; column-gap:20px; }
-  .daily-log .daily-month__status-card .daily-month__card-title { grid-column:1 / -1; }
-  .daily-log .daily-month__donut { width:170px; }
+  .daily-log .daily-month__kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:680px) {
+  .daily-log .daily-month__card--breakdown { grid-template-columns:minmax(0,1fr); }
+  .daily-log .daily-month__card--breakdown .daily-month__group + .daily-month__group { padding-top:18px; border-top:1px solid var(--dm-line); }
 }
 @media (max-width:575px) {
-  .daily-log .daily-month { padding:16px; }
-  .daily-log .daily-month__status-card { grid-template-columns:minmax(0,1fr); justify-items:center; }
-  .daily-log .daily-month__donut { width:180px; }
-  .daily-log .daily-month__rows--grid { grid-template-columns:minmax(0,1fr); }
-  .daily-log .daily-month__metric { padding:13px; }
+  .daily-log .daily-month { gap:12px; }
+  .daily-log .daily-month__kpis { gap:8px; }
+  .daily-log .daily-month__kpi { padding:13px 14px; }
+  .daily-log .daily-month__kpi-label i { display:none; }
+  .daily-log .daily-month__kpi-value { font-size:1.3rem; }
+  .daily-log .daily-month__card { padding:16px; }
+  .daily-log .daily-month__days { gap:2px; }
+  .daily-log .daily-month__day { grid-template-rows:minmax(130px,1fr) auto; }
+  .daily-log .daily-month__day-num { font-size:.68rem; }
+  .daily-log .daily-month__peak { justify-items:start; text-align:left; }
 }

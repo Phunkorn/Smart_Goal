@@ -69,8 +69,21 @@ const showStep = (form, number) => {
     if (submit) submit.hidden = number !== 3;
 };
 
+/**
+ * วันสุดท้ายที่เลือกได้ของประเภทงานนี้ — server ส่งมาเป็น data-entry-date-max-by-kind
+ * (งานนอกสถานที่ลงล่วงหน้าได้) ไฟล์นี้แค่ตั้ง max ตามค่าที่ได้ ไม่ตัดสินเอง
+ */
+const syncDateLimit = (modal, kind) => {
+    const input = modal.querySelector('[data-entry-date]');
+    if (! input) return;
+    let limits = {};
+    try { limits = JSON.parse(input.dataset.entryDateMaxByKind || '{}'); } catch { limits = {}; }
+    if (limits[kind]) input.max = limits[kind];
+};
+
 /** ช่องที่แสดงเฉพาะบางประเภทงาน เช่น สถานที่ของงานนอกสถานที่ (และเป็นช่องบังคับของประเภทนั้น) */
 const syncKindFields = (modal, kind) => {
+    syncDateLimit(modal, kind);
     modal.querySelectorAll('[data-entry-only-kind]').forEach((field) => {
         const active = field.dataset.entryOnlyKind === kind;
         field.hidden = ! active;
@@ -144,8 +157,10 @@ export function initEntryForm({
         set('[data-entry-title]', presented?.title);
         set('[data-entry-category]', presented?.category?.id);
         set('[data-entry-date]', presented?.work_date);
-        set('[data-entry-start]', presented?.started_time);
-        set('[data-entry-end]', presented?.ended_time);
+        // งานที่ลงล่วงหน้ายังไม่มีเวลาจริง ช่วงเวลาที่กรอกไว้อยู่ในเวลาที่วางไว้
+        const planned = Boolean(presented?.is_future_day);
+        set('[data-entry-start]', presented?.started_time ?? (planned ? presented?.planned_start_time : ''));
+        set('[data-entry-end]', presented?.ended_time ?? (planned ? presented?.planned_end_time : ''));
         set('[data-entry-duration]', '');
         set('[data-entry-location]', presented?.location);
         set('[data-entry-requester]', presented?.requester_name);

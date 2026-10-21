@@ -183,6 +183,61 @@ test('an option can render an icon description and visual divider', async (t) =>
     assert.equal(option.querySelector('small').textContent, 'Only work waiting for you');
 });
 
+/*
+ * ตัวกรองผู้รับผิดชอบของงานของฉันแสดงรูปโปรไฟล์ทั้งในรายการและบนปุ่ม
+ * ตัวย่อชื่อต้องอยู่ใต้รูปเสมอ เพื่อให้ avatar-fallback.js ถอดรูปเสียแล้วเห็นตัวย่อแทน
+ */
+test('options can render a profile avatar, and the trigger shows the selected one when asked', async (t) => {
+    const env = mountDom();
+    t.after(env.cleanup);
+    env.document.body.innerHTML = `
+        <div data-sg-select>
+            <select data-sg-trigger-media>
+                <option value="" data-icon="bi-people">ทุกคน</option>
+                <option value="7" data-avatar-initial="ส" data-avatar-url="/media/profile/7">สมชาย</option>
+                <option value="8" data-avatar-initial="ว">วิภา</option>
+            </select>
+        </div>`;
+
+    const {initSelectDropdowns} = await import('../../resources/js/components/select-dropdown.js');
+    initSelectDropdowns(env.document);
+
+    const trigger = env.document.querySelector('.sg-select__trigger');
+    const triggerMedia = () => trigger.querySelector('.sg-select__trigger-media');
+    assert.equal(triggerMedia().querySelector('.sg-select__option-icon').classList.contains('bi-people'), true);
+
+    click(trigger);
+    const [, withPhoto, withoutPhoto] = env.document.querySelectorAll('.sg-select__option');
+    const photo = withPhoto.querySelector('.sg-select__avatar img');
+    assert.equal(photo.getAttribute('src'), '/media/profile/7');
+    assert.equal(photo.hasAttribute('data-avatar-image'), true);
+    assert.equal(withPhoto.querySelector('.sg-select__avatar > span').textContent, 'ส');
+    assert.equal(withPhoto.querySelector('strong').textContent, 'สมชาย');
+    assert.equal(withoutPhoto.querySelector('.sg-select__avatar img'), null);
+    assert.equal(withoutPhoto.querySelector('.sg-select__avatar').textContent, 'ว');
+
+    click(withPhoto);
+
+    assert.equal(env.document.querySelector('select').value, '7');
+    assert.equal(triggerMedia().querySelector('.sg-select__avatar img').getAttribute('src'), '/media/profile/7');
+    assert.equal(triggerMedia().querySelectorAll('.sg-select__avatar').length, 1);
+    assert.equal(trigger.querySelector('.sg-select__value').textContent, 'สมชาย');
+});
+
+test('the trigger stays text-only unless the select asks for trigger media', async (t) => {
+    const env = mountDom();
+    t.after(env.cleanup);
+    env.document.body.innerHTML = `
+        <div data-sg-select>
+            <select><option value="7" data-avatar-initial="ส">สมชาย</option></select>
+        </div>`;
+
+    const {initSelectDropdowns} = await import('../../resources/js/components/select-dropdown.js');
+    initSelectDropdowns(env.document);
+
+    assert.equal(env.document.querySelector('.sg-select__trigger-media'), null);
+});
+
 test('the project report enhances its filters with the shared component', async () => {
     const [projects, ...projectsPartials] = await Promise.all([
         read('resources/js/pages/reports/projects.js'),

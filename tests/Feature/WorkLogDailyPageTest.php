@@ -148,24 +148,30 @@ class WorkLogDailyPageTest extends TestCase
             ->assertSee('1 ชม.');
     }
 
-    public function test_monthly_tab_draws_a_status_donut_with_a_legend(): void
+    public function test_monthly_tab_shows_kpis_daily_activity_and_breakdown_instead_of_a_donut(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
         $this->log($owner, $department, ['title' => 'งานเสร็จ', 'duration_minutes' => 30, 'status' => 'done']);
-        $this->log($owner, $department, ['title' => 'งานเสร็จอีกงาน', 'duration_minutes' => 30, 'status' => 'done']);
+        $this->log($owner, $department, ['title' => 'งานเสร็จอีกงาน', 'duration_minutes' => 90, 'status' => 'done']);
         $this->log($owner, $department, ['title' => 'งานที่ข้าม', 'status' => 'skipped']);
 
         $this->actingAs($owner)
             ->get(route('daily-logs.index', ['view' => 'monthly']))
             ->assertOk()
-            ->assertSee('class="daily-month__donut"', false)
-            ->assertSee('data-status="done"', false)
-            ->assertSee('data-status="skipped"', false)
-            ->assertDontSee('data-status="in_progress"', false)
-            ->assertSee('สัดส่วนสถานะงาน: เสร็จแล้ว 2 รายการ, ไม่ได้ทำวันนี้ 1 รายการ')
+            ->assertDontSee('daily-month__donut', false)
+            ->assertSee('class="daily-month__kpis"', false)
+            ->assertSee('งานทั้งหมด')
             ->assertSee('66.7%')
-            ->assertSee('33.3%');
+            ->assertSee('จาก 3 รายการ')
+            ->assertDontSee('daily-month__meter', false)
+            ->assertDontSee('daily-month__split', false)
+            ->assertSee('ชั่วโมงทำงานรวม')
+            ->assertSee('2 ชม.')
+            ->assertSee('งานที่ยังไม่เสร็จ')
+            ->assertSee('ไม่ได้ทำวันนี้ 1')
+            ->assertSee('data-date="'.$this->today().'" data-minutes="120"', false)
+            ->assertSee('หมวดงานที่ใช้เวลามากที่สุด');
     }
 
     public function test_monthly_tab_picks_the_month_from_a_dropdown_instead_of_arrows(): void
@@ -199,7 +205,7 @@ class WorkLogDailyPageTest extends TestCase
             ->assertSee('<input type="hidden" name="user" value="'.$member->id.'">', false);
     }
 
-    public function test_monthly_tab_without_worklogs_shows_empty_state_instead_of_donut(): void
+    public function test_monthly_tab_without_worklogs_shows_empty_state_instead_of_dashboard(): void
     {
         $department = Department::create(['department_name' => 'IT']);
         $owner = $this->user($department);
@@ -207,8 +213,9 @@ class WorkLogDailyPageTest extends TestCase
         $this->actingAs($owner)
             ->get(route('daily-logs.index', ['view' => 'monthly']))
             ->assertOk()
-            ->assertSee('ยังไม่มี WorkLog ในเดือนนี้')
-            ->assertDontSee('class="daily-month__donut"', false);
+            ->assertSee('ยังไม่มีบันทึกงานในเดือนนี้')
+            ->assertDontSee('class="daily-month__kpis"', false)
+            ->assertDontSee('class="daily-month__days"', false);
     }
 
     public function test_member_sees_own_today_list_and_view_tabs(): void

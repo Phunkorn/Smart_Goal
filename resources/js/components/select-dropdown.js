@@ -60,6 +60,46 @@ export function readableOptions(select) {
 }
 
 /**
+ * ภาพหน้าตัวเลือก: รูปโปรไฟล์ (data-avatar-initial + data-avatar-url) หรือไอคอน (data-icon)
+ *
+ * ตัวย่อชื่อถูกวาดไว้เสมอแล้วให้ <img> ทับด้านบน เหมือน work-board/partials/avatar.blade.php
+ * เมื่อรูปโหลดไม่ขึ้น components/avatar-fallback.js จะถอด <img> ที่มี data-avatar-image ออก
+ * ตัวย่อชื่อจึงโผล่มาแทน ไม่ต้องมีตัวจัดการ error ของตัวเองที่นี่
+ */
+function optionMedia(option) {
+    if (option.dataset.avatarInitial !== undefined) {
+        const avatar = document.createElement('span');
+        avatar.className = 'sg-select__avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+
+        const initial = document.createElement('span');
+        initial.textContent = option.dataset.avatarInitial || '?';
+        avatar.append(initial);
+
+        if (option.dataset.avatarUrl) {
+            const image = document.createElement('img');
+            image.src = option.dataset.avatarUrl;
+            image.alt = '';
+            image.loading = 'lazy';
+            image.dataset.avatarImage = '';
+            avatar.append(image);
+        }
+
+        return avatar;
+    }
+
+    if (option.dataset.icon) {
+        const icon = document.createElement('i');
+        icon.className = 'bi ' + option.dataset.icon + ' sg-select__option-icon';
+        icon.setAttribute('aria-hidden', 'true');
+
+        return icon;
+    }
+
+    return null;
+}
+
+/**
  * ผูก <select> หนึ่งตัวเข้ากับดร็อปดาวน์ที่วาดเอง
  *
  * คืน null เมื่อผูกไปแล้วหรือ element ไม่รองรับ เพื่อให้เรียกซ้ำได้โดยไม่เกิด listener ซ้อน
@@ -80,11 +120,20 @@ export function enhanceSelect(select, index = 0) {
     trigger.setAttribute('aria-haspopup', 'listbox');
     trigger.setAttribute('aria-expanded', 'false');
 
+    // ปุ่มแสดงภาพของตัวเลือกที่เลือกอยู่เฉพาะ <select> ที่ขอผ่าน data-sg-trigger-media
+    // ตัวกรองอื่นที่มีไอคอนนำหน้าของตัวเองอยู่แล้วจึงไม่ได้ไอคอนซ้ำบนปุ่ม
+    const triggerMedia = select.dataset.sgTriggerMedia !== undefined ? document.createElement('span') : null;
     const label = document.createElement('span');
     label.className = 'sg-select__value';
     const caret = document.createElement('i');
     caret.className = 'bi bi-chevron-down sg-select__caret';
     caret.setAttribute('aria-hidden', 'true');
+
+    if (triggerMedia) {
+        triggerMedia.className = 'sg-select__trigger-media';
+        trigger.append(triggerMedia);
+    }
+
     trigger.append(label, caret);
 
     const panel = document.createElement('div');
@@ -119,6 +168,12 @@ export function enhanceSelect(select, index = 0) {
     const syncLabel = () => {
         const selected = select.options[select.selectedIndex];
         label.textContent = selected ? selected.text : '';
+
+        if (triggerMedia) {
+            const media = selected ? optionMedia(selected) : null;
+            triggerMedia.replaceChildren(...(media ? [media] : []));
+            triggerMedia.hidden = ! media;
+        }
     };
 
     const setActive = (position) => {
@@ -152,13 +207,12 @@ export function enhanceSelect(select, index = 0) {
             item.setAttribute('role', 'option');
             item.dataset.value = option.value;
 
-            if (option.dataset.icon || option.dataset.description) {
+            const media = optionMedia(option);
+
+            if (media || option.dataset.description) {
                 item.classList.add('sg-select__option--rich');
-                if (option.dataset.icon) {
-                    const icon = document.createElement('i');
-                    icon.className = 'bi ' + option.dataset.icon + ' sg-select__option-icon';
-                    icon.setAttribute('aria-hidden', 'true');
-                    item.append(icon);
+                if (media) {
+                    item.append(media);
                 }
 
                 const copy = document.createElement('span');

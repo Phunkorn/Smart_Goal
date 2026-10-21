@@ -10,6 +10,7 @@ import {initializeChartCards, parseChartData} from './chart-lifecycle.js';
 import {buildOperationalChartConfigs} from './operational-chart-config.js';
 import {initCsvMenu, initReportFilter} from './operational-controls.js';
 import {initTeamWorkModal} from './operational-team-work.js';
+import {initKpiDetailModal} from '../../components/kpi-detail-modal.js';
 import {initInspectionReportModal} from '../../components/inspection-report-modal.js';
 
 const page = document.querySelector('.report-operational');
@@ -21,6 +22,8 @@ if (page) {
     initCsvMenu(page);
     // กล่อง "ดูงาน" มีเฉพาะภาพรวมทีมของเดือนปัจจุบัน หน้าอื่นคืน null เอง
     initTeamWorkModal(page);
+    // การ์ดตัวเลขเปิดกล่องรายการจริงที่การ์ดนับ — มีเฉพาะ Overview และภาพรวมทีม หน้า detail คืน null เอง
+    initKpiDetailModal(page);
     // ปุ่ม "ดูแบบตรวจ" ในตารางสรุปรายวัน — กล่องชุดเดียวกับไทม์ไลน์บันทึกงาน
     initInspectionReportModal({doc: document});
 

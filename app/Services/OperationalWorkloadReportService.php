@@ -16,6 +16,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * รายงานปฏิบัติงานประจำเดือน — ภาพรวมทีมและรายบุคคล
@@ -145,7 +146,7 @@ final class OperationalWorkloadReportService
         $members = $scope->owners
             ->filter(fn (User $member): bool => $member->role === 'user')
             ->values();
-        $ids = $members->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $ids = $this->teamMemberIds($scope);
         $logs = $this->logsFor($ids, $scope->departmentId, $scope->month);
         $previousLogs = $this->logsFor($ids, $scope->departmentId, $scope->month->subMonthNoOverflow());
         $isCurrentMonth = $scope->monthKey() === $this->currentMonth()->format('Y-m');
@@ -200,6 +201,111 @@ final class OperationalWorkloadReportService
                 ? 'ทุกแผนก'
                 : ($members->first()?->department?->department_name ?? 'แผนกของคุณ'),
         ];
+    }
+
+    /**
+     * คำอธิบายในกล่องรายละเอียดว่าการ์ดแต่ละใบนับอะไร — key ชุดเดียวกับ kpis()
+     */
+    public const KPI_DESCRIPTIONS = [
+        'hours' => 'รายการที่มีชั่วโมงทำงาน ผลรวมชั่วโมงของรายการเหล่านี้คือตัวเลขบนการ์ด',
+        'routine' => 'รายการที่เป็นประเภทงานประจำ',
+        'field' => 'รายการที่เป็นประเภทงานนอกสถานที่',
+        'close_rate' => 'ทุกรายการของเดือน นับเป็นปิดแล้วเมื่อเสร็จ ระบุว่าไม่ได้ทำ หรือปิดรอบแล้วและมีเหตุผล',
+        'on_time' => 'งานประจำจากแม่แบบ นับว่าตรงเวลาเมื่อเสร็จแล้วโดยไม่มีเหตุผลเริ่มช้าหรือเสร็จช้า',
+        'pending' => 'งานประจำจากแม่แบบที่เลยเวลาแล้ว หรือยังต้องระบุเหตุผล',
+    ];
+
+    public const KPI_DETAIL_PER_PAGE = 10;
+
+    /**
+     * กล่องรายละเอียดของการ์ดตัวเลขหนึ่งใบ — บันทึกชุดเดียวกับที่การ์ดนับ แบ่งหน้าละ KPI_DETAIL_PER_PAGE
+     *
+     * ใช้บันทึกชุดเดียวกับหน้าที่การ์ดอยู่: ภาพรวมทีมใช้ชุดที่ยุบงานประจำที่ทำร่วมกันแล้ว (teamLogs)
+     * รายบุคคลใช้บันทึกของคนนั้น การ์ดอัตรา (ปิดรายการ ตรงเวลา) แสดงทุกรายการที่เป็นฐาน
+     * พร้อมบอกว่ารายการไหนถูกนับ เรียงรายการที่ยังไม่ถูกนับไว้ก่อนเพราะเป็นส่วนที่ต้องตาม
+     *
+     * ลิงก์ไปไทม์ไลน์บันทึกงานของวันนั้นออกให้เมื่อผู้ดูผ่าน WorkLogPolicy::viewDay เท่านั้น
+     *
+     * @return array<string, mixed>
+     */
+    public function kpiDetail(OperationalReportScope $scope, string $key, int $page, User $viewer): array
+    {
+        $logs = $scope->isTeamView() ? $this->teamLogs($scope) : $this->logs($scope);
+        $kpi = $this->kpis($logs, collect())[$key];
+        $mark = match ($key) {
+            'close_rate' => fn (WorkLog $log): bool => $this->isClosed($log),
+            'on_time' => fn (WorkLog $log): bool => $this->isOnTime($log),
+            default => null,
+        };
+        $items = match ($key) {
+            'hours' => $logs->filter(fn (WorkLog $log): bool => (int) ($log->duration_minutes ?? 0) > 0),
+            'routine' => $logs->where('kind', 'routine'),
+            'field' => $logs->where('kind', 'field'),
+            'close_rate' => $logs,
+            'on_time' => $logs->filter(fn (WorkLog $log): bool => $this->isPlannedRoutine($log)),
+            'pending' => $logs->filter(fn (WorkLog $log): bool => $this->isPlannedRoutine($log) && $this->isPending($log)),
+        };
+        $items = $mark === null
+            ? $items->values()
+            // sortBy ของ Collection คงลำดับเดิมเมื่อค่าเท่ากัน วันที่จึงยังเรียงอยู่ภายในแต่ละกลุ่ม
+            : $items->sortBy(fn (WorkLog $log): int => $mark($log) ? 1 : 0)->values();
+
+        $lastPage = max(1, (int) ceil($items->count() / self::KPI_DETAIL_PER_PAGE));
+        $page = min(max(1, $page), $lastPage);
+        $pageLogs = $items->forPage($page, self::KPI_DETAIL_PER_PAGE)->values();
+        $people = $scope->owners->keyBy('id');
+        $gate = Gate::forUser($viewer);
+        $canOpenDay = $people->map(fn (User $owner): bool => $gate->allows('viewDay', [WorkLog::class, $owner]));
+        $rows = $this->rowsFor($pageLogs)->values()->map(function (array $row, int $index) use ($pageLogs, $people, $canOpenDay, $mark): array {
+            $log = $pageLogs[$index];
+            $ownerId = (int) $log->user_id;
+
+            return [
+                ...$row,
+                'person' => $people->get($ownerId)?->name,
+                'counted' => $mark === null ? null : $mark($log),
+                'url' => $row['date'] !== null && ($canOpenDay[$ownerId] ?? false)
+                    ? route('daily-logs.index', ['user' => $ownerId, 'date' => $row['date']])
+                    : null,
+            ];
+        });
+
+        return [
+            'key' => $key,
+            'kpi' => [
+                'label' => $kpi['label'],
+                'value' => $kpi['value'],
+                'description' => self::KPI_DESCRIPTIONS[$key],
+            ],
+            'counted' => $mark === null ? null : $items->filter($mark)->count(),
+            'total' => $items->count(),
+            'page' => $page,
+            'last_page' => $lastPage,
+            'from' => ($page - 1) * self::KPI_DETAIL_PER_PAGE,
+            'items' => $rows->all(),
+            'showPerson' => $scope->isTeamView(),
+        ];
+    }
+
+    /**
+     * บันทึกของภาพรวมทีม — งานประจำที่ทำร่วมกันนับเป็นงานชิ้นเดียว ชุดเดียวกับ KPI ของ teamOverview()
+     *
+     * @return Collection<int, WorkLog>
+     */
+    private function teamLogs(OperationalReportScope $scope): Collection
+    {
+        return JointRoutineWork::collapse($this->logsFor($this->teamMemberIds($scope), $scope->departmentId, $scope->month));
+    }
+
+    /** @return array<int, int> */
+    private function teamMemberIds(OperationalReportScope $scope): array
+    {
+        return $scope->owners
+            ->filter(fn (User $member): bool => $member->role === 'user')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     /**
@@ -470,14 +576,9 @@ final class OperationalWorkloadReportService
     private function kpiValues(Collection $logs): array
     {
         $total = $logs->count();
-        // ปิดรอบแล้วและมีเหตุผลแล้ว นับว่ารายงานผลแล้วเหมือน "ไม่ได้ทำ" ส่วนที่ยังไม่มีเหตุผลนับเป็นงานค้าง
-        $closed = $logs->filter(fn (WorkLog $log): bool => in_array($log->status, ['done', 'skipped'], true)
-            || (in_array(WorkLogPresenter::displayStatus($log), WorkLogDesign::EXPLANATION_STATUSES, true)
-                && ! WorkLogPresenter::requiresExplanation($log)))->count();
-        $routines = $logs->filter(fn (WorkLog $log): bool => $log->work_log_template_id !== null);
-        $onTime = $routines->filter(fn (WorkLog $log): bool => $log->status === 'done'
-            && blank($log->late_start_reason)
-            && blank($log->late_completion_reason));
+        $closed = $logs->filter(fn (WorkLog $log): bool => $this->isClosed($log))->count();
+        $routines = $logs->filter(fn (WorkLog $log): bool => $this->isPlannedRoutine($log));
+        $onTime = $routines->filter(fn (WorkLog $log): bool => $this->isOnTime($log));
 
         return [
             'minutes' => $this->minutesOf($logs),
@@ -485,11 +586,35 @@ final class OperationalWorkloadReportService
             'field' => $logs->where('kind', 'field')->count(),
             'close_rate' => $total > 0 ? (int) round(($closed / $total) * 100) : null,
             'on_time_rate' => $routines->isNotEmpty() ? (int) round(($onTime->count() / $routines->count()) * 100) : null,
-            'pending' => $routines->filter(
-                fn (WorkLog $log): bool => WorkLogPresenter::displayStatus($log) === 'overdue'
-                    || WorkLogPresenter::requiresExplanation($log)
-            )->count(),
+            'pending' => $routines->filter(fn (WorkLog $log): bool => $this->isPending($log))->count(),
         ];
+    }
+
+    /** ปิดรอบแล้วและมีเหตุผลแล้ว นับว่ารายงานผลแล้วเหมือน "ไม่ได้ทำ" ส่วนที่ยังไม่มีเหตุผลนับเป็นงานค้าง */
+    private function isClosed(WorkLog $log): bool
+    {
+        return in_array($log->status, ['done', 'skipped'], true)
+            || (in_array(WorkLogPresenter::displayStatus($log), WorkLogDesign::EXPLANATION_STATUSES, true)
+                && ! WorkLogPresenter::requiresExplanation($log));
+    }
+
+    /** งานประจำจากแม่แบบ — มีเวลาตามแผนให้เทียบ ฐานของ "ตรงเวลา" และ "งานค้าง/เกินเวลา" */
+    private function isPlannedRoutine(WorkLog $log): bool
+    {
+        return $log->work_log_template_id !== null;
+    }
+
+    private function isOnTime(WorkLog $log): bool
+    {
+        return $log->status === 'done'
+            && blank($log->late_start_reason)
+            && blank($log->late_completion_reason);
+    }
+
+    private function isPending(WorkLog $log): bool
+    {
+        return WorkLogPresenter::displayStatus($log) === 'overdue'
+            || WorkLogPresenter::requiresExplanation($log);
     }
 
     /**

@@ -302,8 +302,16 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
                 globalThis.location?.reload();
                 return;
             }
-            applyResult(payload);
             entryForm?.close();
+            // รายการของวันอื่น (เช่น งานนอกสถานที่ที่ลงล่วงหน้า) ไม่ใช่การ์ดของวันที่เปิดอยู่
+            const savedDate = payload?.log?.work_date;
+            if (savedDate && root.dataset.date && savedDate !== root.dataset.date) {
+                if (payload.log?.id) byId.set(String(payload.log.id), payload.log);
+                timeline?.removeCard(payload.log?.id);
+                swal?.fire({icon: 'success', title: payload.message || 'บันทึกงานเรียบร้อย', text: 'รายการนี้อยู่ในวันที่เลือกไว้ ดูได้จากปฏิทิน'});
+                return;
+            }
+            applyResult(payload);
         } catch (error) {
             entryForm?.showError(error.message);
         } finally {

@@ -91,6 +91,17 @@ final class WorkLogDesign
      */
     public const MAX_BACKFILL_DAYS = 90;
 
+    /**
+     * ประเภทงานที่ลงวันล่วงหน้าได้ — งานนอกสถานที่มักรู้นัดหมายก่อนวันจริง
+     * ประเภทอื่นยังบันทึกล่วงหน้าไม่ได้ (งานประจำล่วงหน้าตั้งผ่านแผนงานประจำ)
+     */
+    public const ADVANCE_KINDS = ['field'];
+
+    /**
+     * ลงวันล่วงหน้าได้ไกลสุดกี่วัน กันการกรอกวันที่ผิดปีโดยไม่ตั้งใจ
+     */
+    public const MAX_ADVANCE_DAYS = 90;
+
     public const DEFAULT_KIND = 'routine';
 
     /**
@@ -140,6 +151,32 @@ final class WorkLogDesign
     public static function lateAfter(CarbonInterface $planned): CarbonInterface
     {
         return $planned->copy()->addMinutes(self::LATE_GRACE_MINUTES);
+    }
+
+    public static function allowsAdvance(?string $kind): bool
+    {
+        return in_array($kind, self::ADVANCE_KINDS, true);
+    }
+
+    /**
+     * วันสุดท้ายที่ลงบันทึกได้ ('Y-m-d' วันทำการ) — ประเภทที่ลงล่วงหน้าได้ไปได้ถึง MAX_ADVANCE_DAYS
+     * แหล่งเดียวของเพดานวันที่ ทั้ง WorkLogService (ตัวบังคับ) และ max ของช่องวันที่ในฟอร์ม
+     */
+    public static function latestWorkDate(?string $kind = null): string
+    {
+        $today = TodayWorkspace::businessNow()->startOfDay();
+
+        return (self::allowsAdvance($kind) ? $today->addDays(self::MAX_ADVANCE_DAYS) : $today)->format('Y-m-d');
+    }
+
+    /**
+     * วันสุดท้ายที่เลือกได้ของทุกประเภทงาน ให้ช่องวันที่ในฟอร์มสลับ max ตามประเภทที่เลือก
+     *
+     * @return array<string, string>
+     */
+    public static function latestWorkDates(): array
+    {
+        return array_combine(self::kindKeys(), array_map(self::latestWorkDate(...), self::kindKeys()));
     }
 
     public static function kindKeys(): array
@@ -212,6 +249,7 @@ final class WorkLogDesign
             'reasons' => self::REASONS,
             'maxAttachments' => self::MAX_ATTACHMENTS,
             'maxBackfillDays' => self::MAX_BACKFILL_DAYS,
+            'maxAdvanceDays' => self::MAX_ADVANCE_DAYS,
             'maxDurationMinutes' => self::MAX_DURATION_MINUTES,
             'lateGraceMinutes' => self::LATE_GRACE_MINUTES,
         ];

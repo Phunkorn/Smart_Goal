@@ -16,6 +16,32 @@ class SidebarNavigationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_report_group_expands_and_highlights_the_current_report(): void
+    {
+        $member = $this->userWithRole('user');
+
+        $this->actingAs($member)->get(route('mytasks.index'))
+            ->assertOk()
+            ->assertSee('class="report-nav"', false)
+            ->assertDontSee('class="report-nav" open', false);
+
+        foreach (['reports.operational', 'reports.projects'] as $active) {
+            $content = $this->actingAs($member)->get(route($active))->assertOk()->getContent();
+
+            $this->assertStringContainsString('class="report-nav report-nav--active" open', $content);
+            $this->assertMatchesRegularExpression(
+                '/href="'.preg_quote(route($active), '/').'"[^>]*class="nav-item report-nav__link active"[^>]*aria-current="page"/s',
+                $content,
+            );
+        }
+
+        $viewer = $this->userWithRole('viewer');
+        $this->actingAs($viewer)->get(route('board.index'))
+            ->assertOk()
+            ->assertDontSee('href="'.route('reports.operational').'"', false)
+            ->assertSee('href="'.route('reports.projects').'"', false);
+    }
+
     public function test_member_sidebar_is_grouped_and_hides_the_meetings_menu(): void
     {
         $user = $this->userWithRole('user');
@@ -35,9 +61,7 @@ class SidebarNavigationTest extends TestCase
         // กระดานไอเดียเป็นงานร่วมของทั้งแผนก จึงอยู่ต่อจากบอร์ดงานซึ่งเป็นงานของทีม
         // เหมือนกัน และมาก่อนรายงานซึ่งเป็นการสรุปผลย้อนหลัง
         $workspacePosition = strpos($content, 'href="'.route('workspace.index').'"');
-        // พนักงานเข้าหน้าเลือกรายงานเหมือนหัวหน้าแล้ว (มีสองรายงานให้เลือก
-        // คือรายงานตัวเองกับรายงานปฏิบัติงาน) ไม่ได้ถูกส่งตรงไป reports.my อีก
-        $reportPosition = strpos($content, 'href="'.route('reports.index').'"');
+        $reportPosition = strpos($content, 'href="'.route('reports.operational').'"');
 
         $this->assertNotFalse($myTasksPosition);
         $this->assertNotFalse($dailyLogPosition);
@@ -89,7 +113,7 @@ class SidebarNavigationTest extends TestCase
         $positions = [
             // ภาพรวมองค์กร
             strpos($content, 'href="'.route('board.index').'"'),
-            strpos($content, 'href="'.route('reports.index').'"'),
+            strpos($content, 'href="'.route('reports.operational').'"'),
             // งานและการติดตาม
             strpos($content, 'href="'.route('notifications.index').'"'),
             strpos($content, 'href="'.route('shares.index').'"'),
@@ -135,7 +159,7 @@ class SidebarNavigationTest extends TestCase
             // viewer เห็นเมนูกระดานไอเดียได้ เพราะกระดานที่ตั้งเป็น "ทั้งองค์กร"
             // เปิดให้อ่านได้ทุกคน ส่วนการวาดถูกปิดที่ WorkspaceBoardPolicy
             strpos($content, 'href="'.route('workspace.index').'"'),
-            strpos($content, 'href="'.route('reports.index').'"'),
+            strpos($content, 'href="'.route('reports.projects').'"'),
             strpos($content, 'href="'.route('notifications.index').'"'),
             strpos($content, 'href="'.route('meetings.index').'"'),
             strpos($content, 'href="'.route('employees.index').'"'),
@@ -329,12 +353,12 @@ class SidebarNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('<div class="nav-section-label">งานของฉัน</div>', false)
             ->assertSee('<div class="nav-section-label">งานของทีม</div>', false)
-            ->assertSee('<div class="nav-section-label">รายงาน</div>', false)
+            ->assertSee('<summary class="nav-item report-nav__toggle">', false)
             ->getContent();
 
-        // หัวข้อต้องมาก่อนเมนูที่มันครอบ ไม่ใช่ลอยอยู่ผิดที่
+        // กลุ่มรายงานอยู่หลังเมนูงานของทีม และมีลิงก์ย่อยอยู่ภายใน
         $teamLabel = strpos($content, '<div class="nav-section-label">งานของทีม</div>');
-        $reportLabel = strpos($content, '<div class="nav-section-label">รายงาน</div>');
+        $reportToggle = strpos($content, '<summary class="nav-item report-nav__toggle">');
 
         $this->assertGreaterThan(
             strpos($content, 'href="'.route('daily-logs.index').'"'),
@@ -347,9 +371,9 @@ class SidebarNavigationTest extends TestCase
             '"งานของทีม" ต้องอยู่ก่อน "บอร์ดงาน"'
         );
         $this->assertLessThan(
-            strpos($content, 'href="'.route('reports.index').'"'),
-            $reportLabel,
-            '"รายงาน" ต้องอยู่ก่อนเมนูรายงาน'
+            strpos($content, 'href="'.route('reports.operational').'"'),
+            $reportToggle,
+            'กลุ่มรายงานต้องอยู่ก่อนเมนูย่อย'
         );
 
         // หัวหน้าแผนกเห็นหัวข้อเดียวกัน แต่กลุ่มของทีมพูดในนามแผนกที่ตัวเองดูแล
@@ -361,7 +385,7 @@ class SidebarNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('<div class="nav-section-label">งานของฉัน</div>', false)
             ->assertSee('<div class="nav-section-label">แผนกของฉัน</div>', false)
-            ->assertSee('<div class="nav-section-label">รายงาน</div>', false)
+            ->assertSee('<summary class="nav-item report-nav__toggle">', false)
             ->assertDontSee('<div class="nav-section-label">งานของทีม</div>', false);
     }
 

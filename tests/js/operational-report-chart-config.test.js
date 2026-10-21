@@ -101,7 +101,8 @@ test('canvas ของแถวกราฟผูกกับ config และ�
         assert.ok(entry.includes(`{id: '${id}', key: '${key}'}`), `operational.js ต้องผูก ${id} กับ ${key}`);
     }
 
-    ['data-report-chart', 'data-chart-kind', 'data-chart-state="loading"',
+    // สถานะแรก (loading / empty) ตัดสินที่ server — กราฟว่างไม่ต้องรอสคริปต์หดกรอบ
+    ['data-report-chart', 'data-chart-kind', 'data-chart-state="{{ \\App\\Support\\ReportChartState::initial(',
         'data-chart-skeleton', 'data-chart-empty', 'data-chart-error'].forEach((hook) => {
         assert.ok(blade.includes(hook), `ต้องมี ${hook} เพื่อให้ chart-lifecycle.js ทำงานได้`);
     });

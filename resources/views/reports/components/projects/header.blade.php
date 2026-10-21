@@ -15,8 +15,6 @@
     $subject = $isOwnReport ? 'คุณ' : $owner?->name;
 @endphp
 <nav class="report-breadcrumb" aria-label="Breadcrumb">
-    <a href="{{ route('reports.index') }}">รายงาน</a>
-    <i class="bi bi-chevron-right" aria-hidden="true"></i>
     @if($detailTitle)
         <a href="{{ route('reports.projects', $query) }}">รายงานโปรเจกต์</a>
         <i class="bi bi-chevron-right" aria-hidden="true"></i>

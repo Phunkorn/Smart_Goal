@@ -68,6 +68,9 @@ final class WorkLogPresenter
             'is_in_progress' => $log->status === 'in_progress',
             'is_overdue' => $isOverdue,
             'is_past_day' => $isPastDay,
+            // งานที่ลงล่วงหน้า (งานนอกสถานที่) — ยืนยันว่าทำแล้วได้เมื่อถึงวันนั้น (WorkLogService::markDone)
+            'is_future_day' => $log->work_date !== null
+                && $log->work_date->format('Y-m-d') > TodayWorkspace::businessNow()->format('Y-m-d'),
             // ปิดรอบ 17:00 แล้ว (ไม่ได้เริ่ม / เริ่มแล้วไม่กดเสร็จ / ไม่มา) — เหลือทางเดียวคือระบุเหตุผล
             'is_closed_by_cutoff' => $isRoutine && in_array($displayStatus, WorkLogDesign::EXPLANATION_STATUSES, true)
                 && ($displayStatus !== 'absent' || $isPastCutoff),

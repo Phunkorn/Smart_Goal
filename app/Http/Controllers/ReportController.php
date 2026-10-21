@@ -17,23 +17,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ReportController extends Controller
 {
     /**
-     * หน้าเลือกประเภทรายงาน
-     *
-     * เดิมเป็นหน้าของ admin / หัวหน้าแผนก / viewer เท่านั้น พนักงานทั่วไปถูกส่งตรง
-     * ไปรายงานของตัวเองโดยไม่มีทางเลือก ตอนนี้พนักงานก็เข้าหน้านี้ได้ แต่เห็นเพียง
-     * สองการ์ดที่ตัวเองมีสิทธิ์จริง (รายงานตัวเอง และรายงานปฏิบัติงานของตัวเอง)
-     *
-     * รายการการ์ดถูกประกอบที่ฝั่งเซิร์ฟเวอร์ที่เดียว ไม่ใช่ให้ Blade เดาจาก role
-     * เพราะ "ใครเห็นการ์ดไหน" เป็นเรื่องสิทธิ์ ไม่ใช่เรื่องการแสดงผล
-     */
-    public function index(Request $request)
-    {
-        $this->authorizeAnyReports();
-
-        return view('reports.index', ['cards' => $this->landingCards()]);
-    }
-
-    /**
      * รายงานปฏิบัติงานประจำเดือน — หน้า Overview
      *
      * หัวหน้าแผนก/admin ที่ยังไม่เลือกคนเห็นภาพรวมทีมก่อน พนักงานทั่วไปเห็นของตัวเองเสมอ
@@ -78,6 +61,22 @@ class ReportController extends Controller
             'scope' => $scope,
             'groups' => $reports->delayReasonGroups($scope),
             'events' => $reports->delayEvents($scope),
+        ]);
+    }
+
+    /**
+     * กล่องรายละเอียดของการ์ดตัวเลขบนหน้า Overview (ภาพรวมทีมหรือรายบุคคล) — ตอบเป็น HTML ชิ้นเดียว
+     *
+     * ขอบเขตเดือนและคนมาจาก operationalScope() ตัวเดียวกับหน้า Overview ทุกประการ
+     * viewer จึงได้ 403 และพนักงานทั่วไปเห็นเฉพาะของตัวเองแม้แก้ ?owner=
+     */
+    public function operationalKpi(Request $request, OperationalWorkloadReportService $reports, string $kpi)
+    {
+        $scope = $this->operationalScope($request, $reports, allowTeam: true);
+
+        return view('reports.components.kpi-detail.operational', [
+            'detail' => $reports->kpiDetail($scope, $kpi, $request->integer('page', 1), $request->user()),
+            'pageUrl' => fn (int $page): string => route('reports.operational.kpi', ['kpi' => $kpi, ...$scope->query(), 'page' => $page]),
         ]);
     }
 
@@ -141,6 +140,25 @@ class ReportController extends Controller
         $page->setCollection($reports->withEvidence($page->getCollection(), $request->user()));
 
         return view('reports.projects.details', [...$data, 'pageRows' => $page]);
+    }
+
+    /**
+     * กล่องรายละเอียดของการ์ดตัวเลข — ตอบเป็น HTML ชิ้นเดียว (ไม่มี layout) ให้ kpi-detail-modal.js ใส่ลงกล่อง
+     *
+     * ขอบเขตคน เดือน และสิทธิ์ใช้ projectReportData() ตัวเดียวกับหน้าหลัก ตัวเลขในกล่องจึงตรงกับการ์ด
+     * ลิงก์เปลี่ยนหน้าพก query ที่ตรวจแล้วของหน้าเดิม ไม่ใช่ค่าดิบจาก request
+     */
+    public function projectKpi(Request $request, ProjectReportService $reports, string $kpi)
+    {
+        $this->authorizeProjectReports();
+
+        $data = $this->projectReportData($request, $reports);
+
+        return view('reports.components.kpi-detail.projects', [
+            'detail' => $reports->kpiDetail($data, $kpi, $request->integer('page', 1), $request->user()),
+            'pageUrl' => fn (int $page): string => route('reports.projects.kpi', ['kpi' => $kpi, ...$data['query'], 'page' => $page]),
+            'periodPhrase' => $data['periodPhrase'],
+        ]);
     }
 
     /**
@@ -245,17 +263,6 @@ class ReportController extends Controller
     }
 
     /**
-     * เข้าหน้าเลือกรายงานได้หรือไม่ — ทุกคนที่มีรายงานอย่างน้อยหนึ่งชนิด
-     */
-    private function authorizeAnyReports(): void
-    {
-        abort_unless(
-            $this->canSeeOrganizationReports() || $this->landingCards() !== [],
-            403
-        );
-    }
-
-    /**
      * รายงานระดับองค์กรและรายบุคคลของคนอื่น — admin, หัวหน้าแผนก และ viewer
      */
     private function canSeeOrganizationReports(): bool
@@ -263,67 +270,6 @@ class ReportController extends Controller
         $user = Auth::user();
 
         return in_array($user?->role, ['admin', 'viewer'], true) || (bool) $user?->isDepartmentHead();
-    }
-
-    /**
-     * การ์ดที่ผู้ใช้คนนี้เปิดได้จริงบนหน้าเลือกรายงาน
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function landingCards(): array
-    {
-        $user = Auth::user();
-        $cards = [];
-
-        // รายงานภาพรวมองค์กรถูกยกเลิกแล้ว ภาพรวมแผนกอยู่ในรายงานโปรเจกต์ (เลือก "ภาพรวม" ในช่องพนักงาน)
-        if ($this->canSeeOrganizationReports()) {
-            // รายงานโปรเจกต์ — เข้าภาพรวมทันที แล้วเลือกพนักงานได้ในหน้าเดียว ไม่ผ่านหน้าเลือกพนักงาน
-            $cards[] = [
-                'tone' => 'employee',
-                'icon' => 'bi-kanban',
-                'title' => 'รายงานโปรเจกต์',
-                'description' => 'ภาพรวมโปรเจกต์รายเดือนในขอบเขตที่คุณดูแล เลือกดูเป็นรายคนได้ในหน้าเดียว',
-                'features' => ['สรุปโปรเจกต์และงานประจำเดือน', 'เลือกพนักงานได้ในหน้าเดียวกัน', 'งานข้ามแผนกและบทบาทในงาน', 'ตัวกรองและดาวน์โหลด CSV'],
-                'cta' => 'เปิดรายงานโปรเจกต์',
-                'route' => route('reports.projects'),
-            ];
-        }
-
-        // รายงานโปรเจกต์ของตัวเอง — พนักงานทั่วไปใช้หน้าเดียวกับหัวหน้า แต่ขอบเขตเฉพาะตัวเอง
-        //
-        // หัวหน้าแผนกไม่ได้การ์ดใบนี้โดยตั้งใจ รายงานโปรเจกต์ของหัวหน้าเลือกดูตัวเองได้อยู่แล้ว
-        if ($this->forcedOwnerId() !== null) {
-            $cards[] = [
-                'tone' => 'employee',
-                'icon' => 'bi-kanban',
-                'title' => 'รายงานโปรเจกต์',
-                'description' => 'ภาพรวมโปรเจกต์รายเดือนที่คุณมีส่วนร่วม ทั้งงานที่รับผิดชอบและงานที่ร่วมกับคนอื่น',
-                'features' => ['สรุปโปรเจกต์และงานประจำเดือน', 'แนวโน้มงานและสถานะงาน', 'งานข้ามแผนกและบทบาทในงาน', 'ตัวกรองและดาวน์โหลด CSV'],
-                'cta' => 'เปิดรายงานโปรเจกต์',
-                'route' => route('reports.projects'),
-            ];
-        }
-
-        // รายงานปฏิบัติงาน — พนักงานเห็นของตัวเอง หัวหน้าเห็นทั้งแผนก admin เห็นทุกแผนก
-        if ($user !== null && Gate::forUser($user)->allows('viewReport', WorkLog::class)) {
-            $isOwnScope = $user->role === 'user' && ! $user->isDepartmentHead();
-
-            $cards[] = [
-                'tone' => 'operational',
-                'icon' => 'bi-journal-check',
-                'title' => 'รายงานปฏิบัติงาน',
-                'description' => $isOwnScope
-                    ? 'สรุปงานประจำและงานนอกสถานที่รายเดือน พร้อมชั่วโมงงานและเหตุผลที่ล่าช้า'
-                    : 'สรุปงานประจำและงานนอกสถานที่รายเดือน เลือกดูเป็นรายคนในขอบเขตที่คุณดูแล',
-                'features' => $isOwnScope
-                    ? ['ชั่วโมงงานรายวัน', 'สัดส่วนประเภทงาน', 'งานที่ทำบ่อยและเหตุผลที่ล่าช้า', 'ตัวกรองและดาวน์โหลด CSV']
-                    : ['เลือกพนักงานในขอบเขตที่ดูแล', 'ชั่วโมงงานและสัดส่วนประเภทงาน', 'งานที่ทำบ่อยและเหตุผลที่ล่าช้า', 'ตัวกรองและดาวน์โหลด CSV'],
-                'cta' => 'เปิดรายงานปฏิบัติงาน',
-                'route' => route('reports.operational'),
-            ];
-        }
-
-        return $cards;
     }
 
     /**

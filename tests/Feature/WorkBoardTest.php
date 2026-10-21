@@ -123,10 +123,11 @@ class WorkBoardTest extends TestCase
             ->assertSee(route('work-board.department', $department), false);
 
         // การ์ดต้องเหลือแค่จำนวนสมาชิก ห้ามให้ metric โปรเจกต์/งาน หรือ layout แบบแถวเดิมกลับมา
-        $response->assertDontSee('โปรเจกต์')
-            ->assertDontSee('wb-department-row', false)
+        $response->assertDontSee('wb-department-row', false)
             ->assertDontSee('wb-department-stat', false)
             ->assertDontSee('progress', false);
+        $this->assertSame(1, preg_match('/<main class="main">(.*?)<\/main>/s', $response->getContent(), $main));
+        $this->assertStringNotContainsString('โปรเจกต์', $main[1]);
 
         $listed = $response->viewData('departments')->firstWhere('id', $department->id);
 

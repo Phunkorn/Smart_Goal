@@ -27,7 +27,11 @@
 @endphp
 
 <div class="board-task-details" data-task-details data-work-order-id="{{ $task->job_id }}">
-    <div class="board-task-details__heading">
+    {{--
+        ช่องชื่องานนี้เป็นที่จับสำหรับลากเลื่อนลำดับงานภายในโปรเจกต์ (pages/mytasks/task-reorder.js)
+        ไม่มีไอคอนจับแยก — กดเมาส์ค้างที่ชื่องานแล้วลากได้เลย คลิกปกติยังกางงานย่อยเหมือนเดิม
+    --}}
+    <div class="board-task-details__heading" data-task-reorder-handle>
         <button type="button" class="board-task-details__toggle" data-task-details-toggle aria-expanded="false" aria-controls="task-details-{{ $task->job_id }}">
             <i class="bi bi-chevron-right" aria-hidden="true"></i>
             <span class="board-reference-task__title">{{ $task->job_topic }}</span>

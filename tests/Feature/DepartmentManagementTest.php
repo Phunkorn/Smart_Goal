@@ -58,8 +58,9 @@ class DepartmentManagementTest extends TestCase
 
         // การ์ดต้องเรียบตามสเปก จึงห้ามมี progress bar หรือ metric โปรเจกต์/งานหลุดกลับเข้ามา
         $response->assertDontSee('progress', false)
-            ->assertDontSee('โปรเจกต์')
             ->assertDontSee('WorkOrder');
+        $this->assertSame(1, preg_match('/<main class="main">(.*?)<\/main>/s', $response->getContent(), $main));
+        $this->assertStringNotContainsString('โปรเจกต์', $main[1]);
 
         $listedDepartment = $response->viewData('departments')->firstWhere('id', $department->id);
 

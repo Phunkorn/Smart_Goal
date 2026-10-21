@@ -31,8 +31,6 @@
 @endphp
 
 <nav class="report-breadcrumb" aria-label="breadcrumb">
-    <a href="{{ route('reports.index') }}">รายงาน</a>
-    <i class="bi bi-chevron-right" aria-hidden="true"></i>
     @if($detailTitle)
         <a href="{{ route('reports.operational', $scope->query()) }}">รายงานปฏิบัติงาน</a>
         <i class="bi bi-chevron-right" aria-hidden="true"></i>

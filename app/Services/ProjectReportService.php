@@ -6,6 +6,7 @@ use App\Models\JobImage;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Support\CrossDepartmentWork;
+use App\Support\ProjectRoles;
 use App\Support\ReportMetrics;
 use App\Support\ReportMonth;
 use App\Support\ReportPeriod;
@@ -31,7 +32,7 @@ use Illuminate\Support\Facades\Gate;
  *
  * รายชื่อคนที่ส่งเข้ามาต้องผ่านการตรวจสิทธิ์ที่ ReportController แล้ว คลาสนี้ไม่ตัดสินสิทธิ์เอง
  *
- * KPI เดิมทั้งหกใบและกราฟนับเฉพาะงานที่รับผิดชอบ งานที่ร่วมทำมี KPI ของตัวเองใบเดียว
+ * KPI และกราฟนับเฉพาะงานที่รับผิดชอบ ยกเว้น "งานที่ร่วมทำ" และ "งานข้ามแผนก" (ดู kpiItems())
  * งานหนึ่งใบจึงไม่ถูกนับเป็นผลงานเสร็จของหลายคน ตัวกรองในการ์ดตัวกรองมีผลกับตารางและ CSV เท่านั้น
  * ตารางบนหน้าจอกับ CSV อ่านจากแถวชุดเดียวกัน ตัวเลขจึงตรงกันโดยโครงสร้าง
  */
@@ -79,8 +80,38 @@ final class ProjectReportService
         self::ROLE_JOINED => 'ที่ร่วมทำ',
     ];
 
-    /** ลำดับแถวของกราฟแท่งสถานะ — งานที่ปิดแล้วขึ้นก่อน งานที่ต้องตามไว้ท้าย สีอยู่ที่ project-chart-config.js */
+    /** ลำดับชิ้นของโดนัทสถานะและแถวในตารางป้ายข้างวง — งานที่ปิดแล้วก่อน งานที่ต้องตามไว้ท้าย */
     private const STATUS_CHART_ORDER = ['done', 'doing', 'review', 'paused', 'late'];
+
+    /**
+     * สีของแต่ละสถานะบนโดนัท — ชุดเดียวกับ projectChartColors ใน project-chart-config.js (เทสต์ตรึงให้ตรงกัน)
+     * ไม่มีเขียวตามที่ผู้บริหารกำหนด และแดงสงวนไว้สื่อ "ล่าช้า" อย่างเดียว
+     */
+    public const STATUS_COLORS = [
+        'done' => '#1d4ed8',
+        'doing' => '#0891b2',
+        'review' => '#a21caf',
+        'paused' => '#64748b',
+        'late' => '#e11d48',
+    ];
+
+    /**
+     * การ์ดตัวเลขเจ็ดใบ ตามลำดับบนหน้าจอ — description คือคำอธิบายในกล่องรายละเอียดว่าการ์ดนับอะไร
+     *
+     * ค่าของการ์ดคือจำนวนรายการใน kpiItems() ของ key เดียวกัน การ์ดกับกล่องจึงไม่มีทางนับต่างกัน
+     */
+    public const KPIS = [
+        'projects' => ['label' => 'โปรเจกต์ที่มีงานรับผิดชอบ', 'unit' => 'โปรเจกต์', 'icon' => 'bi-folder2-open', 'tone' => 'blue', 'description' => 'โปรเจกต์ที่มีงานซึ่งคนในขอบเขตเป็นผู้รับผิดชอบ ไม่นับงานทั่วไปที่ไม่อยู่ในโปรเจกต์'],
+        'owned' => ['label' => 'งานที่รับผิดชอบ', 'unit' => 'งาน', 'icon' => 'bi-person-check', 'tone' => 'indigo', 'description' => 'งานที่อนุมัติแล้วซึ่งคนในขอบเขตเป็นผู้รับผิดชอบ สร้างหรือปิดในช่วงนี้'],
+        'joined' => ['label' => 'งานที่ร่วมทำ', 'unit' => 'งาน', 'icon' => 'bi-people', 'tone' => 'teal', 'description' => 'งานที่คนในขอบเขตเป็นผู้ร่วมงานที่ตอบรับแล้ว แต่ไม่มีใครในขอบเขตรับผิดชอบ'],
+        'subtasks' => ['label' => 'งานย่อยทั้งหมด', 'unit' => 'รายการ', 'icon' => 'bi-diagram-3', 'tone' => 'violet', 'description' => 'งานย่อยทุกใบของงานที่รับผิดชอบ'],
+        'cross' => ['label' => 'งานข้ามแผนก', 'unit' => 'งาน', 'icon' => 'bi-arrow-left-right', 'tone' => 'orange', 'description' => 'งานที่รับผิดชอบหรือร่วมทำซึ่งเกี่ยวข้องกับแผนกอื่น: มอบหมายข้ามแผนก ไปร่วมงานของแผนกอื่น หรือมีผู้ร่วมงานจากแผนกอื่น'],
+        'active' => ['label' => 'กำลังดำเนินการ', 'unit' => 'งาน', 'icon' => 'bi-hourglass-split', 'tone' => 'sky', 'description' => 'งานที่รับผิดชอบซึ่งยังไม่เสร็จ รวมงานที่ล่าช้าและพักไว้'],
+        'completed' => ['label' => 'เสร็จสิ้นแล้ว', 'unit' => 'งาน', 'icon' => 'bi-check2-circle', 'tone' => 'green', 'description' => 'งานที่รับผิดชอบซึ่งปิดงานภายในช่วงนี้'],
+    ];
+
+    /** จำนวนรายการต่อหน้าในกล่องรายละเอียดของการ์ดตัวเลข */
+    public const KPI_DETAIL_PER_PAGE = 10;
 
     /** จำนวนงานล่าช้าในการ์ด "งานล่าช้าที่ต้องติดตาม" */
     public const LATE_LIMIT = 5;
@@ -127,12 +158,10 @@ final class ProjectReportService
             ? $ownedRows->where('project.key', $filters['project'])->values()
             : $ownedRows;
 
-        // KPI เดิมและกราฟนับเฉพาะงานที่รับผิดชอบ (ownedRows) — ตัวเลขเหมือนก่อนมีงานที่ร่วมทำทุกประการ
-        $completedJobs = $jobs->filter(fn (WorkOrder $job): bool => ReportMetrics::isCompleted($job)
-            && $job->job_completed_at !== null
-            && $period->contains($job->job_completed_at))->count();
+        // ตัวเลขบนการ์ดคือจำนวนของรายการชุดเดียวกับที่กล่องรายละเอียดแสดง จึงตรงกันโดยโครงสร้าง
+        $kpiItems = $this->kpiItems($ownedRows, $joinedRows, $period);
+        $count = fn (string $key): int => $kpiItems[$key]->count();
         $lateJobs = $ownedRows->where('status.key', 'late')->count();
-        $activeJobs = $ownedRows->reject(fn (array $row): bool => $row['status']['key'] === 'done')->count();
 
         $query = $this->queryFor($owner, $period, $filters);
 
@@ -153,15 +182,16 @@ final class ProjectReportService
             // แสดงทางเลือกกำหนดช่วงเองไว้บนสุดให้ค้นพบง่าย แต่ selected ยังมาจากช่วงปัจจุบันตามเดิม
             'monthOptions' => [ReportPeriod::CUSTOM => 'กำหนดช่วงวันที่เอง…'] + ReportMonth::options(),
             'totalJobs' => $jobs->count(),
-            'kpis' => [
-                ['key' => 'projects', 'label' => 'โปรเจกต์ที่มีงานรับผิดชอบ', 'value' => $jobs->pluck('work_order_list_id')->filter()->unique()->count(), 'unit' => 'โปรเจกต์', 'icon' => 'bi-folder2-open', 'tone' => 'blue'],
-                ['key' => 'owned', 'label' => 'งานที่รับผิดชอบ', 'value' => $jobs->count(), 'unit' => 'งาน', 'icon' => 'bi-person-check', 'tone' => 'indigo'],
-                ['key' => 'joined', 'label' => 'งานที่ร่วมทำ', 'value' => $joinedJobs->count(), 'unit' => 'งาน', 'icon' => 'bi-people', 'tone' => 'teal'],
-                ['key' => 'subtasks', 'label' => 'งานย่อยทั้งหมด', 'value' => $ownedRows->sum(fn (array $row): int => count($row['subtasks'])), 'unit' => 'รายการ', 'icon' => 'bi-diagram-3', 'tone' => 'violet'],
-                ['key' => 'cross', 'label' => 'งานข้ามแผนก', 'value' => $ownedRows->where('scope.key', self::SCOPE_CROSS)->count(), 'unit' => 'งาน', 'icon' => 'bi-arrow-left-right', 'tone' => 'orange'],
-                ['key' => 'active', 'label' => 'กำลังดำเนินการ', 'value' => $activeJobs, 'unit' => 'งาน', 'icon' => 'bi-hourglass-split', 'tone' => 'sky', 'note' => $lateJobs > 0 ? 'ในจำนวนนี้ล่าช้า '.number_format($lateJobs).' งาน' : null],
-                ['key' => 'completed', 'label' => 'เสร็จสิ้นแล้ว', 'value' => $completedJobs, 'unit' => 'งาน', 'icon' => 'bi-check2-circle', 'tone' => 'green'],
-            ],
+            'kpis' => collect(self::KPIS)
+                ->map(fn (array $meta, string $key): array => [
+                    'key' => $key,
+                    ...$meta,
+                    'value' => $count($key),
+                    'note' => $key === 'active' && $lateJobs > 0 ? 'ในจำนวนนี้ล่าช้า '.number_format($lateJobs).' งาน' : null,
+                ])
+                ->values()
+                ->all(),
+            'kpiItems' => $kpiItems,
             'filters' => $filters,
             'filterOptions' => $filterOptions,
             'chartProjectLabel' => $filters['project'] ? $filterOptions['projects'][$filters['project']] : null,
@@ -171,6 +201,139 @@ final class ProjectReportService
             'taskRows' => $taskRows,
             'chartData' => $this->chartData($chartRows, $subjects, $owner, $period, $now, $filters['project']),
         ];
+    }
+
+    /**
+     * รายการที่การ์ดตัวเลขแต่ละใบนับ — ค่าบนการ์ดคือ count() ของชุดนี้
+     *
+     * นับเฉพาะงานที่รับผิดชอบตามนิยามเดิม (งานหนึ่งใบไม่เป็นผลงานเสร็จของหลายคน)
+     * ยกเว้นสองใบ: "งานที่ร่วมทำ" นับแถวร่วมทำ และ "งานข้ามแผนก" นับทั้งสองบทบาท
+     * เพราะการไปร่วมงานของแผนกอื่นเป็นงานข้ามแผนกโดยตรง แถวรับผิดชอบกับร่วมทำไม่ซ้ำกันโดยโครงสร้าง
+     * (periodJobs() ตัดงานที่รับผิดชอบออกจากชุดร่วมทำ) และ unique('id') กันซ้ำอีกชั้น
+     *
+     * ไม่ขึ้นกับตัวกรองในการ์ดตัวกรอง เหมือนตัวเลขบนการ์ด
+     *
+     * @param  Collection<int, array<string, mixed>>  $ownedRows
+     * @param  Collection<int, array<string, mixed>>  $joinedRows
+     * @return array<string, Collection<int, array<string, mixed>>>
+     */
+    private function kpiItems(Collection $ownedRows, Collection $joinedRows, ReportPeriod $period): array
+    {
+        $isDone = fn (array $row): bool => $row['status']['key'] === 'done';
+
+        return [
+            'projects' => $ownedRows
+                ->reject(fn (array $row): bool => $row['project']['key'] === self::NO_PROJECT)
+                ->groupBy('project.key')
+                ->map(fn (Collection $rows): array => [
+                    'key' => $rows->first()['project']['key'],
+                    'name' => $rows->first()['project']['name'],
+                    'total' => $rows->count(),
+                    'done' => $rows->filter($isDone)->count(),
+                    'late' => $rows->where('status.key', 'late')->count(),
+                    'people' => $rows->pluck('assignee.name')->filter()->unique()->sort()->values()->all(),
+                ])
+                ->sortBy([fn (array $a, array $b): int => $b['total'] <=> $a['total'] ?: strcmp($a['name'], $b['name'])])
+                ->values(),
+            'owned' => $ownedRows,
+            'joined' => $joinedRows,
+            'subtasks' => $ownedRows->flatMap(fn (array $row): array => array_map(fn (array $child): array => [
+                ...$child,
+                'parent' => ['id' => $row['id'], 'topic' => $row['topic'], 'project' => $row['project']['name']],
+                'assignee' => $row['assignee'],
+            ], $row['children']))->values(),
+            'cross' => $ownedRows->concat($joinedRows)
+                ->where('scope.key', self::SCOPE_CROSS)
+                ->unique('id')
+                ->values(),
+            'active' => $ownedRows->reject($isDone)->values(),
+            'completed' => $ownedRows
+                ->filter(fn (array $row): bool => $isDone($row) && $period->contains($row['completed_at']))
+                ->values(),
+        ];
+    }
+
+    /**
+     * กล่องรายละเอียดของการ์ดตัวเลขหนึ่งใบ — รายการชุดเดียวกับที่การ์ดนับ แบ่งหน้าละ KPI_DETAIL_PER_PAGE
+     *
+     * $report ต้องมาจาก build() ที่ใช้ขอบเขตคนชุดเดียวกับหน้าจอ (ตรวจสิทธิ์ที่ ReportController แล้ว)
+     * ลิงก์ไปหน้างานออกให้เฉพาะงานที่ผู้ดูผ่าน WorkOrderPolicy::view ตัวเดียวกับ tasks.show
+     *
+     * @param  array<string, mixed>  $report
+     * @return array{key: string, kpi: array<string, mixed>, type: string, total: int, page: int, last_page: int, from: int, items: list<array<string, mixed>>}
+     */
+    public function kpiDetail(array $report, string $key, int $page, User $viewer): array
+    {
+        $items = $report['kpiItems'][$key];
+        $lastPage = max(1, (int) ceil($items->count() / self::KPI_DETAIL_PER_PAGE));
+        $page = min(max(1, $page), $lastPage);
+        $pageItems = $items->forPage($page, self::KPI_DETAIL_PER_PAGE)->values();
+        $type = match ($key) {
+            'projects' => 'projects',
+            'subtasks' => 'subtasks',
+            default => 'tasks',
+        };
+
+        if ($type !== 'projects') {
+            $viewable = $this->viewableTaskIds($pageItems->pluck('id')->all(), $viewer);
+            $pageItems = $pageItems->map(fn (array $item): array => [
+                ...$item,
+                'url' => isset($viewable[$item['id']]) ? route('tasks.show', $item['id']) : null,
+            ]);
+        }
+
+        return [
+            'key' => $key,
+            'kpi' => collect($report['kpis'])->firstWhere('key', $key),
+            'type' => $type,
+            'total' => $items->count(),
+            'page' => $page,
+            'last_page' => $lastPage,
+            'from' => ($page - 1) * self::KPI_DETAIL_PER_PAGE,
+            'items' => $pageItems->all(),
+        ];
+    }
+
+    /**
+     * งานที่ผู้ดูเปิดหน้างานได้ — คิวรีครั้งเดียว โหลดความสัมพันธ์ที่ WorkOrderPolicy::view ใช้ไว้ล่วงหน้า
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, true>
+     */
+    private function viewableTaskIds(array $ids, User $viewer): array
+    {
+        return $this->policyTasks($ids)
+            ->filter(fn (WorkOrder $task): bool => Gate::forUser($viewer)->allows('view', $task))
+            ->mapWithKeys(fn (WorkOrder $task): array => [(int) $task->job_id => true])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $ids
+     * @return Collection<int, WorkOrder>
+     */
+    private function policyTasks(array $ids, array $extra = []): Collection
+    {
+        if ($ids === []) {
+            return collect();
+        }
+
+        return WorkOrder::query()
+            // ความสัมพันธ์ที่ WorkOrderPolicy::view ใช้ตัดสิน (รวมงานแม่ของงานย่อย) โหลดไว้ครั้งเดียว
+            ->with([
+                'user:id,department_id',
+                'creator:id,department_id',
+                'leader:id,department_id',
+                'collaborators:id,department_id',
+                'parent.user:id,department_id',
+                'parent.creator:id,department_id',
+                'parent.leader:id,department_id',
+                'parent.collaborators:id,department_id',
+                ...$extra,
+            ])
+            ->whereIn('job_id', $ids)
+            ->get()
+            ->keyBy('job_id');
     }
 
     /**
@@ -221,22 +384,7 @@ final class ProjectReportService
             return $rows;
         }
 
-        $tasks = WorkOrder::query()
-            // ความสัมพันธ์ที่ WorkOrderPolicy::view ใช้ตัดสิน (รวมงานแม่ของงานย่อย) โหลดไว้ครั้งเดียว
-            ->with([
-                'user:id,department_id',
-                'creator:id,department_id',
-                'leader:id,department_id',
-                'collaborators:id,department_id',
-                'parent.user:id,department_id',
-                'parent.creator:id,department_id',
-                'parent.leader:id,department_id',
-                'parent.collaborators:id,department_id',
-                'images:id,job_id,original_name,file_type,created_at',
-            ])
-            ->whereIn('job_id', $ids)
-            ->get()
-            ->keyBy('job_id');
+        $tasks = $this->policyTasks($ids, ['images:id,job_id,original_name,file_type,created_at']);
         $gate = Gate::forUser($viewer);
 
         $evidence = function (int $id) use ($tasks, $gate): array {
@@ -292,10 +440,10 @@ final class ProjectReportService
      * กราฟของหน้า — ตามโปรเจกต์ที่เลือก แต่นับเฉพาะงานที่รับผิดชอบเหมือนเดิม
      *
      * ทุกมุมมอง (2 ใบ):
-     * trend: แนวโน้มรายเดือนตั้งแต่มกราคมถึงเดือนที่เลือก (ปีเดียวกัน) งานที่ได้รับเทียบงานที่เสร็จ
+     * trend: กราฟเส้นรายเดือนตั้งแต่มกราคมถึงเดือนที่เลือก (ปีเดียวกัน) งานที่ได้รับเทียบงานที่เสร็จ
      *   แต่ละเดือนนับด้วยนิยามเดียวกับรายงานประจำเดือนนั้นทุกประการ (monthJobs) ตัวเลขของเดือนที่เลือก
      *   จึงตรงกับ KPI "เสร็จสิ้นแล้ว" และจำนวนงานที่สร้างในเดือนนั้น
-     * status: จำนวนงานแต่ละสถานะของเดือนที่เลือก (แท่งแนวนอน + จำนวนและเปอร์เซ็นต์ท้ายแท่ง)
+     * status: โดนัทสัดส่วนสถานะของเดือนที่เลือก พร้อมตารางป้าย จำนวน และเปอร์เซ็นต์ข้างวง
      *
      * เฉพาะภาพรวมแผนก (อีก 2 ใบ รายบุคคลได้ null):
      * late: งานล่าช้าที่เลยกำหนดนานที่สุด LATE_LIMIT รายการ
@@ -316,6 +464,8 @@ final class ProjectReportService
                 'keys' => $statuses->keys()->all(),
                 'labels' => $statuses->pluck('label')->values()->all(),
                 'values' => $statuses->keys()->map(fn (string $key): int => $rows->where('status.key', $key)->count())->all(),
+                // สีชิ้นโดนัทและจุดในตารางป้ายข้างวงมาจากที่เดียวกัน
+                'colors' => $statuses->keys()->map(fn (string $key): string => self::STATUS_COLORS[$key])->all(),
                 'total' => $rows->count(),
             ],
             'late' => $owner === null ? $this->lateFollowUps($rows, $now) : null,
@@ -514,6 +664,8 @@ final class ProjectReportService
                 'creator:id,name,department_id',
                 'creator.department:id,department_name',
                 'collaborators:id,name,department_id,profile_image',
+                // แผนกของผู้ร่วมงาน — ตัดสินว่างานมีคนจากแผนกอื่นร่วมอยู่หรือไม่ (crossScope)
+                'collaborators.department:id,department_name',
                 // user_id/created_by/leader_user_id และผู้ร่วมงานของงานย่อย ใช้ตัดงานย่อยที่คนนอกแผนกไม่ควรเห็น
                 'children:job_id,parent_job_id,job_topic,job_status,job_start_at,job_due_at,job_completed_at,user_id,created_by,leader_user_id',
                 'children.collaborators:id',
@@ -609,12 +761,7 @@ final class ProjectReportService
             ],
             'leader' => $team['leader']['name'] ?? null,
             'assigner' => $team['assigner']['name'] ?? null,
-            'scope' => [
-                'key' => $marker === null ? self::SCOPE_INTERNAL : self::SCOPE_CROSS,
-                'label' => self::SCOPE_LABELS[$marker === null ? self::SCOPE_INTERNAL : self::SCOPE_CROSS],
-                'detail' => $marker['label'] ?? null,
-                'department' => $this->otherDepartment($job, $marker),
-            ],
+            'scope' => $this->crossScope($job, $marker),
             'department' => [
                 'id' => CrossDepartmentWork::destinationDepartmentId($job),
                 'name' => CrossDepartmentWork::destinationDepartmentName($job) ?? 'ไม่ระบุแผนก',
@@ -622,6 +769,63 @@ final class ProjectReportService
             'status' => ['key' => $statusKey, ...WorkBoardDesign::statusMeta($statusKey)],
             'due_at' => $job->job_due_at?->copy()->timezone(ReportMetrics::BUSINESS_TIMEZONE),
             'completed_at' => $job->job_completed_at?->copy()->timezone(ReportMetrics::BUSINESS_TIMEZONE),
+        ];
+    }
+
+    /**
+     * ขอบเขตงานของแถว — ในแผนก หรือข้ามแผนก พร้อมแผนกฝั่งตรงข้าม
+     *
+     * งานข้ามแผนกมีสองทางตามที่ระบบใช้จริง:
+     * 1. ป้ายบนบอร์ด (CrossDepartmentWork::marker) — ผู้รับผิดชอบหรือผู้ร่วมทำในขอบเขตอยู่คนละแผนกกับงาน
+     *    หรือผู้สร้างงานอยู่คนละแผนกกับงาน (มอบหมายข้ามแผนก)
+     * 2. มีผู้ร่วมงานที่ตอบรับแล้วจากแผนกอื่น (ProjectRoles::joinsAcrossDepartments) — นิยามเดียวกับ
+     *    การแจ้งเตือน "เข้าร่วมโปรเจกต์ข้ามแผนก" และตาราง "งานข้ามแผนกของทีม" ในหน้าคำขออนุมัติ
+     *
+     * เดิมดูแค่ข้อ 1 จากมุมของผู้รับผิดชอบ งานของแผนกเราที่ชวนคนแผนกอื่นมาร่วม (ทางที่ใช้บ่อยที่สุด)
+     * จึงถูกนับเป็น "ในแผนก" และ KPI งานข้ามแผนกเป็น 0 ทั้งที่มีข้อมูล
+     * ข้อ 2 อยู่ที่รายงานนี้ ไม่ได้เปลี่ยน marker() เพราะป้ายบนบอร์ดเป็นเรื่องของมุมมองผู้ดูคนละเรื่องกัน
+     *
+     * @param  array{kind: string, department: string, label: string}|null  $marker
+     * @return array{key: string, label: string, detail: string|null, department: array{id: int, name: string}|null, departments: list<array{id: int, name: string}>}
+     */
+    private function crossScope(WorkOrder $job, ?array $marker): array
+    {
+        $cross = fn (?string $detail, array $departments): array => [
+            'key' => self::SCOPE_CROSS,
+            'label' => self::SCOPE_LABELS[self::SCOPE_CROSS],
+            'detail' => $detail,
+            'department' => $departments[0] ?? null,
+            'departments' => $departments,
+        ];
+
+        if ($marker !== null) {
+            $department = $this->otherDepartment($job, $marker);
+
+            return $cross($marker['label'], $department === null ? [] : [$department]);
+        }
+
+        $outside = $job->collaborators
+            ->filter(fn (User $member): bool => $member->pivot?->status === 'accepted'
+                && ProjectRoles::joinsAcrossDepartments($job, $member))
+            ->map(fn (User $member): array => [
+                'id' => (int) $member->department_id,
+                'name' => $member->department?->department_name ?? 'แผนกอื่น',
+            ])
+            ->unique('id')
+            ->sortBy('name')
+            ->values()
+            ->all();
+
+        if ($outside !== []) {
+            return $cross('มีผู้ร่วมงานจากแผนก '.implode(', ', array_column($outside, 'name')), $outside);
+        }
+
+        return [
+            'key' => self::SCOPE_INTERNAL,
+            'label' => self::SCOPE_LABELS[self::SCOPE_INTERNAL],
+            'detail' => null,
+            'department' => null,
+            'departments' => [],
         ];
     }
 
@@ -672,8 +876,7 @@ final class ProjectReportService
 
         $departments = $rows
             ->where('scope.key', self::SCOPE_CROSS)
-            ->pluck('scope.department')
-            ->filter()
+            ->flatMap(fn (array $row): array => $row['scope']['departments'])
             ->mapWithKeys(fn (array $department): array => [self::SCOPE_CROSS.':'.$department['id'] => 'ข้ามแผนก · '.$department['name']])
             ->sort()
             ->all();
@@ -689,8 +892,8 @@ final class ProjectReportService
         }
 
         return $row['scope']['key'] === self::SCOPE_CROSS
-            && $row['scope']['department'] !== null
-            && self::SCOPE_CROSS.':'.$row['scope']['department']['id'] === $scope;
+            && collect($row['scope']['departments'])
+                ->contains(fn (array $department): bool => self::SCOPE_CROSS.':'.$department['id'] === $scope);
     }
 
     /**

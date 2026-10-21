@@ -27,8 +27,8 @@ class WorkLogService
      */
     public function create(User $owner, User $actor, array $data): WorkLog
     {
-        $businessDay = $this->businessDay($data['work_date'] ?? null);
-        [$startedAt, $endedAt, $minutes] = $this->resolveTimes($businessDay, $data);
+        $businessDay = $this->businessDay($data['work_date'] ?? null, $data['kind'] ?? WorkLogDesign::DEFAULT_KIND);
+        [$startedAt, $endedAt, $minutes, $plannedStart, $plannedEnd] = $this->scheduleFor($businessDay, $data);
 
         /*
          * บันทึกที่สร้างมาพร้อมผลว่า "พบปัญหา" ตั้งแต่ต้น
@@ -41,7 +41,7 @@ class WorkLogService
          */
         [$hasIssue, $issueDetails] = $this->completionIssue($data);
 
-        return DB::transaction(function () use ($owner, $actor, $data, $businessDay, $startedAt, $endedAt, $minutes, $hasIssue, $issueDetails): WorkLog {
+        return DB::transaction(function () use ($owner, $actor, $data, $businessDay, $startedAt, $endedAt, $minutes, $plannedStart, $plannedEnd, $hasIssue, $issueDetails): WorkLog {
             $log = WorkLog::create([
                 'user_id' => $owner->id,
                 'created_by' => $actor->id,
@@ -63,6 +63,8 @@ class WorkLogService
                 'started_at' => $startedAt,
                 'ended_at' => $endedAt,
                 'duration_minutes' => $minutes,
+                'planned_start_at' => $plannedStart,
+                'planned_end_at' => $plannedEnd,
                 'has_issue' => $hasIssue,
                 'issue_details' => $issueDetails,
             ]);
@@ -84,10 +86,19 @@ class WorkLogService
     public function update(WorkLog $log, User $actor, array $data): WorkLog
     {
         $before = $this->auditSnapshot($log);
-        $businessDay = $this->businessDay($data['work_date'] ?? $log->work_date?->format('Y-m-d'));
-        [$startedAt, $endedAt, $minutes] = $this->resolveTimes($businessDay, $data);
+        // งานประจำจากแม่แบบไม่เคยลงล่วงหน้าได้ แม้คำขอจะส่งประเภทอื่นมา
+        $kind = $log->work_log_template_id === null ? ($data['kind'] ?? $log->kind) : null;
+        $businessDay = $this->businessDay($data['work_date'] ?? $log->work_date?->format('Y-m-d'), $kind);
+        [$startedAt, $endedAt, $minutes, $plannedStart, $plannedEnd] = $this->scheduleFor($businessDay, $data);
+        $isFuture = $this->isFutureDay($businessDay);
 
-        return DB::transaction(function () use ($log, $data, $businessDay, $startedAt, $endedAt, $minutes, $before): WorkLog {
+        // เวลาที่วางไว้ของบันทึกเอง มาจากการลงล่วงหน้าเท่านั้น — ย้ายกลับมาเป็นวันที่ถึงแล้วจึงล้างทิ้ง
+        // แม่แบบงานประจำและสำเนาของผู้ร่วมงานได้เวลาที่วางไว้จากต้นทางของตัวเอง ห้ามล้าง
+        $planned = $log->work_log_template_id === null && ($isFuture || $log->shared_from_work_log_id === null)
+            ? ['planned_start_at' => $plannedStart, 'planned_end_at' => $plannedEnd]
+            : [];
+
+        return DB::transaction(function () use ($log, $data, $businessDay, $startedAt, $endedAt, $minutes, $isFuture, $planned, $before): WorkLog {
             $log->update([
                 'work_log_category_id' => $data['work_log_category_id'] ?? null,
                 'work_order_list_id' => $data['work_order_list_id'] ?? null,
@@ -103,9 +114,13 @@ class WorkLogService
                 'duration_minutes' => $minutes,
                 // รายการที่เจ้าของกด "ยืนยันว่าทำแล้ว" ไว้ ต้องไม่กลับไปเป็นค้าง
                 // เพียงเพราะมาแก้ชื่อหรือรายละเอียดทีหลังโดยไม่ได้กรอกเวลา
-                'status' => $minutes === null
-                    ? ($log->status === 'done' ? 'done' : 'open')
-                    : 'done',
+                // วันที่ยังมาไม่ถึงยังทำเสร็จไม่ได้ จึงกลับเป็นรอเริ่มเสมอ
+                'status' => match (true) {
+                    $isFuture => 'open',
+                    $minutes !== null => 'done',
+                    default => $log->status === 'done' ? 'done' : 'open',
+                },
+                ...$planned,
                 // การแก้เวลาด้วยมือถือว่าผู้ใช้ยืนยันตัวเลขเองแล้ว ป้ายเตือน
                 // "ระบบปิดให้อัตโนมัติ" จึงต้องหายไป
                 'auto_closed_at' => null,
@@ -304,6 +319,13 @@ class WorkLogService
             return $log;
         }
 
+        // งานที่ลงล่วงหน้า ยืนยันว่าทำแล้วได้ตั้งแต่วันที่ทำงานเท่านั้น
+        if ($log->work_date !== null && $this->isFutureDay($log->work_date)) {
+            throw ValidationException::withMessages([
+                'work_date' => 'ยังไม่ถึงวันทำงานนี้ ยืนยันว่าทำเสร็จได้ตั้งแต่วันที่ทำงาน',
+            ]);
+        }
+
         $before = $this->auditSnapshot($log);
         [$startedAt, $endedAt, $minutes] = $this->plannedCompletion($log);
 
@@ -395,6 +417,11 @@ class WorkLogService
         return [true, $details];
     }
 
+    private function isFutureDay(CarbonInterface $day): bool
+    {
+        return $day->format('Y-m-d') > TodayWorkspace::businessNow()->format('Y-m-d');
+    }
+
     private function isPastDay(WorkLog $log): bool
     {
         return $log->work_date !== null
@@ -414,14 +441,13 @@ class WorkLogService
             return [$log->started_at, $log->ended_at, $log->duration_minutes];
         }
 
-        // สำเนาของผู้ร่วมงานนอกสถานที่เก็บช่วงเวลาของต้นฉบับไว้เป็นเวลาที่วางไว้
-        // ยืนยันแล้วจึงได้เวลาเดียวกับคนสร้าง ไม่ใช่รายการที่ไม่มีเวลาเลย
-        if ($log->work_log_template_id === null && $log->started_at === null
-            && $log->planned_start_at !== null && $log->planned_end_at !== null) {
+        // สำเนาของผู้ร่วมงานนอกสถานที่ และงานที่ลงล่วงหน้า เก็บช่วงเวลาไว้เป็นเวลาที่วางไว้
+        // ยืนยันแล้วจึงได้เวลาตามที่วางไว้ ไม่ใช่รายการที่ไม่มีเวลาเลย
+        if ($log->work_log_template_id === null && $log->started_at === null && $log->planned_start_at !== null) {
             return [
                 $log->planned_start_at,
                 $log->planned_end_at,
-                $this->minutesBetween($log->planned_start_at, $log->planned_end_at),
+                $log->planned_end_at === null ? null : $this->minutesBetween($log->planned_start_at, $log->planned_end_at),
             ];
         }
 
@@ -520,8 +546,10 @@ class WorkLogService
 
     /**
      * แปลงวันที่ทำงานจากข้อความเป็นวันทำการ พร้อมตรวจขอบเขตที่ยอมรับได้
+     *
+     * ลงล่วงหน้าได้เฉพาะประเภทใน WorkLogDesign::ADVANCE_KINDS (งานนอกสถานที่)
      */
-    private function businessDay(mixed $workDate): CarbonInterface
+    private function businessDay(mixed $workDate, ?string $kind = null): CarbonInterface
     {
         $today = TodayWorkspace::businessNow()->startOfDay();
 
@@ -543,9 +571,15 @@ class WorkLogService
             ]);
         }
 
-        if ($day->greaterThan($today)) {
+        if ($day->greaterThan($today) && ! WorkLogDesign::allowsAdvance($kind)) {
             throw ValidationException::withMessages([
                 'work_date' => 'บันทึกงานล่วงหน้าไม่ได้',
+            ]);
+        }
+
+        if ($day->format('Y-m-d') > WorkLogDesign::latestWorkDate($kind)) {
+            throw ValidationException::withMessages([
+                'work_date' => sprintf('ลงล่วงหน้าได้ไม่เกิน %d วัน', WorkLogDesign::MAX_ADVANCE_DAYS),
             ]);
         }
 
@@ -556,6 +590,32 @@ class WorkLogService
         }
 
         return $day;
+    }
+
+    /**
+     * เวลาที่จะบันทึก: [started_at, ended_at, duration_minutes, planned_start_at, planned_end_at]
+     *
+     * วันที่ยังมาไม่ถึง เวลาที่กรอกคือ "เวลาที่วางไว้" ไม่ใช่เวลาที่ทำจริง รายการจึงยังเป็น
+     * รอเริ่ม แล้วเจ้าของกดยืนยันเมื่อถึงวันนั้น (markDone เติมเวลาที่วางไว้ให้)
+     *
+     * @return array{0: ?CarbonInterface, 1: ?CarbonInterface, 2: ?int, 3: ?CarbonInterface, 4: ?CarbonInterface}
+     */
+    private function scheduleFor(CarbonInterface $businessDay, array $data): array
+    {
+        [$startedAt, $endedAt, $minutes] = $this->resolveTimes($businessDay, $data);
+
+        if (! $this->isFutureDay($businessDay)) {
+            return [$startedAt, $endedAt, $minutes, null, null];
+        }
+
+        // ระบุแค่จำนวนนาทีโดยไม่มีเวลาเริ่ม วางเป็นช่วงเวลาในวันนั้นไม่ได้
+        if ($minutes !== null && $startedAt === null) {
+            throw ValidationException::withMessages([
+                'duration_minutes' => 'งานล่วงหน้าให้ระบุเวลาเริ่มด้วย หรือเว้นเวลาว่างไว้ก่อน',
+            ]);
+        }
+
+        return [null, null, null, $startedAt, $endedAt];
     }
 
     /**

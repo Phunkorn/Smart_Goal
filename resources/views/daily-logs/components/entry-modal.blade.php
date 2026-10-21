@@ -71,11 +71,17 @@
                         </select>
                     </div>
 
+                    {{--
+                        วันสุดท้ายที่เลือกได้ขึ้นกับประเภทงาน: งานนอกสถานที่ลงล่วงหน้าได้ ประเภทอื่นถึงวันนี้
+                        ค่ามาจาก WorkLogDesign::latestWorkDate() ตัวเดียวกับที่ WorkLogService บังคับ
+                        entry-form.js แค่สลับ max ตามประเภทที่เลือก ไม่มีกติกาวันที่ของตัวเอง
+                    --}}
                     <div class="log-field log-field--multiple-date" data-date-picker-field>
                         <label class="form-label" for="logEntryDate">วันที่ <small>เลือกได้หลายวัน</small></label>
                         <input type="date" class="form-control" id="logEntryDate" name="work_date"
                             value="{{ $dateValue }}"
-                            max="{{ \App\Support\TodayWorkspace::businessNow()->format('Y-m-d') }}"
+                            max="{{ \App\Support\WorkLogDesign::latestWorkDate() }}"
+                            data-entry-date-max-by-kind="{{ json_encode(\App\Support\WorkLogDesign::latestWorkDates()) }}"
                             data-date-picker
                             data-date-picker-multiple
                             data-date-picker-multiple-name="work_dates[]"

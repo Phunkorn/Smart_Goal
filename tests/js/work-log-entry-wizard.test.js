@@ -15,7 +15,8 @@ const fixture = () => mountDom(`<!doctype html><html><body><div data-daily-log>
       <div class="log-modal__body">
         <div class="log-field-row">
           <div class="log-field"><select data-entry-category required><option value="">เลือก</option><option value="1">ตรวจเช็ก</option></select></div>
-          <div class="log-field"><input data-entry-date type="date" value="2026-09-15"></div>
+          <div class="log-field"><input data-entry-date type="date" value="2026-09-15" max="2026-09-15"
+            data-entry-date-max-by-kind='{"routine":"2026-09-15","field":"2026-12-14"}'></div>
         </div>
         <div class="log-field"><input data-entry-title required></div>
         <div class="log-field" data-entry-only-kind="field" hidden><input data-entry-location></div>
@@ -92,5 +93,33 @@ test('งานประจำเลือกวันเดียวโดย�
         assert.equal(routine.querySelector('[name="plan_date"]').closest('[data-wizard-step]').dataset.wizardStep, '3');
         // งานประจำใหม่ต้องเลือกได้หลายวัน เหมือนงานนอกสถานที่
         assert.equal(routine.querySelector('[name="plan_date"]').dataset.datePickerMultiple, 'on');
+    } finally { dom.cleanup(); }
+});
+
+test('งานนอกสถานที่เลือกวันล่วงหน้าได้ตามเพดานที่ server ส่งมา ประเภทอื่นยังถึงวันนี้', () => {
+    const dom = fixture();
+    try {
+        const root = dom.document.querySelector('[data-daily-log]');
+        const modal = root.querySelector('[data-log-entry-modal]');
+        const wizard = initEntryForm({root, stack: {open: () => { modal.hidden = false; }, close: () => { modal.hidden = true; }}, storeAction: '/logs'});
+        const date = root.querySelector('[data-entry-date]');
+
+        wizard.openForCreate({mode: 'choice'});
+        assert.equal(date.max, '2026-09-15');
+
+        click(root.querySelector('[data-entry-select-kind="field"]'));
+        assert.equal(date.max, '2026-12-14');
+
+        // เปิดใหม่เริ่มจากประเภทเริ่มต้นเสมอ — เพดานต้องไม่ค้างจากงานนอกสถานที่รอบก่อน
+        wizard.openForCreate({mode: 'choice'});
+        assert.equal(date.max, '2026-09-15');
+
+        // แก้งานนอกสถานที่ที่ลงล่วงหน้า: ได้เพดานของประเภทนั้น และเวลาที่วางไว้กลับมาในช่องเวลา
+        wizard.openForEdit({id: 7, kind: 'field', work_date: '2026-10-01', is_future_day: true,
+            started_time: null, ended_time: null, planned_start_time: '09:00', planned_end_time: '11:30'});
+        assert.equal(date.max, '2026-12-14');
+        assert.equal(date.value, '2026-10-01');
+        assert.equal(root.querySelector('[data-entry-start]').value, '09:00');
+        assert.equal(root.querySelector('[data-entry-end]').value, '11:30');
     } finally { dom.cleanup(); }
 });

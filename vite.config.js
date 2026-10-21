@@ -32,7 +32,6 @@ export default defineConfig({
                 'resources/css/pages/notifications.css',
                 'resources/css/pages/report-projects.css',
                 'resources/css/pages/report-operational.css',
-                'resources/css/pages/reports.css',
                 'resources/css/pages/settings.css',
                 'resources/css/pages/shares.css',
                 'resources/css/pages/workspace.css',

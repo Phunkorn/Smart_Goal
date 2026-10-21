@@ -1,5 +1,35 @@
 /* โครงหน้ารายงาน (รายงานปฏิบัติงาน) — กว้างเต็มพื้นที่เท่ารายงานโปรเจกต์ */
 .report-page { width:100%; min-width:0; margin-inline:auto; color:#16233d; }
+
+/*
+ * จังหวะการเข้าฉากของ Dashboard รายงาน (รายงานโปรเจกต์และรายงานปฏิบัติงาน) — ที่เดียวของทั้งสองหน้า
+ *
+ * เส้นโค้งเดียวทั้งหน้า cubic-bezier(0.22, 1, 0.36, 1) ซึ่งคือ easeOutQuint ตัวเดียวกับที่ Chart.js ใช้วาดกราฟ
+ * (reportChartAnimation ใน resources/js/pages/reports/chart-config.js) การ์ด กราฟ และตารางจึงชะลอเข้าที่พร้อมกัน
+ *
+ * - การ์ดตัวเลข: จางเข้า + เลื่อนขึ้น 8px ทีละใบห่างกัน 40ms (ใบสุดท้ายเริ่มที่ 240ms จบราว 720ms)
+ * - กราฟ: โครงกราฟแสดงตั้งแต่ HTML มาถึง แล้วจางออกขณะที่ Chart.js วาดกราฟขึ้น (ดู .report-chart-wrap ด้านล่าง)
+ * - ตาราง: จางเข้าทั้งก้อนครั้งเดียว ไม่ไล่ทีละแถว
+ *
+ * ใช้ fill-mode backwards ไม่ใช่ both — หลังจบแอนิเมชันต้องไม่ค้าง transform ไว้ ไม่งั้นการยกการ์ดตอน hover
+ * (transform ของ :hover) จะถูกทับจนการ์ดไม่ขยับ
+ * เล่นครั้งเดียวต่อการโหลดหน้า: element ถูก render จาก server ครั้งเดียว ไม่ถูกซ่อน/แสดงใหม่ เปิดกล่องรายละเอียด
+ * หรือย่อขยายหน้าต่างจึงไม่ทำให้เล่นซ้ำ และเคลื่อนเฉพาะ opacity/transform จึงไม่ดันเลย์เอาต์
+ */
+.report-page,.project-report { --report-ease:cubic-bezier(0.22, 1, 0.36, 1); }
+.project-report__kpis > .project-report__kpi,
+.operational-kpis > .operational-kpi { animation:report-rise .48s var(--report-ease) backwards; animation-delay:calc(var(--report-stagger,0) * 40ms); }
+.project-report__kpis > :nth-child(2),.operational-kpis > :nth-child(2) { --report-stagger:1; }
+.project-report__kpis > :nth-child(3),.operational-kpis > :nth-child(3) { --report-stagger:2; }
+.project-report__kpis > :nth-child(4),.operational-kpis > :nth-child(4) { --report-stagger:3; }
+.project-report__kpis > :nth-child(5),.operational-kpis > :nth-child(5) { --report-stagger:4; }
+.project-report__kpis > :nth-child(6),.operational-kpis > :nth-child(6) { --report-stagger:5; }
+.project-report__kpis > :nth-child(7),.operational-kpis > :nth-child(7) { --report-stagger:6; }
+.project-report__charts ~ .project-report__table-card,
+.report-operational > .operational-card,
+.report-operational > .operational-grid--tops { animation:report-fade .45s var(--report-ease) .12s backwards; }
+@keyframes report-rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+@keyframes report-fade { from { opacity:0; } to { opacity:1; } }
 .report-panel { min-width:0; overflow:hidden; border:1px solid #e3e9f2; border-radius:14px; background:#fff; box-shadow:0 5px 16px rgba(28,51,84,.05); }
 
 .report-breadcrumb { display:flex; align-items:center; gap:8px; min-width:0; margin-bottom:16px; color:#71809b; font-size:.82rem; }
@@ -53,7 +83,7 @@
 .report-meter > span { display:block; height:100%; border-radius:999px; background:var(--report-meter-tone,#1d4ed8); }
 
 .report-chart-shell { position:relative; min-width:0; height:var(--report-chart-height,300px); overflow:hidden; }
-.report-chart-wrap { width:100%; height:100%; min-width:0; opacity:0; transform:translateY(5px); transition:opacity .32s ease,transform .32s ease; transition-delay:var(--report-card-delay,0ms); }
+.report-chart-wrap { width:100%; height:100%; min-width:0; opacity:0; transform:translateY(5px); transition:opacity .4s var(--report-ease,ease),transform .5s var(--report-ease,ease); transition-delay:var(--report-card-delay,0ms); }
 .report-chart-wrap canvas { width:100% !important; max-width:100%; }
 .report-card-order-1 { --report-card-delay:40ms; }
 .report-card-order-2 { --report-card-delay:80ms; }
@@ -61,7 +91,7 @@
 .report-card-order-4,
 .report-card-order-5,
 .report-card-order-6 { --report-card-delay:120ms; }
-.report-chart-skeleton { position:absolute; inset:12px 6px 10px; z-index:1; display:flex; align-items:flex-end; gap:6%; padding:12px 5%; overflow:hidden; border-radius:10px; background:linear-gradient(180deg,#fbfcfe 0%,#f7f9fc 100%); opacity:1; transition:opacity .22s ease var(--report-card-delay,0ms),visibility 0s linear calc(var(--report-card-delay,0ms) + .22s); }
+.report-chart-skeleton { position:absolute; inset:12px 6px 10px; z-index:1; display:flex; align-items:flex-end; gap:6%; padding:12px 5%; overflow:hidden; border-radius:10px; background:linear-gradient(180deg,#fbfcfe 0%,#f7f9fc 100%); opacity:1; transition:opacity .28s var(--report-ease,ease) var(--report-card-delay,0ms),visibility 0s linear calc(var(--report-card-delay,0ms) + .28s); }
 .report-chart-skeleton::after { position:absolute; inset:0; content:""; transform:translateX(-100%); background:linear-gradient(90deg,transparent,rgba(255,255,255,.78),transparent); animation:report-shimmer 1.25s ease-in-out infinite; }
 .report-chart-skeleton span { flex:1; border-radius:6px 6px 2px 2px; background:#e5ebf4; }
 .report-chart-skeleton span:nth-child(1) { height:30%; }
@@ -93,6 +123,8 @@
 .report-chart-state span { font-size:.84rem; }
 [data-chart-state="ready"] .report-chart-wrap { opacity:1; transform:none; }
 [data-chart-state="ready"] .report-chart-skeleton { visibility:hidden; opacity:0; pointer-events:none; }
+/* โครงที่ซ่อนแล้วต้องหยุดแสงวิ่ง (infinite) ด้วย ไม่งั้นมันวิ่งต่อไปตลอดอายุของหน้าทั้งที่มองไม่เห็น */
+[data-chart-state="ready"] .report-chart-skeleton::after { animation:none; }
 [data-chart-state="empty"] .report-chart-skeleton,
 [data-chart-state="error"] .report-chart-skeleton { display:none; }
 [data-chart-state="empty"] .report-chart-state--empty,
@@ -112,7 +144,7 @@
 @keyframes report-shimmer { to { transform:translateX(100%); } }
 @media (max-width:760px) { .report-breadcrumb a { display:inline-flex; align-items:center; min-height:32px; } .report-chart-shell { height:var(--report-chart-height-mobile,255px); } .report-kpi-band { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } .report-kpi { padding:13px 14px; } .report-kpi__value { font-size:1.6rem; } }
 @media (max-width:430px) { .report-kpi-band { grid-template-columns:minmax(0,1fr); } }
-@media (prefers-reduced-motion:reduce) { .report-kpi--linked { transition:none; } .report-kpi--linked:hover { transform:none; } .report-chart-skeleton::after { animation:none; } .report-chart-skeleton,.report-chart-wrap { transition:none; transform:none; } }
+@media (prefers-reduced-motion:reduce) { .report-kpi--linked { transition:none; } .report-kpi--linked:hover { transform:none; } .report-chart-skeleton::after { animation:none; } .report-chart-skeleton,.report-chart-wrap { transition:none; transform:none; } .project-report__kpis > .project-report__kpi,.operational-kpis > .operational-kpi,.project-report__charts ~ .project-report__table-card,.report-operational > .operational-card,.report-operational > .operational-grid--tops { animation:none; } }
 
 /*
  * ช่องชื่อคนในตารางรายงาน — "เจ้าของงาน" และ "ผู้ร่วมงาน"

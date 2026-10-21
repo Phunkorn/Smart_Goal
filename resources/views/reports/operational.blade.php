@@ -35,10 +35,11 @@
     {{-- ข้อมูลกราฟใช้สัญญาเดียวกับรายงานอื่น (JSON island id="report-chart-data") --}}
     <script type="application/json" id="report-chart-data">@json($chartData)</script>
 
-    @include('reports.components.operational.kpis', ['kpis' => $kpis])
+    @include('reports.components.operational.kpis', ['kpis' => $kpis, 'scope' => $scope])
 
     @include('reports.components.operational.charts', [
         'scope' => $scope,
+        'chartData' => $chartData,
         'workTypes' => $workTypes,
         'totalHoursText' => $totalHoursText,
         'dailyDescription' => 'งานประจำและงานนอกสถานที่ของทุกวันใน'.$scope->monthLabel(),
@@ -95,6 +96,8 @@
             'emptyText' => $week ? 'ยังไม่มีรายการงานในสัปดาห์นี้' : 'ยังไม่มีรายการงานในเดือนนี้',
         ])
     </section>
+
+    @include('reports.components.kpi-modal', ['eyebrow' => 'รายการที่นับ · '.$scope->monthLabel()])
 </div>
 
 {{-- กล่องพรีวิวแบบตรวจ ชุดเดียวกับไทม์ไลน์บันทึกงานและหน้าตรวจเช็กคอมพิวเตอร์ --}}

@@ -31,10 +31,11 @@
 
     <script type="application/json" id="report-chart-data">@json($chartData)</script>
 
-    @include('reports.components.operational.kpis', ['kpis' => $kpis])
+    @include('reports.components.operational.kpis', ['kpis' => $kpis, 'scope' => $scope])
 
     @include('reports.components.operational.charts', [
         'scope' => $scope,
+        'chartData' => $chartData,
         'workTypes' => $workTypes,
         'totalHoursText' => $totalHoursText,
         'dailyDescription' => 'ชั่วโมงงานรวมของทีมทุกวันใน'.$scope->monthLabel(),
@@ -181,5 +182,7 @@
             </section>
         </div>
     @endif
+
+    @include('reports.components.kpi-modal', ['eyebrow' => 'รายการที่นับ · '.$scope->monthLabel()])
 </div>
 @endsection

@@ -2,6 +2,7 @@ import Chart from 'chart.js/auto';
 import {initAutoSubmitFilters} from '../../components/auto-submit-filter.js';
 import {parseDateValue, thaiDateLabel, useDatePickers} from '../../components/date-picker.js';
 import {initEvidenceModal} from '../../components/evidence-modal.js';
+import {initKpiDetailModal} from '../../components/kpi-detail-modal.js';
 import {initParticipantsPopovers} from '../../components/participants-popover.js';
 import {initSelectDropdowns} from '../../components/select-dropdown.js';
 import {initSubtaskModal} from '../../components/subtask-modal.js';
@@ -15,7 +16,8 @@ import {initProjectPeriod} from './project-period.js';
  * ช่องพนักงาน เดือน และการเรียงลำดับส่งฟอร์มทันทีเมื่อเปลี่ยนค่า ตัวกรองในการ์ดตัวกรอง
  * รอปุ่ม "ค้นหา" การกรอง การเรียง และการแบ่งหน้าทำที่ server ทั้งหมด
  *
- * กราฟแท่งจาก project-chart-config.js: แนวโน้มรายเดือนและสถานะ (ทุกมุมมอง)
+ * การ์ดตัวเลขทุกใบเปิดกล่องรายการจริงที่การ์ดนับ (components/kpi-detail-modal.js)
+ * กราฟจาก project-chart-config.js: แนวโน้มรายเดือน (เส้น) และสถานะ (โดนัท) ทุกมุมมอง
  * งานที่ปิดได้รายคน (เฉพาะภาพรวมแผนก — รายบุคคลไม่มี canvas ตัว initializer จึงข้ามไปเอง)
  * การ์ดงานล่าช้าที่ต้องติดตามเป็นรายการ HTML ไม่ต้องใช้สคริปต์
  * หน้ารายละเอียดไม่มีกราฟ ตัว initializer จึงข้ามไปเอง
@@ -38,6 +40,8 @@ if (page) {
     initEvidenceModal(document);
     // ปุ่ม "N คน" ในคอลัมน์ผู้เข้าร่วม เปิดรายชื่อใต้ปุ่ม
     initParticipantsPopovers(document);
+    // การ์ดตัวเลข — หน้ารายละเอียดไม่มีการ์ดและไม่มีกล่อง ตัว initializer จึงคืน null เอง
+    initKpiDetailModal(page);
 
     const chartData = document.getElementById('project-report-chart-data');
     if (chartData) {

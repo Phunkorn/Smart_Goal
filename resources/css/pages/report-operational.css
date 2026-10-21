@@ -8,6 +8,8 @@
 @import '../components/select-dropdown.css';
 /* โครงของ modal (แผง ฉากหลัง ปุ่มปิด) ใช้ร่วมกับกล่องงานย่อยของรายงานอื่น — กล่อง "ดูงาน" ของภาพรวมทีม */
 @import '../components/subtask-modal.css';
+/* กล่องรายการของการ์ดตัวเลข ชุดเดียวกับรายงานโปรเจกต์ */
+@import '../components/report-kpi-modal.css';
 @import './reports/shared.css';
 @import './reports/operational.css';
 

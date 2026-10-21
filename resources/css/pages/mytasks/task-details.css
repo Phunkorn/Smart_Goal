@@ -11,6 +11,128 @@
     gap: 5px;
 }
 
+/*
+ * ลากชื่องานเพื่อเลื่อนลำดับภายในโปรเจกต์ (pages/mytasks/task-reorder.js)
+ *
+ * ไม่มีไอคอนจับ ช่องชื่องานทั้งช่องคือที่จับ ระหว่างลากแถวที่ถูกยกจะเด่นขึ้นมาเล็กน้อย
+ * และทั้งบอร์ดเลิกเลือกข้อความ ไม่งั้นการลากผ่านหลายแถวจะไปคลุมข้อความแทนการย้ายแถว
+ */
+.my-tasks-page [data-project-board].is-task-reordering,
+.my-tasks-page [data-project-board].is-task-reordering * {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.my-tasks-page .board-reference-row.is-reorder-dragging {
+    position: relative;
+    z-index: 2;
+    background: var(--sg-blue-soft);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .14);
+}
+
+/*
+ * ป้ายลูกศรที่ลอยตามเมาส์ระหว่างลาก — บอกว่างานกำลังเลื่อนขึ้นหรือลง กี่ลำดับ
+ * ตำแหน่งมาจาก JS (--reorder-hint-left/top) ป้ายไม่รับเมาส์ จึงไม่บังแถวที่กำลังจะวาง
+ */
+.my-tasks-page .board-task-reorder-hint {
+    position: fixed;
+    top: var(--reorder-hint-top, 0);
+    left: var(--reorder-hint-left, 0);
+    z-index: 130;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px 5px 5px;
+    border: 1px solid var(--sg-line);
+    border-radius: 999px;
+    background: var(--sg-card);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .16);
+    color: var(--sg-ink);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.my-tasks-page .board-task-reorder-hint[hidden] {
+    display: none;
+}
+
+.my-tasks-page .board-task-reorder-hint > i {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--sg-surface-muted);
+    color: var(--sg-muted);
+    font-size: 14px;
+}
+
+.my-tasks-page .board-task-reorder-hint.is-up > i,
+.my-tasks-page .board-task-reorder-hint.is-down > i {
+    background: var(--sg-blue-soft);
+    color: var(--sg-blue);
+}
+
+.my-tasks-page .board-task-reorder-hint > span {
+    display: grid;
+    gap: 1px;
+    line-height: 1.25;
+}
+
+.my-tasks-page .board-task-reorder-hint strong {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.my-tasks-page .board-task-reorder-hint small {
+    color: var(--sg-faint);
+    font-size: 10px;
+}
+
+/* ลูกศรขยับเบา ๆ ไปทางเดียวกับที่งานกำลังเลื่อน */
+.my-tasks-page .board-task-reorder-hint.is-up > i::before {
+    animation: board-task-reorder-nudge-up .9s ease-in-out infinite;
+}
+
+.my-tasks-page .board-task-reorder-hint.is-down > i::before {
+    animation: board-task-reorder-nudge-down .9s ease-in-out infinite;
+}
+
+@keyframes board-task-reorder-nudge-up {
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
+@keyframes board-task-reorder-nudge-down {
+    50% {
+        transform: translateY(2px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .my-tasks-page .board-task-reorder-hint > i::before {
+        animation: none;
+    }
+}
+
+/* ไฮไลต์สั้น ๆ ให้ผู้ใช้เห็นว่าแถวที่เพิ่งย้ายไปอยู่ตรงไหน */
+.my-tasks-page .board-reference-row.is-reordered {
+    animation: board-task-reordered 1.2s ease-out;
+}
+
+@keyframes board-task-reordered {
+    from {
+        background-color: var(--sg-blue-soft);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .my-tasks-page .board-reference-row.is-reordered {
+        animation: none;
+    }
+}
+
 .my-tasks-page .board-task-details__toggle {
     display: grid;
     /* ลูกศร / ชื่องาน / ป้ายงานย่อยเลยกำหนด / ตัวนับงานย่อย

@@ -60,20 +60,19 @@ class ProjectReportFlowTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_the_project_card_opens_the_project_report_directly(): void
+    public function test_report_navigation_opens_the_project_report_directly(): void
     {
         $viewer = $this->user(null, ['role' => 'viewer']);
 
         foreach ([$this->admin, $viewer, $this->head] as $actor) {
             $this->actingAs($actor)->get(route('reports.index'))
+                ->assertRedirect(route('reports.operational'));
+
+            $this->actingAs($actor)->get(route('reports.projects'))
                 ->assertOk()
                 ->assertSee('รายงานโปรเจกต์')
-                ->assertSee(route('reports.projects'), false)
-                ->assertDontSee('ดูรายงานรายบุคคล')
-                // การ์ดภาพรวมองค์กรถูกยกเลิกแล้ว
-                ->assertDontSee('ดูภาพรวมองค์กร')
-                ->assertDontSee('report-choice--organization', false)
-                ->assertDontSee(route('reports.employees.index'), false);
+                ->assertSee('href="'.route('reports.projects').'"', false)
+                ->assertDontSee('report-landing', false);
 
             // ลิงก์เดิมของรายงานภาพรวมองค์กรพาไปรายงานโปรเจกต์
             $this->actingAs($actor)->get('/reports/organization')->assertRedirect('/reports/projects');
@@ -81,11 +80,13 @@ class ProjectReportFlowTest extends TestCase
 
         $this->actingAs($this->admin)->get('/reports/organization/export.csv')->assertRedirect('/reports/projects/export.csv');
 
-        // พนักงานทั่วไปได้การ์ดเดียวกันที่พาไปรายงานโปรเจกต์หน้าเดียวกัน (ขอบเขตเฉพาะตัวเอง)
+        // พนักงานทั่วไปใช้รายงานโปรเจกต์หน้าเดียวกัน (ขอบเขตเฉพาะตัวเอง)
         $this->actingAs($this->itMember)->get(route('reports.index'))
+            ->assertRedirect(route('reports.operational'));
+        $this->actingAs($this->itMember)->get(route('reports.projects'))
             ->assertOk()
             ->assertSee('รายงานโปรเจกต์')
-            ->assertSee(route('reports.projects'), false)
+            ->assertSee('href="'.route('reports.projects').'"', false)
             ->assertDontSee('/my-reports', false);
     }
 
@@ -362,7 +363,8 @@ class ProjectReportFlowTest extends TestCase
         $this->task($this->itMember, 'เลยกำหนด', ['job_due_at' => '2026-08-20 17:00:00']);
         // งานในแผนกเซลส์ที่มอบให้คนไอทีรับผิดชอบ = งานข้ามแผนกของคนไอที
         $this->task($this->itMember, 'งานของเซลส์ที่มอบให้ไอที', ['created_by' => $this->salesMember->id, 'department_id' => $this->sales->id]);
-        // งานที่ไปช่วย (ผู้ร่วมงาน) ขึ้นเป็นแถว "ร่วมทำ" แต่ไม่ถูกนับใน KPI เดิมทั้งหกใบ
+        // งานที่ไปช่วย (ผู้ร่วมงาน) ขึ้นเป็นแถว "ร่วมทำ" ไม่ถูกนับใน KPI ของงานที่รับผิดชอบ
+        // แต่นับเป็นงานข้ามแผนก เพราะการไปร่วมงานของแผนกอื่นคืองานข้ามแผนกโดยตรง (ตรงกับคอลัมน์ขอบเขตงาน)
         $joined = $this->task($this->salesMember, 'งานของเซลส์ที่ไอทีไปช่วย');
         $this->collaborate($joined, $this->itMember);
 
@@ -370,8 +372,12 @@ class ProjectReportFlowTest extends TestCase
         $kpis = collect($response->viewData('kpis'))->pluck('value', 'key');
 
         $this->assertSame(
-            ['projects' => 1, 'owned' => 4, 'joined' => 1, 'subtasks' => 1, 'cross' => 1, 'active' => 3, 'completed' => 1],
+            ['projects' => 1, 'owned' => 4, 'joined' => 1, 'subtasks' => 1, 'cross' => 2, 'active' => 3, 'completed' => 1],
             $kpis->all()
+        );
+        $this->assertEqualsCanonicalizing(
+            ['งานของเซลส์ที่มอบให้ไอที', 'งานของเซลส์ที่ไอทีไปช่วย'],
+            $response->viewData('kpiItems')['cross']->pluck('topic')->all()
         );
 
         $rows = $response->viewData('taskRows')->keyBy('topic');
@@ -747,9 +753,11 @@ class ProjectReportFlowTest extends TestCase
             ->assertSee('แนวโน้มงานรายเดือน ปี 2569')
             ->assertSee('id="projectTrendChart"', false)
             ->assertSee('id="projectStatusChart"', false)
-            // กราฟทั้งหน้าเป็นแท่ง ไม่มีเส้นและโดนัทแล้ว
-            ->assertDontSee('data-chart-kind="line"', false)
-            ->assertDontSee('data-chart-kind="doughnut"', false);
+            // แนวโน้มเป็นกราฟเส้น สถานะเป็นโดนัท — สองใบไม่ใช้รูปแบบซ้ำกัน และไม่มีกราฟแท่งเหลืออยู่
+            ->assertSee('project-report__chart-card--trend" data-report-chart data-chart-kind="line"', false)
+            ->assertSee('project-report__chart-card--status" data-report-chart data-chart-kind="doughnut"', false)
+            ->assertDontSee('data-chart-kind="bar"', false)
+            ->assertDontSee('data-chart-kind="horizontal-bar"', false);
         $trend = $response->viewData('chartData')['trend'];
 
         $this->assertSame(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08'], $trend['keys']);
@@ -784,8 +792,10 @@ class ProjectReportFlowTest extends TestCase
         $this->assertSame(['done', 'doing', 'review', 'paused', 'late'], $status['keys']);
         $this->assertSame([2, 5, 0, 0, 0], $status['values']);
         $this->assertSame(7, $status['total']);
-        // ตัวเลขชุดเดียวกับกราฟอยู่ในตารางสำหรับโปรแกรมอ่านหน้าจอ
-        $response->assertSee('71%')->assertSee('29%');
+        // สีชิ้นโดนัทมาจาก server ชุดเดียวกับจุดในตารางป้าย — ไม่มีเขียว แดงเป็นของ "ล่าช้า" เท่านั้น
+        $this->assertSame(array_values(ProjectReportService::STATUS_COLORS), $status['colors']);
+        // ตารางป้ายข้างวงเห็นได้ด้วยตา (ไม่ใช่ visually-hidden) บอกชื่อสถานะ จำนวน และเปอร์เซ็นต์
+        $response->assertSeeInOrder(['class="project-report__donut-legend"', 'เสร็จสิ้น', '2', '29%', 'กำลังทำ', '5', '71%'], false);
     }
 
     public function test_the_late_card_lists_the_five_longest_overdue_tasks_without_progress_bars_or_links(): void

@@ -1,0 +1,92 @@
+/*
+ * กล่องรายละเอียดของการ์ดตัวเลข — รายงานโปรเจกต์และรายงานปฏิบัติงาน
+ * (resources/views/reports/components/kpi-modal.blade.php + kpi-detail/*.blade.php)
+ *
+ * โครงกล่อง (ฉากหลัง แผง หัว ปุ่มปิด) มาจาก subtask-modal.css ไฟล์นี้กำหนดเฉพาะความกว้าง
+ * และเนื้อในของกล่องนี้ สีใช้โทเคนกลาง (tokens.css) ค่าหลังจุลภาคเป็นค่าสำรองเท่านั้น
+ * สถานะงานใช้คลาสของแต่ละหน้า (project-report__status / operational-status) ชุดเดียวกับตารางในหน้า
+ *
+ * z-index, backdrop, การล็อก body และ inert เป็นหน้าที่ของ modal-stack ทั้งหมด
+ */
+.report-kpi-modal__panel { width: min(760px, 100%); max-height: min(calc(100vh - 40px), 820px); max-height: min(calc(100dvh - 40px), 820px); }
+.report-kpi-modal__heading { min-width: 0; }
+.report-kpi-modal__body { padding-top: 16px; }
+/* ข้อมูลจริงแทนที่โครงกำลังโหลดด้วยการจางเข้าสั้น ๆ — เส้นโค้งเดียวกับทั้งหน้า (--report-ease ใน shared.css) */
+.report-kpi-modal__body > .report-kpi-detail:not(.report-kpi-detail--loading) { animation: report-kpi-reveal .24s var(--report-ease, ease) backwards; }
+@keyframes report-kpi-reveal { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- สรุปด้านบน ---------- */
+.report-kpi-detail__summary { display: grid; gap: 4px; margin-bottom: 14px; padding: 12px 14px; border-radius: var(--radius, 12px); background: var(--surface-2, #eef2fa); }
+.report-kpi-detail__value { color: var(--text, #16233d); font-size: 1.5rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.report-kpi-detail__value small { color: var(--text-muted, #64748b); font-size: .8rem; font-weight: 400; }
+.report-kpi-detail__summary p { margin: 0; color: var(--text-muted, #64748b); font-size: .8rem; line-height: 1.55; }
+.report-kpi-detail__ratio { display: inline-block; margin-left: 4px; color: var(--text, #16233d); font-weight: 600; }
+
+/* ---------- รายการ ---------- */
+.report-kpi-detail__list { display: grid; margin: 0; padding: 0; list-style: none; }
+.report-kpi-detail__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 16px; padding: 12px 2px; border-bottom: 1px solid var(--border, #dde4f2); }
+.report-kpi-detail__item:last-child { border-bottom: 0; }
+.report-kpi-detail__main { display: grid; min-width: 0; gap: 4px; }
+.report-kpi-detail__title { color: var(--text, #16233d); font-size: .88rem; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+a.report-kpi-detail__title { justify-self: start; color: var(--accent, #1e4fd6); text-decoration: none; }
+a.report-kpi-detail__title:hover { color: var(--accent-strong, #16389e); text-decoration: underline; }
+a.report-kpi-detail__title:focus-visible,
+.report-kpi-detail__link:focus-visible { border-radius: 4px; outline: 2px solid var(--accent, #1e4fd6); outline-offset: 2px; }
+
+.report-kpi-detail__meta { display: flex; flex-wrap: wrap; gap: 2px 0; color: var(--text-muted, #64748b); font-size: .76rem; line-height: 1.5; }
+.report-kpi-detail__meta > span { min-width: 0; overflow-wrap: anywhere; }
+.report-kpi-detail__meta > span + span::before { margin: 0 7px; color: #b6c0cf; content: '·'; }
+.report-kpi-detail__meta .is-late { color: #b91c1c; }
+.report-kpi-detail__people { color: var(--text-muted, #64748b); font-size: .76rem; line-height: 1.5; overflow-wrap: anywhere; }
+
+.report-kpi-detail__chip { display: inline-flex; justify-self: start; align-items: center; gap: 5px; max-width: 100%; padding: 2px 9px; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: .74rem; line-height: 1.6; overflow-wrap: anywhere; }
+.report-kpi-detail__link { display: inline-flex; justify-self: start; align-items: center; gap: 5px; min-height: 28px; color: var(--accent, #1e4fd6); font-size: .78rem; font-weight: 600; text-decoration: none; }
+.report-kpi-detail__link:hover { color: var(--accent-strong, #16389e); }
+
+.report-kpi-detail__side { display: grid; justify-items: end; gap: 3px; font-size: .8rem; text-align: right; }
+.report-kpi-detail__side small { color: var(--text-muted, #64748b); font-size: .73rem; white-space: nowrap; }
+.report-kpi-detail__mark { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 999px; background: var(--gray-dim, #f0f1f5); color: #475569; font-size: .72rem; white-space: nowrap; }
+.report-kpi-detail__mark.is-counted { background: var(--accent-dim, #e7edfc); color: var(--accent, #1e4fd6); }
+
+/* ---------- ท้ายกล่อง: ช่วงที่แสดงและการเปลี่ยนหน้า ---------- */
+.report-kpi-detail__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--border, #dde4f2); }
+.report-kpi-detail__range { margin: 0; color: var(--text-muted, #64748b); font-size: .78rem; }
+.report-kpi-detail__range:focus { outline: none; }
+.report-kpi-detail__range:focus-visible { border-radius: 4px; outline: 2px solid var(--accent, #1e4fd6); outline-offset: 2px; }
+.report-kpi-detail__pager { display: flex; align-items: center; gap: 8px; }
+.report-kpi-detail__page-label { color: var(--text-muted, #64748b); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.report-kpi-detail__page,
+.report-kpi-detail__retry { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; padding: 0 12px; border: 1px solid var(--border, #dde4f2); border-radius: 10px; background: var(--surface, #fff); color: var(--text, #16233d); font-size: .8rem; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, color .15s ease; }
+.report-kpi-detail__page:hover:not(:disabled),
+.report-kpi-detail__retry:hover { border-color: #bfd0f7; background: var(--accent-dim, #e7edfc); color: var(--accent, #1e4fd6); }
+.report-kpi-detail__page:focus-visible,
+.report-kpi-detail__retry:focus-visible { outline: 3px solid var(--accent-dim, #e7edfc); outline-offset: 1px; border-color: var(--accent, #1e4fd6); }
+.report-kpi-detail__page:disabled { color: #b6c0cf; cursor: not-allowed; }
+.report-kpi-detail__retry { margin-top: 6px; }
+
+.report-kpi-detail__empty { min-height: 180px; }
+
+/* ---------- กำลังโหลด: โครงรูปเดียวกับเนื้อจริง ไม่ให้กล่องกระตุกเมื่อข้อมูลมาถึง ---------- */
+.report-kpi-skeleton { display: grid; gap: 12px; }
+.report-kpi-skeleton > span { position: relative; display: block; overflow: hidden; border-radius: 8px; background: #edf1f7; }
+.report-kpi-skeleton > span::after { position: absolute; inset: 0; content: ''; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .75), transparent); animation: report-kpi-shimmer 1.2s ease-in-out infinite; }
+.report-kpi-skeleton__value { width: 34%; height: 30px; }
+.report-kpi-skeleton__line { width: 72%; height: 12px; margin-bottom: 6px; }
+.report-kpi-skeleton__row { height: 46px; }
+@keyframes report-kpi-shimmer { to { transform: translateX(100%); } }
+
+@media (max-width: 560px) {
+    .report-kpi-modal__panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+    .report-kpi-detail__item { grid-template-columns: minmax(0, 1fr); }
+    .report-kpi-detail__side { display: flex; flex-wrap: wrap; justify-items: start; align-items: center; gap: 4px 10px; text-align: left; }
+    .report-kpi-detail__foot { flex-direction: column; align-items: stretch; }
+    .report-kpi-detail__pager { justify-content: space-between; }
+    .report-kpi-detail__page { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .report-kpi-skeleton > span::after { animation: none; }
+    .report-kpi-modal__body > .report-kpi-detail { animation: none; }
+    .report-kpi-detail__page,
+    .report-kpi-detail__retry { transition: none; }
+}

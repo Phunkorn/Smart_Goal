@@ -33,18 +33,25 @@
 <div class="project-report" aria-labelledby="project-report-title">
     @include('reports.components.projects.header', ['routeName' => 'reports.projects', 'title' => 'รายงานโปรเจกต์ประจำเดือน'])
 
-    <section class="project-report__kpis" aria-label="สรุปตัวเลข{{ $periodPhrase }}">
+    {{--
+        การ์ดทุกใบเป็นปุ่มเปิดกล่องรายการจริงที่การ์ดนับ (reports.components.kpi-modal)
+        URL พก query ที่ตรวจแล้วของหน้านี้ กล่องจึงใช้คน แผนก และช่วงเวลาเดียวกับตัวเลขบนการ์ด
+    --}}
+    <section class="project-report__kpis" aria-label="สรุปตัวเลข{{ $periodPhrase }} กดการ์ดเพื่อดูรายการ">
         @foreach($kpis as $kpi)
-            <article class="project-report__kpi project-report__kpi--{{ $kpi['tone'] }}" data-project-kpi="{{ $kpi['key'] }}">
+            <button type="button" class="project-report__kpi project-report__kpi--{{ $kpi['tone'] }}" data-project-kpi="{{ $kpi['key'] }}"
+                data-kpi-open data-kpi-label="{{ $kpi['label'] }}" data-kpi-url="{{ route('reports.projects.kpi', ['kpi' => $kpi['key'], ...$query]) }}"
+                aria-haspopup="dialog">
                 <span class="project-report__kpi-icon" aria-hidden="true"><i class="bi {{ $kpi['icon'] }}"></i></span>
-                <div class="project-report__kpi-body">
+                <span class="project-report__kpi-body">
                     <span class="project-report__kpi-label">{{ $kpi['label'] }}</span>
                     <strong class="project-report__kpi-value">{{ number_format($kpi['value']) }} <small>{{ $kpi['unit'] }}</small></strong>
                     @if($kpi['note'] ?? null)
                         <span class="project-report__kpi-note">{{ $kpi['note'] }}</span>
                     @endif
-                </div>
-            </article>
+                </span>
+                <i class="bi bi-chevron-right project-report__kpi-more" aria-hidden="true"></i>
+            </button>
         @endforeach
     </section>
 
@@ -52,7 +59,7 @@
 
     {{--
         กราฟสรุปทั้งเดือน ไม่ขึ้นกับตัวกรอง ข้อมูลจาก ProjectReportService::chartData()
-        รายบุคคล 2 ใบ: แนวโน้มรายเดือน และสถานะงาน
+        รายบุคคล 2 ใบ: แนวโน้มรายเดือน (กราฟเส้น) และสถานะงาน (โดนัท)
         ภาพรวมแผนก 4 ใบ (2 × 2): เพิ่มงานล่าช้าที่ต้องติดตาม และงานที่ปิดได้รายคน
         น้ำเงินคืองานที่เสร็จ อำพันคืองานที่ได้รับ แดงใช้สื่อ "ล่าช้า" อย่างเดียว
     --}}
@@ -63,41 +70,47 @@
                 กราฟแสดงเฉพาะโปรเจกต์ <strong>{{ $chartProjectLabel }}</strong>
             </div>
         @endif
-        <article class="project-report__card project-report__chart-card project-report__chart-card--trend" data-report-chart data-chart-kind="bar" data-chart-state="loading">
+        {{-- กราฟเส้นสองเส้น: งานที่ได้รับ (อำพัน) เทียบงานที่เสร็จ (น้ำเงิน) จุดใหญ่คือเดือนที่เลือก --}}
+        <article class="project-report__card project-report__chart-card project-report__chart-card--trend" data-report-chart data-chart-kind="line" data-chart-state="{{ \App\Support\ReportChartState::initial($chartData['trend']['created'], $chartData['trend']['completed']) }}">
             <div class="project-report__chart-head">
                 <h2>{{ $trendTitle }}</h2>
-                <p>งานที่ได้รับ (อำพัน) เทียบงานที่เสร็จ (น้ำเงิน) แต่ละเดือน {{ $isCustomPeriod ? 'นับเฉพาะวันที่อยู่ในช่วงที่เลือก' : 'แท่งสีเข้มคือเดือน'.$monthLabel }}</p>
+                <p>งานที่ได้รับเทียบงานที่เสร็จสิ้นแต่ละเดือน {{ $isCustomPeriod ? 'นับเฉพาะวันที่อยู่ในช่วงที่เลือก' : 'จุดใหญ่คือเดือน'.$monthLabel }}</p>
             </div>
             <div class="report-chart-shell">
                 <div class="report-chart-skeleton" data-chart-skeleton aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-                <div class="report-chart-wrap"><canvas id="projectTrendChart" aria-label="กราฟแท่งงานที่ได้รับและงานที่เสร็จรายเดือน" role="img">กราฟแท่งงานที่ได้รับและงานที่เสร็จรายเดือน</canvas></div>
+                <div class="report-chart-wrap"><canvas id="projectTrendChart" aria-label="กราฟเส้นงานที่ได้รับและงานที่เสร็จสิ้นรายเดือน" role="img">กราฟเส้นงานที่ได้รับและงานที่เสร็จสิ้นรายเดือน</canvas></div>
                 {!! $chartEmpty !!}
             </div>
         </article>
 
-        <article class="project-report__card project-report__chart-card project-report__chart-card--status" data-report-chart data-chart-kind="horizontal-bar" data-chart-state="loading">
+        {{-- โดนัทสัดส่วนสถานะ ยอดรวมกลางวง ตารางป้าย จำนวน และ % ข้างวง สีมาจาก ProjectReportService::STATUS_COLORS ชุดเดียวกับกราฟ --}}
+        <article class="project-report__card project-report__chart-card project-report__chart-card--status" data-report-chart data-chart-kind="doughnut" data-chart-state="{{ \App\Support\ReportChartState::initial($statusChart['values']) }}">
             <div class="project-report__chart-head">
                 <h2>สถานะงาน{{ $periodPhrase }}</h2>
-                <p>จำนวนงานแต่ละสถานะจากทั้งหมด {{ number_format($statusChart['total']) }} งาน</p>
+                <p>สัดส่วนงานแต่ละสถานะจากทั้งหมด {{ number_format($statusChart['total']) }} งาน</p>
             </div>
-            <div class="report-chart-shell">
-                <div class="report-chart-skeleton" data-chart-skeleton aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-                <div class="report-chart-wrap"><canvas id="projectStatusChart" aria-label="กราฟแท่งแนวนอนจำนวนงานแต่ละสถานะ" role="img">กราฟแท่งแนวนอนจำนวนงานแต่ละสถานะ</canvas></div>
-                {!! $chartEmpty !!}
+            <div class="project-report__donut">
+                <div class="report-chart-shell">
+                    <div class="report-chart-skeleton" data-chart-skeleton aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+                    <div class="report-chart-wrap"><canvas id="projectStatusChart" aria-label="กราฟโดนัทสัดส่วนงานแต่ละสถานะ" role="img">กราฟโดนัทสัดส่วนงานแต่ละสถานะ</canvas></div>
+                    <div class="report-chart-state report-chart-state--empty" data-chart-empty role="status"><i class="bi bi-pie-chart" aria-hidden="true"></i><strong>ยังไม่มีงานในช่วงนี้</strong></div>
+                    <div class="report-chart-state report-chart-state--error" data-chart-error role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><strong>ไม่สามารถแสดงกราฟนี้ได้</strong></div>
+                </div>
+                @if($statusChart['total'] > 0)
+                    <table class="project-report__donut-legend">
+                        <caption class="visually-hidden">จำนวนงานแต่ละสถานะ รวม {{ number_format($statusChart['total']) }} งาน</caption>
+                        <tbody>
+                            @foreach($statusChart['keys'] as $index => $key)
+                                <tr>
+                                    <th scope="row"><span class="project-report__legend-dot" style="background: {{ $statusChart['colors'][$index] }}" aria-hidden="true"></span><span class="project-report__legend-name">{{ $statusChart['labels'][$index] }}</span></th>
+                                    <td>{{ number_format($statusChart['values'][$index]) }}</td>
+                                    <td>{{ round($statusChart['values'][$index] / $statusChart['total'] * 100) }}%</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
             </div>
-            {{-- ตัวเลขชุดเดียวกับกราฟสำหรับโปรแกรมอ่านหน้าจอ --}}
-            <table class="visually-hidden">
-                <caption>จำนวนงานแต่ละสถานะ รวม {{ number_format($statusChart['total']) }} งาน</caption>
-                <tbody>
-                    @foreach($statusChart['keys'] as $index => $key)
-                        <tr>
-                            <th scope="row">{{ $statusChart['labels'][$index] }}</th>
-                            <td>{{ number_format($statusChart['values'][$index]) }}</td>
-                            <td>{{ $statusChart['total'] > 0 ? round($statusChart['values'][$index] / $statusChart['total'] * 100) : 0 }}%</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
         </article>
 
         @if($isTeamView)
@@ -136,7 +149,7 @@
                 @endif
             </article>
 
-            <article class="project-report__card project-report__chart-card project-report__chart-card--breakdown" data-report-chart data-chart-kind="doughnut" data-chart-state="loading">
+            <article class="project-report__card project-report__chart-card project-report__chart-card--breakdown" data-report-chart data-chart-kind="doughnut" data-chart-state="{{ \App\Support\ReportChartState::initial($breakdown['values']) }}">
                 <div class="project-report__chart-head">
                     <h2>งานที่ปิดได้รายคน</h2>
                     <p>สัดส่วนงานที่แต่ละคนปิดได้ใน{{ $periodPhrase }} รวม {{ number_format($breakdown['total']) }} งาน</p>
@@ -224,6 +237,7 @@
 
     @include('reports.components.subtask-modal')
     @include('reports.components.projects.evidence-modal')
+    @include('reports.components.kpi-modal', ['eyebrow' => 'รายการที่นับ · '.$periodPhrase])
 
     <script type="application/json" id="project-report-chart-data">@json($chartData)</script>
 </div>

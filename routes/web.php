@@ -40,6 +40,8 @@ use App\Http\Controllers\WorkspaceBoardAttachmentController;
 use App\Http\Controllers\WorkspaceBoardController;
 use App\Http\Controllers\WorkspaceBoardDocumentController;
 use App\Models\WorkOrderListTaskRequest;
+use App\Services\OperationalWorkloadReportService;
+use App\Services\ProjectReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -359,8 +361,8 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::get('/media/{path}', [MediaController::class, 'legacy'])
         ->where('path', '.*')
         ->name('media.show');
-    // รายงานภาพรวมและรายงานรายพนักงาน
-    Route::get('/reports', [ReportController::class, 'index'])
+    // ทางเข้ารายงานเดิมพาไปหน้ารายงานปฏิบัติงาน โดยปลายทางตรวจสิทธิ์ตามเดิม
+    Route::redirect('/reports', '/reports/operational')
         ->name('reports.index');
 
     // รายงานภาพรวมองค์กรถูกยกเลิกแล้ว — ลิงก์เดิมพาไปรายงานโปรเจกต์ ซึ่งตรวจสิทธิ์ที่ปลายทางเอง
@@ -375,6 +377,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     // CSV แยกไฟล์ตามรายงาน ไม่รวมข้อมูลคนละประเภทไว้ในไฟล์เดียว
     Route::get('/reports/operational', [ReportController::class, 'operational'])
         ->name('reports.operational');
+
+    // กล่องรายละเอียดของการ์ดตัวเลข — ขอบเขตและสิทธิ์ชุดเดียวกับหน้า Overview
+    Route::get('/reports/operational/kpis/{kpi}', [ReportController::class, 'operationalKpi'])
+        ->whereIn('kpi', array_keys(OperationalWorkloadReportService::KPI_DESCRIPTIONS))
+        ->name('reports.operational.kpi');
 
     Route::get('/reports/operational/daily', [ReportController::class, 'operationalDaily'])
         ->name('reports.operational.daily');
@@ -403,6 +410,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     // รายงานโปรเจกต์ — ภาพรวมและรายบุคคลในหน้าเดียว (เลือกพนักงานจาก ?owner=)
     Route::get('/reports/projects', [ReportController::class, 'projects'])
         ->name('reports.projects');
+
+    // กล่องรายละเอียดของการ์ดตัวเลข — ขอบเขตและสิทธิ์ชุดเดียวกับหน้าหลัก
+    Route::get('/reports/projects/kpis/{kpi}', [ReportController::class, 'projectKpi'])
+        ->whereIn('kpi', array_keys(ProjectReportService::KPIS))
+        ->name('reports.projects.kpi');
 
     Route::get('/reports/projects/details', [ReportController::class, 'projectDetails'])
         ->name('reports.projects.details');

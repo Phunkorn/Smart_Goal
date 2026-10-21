@@ -134,6 +134,11 @@
     max-width: 100%;
 }
 
+/* รูปโปรไฟล์ย้ายเข้ามาอยู่ในปุ่มแทนไอคอนนำหน้าเดิม ปุ่มจึงกว้างขึ้นเท่ารูป ชื่อจะได้ไม่ถูกตัดเร็วกว่าเดิม */
+.my-tasks-page .notion-filter.mytasks-owner-filter__assignee .sg-select {
+    width: 188px;
+}
+
 @media (max-width: 760px) {
     /* แถวควบคุมเรียงเป็นคอลัมน์บนจอแคบ ตัวกรองนี้จึงกินเต็มความกว้างเหมือนตัวกรองสถานะ */
     .my-tasks-page .mytasks-owner-filter {

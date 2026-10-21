@@ -183,6 +183,33 @@ class MyTasksBoardMineFilterTest extends TestCase
     }
 
     /**
+     * ตัวเลือกแต่ละคนพกรูปโปรไฟล์ให้ select-dropdown.js วาด — ผ่าน route ของ media เท่านั้น ห้ามเห็น path จริง
+     */
+    public function test_the_assignee_filter_carries_each_persons_profile_avatar(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $assigner = $this->user($department);
+        $assigner->forceFill(['name' => 'สมชาย ใจดี', 'profile_image' => 'profile-images/secret-avatar.jpg'])->save();
+        $worker = $this->user($department);
+        $worker->forceFill(['name' => 'วิภา ทองดี', 'profile_image' => null])->save();
+        $project = $this->list($assigner);
+
+        $mine = $this->task($worker, $assigner, $project, 'งานของฉัน');
+        $this->invite($mine, $worker, $assigner);
+        $this->task($assigner, $assigner, $project, 'งานของผู้มอบหมาย');
+
+        $html = $this->actingAs($worker)->get(route('mytasks.index', ['view' => 'board']))->assertOk()->getContent();
+
+        $this->assertSame(1, preg_match('/<select data-board-assignee-filter[^>]*data-sg-trigger-media.*?<\/select>/s', $html, $select));
+        $this->assertStringContainsString(
+            '<option value="'.$assigner->id.'" data-avatar-initial="ส" data-avatar-url="'.e(route('media.profile', $assigner)).'"',
+            $select[0]
+        );
+        $this->assertMatchesRegularExpression('/<option value="'.$worker->id.'" data-avatar-initial="ว">/', $select[0]);
+        $this->assertStringNotContainsString('secret-avatar.jpg', $select[0]);
+    }
+
+    /**
      * Admin Member Workspace ใช้แถวบอร์ดชุดเดียวกัน แต่ต้องไม่มีปุ่มนี้
      *
      * participate() คืน true ทุกใบเมื่อผู้ใช้เป็น admin ปุ่มจึงเป็น no-op ที่ทำให้สับสน

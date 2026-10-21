@@ -162,8 +162,9 @@ class WorkLogParticipantService
             'location' => $log->location,
             'requester_name' => $log->requester_name,
             'work_date' => $log->work_date?->format('Y-m-d'),
-            'planned_start_at' => $log->started_at,
-            'planned_end_at' => $log->ended_at,
+            // งานที่ลงล่วงหน้ายังไม่มีเวลาจริง สำเนาจึงได้เวลาที่วางไว้ของต้นฉบับแทน
+            'planned_start_at' => $log->started_at ?? $log->planned_start_at,
+            'planned_end_at' => $log->started_at === null ? $log->planned_end_at : $log->ended_at,
         ];
     }
 

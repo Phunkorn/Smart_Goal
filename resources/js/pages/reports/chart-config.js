@@ -18,4 +18,11 @@ export const safeSeries = (values) => Array.isArray(values)
     ? values.map((value) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0)
     : [];
 
-export const reportChartAnimation = Object.freeze({duration: 460, easing: 'easeOutQuart'});
+/**
+ * การวาดกราฟตอนเข้าหน้า — 700ms ด้วย easeOutQuint ซึ่งเป็นเส้นโค้งเดียวกับ cubic-bezier(0.22, 1, 0.36, 1)
+ * ที่การ์ดและตารางของหน้าใช้ (shared.css: --report-ease) ทั้งหน้าจึงชะลอเข้าที่ด้วยจังหวะเดียวกัน
+ *
+ * เล่นครั้งเดียวตอนสร้างกราฟ: initializeChartCards สร้างแต่ละ canvas ครั้งเดียว และการย่อขยายหน้าต่าง
+ * ใช้โหมด resize ของ Chart.js ซึ่งไม่มีแอนิเมชัน ผู้ที่ตั้ง prefers-reduced-motion ถูกปิดที่ chart-lifecycle.js
+ */
+export const reportChartAnimation = Object.freeze({duration: 700, easing: 'easeOutQuint'});
