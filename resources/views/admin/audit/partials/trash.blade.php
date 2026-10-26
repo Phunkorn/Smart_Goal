@@ -23,20 +23,20 @@
     ];
 @endphp
 
-<section class="audit-stats">
-    <div class="audit-stat">
-        <span>ทั้งหมดตามตัวกรอง</span><strong>{{ $stats['total'] }}</strong><small>รายการที่ยังกู้คืนได้</small>
+<dl class="audit-overview-summary audit-overview-summary--trash" aria-label="ตัวเลขสรุปถังขยะ">
+    <div class="audit-overview-summary__item">
+        <dt>ทั้งหมดตามตัวกรอง</dt><dd>{{ $stats['total'] }}</dd><small>รายการที่ยังกู้คืนได้</small>
     </div>
-    <div class="audit-stat">
-        <span>งานและโปรเจกต์</span><strong>{{ $stats['work_items'] }}</strong><small>กู้คืนแล้วกลับเข้าบอร์ดเดิม</small>
+    <div class="audit-overview-summary__item">
+        <dt>งานและโปรเจกต์</dt><dd>{{ $stats['work_items'] }}</dd><small>กู้คืนแล้วกลับเข้าบอร์ดเดิม</small>
     </div>
-    <div class="audit-stat">
-        <span>ไฟล์และรูป</span><strong>{{ $stats['files'] }}</strong><small>ไฟล์จริงยังอยู่ กู้คืนแล้วเปิดได้</small>
+    <div class="audit-overview-summary__item">
+        <dt>ไฟล์และรูป</dt><dd>{{ $stats['files'] }}</dd><small>ไฟล์จริงยังอยู่ กู้คืนแล้วเปิดได้</small>
     </div>
-    <div class="audit-stat {{ $stats['near_expiry'] > 0 ? 'audit-stat--warning' : '' }}">
-        <span>ใกล้ถูกลบถาวร</span><strong>{{ $stats['near_expiry'] }}</strong><small>ภายใน 7 วัน หลังจากนั้นกู้คืนไม่ได้</small>
+    <div class="audit-overview-summary__item {{ $stats['near_expiry'] > 0 ? 'audit-stat--warning' : '' }}">
+        <dt>ใกล้ถูกลบถาวร</dt><dd>{{ $stats['near_expiry'] }}</dd><small>ภายใน 7 วัน หลังจากนั้นกู้คืนไม่ได้</small>
     </div>
-</section>
+</dl>
 
 {{--
     แถบเครื่องมือของถังขยะ: ตัวกรองลัดอยู่ซ้าย การกระทำที่ทำลายข้อมูลอยู่ขวาสุด
@@ -59,6 +59,8 @@
     </div>
 
     @if ($expiredCount > 0)
+        <details class="audit-maintenance audit-maintenance--inline">
+            <summary><i class="bi bi-gear" aria-hidden="true"></i> จัดการถังขยะ <i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
         {{-- การยืนยันเป็นหน้าที่ของ audit.js ผ่าน SweetAlert ไม่ใช่ native confirm --}}
         <form method="POST" action="{{ route('admin.trash.purge-expired') }}"
               data-audit-purge-expired data-count="{{ $expiredCount }}">
@@ -69,6 +71,7 @@
                 ล้างของหมดอายุ ({{ $expiredCount }})
             </button>
         </form>
+        </details>
     @endif
 </div>
 
@@ -121,6 +124,10 @@
 @endif
 
 <section class="audit-card">
+    <header class="audit-list-head">
+        <div><h2>รายการในถังขยะ</h2><p>เลือกรายการเพื่อกู้คืนหรือลบถาวร</p></div>
+        <span>{{ number_format($stats['total']) }} รายการ</span>
+    </header>
     @if ($trashLogs->isEmpty())
         <div class="audit-empty">
             <i class="bi bi-trash3" aria-hidden="true"></i>
@@ -136,13 +143,11 @@
                             <input type="checkbox" data-audit-select-all
                                    aria-label="เลือกทุกรายการในหน้านี้">
                         </th>
-                        <th scope="col">&#xE25;&#xE33;&#xE14;&#xE31;&#xE1A;</th>
-                        <th>ข้อมูลที่ถูกลบ</th>
-                        <th>แผนก</th>
-                        <th>ใครเป็นคนลบ</th>
-                        <th>ลบเมื่อ</th>
-                        <th>เหลือเวลากู้คืน</th>
-                        <th>จัดการ</th>
+                        <th scope="col">ข้อมูลที่ถูกลบ</th>
+                        <th scope="col">ผู้ลบ</th>
+                        <th scope="col">ลบเมื่อ</th>
+                        <th scope="col">สถานะ</th>
+                        <th scope="col">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -155,7 +160,6 @@
                                        value="{{ $trash->id }}" data-audit-select
                                        aria-label="เลือก {{ $summary['name'] }}">
                             </td>
-                            <td class="audit-row-number">{{ ($trashLogs->firstItem() ?? 1) + $loop->index }}</td>
                             <td>
                                 <div class="audit-item">
                                     {{--
@@ -172,11 +176,11 @@
                                         <div class="audit-item-meta">
                                             <span class="audit-subject">{{ $summary['entity_label'] }}</span>
                                             <span class="audit-muted">ID #{{ $trash->entity_id }}</span>
+                                            <span class="audit-muted">{{ $summary['department'] }}</span>
                                         </div>
                                     </div>
                                 </div>
                             </td>
-                            <td><span class="audit-context">{{ $summary['department'] }}</span></td>
                             <td>
                                 <div class="audit-strong">{{ $trash->deletedBy?->name ?? 'ระบบ' }}</div>
                                 <div class="audit-muted">{{ $trash->deletedBy?->email ?: ($trash->deletedBy?->username ? '@'.$trash->deletedBy->username : '') }}</div>

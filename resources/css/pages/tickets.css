@@ -1,0 +1,18 @@
+/*
+ * Smart Ticket ภายในระบบ (ใต้ layouts.app)
+ *   หน้าแจ้งปัญหา (landing) · modal แจ้งปัญหา · หน้ารับแจ้งปัญหาของทีม IT (desk + คิวงาน)
+ *   รายละเอียด Ticket · ฟอร์มแจ้งปัญหาแบบหน้าเดียว · ตั้งค่าของ admin
+ * ลำดับ: โครงร่วม → ปุ่ม → ฟอร์ม → องค์ประกอบของแต่ละหน้า → กฎตามขนาดจอ (ท้ายสุด)
+ */
+@import './tickets/base.css';
+@import './tickets/buttons.css';
+@import './tickets/form.css';
+@import './tickets/stepper.css';
+@import './tickets/submit-modal.css';
+@import './tickets/landing.css';
+@import './tickets/desk.css';
+@import './tickets/list.css';
+@import './tickets/preview.css';
+@import './tickets/detail.css';
+@import './tickets/settings.css';
+@import './tickets/responsive.css';

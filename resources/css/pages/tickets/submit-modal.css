@@ -1,0 +1,158 @@
+/*
+ * Modal แบบมีขั้นตอนของ Smart Ticket (พฤติกรรม: tickets/stepper.js) — ใช้ร่วมกันสองที่:
+ *   แจ้งปัญหา IT 3 ขั้น (tickets/components/submit-modal.blade.php)
+ *   ปิดงานของเจ้าหน้าที่ 3 ขั้น (tickets/components/close-modal.blade.php)
+ *
+ * ใช้ Bootstrap Modal ทั้งหมด: modal-dialog-scrollable ให้หัว ขั้นตอน และปุ่มอยู่กับที่ เนื้อหาเลื่อนเอง
+ * modal-fullscreen-sm-down เต็มจอบนมือถือ · ที่นี่ตั้งเฉพาะความกว้าง ระยะ และหน้าตาของขั้นตอน
+ * การเคลื่อนไหวของ .fade ถูก Bootstrap ปิดเองเมื่อ prefers-reduced-motion
+ *
+ * โครงเป็นแผงเดียว: หัว + แถบขั้นตอน | เส้นคั่นบางเส้นเดียว | เนื้อหา | ปุ่ม (ไม่มีเส้นคั่นเพิ่ม)
+ */
+.ticket-submit-modal__dialog {
+    max-width: 640px;
+}
+
+/*
+ * ฟอร์มคือ .modal-content และมีคลาส .ticket-form ด้วย (ให้ช่องกรอกได้หน้าตาเดียวกับฟอร์มอื่น)
+ * .ticket-form ตั้ง display: grid ซึ่งทับ flex column ของ Bootstrap — แถวจึงยืดและมีช่องว่างระหว่างส่วน
+ * คืนเลย์เอาต์ของ modal ไว้ที่นี่
+ */
+.ticket-submit-modal .ticket-submit-modal__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+}
+
+/*
+ * หัว ขั้นตอน และปุ่มสูงตามเนื้อหาเสมอ — modal-content เป็น flex column ที่สูงเต็มจอบนมือถือ
+ * ถ้าไม่ตรึงไว้ ขั้นที่เนื้อหาสั้นทำให้แถบขั้นตอนยืดสูงกว่าขั้นที่เนื้อหายาว ที่ว่างต้องอยู่ใน modal-body เท่านั้น
+ */
+.ticket-submit-modal__header,
+.ticket-submit-modal .ticket-stepper,
+.ticket-submit-modal__footer {
+    flex: 0 0 auto;
+}
+
+.ticket-submit-modal__header {
+    align-items: flex-start;
+    padding: 20px 24px 8px;
+    border-bottom: 0;
+}
+
+.ticket-submit-modal__heading {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ticket-submit-modal__eyebrow {
+    color: var(--accent);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.ticket-submit-modal__header .modal-title {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+/* แถบขั้นตอนใน modal — โครงและสถานะของแถบอยู่ใน stepper.css (ใช้ร่วมกับหน้าสาธารณะ) ที่นี่กำหนดเฉพาะระยะและเส้นคั่น */
+.ticket-submit-modal .ticket-stepper {
+    padding: 8px 24px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* ---------- เนื้อหาแต่ละขั้น ---------- */
+.ticket-submit-modal__body {
+    display: grid;
+    align-content: start;
+    gap: 16px;
+    padding: 20px 24px;
+}
+
+/* ---------- ปุ่มท้าย modal (ไม่มีเส้นคั่น — เส้นเดียวของ modal อยู่ใต้แถบขั้นตอน) ---------- */
+.ticket-submit-modal__footer {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 4px 24px max(20px, env(safe-area-inset-bottom));
+    border-top: 0;
+}
+
+.ticket-submit-modal__footer > * {
+    margin: 0;
+}
+
+.ticket-submit-modal__footer [data-ticket-step-back] {
+    flex: 0 0 auto;
+    margin-right: auto;
+    white-space: nowrap;
+}
+
+.ticket-submit-modal__submit[hidden] {
+    display: none;
+}
+
+.ticket-submit-modal__submit .ticket-form__actions {
+    margin: 0;
+}
+
+/* ปุ่มส่งในแถบปุ่มสูงเท่าปุ่ม "ย้อนกลับ"/"ถัดไป" — เด่นด้วยสีและความกว้าง ไม่ใช่ความสูงที่ต่างกัน */
+.ticket-submit-modal__submit .ticket-form__submit {
+    min-width: 160px;
+    min-height: 44px;
+    font-size: .92rem;
+}
+
+/*
+ * จอตั้งแต่ 576px: เนื้อหาสูงขั้นต่ำเท่ากันทุกขั้น modal จึงไม่ยุบ/ขยายทุกครั้งที่กดถัดไป
+ * (ขั้นที่ 3 ยาวกว่านี้อยู่แล้ว ขั้นที่ 1–2 ได้ที่ว่างด้านล่างแทนการกระโดด)
+ */
+@media (min-width: 576px) {
+    .ticket-submit-modal__body {
+        min-height: 248px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .ticket-submit-modal .ticket-submit-modal__content {
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .ticket-submit-modal__header {
+        padding: 16px 16px 6px;
+    }
+
+    .ticket-submit-modal .ticket-stepper {
+        padding: 6px 12px 14px;
+    }
+
+    .ticket-submit-modal__body {
+        padding: 16px;
+    }
+
+    /*
+     * บนโทรศัพท์เนื้อหาเลื่อนใต้ปุ่มได้ (ขั้นที่ 3 ยาว) จึงใช้เส้นคั่นบางให้เห็นว่าปุ่มเป็นแถบคงที่
+     * ปุ่มหลักกว้างพอให้นิ้วกดง่าย ปุ่มย้อนกลับอยู่ซ้าย
+     */
+    .ticket-submit-modal__footer {
+        padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+        border-top: 1px solid var(--border);
+    }
+
+    .ticket-submit-modal__footer [data-ticket-step-next],
+    .ticket-submit-modal__submit,
+    .ticket-submit-modal__submit .ticket-form__submit {
+        flex: 1 1 auto;
+        width: 100%;
+    }
+}

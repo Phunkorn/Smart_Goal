@@ -1,0 +1,216 @@
+/*
+ * หน้ารับแจ้งปัญหาของทีม IT — tickets/index.blade.php + components/overview, attention, workload
+ *
+ * ลำดับข้อมูลตาม docs/UI_DESIGN_SYSTEM.md: หัวหน้า + การกระทำ → ภาพรวม → คิวงาน → ข้อมูลประกอบ
+ * พื้นขาว ตัวอักษรเข้ม ฟ้าเป็นสีหลัก · สีของสถานะใช้แค่ไอคอนในช่องเล็ก ไม่ใช่เส้นขอบหรือพื้นสีเต็มใบ
+ * จำนวนคอลัมน์ตามขนาดจอมาจาก responsive.css (mobile-first)
+ *
+ * ความกว้างเต็มพื้นที่เนื้อหา (หลัง sidebar) ทุกขนาดจอ — ไม่มีเพดานคงที่ เพราะบนจอกว้างมาก (หรือเบราว์เซอร์ซูมออก)
+ * เพดาน 1440px ทำให้เนื้อหากองกลางจอและเหลือที่ว่างสองข้าง ขอบซ้ายขวามาจาก .main ของ layout
+ * ตัวเลข KPI, ตาราง (table-layout: fixed แบบสัดส่วน) และคอลัมน์ล่างขยายตามความกว้างเอง
+ */
+.ticket-desk {
+    display: grid;
+    gap: 20px;
+    width: 100%;
+}
+
+/* ---------- หัวหน้า ---------- */
+.ticket-desk__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px 20px;
+}
+
+.ticket-desk__title {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.ticket-desk__eyebrow,
+.ticket-reporter__eyebrow {
+    color: var(--accent);
+    font-size: .74rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.ticket-desk__title h1 {
+    margin: 2px 0 0;
+    color: var(--text);
+    font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+    font-weight: 800;
+}
+
+.ticket-desk__title p {
+    max-width: 640px;
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: .9rem;
+}
+
+/* เปิด/ปิดเสียงแจ้ง Ticket ใหม่ — ขวาของหัวหน้า (จอแคบตกลงใต้ชื่อหน้า) */
+.ticket-desk__sound {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: .82rem;
+}
+
+/* ไอคอนขนาดเดียวกับปุ่มใน topbar (ไม่รับ font-size ของป้ายข้าง ๆ) */
+.ticket-desk__sound .icon-btn {
+    font-size: 1rem;
+}
+
+.ticket-desk__sound-label strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+/*
+ * พื้นที่กดขั้นต่ำ 44×44px โดยไม่เปลี่ยนขนาดที่มองเห็นของ .icon-btn (36px — layout/topbar.css)
+ * ::before วางจาก padding box (ด้านในขอบ 1px) จึงขยาย 5px: 34 + 10 = 44px
+ */
+.icon-btn--touch-target::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+}
+
+.ticket-desk__stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .78rem;
+}
+
+.ticket-desk > .ticket-flash {
+    margin: 0;
+}
+
+/*
+ * ---------- ภาพรวม (KPI หกใบ = ตัวกรองสถานะของคิว) ----------
+ * การ์ดสีขาวขนาดเท่ากันทุกใบ สีอยู่ที่ช่องไอคอนเท่านั้น — ตัวเลขเด่นกว่าป้ายแต่ไม่ใหญ่เกินการ์ด
+ * ไม่มีกราฟแนวโน้ม (ระบบไม่ได้เก็บข้อมูลย้อนหลังรายวัน)
+ * การ์ดของตัวกรองที่ใช้อยู่ (aria-current) ขอบฟ้าสองชั้น ป้ายสีฟ้า — แทนแท็บสถานะที่ถอดออกจากคิว
+ * ตั้งแต่ 768px: ไอคอนซ้าย (กึ่งกลางแนวตั้ง) ข้อมูลขวา — ป้าย · ตัวเลข + หน่วย · หมายเหตุ (responsive.css)
+ * แคบกว่านั้น (ค่าพื้นฐานด้านล่าง): ไอคอนอยู่บน ป้ายเต็มความกว้างการ์ด ป้ายยาวที่สุด ("งานที่ต้องติดตาม") จึงอยู่บรรทัดเดียวในการ์ด ~140px
+ * จำนวนคอลัมน์: มือถือ 2 · 576–1599px 3 (3 + 3) · ตั้งแต่ 1600px 6 ในแถวเดียว
+ * หกใบในแถวเดียวเริ่มที่ 1600px เพราะแคบกว่านั้นการ์ดเหลือ ~150–180px ป้ายข้างไอคอนจะตกสองบรรทัด
+ */
+.ticket-overview {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ticket-overview__item {
+    --ticket-tone: var(--accent);
+    --ticket-tone-dim: var(--accent-dim);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    color: var(--text);
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+a.ticket-overview__item:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+a.ticket-overview__item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.ticket-overview__item[aria-current="page"] {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-sm);
+}
+
+.ticket-overview__item[aria-current="page"] .ticket-overview__label {
+    color: var(--accent-strong);
+    font-weight: 600;
+}
+
+.ticket-overview__item--today,
+.ticket-overview__item--blue { --ticket-tone: var(--blue); --ticket-tone-dim: var(--blue-dim); }
+.ticket-overview__item--amber { --ticket-tone: var(--amber); --ticket-tone-dim: var(--amber-dim); }
+.ticket-overview__item--green { --ticket-tone: var(--green); --ticket-tone-dim: var(--green-dim); }
+
+.ticket-overview__icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius);
+    background: var(--ticket-tone-dim);
+    color: var(--ticket-tone);
+    font-size: 1.15rem;
+}
+
+.ticket-overview__body {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ticket-overview__label {
+    color: var(--text);
+    font-size: .86rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.ticket-overview__figure {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 6px;
+}
+
+.ticket-overview__value {
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+}
+
+.ticket-overview__unit,
+.ticket-overview__note {
+    color: var(--text-muted);
+    font-size: .74rem;
+}
+
+/* ---------- หัวข้อของแต่ละส่วน ---------- */
+.ticket-section-title {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticket-overview__item {
+        transition: none;
+    }
+}

@@ -1,0 +1,11 @@
+/*
+ * ฟอร์มแจ้งปัญหาสาธารณะ /support — resources/views/tickets/public/*.blade.php
+ * หน้า standalone ไม่โหลด layout.css จึง import tokens และ typography เอง
+ * (รูปแบบเดียวกับ computer-check-report.css) แล้วใช้ฟอร์มชุดเดียวกับหน้าภายใน
+ */
+@import '../foundations/tokens.css';
+@import '../foundations/typography.css';
+@import './tickets/buttons.css';
+@import './tickets/form.css';
+@import './tickets/stepper.css';
+@import './tickets/public.css';

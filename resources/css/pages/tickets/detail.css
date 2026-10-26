@@ -1,0 +1,557 @@
+/*
+ * หน้ารายละเอียด Ticket — tickets/show.blade.php และ components/{actions,participants,coordinator,timeline,
+ * photo-gallery,problem-facts,close-modal,status-modal}.blade.php
+ *
+ * โครง: หัว (เลข สถานะ รายละเอียดปัญหา ข้อเท็จจริง) + main (รูป ประวัติ) + aside (การดำเนินการ ผู้เข้าร่วม ผู้ประสานงาน)
+ * การวางสองคอลัมน์บนจอกว้างและลำดับบนมือถืออยู่ใน responsive.css · ไม่มีองค์ประกอบ sticky/fixed
+ * ปุ่มทั้งหมดอยู่ในลำดับเนื้อหาปกติ
+ */
+.ticket-detail {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+}
+
+.ticket-detail > *,
+.ticket-detail__main > *,
+.ticket-detail__aside > * {
+    min-width: 0;
+    margin: 0;
+}
+
+/* ---------- ทางกลับ ---------- */
+.ticket-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 14px;
+    margin-bottom: 6px;
+}
+
+.ticket-crumbs__here {
+    color: var(--text-muted);
+    font-size: .86rem;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- หัว Ticket ---------- */
+.ticket-detail__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.ticket-detail__mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 1.2rem;
+}
+
+.ticket-detail__headline {
+    flex: 1;
+    min-width: 0;
+}
+
+.ticket-detail__headline .eyebrow {
+    display: block;
+    color: var(--accent);
+    font-size: .72rem;
+    font-weight: 600;
+}
+
+.ticket-detail__heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+}
+
+/* ป้ายสถานะในหัว Ticket มีจุดสีนำหน้า (สีเดียวกับตัวอักษรของป้าย) */
+.ticket-detail__heading .ticket-status::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: middle;
+}
+
+.ticket-detail__heading h1 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.45rem;
+    font-weight: 800;
+    letter-spacing: .01em;
+}
+
+.ticket-detail__when {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .84rem;
+}
+
+/* main / aside: บนจอกว้างเป็นคอลัมน์ บนมือถือเป็น display: contents (responsive.css) */
+.ticket-detail__main,
+.ticket-detail__aside {
+    display: grid;
+    gap: 14px;
+    align-content: start;
+}
+
+/* ---------- การดำเนินการ ---------- */
+.ticket-actions {
+    display: grid;
+    gap: 10px;
+}
+
+.ticket-actions form {
+    margin: 0;
+}
+
+.ticket-actions__button {
+    width: 100%;
+}
+
+/*
+ * การ์ดการดำเนินการของหน้ารายละเอียด (components/actions) — เลย์เอาต์เดียวทุกขนาดจอ:
+ *   ปุ่มหลัก (รับงาน ปิดงาน กลับมาดำเนินการ เปิดใหม่) เต็มแถว · ติดตามงาน / ยกเลิกงาน ครึ่งแถวเท่ากัน (ticket-actions__row)
+ * จำกัดที่การ์ดนี้ — .ticket-actions ในคิวและ modal ดูรายละเอียดยังเป็นแบบเดิม
+ */
+.ticket-detail__actions .ticket-actions {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.ticket-actions__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* ปิดงาน: ปุ่มหลักพื้นเขียวเข้ม ตัวอักษรขาว (--green-strong ให้ contrast ≥ 4.5:1) */
+.ticket-actions__button--close {
+    border-color: var(--green-strong);
+    background: var(--green-strong);
+    color: #fff;
+}
+
+.ticket-actions__button--close:hover,
+.ticket-actions__button--close:focus-visible {
+    border-color: var(--green-strong);
+    background: var(--green-strong);
+    color: #fff;
+    filter: brightness(.92);
+}
+
+/* ---------- รายละเอียดปัญหา ---------- */
+.ticket-detail__description {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text);
+    line-height: 1.7;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+/*
+ * ข้อเท็จจริง (components/problem-facts): ไอคอนซ้าย (::before ของคลาส bootstrap-icons) ป้ายและค่าด้านขวา
+ * จอแคบ: คอลัมน์เดียว / สองคอลัมน์ · ตั้งแต่ 768px: คอลัมน์ละสองช่อง (เรียงลงก่อน) มีเส้นคั่นระหว่างคอลัมน์
+ */
+.ticket-facts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px 16px;
+    margin: 0;
+}
+
+.ticket-fact {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    column-gap: 10px;
+    align-content: start;
+    min-width: 0;
+}
+
+.ticket-fact::before {
+    grid-row: 1 / span 2;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+}
+
+@media (min-width: 576px) {
+    .ticket-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) {
+    .ticket-facts {
+        grid-template-columns: none;
+        grid-template-rows: repeat(2, auto);
+        grid-auto-columns: minmax(0, 1fr);
+        grid-auto-flow: column;
+        column-gap: 0;
+    }
+
+    .ticket-fact {
+        padding-inline: 16px;
+    }
+
+    .ticket-fact:nth-child(-n+2) {
+        padding-left: 0;
+    }
+
+    .ticket-fact:nth-child(n+3) {
+        border-left: 1px solid var(--border);
+    }
+}
+
+.ticket-facts dt {
+    color: var(--text-muted);
+    font-size: .76rem;
+    font-weight: 500;
+}
+
+.ticket-facts dd {
+    margin: 2px 0 0;
+    color: var(--text);
+    font-size: .9rem;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- รูปภาพ ---------- */
+.ticket-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 104px), 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ticket-gallery__link {
+    display: block;
+    border-radius: var(--radius-sm);
+}
+
+.ticket-gallery__link:focus-visible {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: 2px;
+}
+
+/* contain แสดงรูปทั้งรูปในกรอบสี่เหลี่ยม ไม่ crop ส่วนสำคัญของภาพหน้างาน */
+.ticket-gallery img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    object-fit: contain;
+}
+
+/* ---------- ผู้เข้าร่วม ---------- */
+.ticket-people {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ticket-people__item {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+
+.ticket-people__item:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.ticket-people__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    position: relative;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-weight: 700;
+}
+
+/* รูปโปรไฟล์ทับตัวย่อชื่อ (ตัวย่ออยู่ข้างล่างเป็นเนื้อหาสำรองเมื่อไม่มีรูปหรือรูปโหลดไม่ขึ้น) */
+.ticket-people__avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.ticket-people__identity {
+    display: grid;
+    min-width: 0;
+}
+
+.ticket-people__identity strong {
+    color: var(--text);
+    font-size: .92rem;
+    overflow-wrap: anywhere;
+}
+
+.ticket-people__identity small {
+    color: var(--text-muted);
+    font-size: .78rem;
+    overflow-wrap: anywhere;
+}
+
+/* ป้าย "ผู้ประสานงาน" / "คุณ" อยู่ท้ายแถว (ขึ้นบรรทัดภายในช่องของตัวเองเมื่อแคบ) */
+.ticket-people__badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.ticket-coordinator__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ticket-coordinator__row .form-select {
+    flex: 1 1 160px;
+    min-width: 0;
+    min-height: 44px;
+    border-color: var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+}
+
+.ticket-coordinator .ticket-form__error {
+    margin-top: 8px;
+}
+
+.ticket-people__former {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+}
+
+.ticket-people__former h3 {
+    margin: 0 0 6px;
+    color: var(--text-muted);
+    font-size: .8rem;
+    font-weight: 600;
+}
+
+.ticket-people__former ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text);
+    font-size: .86rem;
+    overflow-wrap: anywhere;
+}
+
+.ticket-people__former small {
+    color: var(--text-muted);
+}
+
+/* ---------- Timeline ---------- */
+.ticket-timeline {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ticket-timeline__item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 12px;
+    padding-bottom: 14px;
+}
+
+.ticket-timeline__item:last-child {
+    padding-bottom: 0;
+}
+
+/* เส้นเชื่อมระหว่างเหตุการณ์ — บาง ตกแต่งเท่านั้น */
+.ticket-timeline__item:not(:last-child)::before {
+    position: absolute;
+    top: 32px;
+    bottom: 4px;
+    left: 13.5px;
+    width: 1px;
+    background: var(--border);
+    content: '';
+}
+
+.ticket-timeline__icon {
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: .8rem;
+}
+
+.ticket-timeline__content {
+    min-width: 0;
+}
+
+.ticket-timeline__title {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    margin: 3px 0 0;
+    color: var(--text);
+    font-size: .92rem;
+    overflow-wrap: anywhere;
+}
+
+.ticket-timeline__title span {
+    color: var(--text-muted);
+}
+
+.ticket-timeline__time {
+    display: block;
+    color: var(--text-muted);
+    font-size: .78rem;
+}
+
+.ticket-timeline__body {
+    margin-top: 6px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.ticket-timeline__body-label {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text-muted);
+    font-size: .74rem;
+    font-weight: 600;
+}
+
+.ticket-timeline__body p {
+    margin: 0;
+    color: var(--text);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.ticket-timeline__meta {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
+.ticket-timeline__content .ticket-gallery {
+    margin-top: 8px;
+}
+
+.ticket-detail__closed-note {
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* ---------- Modal เปลี่ยนสถานะ ---------- */
+.ticket-modal .modal-content {
+    border: 0;
+    border-radius: var(--radius);
+}
+
+.ticket-modal .modal-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.ticket-modal .modal-body {
+    gap: 16px;
+}
+
+.ticket-modal .modal-footer {
+    gap: 8px;
+}
+
+/* ---------- ปิดงานแบบขั้นตอน (components/close-modal) — โครง modal และขั้นตอนใช้ submit-modal.css / stepper.css ---------- */
+
+/* ข้อความสำเร็จรูป: แตะแล้วเติมต่อท้ายช่องผลการแก้ไข · ชิปสูง 44px ให้นิ้วกดง่าย ตัดบรรทัดได้ */
+.ticket-quick-notes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.ticket-quick-notes__chip {
+    min-height: 44px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: .88rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ticket-quick-notes__chip:hover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.ticket-quick-notes__chip:focus-visible {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: 2px;
+}
+
+/* ขั้นตรวจทาน: ป้ายเล็กบน ค่าเต็มด้านล่าง ข้อความยาวขึ้นบรรทัดตามที่พิมพ์ */
+.ticket-close-review {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.ticket-close-review dt {
+    color: var(--text-muted);
+    font-size: .78rem;
+    font-weight: 500;
+}
+
+.ticket-close-review dd {
+    margin: 2px 0 0;
+    color: var(--text);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}

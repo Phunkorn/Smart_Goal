@@ -43,6 +43,15 @@ return [
     | (ดู App\Services\Telegram\TelegramOutbox) ค่าเหล่านี้ต้องอ่านผ่าน config เท่านั้น
     | เพราะโฮสต์ใช้ config:cache จริง
     */
+    /*
+     * LINE Login ของฟอร์มแจ้งปัญหาสาธารณะ /support (App\Services\LineLogin) — ช่องทาง LINE Login ใน LINE Developers Console
+     * Callback URL ของช่องทาง: {APP_URL}/support/line/callback · ว่างทั้งคู่ = ฟอร์มไม่บังคับ LINE
+     */
+    'line_login' => [
+        'channel_id' => env('LINE_LOGIN_CHANNEL_ID'),
+        'channel_secret' => env('LINE_LOGIN_CHANNEL_SECRET'),
+    ],
+
     'telegram' => [
         'enabled' => (bool) env('TELEGRAM_NOTIFICATIONS_ENABLED', false),
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
@@ -50,7 +59,10 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
         'timeout' => (int) env('TELEGRAM_TIMEOUT', 8),
         'drain_limit' => (int) env('TELEGRAM_DRAIN_LIMIT', 40),
-        'max_attempts' => (int) env('TELEGRAM_MAX_ATTEMPTS', 3),
+        // เพดานเวลาต่อรอบ drain (วินาที) — รอบตอนปิดท้าย request ต้องไม่ยึด worker ของเว็บนาน
+        'drain_seconds' => (int) env('TELEGRAM_DRAIN_SECONDS', 20),
+        // ลองซ้ำห่างขึ้นเรื่อย ๆ (TelegramMessage::RETRY_DELAYS_MINUTES) 5 ครั้งครอบคลุม Telegram ล่มราว 50 นาที
+        'max_attempts' => (int) env('TELEGRAM_MAX_ATTEMPTS', 5),
     ],
 
 ];

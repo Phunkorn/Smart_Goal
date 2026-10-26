@@ -69,6 +69,10 @@ class SystemNotification extends Model
         'work_log_routine_day_pending' => 'worklog',
         'work_log_routine_cutoff' => 'worklog',
         'work_log_routine_absent' => 'worklog',
+        // Smart Ticket — ส่งจาก App\Services\TicketNotificationService (รหัส Ticket อยู่ใน data.ticket_id)
+        'ticket_created' => 'ticket',
+        'ticket_status_changed' => 'ticket',
+        'ticket_note_added' => 'ticket',
         'system' => 'system',
     ];
 

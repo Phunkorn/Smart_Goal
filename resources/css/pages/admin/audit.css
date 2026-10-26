@@ -98,8 +98,7 @@
 /* ── ตัวกรอง ─────────────────────────────────────────────── */
 
 .audit-page .audit-filters,
-.audit-page .audit-card,
-.audit-page .audit-stat {
+.audit-page .audit-card {
     border: 1px solid var(--border);
     border-radius: 16px;
     background: #fff;
@@ -259,221 +258,6 @@
     cursor: not-allowed;
 }
 
-/* ── การ์ดสรุป ───────────────────────────────────────────── */
-
-.audit-page .audit-stats {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 13px;
-}
-
-.audit-page .audit-stats--overview {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.audit-page .audit-stat {
-    min-width: 0;
-    padding: 16px 18px;
-}
-
-.audit-page .audit-stat > i {
-    display: block;
-    margin-bottom: 7px;
-    color: var(--accent);
-    font-size: 17px;
-}
-
-.audit-page .audit-stat span {
-    display: block;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.audit-page .audit-stat strong {
-    display: block;
-    margin-top: 5px;
-    color: var(--text);
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1.1;
-}
-
-.audit-page .audit-stat small {
-    display: block;
-    margin-top: 4px;
-    color: var(--text-muted);
-    font-size: 11px;
-    font-weight: 400;
-}
-
-.audit-page .audit-stat--warning {
-    border-color: #fed7aa;
-    background: #fffaf3;
-}
-
-.audit-page .audit-stat--warning strong,
-.audit-page .audit-stat--warning > i {
-    color: #b45309;
-}
-
-.audit-page .audit-stat--danger {
-    border-color: #fecaca;
-    background: #fff5f5;
-}
-
-.audit-page .audit-stat--danger strong,
-.audit-page .audit-stat--danger > i {
-    color: #b91c1c;
-}
-
-/* ── ภาพรวม ─────────────────────────────────────────────── */
-
-.audit-page .audit-overview-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-}
-
-/* การ์ดในภาพรวมต้องสูงเท่ากันและไม่ยืดตามจำนวนรายการ
- * มิฉะนั้นรายการยาว ๆ จะดันหน้าให้ยาวจนต้องเลื่อนหาการ์ดใบข้าง ๆ */
-.audit-page .audit-overview-grid > .audit-card {
-    display: flex;
-    flex-direction: column;
-    max-height: 460px;
-    overflow: hidden;
-}
-
-.audit-page .audit-overview-grid .audit-card__head h2 {
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.audit-page .audit-overview-grid .audit-card__head a {
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.audit-page .audit-overview-grid .audit-stream time {
-    font-size: 10px;
-    font-weight: 400;
-}
-
-.audit-page .audit-overview-grid .audit-stream time b {
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.audit-page .audit-overview-grid .audit-sentence {
-    font-size: 12px;
-}
-
-.audit-page .audit-overview-grid .audit-sentence > strong,
-.audit-page .audit-overview-grid .audit-sentence > em,
-.audit-page .audit-overview-grid .audit-sentence__subject,
-.audit-page .audit-overview-grid .audit-action {
-    font-weight: 400;
-}
-
-.audit-page .audit-card__head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    flex: 0 0 auto;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-}
-
-.audit-page .audit-card__head h2 {
-    margin: 0;
-    color: var(--text);
-    font-size: 16px;
-    font-weight: 700;
-}
-
-.audit-page .audit-card__head small {
-    display: block;
-    margin-top: 2px;
-    color: var(--text-muted);
-    font-size: 12px;
-    font-weight: 400;
-}
-
-.audit-page .audit-card__head a {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    flex: 0 0 auto;
-    color: var(--accent);
-    font-size: 13px;
-    font-weight: 650;
-    white-space: nowrap;
-    text-decoration: none;
-}
-
-.audit-page .audit-card__head a:hover {
-    text-decoration: underline;
-}
-
-.audit-page .audit-stream {
-    display: grid;
-    align-content: start;
-    gap: 2px;
-    margin: 0;
-    padding: 8px;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-    list-style: none;
-}
-
-.audit-page .audit-stream li {
-    display: grid;
-    grid-template-columns: 54px minmax(0, 1fr);
-    gap: 11px;
-    padding: 9px 10px;
-    border-radius: 10px;
-}
-
-.audit-page .audit-stream li:hover {
-    background: var(--surface-2);
-}
-
-.audit-page .audit-stream li.is-auth-event {
-    background: #f7fbff;
-}
-
-.audit-page .audit-stream time {
-    display: grid;
-    gap: 1px;
-    color: var(--text-muted);
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.3;
-}
-
-.audit-page .audit-stream time b {
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 700;
-}
-
-.audit-page .audit-stream small {
-    display: block;
-    margin-top: 3px;
-    color: var(--text-muted);
-    font-size: 11px;
-    font-weight: 400;
-}
-
-.audit-page .audit-stream small.is-urgent {
-    color: #b45309;
-    font-weight: 600;
-}
-
 /* ประโยคเดียวที่อ่านได้ต่อเนื่อง: ใคร ทำอะไร กับอะไร
  * ใช้ flex เพื่อให้ตัดบรรทัดได้เองโดยยังเว้นช่องไฟระหว่างคำสม่ำเสมอ */
 .audit-page .audit-sentence {
@@ -519,7 +303,6 @@
 
 .audit-page .audit-table {
     width: 100%;
-    min-width: 1180px;
     border-collapse: collapse;
     table-layout: fixed;
 }
@@ -544,27 +327,8 @@
     white-space: nowrap;
 }
 
-.audit-page .audit-table--activity { min-width: 1060px; }
 .audit-page .audit-table--activity th,
 .audit-page .audit-table--activity td { font-size: 13px; }
-.audit-page .audit-table--activity thead th {
-    background: #334155;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 400;
-}
-.audit-page .audit-table--activity th:nth-child(1) { width: 56px; }
-.audit-page .audit-table--activity th:nth-child(2) { width: 13%; }
-.audit-page .audit-table--activity th:nth-child(3) { width: 19%; }
-.audit-page .audit-table--activity th:nth-child(4) { width: 28%; }
-.audit-page .audit-table--activity th:nth-child(5) { width: 25%; }
-.audit-page .audit-table--activity th:nth-child(6) { width: 12%; }
-.audit-page .audit-table--activity th:first-child { text-align: center; }
-.audit-page .audit-table--activity .audit-row-number {
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-}
 .audit-page .audit-table--activity .audit-strong,
 .audit-page .audit-table--activity .audit-time,
 .audit-page .audit-table--activity .audit-context,
@@ -588,26 +352,8 @@
     white-space: normal;
 }
 
-/* คอลัมน์แรกคือช่องติ๊กสำหรับเลือกหลายรายการ ลำดับที่เหลือจึงเลื่อนไปหนึ่งช่อง */
-.audit-page .audit-table--trash { min-width: 1220px; }
 .audit-page .audit-table--trash th,
 .audit-page .audit-table--trash td { font-size: 13px; }
-.audit-page .audit-table--trash thead th {
-    background: #334155;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-}
-.audit-page .audit-table--trash th:nth-child(1) { width: 44px; }
-.audit-page .audit-table--trash th:nth-child(2) { width: 56px; }
-.audit-page .audit-table--trash th:nth-child(3) { width: 24%; }
-.audit-page .audit-table--trash th:nth-child(4) { width: 12%; }
-.audit-page .audit-table--trash th:nth-child(5) { width: 17%; }
-.audit-page .audit-table--trash th:nth-child(6) { width: 13%; }
-.audit-page .audit-table--trash th:nth-child(7) { width: 14%; }
-.audit-page .audit-table--trash th:nth-child(8) { width: 18%; }
-.audit-page .audit-table--trash th:nth-child(2),
-.audit-page .audit-table--trash .audit-row-number { text-align: center; }
 
 .audit-page .audit-col-select {
     width: 44px;
@@ -631,10 +377,6 @@
 
 .audit-page .audit-table tbody tr:hover td {
     background: #fbfdff;
-}
-
-.audit-page .audit-table tbody tr.is-auth-event td:first-child {
-    box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .audit-page .audit-strong,
@@ -1097,16 +839,6 @@
 
 /* ── Responsive ─────────────────────────────────────────── */
 
-@media (max-width: 1280px) {
-    .audit-page .audit-stats--overview {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .audit-page .audit-overview-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
-
 @media (max-width: 1100px) {
     .audit-page .audit-filters__grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1124,9 +856,6 @@
         width: 100%;
     }
 
-    .audit-page .audit-stats {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
 }
 
 @media (max-width: 640px) {
@@ -1147,15 +876,8 @@
         font-size: 13px;
     }
 
-    .audit-page .audit-filters__grid,
-    .audit-page .audit-stats,
-    .audit-page .audit-stats--overview {
+    .audit-page .audit-filters__grid {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .audit-page .audit-stream li {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 4px;
     }
 
     .audit-modal .audit-change-row {
@@ -1276,6 +998,228 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-left: auto;
+}
+
+/* ภาพรวม: พื้นที่เดียวสำหรับแท็บ ตัวกรอง ตัวเลข และรายการล่าสุด */
+.audit-page .audit-workspace {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.audit-page .audit-workspace .audit-tabs {
+    gap: 0;
+    padding: 0 24px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.audit-page .audit-workspace .audit-tab {
+    flex: 0 0 auto;
+    min-height: 54px;
+    padding: 0 22px;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+}
+
+.audit-page .audit-workspace .audit-tab.is-active {
+    border-bottom-color: var(--accent);
+    background: transparent;
+    color: var(--accent-strong);
+}
+
+.audit-page .audit-workspace .audit-filters {
+    padding: 20px 24px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.audit-page .audit-workspace .audit-scheduler {
+    margin: 18px 24px 0;
+}
+
+.audit-page .audit-overview-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    margin: 0 24px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.audit-page .audit-overview-summary__item {
+    min-width: 0;
+    padding: 2px 16px;
+    border-right: 1px solid var(--border);
+    background: transparent;
+}
+.audit-page .audit-overview-summary__item:first-child { padding-left: 0; }
+.audit-page .audit-overview-summary__item:last-child { border-right: 0; }
+.audit-page .audit-overview-summary__item dt { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.audit-page .audit-overview-summary__item dd { margin: 3px 0; color: var(--text); font-size: 26px; font-weight: 700; line-height: 1.2; }
+.audit-page .audit-overview-summary__item small { display: block; color: var(--text-muted); font-size: 11px; }
+.audit-page .audit-overview-summary__item.audit-stat--warning dd { color: #b45309; }
+.audit-page .audit-overview-summary__item.audit-stat--danger dd { color: #b91c1c; }
+
+.audit-page .audit-overview-records__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    padding: 22px 24px;
+}
+.audit-page .audit-overview-records__head h2 { margin: 0; color: var(--text); font-size: 17px; font-weight: 700; }
+.audit-page .audit-overview-records__head p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
+.audit-page .audit-overview-picker { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.audit-page .audit-overview-picker__tab { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.audit-page .audit-overview-picker__tab.active { background: var(--surface); color: var(--accent-strong); box-shadow: var(--shadow-sm); }
+.audit-page .audit-overview-picker__tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.audit-page .audit-overview-picker__tab span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.audit-page .audit-overview-table-scroll { max-width: 100%; overflow-x: auto; }
+.audit-page .audit-overview-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.audit-page .audit-overview-table th { padding: 12px 24px; border-block: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); font-size: 12px; font-weight: 600; text-align: left; }
+.audit-page .audit-overview-table td { padding: 14px 24px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 13px; vertical-align: top; overflow-wrap: anywhere; }
+.audit-page .audit-overview-table tr:last-child td { border-bottom: 0; }
+.audit-page .audit-overview-table tbody tr:hover { background: var(--surface-2); }
+.audit-page .audit-overview-table th:nth-child(1) { width: 17%; }
+.audit-page .audit-overview-table th:nth-child(2) { width: 20%; }
+.audit-page .audit-overview-table th:nth-child(3) { width: 18%; }
+.audit-page .audit-overview-table time { color: var(--text-muted); white-space: nowrap; }
+.audit-page .audit-overview-table td strong { font-weight: 600; }
+.audit-page .audit-overview-table td small { display: block; margin-top: 4px; color: var(--text-muted); }
+.audit-page .audit-overview-table .audit-sentence { margin: 0; }
+.audit-page .audit-overview-table .audit-sentence > em { white-space: normal; }
+.audit-page .audit-overview-table .is-urgent { color: #b45309; font-weight: 600; }
+.audit-page .audit-overview-records__more { display: inline-flex; align-items: center; gap: 6px; margin: 16px 24px 22px; color: var(--accent-strong); font-size: 13px; font-weight: 600; text-decoration: none; }
+.audit-page .audit-overview-records__more:hover { text-decoration: underline; }
+
+/* กิจกรรมและถังขยะใช้กรอบเดียวกับภาพรวม */
+.audit-page .audit-workspace > .audit-card {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+.audit-page .audit-workspace .audit-overview-summary--trash {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.audit-page .audit-workspace > .audit-trashbar {
+    gap: 14px;
+    margin: 0;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+}
+.audit-page .audit-workspace > .audit-trashbar .audit-retention-note { flex: 1 1 400px; }
+.audit-page .audit-workspace > .audit-trashbar .audit-chip { min-height: 36px; }
+.audit-page .audit-maintenance { margin: 0; border-bottom: 1px solid var(--border); }
+.audit-page .audit-maintenance > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    margin: 10px 24px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+.audit-page .audit-maintenance > summary::-webkit-details-marker { display: none; }
+.audit-page .audit-maintenance > summary:hover,
+.audit-page .audit-maintenance > summary:focus-visible { color: var(--accent-strong); }
+.audit-page .audit-maintenance > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.audit-page .audit-maintenance > summary .bi-chevron-down { transition: transform .15s ease; }
+.audit-page .audit-maintenance[open] > summary .bi-chevron-down { transform: rotate(180deg); }
+.audit-page .audit-maintenance__body { padding: 0 24px 18px; }
+.audit-page .audit-maintenance__body .audit-trashbar { margin-bottom: 16px; }
+.audit-page .audit-maintenance__body .audit-range-delete { margin-bottom: 0; }
+.audit-page .audit-maintenance--inline { margin-left: auto; border: 0; }
+.audit-page .audit-maintenance--inline > summary { margin: 0; }
+.audit-page .audit-maintenance--inline > form { padding-top: 8px; }
+.audit-page .audit-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 22px 24px 16px;
+}
+.audit-page .audit-list-head h2 { margin: 0; color: var(--text); font-size: 17px; font-weight: 700; }
+.audit-page .audit-list-head p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
+.audit-page .audit-list-head > span { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.audit-page .audit-workspace .audit-table { min-width: 0; }
+.audit-page .audit-workspace .audit-table thead th {
+    padding: 12px 16px;
+    border-block: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+.audit-page .audit-workspace .audit-table td { padding: 14px 16px; font-size: 13px; }
+.audit-page .audit-workspace .audit-table--activity th:nth-child(1) { width: 16%; }
+.audit-page .audit-workspace .audit-table--activity th:nth-child(2) { width: 20%; }
+.audit-page .audit-workspace .audit-table--activity th:nth-child(3) { width: 28%; }
+.audit-page .audit-workspace .audit-table--activity th:nth-child(4) { width: 26%; }
+.audit-page .audit-workspace .audit-table--activity th:nth-child(5) { width: 10%; }
+.audit-page .audit-workspace .audit-table--activity th:first-child { text-align: left; }
+.audit-page .audit-workspace .audit-table--trash th:nth-child(1) { width: 44px; }
+.audit-page .audit-workspace .audit-table--trash th:nth-child(2) { width: 28%; }
+.audit-page .audit-workspace .audit-table--trash th:nth-child(3) { width: 17%; }
+.audit-page .audit-workspace .audit-table--trash th:nth-child(4) { width: 13%; }
+.audit-page .audit-workspace .audit-table--trash th:nth-child(5) { width: 15%; }
+.audit-page .audit-workspace .audit-table--trash th:nth-child(6) { width: 23%; }
+.audit-page .audit-workspace .audit-pagination { padding: 18px 24px; border-top: 1px solid var(--border); }
+
+@media (max-width: 1100px) {
+    .audit-page .audit-workspace .audit-overview-summary--trash { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .audit-page .audit-workspace .audit-overview-summary--trash .audit-overview-summary__item:nth-child(2) { border-right: 0; }
+    .audit-page .audit-workspace .audit-overview-summary--trash .audit-overview-summary__item:nth-child(3) { padding-left: 0; }
+    .audit-page .audit-workspace .audit-table--activity { min-width: 760px; }
+    .audit-page .audit-workspace .audit-table--trash { min-width: 940px; }
+}
+
+@media (max-width: 640px) {
+    .audit-page .audit-workspace > .audit-trashbar { padding: 16px; }
+    .audit-page .audit-maintenance > summary { margin-inline: 16px; }
+    .audit-page .audit-maintenance__body { padding-inline: 16px; }
+    .audit-page .audit-list-head { padding: 18px 16px 14px; }
+    .audit-page .audit-workspace .audit-table td,
+    .audit-page .audit-workspace .audit-table thead th { padding-inline: 12px; }
+    .audit-page .audit-workspace .audit-pagination { padding: 16px; }
+}
+
+@media (max-width: 1100px) {
+    .audit-page .audit-overview-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 0; }
+    .audit-page .audit-overview-summary__item:nth-child(3) { border-right: 0; }
+    .audit-page .audit-overview-summary__item:nth-child(4) { padding-left: 0; }
+}
+
+@media (max-width: 700px) {
+    .audit-page .audit-workspace .audit-tabs { padding: 0 10px; }
+    .audit-page .audit-workspace .audit-tab { min-height: 48px; padding: 0 12px; }
+    .audit-page .audit-workspace .audit-filters { padding: 16px; }
+    .audit-page .audit-workspace .audit-scheduler { margin: 16px 16px 0; }
+    .audit-page .audit-overview-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 16px; padding: 18px 0; }
+    .audit-page .audit-overview-summary__item { padding: 6px 10px; }
+    .audit-page .audit-overview-summary__item:nth-child(2),
+    .audit-page .audit-overview-summary__item:nth-child(4),
+    .audit-page .audit-overview-summary__item:nth-child(5) { border-right: 0; }
+    .audit-page .audit-overview-summary__item:nth-child(3),
+    .audit-page .audit-overview-summary__item:nth-child(5) { padding-left: 0; }
+    .audit-page .audit-overview-records__head { padding: 18px 16px; }
+    .audit-page .audit-overview-picker { width: 100%; }
+    .audit-page .audit-overview-picker__tab { flex: 1; justify-content: center; }
+    .audit-page .audit-overview-table { min-width: 680px; }
+    .audit-page .audit-overview-table th,
+    .audit-page .audit-overview-table td { padding-inline: 14px; }
+    .audit-page .audit-overview-records__more { margin-inline: 16px; }
 }
 
 /* จอแคบ: ปุ่มต้องเต็มความกว้างแทนที่จะบีบจนกดพลาด และแถบต้องไม่กินพื้นที่เกินครึ่งจอ */

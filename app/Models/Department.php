@@ -13,12 +13,17 @@ class Department extends Model
         // (DepartmentController::updateComputerCheckAccess) ส่วนการตัดสินสิทธิ์อยู่ที่
         // App\Support\ComputerCheckAccess และ ComputerCheckSessionPolicy
         'computer_check_enabled',
+        // แผนกที่รับผิดชอบ Smart Ticket — สมาชิก active เป็น agent โดยค่าตั้งต้น
+        // เขียนได้จากหน้าตั้งค่า Ticket ของ admin เท่านั้น การตัดสินสิทธิ์อยู่ที่
+        // App\Support\TicketAgentAccess และ TicketPolicy
+        'ticket_responsible',
     ];
 
     protected function casts(): array
     {
         return [
             'computer_check_enabled' => 'boolean',
+            'ticket_responsible' => 'boolean',
         ];
     }
 

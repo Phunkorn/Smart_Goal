@@ -68,7 +68,7 @@
                     แผนก
                     <em class="employee-count">แสดง <strong data-employee-visible-count>{{ $filteredEmployees->count() }}</strong> บัญชี</em>
                 </span>
-                <div class="employee-department-filter__options">
+                <div class="employee-department-filter__options employee-department-filter__options--table">
                     <a href="{{ route('employees.index') }}" class="employee-filter-chip {{ !$currentDeptId ? 'is-active' : '' }}"
                         @if(!$currentDeptId) aria-current="page" @endif>
                         ทั้งหมด <span>{{ $employees->count() }}</span>
@@ -86,6 +86,45 @@
             @endunless
         </section>
 
+        @unless($isSystemAccounts)
+            <div class="employee-table-shell">
+                <div class="employee-table-scroll">
+                    <table class="employee-table">
+                        <colgroup><col class="employee-table__person"><col class="employee-table__username"><col class="employee-table__department"><col class="employee-table__role"><col class="employee-table__visibility"><col class="employee-table__status">@if($canManageEmployees)<col class="employee-table__actions">@endif</colgroup>
+                        <thead><tr>
+                            <th scope="col">พนักงาน</th><th scope="col">บัญชีผู้ใช้งาน</th><th scope="col">แผนก</th><th scope="col">บทบาท</th><th scope="col">การมองเห็นงาน</th><th scope="col">สถานะ</th>
+                            @if($canManageEmployees)<th scope="col">จัดการ</th>@endif
+                        </tr></thead>
+                        <tbody>
+                        @foreach($filteredEmployees as $employee)
+                            @php
+                                $role = $employee->isDepartmentHead() ? $roleMeta['department_head'] : ($roleMeta[$employee->role] ?? $roleMeta['user']);
+                                $visibilitySummary = \App\Support\DepartmentTaskVisibility::summary($employee);
+                                $searchText = Str::lower(implode(' ', array_filter([$employee->name, $employee->username, $employee->email, $employee->phone, optional($employee->department)->department_name, $role['label'], $visibilitySummary])));
+                            @endphp
+                            <tr data-employee-card data-search="{{ $searchText }}">
+                                <td><div class="employee-profile"><div class="employee-avatar">
+                                    @if($employee->profile_image)<img src="{{ route('media.profile', $employee) }}" alt="รูปโปรไฟล์ของ {{ $employee->name }}">@else{{ mb_substr($employee->name, 0, 2) }}@endif
+                                </div><div class="employee-profile__identity"><strong title="{{ $employee->name }}">{{ $employee->name }}</strong><small class="employee-table__email" title="{{ $employee->email }}">{{ $employee->email }}</small><small class="employee-table__mobile-department" title="{{ optional($employee->department)->department_name }}">{{ optional($employee->department)->department_name ?? 'ไม่ระบุแผนก' }}</small></div></div></td>
+                                <td class="employee-table__username-cell" title="{{ $employee->username }}">{{ $employee->username }}</td>
+                                <td title="{{ optional($employee->department)->department_name }}">{{ optional($employee->department)->department_name ?? 'ไม่ระบุ' }}</td>
+                                <td><span class="employee-role employee-role--{{ $role['class'] }}"><i class="bi {{ $role['icon'] }}" aria-hidden="true"></i>{{ $role['label'] }}</span></td>
+                                <td title="{{ $visibilitySummary }}">{{ $visibilitySummary ?: '—' }}</td>
+                                <td><span class="employee-status {{ $employee->is_active ? 'is-active' : 'is-inactive' }}"><span aria-hidden="true"></span>{{ $employee->is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' }}</span></td>
+                                @if($canManageEmployees)<td><div class="employee-table__actions-cell">
+                                    <button type="button" class="employee-action employee-action--edit" data-bs-toggle="modal" data-bs-target="#editUserModal{{ $employee->id }}" aria-label="แก้ไข {{ $employee->name }}" title="แก้ไข {{ $employee->name }}"><i class="bi bi-pencil-square" aria-hidden="true"></i></button>
+                                    <button type="button" class="employee-action employee-action--reset" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ $employee->id }}" aria-label="รีเซ็ตรหัสผ่าน {{ $employee->name }}" title="รีเซ็ตรหัสผ่าน {{ $employee->name }}"><i class="bi bi-key" aria-hidden="true"></i></button>
+                                    @if($employee->id !== auth()->id())<form method="POST" action="{{ route('employees.destroy', $employee->id) }}" class="employee-delete-form" data-employee-name="{{ $employee->name }}">@csrf @method('DELETE')<button type="submit" class="employee-action employee-action--delete" aria-label="ลบ {{ $employee->name }}" title="ลบ {{ $employee->name }}"><i class="bi bi-trash" aria-hidden="true"></i></button></form>@endif
+                                </div></td>@endif
+                            </tr>
+                        @endforeach
+                        @if($filteredEmployees->isEmpty())<tr class="employee-table__empty"><td colspan="{{ $canManageEmployees ? 7 : 6 }}">ไม่พบพนักงานในแผนกนี้ <a href="{{ route('employees.index') }}">ล้างตัวกรอง</a></td></tr>@endif
+                        </tbody>
+                    </table>
+                </div>
+                <div class="employee-table__footer">แสดง <strong data-employee-range>{{ $filteredEmployees->count() ? '1–'.$filteredEmployees->count() : '0' }}</strong> จาก <strong data-employee-visible-count>{{ $filteredEmployees->count() }}</strong> รายการ</div>
+            </div>
+        @else
         <div class="employee-grid" data-employee-grid>
             @forelse($filteredEmployees as $employee)
                 @php
@@ -191,10 +230,12 @@
             @endforelse
         </div>
 
+        @endunless
         <div class="employee-empty-state" data-employee-search-empty hidden>
             <i class="bi bi-search" aria-hidden="true"></i>
             <h2>{{ $isSystemAccounts ? 'ไม่พบบัญชีระบบที่ค้นหา' : 'ไม่พบพนักงานที่ค้นหา' }}</h2>
             <p>ลองตรวจคำค้น หรือค้นหาด้วยชื่อ บัญชีผู้ใช้งาน อีเมล หรือเบอร์โทร</p>
+            @unless($isSystemAccounts)<a href="{{ route('employees.index') }}" class="employee-button employee-button--secondary">ล้างตัวกรอง</a>@endunless
         </div>
     </div>
 

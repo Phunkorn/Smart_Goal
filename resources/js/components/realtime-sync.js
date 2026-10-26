@@ -2,7 +2,7 @@ const ACTIVE_INTERVAL = 3000;
 const MAX_BACKOFF = 60000;
 const MAX_DROPDOWN_ITEMS = 15;
 const REFRESH_EVENT = 'smartgoal:realtime-refresh';
-const NOTIFICATION_CATEGORIES = new Set(['task', 'worklog', 'comment', 'review', 'meeting', 'deadline', 'system']);
+const NOTIFICATION_CATEGORIES = new Set(['task', 'worklog', 'comment', 'review', 'meeting', 'deadline', 'ticket', 'system']);
 const NOTIFICATION_ICONS = {
     task: 'bi-clipboard-plus',
     worklog: 'bi-arrow-repeat',
@@ -10,6 +10,7 @@ const NOTIFICATION_ICONS = {
     review: 'bi-patch-check',
     meeting: 'bi-calendar-event',
     deadline: 'bi-alarm',
+    ticket: 'bi-headset',
     system: 'bi-bell',
 };
 const escapeSelector = (root, value) => root.defaultView.CSS?.escape
@@ -144,15 +145,18 @@ export function initializeRealtimeSync(
     let pending = false;
     let stopped = false;
     const seen = new Set();
+    // แท็บที่ถูกซ่อนหยุดตรวจ ยกเว้นหน้าที่ขอให้ตรวจต่อเป็นช่วงห่าง (agent ที่ฟังเสียง Ticket ใหม่ — layouts.app)
+    const backgroundInterval = Math.max(0, Number(shell.dataset.realtimeBackgroundInterval) || 0);
+    const canPoll = () => ! root.hidden || backgroundInterval > 0;
 
     const schedule = (wait = delay) => {
         clearTimer(timer);
-        if (stopped || root.hidden) return;
-        timer = setTimer(poll, wait);
+        if (stopped || ! canPoll()) return;
+        timer = setTimer(poll, root.hidden ? Math.max(wait, backgroundInterval) : wait);
     };
 
     const poll = async () => {
-        if (stopped || pending || root.hidden) return;
+        if (stopped || pending || ! canPoll()) return;
         pending = true;
         try {
             const url = new URL(endpoint, root.defaultView.location.origin);

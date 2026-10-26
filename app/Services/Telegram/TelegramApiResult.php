@@ -40,4 +40,13 @@ class TelegramApiResult
     {
         return new self(ok: false, errorCode: $errorCode, description: $description);
     }
+
+    /**
+     * ไปไม่ถึง Telegram เลย (connect ไม่ได้ / timeout) — ไม่มีรหัสตอบกลับจาก API
+     * ข้อความถัดไปในรอบเดียวกันก็จะไปไม่ถึงเช่นกัน ผู้ส่งจึงควรหยุดรอบนั้นไว้ก่อน
+     */
+    public function isConnectionFailure(): bool
+    {
+        return ! $this->ok && $this->retryable && $this->errorCode === null;
+    }
 }

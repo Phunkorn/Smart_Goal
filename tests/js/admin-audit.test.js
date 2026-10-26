@@ -167,7 +167,7 @@ test('เมนูข้างรวมเหลือรายการเด�
 test('สไตล์ที่ซ้ำกันสองไฟล์ถูกยุบเหลือชุดเดียว', async () => {
     const css = await read('resources/css/pages/admin/audit.css');
 
-    for (const selector of ['.audit-filters', '.audit-stat', '.audit-empty', '.audit-btn', '.audit-table']) {
+    for (const selector of ['.audit-filters', '.audit-overview-summary', '.audit-empty', '.audit-btn', '.audit-table']) {
         assert.ok(css.includes(selector), `ขาดสไตล์ ${selector}`);
     }
 
@@ -176,16 +176,26 @@ test('สไตล์ที่ซ้ำกันสองไฟล์ถูก�
     assert.match(css, /@media \(max-width: 640px\)/);
 });
 
-test('การ์ดในภาพรวมถูกจำกัดความสูงและเลื่อนอ่านในตัวเอง', async () => {
+test('ภาพรวมใช้ตารางเดียวต่อมุมมองและเลื่อนแนวนอนบนจอแคบ', async () => {
+    const css = await read('resources/css/pages/admin/audit.css');
+    const overview = await read('resources/views/admin/audit/partials/overview.blade.php');
+
+    assert.match(overview, /data-bs-target="#audit-recent-activity"/);
+    assert.match(overview, /data-bs-target="#audit-recent-trash"/);
+    assert.match(css, /\.audit-overview-table-scroll\s*\{[^}]*overflow-x:\s*auto/s);
+    assert.equal(overview.includes('audit-overview-grid'), false);
+});
+
+test('กิจกรรมและถังขยะอยู่ในกรอบหลักเดียวกับภาพรวม', async () => {
+    const page = await read('resources/views/admin/audit/index.blade.php');
+    const activity = await read('resources/views/admin/audit/partials/activity.blade.php');
+    const trash = await read('resources/views/admin/audit/partials/trash.blade.php');
     const css = await read('resources/css/pages/admin/audit.css');
 
-    // ถ้าไม่จำกัด รายการยาว ๆ จะดันหน้าให้ยาวจนต้องเลื่อนหาการ์ดใบข้าง ๆ
-    assert.match(
-        css,
-        /\.audit-overview-grid > \.audit-card\s*\{[^}]*max-height:\s*\d+px[^}]*overflow:\s*hidden/s,
-    );
-    assert.match(css, /\.audit-stream\s*\{[^}]*overflow-y:\s*auto/s);
-    assert.match(css, /\.audit-stream\s*\{[^}]*min-height:\s*0/s);
+    assert.match(page, /<div class="audit-workspace">/);
+    assert.match(activity, /<details class="audit-maintenance">/);
+    assert.match(trash, /audit-overview-summary--trash/);
+    assert.equal(css.includes('#334155'), false);
 });
 
 test('ประโยคของเหตุการณ์ตัดบรรทัดได้โดยยังเว้นช่องไฟสม่ำเสมอ', async () => {

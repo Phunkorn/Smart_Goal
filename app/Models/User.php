@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -185,5 +186,11 @@ class User extends Authenticatable
     public function trashLogs(): HasMany
     {
         return $this->hasMany(TrashLog::class, 'deleted_by');
+    }
+
+    /** Override สิทธิ์ agent ของ Smart Ticket — ดู App\Support\TicketAgentAccess */
+    public function ticketAgent(): HasOne
+    {
+        return $this->hasOne(TicketAgent::class);
     }
 }

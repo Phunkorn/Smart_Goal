@@ -7,6 +7,7 @@
         'meeting' => 'bi-calendar-event',
         'appointment' => 'bi-bookmark-star',
         'deadline' => 'bi-alarm',
+        'ticket' => 'bi-headset',
         'system' => 'bi-bell',
     ];
 @endphp

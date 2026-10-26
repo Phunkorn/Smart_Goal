@@ -1,0 +1,370 @@
+/*
+ * รายงาน Smart Ticket
+ *
+ * Clean minimal enterprise report: พื้นขาว ฟ้าเป็นสีหลัก เส้นขอบบาง เงาเบา ไม่มี gradient
+ * กราฟและสถานะกราฟมาจาก shared.css (report-chart-*) ป้ายสถานะมาจาก .badge-soft ใน layout/shared-ui.css
+ * ไฟล์นี้มีเฉพาะส่วนของหน้านี้ ใต้ namespace .ticket-report
+ *
+ * โครงหน้า: หัวรายงาน + ตัวกรอง → กราฟ 2 ใบ → รายการ Ticket (ไม่มีการ์ดตัวเลขสรุปและส่วนรายละเอียดเพิ่มเติม)
+ *
+ * ข้อมูลต้องอ่านได้ครบทุกขนาดจอ: ไม่ตัดข้อความด้วย overflow/ellipsis/line-clamp
+ * ข้อความยาวขึ้นบรรทัดใหม่ (overflow-wrap) และตารางกลายเป็นการ์ดบนจอแคบ
+ */
+/* ชื่อตัวแปรของหน้านี้ ผูกกับ design tokens ของระบบ (foundations/tokens.css) สีจึงตรงกับหน้ารับแจ้งปัญหา */
+.ticket-report {
+    --tr-ink: var(--text);
+    --tr-muted: var(--text-muted);
+    --tr-line: var(--border);
+    --tr-divider: #e9eef7;
+    --tr-soft: var(--surface-2);
+    --tr-blue: var(--accent-strong);
+    --tr-blue-solid: var(--accent);
+    --tr-blue-soft: var(--accent-dim);
+    --tr-focus: 0 0 0 3px rgba(30, 79, 214, .16);
+    --tr-control: 40px;
+    /* สีชิ้นโดนัทแผนก — ค่าเดียวกับ departmentSliceColors / reportChartColors ใน JS (tests/js/ticket-report.test.js เทียบให้) */
+    --tr-slice-0: #1d4ed8;
+    --tr-slice-1: #059669;
+    --tr-slice-2: #a21caf;
+    --tr-slice-3: #d97706;
+    --tr-slice-4: #e11d48;
+    --tr-slice-other: #64748b;
+    display: grid;
+    gap: 20px;
+    width: 100%;
+    min-width: 0;
+    color: var(--tr-ink);
+}
+
+/*
+ * ความกว้างมาจาก <main class="main"> ของ layout (เริ่มหลัง Sidebar เว้น padding 28px / มือถือ 12px) ไม่จำกัดซ้ำที่นี่
+ * ตัวจำกัดเดิม max-width + margin-inline:auto ทำให้จอที่ main กว้างเกินเพดานเหลือที่ว่างกลางหน้าสองข้าง
+ */
+
+/* ช่องไฟระหว่างส่วนมาจาก gap ของ .ticket-report ที่เดียว */
+.ticket-report > * { margin-top: 0; margin-bottom: 0; }
+
+/* class ที่ตั้ง display เองทับ [hidden] ของเบราว์เซอร์ — ประกาศให้ hidden ชนะเสมอ */
+.ticket-report [hidden] { display: none; }
+
+/* ---------- หัวรายงาน + ตัวกรอง ---------- */
+.ticket-report__controls { display: grid; gap: 16px; min-width: 0; }
+
+.ticket-report__header { display: grid; gap: 14px; align-items: end; }
+.ticket-report__eyebrow { margin: 0 0 4px; color: var(--tr-blue-solid); font-size: .74rem; font-weight: 700; letter-spacing: .08em; }
+.ticket-report__header h1 { margin: 0; color: var(--tr-ink); font-size: clamp(1.5rem, 2.4vw, 1.875rem); font-weight: 700; line-height: 1.25; }
+.ticket-report__lead { max-width: 70ch; margin: 6px 0 0; color: var(--tr-muted); font-size: .9rem; line-height: 1.6; }
+
+.ticket-report__filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: end;
+    gap: 10px 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--tr-line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.ticket-report__field { display: grid; min-width: 0; gap: 4px; }
+.ticket-report__field > label { margin: 0; color: var(--tr-muted); font-size: .78rem; font-weight: 500; }
+.ticket-report__field > .form-select { min-height: var(--tr-control); border-color: var(--tr-line); border-radius: 10px; color: var(--tr-ink); font-size: .86rem; }
+.ticket-report__field > .form-select:focus { border-color: var(--tr-blue-solid); box-shadow: var(--tr-focus); }
+
+/* ช่วงวันที่ที่กำหนดเอง — เต็มแถวของตัวกรอง ป้ายวันที่ พ.ศ. ครอบ <input type="date"> จริงไว้ (เหมือนรายงานโปรเจกต์) */
+.ticket-report__range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; grid-column: 1 / -1; }
+
+.ticket-report__date {
+    position: relative;
+    display: inline-flex;
+    flex: 1 1 180px;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: var(--tr-control);
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid var(--tr-line);
+    border-radius: 10px;
+    background: var(--surface);
+    cursor: pointer;
+}
+
+.ticket-report__date:focus-within { border-color: var(--tr-blue-solid); box-shadow: var(--tr-focus); }
+.ticket-report__date > i { margin-left: auto; color: var(--tr-blue-solid); }
+.ticket-report__date-caption { color: var(--tr-muted); font-size: .8rem; }
+.ticket-report__date-value { color: var(--tr-ink); font-size: .86rem; font-weight: 600; }
+.ticket-report__date > input[type="date"] { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+
+.ticket-report__filter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* ตัวกรองรอง (สาขา เจ้าหน้าที่) — พับด้วย components/ticket-filter-toggle.js ไม่มี JS แสดงอยู่เสมอ */
+.ticket-report__extra {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: 10px 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--tr-divider);
+}
+
+/* ---------- ปุ่ม ---------- */
+.ticket-report__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: var(--tr-control);
+    padding: 0 14px;
+    border: 1px solid var(--tr-line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--tr-ink);
+    font-size: .84rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.ticket-report__button:hover { border-color: var(--tr-blue-solid); color: var(--tr-blue); }
+.ticket-report__button:focus-visible { outline: 2px solid var(--tr-blue-solid); outline-offset: 2px; }
+.ticket-report__button--primary { border-color: var(--tr-blue-solid); background: var(--tr-blue-solid); color: #fff; }
+.ticket-report__button--primary:hover { border-color: var(--tr-blue); background: var(--tr-blue); color: #fff; }
+.ticket-report__button--quiet { border-color: transparent; background: transparent; color: var(--tr-blue-solid); }
+.ticket-report__button--quiet[aria-expanded="true"] > i { transform: rotate(180deg); }
+.ticket-report__button--quiet > i { transition: transform .2s ease; }
+
+.ticket-report__badge { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--tr-blue-solid); color: #fff; font-size: .72rem; line-height: 20px; text-align: center; }
+
+/* ---------- พื้นผิวของส่วนหลัก (กราฟ รายการ) ---------- */
+.ticket-report__section {
+    min-width: 0;
+    border: 1px solid var(--tr-line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.ticket-report__section { padding: 20px; }
+
+.ticket-report__section-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 16px; margin-bottom: 14px; }
+.ticket-report__section-head h2 { margin: 0; color: var(--tr-ink); font-size: 1.05rem; font-weight: 700; }
+.ticket-report__section-note { margin: 2px 0 0; color: var(--tr-muted); font-size: .8rem; line-height: 1.55; }
+
+/* หน่วยของแนวโน้ม (รายวัน/รายเดือน) — server เลือกให้ตามความยาวช่วง จึงเป็นป้ายบอก ไม่ใช่ตัวเลือก */
+.ticket-report__unit { padding: 3px 12px; border-radius: 999px; background: var(--tr-soft); color: var(--tr-muted); font-size: .78rem; font-weight: 600; white-space: nowrap; }
+
+/* ไม่มี Ticket ในช่วงที่เลือก — ข้อความเดียวแทนกราฟและตารางว่าง */
+.ticket-report__empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 16px;
+    padding: 20px;
+    border: 1px dashed var(--tr-line);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.ticket-report__empty-text { flex: 1 1 280px; min-width: 0; }
+.ticket-report__empty h2 { margin: 0; color: var(--tr-ink); font-size: 1rem; font-weight: 700; }
+.ticket-report__empty p { margin: 2px 0 0; color: var(--tr-muted); font-size: .86rem; }
+
+/* ไม่มีข้อมูลในตาราง/ส่วนย่อย — ข้อความกระชับ ไม่ใช่กล่องว่างขนาดใหญ่ */
+.ticket-report__none { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 0; padding: 28px 12px; color: var(--tr-muted); font-size: .86rem; text-align: center; }
+.ticket-report__none strong { color: var(--tr-ink); font-weight: 600; overflow-wrap: anywhere; }
+
+/* ---------- กราฟ ---------- */
+.ticket-report__charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+
+/*
+ * ความสูงกราฟตามปริมาณข้อมูล (server เลือก tier จากยอดสูงสุดของแนวโน้มและจำนวนแผนกใน Blade)
+ * 1 Ticket ไม่ใช้กราฟสูง 320px ส่วนข้อมูลมากได้ที่เต็ม — เป็นคลาสตั้งแต่ HTML แรก จึงไม่มี layout shift
+ * ทั้งสองใบใช้ความสูงเดียวกัน (แถวเดียวกัน) และความสูงคงที่ ไม่ขึ้นกับ Chart.js จึงไม่เกิด resize loop
+ * -mobile คือตัวแปรที่ shared.css ใช้ที่ ≤ 760px
+ */
+.ticket-report__charts--sm { --report-chart-height: 200px; --report-chart-height-mobile: 200px; }
+.ticket-report__charts--md { --report-chart-height: 260px; --report-chart-height-mobile: 240px; }
+.ticket-report__charts--lg { --report-chart-height: 320px; --report-chart-height-mobile: 280px; }
+
+/*
+ * โดนัทแผนก + รายการสี (legend) — จอแคบเรียงบนล่าง กว้างพอวางข้างกัน
+ * ตัวเลขรวมกลางโดนัทวางทับกลางกรอบกราฟ (กรอบเป็น position: relative จาก shared.css)
+ */
+.ticket-report__donut { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 16px 24px; align-items: center; }
+.ticket-report__donut-total { position: absolute; inset: 0; z-index: 2; display: grid; align-content: center; justify-items: center; pointer-events: none; }
+.ticket-report__donut-total strong { color: var(--tr-ink); font-size: 1.5rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.ticket-report__donut-total span { color: var(--tr-muted); font-size: .78rem; }
+.ticket-report__legend { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ticket-report__legend-item { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: start; gap: 8px; color: var(--tr-ink); font-size: .84rem; line-height: 1.5; }
+.ticket-report__legend-name { min-width: 0; overflow-wrap: anywhere; }
+.ticket-report__legend-item strong { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ticket-report__legend-item small { color: var(--tr-muted); font-size: .75rem; font-weight: 400; }
+.ticket-report__legend-swatch { width: 12px; height: 12px; margin-top: 5px; border-radius: 3px; background: var(--tr-slice-other); }
+.ticket-report__legend-item--0 .ticket-report__legend-swatch { background: var(--tr-slice-0); }
+.ticket-report__legend-item--1 .ticket-report__legend-swatch { background: var(--tr-slice-1); }
+.ticket-report__legend-item--2 .ticket-report__legend-swatch { background: var(--tr-slice-2); }
+.ticket-report__legend-item--3 .ticket-report__legend-swatch { background: var(--tr-slice-3); }
+.ticket-report__legend-item--4 .ticket-report__legend-swatch { background: var(--tr-slice-4); }
+
+/* ---------- ค้นหาในรายการ Ticket ---------- */
+.ticket-report__search { position: relative; flex: 1 1 260px; max-width: 360px; min-width: 0; }
+.ticket-report__search > i { position: absolute; top: 50%; left: 13px; color: var(--tr-muted); transform: translateY(-50%); pointer-events: none; }
+.ticket-report__search .form-control { min-height: var(--tr-control); padding-left: 38px; border-color: var(--tr-line); border-radius: 10px; font-size: .86rem; }
+.ticket-report__search .form-control:focus { border-color: var(--tr-blue-solid); box-shadow: var(--tr-focus); }
+
+/* ---------- ตาราง ---------- */
+.ticket-report__table { width: 100%; border-collapse: collapse; font-size: .875rem; line-height: 1.5; }
+.ticket-report__table th,
+.ticket-report__table td { padding: 14px 12px; border-bottom: 1px solid var(--tr-divider); color: var(--tr-ink); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.ticket-report__table thead th { padding-block: 10px; border-bottom: 0; background: var(--tr-soft); color: var(--tr-muted); font-size: .76rem; font-weight: 600; }
+.ticket-report__table thead th:first-child { border-radius: 8px 0 0 8px; }
+.ticket-report__table thead th:last-child { border-radius: 0 8px 8px 0; }
+.ticket-report__table tbody tr:last-child > * { border-bottom: 0; }
+.ticket-report__table tbody th { font-weight: 600; }
+
+.ticket-report__number { color: var(--tr-blue-solid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ticket-report__summary { font-weight: 600; }
+.ticket-report__date-part { white-space: nowrap; }
+.ticket-report__stack { min-width: 0; }
+.ticket-report__muted { display: block; margin-top: 2px; color: var(--tr-muted); font-size: .75rem; font-weight: 400; line-height: 1.5; }
+/* ตอบรับ / แก้ไข — ป้ายสั้นซ้าย ค่าขวา สองบรรทัดตรงแนวกันทุกแถว */
+.ticket-report__durations { display: grid; gap: 2px; margin: 0; }
+.ticket-report__durations > div { display: flex; align-items: baseline; gap: 8px; }
+.ticket-report__durations dt { flex: none; min-width: 3.25em; color: var(--tr-muted); font-size: .75rem; font-weight: 400; }
+.ticket-report__durations dd { margin: 0; }
+.ticket-report__people { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ticket-report__role { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--tr-blue-soft); color: var(--tr-blue); font-size: .7rem; font-weight: 600; }
+.ticket-report__role--muted { background: var(--tr-soft); color: var(--tr-muted); }
+
+/* ปุ่ม "ดูรายละเอียด" ชิดขวาสุดของแถว */
+.ticket-report__table .ticket-report__action { text-align: right; white-space: nowrap; }
+/* ดูรายละเอียด: ปุ่มไอคอนรูปตา (ชื่ออยู่ที่ aria-label/title) */
+.ticket-report__open { display: inline-flex; align-items: center; justify-content: center; width: var(--tr-control); height: var(--tr-control); border: 1px solid var(--tr-line); border-radius: 10px; color: var(--tr-blue-solid); font-size: 1.1rem; text-decoration: none; }
+.ticket-report__open:hover { border-color: var(--tr-blue-solid); background: var(--tr-blue-soft); color: var(--tr-blue); }
+.ticket-report__open:focus-visible { border-radius: 4px; outline: 2px solid var(--tr-blue-solid); outline-offset: 2px; }
+
+/* ป้ายสถานะอยู่ในช่องแคบได้ — ขึ้นบรรทัดใหม่แทนการล้น */
+.ticket-report__table .badge-soft { white-space: normal; }
+
+/* ---------- แบ่งหน้า ---------- */
+.ticket-report__pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 16px; }
+.ticket-report__pager-summary { margin: 0; color: var(--tr-muted); font-size: .84rem; }
+.ticket-report__pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ticket-report__pages-status { padding: 0 8px; color: var(--tr-muted); font-size: .84rem; }
+
+.ticket-report__page {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tr-control);
+    min-height: var(--tr-control);
+    padding: 0 8px;
+    border: 1px solid var(--tr-line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--tr-ink);
+    font-size: .84rem;
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+}
+
+a.ticket-report__page:hover { border-color: var(--tr-blue-solid); color: var(--tr-blue); }
+a.ticket-report__page:focus-visible { outline: 2px solid var(--tr-blue-solid); outline-offset: 2px; }
+.ticket-report__page.is-current { border-color: var(--tr-blue-solid); background: var(--tr-blue-solid); color: #fff; font-weight: 600; }
+.ticket-report__page.is-disabled { color: #a3afc2; }
+.ticket-report__page.is-gap { min-width: 24px; padding: 0; border-color: transparent; background: transparent; color: var(--tr-muted); }
+
+/* ---------- แท็บเล็ตขึ้นไป ---------- */
+@media (min-width: 576px) {
+    .ticket-report__filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ticket-report__filter-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+
+/*
+ * ช่วงเวลา · สถานะ · ช่องทาง · แผนก + ปุ่ม ในแถวเดียว (ช่วงวันที่กำหนดเองและตัวกรองรองเป็นแถวเต็มด้านล่าง)
+ * เริ่มที่ 1280px — แคบกว่านั้นหลังหัก sidebar ช่องละไม่ถึง ~180px จึงคงสองคอลัมน์ไว้
+ */
+@media (min-width: 1280px) {
+    .ticket-report__filters { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; }
+    .ticket-report__filter-actions { grid-column: auto; }
+}
+
+/* ≥ 1280px: กราฟสองคอลัมน์ และรายการ Ticket เป็นตาราง สัดส่วนคอลัมน์คงที่ เซลล์ตัดบรรทัดในช่องแทนการล้น */
+@media (min-width: 1280px) {
+    /* กราฟสองใบข้างกันเมื่อใบโดนัทพอวางกราฟกับ legend ข้างกันได้ (ต่ำกว่านี้เรียงบนล่างเต็มความกว้าง) */
+    .ticket-report__charts { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+    .ticket-report__table--tickets { table-layout: fixed; }
+    /*
+     * คอลัมน์ที่ความกว้างเนื้อหาคงที่ใช้ px (เลข Ticket, วันที่ "24 ต.ค. 2569" ไม่ตัดบรรทัด, ปุ่มตา 40px)
+     * คอลัมน์ข้อความใช้สัดส่วน · หัวข้อปัญหาไม่กำหนดความกว้าง — รับที่ว่างที่เหลือทั้งหมด
+     */
+    .ticket-report__col--ticket { width: 104px; }
+    .ticket-report__col--summary { width: auto; }
+    .ticket-report__col--department { width: 10%; }
+    .ticket-report__col--requester { width: 10%; }
+    .ticket-report__col--when { width: 110px; }
+    .ticket-report__col--durations { width: 13%; }
+    .ticket-report__col--people { width: 10%; }
+    .ticket-report__col--status { width: 11%; }
+    .ticket-report__col--action { width: 64px; }
+}
+
+/*
+ * ตารางเป็นการ์ดเมื่อแคบกว่า 1280px — markup ชุดเดียว แต่ละแถวเป็นการ์ด แต่ละช่องมีป้ายจาก data-label
+ * หัวตารางถูกซ่อนแบบที่ screen reader ยังอ่านได้ (ไม่ใช่ display:none) ป้ายในการ์ดทำหน้าที่แทน
+ * รายการ Ticket มี 8 คอลัมน์ ต่ำกว่า 1280px (มี sidebar) ช่องแคบจนอ่านยาก จึงเป็นการ์ด
+ * แท็บเล็ตวางการ์ดรายการ Ticket สองคอลัมน์ โทรศัพท์คอลัมน์เดียว
+ */
+@media (max-width: 1279.98px) {
+    .ticket-report__table--cards thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .ticket-report__table--cards,
+    .ticket-report__table--cards tbody { display: block; }
+    .ticket-report__table--cards tr { display: grid; gap: 6px; margin-bottom: 10px; padding: 14px; border: 1px solid var(--tr-line); border-radius: var(--radius); }
+    .ticket-report__table--cards tr > * { display: grid; grid-template-columns: minmax(96px, 34%) minmax(0, 1fr); gap: 8px; padding: 0; border: 0; text-align: left; }
+    .ticket-report__table--cards tbody th { display: block; padding-bottom: 4px; font-size: .95rem; }
+    .ticket-report__table--cards td::before { content: attr(data-label); color: var(--tr-muted); font-size: .76rem; font-weight: 400; }
+
+    /* ปุ่ม "ดูรายละเอียด" เต็มความกว้างการ์ด — พื้นที่กดไม่เล็กกว่า 44px */
+    .ticket-report__table--tickets td.ticket-report__action { display: block; padding-top: 4px; }
+    .ticket-report__table--tickets td.ticket-report__action::before { content: none; }
+    .ticket-report__table--tickets td.ticket-report__action { text-align: right; }
+}
+
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .ticket-report__table--tickets tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .ticket-report__table--tickets tr { margin-bottom: 0; align-content: start; }
+}
+
+@media (max-width: 767.98px) {
+    .ticket-report { --tr-control: 44px; gap: 16px; }
+    .ticket-report__section { padding: 14px; }
+    .ticket-report__filters { padding: 14px; }
+    .ticket-report__search { flex-basis: 100%; max-width: none; }
+    .ticket-report__filter-actions > .ticket-report__button { flex: 1 1 auto; }
+}
+
+/* โทรศัพท์: แบ่งหน้าเหลือ "ก่อนหน้า / หน้า x จาก y / ถัดไป" ไม่ให้เลขหน้าล้นจอ */
+.ticket-report__pages-status { display: none; }
+
+@media (max-width: 575.98px) {
+    .ticket-report__pager { justify-content: center; text-align: center; }
+    .ticket-report__pages-number { display: none; }
+    .ticket-report__pages-status { display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticket-report__button--quiet > i { transition: none; }
+}

@@ -3,6 +3,7 @@
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\EnsurePasswordHasBeenChanged;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\EnsureTicketsInstalled;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Support\ByteSize;
 use Illuminate\Foundation\Application;
@@ -42,6 +43,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => EnsureUserIsActive::class,
             'password.changed' => EnsurePasswordHasBeenChanged::class,
             'role' => EnsureRole::class,
+            // หน้าของ Smart Ticket ตอบ 503 อย่างสุภาพเมื่อฐานยังไม่ได้ migrate ตาราง Ticket
+            'tickets.installed' => EnsureTicketsInstalled::class,
         ]);
 
     })

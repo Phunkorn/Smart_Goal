@@ -1,0 +1,332 @@
+/*
+ * ฟอร์มแจ้งปัญหา (Smart Ticket) — ใช้ร่วมกันทั้งหน้าภายในและหน้าสาธารณะ
+ * Blade: tickets/components/form-fields.blade.php, submit-button.blade.php
+ *
+ * เขียนแบบ mobile-first: ค่าพื้นฐานคือจอเล็ก แล้วขยายด้วย min-width ท้ายไฟล์
+ * ช่องกรอกใช้ตัวอักษร 16px เสมอ — iOS Safari ซูมหน้าจอเองเมื่อโฟกัสช่องที่เล็กกว่า 16px
+ */
+.ticket-form {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+}
+
+.ticket-form__field {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ticket-form__label {
+    margin: 0;
+    color: var(--text);
+    font-size: .92rem;
+    font-weight: 600;
+}
+
+/* ป้ายช่องที่มีไอคอนวงกลมนำหน้า (หน้าสาธารณะ /support) — ไอคอนเป็นของตกแต่ง ชื่อช่องอยู่ในข้อความของป้าย */
+.ticket-form__label--icon {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+}
+
+.ticket-form__icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 1rem;
+}
+
+.ticket-form__label--sub {
+    color: var(--text-muted);
+    font-size: .86rem;
+    font-weight: 500;
+}
+
+.ticket-form__required {
+    color: var(--brand-red);
+}
+
+.ticket-form__optional {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.ticket-form .form-control,
+.ticket-form .form-select {
+    min-height: 46px;
+    border-color: var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.ticket-form textarea.form-control {
+    min-height: 132px;
+    resize: vertical;
+}
+
+.ticket-form .form-control:focus,
+.ticket-form .form-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.ticket-form .form-control.is-invalid,
+.ticket-form .form-select.is-invalid {
+    border-color: var(--red);
+}
+
+.ticket-form__other {
+    display: grid;
+    gap: 6px;
+}
+
+.ticket-form__hint {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
+.ticket-form__error {
+    margin: 0;
+    color: var(--red);
+    font-size: .84rem;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.ticket-form__alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--red);
+    border-radius: var(--radius-sm);
+    background: var(--red-dim);
+    color: var(--text);
+    font-size: .88rem;
+}
+
+.ticket-form__alert i {
+    color: var(--red);
+    font-size: 1.05rem;
+    line-height: 1.4;
+}
+
+/*
+ * ผู้แจ้งจากบัญชี (หน้าภายใน) — ข้อมูลอ่านอย่างเดียว
+ * แผงสีกลาง แถวละหนึ่งข้อมูล ป้ายอยู่บนค่าบนโทรศัพท์ และอยู่ซ้ายของค่าตั้งแต่ 576px
+ */
+.ticket-form__requester {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.ticket-form__requester dl {
+    margin: 0;
+}
+
+.ticket-form__requester dl > div {
+    display: grid;
+    gap: 2px 16px;
+    min-width: 0;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+}
+
+.ticket-form__requester dl > div:first-child {
+    border-top: 0;
+}
+
+.ticket-form__requester dt {
+    color: var(--text-muted);
+    font-size: .8rem;
+    font-weight: 500;
+}
+
+.ticket-form__requester dd {
+    margin: 0;
+    color: var(--text);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- รูปภาพประกอบ ---------- */
+.ticket-photos {
+    display: grid;
+    gap: 10px;
+}
+
+.ticket-photos__picker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 56px;
+    margin: 0;
+    padding: 12px 16px;
+    border: 1.5px dashed var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ticket-photos__picker i {
+    font-size: 1.25rem;
+}
+
+.ticket-photos__picker:hover {
+    background: var(--accent-dim);
+}
+
+/* input ถูกซ่อนแบบ visually-hidden (ยังโฟกัสด้วยแป้นพิมพ์ได้) จึงต้องแสดงวงโฟกัสที่ปุ่มแทน */
+.ticket-photos__input:focus-visible + .ticket-photos__picker {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: 2px;
+}
+
+/*
+ * มีปุ่ม "ถ่ายรูป" ด้วย (photo-picker $camera): สองปุ่มเรียงคู่บนจอแคบ — จอกว้างไม่มีกล้องถ่ายจากหน้าเว็บ จึงเหลือปุ่มเดียว
+ * input ไม่ได้อยู่ติดปุ่มของตัวเองแล้ว วงโฟกัสจึงอ้างผ่านกลุ่มปุ่ม
+ */
+.ticket-photos__sources {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.ticket-photos__picker-label--narrow {
+    display: none;
+}
+
+@media (max-width: 991.98px) {
+    .ticket-photos__picker-label--wide {
+        display: none;
+    }
+
+    .ticket-photos__picker-label--narrow {
+        display: inline;
+    }
+}
+
+@media (min-width: 992px) {
+    .ticket-photos__sources {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* ซ่อนทั้งปุ่มและ input ของกล้อง — ไม่ให้แป้น Tab ไปค้างที่ช่องที่มองไม่เห็น */
+    .ticket-photos__picker--camera,
+    .ticket-photos__input[data-ticket-photos-camera] {
+        display: none;
+    }
+}
+
+.ticket-photos__input[data-ticket-photos-input]:focus-visible ~ .ticket-photos__sources .ticket-photos__picker:not(.ticket-photos__picker--camera),
+.ticket-photos__input[data-ticket-photos-camera]:focus-visible + .ticket-photos__sources .ticket-photos__picker--camera {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: 2px;
+}
+
+.ticket-photos.is-full .ticket-photos__picker {
+    border-style: solid;
+    border-color: var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.ticket-photos__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 96px), 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ticket-photos__item {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+/* contain ไม่ crop รูป ผู้ใช้จึงเห็นรูปทั้งรูปก่อนส่ง */
+.ticket-photos__item img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    object-fit: contain;
+}
+
+.ticket-photos__name {
+    color: var(--text-muted);
+    font-size: .74rem;
+    overflow-wrap: anywhere;
+}
+
+.ticket-photos__remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--red);
+    box-shadow: var(--shadow-sm);
+}
+
+.ticket-photos__remove:hover,
+.ticket-photos__remove:focus-visible {
+    background: var(--red-dim);
+}
+
+/* ---------- ปุ่มส่ง ---------- */
+.ticket-form__actions {
+    display: flex;
+    padding-top: 4px;
+}
+
+/* สีของปุ่มมาจาก .ticket-button--primary (buttons.css) ที่นี่กำหนดเฉพาะขนาดในฟอร์ม */
+.ticket-form__submit {
+    width: 100%;
+    min-height: 48px;
+    font-size: 1rem;
+}
+
+@media (min-width: 576px) {
+    .ticket-form__requester dl > div {
+        grid-template-columns: 120px minmax(0, 1fr);
+        align-items: baseline;
+    }
+
+    .ticket-form__actions {
+        justify-content: flex-end;
+    }
+
+    .ticket-form__submit {
+        width: auto;
+        min-width: 200px;
+    }
+}

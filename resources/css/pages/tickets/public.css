@@ -1,0 +1,410 @@
+/*
+ * หน้าแจ้งปัญหาสาธารณะ /support — tickets/public/*.blade.php
+ * การ์ดขาวกลางพื้นหลังฟ้าอ่อนทุกขนาดจอ · โครง: แบรนด์ → แถบขั้นตอน → ฟอร์ม 2 ขั้น → ปุ่ม / หน้ายืนยัน
+ * ช่องกรอก ปุ่ม และแถบขั้นตอนมาจากไฟล์ร่วม (form.css, buttons.css, stepper.css) ที่นี่มีเฉพาะส่วนของหน้านี้
+ * mobile-first: ค่าพื้นฐานคือจอเล็ก ขยายด้วย min-width ท้ายไฟล์
+ */
+.ticket-public {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Prompt', sans-serif;
+}
+
+.ticket-public__main {
+    flex: 1 0 auto;
+    width: 100%;
+    padding: 16px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left));
+}
+
+.ticket-public__card {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+}
+
+/* ---------- แบรนด์ ---------- */
+.ticket-public__brand {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.ticket-public__logo {
+    width: 168px;
+    max-width: 70%;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+.ticket-public__product {
+    margin: 0;
+    color: var(--accent);
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.ticket-public__service {
+    margin: 0;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1.3;
+}
+
+/* ---------- แถบขั้นตอน (วงกลมใหญ่ขึ้นจากค่าพื้นฐานของ stepper.css) ---------- */
+.ticket-public__stepper {
+    --ticket-stepper-size: 40px;
+    margin: 0 0 4px;
+}
+
+.ticket-public__stepper .ticket-stepper__step {
+    gap: 8px;
+    font-size: .88rem;
+}
+
+.ticket-public__stepper .ticket-stepper__index {
+    font-size: .95rem;
+}
+
+.ticket-public__stepper .ticket-stepper__step[aria-current="step"] {
+    color: var(--accent);
+}
+
+/* ---------- ขั้นตอนของฟอร์ม ---------- */
+/*
+ * ปุ่มท้ายฟอร์ม: ขั้นที่ 1 ปุ่ม "ถัดไป" เต็มความกว้าง · ขั้นที่ 2 "ย้อนกลับ" (รอง) ซ้าย + "ส่งแจ้งปัญหา" (หลัก) ขวา
+ * stepper.js สลับ hidden — องค์ประกอบที่ซ่อนอยู่ไม่กินที่ (Bootstrap [hidden])
+ */
+.ticket-public__actions {
+    display: flex;
+    gap: 12px;
+}
+
+.ticket-public__next {
+    flex: 1 1 auto;
+}
+
+.ticket-public__back {
+    flex: 1 1 0;
+}
+
+.ticket-public__submit {
+    flex: 1.4 1 0;
+}
+
+.ticket-public__submit .ticket-form__actions {
+    padding-top: 0;
+}
+
+.ticket-public__actions .ticket-button,
+.ticket-public__submit .ticket-form__submit {
+    width: 100%;
+    min-height: 48px;
+    font-size: 1rem;
+    white-space: nowrap;
+}
+
+/* ไอคอนหน้าข้อความปุ่มส่งหายไปตอนกำลังส่ง — มี spinner แทน */
+.ticket-form__submit[aria-busy="true"] .ticket-form__submit-icon {
+    display: none;
+}
+
+/*
+ * Honeypot — ย้ายออกนอกจอแทน display:none เพราะบอทบางตัวข้ามช่องที่ display:none
+ * ช่องนี้ไม่ใช่ข้อมูลของผู้ใช้ และถูกกันจากแป้น Tab กับ screen reader แล้วใน Blade
+ */
+.ticket-public__trap {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+}
+
+/* ---------- หน้ายืนยัน (และหน้า "ยังไม่พร้อมใช้งาน") ---------- */
+.ticket-public__done {
+    display: grid;
+    gap: 14px;
+}
+
+.ticket-public__done > * {
+    min-width: 0;
+}
+
+.ticket-public__done-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: var(--green-dim);
+    color: var(--green);
+    font-size: 2.4rem;
+}
+
+.ticket-public__done-icon--muted {
+    background: var(--gray-dim);
+    color: var(--text-muted);
+}
+
+.ticket-public__done-title {
+    margin: 4px 0 0;
+    color: var(--accent);
+    font-size: 1.75rem;
+    font-weight: 800;
+    line-height: 1.3;
+    text-align: center;
+}
+
+.ticket-public__done-lead {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.ticket-public__done-text {
+    margin: 0;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* สรุปข้อมูลของ Ticket — แถวละหนึ่งข้อมูล คั่นด้วยเส้นบาง */
+.ticket-public__summary {
+    margin: 6px 0 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.ticket-public__summary-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+}
+
+.ticket-public__summary-row + .ticket-public__summary-row {
+    border-top: 1px solid var(--border);
+}
+
+.ticket-public__summary-row > div {
+    min-width: 0;
+}
+
+.ticket-public__summary dt {
+    color: var(--text-muted);
+    font-size: .86rem;
+    font-weight: 400;
+}
+
+.ticket-public__summary dd {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.05rem;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+}
+
+.ticket-public__number {
+    font-size: 1.25rem;
+    letter-spacing: .03em;
+}
+
+.ticket-public__again {
+    width: 100%;
+    min-height: 48px;
+    font-size: 1rem;
+    text-decoration: none;
+}
+
+/*
+ * LINE Login (tickets/public/line-login) — สีเขียวของ LINE (#06C755) ใช้กับขอบและไอคอนเท่านั้น
+ * ตัวอักษรขาวบน #06C755 มี contrast ราว 2.2:1 อ่านยาก จึงใช้ตัวอักษรสีเข้มบนพื้นเขียวอ่อนแทน
+ */
+.ticket-public__done-icon--line {
+    background: #e6f9ee;
+    color: #06c755;
+}
+
+.ticket-button--line {
+    border-color: #06c755;
+    background: #e6f9ee;
+    color: var(--text);
+}
+
+.ticket-button--line i {
+    color: #06c755;
+    font-size: 1.2rem;
+}
+
+.ticket-button--line:hover,
+.ticket-button--line:focus-visible {
+    background: #d3f4e1;
+    color: var(--text);
+}
+
+/* ป้ายช่อง + ปุ่ม ? (วิธีหาเลข AnyDesk) แถวเดียวกัน — ปุ่มกดได้ 44px แต่ดูเป็นไอคอนเล็ก */
+.ticket-form__label-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ticket-help-trigger {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: -10px 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--accent);
+    font-size: 1.15rem;
+    cursor: pointer;
+}
+
+.ticket-help-trigger:hover {
+    background: var(--accent-dim);
+}
+
+.ticket-help-trigger:focus-visible {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: -3px;
+}
+
+/* dialog วิธีหาเลข AnyDesk — <dialog> + showModal() (components/help-dialog.js) */
+.ticket-help-dialog {
+    width: min(640px, calc(100% - 32px));
+    max-height: calc(100dvh - 32px);
+    padding: 20px 20px 18px;
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--surface, #fff);
+    box-shadow: var(--shadow-md);
+    color: var(--text);
+}
+
+.ticket-help-dialog::backdrop {
+    background: rgb(15 23 42 / .55);
+}
+
+.ticket-help-dialog__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.ticket-help-dialog__title {
+    margin: 0;
+    color: var(--accent);
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.ticket-help-dialog__close {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: -8px -8px -8px 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    cursor: pointer;
+}
+
+.ticket-help-dialog__title:focus {
+    outline: none;
+}
+
+.ticket-help-dialog__close:focus-visible {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: -3px;
+}
+
+.ticket-help-dialog__close:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.ticket-help-dialog__steps {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 14px;
+    padding-left: 1.3rem;
+    font-size: .95rem;
+    line-height: 1.55;
+}
+
+.ticket-help-dialog__image {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.ticket-help-dialog__note {
+    margin: 12px 0 0;
+    color: var(--text-muted);
+    font-size: .86rem;
+}
+
+.ticket-public__footer {
+    padding: 8px 16px max(16px, env(safe-area-inset-bottom));
+    color: var(--text-muted);
+    font-size: .78rem;
+    text-align: center;
+}
+
+/* จอแคบกว่า 380px: สองปุ่มของขั้นที่ 2 เรียงบนล่าง (ปุ่มส่งอยู่บน) ข้อความปุ่มจะได้ไม่ขึ้นสองบรรทัด */
+@media (max-width: 379.98px) {
+    .ticket-public__actions {
+        flex-direction: column-reverse;
+    }
+}
+
+@media (min-width: 576px) {
+    .ticket-public__main {
+        padding-top: 40px;
+        padding-bottom: 24px;
+    }
+
+    .ticket-public__card {
+        padding: 36px 40px;
+        border-radius: 28px;
+    }
+
+    .ticket-public__logo {
+        width: 200px;
+    }
+
+    .ticket-public__service {
+        font-size: 1.85rem;
+    }
+}

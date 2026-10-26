@@ -16,10 +16,12 @@
 
             --green: #00C875;
             --green-dim: #E3FAEF;
+            --green-strong: #007A47; /* พื้นปุ่มทึบที่มีตัวอักษรขาว — --green สว่างเกินจะอ่านตัวขาวได้ */
             --amber: #FDAB3D;
             --amber-dim: #FFF2DF;
             --red: #E2445C;
             --red-dim: #FCE9EC;
+            --red-strong: #C42A42; /* ตัวอักษร/เส้นสีแดงบนพื้นอ่อน ให้ contrast พอ */
             --blue: #579BFC;
             --blue-dim: #EAF3FF;
             --gray: #9699A6;

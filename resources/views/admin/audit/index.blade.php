@@ -34,6 +34,8 @@
         @endif
     </section>
 
+    <div class="audit-workspace">
+
     <nav class="audit-tabs" aria-label="มุมมองบันทึกตรวจสอบ">
         @foreach ($tabs as $key => [$label, $icon])
             <a href="{{ $tabUrl($key) }}"
@@ -57,5 +59,7 @@
         @default
             @include('admin.audit.partials.overview')
     @endswitch
+
+    </div>
 </div>
 @endsection

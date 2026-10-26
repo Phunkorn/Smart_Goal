@@ -1,0 +1,112 @@
+/*
+ * ปุ่มของ Smart Ticket — ใช้ทั้งหน้าภายในและหน้าสาธารณะจากไฟล์เดียว
+ * ไม่ใช้ .btn-accent เพราะอยู่ใน layout.css ที่หน้าสาธารณะไม่ได้โหลด
+ * ปุ่มสูงอย่างน้อย 44px ตาม docs/UI_DESIGN_SYSTEM.md (touch target)
+ *
+ * success / warning ใช้พื้นอ่อน + ขอบสี + ตัวอักษรเข้ม เพราะตัวอักษรขาวบน --green / --amber
+ * มี contrast ต่ำเกินอ่านได้
+ */
+.ticket-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 9px 18px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-size: .92rem;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    cursor: pointer;
+}
+
+.ticket-button:focus-visible {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: 2px;
+}
+
+.ticket-button:disabled {
+    opacity: .7;
+    cursor: not-allowed;
+}
+
+.ticket-button--primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.ticket-button--primary:hover,
+.ticket-button--primary:focus-visible {
+    border-color: var(--accent-strong);
+    background: var(--accent-strong);
+    color: #fff;
+}
+
+.ticket-button--outline {
+    border-color: var(--accent);
+    background: var(--surface);
+    color: var(--accent);
+}
+
+.ticket-button--outline:hover {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.ticket-button--ghost {
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
+}
+
+.ticket-button--ghost:hover {
+    background: var(--surface-2);
+}
+
+/* ปุ่มไอคอนล้วน (ชื่ออยู่ที่ aria-label/title) — สี่เหลี่ยมจัตุรัส 36px ใช้ในแถวของตาราง */
+.ticket-button--icon {
+    width: 36px;
+    min-height: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 1.05rem;
+}
+
+.ticket-button--success {
+    border-color: var(--green);
+    background: var(--green-dim);
+    color: var(--text);
+}
+
+.ticket-button--warning {
+    border-color: var(--amber);
+    background: var(--amber-dim);
+    color: var(--text);
+}
+
+/* การกระทำที่ย้อนกลับไม่ได้ (ยกเลิกงาน) — แดงพื้นอ่อน ตัวอักษรแดงเข้ม */
+.ticket-button--danger {
+    border-color: var(--red);
+    background: var(--red-dim);
+    color: var(--red-strong);
+}
+
+.ticket-button--danger:hover,
+.ticket-button--danger:focus-visible {
+    border-color: var(--red-strong);
+    background: var(--red-dim);
+    color: var(--red-strong);
+    filter: brightness(.97);
+}
+
+/* พื้นอ่อนคงเดิมเมื่อชี้ — ไม่เปลี่ยนเป็นสีเขียว/ส้มเต็ม เพื่อไม่ให้ปุ่มสีจัดแย่งสายตากับปุ่มหลักสีน้ำเงิน */
+.ticket-button--success:hover,
+.ticket-button--warning:hover {
+    box-shadow: var(--shadow-sm);
+    color: var(--text);
+    filter: brightness(.97);
+}

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Appointment;
 use App\Models\Meeting;
 use App\Models\SystemNotification;
+use App\Models\Ticket;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderListTaskRequest;
@@ -519,7 +520,7 @@ class NotificationService
         return SystemNotification::with(['actor', 'workOrder.user.department', 'project'])
             ->forUser($user)->centerEligible()
             ->when(($filters['status'] ?? 'all') === 'unread', fn ($query) => $query->unread())
-            ->when(in_array($filters['category'] ?? '', ['task', 'review', 'comment', 'deadline', 'meeting', 'appointment', 'worklog', 'system'], true), fn ($query) => $query->where('category', $filters['category']))
+            ->when(in_array($filters['category'] ?? '', ['task', 'review', 'comment', 'deadline', 'meeting', 'appointment', 'worklog', 'ticket', 'system'], true), fn ($query) => $query->where('category', $filters['category']))
             ->when(! empty($filters['project']), fn ($query) => $query->where('work_order_list_id', $filters['project']))
             ->latest()->paginate(self::CENTER_PAGE_SIZE)->withQueryString();
     }
@@ -604,6 +605,18 @@ class NotificationService
             if ($notification->category === 'appointment' && ($appointment = $this->notificationAppointment($notification))) {
                 if (Gate::forUser($viewer)->allows('view', $appointment)) {
                     return route('appointments.show', $this->invitationRouteParameters($notification, ['appointment' => $appointment->id]));
+                }
+            }
+
+            // Smart Ticket ไม่ผูกกับ WorkOrder — ผู้รับงาน/admin ไปหน้ารายละเอียดเต็ม
+            // ผู้แจ้งและหัวหน้าแผนกไป /tickets แล้วเปิด modal อ่านอย่างเดียว (TicketController::index ตรวจ view ซ้ำ)
+            if ($notification->category === 'ticket' && ($ticket = $this->notificationTicket($notification))) {
+                $gate = Gate::forUser($viewer);
+                if ($gate->allows('viewInternal', $ticket)) {
+                    return route('tickets.show', $ticket);
+                }
+                if ($gate->allows('view', $ticket)) {
+                    return route('tickets.index', ['ticket' => $ticket->id]);
                 }
             }
 
@@ -733,6 +746,12 @@ class NotificationService
             return ! $appointment || ! Gate::forUser($viewer)->allows('view', $appointment);
         }
 
+        if ($notification->category === 'ticket') {
+            $ticket = $this->notificationTicket($notification);
+
+            return ! $ticket || ! Gate::forUser($viewer)->allows('view', $ticket);
+        }
+
         if (! $notification->work_order_id) {
             return false;
         }
@@ -750,6 +769,17 @@ class NotificationService
         $meetingId = $notification->data['meeting_id'] ?? null;
 
         return $meetingId ? Meeting::find($meetingId) : null;
+    }
+
+    /**
+     * รหัส Ticket อยู่ใน data (ไม่มีคอลัมน์ ticket_id) — ฐานที่ยังไม่ได้ติดตั้ง Smart Ticket
+     * ไม่มีการแจ้งเตือนหมวดนี้อยู่แล้ว แต่ยังตรวจไว้เพื่อไม่ให้หน้าแจ้งเตือนพังถ้ามีแถวค้าง
+     */
+    private function notificationTicket(SystemNotification $notification): ?Ticket
+    {
+        $ticketId = $notification->data['ticket_id'] ?? null;
+
+        return $ticketId && app(TicketSchemaStatus::class)->isInstalled() ? Ticket::find($ticketId) : null;
     }
 
     /** นัดหมายใช้ SoftDeletes ใบที่ถูกลบแล้วจะคืน null ตามที่ต้องการ */

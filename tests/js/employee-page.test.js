@@ -81,7 +81,7 @@ test('employee cards use compact neutral roles and plain account names', () => {
     assert.match(pageSource, />แผนก:<\/span>/);
     assert.match(pageSource, />บัญชีผู้ใช้งาน<\/dt><dd>{{ \$employee->username }}/);
     assert.doesNotMatch(pageSource, /{{ '@'\.\$employee->username }}/);
-    assert.match(employeeCss, /employee-page\[data-account-context='employee'\]\s*\{[^}]*max-width:\s*1180px/s);
+    assert.match(employeeCss, /employee-page\[data-account-context='employee'\]\s*\{[^}]*max-width:\s*1440px/s);
     assert.match(employeeCss, /\.employee-role--user\s*\{[^}]*background:\s*var\(--surface-2\)/s);
     assert.match(employeeCss, /employee-action--delete\s*\{[^}]*margin-left:\s*0/s);
 });

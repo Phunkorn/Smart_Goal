@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\TelegramMessage;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogTemplate;
@@ -8,6 +9,7 @@ use App\Services\RoutineAccountabilityService;
 use App\Services\RoutineAttentionService;
 use App\Services\Telegram\TelegramClient;
 use App\Services\Telegram\TelegramOutbox;
+use App\Services\TicketIdentityAudit;
 use App\Services\WorkLogRoutineMaterializer;
 use App\Services\WorkLogService;
 use App\Support\LogRetention;
@@ -21,6 +23,35 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+/*
+ * ตัวตนทางประวัติของ Smart Ticket ถูกบัญชีใหม่สวมหรือไม่ (App\Services\TicketIdentityAudit)
+ *
+ * รันหลังกู้คืนฐานข้อมูล นำเข้าผู้ใช้ หรือย้ายเซิร์ฟเวอร์ อ่านอย่างเดียว ไม่แก้ข้อมูล
+ * exit code 1 เมื่อพบ — ประวัติของคนเก่ากำลังถูกนับรวมกับบัญชีใหม่ในรายงาน
+ */
+Artisan::command('tickets:identity-check', function (TicketIdentityAudit $audit): int {
+    $collisions = $audit->collisions();
+
+    if ($collisions->isEmpty()) {
+        $this->info('ไม่พบ id ผู้ใช้ที่ถูกนำกลับมาใช้ซ้ำในประวัติ Smart Ticket');
+
+        return 0;
+    }
+
+    $this->error('พบ '.$collisions->count().' id ที่ประวัติเกิดก่อนบัญชีปัจจุบันถูกสร้าง (id ถูกนำกลับมาใช้ซ้ำ)');
+    $this->table(
+        ['ref (users.id)', 'บัญชีปัจจุบัน', 'บัญชีสร้างเมื่อ (UTC)', 'ประวัติแรก (UTC)'],
+        $collisions->map(fn (array $row) => [
+            $row['ref'],
+            $row['account'],
+            $row['account_created_at']->toDateTimeString(),
+            $row['first_history_at']->toDateTimeString(),
+        ])->all(),
+    );
+
+    return 1;
+})->purpose('Detect reused user ids in Smart Ticket historical identity (read-only)');
 
 Artisan::command('trash:purge-expired', function () {
     $count = TrashRetention::purgeExpired();
@@ -172,11 +203,11 @@ Schedule::command('worklogs:notify-routines')->everyFiveMinutes()->timezone('Asi
 | Telegram
 |--------------------------------------------------------------------------
 |
-| การส่งจริงเกิดตอนปิดท้ายทุก request อยู่แล้ว (ดู App\Services\Telegram\TelegramOutbox)
-| คำสั่งเหล่านี้จึงเป็นเครื่องมือสำหรับผู้ดูแล ไม่ใช่เส้นทางหลักของการส่ง
-|
-| telegram:drain ผูกเข้า schedule ไว้เผื่ออนาคตมี cron แต่ตอนนี้ยังไม่ทำงานบน
-| production ด้วยเหตุผลเดียวกับคำสั่งอื่นในไฟล์นี้
+| การส่งเกิดตอนปิดท้าย request ที่สร้างการแจ้งเตือน (ดู App\Services\Telegram\TelegramOutbox)
+| ข้อความที่ต้องลองใหม่ (เครือข่ายล่ม / Telegram ตอบ 429, 5xx) ไม่มี request มาส่งต่อให้
+| จึงต้องมี telegram:drain ทุกนาที — ทำงานเมื่อเซิร์ฟเวอร์ตั้ง cron ให้ schedule:run
+| (deploy/README.md หัวข้อ "งานตามเวลา (cron)") ตรวจคิวที่ค้างได้ด้วย telegram:status
+| หรือแถบสถานะในหน้า Audit Log ของผู้ดูแลระบบ
 */
 
 Artisan::command('telegram:set-webhook {url?}', function (TelegramClient $telegram): int {
@@ -221,4 +252,26 @@ Artisan::command('telegram:drain', function (TelegramOutbox $outbox): void {
     $this->info("Delivered {$outbox->drain()} queued Telegram message(s).");
 })->purpose('Deliver queued Telegram messages that are still pending');
 
-Schedule::command('telegram:drain')->everyFiveMinutes()->withoutOverlapping();
+Artisan::command('telegram:status', function (TelegramOutbox $outbox): int {
+    $health = $outbox->health();
+
+    $this->line('enabled            : '.($health['enabled'] ? 'yes' : 'no'));
+    $this->line('pending            : '.$health['pending']);
+    $this->line('sending            : '.$health['sending']);
+    $this->line('failed (24h)       : '.$health['failed_24h']);
+    $this->line('oldest unsent      : '.($health['oldest_pending_at']?->toDateTimeString() ?? '-').' UTC');
+    $this->line('last error (24h)   : '.($health['last_error'] ?? '-'));
+
+    if ($health['backlog']) {
+        $this->warn('มีข้อความค้างส่งเกิน '.TelegramMessage::BACKLOG_WARNING_MINUTES.' นาที — ตรวจ cron ของ schedule:run และการเชื่อมต่อ Telegram');
+
+        return 1;
+    }
+
+    return 0;
+})->purpose('Show the Telegram outbox backlog (counts only, no message content)');
+
+// ทุกนาที — Ticket ใหม่ต้องแจ้งทีม IT เร็ว และรอบที่ไม่มีอะไรค้างเป็นเพียงหนึ่งคิวรี
+// ล็อกกันซ้อนหมดอายุใน 10 นาที (ค่าเริ่มต้นของ Laravel คือ 24 ชั่วโมง) — ถ้าโฮสต์ฆ่า process กลางรอบ
+// ล็อกค้างจะไม่หยุดการส่งทั้งวัน รอบหนึ่งใช้เวลาไม่เกิน services.telegram.drain_seconds (20 วินาที)
+Schedule::command('telegram:drain')->everyMinute()->withoutOverlapping(10);

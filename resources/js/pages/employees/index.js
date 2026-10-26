@@ -30,10 +30,12 @@ const filterEmployees = (page, query) => {
         }
     });
 
-    const count = page.querySelector('[data-employee-visible-count]');
+    const counts = page.querySelectorAll('[data-employee-visible-count]');
+    const range = page.querySelector('[data-employee-range]');
     const empty = page.querySelector('[data-employee-search-empty]');
 
-    if (count) count.textContent = String(visibleCount);
+    counts.forEach((count) => { count.textContent = String(visibleCount); });
+    if (range) range.textContent = visibleCount ? `1–${visibleCount}` : '0';
     if (empty) empty.hidden = visibleCount > 0 || cards.length === 0;
 };
 

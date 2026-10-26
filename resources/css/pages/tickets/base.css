@@ -1,0 +1,135 @@
+/*
+ * โครงร่วมของหน้า Smart Ticket ภายในระบบ (ใต้ layouts.app) — namespace .ticket-page
+ * กล่องเนื้อหาใช้ .panel เดิมของระบบ (layout/shared-ui.css) ที่นี่เพิ่มเฉพาะส่วนภายใน
+ * องค์ประกอบเฉพาะหน้าอยู่ใน list.css / detail.css / settings.css / form.css
+ */
+.ticket-page {
+    min-width: 0;
+}
+
+/* หน้าฟอร์ม: คอลัมน์เดียวที่อ่านง่าย ไม่ยืดเต็มจอกว้าง */
+.ticket-page--form {
+    max-width: 760px;
+}
+
+.ticket-page--form .page-head {
+    margin-bottom: 1rem;
+}
+
+.ticket-status {
+    font-size: .76rem;
+}
+
+/*
+ * ปุ่มปิดของ Bootstrap modal กว้างราว 31px — เล็กเกินสำหรับนิ้วบนมือถือ
+ * ขยายพื้นที่กดเป็น 44×44 ด้วย padding (ไอคอนขนาดเดิม 1em + 14px × 2) และหักขอบเท่าที่เพิ่ม
+ * ใช้กับทุก modal ของ Smart Ticket (เปลี่ยนสถานะ และแจ้งปัญหา) จากกฎเดียว
+ */
+.ticket-page .modal .btn-close {
+    box-sizing: content-box;
+    width: 1em;
+    height: 1em;
+    margin: -10px -10px -10px auto;
+    padding: 14px;
+}
+
+/* ---------- หัวข้อภายใน panel ---------- */
+.ticket-panel {
+    min-width: 0;
+}
+
+.ticket-panel__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+/* ไอคอนหน้าหัวการ์ด (เช่น รายละเอียดปัญหา) — สี่เหลี่ยมมุมมนพื้นอ่อน */
+.ticket-panel__icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: .95rem;
+}
+
+.ticket-panel__count {
+    min-width: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: .76rem;
+    text-align: center;
+}
+
+.ticket-panel__hint {
+    margin: 10px 0 0;
+    color: var(--text-muted);
+    font-size: .82rem;
+}
+
+.ticket-panel__empty {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .88rem;
+}
+
+/* ---------- แถบผลการกระทำ (tickets/components/flash.blade.php) ---------- */
+.ticket-flash {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: .9rem;
+    overflow-wrap: anywhere;
+}
+
+.ticket-flash i {
+    font-size: 1.05rem;
+    line-height: 1.4;
+}
+
+.ticket-flash--success {
+    border-color: var(--green);
+    background: var(--green-dim);
+}
+
+.ticket-flash--error {
+    border-color: var(--red);
+    background: var(--red-dim);
+}
+
+.ticket-flash--warning {
+    border-color: var(--amber);
+    background: var(--amber-dim);
+}
+
+.ticket-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    margin-bottom: 6px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.ticket-back:hover {
+    color: var(--accent-strong);
+}

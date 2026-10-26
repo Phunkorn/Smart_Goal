@@ -1,0 +1,192 @@
+/*
+ * หน้าของผู้แจ้ง — tickets/landing.blade.php + components/reporter-card
+ *
+ * การ์ดเดียวตามสถานะ Ticket ของตัวเอง: ข้อความซ้าย ภาพประกอบขวา (≥768px — responsive.css)
+ * จอแคบ: คอลัมน์เดียว ภาพอยู่บนแต่สูงจำกัด ไม่บังและไม่บีบข้อความ ปุ่มเต็มความกว้าง
+ * ภาพประกอบเป็น PNG พื้นโปร่งใส (public/images/tickets/) วางบนพื้นการ์ดสีขาวโดยตรง ไม่มีกรอบหรือพื้นซ้อน
+ * modal รายละเอียดใช้สไตล์ ticket-preview ชุดเดียวกับคิวงาน (tickets/preview.css)
+ */
+.ticket-landing {
+    display: grid;
+    gap: 16px;
+    width: 100%;
+    max-width: 1080px;
+    margin-inline: auto;
+}
+
+.ticket-landing > .ticket-flash {
+    margin: 0;
+}
+
+.ticket-reporter {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+}
+
+.ticket-reporter__card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.ticket-reporter__body {
+    display: grid;
+    justify-items: start;
+    align-content: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ticket-reporter__title {
+    margin: 2px 0 0;
+    color: var(--text);
+    font-size: clamp(1.5rem, 2.6vw, 2rem);
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.ticket-reporter__text {
+    max-width: 52ch;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+/* เลข Ticket และวันที่ของใบที่ยังไม่ปิด */
+.ticket-reporter__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    margin: 6px 0 0;
+}
+
+.ticket-reporter__meta dt {
+    color: var(--text-muted);
+    font-size: .8rem;
+    font-weight: 500;
+}
+
+.ticket-reporter__meta dd {
+    margin: 0;
+    color: var(--text);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.ticket-reporter__meta [data-ticket-number] {
+    color: var(--accent-strong);
+    letter-spacing: .02em;
+}
+
+.ticket-reporter__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.ticket-reporter__actions:empty {
+    display: none;
+}
+
+.ticket-reporter__button,
+.ticket-reporter__history {
+    flex: 1 1 100%;
+    min-height: 48px;
+    padding-inline: 24px;
+    font-size: 1rem;
+}
+
+/* ภาพประกอบ: ตกแต่งเท่านั้น สัดส่วนเดิม ไม่ตัด ไม่บิด — จอแคบอยู่บนการ์ดและสูงไม่เกิน 120px */
+.ticket-reporter__art {
+    display: block;
+    order: -1;
+    justify-self: center;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 120px;
+    object-fit: contain;
+}
+
+/* ปุ่ม "ประวัติ Ticket" ในการ์ด — ปุ่มกรอบบาง (ghost) ขนาดเท่าปุ่มหลัก ตัวนับเป็นเม็ดเล็กท้ายข้อความ */
+
+.ticket-reporter__history-count {
+    min-width: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: .78rem;
+    line-height: 22px;
+    text-align: center;
+}
+
+/* modal ประวัติ Ticket — แต่ละใบเป็นลิงก์ทั้งแถว (สูง ≥44px) เลข + สถานะ · หัวข้อ · เวลา · ลูกศร */
+.ticket-history {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ticket-history__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: center;
+    min-height: 44px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+}
+
+.ticket-history__item:hover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    color: var(--text);
+}
+
+.ticket-history__item:focus-visible {
+    outline: 3px solid var(--accent-dim);
+    outline-offset: 2px;
+}
+
+.ticket-history__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+}
+
+.ticket-history__summary {
+    grid-column: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: .92rem;
+}
+
+.ticket-history__when {
+    grid-column: 1;
+    color: var(--text-muted);
+    font-size: .82rem;
+}
+
+.ticket-history__chevron {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    color: var(--text-muted);
+}

@@ -356,8 +356,10 @@
                 color: transparent;
             }
 
+            /* padding-top ของหัวข้อแรก (โหมดกาง) ชนะ padding: 0 ข้างบน — ถ้าไม่ล้าง เส้นคั่นแรกหนา 8px */
             body.sidebar-collapsed .sidebar-nav > .nav-section-label:first-child {
                 margin-top: .5rem;
+                padding-top: 0;
             }
 
             body.sidebar-collapsed .nav-item__count {

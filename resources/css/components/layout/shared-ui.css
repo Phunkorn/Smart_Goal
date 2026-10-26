@@ -367,6 +367,15 @@
             --notification-item-accent: #EA580C;
         }
 
+        /* Smart Ticket — ใช้โทน accent ของระบบ (tokens.css) ไม่ประกาศสีใหม่ */
+        .notification-item--ticket {
+            --notification-item-bg: var(--surface);
+            --notification-item-border: var(--accent-dim);
+            --notification-item-new-bg: var(--accent-dim);
+            --notification-item-new-border: var(--accent);
+            --notification-item-accent: var(--accent);
+        }
+
         .notification-item__icon {
             display: grid;
             flex: 0 0 30px;

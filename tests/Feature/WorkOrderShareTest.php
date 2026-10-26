@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderShare;
 use App\Models\WorkOrderShareRequest;
+use App\Services\WorkOrderShareQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -646,7 +647,7 @@ class WorkOrderShareTest extends TestCase
             ->assertDontSee('data-share-task', false);
     }
 
-    public function test_the_sidebar_counts_shared_tasks_open_to_the_viewer_without_notifying(): void
+    public function test_open_shares_reach_the_feed_without_a_menu_badge_or_a_notification(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $hr = Department::create(['department_name' => 'HR']);
@@ -657,22 +658,21 @@ class WorkOrderShareTest extends TestCase
         $this->openShare($owner, $this->task($owner, ['job_name' => 'ย้ายเครื่องแม่ข่าย']), 'department');
         $notificationsBefore = SystemNotification::count();
 
+        // งานที่แชร์เปิดรับเป็นข้อมูล ไม่ใช่เรื่องรอทำ — อยู่ในแท็บฟีด ไม่ขึ้นป้ายบนเมนูแชร์งาน
         $this->actingAs($colleague)->get(route('shares.index'))
             ->assertOk()
-            ->assertSee('data-share-feed-count', false)
-            ->assertSee('งานที่แชร์เปิดรับ 2 งาน')
-            ->assertSee('aria-label="งานที่แชร์เปิดรับ 2 งาน">2</span>', false);
+            ->assertDontSee('data-share-feed-count', false)
+            ->assertDontSee('งานที่แชร์เปิดรับ');
+        $this->assertCount(2, app(WorkOrderShareQuery::class)->feedFor($colleague), 'ทั้งสองงานอยู่ในแท็บฟีด');
 
-        // ต่างแผนกมองไม่เห็นประกาศระดับแผนก และผู้แชร์ไม่นับงานของตัวเอง
-        $this->actingAs($stranger)->get(route('shares.index'))
-            ->assertDontSee('data-share-feed-count', false);
-        $this->actingAs($owner)->get(route('shares.index'))
-            ->assertDontSee('data-share-feed-count', false);
+        // ต่างแผนกมองไม่เห็นประกาศระดับแผนก และผู้แชร์ไม่เห็นงานของตัวเองในฟีด
+        $this->assertCount(0, app(WorkOrderShareQuery::class)->feedFor($stranger));
+        $this->assertCount(0, app(WorkOrderShareQuery::class)->feedFor($owner));
 
         $this->assertSame($notificationsBefore, SystemNotification::count());
     }
 
-    public function test_the_sidebar_keeps_the_request_badge_beside_the_shared_task_badge(): void
+    public function test_the_sidebar_keeps_the_request_badge_for_requests_waiting_on_the_sharer(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $owner = $this->member($it);
@@ -686,7 +686,7 @@ class WorkOrderShareTest extends TestCase
             ->assertSee('คำขอร่วมงานรอคุณอนุมัติ 1 รายการ');
     }
 
-    public function test_an_admin_sees_the_shared_task_badge_in_their_own_menu(): void
+    public function test_an_admin_keeps_the_share_menu_without_an_informational_badge(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $owner = $this->member($it);
@@ -695,7 +695,8 @@ class WorkOrderShareTest extends TestCase
 
         $this->actingAs($admin)->get(route('shares.index'))
             ->assertOk()
-            ->assertSee('งานที่แชร์เปิดรับ 1 งาน');
+            ->assertSee('href="'.route('shares.index').'"', false)
+            ->assertDontSee('data-share-feed-count', false);
     }
 
     private function openShare(User $owner, WorkOrder $task, string $scope): WorkOrderShare

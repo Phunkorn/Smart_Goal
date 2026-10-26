@@ -3,6 +3,10 @@
     use App\Support\LogRetention;
 @endphp
 
+<details class="audit-maintenance">
+    <summary><i class="bi bi-gear" aria-hidden="true"></i> จัดการอายุบันทึก <i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+    <div class="audit-maintenance__body">
+
 {{--
     แถบนโยบายการเก็บบันทึก
 
@@ -62,8 +66,14 @@
         ลบตามช่วงวันที่
     </button>
 </form>
+    </div>
+</details>
 
 <section class="audit-card">
+    <header class="audit-list-head">
+        <div><h2>กิจกรรมผู้ใช้</h2><p>เรียงจากรายการใหม่ไปเก่า</p></div>
+        <span>{{ number_format($logs->total()) }} รายการ</span>
+    </header>
     @if ($logs->isEmpty())
         <div class="audit-empty">
             <i class="bi bi-inbox" aria-hidden="true"></i>
@@ -75,12 +85,11 @@
             <table class="audit-table audit-table--activity">
                 <thead>
                     <tr>
-                        <th scope="col">&#xE25;&#xE33;&#xE14;&#xE31;&#xE1A;</th>
-                        <th>เวลา</th>
-                        <th>ผู้ทำรายการ</th>
-                        <th>สิ่งที่เกิดขึ้น</th>
-                        <th>คำอธิบายจากระบบ</th>
-                        <th><span class="visually-hidden">เปิดดูข้อมูลก่อนและหลัง</span></th>
+                        <th scope="col">วันและเวลา</th>
+                        <th scope="col">ผู้ทำรายการ</th>
+                        <th scope="col">การกระทำ</th>
+                        <th scope="col">รายละเอียด</th>
+                        <th scope="col"><span class="visually-hidden">เปิดดูข้อมูลก่อนและหลัง</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,7 +108,6 @@
                                 ->reject(fn ($field) => in_array($field, AuditSnapshot::HIDDEN_FIELDS, true));
                         @endphp
                         <tr @class(['is-auth-event' => $isAuth])>
-                            <td class="audit-row-number">{{ ($logs->firstItem() ?? 1) + $loop->index }}</td>
                             <td>
                                 <time class="audit-time" datetime="{{ optional($log->created_at)->toIso8601String() }}">
                                     {{ optional($log->created_at)->format('d/m/Y H:i') }}

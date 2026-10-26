@@ -100,6 +100,32 @@ test('a hidden tab does not poll until it becomes visible again', () => {
     client.stop();
 });
 
+test('a page that opts in keeps polling while hidden, at the slower background interval', async () => {
+    const ui = dom();
+    ui.window.document.body.dataset.realtimeBackgroundInterval = '10000';
+    Object.defineProperty(ui.window.document, 'hidden', {configurable: true, value: true});
+    const timers = [];
+    const received = [];
+    ui.window.document.addEventListener('smartgoal:realtime-notification', (event) => received.push(event.detail));
+    const client = initializeRealtimeSync(
+        ui.window.document,
+        async () => ({ok: true, status: 200, json: async () => ({cursor: 11, unread_count: 1, events: [{id: 11, type: 'ticket_created', category: 'ticket', title: 'Ticket ใหม่', url: '/tickets'}]})}),
+        (callback, wait) => { timers.push({callback, wait}); return timers.length; },
+        () => {},
+    );
+    assert.equal(timers.length, 1, 'hidden but still scheduled');
+    assert.equal(timers[0].wait, 10000);
+
+    await timers[0].callback();
+    assert.equal(received.length, 1, 'the hidden tab still receives the event (ticket sound can play)');
+    assert.equal(timers.at(-1).wait, 10000, 'and stays on the background interval');
+
+    Object.defineProperty(ui.window.document, 'hidden', {configurable: true, value: false});
+    ui.window.document.dispatchEvent(new ui.window.Event('visibilitychange'));
+    assert.equal(timers.at(-1).wait, 0, 'becoming visible syncs immediately');
+    client.stop();
+});
+
 test('opening a live comment panel requests an immediate sync', () => {
     const ui = dom();
     const timers = [];

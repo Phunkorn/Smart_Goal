@@ -25,6 +25,18 @@ class TelegramMessage extends Model
      */
     public const STALE_CLAIM_MINUTES = 5;
 
+    /**
+     * ระยะรอก่อนลองส่งซ้ำ ตามจำนวนครั้งที่ลองไปแล้ว (นาที) — ครั้งที่เกินรายการใช้ค่าสุดท้าย
+     *
+     * เดิมลองซ้ำทันทีในรอบ drain ถัดไป Telegram ล่มไม่กี่นาทีจึงเผาโควตา max_attempts หมด
+     * แล้วข้อความกลายเป็น failed ทั้งที่อีกไม่นานก็ส่งได้ นับจาก updated_at ซึ่งถูกแตะทุกครั้งที่ลองส่ง
+     * จึงไม่ต้องมีคอลัมน์ใหม่
+     */
+    public const RETRY_DELAYS_MINUTES = [1, 5, 15, 30];
+
+    /** ไม่ส่งสำเร็จนานเกินนี้ถือว่า "ค้าง" ในหน้าตรวจสุขภาพของผู้ดูแลระบบ */
+    public const BACKLOG_WARNING_MINUTES = 10;
+
     protected $fillable = [
         'user_id',
         'system_notification_id',

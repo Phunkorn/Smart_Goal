@@ -1,0 +1,223 @@
+/*
+ * กฎตามขนาดจอของหน้าแจ้งปัญหา หน้ารับแจ้งปัญหา และหน้ารายละเอียด Smart Ticket
+ * mobile-first (min-width) ยกเว้นคิวงานที่เป็นการ์ดเมื่อแคบกว่า 1280px (max-width ด้านล่าง)
+ * import ท้ายสุดใน tickets.css เพื่อให้ทับค่าพื้นฐานของ landing / desk / list / detail ตามลำดับ cascade
+ * ฟอร์มและหน้าสาธารณะมี media query ของตัวเองท้าย form.css / public.css (ใช้กับ entry อื่นด้วย)
+ */
+@media (min-width: 576px) {
+    /* แผงตัวกรอง: สองช่องเลือกเรียงคู่ ปุ่มล้างอยู่ท้ายแถว */
+    .ticket-filters__panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticket-filters__actions {
+        grid-column: 1 / -1;
+    }
+
+    .ticket-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* KPI หกใบเรียง 3 + 3 (ยังเป็นไอคอนบน — การ์ดกว้าง ~165px) */
+    .ticket-overview {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) {
+    /* ไอคอนซ้ายข้อมูลขวา — การ์ดกว้าง ~230px ขึ้นไป ป้ายข้างไอคอนอยู่บรรทัดเดียว */
+    .ticket-overview__item {
+        flex-direction: row;
+        align-items: center;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    /* การ์ดผู้แจ้ง: ข้อความซ้าย ภาพประกอบขวา (สัดส่วนเดิม กว้าง 34–42% ของการ์ด) ปุ่มกว้างตามข้อความ */
+    .ticket-landing {
+        padding-top: 16px;
+    }
+
+    .ticket-reporter__card {
+        grid-template-columns: minmax(0, 1fr) clamp(220px, 40%, 440px);
+        align-items: center;
+        gap: 24px;
+        padding: 32px 36px;
+    }
+
+    .ticket-reporter__art {
+        order: 0;
+        justify-self: end;
+        width: 100%;
+        max-height: none;
+    }
+
+    .ticket-reporter__actions {
+        width: auto;
+    }
+
+    .ticket-reporter__button,
+    .ticket-reporter__history {
+        flex: 0 0 auto;
+    }
+
+    /* หัวคิว: ชื่อซ้าย ค้นหา + ตัวกรองขวา แผงตัวกรองเต็มแถวด้านล่าง */
+    .ticket-queue__head {
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+        align-items: center;
+    }
+
+    .ticket-filters__panel {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(2, minmax(0, 260px)) auto;
+        align-items: end;
+    }
+
+    .ticket-filters__actions {
+        grid-column: auto;
+    }
+}
+
+@media (min-width: 992px) {
+    /*
+     * สองคอลัมน์: main ทางซ้าย aside ทางขวา — แต่ละคอลัมน์เป็น grid ของตัวเอง การ์ดจึงเรียงติดกันโดยไม่เกิดช่องว่าง
+     * จากความสูงของอีกฝั่ง หัว Ticket เต็มความกว้างด้านบน
+     */
+    .ticket-detail {
+        grid-template-columns: minmax(0, 1fr) clamp(300px, 32%, 560px);
+        align-items: start;
+    }
+
+    .ticket-detail__header {
+        grid-column: 1 / -1;
+    }
+
+    /* ปุ่มใน modal ดูรายละเอียดเรียงแนวตั้ง (การ์ดการดำเนินการของหน้ารายละเอียดมีเลย์เอาต์ของตัวเองใน detail.css) */
+    .ticket-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (min-width: 1600px) {
+    /* หกใบในแถวเดียว (ใบละ ~195px ขึ้นไปหลังหัก sidebar) */
+    .ticket-overview {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .ticket-overview__item {
+        padding: 16px 18px;
+    }
+
+    .ticket-overview__value {
+        font-size: 1.45rem;
+    }
+}
+
+/*
+ * หน้ารายละเอียดแคบกว่า 992px: คอลัมน์เดียว — main/aside ไม่เป็นกล่อง (display: contents) แล้วเรียงการ์ดด้วย order
+ * หัว (0) → รายละเอียดปัญหา → รูป → ผู้เข้าร่วม → ผู้ประสานงาน → ประวัติ → การดำเนินการ (ล่างสุด)
+ */
+@media (max-width: 991.98px) {
+    .ticket-detail__main,
+    .ticket-detail__aside {
+        display: contents;
+    }
+
+    .ticket-detail__problem { order: 1; }
+    .ticket-detail__photos { order: 2; }
+    .ticket-detail__people { order: 3; }
+    .ticket-detail__coordinator { order: 4; }
+    .ticket-detail__timeline { order: 5; }
+    .ticket-detail__closed-note { order: 6; }
+    .ticket-detail__actions { order: 7; }
+
+    /* ปิดงานกดง่ายบนจอแคบ: ปุ่มแรกของการ์ด (ลำดับใน DOM) เต็มแถว สูง 52px — ไม่ใช่แถบลอย ไม่บังเนื้อหา */
+    .ticket-actions__button--close {
+        min-height: 52px;
+        font-size: 1rem;
+    }
+
+    /* ติดตามงาน / ยกเลิกงาน สูง 48px นิ้วกดง่าย */
+    .ticket-actions__row .ticket-button {
+        min-height: 48px;
+    }
+}
+
+/*
+ * คิวงานแคบกว่า 1280px: ตาราง 7 คอลัมน์อ่านไม่ออก (เนื้อหาเหลือไม่ถึง ~1000px หลังหัก sidebar)
+ * แต่ละแถวเป็นการ์ดจาก markup เดิม หัวตารางซ่อนแบบที่ screen reader ยังอ่านได้ ป้ายของช่องมาจาก data-label
+ */
+@media (max-width: 1279.98px) {
+    .ticket-queue__table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .ticket-queue__table,
+    .ticket-queue__table tbody {
+        display: block;
+    }
+
+    /* ความกว้างคอลัมน์ใช้เฉพาะโหมดตาราง (list.css) */
+    .ticket-queue__table colgroup {
+        display: none;
+    }
+
+    .ticket-queue__table tr {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    .ticket-queue__table tbody tr:last-child > * {
+        border-bottom: 0;
+    }
+
+    .ticket-queue__table tr > * {
+        display: grid;
+        grid-template-columns: minmax(96px, 32%) minmax(0, 1fr);
+        gap: 8px;
+        padding: 0;
+        border: 0;
+        text-align: left;
+    }
+
+    .ticket-queue__table td::before {
+        content: attr(data-label);
+        color: var(--text-muted);
+        font-size: .76rem;
+    }
+
+    /* เลข Ticket และหัวข้อปัญหาเป็นหัวการ์ด เต็มความกว้าง ไม่มีป้ายกำกับ */
+    .ticket-queue__table .ticket-queue__ticket,
+    .ticket-queue__table .ticket-queue__problem {
+        display: block;
+        min-width: 0;
+    }
+
+    /* ปุ่มไอคอนรับงาน/เข้าร่วมในการ์ด: 44px (นิ้วกดง่าย) */
+    .ticket-queue__claim-actions .ticket-button--icon {
+        width: 44px;
+        height: 44px;
+        min-height: 44px;
+    }
+
+    .ticket-queue__open {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* ป้ายสถานะกว้างตามข้อความ ไม่ยืดเต็มช่องของการ์ด */
+    .ticket-queue__table .ticket-status {
+        justify-self: start;
+    }
+}

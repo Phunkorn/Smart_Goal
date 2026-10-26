@@ -50,10 +50,17 @@ class SidebarNavigationTest extends TestCase
             ->get(route('mytasks.index'))
             ->assertOk()
             ->assertDontSee('href="'.route('meetings.index').'"', false)
-            ->assertSee('<div class="nav-section-label">งานของฉัน</div>', false)
+            ->assertSee('<div class="nav-section-label">การทำงาน</div>', false)
+            ->assertSee('<div class="nav-section-label">ทีม</div>', false)
+            ->assertSee('<div class="nav-section-label">Smart Ticket</div>', false)
             ->assertSee('<div class="nav-section-label">การสื่อสาร</div>', false)
             ->assertSee('<div class="nav-section-label">ระบบ</div>', false)
             ->getContent();
+
+        // หัวข้อเรียงตามหน้าที่: การทำงาน → ทีม → (รายงาน) → Smart Ticket → การสื่อสาร → ระบบ
+        $sections = array_map(fn (string $label) => strpos($content, '<div class="nav-section-label">'.$label.'</div>'),
+            ['การทำงาน', 'ทีม', 'Smart Ticket', 'การสื่อสาร', 'ระบบ']);
+        $this->assertSame($sections, collect($sections)->sort()->values()->all());
 
         $myTasksPosition = strpos($content, 'href="'.route('mytasks.index').'"');
         $dailyLogPosition = strpos($content, 'href="'.route('daily-logs.index').'"');
@@ -351,24 +358,24 @@ class SidebarNavigationTest extends TestCase
         $content = $this->actingAs($member)
             ->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('<div class="nav-section-label">งานของฉัน</div>', false)
-            ->assertSee('<div class="nav-section-label">งานของทีม</div>', false)
+            ->assertSee('<div class="nav-section-label">การทำงาน</div>', false)
+            ->assertSee('<div class="nav-section-label">ทีม</div>', false)
             ->assertSee('<summary class="nav-item report-nav__toggle">', false)
             ->getContent();
 
-        // กลุ่มรายงานอยู่หลังเมนูงานของทีม และมีลิงก์ย่อยอยู่ภายใน
-        $teamLabel = strpos($content, '<div class="nav-section-label">งานของทีม</div>');
+        // กลุ่มรายงานอยู่หลังเมนูของทีม และมีลิงก์ย่อยอยู่ภายใน
+        $teamLabel = strpos($content, '<div class="nav-section-label">ทีม</div>');
         $reportToggle = strpos($content, '<summary class="nav-item report-nav__toggle">');
 
         $this->assertGreaterThan(
             strpos($content, 'href="'.route('daily-logs.index').'"'),
             $teamLabel,
-            '"งานของทีม" ต้องอยู่หลังเมนูงานส่วนตัว'
+            '"ทีม" ต้องอยู่หลังเมนูงานส่วนตัว'
         );
         $this->assertLessThan(
             strpos($content, 'href="'.route('work-board.index').'"'),
             $teamLabel,
-            '"งานของทีม" ต้องอยู่ก่อน "บอร์ดงาน"'
+            '"ทีม" ต้องอยู่ก่อน "บอร์ดงาน"'
         );
         $this->assertLessThan(
             strpos($content, 'href="'.route('reports.operational').'"'),
@@ -377,21 +384,24 @@ class SidebarNavigationTest extends TestCase
         );
 
         // หัวหน้าแผนกเห็นหัวข้อเดียวกัน แต่กลุ่มของทีมพูดในนามแผนกที่ตัวเองดูแล
+        // และหัวข้ออื่นไม่เปลี่ยนชื่อตามบทบาทอีกแล้ว (เดิม "การสื่อสาร" ของหัวหน้าเป็น "งานและคำขอ")
         $head = $this->userWithRole('user');
         $head->forceFill(['is_department_head' => true])->save();
 
         $this->actingAs($head)
             ->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('<div class="nav-section-label">งานของฉัน</div>', false)
+            ->assertSee('<div class="nav-section-label">การทำงาน</div>', false)
             ->assertSee('<div class="nav-section-label">แผนกของฉัน</div>', false)
+            ->assertSee('<div class="nav-section-label">การสื่อสาร</div>', false)
             ->assertSee('<summary class="nav-item report-nav__toggle">', false)
-            ->assertDontSee('<div class="nav-section-label">งานของทีม</div>', false);
+            ->assertDontSee('<div class="nav-section-label">ทีม</div>', false)
+            ->assertDontSee('<div class="nav-section-label">งานและคำขอ</div>', false);
     }
 
     /**
-     * เมนู "ประกาศ" เป็นเครื่องมือของหัวหน้าแผนก อยู่ในกลุ่มงานและคำขอถัดจากคำขออนุมัติ
-     * พนักงานเห็นประกาศในสรุปประจำวันแทน ส่วน admin ไม่มีสิทธิ์กับประกาศ
+     * เมนู "ประกาศ" เป็นเครื่องมือดูแลแผนกของหัวหน้า อยู่ในกลุ่ม "แผนกของฉัน" ถัดจากงานข้ามแผนกของทีม
+     * (ก่อนกลุ่มรายงานและการแจ้งเตือน) พนักงานเห็นประกาศในสรุปประจำวันแทน ส่วน admin ไม่มีสิทธิ์กับประกาศ
      */
     public function test_announcement_menu_belongs_to_department_heads_after_approvals(): void
     {
@@ -405,9 +415,11 @@ class SidebarNavigationTest extends TestCase
             ->getContent();
 
         $positions = [
-            strpos($content, 'href="'.route('notifications.index').'"'),
+            strpos($content, '<div class="nav-section-label">แผนกของฉัน</div>'),
             strpos($content, 'href="'.route('admin.approvals.index').'"'),
             strpos($content, $announcementLink),
+            strpos($content, '<summary class="nav-item report-nav__toggle">'),
+            strpos($content, 'href="'.route('notifications.index').'"'),
             strpos($content, 'href="'.route('settings.index').'"'),
         ];
 
@@ -428,5 +440,64 @@ class SidebarNavigationTest extends TestCase
             'department_id' => $department->id,
             'is_active' => true,
         ]);
+    }
+
+    public function test_the_sidebar_initials_cut_by_character_not_by_byte(): void
+    {
+        $user = $this->userWithRole('user');
+        $user->forceFill(['name' => 'สมหญิง ใจดี', 'profile_image' => null])->save();
+
+        $content = $this->actingAs($user)->get(route('mytasks.index'))->assertOk()->getContent();
+        $avatar = substr($content, (int) strpos($content, '<div class="sidebar-foot">'), 600);
+
+        $this->assertStringContainsString('สม', $avatar);
+        $this->assertTrue(mb_check_encoding($avatar, 'UTF-8'), 'ไม่มีอักษรที่ถูกตัดกลางตัว');
+        $this->assertStringNotContainsString("\u{FFFD}", $avatar);
+    }
+
+    public function test_each_report_page_opens_the_group_and_highlights_only_its_own_link(): void
+    {
+        $user = $this->userWithRole('user');
+
+        foreach (['reports.projects', 'reports.operational'] as $route) {
+            $content = $this->actingAs($user)->get(route($route))->assertOk()->getContent();
+
+            $this->assertStringContainsString('<details class="report-nav report-nav--active" open>', $content, $route);
+            $this->assertSame(1, substr_count($content, 'report-nav__link active'), $route);
+            $this->assertMatchesRegularExpression('/href="'.preg_quote(route($route), '/').'"\s+class="nav-item report-nav__link active"\s+aria-current="page"/', $content, $route);
+        }
+
+        // หน้าที่ไม่ใช่รายงาน: กลุ่มปิดและไม่มีลิงก์ใดถูกไฮไลต์
+        $content = $this->actingAs($user)->get(route('mytasks.index'))->getContent();
+        $this->assertStringContainsString('<details class="report-nav" >', $content);
+        $this->assertSame(0, substr_count($content, 'report-nav__link active'));
+    }
+
+    /**
+     * ทุกเมนูบอกหน้าปัจจุบันให้ screen reader ด้วย aria-current ไม่ใช่แค่ class active ที่เห็นด้วยตา
+     * และในแถบข้างมีได้ลิงก์เดียว ตรงกับลิงก์ที่ไฮไลต์
+     */
+    public function test_exactly_the_highlighted_sidebar_link_is_announced_as_the_current_page(): void
+    {
+        foreach ([
+            ['user', 'mytasks.index', 'mytasks.index'],
+            ['user', 'notifications.index', 'notifications.index'],
+            ['user', 'settings.index', 'settings.index'],
+            ['user', 'shares.index', 'shares.index'],
+            ['admin', 'board.index', 'board.index'],
+            ['admin', 'employees.index', 'employees.index'],
+            ['viewer', 'workspace.index', 'workspace.index'],
+        ] as [$role, $page, $link]) {
+            $content = $this->actingAs($this->userWithRole($role))->get(route($page))->assertOk()->getContent();
+            $start = (int) strpos($content, '<aside class="sidebar"');
+            $sidebar = substr($content, $start, (int) strpos($content, '</aside>', $start) - $start);
+
+            $this->assertSame(1, substr_count($sidebar, 'aria-current='), "{$role} {$page}");
+            $this->assertMatchesRegularExpression(
+                '/href="'.preg_quote(route($link), '/').'"\s+class="nav-item active"\s+aria-current="page"/',
+                $sidebar,
+                "{$role} {$page}",
+            );
+        }
     }
 }

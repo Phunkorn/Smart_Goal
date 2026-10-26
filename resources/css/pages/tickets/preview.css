@@ -1,0 +1,126 @@
+/*
+ * Modal ดูรายละเอียด Ticket บนหน้ารับแจ้งปัญหา — components/preview-modal + components/preview (พฤติกรรม: tickets/desk.js)
+ * Bootstrap Modal: modal-dialog-scrollable ให้หัวและปุ่มอยู่กับที่ เนื้อหาเลื่อนเอง · modal-fullscreen-sm-down เต็มจอบนมือถือ
+ * การ์ดภายในใช้ component เดียวกับหน้ารายละเอียด (problem, photo-gallery, participants, timeline)
+ *
+ * ปุ่มรีเฟรชระหว่างโหลดข้อมูลใหม่ (.is-loading) ก็อยู่ที่นี่ เพราะเป็นส่วนของการโหลดแบบ async ชุดเดียวกัน
+ */
+.ticket-preview__dialog {
+    max-width: 760px;
+}
+
+.ticket-preview__content {
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+}
+
+.ticket-preview__header {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 20px 24px 12px;
+}
+
+.ticket-preview__heading {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ticket-preview__eyebrow {
+    color: var(--accent);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.ticket-preview__header .modal-title {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 800;
+}
+
+.ticket-preview__loading-title {
+    font-size: 1.05rem;
+}
+
+.ticket-preview__body {
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    padding: 16px 24px;
+    background: var(--surface-2);
+}
+
+.ticket-preview__body > * {
+    min-width: 0;
+    margin: 0;
+}
+
+.ticket-preview__state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 160px;
+    color: var(--text-muted);
+}
+
+.ticket-preview__state.is-error {
+    color: var(--red, #b42318);
+    text-align: center;
+}
+
+.ticket-preview__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 24px 16px;
+}
+
+.ticket-preview__footer > * {
+    margin: 0;
+}
+
+.ticket-preview__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+@media (max-width: 575.98px) {
+    .ticket-preview__header,
+    .ticket-preview__body,
+    .ticket-preview__footer {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    .ticket-preview__footer > *,
+    .ticket-preview__actions > form {
+        flex: 1 1 100%;
+    }
+}
+
+/* ปุ่มรีเฟรช/ปุ่มส่งระหว่างรอ server */
+.ticket-button.is-loading {
+    cursor: progress;
+}
+
+.ticket-button.is-loading .bi-arrow-clockwise {
+    animation: ticket-spin .8s linear infinite;
+}
+
+@keyframes ticket-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticket-button.is-loading .bi-arrow-clockwise {
+        animation: none;
+    }
+}

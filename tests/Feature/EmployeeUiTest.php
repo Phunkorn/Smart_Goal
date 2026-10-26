@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Department;
 use App\Models\User;
+use App\Support\PasswordPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
@@ -22,7 +23,9 @@ class EmployeeUiTest extends TestCase
             ->assertOk()
             ->assertSee('employee-page__header', false)
             ->assertSee('employee-toolbar', false)
-            ->assertSee('employee-card__actions', false)
+            ->assertSee('employee-table__actions-cell', false)
+            ->assertSee('<table class="employee-table">', false)
+            ->assertDontSee('class="employee-card"', false)
             ->assertDontSee('employee-current-work', false)
             ->assertDontSee('employee-meeting-link', false)
             ->assertDontSee('modal-dialog-scrollable', false)
@@ -31,7 +34,7 @@ class EmployeeUiTest extends TestCase
             ->assertSee('สิทธิ์และองค์กร')
             ->assertSee('รูปภาพโปรไฟล์')
             ->assertSee('บัญชีผู้ใช้งาน')
-            ->assertSee('แผนก:')
+            ->assertSee('แผนก')
             ->assertSee($employee->username)
             ->assertDontSee('@'.$employee->username)
             ->assertSee('id="createUserModalPassword"', false)
@@ -85,7 +88,7 @@ class EmployeeUiTest extends TestCase
         $this->assertSame(1, substr_count($createModal, 'name="password"'));
         $this->assertStringNotContainsString('name="password_confirmation"', $createModal);
         $this->assertStringContainsString('ใช้สำหรับเข้าสู่ระบบครั้งแรก พนักงานจะต้องตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบ', $createModal);
-        $this->assertStringNotContainsString(\App\Support\PasswordPolicy::description(), $createModal);
+        $this->assertStringNotContainsString(PasswordPolicy::description(), $createModal);
 
         preg_match('/<input id="createUserModalPassword"[^>]*>/', $createModal, $passwordInput);
         $this->assertNotEmpty($passwordInput);

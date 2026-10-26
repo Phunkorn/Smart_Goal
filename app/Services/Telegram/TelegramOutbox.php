@@ -6,6 +6,8 @@ use App\Models\SystemNotification;
 use App\Models\TelegramMessage;
 use App\Models\User;
 use App\Support\TelegramMessageComposer;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,8 +24,12 @@ use Throwable;
  * ผลพลอยได้ที่สำคัญคือการยิง HTTP ไม่เคยเกิดขึ้นภายใน DB::transaction ของตัวเรียก
  * (TaskCommentService และ TaskStatusTransitionService สร้างการแจ้งเตือนในทรานแซกชัน)
  *
- * แถวที่ส่งไม่สำเร็จจะค้างเป็น pending และถูก request ถัดไปของใครก็ได้หยิบไปลองใหม่
- * จนครบ services.telegram.max_attempts
+ * แถวที่ส่งไม่สำเร็จจะค้างเป็น pending และถูกหยิบไปลองใหม่หลังพ้นระยะรอ
+ * (TelegramMessage::RETRY_DELAYS_MINUTES) จนครบ services.telegram.max_attempts
+ *
+ * ทางที่สองที่ไม่ต้องรอ request: คำสั่ง telegram:drain ใน schedule ทุกนาที ซึ่งทำงานเมื่อ
+ * เซิร์ฟเวอร์ตั้ง cron ให้ schedule:run (deploy/README.md หัวข้อ "งานตามเวลา (cron)")
+ * ถ้าไม่มี cron ข้อความที่ลองใหม่ได้จะรอจนกว่าจะมีการแจ้งเตือนฉบับใหม่ — ดูสถานะได้จาก health()
  */
 class TelegramOutbox
 {
@@ -94,11 +100,33 @@ class TelegramOutbox
 
         $this->draining = true;
         $sent = 0;
+        $claimed = collect();
+        $startedAt = microtime(true);
+        $budget = max(1, (int) config('services.telegram.drain_seconds', 20));
 
         try {
-            foreach ($this->claim() as $message) {
-                if ($this->deliver($message)) {
+            $claimed = $this->claim();
+
+            foreach ($claimed as $index => $message) {
+                // เพดานเวลาต่อรอบ — รอบที่ทำงานตอนปิดท้าย request ต้องไม่ยึด worker ของเว็บไว้หลายนาที
+                if (microtime(true) - $startedAt >= $budget) {
+                    $this->release($claimed->slice($index), 'time budget reached');
+
+                    break;
+                }
+
+                $result = $this->deliver($message);
+
+                if ($result->ok) {
                     $sent++;
+                }
+
+                // ไปไม่ถึง Telegram เลย — ข้อความที่เหลือก็จะ timeout เหมือนกัน คืนคิวไว้ให้รอบหน้า
+                // โดยไม่นับเป็นความพยายาม แทนที่จะรอ timeout ทีละข้อความจนครบทั้งรอบ
+                if ($result->isConnectionFailure()) {
+                    $this->release($claimed->slice($index + 1), 'Telegram unreachable');
+
+                    break;
                 }
             }
         } catch (Throwable $exception) {
@@ -108,6 +136,62 @@ class TelegramOutbox
         }
 
         return $sent;
+    }
+
+    /**
+     * สถานะของคิวสำหรับผู้ดูแลระบบ — จำนวนเท่านั้น ไม่มีเนื้อความหรือ chat_id
+     *
+     * @return array{enabled: bool, pending: int, sending: int, failed_24h: int, oldest_pending_at: ?CarbonImmutable, backlog: bool, last_error: ?string}
+     */
+    public function health(): array
+    {
+        $counts = TelegramMessage::query()
+            ->whereIn('status', [TelegramMessage::STATUS_PENDING, TelegramMessage::STATUS_SENDING])
+            ->selectRaw('status, count(*) as total, min(created_at) as oldest')
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
+
+        $pending = $counts->get(TelegramMessage::STATUS_PENDING);
+        $sending = $counts->get(TelegramMessage::STATUS_SENDING);
+
+        $oldest = collect([$pending?->oldest, $sending?->oldest])
+            ->filter()
+            ->map(fn ($value) => CarbonImmutable::parse($value))
+            ->min();
+
+        $recentFailures = TelegramMessage::query()
+            ->where('status', TelegramMessage::STATUS_FAILED)
+            ->where('updated_at', '>=', now()->subDay());
+
+        return [
+            'enabled' => $this->client->enabled(),
+            'pending' => (int) ($pending?->total ?? 0),
+            'sending' => (int) ($sending?->total ?? 0),
+            'failed_24h' => (clone $recentFailures)->count(),
+            'oldest_pending_at' => $oldest,
+            'backlog' => $oldest !== null && $oldest->lt(now()->subMinutes(TelegramMessage::BACKLOG_WARNING_MINUTES)),
+            'last_error' => $recentFailures->latest('updated_at')->value('last_error'),
+        ];
+    }
+
+    /**
+     * คืนแถวที่จองไว้แต่ยังไม่ได้ลองส่งกลับเข้าคิว — ไม่เพิ่ม attempts เพราะยังไม่ได้ลองจริง
+     *
+     * @param  Collection<int, TelegramMessage>  $messages
+     */
+    private function release(Collection $messages, string $reason): void
+    {
+        if ($messages->isEmpty()) {
+            return;
+        }
+
+        TelegramMessage::query()
+            ->whereIn('id', $messages->pluck('id'))
+            ->where('status', TelegramMessage::STATUS_SENDING)
+            ->update(['status' => TelegramMessage::STATUS_PENDING]);
+
+        Log::warning('Telegram outbox round stopped early', ['reason' => $reason, 'released' => $messages->count()]);
     }
 
     /**
@@ -154,7 +238,7 @@ class TelegramOutbox
         return DB::transaction(function () use ($limit): Collection {
             $ids = TelegramMessage::query()
                 ->where(fn ($query) => $query
-                    ->where('status', TelegramMessage::STATUS_PENDING)
+                    ->where(fn ($pending) => $this->dueForAttempt($pending->where('status', TelegramMessage::STATUS_PENDING)))
                     ->orWhere(fn ($stale) => $stale
                         ->where('status', TelegramMessage::STATUS_SENDING)
                         ->where('updated_at', '<', now()->subMinutes(TelegramMessage::STALE_CLAIM_MINUTES))))
@@ -176,7 +260,28 @@ class TelegramOutbox
         });
     }
 
-    private function deliver(TelegramMessage $message): bool
+    /**
+     * แถว pending ที่ถึงเวลาลอง: ยังไม่เคยลอง หรือพ้นระยะรอตามจำนวนครั้งที่ลองไปแล้ว
+     * (TelegramMessage::RETRY_DELAYS_MINUTES นับจาก updated_at = เวลาที่ลองครั้งล่าสุด)
+     */
+    private function dueForAttempt(Builder $query): Builder
+    {
+        $delays = TelegramMessage::RETRY_DELAYS_MINUTES;
+        $last = count($delays);
+
+        return $query->where(function (Builder $due) use ($delays, $last): void {
+            $due->where('attempts', 0);
+
+            foreach ($delays as $index => $minutes) {
+                $attempts = $index + 1;
+                $due->orWhere(fn (Builder $retry) => $retry
+                    ->where('attempts', $attempts === $last ? '>=' : '=', $attempts)
+                    ->where('updated_at', '<=', now()->subMinutes($minutes)));
+            }
+        });
+    }
+
+    private function deliver(TelegramMessage $message): TelegramApiResult
     {
         $result = $this->client->sendMessage((int) $message->chat_id, $message->text);
 
@@ -188,7 +293,7 @@ class TelegramOutbox
                 'sent_at' => now(),
             ])->save();
 
-            return true;
+            return $result;
         }
 
         $attempts = $message->attempts + 1;
@@ -214,7 +319,7 @@ class TelegramOutbox
             'attempts' => $attempts,
         ]);
 
-        return false;
+        return $result;
     }
 
     /**

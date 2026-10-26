@@ -1,0 +1,507 @@
+/*
+ * คิวงานของหน้ารับแจ้งปัญหา — tickets/components/queue.blade.php และ pagination.blade.php
+ *
+ * ตาราง markup ชุดเดียว: ตั้งแต่ 1280px เป็นตาราง (เจ็ดคอลัมน์เต็มความกว้างของเนื้อหา)
+ * แคบกว่านั้นแต่ละแถวเป็นการ์ด ป้ายของแต่ละช่องมาจาก data-label (กฎอยู่ใน responsive.css)
+ * ข้อมูลทุกช่องแสดงเสมอ — โหมดตารางตัดข้อความยาวด้วย … (title เก็บข้อความเต็ม) · การ์ดตัดบรรทัดแสดงเต็ม
+ */
+
+.ticket-queue {
+    min-width: 0;
+}
+
+/* ---------- หัวคิว: ชื่อซ้าย · ค้นหา + ตัวกรองขวา · แผงตัวกรองเต็มแถวด้านล่าง ---------- */
+.ticket-queue__head {
+    display: grid;
+    gap: 12px 16px;
+    margin: 0 0 14px;
+}
+
+.ticket-queue__head .ticket-section-title {
+    font-size: 1.25rem;
+}
+
+.ticket-filters__bar {
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+}
+
+.ticket-filters__search {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ticket-filters__search > i {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    color: var(--text-muted);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.ticket-filters .ticket-filters__search .form-control {
+    padding-left: 40px;
+}
+
+.ticket-filters .form-control,
+.ticket-filters .form-select {
+    min-height: 44px;
+    border-color: var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+}
+
+.ticket-filters__toggle {
+    flex: none;
+}
+
+.ticket-filters__toggle[aria-expanded="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.ticket-filters__badge {
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: .72rem;
+    line-height: 20px;
+    text-align: center;
+}
+
+/* แผงสาขา/ขอบเขต — JS พับเก็บได้ (hidden) ไม่มี JS แสดงอยู่เสมอ */
+.ticket-filters__panel {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+
+.ticket-filters__panel[hidden] {
+    display: none;
+}
+
+.ticket-filters__field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.ticket-filters__label {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .8rem;
+    font-weight: 600;
+}
+
+.ticket-filters__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.ticket-filters__actions:empty {
+    display: none;
+}
+
+/* ---------- แท็บสถานะ ---------- */
+.ticket-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 14px;
+}
+
+.ticket-tabs__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: .88rem;
+    font-weight: 600;
+}
+
+.ticket-tabs__item:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.ticket-tabs__item.is-active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.ticket-tabs__count {
+    min-width: 26px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-size: .76rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.ticket-tabs__item.is-active .ticket-tabs__count {
+    background: #fff;
+    color: var(--accent);
+}
+
+/* ---------- ตาราง ---------- */
+.ticket-queue__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .9rem;
+}
+
+.ticket-queue__table th,
+.ticket-queue__table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    text-align: left;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+
+.ticket-queue__table thead th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    border-bottom: 0;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: .82rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ticket-queue__table thead th:first-child {
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.ticket-queue__table thead th:last-child {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.ticket-queue__table tbody tr:last-child > * {
+    border-bottom: 0;
+}
+
+.ticket-queue__ticket {
+    font-weight: 400;
+}
+
+.ticket-queue__number {
+    display: inline-block;
+    color: var(--accent-strong);
+    font-weight: 700;
+    letter-spacing: .02em;
+    white-space: nowrap;
+}
+
+.ticket-queue__number:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.ticket-queue__summary {
+    display: block;
+    color: var(--text);
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+/* ตัดบรรทัดระหว่างวันที่กับเวลาได้ แต่ไม่หักกลางวันที่ */
+.ticket-queue__time > span {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+/* ผู้แจ้งและสาขา: ข้อความล้วน ตัดบรรทัดภายในช่อง (overflow-wrap ของ td) */
+.ticket-queue__name,
+.ticket-queue__location {
+    min-width: 0;
+}
+
+.ticket-queue__location {
+    color: var(--text-muted);
+}
+
+/*
+ * รับงาน / เข้าร่วม (components/claim-actions แบบ compact) — ปุ่มไอคอน 36px เรียงในแถวเดียว เท่าลิงก์ดูรายละเอียดในตาราง
+ * สองคลาสเพื่อชนะ .ticket-actions (grid) และ .ticket-actions__button (width: 100%) ของ detail.css ที่โหลดทีหลัง
+ */
+.ticket-actions.ticket-queue__claim-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ticket-queue__claim-actions .ticket-button--icon {
+    width: 36px;
+}
+
+/* "ดูรายละเอียด" — ปุ่มไอคอนรูปตา 36px ข้างปุ่มรับงาน/เข้าร่วม (การ์ดบนจอสัมผัส 44px — responsive.css) */
+.ticket-queue__open {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--accent);
+    font-size: 1.05rem;
+}
+
+.ticket-queue__open:hover {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.ticket-queue__open:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/*
+ * โหมดตาราง (≥ 1280px — ต่ำกว่านี้หัก sidebar แล้วหัวข้อปัญหาแคบเกินอ่าน)
+ * table-layout: fixed + <colgroup>: ความกว้างคอลัมน์มาจากตัวแปรด้านล่างเท่านั้น ไม่เปลี่ยนตามข้อความในแถว
+ * หัวตารางและทุกแถวจึงตรงแนวเดียวกัน padding แนวนอนของทุกเซลล์ 12px (กฎพื้นฐานด้านบน)
+ * สัดส่วนสามช่วงตามความกว้างตาราง (~930 / ~1090 / ~1250px ขึ้นไป หลังหัก sidebar):
+ * คอลัมน์เนื้อหาคงที่ (เลข Ticket, เวลา, ป้ายสถานะ, ปุ่ม 2 ปุ่ม) ต้องได้ขั้นต่ำพอดีเนื้อหา
+ * จอกว้างจึงคืนสัดส่วนให้หัวข้อปัญหา ผู้แจ้ง และสาขา
+ * แถวสูง 52px (ปุ่มไอคอน 36px + padding 8px) หัวตาราง 44px
+ */
+@media (min-width: 1280px) {
+    .ticket-queue__table {
+        --ticket-col-number: 11%;
+        --ticket-col-problem: 21%;
+        --ticket-col-requester: 13%;
+        --ticket-col-location: 11%;
+        --ticket-col-time: 18.5%;
+        --ticket-col-status: 14%;
+        --ticket-col-action: 11.5%;
+        table-layout: fixed;
+    }
+
+    .ticket-queue__col--number { width: var(--ticket-col-number); }
+    .ticket-queue__col--problem { width: var(--ticket-col-problem); }
+    .ticket-queue__col--requester { width: var(--ticket-col-requester); }
+    .ticket-queue__col--location { width: var(--ticket-col-location); }
+    .ticket-queue__col--time { width: var(--ticket-col-time); }
+    .ticket-queue__col--status { width: var(--ticket-col-status); }
+    .ticket-queue__col--action { width: var(--ticket-col-action); }
+
+    .ticket-queue__table th,
+    .ticket-queue__table td {
+        white-space: nowrap;
+        overflow-wrap: normal;
+    }
+
+    /* ข้อความยาวตัดด้วย … ภายในช่องของตัวเอง ไม่ดันคอลัมน์อื่น */
+    .ticket-queue__summary,
+    .ticket-queue__name,
+    .ticket-queue__location {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ดำเนินการ: หัวคอลัมน์และปุ่มอยู่กึ่งกลาง ปุ่มเรียงแถวเดียวเสมอ */
+    .ticket-queue__table thead th:last-child,
+    .ticket-queue__table td.ticket-queue__claim {
+        text-align: center;
+    }
+
+    .ticket-actions.ticket-queue__claim-actions {
+        flex-wrap: nowrap;
+        justify-content: center;
+    }
+
+    /*
+     * มีปุ่มรับงาน/เข้าร่วม (form) แถวใดแถวหนึ่งในหน้า: ทุกแถวจองช่องปุ่มนั้นไว้ (แถวละไม่เกินหนึ่งปุ่ม)
+     * ไอคอนรูปตาจึงอยู่แนวตั้งเดียวกันทุกแถว · ไม่มีปุ่มเลย (อ่านอย่างเดียว) รูปตาอยู่กึ่งกลางคอลัมน์
+     */
+    .ticket-queue__table:has(.ticket-queue__claim-actions form) .ticket-actions.ticket-queue__claim-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 36px);
+    }
+
+    .ticket-queue__table:has(.ticket-queue__claim-actions form) .ticket-queue__open {
+        grid-column: 2;
+    }
+}
+
+@media (min-width: 1440px) {
+    .ticket-queue__table {
+        --ticket-col-number: 10%;
+        --ticket-col-problem: 25%;
+        --ticket-col-requester: 14%;
+        --ticket-col-location: 12%;
+        --ticket-col-time: 17%;
+        --ticket-col-status: 12.5%;
+        --ticket-col-action: 9.5%;
+    }
+}
+
+@media (min-width: 1600px) {
+    .ticket-queue__table {
+        --ticket-col-number: 9%;
+        --ticket-col-problem: 28%;
+        --ticket-col-requester: 15%;
+        --ticket-col-location: 13%;
+        --ticket-col-time: 16%;
+        --ticket-col-status: 11%;
+        --ticket-col-action: 8%;
+    }
+}
+
+/* ---------- ไม่มีรายการ ---------- */
+.ticket-empty {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 28px 16px;
+    text-align: center;
+}
+
+.ticket-empty__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 1.2rem;
+}
+
+.ticket-empty h3 {
+    margin: 4px 0 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.ticket-empty p {
+    max-width: 420px;
+    margin: 0 0 6px;
+    color: var(--text-muted);
+}
+
+/* ---------- ตัวแบ่งหน้า ---------- */
+.ticket-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-top: 16px;
+}
+
+.ticket-pager__range {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .88rem;
+}
+
+.ticket-pager__controls {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+/* ปุ่มก่อนหน้า/ถัดไปเป็นไอคอนสี่เหลี่ยม 44px · จอแคบแสดง "หน้า x จาก y" ส่วนเลขหน้าแสดงตั้งแต่ 768px (ดูท้ายไฟล์) */
+.ticket-pager__link,
+.ticket-pager__page {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+a.ticket-pager__link:hover,
+a.ticket-pager__page:hover {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+a.ticket-pager__link:focus-visible,
+a.ticket-pager__page:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.ticket-pager__link.is-disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.ticket-pager__page.is-current {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.ticket-pager__status {
+    color: var(--text-muted);
+    font-size: .88rem;
+    white-space: nowrap;
+}
+
+.ticket-pager__pages {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ticket-pager__gap {
+    padding: 0 4px;
+    color: var(--text-muted);
+}
+
+@media (min-width: 768px) {
+    .ticket-pager__controls {
+        flex: none;
+        justify-content: flex-end;
+        gap: 6px;
+    }
+
+    .ticket-pager__pages {
+        display: flex;
+    }
+
+    .ticket-pager__status {
+        display: none;
+    }
+}

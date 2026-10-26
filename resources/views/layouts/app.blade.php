@@ -27,7 +27,10 @@
 
 <body
     data-realtime-sync-url="{{ route('realtime.sync') }}"
-    data-realtime-cursor="{{ app(\App\Services\NotificationService::class)->latestId(auth()->user()) }}">
+    data-realtime-cursor="{{ app(\App\Services\NotificationService::class)->latestId(auth()->user()) }}"
+    {{-- agent ที่ฟังเสียง Ticket ใหม่: แท็บที่ถูกซ่อน (อยู่แท็บอื่น/ย่อหน้าต่าง) ยังตรวจทุก 10 วินาที เสียงจึงดังได้ — ผู้ใช้อื่นหยุดตรวจเมื่อซ่อนเหมือนเดิม
+         ไฟล์เสียงและเวลาที่เล่นวนต่อ Ticket มาจาก config/tickets.php (alert) --}}
+    @if ($ticketAlertEnabled ?? false) data-realtime-background-interval="10000" data-ticket-alert-sound="{{ $ticketAlertSound }}" data-ticket-alert-seconds="{{ (int) config('tickets.alert.loop_seconds', 20) }}" @endif>
     {{-- คืนสถานะย่อ/ขยายก่อน Sidebar ถูก render เพื่อไม่ให้เห็นการกระตุกตอนโหลดหน้า --}}
     <script>
         (() => {
@@ -76,7 +79,7 @@
                 <div class="nav-section-label">ภาพรวมองค์กร</div>
 
                 {{-- เมนู "การประชุม" อยู่ใน Admin Member Workspace เพื่อให้ดูในบริบทของสมาชิก --}}
-                <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
+                <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}" @if(request()->routeIs('board.*')) aria-current="page" @endif>
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดรวม</span>
                 </a>
@@ -84,115 +87,108 @@
             @elseif ($isViewer)
                 <div class="nav-section-label">ภาพรวม</div>
 
-                <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}">
+                <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}" @if(request()->routeIs('board.*')) aria-current="page" @endif>
                     <i class="bi bi-grid-1x2"></i>
                     <span class="nav-item__label">แดชบอร์ด</span>
                 </a>
                 <a href="{{ route('workspace.index') }}"
-                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}" @if(request()->routeIs('workspace.*')) aria-current="page" @endif>
                     <i class="bi bi-easel"></i>
                     <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
                 @include('layouts.partials.report-nav')
             @else
                 {{--
-                    พนักงานและหัวหน้าแผนก
-
-                    เดิมทั้งห้าเมนูกองอยู่ใต้หัวข้อ "งานของฉัน" หัวข้อเดียว ทั้งที่
-                    ครึ่งหนึ่งไม่ใช่งานของตัวเอง (บอร์ดของทีม กระดานของแผนก และ
-                    รายงานที่เป็นการสรุปย้อนหลัง) หัวข้อจึงไม่ได้ช่วยหาเมนู
-                    และกลายเป็นรายการยาวที่ต้องไล่อ่านทีละบรรทัด
-
-                    ตอนนี้แยกตามคำถามที่ผู้ใช้ถามตอนกดเมนู: งานของฉันวันนี้คืออะไร /
-                    ทีมกำลังทำอะไร / ผลที่ผ่านมาเป็นอย่างไร ลำดับภายในยังเหมือนเดิม
-                    ทุกประการ (SidebarNavigationTest ตรวจลำดับนี้อยู่)
+                    พนักงานและหัวหน้าแผนก — หัวข้อคงที่ตามหน้าที่ของเมนู (ไม่เปลี่ยนชื่อตามบทบาท ยกเว้นกลุ่มทีม)
+                      การทำงาน     งานของตัวเองวันนี้
+                      ทีม/แผนกของฉัน งานร่วมกับคนอื่น (หัวหน้า: บอร์ดแผนก งานข้ามแผนก และประกาศ ซึ่งเป็นเครื่องมือดูแลแผนก)
+                      รายงาน▾     การสรุปผลย้อนหลังทุกชนิดที่มีสิทธิ์ (layouts/partials/report-nav)
+                      Smart Ticket เมนูเดียวตามสิทธิ์จริง (layouts/partials/ticket-nav)
+                      การสื่อสาร   การแจ้งเตือน · ระบบ ตั้งค่า
+                    ลำดับภายในกลุ่มเดิมคงไว้ (SidebarNavigationTest ตรวจลำดับนี้อยู่)
                 --}}
-                <div class="nav-section-label">งานของฉัน</div>
+                <div class="nav-section-label">การทำงาน</div>
 
                 <a href="{{ route('mytasks.index') }}"
-                    class="nav-item {{ request()->routeIs('mytasks.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('mytasks.*') ? 'active' : '' }}" @if(request()->routeIs('mytasks.*')) aria-current="page" @endif>
                     <i class="bi bi-briefcase"></i>
                     <span class="nav-item__label">งานของฉัน</span>
                 </a>
                 {{-- บันทึกงานประจำวันเป็นเรื่องส่วนตัวก่อน จึงอยู่ถัดจาก "งานของฉัน" --}}
                 <a href="{{ route('daily-logs.index') }}"
-                    class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}" @if(request()->routeIs('daily-logs.*')) aria-current="page" @endif>
                     <i class="bi bi-journal-check"></i>
                     <span class="nav-item__label">บันทึกงานประจำวัน</span>
                 </a>
 
                 {{-- งานที่ทำร่วมกับคนอื่น — หัวหน้าเห็นในบริบทของแผนกตัวเอง --}}
-                <div class="nav-section-label">{{ $isDepartmentHead ? 'แผนกของฉัน' : 'งานของทีม' }}</div>
+                <div class="nav-section-label">{{ $isDepartmentHead ? 'แผนกของฉัน' : 'ทีม' }}</div>
 
                 <a href="{{ $isDepartmentHead ? route('work-board.department', $currentUser->department_id) : route('work-board.index') }}"
-                    class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}" @if(request()->routeIs('work-board.*')) aria-current="page" @endif>
                     <i class="bi bi-kanban"></i>
                     <span class="nav-item__label">บอร์ดงาน</span>
                 </a>
-                {{--
-                    แชร์งาน — งานที่เปิดรับผู้ร่วมงาน อยู่กลุ่มเดียวกับบอร์ดของทีม
-                    เพราะเป็นการทำงานร่วมกับคนอื่น ไม่ใช่งานส่วนตัว
-                    ป้ายตัวเลขทั้งสองอธิบายไว้ใน layouts/partials/share-nav-item
-                --}}
+                {{-- แชร์งาน — การทำงานร่วมกับคนอื่น ป้ายตัวเลขอธิบายไว้ใน layouts/partials/share-nav-item --}}
                 @include('layouts.partials.share-nav-item')
                 <a href="{{ route('workspace.index') }}"
-                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}" @if(request()->routeIs('workspace.*')) aria-current="page" @endif>
                     <i class="bi bi-easel"></i>
                     <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
 
+                @if ($isDepartmentHead)
+                    {{--
+                        เครื่องมือดูแลแผนกของหัวหน้า:
+                        งานข้ามแผนกของทีม — หน้าติดตามว่าลูกทีมไปร่วมโปรเจกต์ของแผนกใด ป้ายนับเรื่องที่รอเขาตัดสินจริง
+                        ประกาศ — ประกาศถึงแผนก/ทุกแผนก (AnnouncementPolicy) พนักงานเห็นประกาศในสรุปประจำวัน
+                    --}}
+                    <a href="{{ route('admin.approvals.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}" @if(request()->routeIs('admin.approvals.*')) aria-current="page" @endif>
+                        <i class="bi bi-shield-check"></i>
+                        <span class="nav-item__label">งานข้ามแผนกของทีม</span>
+                        @if($approvalCounts['total'] > 0)
+                            <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
+                        @endif
+                    </a>
+                    <a href="{{ route('announcements.index') }}"
+                        class="nav-item {{ request()->routeIs('announcements.*') ? 'active' : '' }}" @if(request()->routeIs('announcements.*')) aria-current="page" @endif>
+                        <i class="bi bi-megaphone"></i>
+                        <span class="nav-item__label">ประกาศ</span>
+                    </a>
+                @endif
+
                 @include('layouts.partials.report-nav')
+
+                {{-- Smart Ticket — หัวข้อของตัวเอง เมนูเดียวตามสิทธิ์ (แจ้งปัญหา / Ticket ของแผนก / จัดการ Ticket) --}}
+                @include('layouts.partials.ticket-nav', ['withSection' => true])
             @endif
 
-            @stack('sidebar_nav_extra')
-
-            @php
-                $communicationLabel = match (true) {
-                    $isAdmin => 'งานและการติดตาม',
-                    $isDepartmentHead => 'งานและคำขอ',
-                    default => 'การสื่อสาร',
-                };
-            @endphp
-            <div class="nav-section-label">{{ $communicationLabel }}</div>
+            <div class="nav-section-label">{{ $isAdmin ? 'งานและการติดตาม' : 'การสื่อสาร' }}</div>
 
             <a href="{{ route('notifications.index') }}"
-                class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
+                class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}" @if(request()->routeIs('notifications.*')) aria-current="page" @endif>
                 <i class="bi bi-bell"></i>
                 <span class="nav-item__label">การแจ้งเตือน</span>
                 <span class="nav-item__count" data-notification-count data-sidebar-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
             </a>
 
-            {{--
-                หัวหน้าแผนกเห็นเมนูนี้เสมอ แต่ชื่อเมนูต่างจาก admin เพราะบทบาทของหน้าต่างกัน:
-                ของ admin คือกล่องขาเข้าของคำขอ ส่วนของหัวหน้าแผนกคือหน้าติดตามว่าลูกทีม
-                ไปร่วมโปรเจกต์ของแผนกใด (การเพิ่มผู้เข้าร่วมไม่ต้องอนุมัติอีกแล้ว)
-                ป้ายตัวเลขยังนับของค้างจริงเหมือนเดิม จึงโผล่เฉพาะเมื่อมีเรื่องรอเขาตัดสิน
+            @if ($isAdmin)
+                {{-- Smart Ticket ของ admin อยู่ในหมวดงานและการติดตามเดิม (เมนูเดียว ชื่อตามสิทธิ์ — layouts/partials/ticket-nav) --}}
+                @include('layouts.partials.ticket-nav')
 
-                ส่วน admin เห็นเฉพาะตอนมีของค้างจริง เพราะ admin เป็นผู้ดูแลระบบ ไม่ใช่
-                ผู้อนุมัติงาน คิวของ admin ถูกจำกัดเหลือเฉพาะคำขอที่ไม่มีหัวหน้าแผนก
-                รับผิดชอบแล้ว (AdminApprovalQuery::scopeAssignments) ในองค์กรที่ทุกแผนก
-                มีหัวหน้า เมนูนี้จึงหายไปจากสายตา admin ตามที่ควรเป็น
-            --}}
-            @if ($isDepartmentHead || ($isAdmin && ($approvalCounts['total'] ?? 0) > 0))
-                <a href="{{ route('admin.approvals.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}">
-                    <i class="bi bi-shield-check"></i>
-                    <span class="nav-item__label">{{ $isAdmin ? 'คำขออนุมัติ' : 'งานข้ามแผนกของทีม' }}</span>
-                    @if($approvalCounts['total'] > 0)
+                {{--
+                    admin เห็นคำขออนุมัติเฉพาะตอนมีของค้างจริง เพราะ admin เป็นผู้ดูแลระบบ ไม่ใช่ผู้อนุมัติงาน
+                    คิวของ admin ถูกจำกัดเหลือเฉพาะคำขอที่ไม่มีหัวหน้าแผนกรับผิดชอบแล้ว (AdminApprovalQuery::scopeAssignments)
+                --}}
+                @if (($approvalCounts['total'] ?? 0) > 0)
+                    <a href="{{ route('admin.approvals.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}" @if(request()->routeIs('admin.approvals.*')) aria-current="page" @endif>
+                        <i class="bi bi-shield-check"></i>
+                        <span class="nav-item__label">คำขออนุมัติ</span>
                         <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
-                    @endif
-                </a>
-            @endif
-            {{--
-                ประกาศถึงแผนก/ทุกแผนก เป็นเครื่องมือของหัวหน้าแผนกเท่านั้น (AnnouncementPolicy)
-                พนักงานเห็นประกาศในสรุปประจำวัน ส่วน admin ไม่มีสิทธิ์กับประกาศตามที่ตกลงไว้
-            --}}
-            @if ($isDepartmentHead)
-                <a href="{{ route('announcements.index') }}"
-                    class="nav-item {{ request()->routeIs('announcements.*') ? 'active' : '' }}">
-                    <i class="bi bi-megaphone"></i>
-                    <span class="nav-item__label">ประกาศ</span>
-                </a>
+                    </a>
+                @endif
             @endif
             @if ($isAdmin)
                 {{--
@@ -202,19 +198,19 @@
                     ป้ายตัวเลขของแชร์งานอธิบายไว้ใน layouts/partials/share-nav-item
                 --}}
                 @include('layouts.partials.share-nav-item')
-                <a href="{{ route('daily-logs.index') }}" class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}">
+                <a href="{{ route('daily-logs.index') }}" class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}" @if(request()->routeIs('daily-logs.*')) aria-current="page" @endif>
                     <i class="bi bi-journal-check"></i>
                     <span class="nav-item__label">บันทึกงานประจำวัน</span>
                 </a>
                 <a href="{{ route('workspace.index') }}"
-                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}" @if(request()->routeIs('workspace.*')) aria-current="page" @endif>
                     <i class="bi bi-easel"></i>
                     <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
             @endif
 
             @if ($isViewer)
-                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
+                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}" @if(request()->routeIs('meetings.*')) aria-current="page" @endif>
                     <i class="bi bi-calendar-event"></i>
                     <span class="nav-item__label">การประชุม</span>
                 </a>
@@ -224,13 +220,13 @@
                 <div class="nav-section-label">{{ $isAdmin ? 'บุคลากรและแผนก' : 'องค์กร' }}</div>
 
                 <a href="{{ route('employees.index') }}"
-                    class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}" @if(request()->routeIs('employees.*')) aria-current="page" @endif>
                     <i class="bi bi-people"></i>
                     <span class="nav-item__label">พนักงาน</span>
                 </a>
                 @if ($isAdmin)
                     <a href="{{ route('admin.departments.index') }}"
-                        class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}">
+                        class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}" @if(request()->routeIs('admin.departments.*')) aria-current="page" @endif>
                         <i class="bi bi-diagram-3"></i>
                         <span class="nav-item__label">จัดการแผนก</span>
                     </a>
@@ -241,7 +237,7 @@
 
             @if ($isAdmin)
                 <a href="{{ route('admin.accounts.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.accounts.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('admin.accounts.*') ? 'active' : '' }}" @if(request()->routeIs('admin.accounts.*')) aria-current="page" @endif>
                     <i class="bi bi-person-gear"></i>
                     <span class="nav-item__label">บัญชีระบบ</span>
                 </a>
@@ -249,21 +245,29 @@
                 {{-- หมวดงานของบันทึกงานประจำวันเป็นตาราง lookup ที่ admin แก้ได้เอง
                      จึงเป็นการตั้งค่าข้อมูล ไม่ใช่กลุ่มงาน --}}
                 <a href="{{ route('admin.work-log-categories.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.work-log-categories.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('admin.work-log-categories.*') ? 'active' : '' }}" @if(request()->routeIs('admin.work-log-categories.*')) aria-current="page" @endif>
                     <i class="bi bi-tags"></i>
                     <span class="nav-item__label">หมวดงานประจำวัน</span>
                 </a>
 
+                @if (($ticketsInstalled ?? false) && auth()->user()->can('manageSettings', \App\Models\Ticket::class))
+                    <a href="{{ route('admin.tickets.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.tickets.*') ? 'active' : '' }}" @if(request()->routeIs('admin.tickets.*')) aria-current="page" @endif>
+                        <i class="bi bi-sliders"></i>
+                        <span class="nav-item__label">ตั้งค่า Smart Ticket</span>
+                    </a>
+                @endif
+
                 {{-- บันทึกระบบกับถังขยะรวมเป็นเมนูเดียว เพราะทั้งคู่ตอบคำถามเดียวกันว่าใครทำอะไรกับข้อมูล
                      อยู่ท้ายกลุ่มคู่กับ "ตั้งค่า" เพราะเป็นการย้อนตรวจ ไม่ใช่งานที่ทำทุกวัน --}}
                 <a href="{{ route('admin.audit.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
+                    class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}" @if(request()->routeIs('admin.audit.*')) aria-current="page" @endif>
                     <i class="bi bi-shield-lock"></i>
                     <span class="nav-item__label">Audit Log</span>
                 </a>
             @endif
 
-            <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
+            <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}" @if(request()->routeIs('settings.*')) aria-current="page" @endif>
                 <i class="bi bi-gear"></i>
                 <span class="nav-item__label">ตั้งค่า</span>
             </a>
@@ -274,7 +278,8 @@
                 @if($currentUser->profile_image)
                     <img src="{{ route('media.profile', $currentUser) }}" alt="{{ $currentUser->name }}">
                 @else
-                    {{ strtoupper(substr($currentUser->name, 0, 2)) }}
+                    {{-- ตัดตามตัวอักษร ไม่ใช่ไบต์ — ชื่อภาษาไทยเคยถูกตัดกลางตัวอักษรเป็น "�" --}}
+                    {{ mb_strtoupper(mb_substr(trim($currentUser->name), 0, 2)) }}
                 @endif
             </div>
 
@@ -451,96 +456,15 @@
     @endif
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        (() => {
-            const body = document.body;
-            const openButton = document.querySelector('[data-sidebar-open]');
-            const closeTargets = document.querySelectorAll('[data-sidebar-close]');
-            const navLinks = document.querySelectorAll('.sidebar .nav-item');
-            const reportNav = document.querySelector('.sidebar .report-nav');
-            const reportToggle = reportNav?.querySelector('.report-nav__toggle');
-            const isDesktop = () => window.innerWidth > 991;
-
-            const remember = (collapsed) => {
-                try {
-                    localStorage.setItem('smartgoal.sidebar.collapsed', collapsed ? '1' : '0');
-                } catch (error) {
-                    /* ถ้าเขียน localStorage ไม่ได้ ให้จำสถานะเฉพาะหน้านี้ */
-                }
-            };
-
-            // โหมดย่อซ่อนข้อความเมนู จึงต้องให้ tooltip ของเบราว์เซอร์อธิบายไอคอนแทน
-            // (ชื่อเมนูยังอยู่ใน DOM แบบซ่อนสายตา screen reader จึงอ่านได้ตามเดิม)
-            const syncState = () => {
-                const collapsed = isDesktop() && body.classList.contains('sidebar-collapsed');
-
-                navLinks.forEach((link) => {
-                    const label = link.querySelector('.nav-item__label')?.textContent.trim();
-                    if (! label) return;
-
-                    if (collapsed) {
-                        link.setAttribute('title', label);
-                    } else {
-                        link.removeAttribute('title');
-                    }
-                });
-
-                openButton?.setAttribute(
-                    'aria-expanded',
-                    isDesktop()
-                        ? String(! collapsed)
-                        : String(body.classList.contains('sidebar-open')),
-                );
-            };
-
-            const closeSidebar = () => {
-                if (isDesktop()) {
-                    body.classList.add('sidebar-collapsed');
-                    remember(true);
-                } else {
-                    body.classList.remove('sidebar-open');
-                }
-                syncState();
-            };
-
-            openButton?.addEventListener('click', () => {
-                if (isDesktop()) {
-                    remember(body.classList.toggle('sidebar-collapsed'));
-                } else {
-                    body.classList.toggle('sidebar-open');
-                }
-
-                syncState();
-            });
-
-            closeTargets.forEach((target) => target.addEventListener('click', closeSidebar));
-            reportToggle?.addEventListener('click', (event) => {
-                if (! isDesktop() || ! body.classList.contains('sidebar-collapsed')) return;
-
-                event.preventDefault();
-                body.classList.remove('sidebar-collapsed');
-                reportNav.open = true;
-                remember(false);
-                syncState();
-            });
-            document.querySelectorAll('.sidebar a.nav-item').forEach((link) => link.addEventListener('click', () => {
-                if (! isDesktop()) closeSidebar();
-            }));
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape') closeSidebar();
-            });
-
-            window.addEventListener('resize', () => {
-                body.classList.remove('sidebar-open');
-                syncState();
-            });
-
-            syncState();
-        })();
-    </script>
+    {{-- แถบข้าง: ย่อ/กาง เดสก์ท็อป, drawer จอเล็ก, tooltip ตอนย่อ — resources/js/components/sidebar.js --}}
+    @vite('resources/js/components/sidebar.js')
     @vite('resources/js/components/avatar-fallback.js')
     @vite('resources/js/components/realtime-sync.js')
+    {{-- เสียงแจ้ง Ticket ใหม่ทุกหน้า — ฟัง event ของ realtime-sync ไม่ยิงคำขอเอง (เฉพาะ agent ที่เปิดรับแจ้งเตือน)
+         ปุ่มเปิด/ปิดเสียงอยู่บนหน้ารับแจ้งปัญหา (tickets/index) ค่าที่เลือกใช้กับทุกหน้าและทุกแท็บของเบราว์เซอร์นี้ --}}
+    @if ($ticketAlertEnabled ?? false)
+        @vite('resources/js/components/ticket-alert.js')
+    @endif
     @if(! empty($dailyBrief))
         @vite('resources/js/components/daily-brief.js')
     @endif

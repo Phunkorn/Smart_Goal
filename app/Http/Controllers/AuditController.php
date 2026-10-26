@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\TrashLog;
 use App\Services\AuditLogQuery;
 use App\Services\AuditRevertService;
+use App\Services\Telegram\TelegramOutbox;
 use App\Support\AuditSnapshot;
 use App\Support\LogRetention;
 use App\Support\SchedulerHeartbeat;
@@ -127,6 +128,8 @@ class AuditController extends Controller
             'stats' => $this->audit->overview($request),
             // สถานะงานตามเวลา — หน้าเว็บต้องบอกเองได้ว่า cron ทำงานอยู่หรือไม่
             'scheduler' => SchedulerHeartbeat::status(),
+            // คิว Telegram — ข้อความที่ลองใหม่ต้องพึ่ง cron (telegram:drain) ค้างนานคือสัญญาณว่า cron ไม่ทำงาน
+            'telegram' => app(TelegramOutbox::class)->health(),
             'recentActivity' => $recentActivity,
             'recentTrash' => $recentTrash,
             'resolvableProfileImages' => AuditSnapshot::resolvableProfileImages($recentActivity),

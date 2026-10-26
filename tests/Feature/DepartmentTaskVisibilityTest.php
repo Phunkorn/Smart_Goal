@@ -554,7 +554,7 @@ class DepartmentTaskVisibilityTest extends TestCase
 
         $this->actingAs($this->admin())->get(route('employees.index'))
             ->assertOk()
-            ->assertSee('การมองเห็นงาน:')
+            ->assertSee('<table class="employee-table">', false)
             ->assertSee('ทุกคนใน Marketing')
             ->assertSee('Marketing, HR')
             ->assertSee('ขอบเขตการมองเห็นงาน')

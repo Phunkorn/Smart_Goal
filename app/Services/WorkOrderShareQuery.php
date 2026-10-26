@@ -175,21 +175,7 @@ class WorkOrderShareQuery
     }
 
     /**
-     * จำนวนงานที่แชร์อยู่และผู้ใช้กดขอเข้าร่วมได้ — ป้ายตัวเลขบนแถบข้างของเมนู "แชร์งาน"
-     * ใช้เงื่อนไขเดียวกับ feedFor() จึงเท่ากับจำนวนการ์ดในแท็บฟีดเสมอ
-     * เป็นแค่ตัวนับบนเมนู ไม่ได้สร้างการแจ้งเตือน
-     */
-    public function feedCount(User $viewer): int
-    {
-        if ($viewer->role === 'viewer') {
-            return 0;
-        }
-
-        return $this->feedQuery($viewer)->count();
-    }
-
-    /**
-     * เงื่อนไขของฟีดที่ feedFor() และ feedCount() ใช้ร่วมกัน
+     * เงื่อนไขของฟีด (feedFor)
      *
      * @return Builder<WorkOrderShare>
      */

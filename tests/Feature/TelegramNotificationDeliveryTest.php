@@ -8,7 +8,9 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\NotificationService;
 use App\Services\Telegram\TelegramOutbox;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -135,6 +137,10 @@ class TelegramNotificationDeliveryTest extends TestCase
             && $request['parse_mode'] === 'HTML');
     }
 
+    /**
+     * ลองซ้ำหลังพ้นระยะรอ (TelegramMessage::RETRY_DELAYS_MINUTES) ไม่ใช่ในรอบถัดไปทันที —
+     * เดิมรอบ drain ที่ติดกันเผาโควตาหมดภายในไม่กี่วินาทีระหว่างที่ Telegram ล่มชั่วคราว
+     */
     public function test_server_error_keeps_message_pending_until_attempts_run_out(): void
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => false, 'description' => 'Bad Gateway'], 502)]);
@@ -147,13 +153,142 @@ class TelegramNotificationDeliveryTest extends TestCase
         $this->assertSame(1, $message->attempts);
 
         $outbox->drain();
-        $this->assertSame(TelegramMessage::STATUS_PENDING, $message->refresh()->status);
+        $this->assertSame(1, $message->refresh()->attempts, 'ยังไม่ถึงเวลาลองใหม่');
+        Http::assertSentCount(1);
 
+        $this->travel(TelegramMessage::RETRY_DELAYS_MINUTES[0])->minutes();
+        $outbox->drain();
+        $this->assertSame(TelegramMessage::STATUS_PENDING, $message->refresh()->status);
+        $this->assertSame(2, $message->attempts);
+
+        $this->travel(TelegramMessage::RETRY_DELAYS_MINUTES[0])->minutes();
+        $outbox->drain();
+        $this->assertSame(2, $message->refresh()->attempts, 'ครั้งที่สามรอนานกว่าครั้งที่สอง');
+
+        $this->travel(TelegramMessage::RETRY_DELAYS_MINUTES[1])->minutes();
         $outbox->drain();
         $message->refresh();
         $this->assertSame(TelegramMessage::STATUS_FAILED, $message->status);
         $this->assertSame(3, $message->attempts);
         $this->assertStringContainsString('Bad Gateway', (string) $message->last_error);
+        Http::assertSentCount(3);
+    }
+
+    public function test_a_retried_message_is_delivered_once_telegram_recovers(): void
+    {
+        Http::fakeSequence('api.telegram.org/*')
+            ->push(['ok' => false, 'error_code' => 429, 'description' => 'Too Many Requests: retry after 5'], 429)
+            ->push(['ok' => true, 'result' => []]);
+
+        $message = $this->queued(6101);
+        app(TelegramOutbox::class)->drain();
+        $this->travel(TelegramMessage::RETRY_DELAYS_MINUTES[0])->minutes();
+        app(TelegramOutbox::class)->drain();
+
+        $message->refresh();
+        $this->assertSame(TelegramMessage::STATUS_SENT, $message->status);
+        $this->assertSame(2, $message->attempts);
+        Http::assertSentCount(2);
+    }
+
+    /**
+     * Telegram ไปไม่ถึง (timeout / DNS / เครือข่ายล่ม): หยุดรอบนั้นทันทีแทนการรอ timeout ทีละข้อความ
+     * ข้อความที่ยังไม่ได้ลองกลับเข้าคิวโดยไม่ถูกนับเป็นความพยายาม และไม่มีข้อความใดหายหรือถูกส่งซ้ำ
+     */
+    public function test_a_network_timeout_stops_the_round_and_requeues_untried_messages(): void
+    {
+        $online = false;
+        Http::fake(function () use (&$online) {
+            if (! $online) {
+                throw new ConnectionException('cURL error 28: Operation timed out');
+            }
+
+            return Http::response(['ok' => true, 'result' => []]);
+        });
+
+        $first = $this->queued(6201);
+        $second = $this->queued(6202);
+        $third = $this->queued(6203);
+
+        $this->assertSame(0, app(TelegramOutbox::class)->drain());
+
+        // ลองจริงแค่ข้อความแรก (Http::fake ไม่บันทึก request ที่โยน exception จึงนับจาก attempts)
+        $this->assertSame([TelegramMessage::STATUS_PENDING, 1], [$first->refresh()->status, $first->attempts]);
+        $this->assertStringContainsString('timed out', (string) $first->last_error);
+        foreach ([$second, $third] as $untried) {
+            $this->assertSame([TelegramMessage::STATUS_PENDING, 0], [$untried->refresh()->status, $untried->attempts]);
+        }
+
+        // เครือข่ายกลับมา — ข้อความที่ยังไม่เคยลองส่งได้ทันที ข้อความที่ลองแล้วรอครบระยะก่อน
+        $online = true;
+        $this->assertSame(2, app(TelegramOutbox::class)->drain());
+        $this->travel(TelegramMessage::RETRY_DELAYS_MINUTES[0])->minutes();
+        $this->assertSame(1, app(TelegramOutbox::class)->drain());
+        $this->assertSame(0, TelegramMessage::query()->where('status', '!=', TelegramMessage::STATUS_SENT)->count());
+    }
+
+    public function test_a_round_stops_at_its_time_budget_and_leaves_the_rest_for_the_next_round(): void
+    {
+        config(['services.telegram.drain_seconds' => 1]);
+        Http::fake(function () {
+            usleep(1_100_000);
+
+            return Http::response(['ok' => true, 'result' => []]);
+        });
+
+        $first = $this->queued(6301);
+        $second = $this->queued(6302);
+
+        $this->assertSame(1, app(TelegramOutbox::class)->drain());
+        $this->assertSame(TelegramMessage::STATUS_SENT, $first->refresh()->status);
+        $this->assertSame([TelegramMessage::STATUS_PENDING, 0], [$second->refresh()->status, $second->attempts]);
+    }
+
+    public function test_the_backlog_is_visible_to_admins_without_message_content(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => false, 'description' => 'Bad Gateway'], 502)]);
+        $stuck = $this->queued(6401);
+        $stuck->forceFill(['text' => 'ข้อความลับของผู้ใช้'])->save();
+        TelegramMessage::query()->whereKey($stuck->id)->update(['created_at' => now()->subMinutes(TelegramMessage::BACKLOG_WARNING_MINUTES + 1)]);
+        app(TelegramOutbox::class)->drain();
+
+        $health = app(TelegramOutbox::class)->health();
+        $this->assertSame(1, $health['pending']);
+        $this->assertTrue($health['backlog']);
+        $this->assertSame(0, $health['failed_24h']);
+
+        $this->actingAs($this->user('admin'))->get(route('admin.audit.index'))
+            ->assertOk()
+            ->assertSee('data-telegram-health', false)
+            ->assertSee('รอส่ง 1 ข้อความ')
+            ->assertDontSee('ข้อความลับของผู้ใช้');
+
+        $this->artisan('telegram:status')->assertExitCode(1)->expectsOutputToContain('pending            : 1');
+    }
+
+    public function test_a_healthy_queue_shows_no_warning(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => []])]);
+        $this->queued(6501);
+        app(TelegramOutbox::class)->drain();
+
+        $this->assertFalse(app(TelegramOutbox::class)->health()['backlog']);
+        $this->actingAs($this->user('admin'))->get(route('admin.audit.index'))
+            ->assertOk()
+            ->assertDontSee('data-telegram-health', false);
+        $this->artisan('telegram:status')->assertExitCode(0);
+    }
+
+    public function test_drain_runs_every_minute_on_the_scheduler(): void
+    {
+        $event = collect(app(Schedule::class)->events())
+            ->first(fn ($event) => str_contains((string) $event->command, 'telegram:drain'));
+
+        $this->assertNotNull($event);
+        $this->assertSame('* * * * *', $event->expression);
+        $this->assertTrue($event->withoutOverlapping);
+        // ล็อกค้างจาก process ที่ถูกฆ่าต้องไม่หยุดการส่งนานเกินไป (ค่าเริ่มต้นของ Laravel = 1440 นาที)
+        $this->assertSame(10, $event->expiresAt);
     }
 
     public function test_blocked_bot_unlinks_the_account_and_stops_retrying(): void

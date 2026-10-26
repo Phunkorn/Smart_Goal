@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobImage;
+use App\Models\TicketAttachment;
 use App\Models\User;
 use App\Models\WorkLogAttachment;
 use App\Models\WorkOrderListAttachment;
 use App\Models\WorkOrderUpdateAttachment;
 use App\Models\WorkspaceBoardAttachment;
+use App\Services\TicketPhotoStore;
 use App\Support\ProtectedMedia;
 use App\Support\TaskAttachmentPresenter;
 use Illuminate\Http\Request;
@@ -128,6 +130,34 @@ class MediaController extends Controller
         return $this->attachmentResponse(
             $attachment->file_path,
             'comment-attachments/'.$task->job_id.'/',
+            $attachment->original_name,
+            $request->boolean('download')
+        );
+    }
+
+    /**
+     * รูปประกอบของ Smart Ticket
+     *
+     * ตรวจสิทธิ์จาก Ticket แม่ด้วย TicketPolicy::view() ผู้ที่เปิดรูปได้จึงเป็นชุดเดียวกับผู้ที่
+     * เห็น Ticket (ผู้แจ้ง / หัวหน้าแผนกของผู้แจ้ง / agent / admin) route นี้อยู่ในกลุ่ม auth
+     * ผู้แจ้งจากฟอร์มสาธารณะจึงไม่มีทางเปิดรูปของใครได้
+     */
+    public function ticketAttachment(
+        Request $request,
+        TicketAttachment $attachment
+    ): BinaryFileResponse {
+        $ticket = $attachment->ticket()->firstOrFail();
+
+        // รูปตอนแจ้ง (ticket_activity_id = null) ดูได้ตาม view · รูปของบันทึกการดำเนินงานเป็นข้อมูลภายใน
+        // ของผู้รับงาน — ผู้แจ้ง/หัวหน้าแผนกเดา id แล้วดึงไม่ได้ (TicketPolicy::viewInternal)
+        Gate::forUser($request->user())->authorize(
+            $attachment->ticket_activity_id === null ? 'view' : 'viewInternal',
+            $ticket
+        );
+
+        return $this->attachmentResponse(
+            $attachment->file_path,
+            TicketPhotoStore::DIRECTORY.'/'.$ticket->id.'/',
             $attachment->original_name,
             $request->boolean('download')
         );

@@ -16,6 +16,7 @@ use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MyTaskController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProjectTaskRequestController;
+use App\Http\Controllers\PublicTicketController;
 use App\Http\Controllers\RealtimeSyncController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
@@ -26,6 +27,12 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TelegramSettingsController;
 use App\Http\Controllers\TelegramWebhookController;
+use App\Http\Controllers\TicketController;
+use App\Http\Controllers\TicketNoteController;
+use App\Http\Controllers\TicketParticipantController;
+use App\Http\Controllers\TicketReportController;
+use App\Http\Controllers\TicketSettingsController;
+use App\Http\Controllers\TicketStatusController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkBoardController;
@@ -42,6 +49,7 @@ use App\Http\Controllers\WorkspaceBoardDocumentController;
 use App\Models\WorkOrderListTaskRequest;
 use App\Services\OperationalWorkloadReportService;
 use App\Services\ProjectReportService;
+use App\Support\TicketSubmissionGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -80,6 +88,35 @@ Route::post('/logout', [AuthController::class, 'logout'])
 
 Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle'])
     ->name('telegram.webhook');
+
+/*
+|--------------------------------------------------------------------------
+| ฟอร์มแจ้งปัญหา IT สาธารณะ (Smart Ticket)
+|--------------------------------------------------------------------------
+|
+| ไม่ต้องเข้าสู่ระบบ จึงอยู่นอกกลุ่ม auth แต่ยังอยู่ในกลุ่ม web (มี session และ CSRF)
+| กันสแปมด้วย rate limit ต่อ IP + honeypot + เวลากรอกขั้นต่ำ (TicketSubmissionGuard)
+| ไม่มี route ใดในกลุ่มนี้รับเลขหรือ id ของ Ticket — ผู้แจ้งภายนอกเปิดดู Ticket ไม่ได้
+*/
+
+Route::middleware('tickets.installed')->group(function (): void {
+    Route::get('/support', [PublicTicketController::class, 'create'])
+        ->name('support.create');
+
+    Route::post('/support', [PublicTicketController::class, 'store'])
+        ->middleware('throttle:'.TicketSubmissionGuard::RATE_LIMITER)
+        ->name('support.store');
+
+    Route::get('/support/submitted', [PublicTicketController::class, 'submitted'])
+        ->name('support.submitted');
+
+    // LINE Login ของผู้แจ้งภายนอก (App\Services\LineLogin) — หนึ่งบัญชี LINE มี Ticket ที่ยังไม่ปิดได้ใบเดียว
+    // จำกัดแยกจากการส่งฟอร์ม (ไม่กินโควตาการแจ้งปัญหาต่อ IP)
+    Route::middleware('throttle:30,1')->group(function (): void {
+        Route::get('/support/line', [PublicTicketController::class, 'lineRedirect'])->name('support.line.redirect');
+        Route::get('/support/line/callback', [PublicTicketController::class, 'lineCallback'])->name('support.line.callback');
+    });
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -358,6 +395,9 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->name('media.workspace-board-attachments.show');
     Route::get('/media/comment-attachments/{attachment}', [MediaController::class, 'commentAttachment'])
         ->name('media.comment-attachments.show');
+    Route::get('/media/ticket-attachments/{attachment}', [MediaController::class, 'ticketAttachment'])
+        ->middleware('tickets.installed')
+        ->name('media.ticket-attachments.show');
     Route::get('/media/{path}', [MediaController::class, 'legacy'])
         ->where('path', '.*')
         ->name('media.show');
@@ -421,6 +461,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::get('/reports/projects/export.csv', [ReportController::class, 'exportProjectsCsv'])
         ->name('reports.projects.csv');
+
+    // รายงาน Smart Ticket — สิทธิ์จริงอยู่ที่ TicketPolicy::viewReport (admin + เจ้าหน้าที่ IT)
+    Route::get('/reports/tickets', TicketReportController::class)
+        ->middleware(['role:admin,user', 'tickets.installed'])
+        ->name('reports.tickets');
 
     // หน้าเลือกพนักงานและรายงานรายบุคคลเดิม — ตรวจสิทธิ์เดิมแล้ว redirect ไป reports.projects
     Route::get('/reports/employees', [ReportController::class, 'employees'])
@@ -699,6 +744,40 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/daily-brief/acknowledge', [DailyBriefController::class, 'acknowledge'])
         ->middleware('role:user')
         ->name('daily-brief.acknowledge');
+
+    /*
+     * Smart Ticket ของผู้ใช้ภายใน — role:admin,user กัน viewer ชั้นแรก
+     * ส่วน TicketPolicy เป็นผู้ตัดสินจริง (controller และ Form Request เรียกทุก action)
+     * รายการ หน้ารายละเอียด และการดำเนินงานของทีม IT เพิ่มใน Phase 3
+     */
+    Route::prefix('tickets')->name('tickets.')->middleware(['role:admin,user', 'tickets.installed'])->group(function (): void {
+        Route::get('/', [TicketController::class, 'index'])->name('index');
+        // ประกาศก่อน /{ticket} เพื่อไม่ให้ "create" ถูกอ่านเป็นรหัส Ticket
+        Route::get('/create', [TicketController::class, 'create'])->name('create');
+        Route::post('/', [TicketController::class, 'store'])
+            ->middleware('throttle:'.TicketSubmissionGuard::RATE_LIMITER)
+            ->name('store');
+        Route::get('/{ticket}', [TicketController::class, 'show'])->name('show');
+        Route::get('/{ticket}/preview', [TicketController::class, 'preview'])->name('preview');
+
+        Route::post('/{ticket}/participants', [TicketParticipantController::class, 'store'])->name('participants.store');
+        Route::delete('/{ticket}/participants', [TicketParticipantController::class, 'destroy'])->name('participants.destroy');
+        Route::patch('/{ticket}/coordinator', [TicketParticipantController::class, 'coordinator'])->name('coordinator.update');
+        Route::patch('/{ticket}/status', [TicketStatusController::class, 'update'])->name('status.update');
+        Route::post('/{ticket}/notes', [TicketNoteController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('notes.store');
+    });
+
+    // ตั้งค่า Smart Ticket — middleware admin เป็นชั้นแรก TicketPolicy::manageSettings ตัดสินจริง
+    Route::prefix('admin/tickets')->name('admin.tickets.')->middleware(['admin', 'tickets.installed'])->group(function (): void {
+        Route::get('/', [TicketSettingsController::class, 'index'])->name('index');
+        Route::patch('/departments/{department}', [TicketSettingsController::class, 'updateDepartment'])->name('departments.update');
+        Route::post('/agents', [TicketSettingsController::class, 'storeAgent'])->name('agents.store');
+        Route::put('/agents/{user}', [TicketSettingsController::class, 'updateAgent'])->name('agents.update');
+        Route::post('/locations', [TicketSettingsController::class, 'storeLocation'])->name('locations.store');
+        Route::patch('/locations/{location}', [TicketSettingsController::class, 'updateLocation'])->name('locations.update');
+    });
 
     // ศูนย์ประกาศของหัวหน้าแผนก — role:user กัน admin/viewer ชั้นแรก
     // ส่วน AnnouncementPolicy เป็นผู้ตัดสินจริงว่าต้องเป็นหัวหน้าและเป็นเจ้าของประกาศ

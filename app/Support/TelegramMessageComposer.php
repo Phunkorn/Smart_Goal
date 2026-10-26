@@ -24,6 +24,7 @@ class TelegramMessageComposer
         'task' => '📋',
         'meeting' => '📅',
         'worklog' => '📝',
+        'ticket' => '🛠️',
         'system' => '🔔',
     ];
 

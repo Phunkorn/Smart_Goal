@@ -142,6 +142,87 @@ class AttachmentPolicy
         return null;
     }
 
+    /*
+     * ---------------------------------------------------------------
+     * ชุด "รูปภาพเท่านั้น" — ใช้กับรูปประกอบของ Smart Ticket
+     * ---------------------------------------------------------------
+     * ใช้คู่นามสกุล↔MIME ชุดเดียวกับ TYPES ด้านบน แต่จำกัดเฉพาะ JPG/PNG และเพดานเล็กกว่า
+     * ไฟล์แนบงานมาก เพราะฟอร์มนี้เปิดให้บุคคลภายนอกที่ไม่ได้เข้าสู่ระบบส่งได้
+     *
+     * IMAGE_MAX_DIMENSION / IMAGE_MAX_PIXELS กันไฟล์ขนาดเล็กที่ประกาศขนาดภาพมหาศาล
+     * (decompression bomb) — ไฟล์ PNG ไม่กี่ร้อยไบต์ประกาศ 50,000×50,000 พิกเซลได้ และ
+     * เครื่องใดที่ถอดรหัสภาพนั้นภายหลังจะใช้หน่วยความจำหลายกิกะไบต์ getimagesize()
+     * อ่านเฉพาะส่วนหัวของไฟล์ จึงตรวจได้โดยไม่ต้องถอดรหัสภาพทั้งภาพ
+     */
+
+    /** @var array<int, string> */
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png'];
+
+    /** ขนาดสูงสุดต่อรูป (KB) = 10 MB */
+    public const IMAGE_MAX_KILOBYTES = 10240;
+
+    /** ความกว้างหรือสูงสูงสุดที่ยอมรับ (พิกเซล) — รูปกล้องมือถือโหมดปกติ (≤ 50MP) กว้างราว 8,200 */
+    public const IMAGE_MAX_DIMENSION = 10000;
+
+    /** จำนวนพิกเซลรวมสูงสุด (≈ 50 ล้านพิกเซล) */
+    public const IMAGE_MAX_PIXELS = 50_000_000;
+
+    /** ค่าใส่ใน validation rule mimes: ของ Laravel */
+    public static function imageMimesRule(): string
+    {
+        return implode(',', self::IMAGE_EXTENSIONS);
+    }
+
+    /** ค่าใส่ใน accept="" — ใช้ MIME เพื่อให้มือถือเปิดได้ทั้งกล้องและคลังรูป */
+    public static function imageAcceptAttribute(): string
+    {
+        return 'image/jpeg,image/png';
+    }
+
+    public static function imageLimitsLabel(): string
+    {
+        return 'JPG หรือ PNG · รูปละไม่เกิน '.(int) (self::IMAGE_MAX_KILOBYTES / 1024).' MB';
+    }
+
+    /** ตรวจรูปหนึ่งรูป คืนข้อความผิดพลาดภาษาไทย หรือ null เมื่อผ่าน */
+    public static function imageRejectionReason(UploadedFile $file): ?string
+    {
+        if (! $file->isValid()) {
+            return 'อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+        }
+
+        $name = $file->getClientOriginalName();
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+
+        if (! in_array($extension, self::IMAGE_EXTENSIONS, true)) {
+            return 'แนบได้เฉพาะรูป JPG หรือ PNG ("'.$name.'" ไม่ใช่รูปที่รองรับ)';
+        }
+
+        // MIME จากเนื้อไฟล์จริง ไม่ใช่ Content-Type ที่ client ส่งมา
+        if (! in_array((string) $file->getMimeType(), self::TYPES[$extension], true)) {
+            return 'ไฟล์ "'.$name.'" มีเนื้อหาไม่ตรงกับนามสกุล .'.$extension;
+        }
+
+        if ($file->getSize() / 1024 > self::IMAGE_MAX_KILOBYTES) {
+            return 'รูป "'.$name.'" มีขนาดเกิน '.(int) (self::IMAGE_MAX_KILOBYTES / 1024).' MB';
+        }
+
+        $info = @getimagesize((string) $file->getRealPath());
+        if ($info === false || ! in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) {
+            return 'ไฟล์ "'.$name.'" ไม่ใช่รูปภาพที่เปิดได้';
+        }
+
+        [$width, $height] = $info;
+        if ($width < 1 || $height < 1
+            || $width > self::IMAGE_MAX_DIMENSION
+            || $height > self::IMAGE_MAX_DIMENSION
+            || $width * $height > self::IMAGE_MAX_PIXELS) {
+            return 'รูป "'.$name.'" มีขนาดภาพใหญ่เกินกว่าที่ระบบรับได้';
+        }
+
+        return null;
+    }
+
     public static function tooManyMessage(int $existing): string
     {
         return 'แนบไฟล์ได้สูงสุด '.self::MAX_FILES.' ไฟล์ต่องาน (ขณะนี้มี '.$existing.' ไฟล์)';

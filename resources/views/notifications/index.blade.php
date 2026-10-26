@@ -12,7 +12,7 @@
 
 @section('content')
 @php
-    $categories = ['task' => 'เกี่ยวกับงาน', 'review' => 'รอตรวจหรืออนุมัติ', 'comment' => 'ความคิดเห็น', 'deadline' => 'กำหนดเวลา', 'meeting' => 'การประชุม', 'appointment' => 'นัดหมาย', 'worklog' => 'งานประจำวัน', 'system' => 'จากระบบ'];
+    $categories = ['task' => 'เกี่ยวกับงาน', 'review' => 'รอตรวจหรืออนุมัติ', 'comment' => 'ความคิดเห็น', 'deadline' => 'กำหนดเวลา', 'meeting' => 'การประชุม', 'appointment' => 'นัดหมาย', 'worklog' => 'งานประจำวัน', 'ticket' => 'แจ้งปัญหา IT', 'system' => 'จากระบบ'];
     $status = $filters['status'] ?? 'all';
     $category = $filters['category'] ?? 'all';
     $projectId = $filters['project'] ?? null;

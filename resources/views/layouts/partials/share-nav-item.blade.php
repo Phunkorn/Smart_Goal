@@ -1,20 +1,14 @@
 {{--
     เมนู "แชร์งาน" บนแถบข้าง — ใช้ร่วมกันทั้งเมนูของพนักงาน/หัวหน้า และเมนูของ admin
 
-    ป้ายตัวเลขสองอัน ค่ามาจาก AppServiceProvider (view composer ของ layouts.app):
-    - data-share-feed-count     งานที่แชร์อยู่และเรากดขอเข้าร่วมได้ (เท่ากับการ์ดในแท็บฟีด)
-                                เป็นแค่ตัวนับบนเมนู ไม่ได้สร้างการแจ้งเตือน
+    ป้ายตัวเลขแสดงเฉพาะเรื่องที่รอผู้ใช้ลงมือ (ค่าจาก AppServiceProvider — view composer ของ layouts.app):
     - data-share-request-count  คำขอร่วมงานที่รอเราตัดสินในฐานะผู้แชร์
+    จำนวนงานที่แชร์เปิดรับเป็นข้อมูล ไม่ใช่เรื่องรอทำ จึงไม่ขึ้นป้ายบนเมนู — ดูได้ในแท็บฟีดของหน้าแชร์งาน
 --}}
 <a href="{{ route('shares.index') }}"
-    class="nav-item {{ request()->routeIs('shares.*') ? 'active' : '' }}">
+    class="nav-item {{ request()->routeIs('shares.*') ? 'active' : '' }}" @if(request()->routeIs('shares.*')) aria-current="page" @endif>
     <i class="bi bi-share"></i>
     <span class="nav-item__label">แชร์งาน</span>
-    @if(($shareFeedCount ?? 0) > 0)
-        <span class="nav-item__count" data-share-feed-count
-            title="งานที่แชร์เปิดรับ {{ $shareFeedCount }} งาน"
-            aria-label="งานที่แชร์เปิดรับ {{ $shareFeedCount }} งาน">{{ $shareFeedCount > 99 ? '99+' : $shareFeedCount }}</span>
-    @endif
     @if(($shareRequestCount ?? 0) > 0)
         <span class="nav-item__count nav-item__count--request" data-share-request-count
             title="คำขอร่วมงานรอคุณอนุมัติ {{ $shareRequestCount }} รายการ"
