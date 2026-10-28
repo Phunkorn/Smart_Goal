@@ -131,6 +131,7 @@ class TicketNotificationTest extends TestCase
 
         $ticket = app(TicketSubmissionService::class)->submitPublic([
             'requester_name' => 'คุณลูกค้า',
+            'requester_department' => 'Callcenter',
             'description' => "เครื่องพิมพ์ไม่ทำงาน\nรายละเอียดบรรทัดสอง",
             'location_name' => 'สาขาลาดพร้าว',
             'contact' => '089-999-9999',

@@ -7,7 +7,7 @@
       ติดตามงาน · ยกเลิกงาน (แดง)                                         — ครึ่งแถว (ticket-actions__row)
     ปิดงานเป็นขั้นตอนที่รวมผลการแก้ไขและรูปหลังแก้ไขอยู่แล้ว (components/close-modal) จึงไม่มีปุ่มบันทึก/แนบรูปแยก
     ติดตามงานและยกเลิกงานถาม SweetAlert ก่อน แล้วจึงเปิด modal ที่ให้ระบุเหตุผล (tickets/detail.js — data-ticket-confirm-open)
-    ยกเลิกงาน = ปิด Ticket แบบยกเลิก (Ticket::ACTION_CANCEL) ใช้สิทธิ์เดียวกับปิดงาน
+    ยกเลิกงาน = ปิด Ticket แบบยกเลิก (Ticket::ACTION_CANCEL) · Ticket ใหม่ทำได้ก่อนรับงาน
     ไม่ใช่ sticky bar — อยู่ในลำดับเนื้อหาปกติ จึงไม่บังเนื้อหาส่วนอื่น
 --}}
 @php
@@ -47,7 +47,7 @@
             </button>
         @endif
 
-        @if ($can['followUp'] || $can['close'])
+        @if ($can['followUp'] || $can['cancel'])
             <div class="ticket-actions__row">
                 @if ($can['followUp'])
                     <button type="button" class="ticket-button ticket-button--warning ticket-actions__button"
@@ -57,7 +57,7 @@
                     </button>
                 @endif
 
-                @if ($can['close'])
+                @if ($can['cancel'])
                     <button type="button" class="ticket-button ticket-button--danger ticket-actions__button"
                         data-bs-target="#ticket-modal-cancel" data-ticket-confirm-open
                         data-ticket-confirm="ต้องการยกเลิกงานนี้ใช่ไหม? Ticket จะถูกปิดแบบยกเลิก และผู้แจ้งจะได้รับแจ้งเตือนพร้อมเหตุผล">

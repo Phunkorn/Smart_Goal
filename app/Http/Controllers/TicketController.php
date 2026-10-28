@@ -30,7 +30,7 @@ use Illuminate\View\View;
 class TicketController extends Controller
 {
     /** ปุ่มบนหน้ารายละเอียด — คำนวณจาก policy ฝั่ง server ไม่ตัดสินใน JavaScript */
-    private const CAPABILITIES = ['join', 'leave', 'setCoordinator', 'start', 'followUp', 'resume', 'close', 'reopen', 'addNote'];
+    private const CAPABILITIES = ['join', 'leave', 'setCoordinator', 'start', 'followUp', 'resume', 'close', 'cancel', 'reopen', 'addNote'];
 
     /** จำนวนใบที่แสดงใน modal "ประวัติ Ticket" ของผู้แจ้ง — ใบที่เก่ากว่านี้ยังเปิดดูได้จากลิงก์ ?ticket */
     private const REPORTER_HISTORY_LIMIT = 20;
@@ -171,7 +171,7 @@ class TicketController extends Controller
                 'state' => TicketDesign::reporterState($open),
                 'openTicket' => $open,
                 'historyTotal' => (clone $ownTickets)->count(),
-                'history' => (clone $ownTickets)->latest()->orderByDesc('id')->limit(self::REPORTER_HISTORY_LIMIT)->get(),
+                'history' => (clone $ownTickets)->with('closingActivity')->latest()->orderByDesc('id')->limit(self::REPORTER_HISTORY_LIMIT)->get(),
                 'modalTicket' => $modalTicket ? $this->loadReadonly($modalTicket) : null,
                 'openModalOnLoad' => $deepLink !== null,
                 'canCreate' => $open === null && $user->can('create', Ticket::class),
@@ -229,6 +229,7 @@ class TicketController extends Controller
             'participants.user.ticketAgent',
             'activeParticipants',
             'activities.attachments',
+            'closingActivity',
             'attachments' => fn ($query) => $query->whereNull('ticket_activity_id'),
         ]);
     }
@@ -238,6 +239,7 @@ class TicketController extends Controller
     {
         return $ticket->load([
             'activities',
+            'closingActivity',
             'attachments' => fn ($query) => $query->whereNull('ticket_activity_id'),
             // ผู้รับผิดชอบที่ผู้แจ้งเห็น (components/readonly-responsible) — ชื่อ แผนก และรูปโปรไฟล์เท่านั้น
             'activeParticipants' => fn ($query) => $query->orderBy('joined_at'),

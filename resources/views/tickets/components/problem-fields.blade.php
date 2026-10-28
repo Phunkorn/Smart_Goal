@@ -1,7 +1,9 @@
 {{--
-    รายละเอียดปัญหาและรูปภาพของฟอร์มแจ้งปัญหา — ใช้ใน form-fields (หน้าเดียว) และขั้นที่ 3 ของ submit-modal
-    หน้าสาธารณะ /support ใช้เฉพาะช่องรายละเอียด (ขั้นที่ 1) แล้ว include photo-picker เองในขั้นที่ 2 — ส่ง $withPhotos = false
-    $fieldIcons (ไม่บังคับ) ส่งต่อไปถึง photo-picker
+    รายละเอียดปัญหาและรูปภาพของฟอร์มแจ้งปัญหา — ใช้ใน form-fields (หน้าเดียว), ขั้นที่ 3 ของ submit-modal
+    และขั้นที่ 1 ของหน้าสาธารณะ /support
+
+    ผู้เรียกทั้งสามส่ง $withPhotos = false แล้ว include photo-picker เองท้ายสุด เพื่อให้ช่องติดต่อกลับ
+    (components/contact-fields) อยู่ก่อนตัวเลือกรูป · $fieldIcons (ไม่บังคับ) ส่งต่อไปถึง photo-picker
 --}}
 @php
     use App\Http\Requests\Tickets\TicketSubmissionRequest;

@@ -24,6 +24,11 @@ const ERROR_SELECTOR = '.is-invalid, .ticket-form__error';
 
 const CLIENT_ERROR_ATTRIBUTE = 'data-ticket-client-error';
 
+/** select ที่เสริมด้วย dropdown แบบสไลด์ต้องโฟกัสปุ่มที่มองเห็นได้ */
+function visibleControl(control) {
+    return control.closest('.sg-select')?.querySelector('.sg-select__trigger') ?? control;
+}
+
 /** ชื่อช่องจากป้าย (ตัดดอกจันและ "(ไม่บังคับ)") ใช้ประกอบข้อความผิดพลาด */
 function fieldName(control) {
     const label = control.id ? control.ownerDocument.querySelector(`label[for="${control.id}"]`) : null;
@@ -57,6 +62,11 @@ function showFieldError(control) {
     control.classList.add('is-invalid');
     control.setAttribute('aria-invalid', 'true');
     control.setAttribute('aria-describedby', [control.getAttribute('aria-describedby'), error.id].filter(Boolean).join(' '));
+    const visible = visibleControl(control);
+    if (visible !== control) {
+        visible.setAttribute('aria-invalid', 'true');
+        visible.setAttribute('aria-describedby', [visible.getAttribute('aria-describedby'), error.id].filter(Boolean).join(' '));
+    }
 }
 
 function clearFieldError(control) {
@@ -67,6 +77,12 @@ function clearFieldError(control) {
     if (control.getAttribute('aria-describedby') === '') control.removeAttribute('aria-describedby');
     control.removeAttribute('aria-invalid');
     control.classList.remove('is-invalid');
+    const visible = visibleControl(control);
+    if (visible !== control) {
+        visible.setAttribute('aria-describedby', (visible.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((id) => id && id !== error.id).join(' '));
+        if (visible.getAttribute('aria-describedby') === '') visible.removeAttribute('aria-describedby');
+        visible.removeAttribute('aria-invalid');
+    }
     error.remove();
 }
 
@@ -207,7 +223,7 @@ function bindStepper(root, form, {modalApi, history, location}) {
         if (index !== -1 && index !== current && step.hidden) show(index);
 
         queueMicrotask(() => {
-            firstInvalid?.focus();
+            if (firstInvalid) visibleControl(firstInvalid).focus();
             firstInvalid = null;
         });
     }, true);

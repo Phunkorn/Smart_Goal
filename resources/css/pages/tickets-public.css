@@ -5,6 +5,7 @@
  */
 @import '../foundations/tokens.css';
 @import '../foundations/typography.css';
+@import '../components/select-dropdown.css';
 @import './tickets/buttons.css';
 @import './tickets/form.css';
 @import './tickets/stepper.css';

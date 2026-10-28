@@ -7,7 +7,7 @@ import {click, mountDom} from './helpers/dom.js';
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 
 /** hook ชุดเดียวกับ tickets/index + components/overview, queue, claim-actions, preview-modal */
-function deskMarkup({stamp = '09:00', total = 2, rows = ['TK-000001']} = {}) {
+function deskMarkup({stamp = '09:00', total = 2, rows = ['TK-000001'], withCancel = false} = {}) {
     return `<!doctype html><html><head><meta name="csrf-token" content="token-123"></head><body>
 <div class="ticket-page ticket-desk" data-ticket-list>
     <p class="ticket-desk__stamp" data-ticket-stamp aria-live="polite">อัปเดตอัตโนมัติ · ข้อมูล ณ ${stamp}</p>
@@ -21,9 +21,16 @@ function deskMarkup({stamp = '09:00', total = 2, rows = ['TK-000001']} = {}) {
                         <input type="hidden" name="action" value="start">
                         <button type="submit" class="ticket-button ticket-button--primary ticket-actions__button">รับงาน</button>
                     </form></td>
+                    ${withCancel && index === 0 ? '<td><button type="button" data-bs-target="#ticket-modal-cancel-1">ยกเลิกงาน</button></td>' : ''}
                     <td><a class="ticket-queue__open" href="/tickets/${index + 1}" data-ticket-preview="/tickets/${index + 1}/preview">ดูรายละเอียด ${number}</a></td>
                 </tr>`).join('')}
             </tbody></table>
+            ${withCancel ? `<div class="modal ticket-modal" id="ticket-modal-cancel-1">
+                <form method="POST" action="/tickets/1/status" data-ticket-action-form>
+                    <input name="action" value="cancel"><input name="expected_status" value="new">
+                    <textarea name="note">แจ้งซ้ำ</textarea><button type="submit">ยืนยันยกเลิกงาน</button>
+                </form>
+            </div>` : ''}
         </div>
     </section>
     <div class="modal fade ticket-preview" id="ticket-preview-modal" data-ticket-preview-modal>
@@ -53,8 +60,8 @@ const response = (body, {status = 200} = {}) => ({
     json: async () => (typeof body === 'string' ? JSON.parse(body) : body),
 });
 
-function setup({routes = {}} = {}) {
-    const dom = mountDom(deskMarkup(), {url: 'http://localhost/tickets?status=new'});
+function setup({routes = {}, markup = deskMarkup()} = {}) {
+    const dom = mountDom(markup, {url: 'http://localhost/tickets?status=new'});
     const requests = [];
     const toasts = [];
     const shown = [];
@@ -73,7 +80,13 @@ function setup({routes = {}} = {}) {
 
     const desk = initTicketDesk(dom.document, {
         fetchImpl,
-        bootstrapApi: () => ({Modal: {getOrCreateInstance: (element) => ({show: () => shown.push(element.id)})}}),
+        bootstrapApi: () => ({Modal: {getOrCreateInstance: (element) => ({
+            show: () => shown.push(element.id),
+            hide: () => {
+                element.classList.remove('show');
+                element.dispatchEvent(new dom.window.Event('hidden.bs.modal'));
+            },
+        })}}),
         swal: () => ({fire: (options) => toasts.push(options)}),
         setTimer: (callback, wait) => {
             timers.push({callback, wait});
@@ -154,6 +167,34 @@ test('the auto refresh waits while focus is inside the queue', async () => {
         timers.at(-1).callback();
         await flush();
         assert.equal(requests.length, 0);
+    } finally {
+        cleanup();
+    }
+});
+
+test('cancelling a new ticket sends the reason, closes its modal, and refreshes the queue', async () => {
+    const {document, window, requests, timers, cleanup} = setup({
+        markup: deskMarkup({withCancel: true}),
+        routes: {
+            'POST /tickets/1/status': () => response({ok: true, message: 'ยกเลิกงานแล้ว', status: 'closed'}),
+            'GET /tickets?status=new': () => response(deskMarkup({rows: []})),
+        },
+    });
+    try {
+        const dialog = document.querySelector('#ticket-modal-cancel-1');
+        dialog.classList.add('show');
+        timers.at(-1).callback();
+        await flush();
+        assert.equal(requests.length, 0, 'ไม่แทน modal ขณะกำลังกรอกเหตุผล');
+
+        dialog.querySelector('form').dispatchEvent(new window.Event('submit', {bubbles: true, cancelable: true}));
+        await flush();
+
+        assert.deepEqual(requests.map((request) => request.key), ['POST /tickets/1/status', 'GET /tickets?status=new']);
+        assert.equal(requests[0].options.body.get('action'), 'cancel');
+        assert.equal(requests[0].options.body.get('note'), 'แจ้งซ้ำ');
+        assert.equal(document.querySelectorAll('[data-ticket-row]').length, 0);
+        assert.equal(dialog.classList.contains('show'), false);
     } finally {
         cleanup();
     }

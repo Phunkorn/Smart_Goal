@@ -1,7 +1,7 @@
 /*
  * หน้าแจ้งปัญหาสาธารณะ /support — tickets/public/*.blade.php
  * การ์ดขาวกลางพื้นหลังฟ้าอ่อนทุกขนาดจอ · โครง: แบรนด์ → แถบขั้นตอน → ฟอร์ม 2 ขั้น → ปุ่ม / หน้ายืนยัน
- * ช่องกรอก ปุ่ม และแถบขั้นตอนมาจากไฟล์ร่วม (form.css, buttons.css, stepper.css) ที่นี่มีเฉพาะส่วนของหน้านี้
+ * ช่องกรอก ปุ่ม แถบขั้นตอน และ dropdown มาจากไฟล์ร่วม ที่นี่ปรับเฉพาะหน้าตาของหน้านี้
  * mobile-first: ค่าพื้นฐานคือจอเล็ก ขยายด้วย min-width ท้ายไฟล์
  */
 .ticket-public {
@@ -30,6 +30,85 @@
     border-radius: 20px;
     background: var(--surface);
     box-shadow: var(--shadow-md);
+}
+
+/* การ์ดฟอร์มสองขั้น: พื้นเรียบและช่องกรอกที่มีระยะหายใจตามแบบอ้างอิง */
+.ticket-public__card--form {
+    --accent: #2d4899;
+    --text: #2d4899;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.ticket-public__form .ticket-step {
+    gap: 22px;
+}
+
+.ticket-public__form .ticket-form__field {
+    gap: 12px;
+}
+
+.ticket-public__form .ticket-form__label,
+.ticket-public__form .ticket-form__label--sub {
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+.ticket-public__form .ticket-form__label--icon {
+    gap: 12px;
+}
+
+.ticket-public__form .ticket-form__icon {
+    width: 20px;
+    height: 24px;
+    border-radius: 0;
+    background: none;
+    color: var(--text);
+    font-size: 1.2rem;
+}
+
+.ticket-public__form .form-control,
+.ticket-public__form .form-select {
+    min-height: 52px;
+    padding-right: 16px;
+    padding-left: 16px;
+    border-radius: var(--radius);
+    font-weight: 400;
+}
+
+/* select-dropdown ของระบบใช้ select เดิมเป็นค่าในฟอร์ม และเปิดรายการแบบสไลด์ */
+.ticket-public__form .sg-select__trigger {
+    min-height: 52px;
+    padding: 0 16px;
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 400;
+}
+
+.ticket-public__form .sg-select__option {
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: .95rem;
+    font-weight: 400;
+}
+
+.ticket-public__form .sg-select__option[aria-selected="true"] {
+    font-weight: 400;
+}
+
+.ticket-public__form .sg-select:has(.sg-select__native.is-invalid) .sg-select__trigger {
+    border-color: var(--red);
+}
+
+.ticket-public__form textarea.form-control {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+.ticket-public__form .ticket-photos__picker {
+    font-weight: 400;
 }
 
 /* ---------- แบรนด์ ---------- */
@@ -398,6 +477,10 @@
     .ticket-public__card {
         padding: 36px 40px;
         border-radius: 28px;
+    }
+
+    .ticket-public__card--form {
+        border-radius: var(--radius);
     }
 
     .ticket-public__logo {

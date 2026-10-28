@@ -144,6 +144,52 @@ class TicketDetailPageTest extends TestCase
             ->assertSee('id="ticket-coordinator"', false);
     }
 
+    public function test_participant_avatars_use_the_profile_image_and_fall_back_to_initials(): void
+    {
+        Storage::fake('public');
+        $withPhoto = $this->agent();
+        $withoutPhoto = $this->agent();
+        $withPhoto->forceFill(['name' => 'วีระ ซัพพอร์ต', 'profile_image' => 'profiles/helper.jpg'])->save();
+        $withoutPhoto->forceFill(['name' => 'ธนากร ไอที'])->save();
+        Storage::disk('public')->put('profiles/helper.jpg', 'jpg-bytes');
+
+        $ticket = $this->startedBy($withPhoto);
+        app(TicketParticipantService::class)->join($ticket, $withoutPhoto);
+
+        // ผู้ดูไม่มีรูปของตัวเอง รูปเดียวในหน้าจึงเป็นของผู้เข้าร่วม ไม่ใช่ avatar ที่แถบข้าง
+        $viewer = $this->agent();
+
+        // แผงเดียวกันทั้งหน้ารายละเอียดเต็มและ modal ของคิวงาน (components/participants)
+        foreach ([route('tickets.show', $ticket), route('tickets.preview', $ticket)] as $url) {
+            $html = $this->actingAs($viewer)->get($url)->assertOk()->getContent();
+
+            $this->assertStringContainsString('<img src="'.route('media.profile', $withPhoto).'" alt="" data-avatar-image>', $html, $url);
+            $this->assertStringNotContainsString(route('media.profile', $withoutPhoto), $html, $url);
+            // ตัวย่อชื่อเรนเดอร์ไว้ข้างล่างเสมอ เป็นเนื้อหาสำรองของทั้งสองคน (avatar-fallback.js ถอด <img> เมื่อโหลดไม่ขึ้น)
+            $this->assertStringContainsString('<span aria-hidden="true">ว</span>', $html, $url);
+            $this->assertStringContainsString('<span aria-hidden="true">ธ</span>', $html, $url);
+            $this->assertSame(1, substr_count($html, 'data-avatar-image'), $url);
+        }
+
+        // รูปถูกเสิร์ฟผ่านเส้นทางที่ตรวจสิทธิ์เดิม ไม่ใช่ path ตรงของ storage
+        $this->actingAs($viewer)->get(route('media.profile', $withPhoto))->assertOk();
+        $this->assertStringNotContainsString('profiles/helper.jpg', $this->actingAs($viewer)->get(route('tickets.show', $ticket))->getContent());
+    }
+
+    public function test_a_deleted_agent_keeps_the_name_snapshot_but_loses_the_avatar(): void
+    {
+        Storage::fake('public');
+        $agent = $this->agent();
+        $agent->forceFill(['name' => 'วีระ ซัพพอร์ต', 'profile_image' => 'profiles/gone.jpg'])->save();
+        $ticket = $this->startedBy($agent);
+        $agent->delete();
+
+        $html = $this->actingAs($this->agent())->get(route('tickets.show', $ticket))->assertOk()->getContent();
+
+        $this->assertStringContainsString('วีระ ซัพพอร์ต', $html);
+        $this->assertStringNotContainsString('data-avatar-image', $html);
+    }
+
     public function test_the_coordinator_picker_is_its_own_card_only_for_those_who_may_set_it(): void
     {
         $lead = $this->agent();

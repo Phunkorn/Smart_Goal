@@ -4,6 +4,7 @@ namespace Tests\Feature\Tickets;
 
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
+use App\Support\PublicTicketDepartments;
 use App\Support\TicketSubmissionGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -54,7 +55,7 @@ class TicketPublicSubmissionTest extends TestCase
             ->assertSee('name="location_name"', false);
     }
 
-    public function test_name_location_description_and_phone_are_required(): void
+    public function test_name_department_location_description_and_phone_are_required(): void
     {
         $this->post(route('support.store'), $this->publicForm())
             ->assertRedirect(route('support.submitted'));
@@ -67,19 +68,52 @@ class TicketPublicSubmissionTest extends TestCase
         $this->assertNull($ticket->remote_access);
         $this->assertNull($ticket->line_user_id, 'LINE ไม่ได้ตั้งค่า → ไม่ผูก LINE');
         $this->assertNull($ticket->requester_id);
+        // แผนกที่เลือกเองเก็บเป็นชื่อ · id ต้องว่างเสมอ (สิทธิ์หัวหน้าแผนกอ่านจาก id)
+        $this->assertSame('Callcenter', $ticket->requester_department_name);
         $this->assertNull($ticket->requester_department_id);
         $this->assertSame(0, $ticket->attachments()->count());
     }
 
     public function test_each_required_field_is_enforced(): void
     {
-        foreach (['requester_name', 'description', 'contact'] as $field) {
+        foreach (['requester_name', 'requester_department', 'description', 'contact'] as $field) {
             $this->post(route('support.store'), $this->publicForm([$field => '']))
                 ->assertSessionHasErrors($field);
         }
 
         $this->post(route('support.store'), $this->publicForm(['location_id' => 'other', 'location_name' => '']))
             ->assertSessionHasErrors('location_name');
+
+        $this->assertSame(0, Ticket::count());
+    }
+
+    public function test_every_listed_department_is_stored_as_a_name_without_a_department_link(): void
+    {
+        // ฟอร์มสาธารณะถูกจำกัด 5 ครั้งต่อ IP — เทสต์นี้ยิงเท่าจำนวนตัวเลือกบวกหนึ่ง
+        foreach (PublicTicketDepartments::OPTIONS as $allowed) {
+            $this->post(route('support.store'), $this->publicForm(['requester_department' => $allowed]))
+                ->assertRedirect(route('support.submitted'));
+
+            $this->assertSame($allowed, Ticket::query()->latest('id')->first()->requester_department_name);
+        }
+
+        $this->assertSame(count(PublicTicketDepartments::OPTIONS), Ticket::count());
+
+        // ส่ง requester_department_id มาตรง ๆ ไม่มีผล — ไม่อยู่ในกติกา จึงไม่ถึง service
+        $this->post(route('support.store'), $this->publicForm(['requester_department_id' => $this->department('ฝ่ายขาย')->id]))
+            ->assertRedirect(route('support.submitted'));
+
+        $this->assertSame(0, Ticket::query()->whereNotNull('requester_department_id')->count());
+    }
+
+    public function test_a_department_outside_the_list_is_refused(): void
+    {
+        // แผนกในระบบที่ไม่ได้อยู่ในรายการของฟอร์มสาธารณะ ตัวพิมพ์ไม่ตรง และ id ของแผนก ล้วนถูกปฏิเสธ
+        // (ค่าที่มีช่องว่างหัวท้ายไม่อยู่ในรายการนี้ เพราะ middleware TrimStrings ตัดให้ก่อนถึง validation)
+        foreach (['IT', 'callcenter', 'ฝ่ายขาย', '1'] as $rejected) {
+            $this->post(route('support.store'), $this->publicForm(['requester_department' => $rejected]))
+                ->assertSessionHasErrors('requester_department');
+        }
 
         $this->assertSame(0, Ticket::count());
     }
@@ -165,7 +199,7 @@ class TicketPublicSubmissionTest extends TestCase
         $this->assertSame(1, substr_count($html, '<form '));
         $stepTwo = strpos($html, '<section class="ticket-step" data-ticket-step="2"');
         $this->assertNotFalse($stepTwo);
-        foreach (['name="requester_name"', 'name="location_id"', 'id="ticket-description"'] as $field) {
+        foreach (['name="requester_name"', 'name="requester_department"', 'name="location_id"', 'id="ticket-description"'] as $field) {
             $this->assertLessThan($stepTwo, strpos($html, $field), $field.' อยู่ขั้นที่ 1');
         }
         foreach (['id="ticket-contact"', 'name="photos[]"'] as $field) {
@@ -177,6 +211,40 @@ class TicketPublicSubmissionTest extends TestCase
         $this->assertMatchesRegularExpression('~data-ticket-step-back\s+hidden~', $html);
         $this->assertMatchesRegularExpression('~data-ticket-step-submit\s+hidden~', $html);
         $this->assertDoesNotMatchRegularExpression('~data-ticket-step-next\s+hidden~', $html);
+    }
+
+    public function test_step_one_asks_for_the_department_as_a_native_select_with_the_listed_options(): void
+    {
+        $this->location('สาขาบางนา');
+
+        $html = $this->get(route('support.create'))->assertOk()->getContent();
+
+        $stepTwo = strpos($html, '<section class="ticket-step" data-ticket-step="2"');
+        $select = strpos($html, '<select id="ticket-department" name="requester_department"');
+        $selectEnd = strpos($html, '</select>', (int) $select);
+
+        $this->assertNotFalse($select, 'แผนกเป็น select เนทีฟ ไม่ใช่ปุ่มหรือ dropdown ที่เขียนเอง');
+        $this->assertLessThan($stepTwo, $select, 'ช่องแผนกอยู่ขั้นที่ 1');
+
+        // อยู่ระหว่างชื่อผู้แจ้งกับสาขา/สถานที่
+        $this->assertLessThan($select, strpos($html, 'name="requester_name"'));
+        $this->assertLessThan(strpos($html, 'name="location_id"'), $select);
+
+        $markup = substr($html, (int) $select, $selectEnd - (int) $select + 9);
+        foreach (['class="form-select', 'required', '<option value="" disabled', 'เลือกแผนก'] as $expected) {
+            $this->assertStringContainsString($expected, $markup, $expected);
+        }
+
+        foreach (PublicTicketDepartments::OPTIONS as $option) {
+            $this->assertStringContainsString('<option value="'.$option.'"', $markup, $option);
+        }
+
+        // placeholder + ตัวเลือกในรายการเท่านั้น — ไม่มี "อื่น ๆ" และไม่มีช่องพิมพ์แผนกเอง
+        $this->assertSame(count(PublicTicketDepartments::OPTIONS) + 1, substr_count($markup, '<option'));
+        $this->assertStringNotContainsString('name="requester_department_name"', $html);
+        $this->assertStringNotContainsString('name="requester_department_id"', $html);
+        // ป้ายใช้ไอคอนเดียวกับช่อง "แผนก" ในหน้ารายละเอียด (bi-building)
+        $this->assertStringContainsString('bi bi-building', substr($html, (int) $select - 400, 400));
     }
 
     public function test_step_two_asks_for_a_ten_digit_phone_and_an_optional_remote_id(): void

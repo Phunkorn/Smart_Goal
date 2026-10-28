@@ -50,7 +50,11 @@ class TicketLandingPageTest extends TestCase
         $this->assertSame(3, substr_count($html, 'data-ticket-step="'));
         $this->assertStringContainsString('<dd>'.e($member->name).'</dd>', $html); // ชื่อสุ่มอาจมี ' ซึ่งถูก escape
         $this->assertStringContainsString('<dd>ฝ่ายขาย</dd>', $html);
-        $this->assertStringContainsString('<dd>081-234-5678</dd>', $html);
+        // เบอร์โทรไม่อยู่ในสรุปอีกแล้ว — เป็นช่องกรอกจริงที่ตั้งต้นจากโปรไฟล์แบบตัวเลขล้วน (prefillPhone)
+        $this->assertStringNotContainsString('<dd>081-234-5678</dd>', $html);
+        $this->assertStringContainsString('name="contact"', $html);
+        $this->assertStringContainsString('value="0812345678"', $html);
+        $this->assertStringContainsString('name="remote_access"', $html);
         $this->assertStringNotContainsString('name="requester_name"', $html);
         $this->assertStringNotContainsString('name="requester_department_id"', $html);
         $this->assertStringNotContainsString('data-open-on-load', $html);

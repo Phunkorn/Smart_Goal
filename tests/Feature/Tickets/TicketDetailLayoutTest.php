@@ -133,7 +133,51 @@ class TicketDetailLayoutTest extends TestCase
         $this->assertSame(2, Ticket::query()->where('requester_id', $requester->id)->count());
     }
 
-    public function test_only_people_who_can_close_can_cancel(): void
+    public function test_new_tickets_can_be_cancelled_by_an_agent_without_claiming_them(): void
+    {
+        $agent = $this->agent();
+        $waiting = $this->publicTicket();
+
+        $page = $this->actingAs($agent)->get(route('tickets.index'))->assertOk();
+        $page->assertSee('data-bs-target="#ticket-modal-cancel-'.$waiting->id.'"', false)
+            ->assertSee('aria-label="ยกเลิกงาน '.$waiting->ticket_number.'"', false);
+
+        $this->actingAs($agent)->patch(route('tickets.status.update', $waiting), [
+            'action' => 'cancel', 'expected_status' => 'new', 'note' => '',
+        ])->assertSessionHasErrors('note');
+
+        $this->actingAs($agent)->patch(route('tickets.status.update', $waiting), [
+            'action' => 'cancel', 'expected_status' => 'new', 'note' => 'แจ้งซ้ำกับใบเดิม',
+        ])->assertSessionHasNoErrors()
+            ->assertSessionHas('success', 'ยกเลิกงานแล้ว — สถานะปัจจุบัน: ยกเลิก');
+
+        $this->assertSame(Ticket::STATUS_CLOSED, $waiting->fresh()->status);
+        $this->assertSame(0, $waiting->participants()->count());
+        $queue = $this->actingAs($agent)->get(route('tickets.index'))->assertOk()->getContent();
+        $row = substr($queue, (int) strpos($queue, 'id="ticket-row-'.$waiting->id.'"'));
+        $row = substr($row, 0, (int) strpos($row, '</tr>'));
+        $this->assertStringContainsString('>ยกเลิก</span>', $row);
+        $this->assertStringContainsString('เหตุผล: แจ้งซ้ำกับใบเดิม', $row);
+        $this->assertStringNotContainsString('>ปิดงาน</span>', $row);
+        $this->assertStringNotContainsString('data-bs-target="#ticket-modal-cancel-'.$waiting->id.'"', $row);
+    }
+
+    public function test_queue_uses_the_latest_closing_action_after_reopening(): void
+    {
+        $agent = $this->agent();
+        $ticket = $this->startedBy($agent);
+        $this->transition($ticket, Ticket::ACTION_CANCEL, $agent, ['note' => 'แจ้งซ้ำ']);
+        $this->transition($ticket, Ticket::ACTION_REOPEN, $agent, ['note' => 'ตรวจพบว่าเป็นคนละปัญหา']);
+        $this->transition($ticket, Ticket::ACTION_CLOSE, $agent, ['note' => 'แก้ไขเสร็จ']);
+
+        $html = $this->actingAs($agent)->get(route('tickets.index'))->assertOk()->getContent();
+        $row = substr($html, (int) strpos($html, 'id="ticket-row-'.$ticket->id.'"'));
+        $row = substr($row, 0, (int) strpos($row, '</tr>'));
+        $this->assertStringContainsString('>ปิดงาน</span>', $row);
+        $this->assertStringNotContainsString('เหตุผล: แจ้งซ้ำ', $row);
+    }
+
+    public function test_only_agents_can_cancel_new_tickets_and_only_participants_can_cancel_started_tickets(): void
     {
         $lead = $this->agent();
         $ticket = $this->startedBy($lead);
@@ -147,11 +191,14 @@ class TicketDetailLayoutTest extends TestCase
             ->assertForbidden();
         $this->assertSame(Ticket::STATUS_ACTIVE, $ticket->fresh()->status);
 
-        // ยกเลิกจากสถานะรอรับงานไม่ได้ (ต้องรับงานก่อนเหมือนปิดงาน — Ticket::TRANSITIONS ตอบเป็นข้อความเดียวกับปิดงาน)
+        // รอรับงาน: agent ยกเลิกตรงได้ แต่ admin ที่ไม่ใช่ agent ทำไม่ได้
         $waiting = $this->publicTicket();
-        $this->actingAs($lead)->from(route('tickets.index'))
+        $admin = $this->staff($this->department('Management'), role: 'admin');
+        $this->actingAs($admin)->get(route('tickets.index'))->assertOk()
+            ->assertDontSee('data-bs-target="#ticket-modal-cancel-'.$waiting->id.'"', false);
+        $this->actingAs($admin)->from(route('tickets.index'))
             ->patch(route('tickets.status.update', $waiting), ['action' => 'cancel', 'expected_status' => 'new', 'note' => 'x'])
-            ->assertSessionHasErrors(['action' => 'ไม่สามารถยกเลิกงานจากสถานะ "รอรับงาน" ได้']);
+            ->assertForbidden();
         $this->assertSame(Ticket::STATUS_NEW, $waiting->fresh()->status);
 
         // ปิดแล้ว: เหลือเปิดงานใหม่ ไม่มีปิด/ยกเลิก และมีข้อความว่า Ticket ปิดแล้ว

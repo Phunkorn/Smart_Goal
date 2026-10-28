@@ -10,7 +10,7 @@
  * 2. "ดูรายละเอียด" และเลข Ticket เปิด modal (components/preview-modal) ที่โหลดเนื้อหาจาก tickets.preview
  *    กด Ctrl/⌘/ปุ่มกลาง ยังเปิดหน้ารายละเอียดเต็มในแท็บใหม่ได้ตามปกติ
  *    หน้าที่มี data-ticket-open-preview (รายการของหัวหน้าแผนกที่มาจากลิงก์ ?ticket) เปิด modal ของใบนั้นเองตอนโหลด
- * 3. ฟอร์มรับงาน/เข้าร่วม (components/claim-actions) ในคิวและใน modal ส่งแบบ AJAX ผ่าน jsonOrBack() เดิม
+ * 3. ฟอร์มรับงาน/เข้าร่วม และยกเลิกจากคิว ส่งแบบ AJAX ผ่าน jsonOrBack() เดิม
  *    แล้วโหลดคิวและ modal ใหม่ — server ตรวจสิทธิ์และสถานะเอง (409 เมื่อมีคนเปลี่ยนสถานะไปก่อน,
  *    403 พร้อมข้อความเมื่อเข้าร่วม Ticket ที่ยังไม่มีผู้รับงาน) ข้อความปฏิเสธแสดงเป็น SweetAlert ให้กดรับทราบ
  *
@@ -97,6 +97,11 @@ export function initTicketDesk(root = document, {
         // หลังรับงาน/เข้าร่วมต้องได้ข้อมูลหลังการกระทำ ไม่ใช่ผลของคำขอที่ส่งไปก่อนหน้า
         if (refreshing) return auto ? refreshing : refreshing.then(() => refresh());
         const results = page.querySelector('[data-ticket-queue-results]');
+        if (auto && results?.querySelector('.ticket-modal.show')) {
+            schedule();
+
+            return Promise.resolve(false);
+        }
         if (auto && results?.contains(doc.activeElement)) {
             schedule();
 
@@ -204,7 +209,18 @@ export function initTicketDesk(root = document, {
         opener = null;
     });
 
-    // ---------- 3. รับงาน / เข้าร่วม ----------
+    // ---------- 3. รับงาน / เข้าร่วม / ยกเลิกจากคิว ----------
+    const hideQueueModal = (form) => {
+        const dialog = form.closest('[data-ticket-queue-results] .ticket-modal');
+        const api = bootstrapApi()?.Modal;
+        if (! dialog?.classList.contains('show') || ! api) return Promise.resolve();
+
+        return new Promise((resolve) => {
+            dialog.addEventListener('hidden.bs.modal', resolve, {once: true});
+            api.getOrCreateInstance(dialog).hide();
+        });
+    };
+
     page.addEventListener('submit', (event) => {
         const form = event.target.closest('[data-ticket-action-form]');
         if (! form) return;
@@ -217,6 +233,8 @@ export function initTicketDesk(root = document, {
             button.disabled = true;
             setBusy(button, true);
         });
+
+        let keepQueueModal = false;
 
         // ห้ามใช้ form.action — ฟอร์มรับงานมี <input name="action"> ซึ่งบัง property นี้ (ได้ HTMLInputElement แทน URL)
         fetchImpl(form.getAttribute('action'), {
@@ -231,22 +249,38 @@ export function initTicketDesk(root = document, {
                 const message = payload.message
                     || (response.status === 403 ? 'คุณไม่มีสิทธิ์ดำเนินการกับ Ticket นี้' : 'ดำเนินการไม่สำเร็จ กรุณาลองอีกครั้ง');
                 if (ok) toast(swal, 'success', message);
-                else rejected(swal, message);
+                else {
+                    rejected(swal, message);
+                    keepQueueModal = response.status === 422 && !! form.closest('[data-ticket-queue-results] .ticket-modal');
+                }
             })
-            .catch(() => rejected(swal, 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ กรุณาลองอีกครั้ง'))
+            .catch(() => {
+                rejected(swal, 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ กรุณาลองอีกครั้ง');
+                keepQueueModal = !! form.closest('[data-ticket-queue-results] .ticket-modal');
+            })
             .finally(() => {
                 // ทั้งสำเร็จและไม่สำเร็จ (เช่น 409) ต้องแสดงสถานะล่าสุดจาก server
-                const pending = [refresh()];
-                if (previewUrl && modal?.contains(form)) pending.push(loadPreview(previewUrl));
-
-                return Promise.all(pending).finally(() => {
+                const finish = () => {
                     if (! form.isConnected) return;
                     form.dataset.submitting = 'false';
                     buttons.forEach((button) => {
                         button.disabled = false;
                         setBusy(button, false);
                     });
-                });
+                };
+
+                if (keepQueueModal) {
+                    finish();
+
+                    return;
+                }
+
+                return hideQueueModal(form).then(() => {
+                    const pending = [refresh()];
+                    if (previewUrl && modal?.contains(form)) pending.push(loadPreview(previewUrl));
+
+                    return Promise.all(pending);
+                }).finally(finish);
             });
     });
 

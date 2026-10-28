@@ -6,6 +6,7 @@ use App\Models\Ticket;
 use App\Models\TicketActivity;
 use App\Models\TicketLocation;
 use App\Models\User;
+use App\Support\PublicTicketDepartments;
 use App\Support\TicketDesign;
 use Closure;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -69,7 +70,7 @@ class TicketSubmissionService
     ) {}
 
     /**
-     * @param  array{description: string, location_id?: int|string|null, location_name?: string|null, submission_key?: string|null}  $input
+     * @param  array{description: string, contact?: string|null, remote_access?: string|null, location_id?: int|string|null, location_name?: string|null, submission_key?: string|null}  $input
      * @param  array<int, UploadedFile>  $photos
      */
     public function submitInternal(User $requester, array $input, array $photos = []): Ticket
@@ -77,6 +78,8 @@ class TicketSubmissionService
         Gate::forUser($requester)->authorize('create', Ticket::class);
 
         $requester->loadMissing('department');
+        $contact = $this->contactValue($input['contact'] ?? null);
+        $remote = $this->remoteAccessValue($input['remote_access'] ?? null);
         $findOpen = fn (): ?Ticket => $this->openTicketForRequester($requester->id);
 
         // หนึ่งผู้แจ้ง หนึ่ง Ticket ที่ยังไม่ปิด — ตรวจภายใต้ lock ต่อผู้แจ้ง และ unique index tickets_open_requester_unique
@@ -85,7 +88,7 @@ class TicketSubmissionService
             'ticket-requester:'.$requester->id,
             $findOpen,
             'กำลังบันทึกการแจ้งปัญหาของคุณอยู่ กรุณารอสักครู่แล้วลองอีกครั้ง',
-            fn () => $this->once($input['submission_key'] ?? null, 'user:'.$requester->id, function () use ($findOpen, $requester, $input, $photos): Ticket {
+            fn () => $this->once($input['submission_key'] ?? null, 'user:'.$requester->id, function () use ($findOpen, $requester, $contact, $remote, $input, $photos): Ticket {
                 if ($open = $findOpen()) {
                     throw ValidationException::withMessages(['form' => self::openTicketMessage($open)]);
                 }
@@ -94,9 +97,11 @@ class TicketSubmissionService
                     'source' => Ticket::SOURCE_INTERNAL,
                     'requester_id' => $requester->id,
                     'requester_name' => $requester->name,
+                    // แผนกของผู้ใช้ภายในอ่านจากบัญชีที่ login เสมอ ไม่รับจากฟอร์ม
                     'requester_department_id' => $requester->department?->id,
                     'requester_department_name' => $requester->department?->department_name,
-                    'contact' => null,
+                    'contact' => $contact,
+                    'remote_access' => $remote,
                     'submitter_ip' => null,
                 ], $input, $photos, $requester);
             }),
@@ -104,19 +109,21 @@ class TicketSubmissionService
     }
 
     /**
-     * @param  array{requester_name: string, description: string, contact?: string|null, remote_access?: string|null, location_id?: int|string|null, location_name?: string|null, submission_key?: string|null}  $input
+     * @param  array{requester_name: string, requester_department: string, description: string, contact?: string|null, remote_access?: string|null, location_id?: int|string|null, location_name?: string|null, submission_key?: string|null}  $input
      * @param  array<int, UploadedFile>  $photos
      * @param  array{user_id: string, name: string}|null  $line  ตัวตนจาก LINE Login ใน session ของผู้แจ้ง (ไม่ใช่จากฟอร์ม)
      */
     public function submitPublic(array $input, ?string $submitterIp, array $photos = [], ?array $line = null): Ticket
     {
         $name = $this->requiredText($input['requester_name'] ?? null, 'requester_name', 'กรุณาระบุชื่อผู้แจ้ง');
-        $contact = trim((string) ($input['contact'] ?? ''));
-        $remote = trim((string) ($input['remote_access'] ?? ''));
+        $department = $input['requester_department'] ?? null;
+        $contact = $this->contactValue($input['contact'] ?? null);
+        $remote = $this->remoteAccessValue($input['remote_access'] ?? null);
         $lineUserId = $line['user_id'] ?? null;
 
-        if ($remote !== '' && ! preg_match(self::REMOTE_ACCESS_PATTERN, $remote)) {
-            throw ValidationException::withMessages(['remote_access' => 'กรอกเฉพาะเลข AnyDesk / รหัสรีโมท (ตัวเลข 6–20 หลัก) — ห้ามใส่รหัสผ่าน']);
+        // ชั้นสุดท้ายหลัง Form Request — แผนกรับได้เฉพาะค่าในรายการปิด ค่าอื่นคือการแก้ HTML
+        if (! PublicTicketDepartments::allows($department)) {
+            throw ValidationException::withMessages(['requester_department' => 'กรุณาเลือกแผนก']);
         }
 
         // ชั้นสุดท้ายหลัง Form Request — ผู้เรียกทุกทางต้องมีตัวตน LINE ที่ยืนยันแล้วเมื่อระบบบังคับ LINE
@@ -127,7 +134,7 @@ class TicketSubmissionService
             throw ValidationException::withMessages(['form' => self::LINE_REQUIRED]);
         }
 
-        $submit = fn () => $this->once($input['submission_key'] ?? null, 'ip:'.$submitterIp, function () use ($name, $contact, $remote, $line, $lineUserId, $submitterIp, $input, $photos): Ticket {
+        $submit = fn () => $this->once($input['submission_key'] ?? null, 'ip:'.$submitterIp, function () use ($name, $department, $contact, $remote, $line, $lineUserId, $submitterIp, $input, $photos): Ticket {
             if ($lineUserId !== null && ($open = $this->openTicketForLine($lineUserId))) {
                 throw ValidationException::withMessages(['form' => self::openTicketMessage($open)]);
             }
@@ -136,10 +143,12 @@ class TicketSubmissionService
                 'source' => Ticket::SOURCE_PUBLIC,
                 'requester_id' => null,
                 'requester_name' => $name,
+                // แผนกที่ผู้แจ้งเลือกเองเก็บเป็น "ชื่อ" เท่านั้น — requester_department_id ต้องเป็น null ตลอด
+                // เพราะ TicketPolicy และ TicketQueryService ใช้คอลัมน์นั้นให้สิทธิ์หัวหน้าแผนกเห็น Ticket ของแผนกตัวเอง
                 'requester_department_id' => null,
-                'requester_department_name' => null,
-                'contact' => $contact === '' ? null : $contact,
-                'remote_access' => $remote === '' ? null : $remote,
+                'requester_department_name' => $department,
+                'contact' => $contact,
+                'remote_access' => $remote,
                 'line_user_id' => $lineUserId,
                 'line_display_name' => $lineUserId === null ? null : (($line['name'] ?? '') === '' ? null : $line['name']),
                 'submitter_ip' => $submitterIp,
@@ -156,6 +165,42 @@ class TicketSubmissionService
             'กำลังบันทึกการแจ้งปัญหาของบัญชี LINE นี้อยู่ กรุณารอสักครู่แล้วลองอีกครั้ง',
             $submit,
         );
+    }
+
+    /**
+     * เบอร์โทรจากฟอร์มของบัญชีที่ login สำหรับเติมค่าตั้งต้น — ตัดอักขระที่ไม่ใช่ตัวเลขแล้ว
+     * คืนค่าเฉพาะเมื่อครบ 10 หลักตามรูปแบบจริง เบอร์ในโปรไฟล์ที่เป็นเบอร์บ้านหรือเบอร์ต่อ
+     * จึงไม่ถูกเติมลงช่องแทนผู้แจ้ง (ให้กรอกเอง) — ใช้ที่ TicketController เท่านั้น
+     */
+    public static function prefillPhone(mixed $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phone);
+
+        return preg_match(self::PHONE_PATTERN, (string) $digits) ? $digits : null;
+    }
+
+    /** ช่องทางติดต่อของทั้งสองช่องทาง — ความบังคับอยู่ที่ชั้น Form Request (TicketSubmissionRequest) */
+    private function contactValue(mixed $value): ?string
+    {
+        $contact = trim((string) $value);
+
+        return $contact === '' ? null : $contact;
+    }
+
+    /** รหัส AnyDesk/รีโมทของทั้งสองช่องทาง — ไม่บังคับ แต่ถ้ากรอกต้องเป็นเลขเครื่องเท่านั้น */
+    private function remoteAccessValue(mixed $value): ?string
+    {
+        $remote = trim((string) $value);
+
+        if ($remote === '') {
+            return null;
+        }
+
+        if (! preg_match(self::REMOTE_ACCESS_PATTERN, $remote)) {
+            throw ValidationException::withMessages(['remote_access' => 'กรอกเฉพาะเลข AnyDesk / รหัสรีโมท (ตัวเลข 6–20 หลัก) — ห้ามใส่รหัสผ่าน']);
+        }
+
+        return $remote;
     }
 
     /**

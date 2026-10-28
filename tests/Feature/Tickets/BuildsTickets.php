@@ -100,6 +100,7 @@ trait BuildsTickets
     {
         return app(TicketSubmissionService::class)->submitPublic([
             'requester_name' => $name,
+            'requester_department' => 'Callcenter',
             'description' => 'ปริ้นเตอร์ใช้งานไม่ได้',
             'location_name' => 'สาขาบางนา',
         ], '203.0.113.5');

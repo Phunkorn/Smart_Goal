@@ -70,6 +70,13 @@ class TicketInternalSubmissionTest extends TestCase
             ->assertDontSee('สาขาที่ปิดแล้ว')
             ->assertSee('name="submission_key"', false)
             ->assertSee('accept="image/jpeg,image/png"', false)
+            // ช่องติดต่อกลับชุดเดียวกับฟอร์มสาธารณะ พร้อม dialog วิธีหาเลข AnyDesk
+            ->assertSee('name="contact"', false)
+            ->assertSee('name="remote_access"', false)
+            ->assertSee('id="ticket-anydesk-help"', false)
+            ->assertSee('data-help-dialog-open="ticket-anydesk-help"', false)
+            // แผนกของผู้ใช้ภายในมาจากบัญชี ไม่มีช่องให้เลือกหรือส่งมาเอง
+            ->assertDontSee('name="requester_department"', false)
             ->assertDontSee('name="requester_department_id"', false);
     }
 
@@ -106,6 +113,51 @@ class TicketInternalSubmissionTest extends TestCase
         $this->assertSame(Ticket::formatNumber($ticket->id), $ticket->ticket_number);
         $this->assertStringContainsString($ticket->ticket_number, session('success'));
         $this->assertSame(TicketActivity::TYPE_CREATED, $ticket->activities()->sole()->type);
+    }
+
+    public function test_the_phone_and_anydesk_id_are_saved_from_the_internal_form(): void
+    {
+        $user = $this->staff($this->department('Sales'));
+
+        $this->actingAs($user)->post(route('tickets.store'), $this->internalForm([
+            'contact' => '081-234-5678',
+            'remote_access' => ' 123 456 789 ',
+        ]))->assertSessionHas('success');
+
+        $ticket = Ticket::query()->sole();
+        // ขีดและช่องว่างถูกตัดเหมือนฟอร์มสาธารณะ — กติกาชุดเดียวกัน (TicketSubmissionRequest)
+        $this->assertSame('0812345678', $ticket->contact);
+        $this->assertSame('123 456 789', $ticket->remote_access);
+        // แผนกยังมาจากบัญชี ไม่ใช่จากฟอร์ม
+        $this->assertSame('Sales', $ticket->requester_department_name);
+    }
+
+    public function test_the_internal_form_requires_a_phone_and_refuses_a_password_as_an_anydesk_id(): void
+    {
+        $user = $this->staff($this->department('Sales'));
+
+        foreach (['', '12345', '08123456789'] as $badPhone) {
+            $this->actingAs($user)->post(route('tickets.store'), $this->internalForm(['contact' => $badPhone]))
+                ->assertSessionHasErrors('contact');
+        }
+
+        // ช่อง AnyDesk รับเฉพาะเลขเครื่อง จึงใส่รหัสผ่านลงไปไม่ได้
+        $this->actingAs($user)->post(route('tickets.store'), $this->internalForm(['remote_access' => 'hunter2']))
+            ->assertSessionHasErrors('remote_access');
+
+        $this->assertNothingSaved();
+    }
+
+    public function test_a_department_sent_from_the_internal_form_is_ignored(): void
+    {
+        $user = $this->staff($this->department('Sales'));
+
+        $this->actingAs($user)->post(route('tickets.store'), $this->internalForm(['requester_department' => 'HR']))
+            ->assertSessionHas('success');
+
+        $ticket = Ticket::query()->sole();
+        $this->assertSame('Sales', $ticket->requester_department_name);
+        $this->assertNotNull($ticket->requester_department_id, 'ผู้ใช้ภายในผูก id ของแผนกตัวเองตามเดิม');
     }
 
     public function test_photos_are_optional_and_up_to_three_are_stored_privately(): void

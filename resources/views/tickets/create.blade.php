@@ -32,5 +32,8 @@
         @include('tickets.components.form-fields', ['locations' => $locations])
         @include('tickets.components.submit-button', ['busyLabel' => 'กำลังส่งคำขอ...'])
     </form>
+
+    {{-- อยู่นอก <form> ปุ่มในนี้จึงไม่มีทางส่งฟอร์ม --}}
+    @include('tickets.components.anydesk-help-dialog')
 </div>
 @endsection

@@ -5,6 +5,7 @@ namespace Tests\Feature\Tickets;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Services\TicketQueryService;
+use App\Services\TicketSubmissionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
@@ -123,6 +124,34 @@ class TicketVisibilityTest extends TestCase
         // Ticket ที่แจ้งตอนอยู่แผนก Sales ยังอยู่กับหัวหน้า Sales ที่ดูแลอยู่ในตอนนั้น
         $this->assertTrue(Gate::forUser($this->people['salesHead'])->allows('view', $this->tickets['bySalesMember']));
         $this->assertFalse(Gate::forUser($this->people['hrHead'])->allows('view', $this->tickets['bySalesMember']));
+    }
+
+    public function test_a_self_declared_department_on_a_public_ticket_grants_no_department_access(): void
+    {
+        // ผู้แจ้งภายนอกเลือก "HR" บนฟอร์ม /support ซึ่งตรงกับชื่อแผนกจริงในระบบ
+        $outsider = app(TicketSubmissionService::class)->submitPublic([
+            'requester_name' => 'คุณภายนอก',
+            'requester_department' => 'HR',
+            'description' => 'ปริ้นเตอร์ใช้งานไม่ได้',
+            'location_name' => 'สาขาบางนา',
+        ], '203.0.113.9');
+
+        $this->assertSame('HR', $outsider->requester_department_name);
+        $this->assertNull($outsider->requester_department_id, 'ชื่อแผนกที่ผู้แจ้งเลือกเองต้องไม่ผูก id ของแผนก');
+
+        // สิทธิ์ของหัวหน้าแผนกอ่านจาก requester_department_id เท่านั้น — ชื่อที่ตรงกันต้องไม่เปิดสิทธิ์
+        foreach (['hrHead', 'hrMember', 'salesHead'] as $who) {
+            $person = $this->people[$who];
+            $this->assertFalse(Gate::forUser($person)->allows('view', $outsider), "detail for {$who}");
+            $this->assertNotContains(
+                $outsider->id,
+                app(TicketQueryService::class)->visibleTo($person)->pluck('id')->all(),
+                "list for {$who}",
+            );
+        }
+
+        // ทีม IT ยังเห็นใบนี้ตามปกติ
+        $this->assertTrue(Gate::forUser($this->people['agent'])->allows('view', $outsider));
     }
 
     /** @param  array<int, string>  $expected */

@@ -7,13 +7,15 @@
  *      ปุ่ม "ถ่ายรูป" ([data-ticket-photos-camera] — input ที่เปิดกล้อง ไม่มี name) เพิ่มรูปเข้าชุดเดียวกัน
  *      ฟอร์มถูก reset (เช่น ปิด modal บันทึก) → ล้างรูปที่เลือกไว้
  *   3. ปุ่มส่ง → สถานะกำลังส่ง และกันการกดซ้ำ (server กันซ้ำอีกชั้นด้วย submission_key)
- *
+ *   4. dialog "วิธีหาเลข AnyDesk" (components/help-dialog.js) ผูกที่ระดับเอกสารตอนโหลดไฟล์นี้
  * ใช้กับฟอร์มแจ้งปัญหา (ภายใน/สาธารณะ) ฟอร์มบันทึกการดำเนินงาน และฟอร์มปิดงาน (รูปหลังแก้ไข) บนหน้ารายละเอียด
  * ผลสำเร็จแสดงเป็นแถบในหน้าจาก server (tickets/components/flash.blade.php) ไม่ใช่ที่นี่
  *
  * เพดานรูปอ่านจาก data-attribute ที่ server ใส่จาก AttachmentPolicy ไม่ฮาร์ดโค้ดที่นี่
  * การตรวจฝั่ง client มีไว้ให้ผู้ใช้รู้เร็ว — server ตรวจซ้ำทุกครั้ง
  */
+
+import {initHelpDialogs} from '../../components/help-dialog.js';
 
 const OTHER_LOCATION = 'other';
 
@@ -88,7 +90,11 @@ function bindLocation(form) {
 
     select.addEventListener('change', () => {
         sync();
-        if (select.value === OTHER_LOCATION) otherInput.focus();
+        if (select.value === OTHER_LOCATION) {
+            // dropdown แบบสไลด์คืนโฟกัสให้ปุ่มหลังส่ง change — ย้ายไปช่องระบุเองเมื่อปิดแผงเสร็จ
+            if (select.classList.contains('sg-select__native')) queueMicrotask(() => otherInput.focus());
+            else otherInput.focus();
+        }
     });
     sync();
 }
@@ -293,4 +299,11 @@ export function initTicketForm(root = document, {
     return forms.length > 0;
 }
 
-if (typeof document !== 'undefined') initTicketForm(document);
+if (typeof document !== 'undefined') {
+    initTicketForm(document);
+
+    // dialog "วิธีหาเลข AnyDesk" ของช่อง AnyDesk — ผูกที่ระดับเอกสารให้ทุกหน้าที่มีช่องนี้
+    // (/support ผ่าน tickets/public.js · /tickets/create ตรง ๆ · /tickets ผ่าน tickets/index.js)
+    // help-dialog.js ผูกได้ครั้งเดียวต่อเอกสาร เรียกซ้ำจาก entry อื่นจึงไม่เกิด listener ซ้ำ
+    initHelpDialogs(document);
+}

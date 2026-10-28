@@ -45,7 +45,7 @@ class TicketStatusController extends Controller
         return $this->jsonOrBack(
             $request,
             true,
-            TicketDesign::actionLabel($action).'แล้ว — สถานะปัจจุบัน: '.TicketDesign::status($updated->status)['label'],
+            TicketDesign::actionLabel($action).'แล้ว — สถานะปัจจุบัน: '.TicketDesign::ticketStatus($updated)['label'],
             200,
             ['status' => $updated->status],
         );

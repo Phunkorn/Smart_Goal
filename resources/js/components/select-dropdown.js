@@ -155,6 +155,13 @@ export function enhanceSelect(select, index = 0) {
         }
     }
 
+    if (select.classList.contains('is-invalid') || select.getAttribute('aria-invalid') === 'true') {
+        trigger.setAttribute('aria-invalid', 'true');
+    }
+    if (select.getAttribute('aria-describedby')) {
+        trigger.setAttribute('aria-describedby', select.getAttribute('aria-describedby'));
+    }
+
     select.parentNode.insertBefore(root, select);
     root.append(trigger, panel, select);
     select.classList.add('sg-select__native');

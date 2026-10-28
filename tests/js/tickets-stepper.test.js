@@ -7,7 +7,8 @@ import {click, mountDom} from './helpers/dom.js';
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 
 /** hook ชุดเดียวกับ tickets/components/submit-modal.blade.php (+ location-field / problem-fields) */
-function modalMarkup({openOnLoad = false, descriptionError = false, formAlert = false} = {}) {
+/** contact ตั้งต้นเป็นเบอร์จากโปรไฟล์เหมือนของจริง (TicketSubmissionService::prefillPhone) — ส่ง '' เพื่อจำลองโปรไฟล์ที่ไม่มีเบอร์ */
+function modalMarkup({openOnLoad = false, descriptionError = false, formAlert = false, contact = '0812345678'} = {}) {
     return `<!doctype html><html><body>
 <a href="/tickets/create" data-ticket-open-modal>แจ้งปัญหา IT</a>
 <div class="modal fade" id="ticket-submit-modal" data-ticket-submit-modal ${openOnLoad ? 'data-open-on-load' : ''}>
@@ -27,6 +28,9 @@ function modalMarkup({openOnLoad = false, descriptionError = false, formAlert = 
     <section data-ticket-step="3" hidden><h3 class="ticket-step__title" tabindex="-1">รายละเอียด</h3>
       <textarea name="description" required minlength="10" class="${descriptionError ? 'is-invalid' : ''}"></textarea>
       ${descriptionError ? '<p class="ticket-form__error">อย่างน้อย 10 ตัวอักษร</p>' : ''}
+      <input id="ticket-contact" type="tel" name="contact" required pattern="0[0-9]{9}" data-ticket-digits="10"
+        data-pattern-message="เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0" value="${contact}">
+      <input id="ticket-remote" name="remote_access" pattern="[0-9][0-9 \-]{5,19}">
       <p class="ticket-form__error" data-ticket-photos-error role="alert" hidden></p>
     </section>
     <button type="button" data-ticket-step-back hidden>ย้อนกลับ</button>
@@ -205,11 +209,47 @@ test('init is idempotent', () => {
     }
 });
 
+test('step 3 of the internal modal needs the phone, and the AnyDesk id stays optional', () => {
+    // โปรไฟล์ไม่มีเบอร์ 10 หลัก → ช่องว่าง ผู้แจ้งต้องกรอกเอง
+    const dom = mountDom(modalMarkup({contact: ''}));
+    try {
+        const {document, window} = dom;
+        const stepper = initTicketStepper(document, {modalApi: null});
+        document.querySelector('select').value = '1';
+        stepper.show(2);
+        document.querySelector('textarea').value = 'เครื่องพิมพ์ชั้นสองพิมพ์ไม่ออก';
+
+        let submitted = false;
+        document.querySelector('form').addEventListener('submit', (event) => { submitted = true; event.preventDefault(); });
+        const submit = () => document.querySelector('[data-ticket-submit]').dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
+
+        submit();
+        assert.equal(submitted, false, 'ไม่กรอกเบอร์โทร → ส่งไม่ได้');
+        assert.equal(visibleStep(document), '3');
+
+        // เบอร์ไม่ครบ 10 หลักก็ยังส่งไม่ได้ (pattern เดียวกับฟอร์มสาธารณะ)
+        document.getElementById('ticket-contact').value = '08123';
+        submit();
+        assert.equal(submitted, false, 'เบอร์ไม่ครบ 10 หลัก → ส่งไม่ได้');
+
+        // ครบแล้วส่งได้ โดยไม่ต้องกรอก AnyDesk
+        document.getElementById('ticket-contact').value = '0898765432';
+        assert.equal(document.getElementById('ticket-remote').value, '', 'AnyDesk ไม่บังคับ');
+        submit();
+        assert.equal(submitted, true);
+    } finally {
+        dom.cleanup();
+    }
+});
+
 test('every hook the stepper needs exists in the Blade modal, and the page script has no new polling', () => {
     const modal = read('resources/views/tickets/components/submit-modal.blade.php');
     for (const hook of ['data-ticket-submit-modal', 'data-open-on-load', 'data-ticket-stepper', 'data-ticket-step-indicator', 'data-ticket-step=',
         'data-ticket-step-status', 'data-ticket-step-back', 'data-ticket-step-next', 'data-ticket-step-submit', 'ticket-step__title',
-        'modal-fullscreen-sm-down', 'modal-dialog-scrollable', 'data-bs-dismiss="modal"']) {
+        'modal-fullscreen-sm-down', 'modal-dialog-scrollable', 'data-bs-dismiss="modal"',
+        // ขั้นที่ 3 ใช้ partial ช่องติดต่อกลับชุดเดียวกับหน้าสาธารณะ และเติมเบอร์จากโปรไฟล์
+        "@include('tickets.components.contact-fields'", 'TicketSubmissionService::prefillPhone($requester->phone)',
+        "@include('tickets.components.problem-fields', ['withPhotos' => false])", "@include('tickets.components.photo-picker')"]) {
         assert.ok(modal.includes(hook), hook);
     }
     // ปุ่มเปิดฟอร์มอยู่ที่การ์ดของผู้แจ้งเท่านั้น — คิวงานของ Handler/admin และรายการแผนกไม่มีปุ่มแจ้งปัญหา (แยกหน้าที่)

@@ -51,6 +51,12 @@
 
     @if ($canCreate)
         @include('tickets.components.submit-modal')
+
+        {{--
+            วิธีหาเลข AnyDesk — อยู่นอก <form> ของ modal แจ้งปัญหา (ปุ่มในนี้จึงไม่มีทางส่งฟอร์ม)
+            <dialog> อยู่ใน top layer จึงลอยเหนือ backdrop ของ Bootstrap modal ได้เอง
+        --}}
+        @include('tickets.components.anydesk-help-dialog')
     @endif
 </div>
 @endsection

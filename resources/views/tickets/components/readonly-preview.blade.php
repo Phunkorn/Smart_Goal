@@ -15,7 +15,7 @@
 @php
     use App\Support\TicketDesign;
 
-    $status = TicketDesign::status($ticket->status);
+    $status = TicketDesign::ticketStatus($ticket);
     // ผู้แจ้งเปิดใบของตัวเอง: ซ่อนข้อมูลที่รู้อยู่แล้ว/ซ้ำกับความคืบหน้า และแสดง "ผู้รับผิดชอบ"
     // หัวหน้าแผนกเปิดใบของลูกทีมยังเห็นผู้แจ้งและแผนกครบ และไม่เห็นรายชื่อเจ้าหน้าที่
     $compact = auth()->check() && $ticket->isRequestedBy(auth()->user());

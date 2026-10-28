@@ -217,7 +217,7 @@
     }
 
     /* ป้ายสถานะกว้างตามข้อความ ไม่ยืดเต็มช่องของการ์ด */
-    .ticket-queue__table .ticket-status {
+    .ticket-queue__table .ticket-queue__status-content {
         justify-self: start;
     }
 }

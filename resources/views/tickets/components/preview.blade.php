@@ -11,7 +11,7 @@
 @php
     use App\Support\TicketDesign;
 
-    $status = TicketDesign::status($ticket->status);
+    $status = TicketDesign::ticketStatus($ticket);
 @endphp
 <header class="modal-header ticket-preview__header">
     <div class="ticket-preview__heading">

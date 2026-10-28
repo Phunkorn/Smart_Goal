@@ -10,7 +10,7 @@ const stripCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /**
  * hook ชุดเดียวกับ tickets/public/create.blade.php (+ location-field / problem-fields / photo-picker)
- * ขั้นที่ 1: ชื่อ สาขา รายละเอียดปัญหา (บังคับทั้งสาม) · ขั้นที่ 2: เบอร์โทร 10 หลัก (บังคับ) รหัสรีโมทและรูปภาพ (ไม่บังคับ)
+ * ขั้นที่ 1: ชื่อ แผนก สาขา รายละเอียดปัญหา (บังคับทั้งสี่) · ขั้นที่ 2: เบอร์โทร 10 หลัก (บังคับ) รหัสรีโมทและรูปภาพ (ไม่บังคับ)
  */
 function publicMarkup({serverErrorInStep = null, formAlert = false} = {}) {
     return `<!doctype html><html><body>
@@ -27,6 +27,10 @@ function publicMarkup({serverErrorInStep = null, formAlert = false} = {}) {
       <label for="ticket-requester-name"><span class="ticket-form__icon"></span><span>ชื่อผู้แจ้ง <span>*</span></span></label>
       <input id="ticket-requester-name" name="requester_name" required class="${serverErrorInStep === 1 ? 'is-invalid' : ''}">
       ${serverErrorInStep === 1 ? '<p class="ticket-form__error">กรุณาระบุชื่อผู้แจ้ง</p>' : ''}
+    </div>
+    <div class="ticket-form__field">
+      <label for="ticket-department"><span class="ticket-form__icon"></span><span>แผนก <span>*</span></span></label>
+      <select id="ticket-department" name="requester_department" required><option value="" disabled selected>เลือกแผนก</option><option value="Callcenter">Callcenter</option><option value="Marketing">Marketing</option><option value="HR">HR</option></select>
     </div>
     <div class="ticket-form__field">
       <label for="ticket-location">สาขา/สถานที่ <span>*</span></label>
@@ -74,9 +78,10 @@ const type = (window, control, value) => {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const clientError = (document, id) => document.getElementById(`${id}-client-error`);
 
-/** กรอกขั้นที่ 1 ให้ผ่านครบ (ชื่อ สาขา รายละเอียด) */
+/** กรอกขั้นที่ 1 ให้ผ่านครบ (ชื่อ แผนก สาขา รายละเอียด) */
 function fillStep1(document, window) {
     type(window, document.getElementById('ticket-requester-name'), 'สมชาย ใจดี');
+    document.getElementById('ticket-department').value = 'Callcenter';
     document.getElementById('ticket-location').value = '1';
     type(window, document.getElementById('ticket-description'), DESCRIPTION);
 }
@@ -93,6 +98,7 @@ test('step 1 blocks "next" with Thai messages under every missing field and focu
 
         assert.equal(visibleStep(document), '1', 'ไม่เปลี่ยนขั้น และไม่ส่ง Ticket');
         assert.equal(clientError(document, 'ticket-requester-name').textContent, 'กรุณาระบุชื่อผู้แจ้ง');
+        assert.equal(clientError(document, 'ticket-department').textContent, 'กรุณาเลือกแผนก');
         assert.equal(clientError(document, 'ticket-location').textContent, 'กรุณาเลือกสาขา/สถานที่');
         assert.equal(clientError(document, 'ticket-description').textContent, 'กรุณาระบุรายละเอียดปัญหา', 'รายละเอียดปัญหาอยู่ขั้นที่ 1');
         assert.ok(name.classList.contains('is-invalid'));
@@ -110,7 +116,7 @@ test('step 1 blocks "next" with Thai messages under every missing field and focu
         click(document.querySelector('[data-ticket-step-next]'));
         await settle();
         assert.equal(visibleStep(document), '1');
-        assert.equal(document.activeElement, document.getElementById('ticket-location'), 'ช่องแรกที่ยังผิดคือสาขา');
+        assert.equal(document.activeElement, document.querySelector('#ticket-department').closest('.sg-select').querySelector('.sg-select__trigger'), 'โฟกัส dropdown แผนกที่มองเห็น');
     } finally {
         dom.cleanup();
     }
@@ -162,6 +168,7 @@ test('the "other" location asks for the typed place before going on', async () =
         initPublicTicketForm(document);
         type(window, document.getElementById('ticket-requester-name'), 'สมชาย');
         type(window, document.getElementById('ticket-description'), DESCRIPTION);
+        document.getElementById('ticket-department').value = 'Callcenter';
         const select = document.getElementById('ticket-location');
         select.value = 'other';
         select.dispatchEvent(new window.Event('change', {bubbles: true}));
@@ -313,35 +320,116 @@ test('initialising twice binds each behaviour once', async () => {
 
         click(document.querySelector('[data-ticket-step-next]'));
         await settle();
-        assert.equal(document.querySelectorAll('[data-ticket-client-error]').length, 3, 'ข้อความละหนึ่งช่อง ไม่ซ้ำ');
+        assert.equal(document.querySelectorAll('[data-ticket-client-error]').length, 4, 'ข้อความละหนึ่งช่อง ไม่ซ้ำ');
     } finally {
         dom.cleanup();
     }
 });
 
+test('the department must be chosen before step 2, and only the listed options are offered', async () => {
+    const dom = mountDom(publicMarkup());
+    try {
+        const {document, window} = dom;
+        initPublicTicketForm(document);
+        const department = document.getElementById('ticket-department');
+
+        // select เดิมยังเป็นแหล่งค่าของฟอร์ม แม้ปุ่มที่มองเห็นจะเป็น dropdown แบบสไลด์
+        assert.equal(department.value, '');
+        assert.equal(department.options[0].disabled, true);
+        assert.deepEqual([...department.options].slice(1).map((option) => option.value), ['Callcenter', 'Marketing', 'HR']);
+
+        // ขั้นที่ 1 ครบทุกช่องยกเว้นแผนก
+        type(window, document.getElementById('ticket-requester-name'), 'สมชาย ใจดี');
+        document.getElementById('ticket-location').value = '1';
+        type(window, document.getElementById('ticket-description'), DESCRIPTION);
+
+        click(document.querySelector('[data-ticket-step-next]'));
+        await settle();
+
+        assert.equal(visibleStep(document), '1', 'ไม่เลือกแผนก → ไม่ข้ามไปขั้นที่ 2');
+        assert.equal(clientError(document, 'ticket-department').textContent, 'กรุณาเลือกแผนก');
+        assert.ok(department.classList.contains('is-invalid'));
+        assert.equal(department.getAttribute('aria-invalid'), 'true');
+        assert.equal(document.activeElement, department.closest('.sg-select').querySelector('.sg-select__trigger'));
+
+        // เลือกแล้วข้อความหายทันที และไปขั้นที่ 2 ได้
+        department.value = 'HR';
+        department.dispatchEvent(new window.Event('change', {bubbles: true}));
+        assert.equal(clientError(document, 'ticket-department'), null);
+        assert.equal(department.classList.contains('is-invalid'), false);
+
+        click(document.querySelector('[data-ticket-step-next]'));
+        await settle();
+        assert.equal(visibleStep(document), '2');
+        assert.equal(department.value, 'HR', 'ค่าที่เลือกไม่หายเมื่อเปลี่ยนขั้น');
+    } finally {
+        dom.cleanup();
+    }
+});
+
+test('the public dropdown slides open and writes department and location choices to their selects', async () => {
+    const dom = mountDom(publicMarkup());
+    try {
+        const {document} = dom;
+        initPublicTicketForm(document);
+
+        const department = document.getElementById('ticket-department');
+        const departmentRoot = department.closest('.sg-select');
+        const departmentTrigger = departmentRoot.querySelector('.sg-select__trigger');
+        click(departmentTrigger);
+        assert.equal(departmentTrigger.getAttribute('aria-expanded'), 'true');
+        assert.deepEqual([...departmentRoot.querySelectorAll('.sg-select__option')].map((item) => item.textContent), ['Callcenter', 'Marketing', 'HR']);
+        click(departmentRoot.querySelectorAll('.sg-select__option')[1]);
+        assert.equal(department.value, 'Marketing');
+        assert.equal(departmentTrigger.querySelector('.sg-select__value').textContent, 'Marketing');
+
+        const location = document.getElementById('ticket-location');
+        const locationRoot = location.closest('.sg-select');
+        click(locationRoot.querySelector('.sg-select__trigger'));
+        click([...locationRoot.querySelectorAll('.sg-select__option')].find((item) => item.dataset.value === 'other'));
+        await settle();
+        assert.equal(location.value, 'other');
+        assert.equal(document.querySelector('[data-ticket-location-other]').hidden, false);
+        assert.equal(document.activeElement, document.getElementById('ticket-location-name'));
+    } finally {
+        dom.cleanup();
+    }
+});
+
+/** ตัดคอมเมนต์ Blade ออกก่อนตรวจลำดับและการมีอยู่ — คอมเมนต์อ้างชื่อ partial ได้โดยไม่ใช่ markup จริง */
+const withoutComments = (blade) => blade.replace(/\{\{--[\s\S]*?--\}\}/g, '');
+
 test('the public Blade has every hook the form and stepper need, and the entry is registered', () => {
-    const create = read('resources/views/tickets/public/create.blade.php');
+    const create = withoutComments(read('resources/views/tickets/public/create.blade.php'));
+    const contact = withoutComments(read('resources/views/tickets/components/contact-fields.blade.php'));
+    const include = (partial) => create.indexOf(`@include('tickets.components.${partial}'`);
 
     for (const hook of ['data-ticket-form', 'data-ticket-stepper', 'data-ticket-step-indicator="', 'data-ticket-step="1"', 'data-ticket-step="2"',
         'data-ticket-step-status', 'data-ticket-step-back', 'data-ticket-step-next', 'data-ticket-step-submit', 'ticket-step__title',
-        'resources/js/pages/tickets/public.js', 'ticket-stepper', 'location-field', 'problem-fields', 'photo-picker', 'submit-button']) {
+        'resources/js/pages/tickets/public.js', 'ticket-stepper', 'department-field', 'location-field', 'problem-fields', 'contact-fields',
+        'photo-picker', 'submit-button']) {
         assert.ok(create.includes(hook), hook);
     }
     assert.doesNotMatch(create, /<script(?![^>]*type="application\/json")|\sstyle="|\b(alert|confirm|prompt)\(/);
     assert.match(read('vite.config.js'), /'resources\/js\/pages\/tickets\/public\.js'/);
 
-    // รายละเอียดปัญหา (problem-fields โดยไม่มีรูป) อยู่ขั้นที่ 1 · ช่องทางติดต่อกลับและรูปอยู่ขั้นที่ 2
+    // ขั้นที่ 1: ชื่อ → แผนก → สาขา → รายละเอียด (problem-fields โดยไม่มีรูป) · ขั้นที่ 2: ช่องทางติดต่อกลับ แล้วรูป
     const stepTwo = create.indexOf('data-ticket-step="2"');
+    assert.ok(create.indexOf('name="requester_name"') < include('department-field'), 'แผนกต่อจากชื่อผู้แจ้ง');
+    assert.ok(include('department-field') < include('location-field'), 'แผนกมาก่อนสาขา');
+    assert.ok(include('department-field') < stepTwo, 'แผนกอยู่ขั้นที่ 1');
     assert.ok(create.indexOf("'withPhotos' => false") < stepTwo, 'รายละเอียดอยู่ก่อนขั้นที่ 2');
-    assert.ok(create.indexOf('for="ticket-contact"') > stepTwo, 'เบอร์โทรอยู่หลังเริ่มขั้นที่ 2');
-    assert.ok(create.indexOf('for="ticket-remote"') > create.indexOf('for="ticket-contact"'), 'รหัสรีโมทต่อจากเบอร์โทร');
+    assert.ok(include('contact-fields') > stepTwo, 'ช่องทางติดต่อกลับอยู่ขั้นที่ 2');
+    assert.ok(include('photo-picker') > include('contact-fields'), 'รูปอยู่หลังช่องทางติดต่อ');
+
+    // ช่องกรอกจริงอยู่ใน partial ที่ใช้ร่วมกับ modal แจ้งปัญหาภายใน — ที่เดียว
+    assert.ok(contact.indexOf('for="ticket-contact"') < contact.indexOf('for="ticket-remote"'), 'รหัสรีโมทต่อจากเบอร์โทร');
     for (const hook of ['type="tel" name="contact" inputmode="numeric"', 'pattern="0[0-9]{9}" data-ticket-digits="10"',
         'data-pattern-message="เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0"', 'name="remote_access" inputmode="numeric"',
         // รหัสรีโมทรับเฉพาะเลขเครื่อง ตรงกับ TicketSubmissionService::REMOTE_ACCESS_PATTERN — ไม่รับรหัสผ่าน
-        'pattern="[0-9][0-9 \\-]{5,19}"', 'กรอกเฉพาะเลขเครื่อง ห้ามใส่รหัสผ่าน']) {
-        assert.ok(create.includes(hook), hook);
+        String.raw`pattern="[0-9][0-9 \-]{5,19}"`, 'กรอกเฉพาะเลขเครื่อง ห้ามใส่รหัสผ่าน']) {
+        assert.ok(contact.includes(hook), hook);
     }
-    assert.ok(create.indexOf("@include('tickets.components.photo-picker'") > stepTwo, 'รูปอยู่ขั้นที่ 2');
 
     const entry = read('resources/js/pages/tickets/public.js').replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(entry, /\bfetch\(|XMLHttpRequest|setInterval/);
@@ -436,15 +524,32 @@ test('the AnyDesk "?" opens the help dialog as a modal, and every way of closing
     }
 });
 
-test('the AnyDesk help is a native dialog outside the report form, with short steps and the example image', () => {
-    const create = read('resources/views/tickets/public/create.blade.php');
-    const formEnd = create.indexOf('</form>');
-    const dialogStart = create.indexOf('<dialog class="ticket-help-dialog" id="ticket-anydesk-help"');
+test('the AnyDesk help is one native dialog outside every report form, shared by the public page and the modal', () => {
+    const dialog = read('resources/views/tickets/components/anydesk-help-dialog.blade.php');
+    const contact = read('resources/views/tickets/components/contact-fields.blade.php');
+    const publicCreate = withoutComments(read('resources/views/tickets/public/create.blade.php'));
+    const internalCreate = withoutComments(read('resources/views/tickets/create.blade.php'));
+    const landing = withoutComments(read('resources/views/tickets/landing.blade.php'));
 
-    assert.ok(dialogStart > formEnd, 'dialog อยู่นอกฟอร์มแจ้งปัญหา');
-    assert.match(create, /data-help-dialog-open="ticket-anydesk-help" aria-label="วิธีหาเลข AnyDesk"/);
-    assert.match(create, /<\/label>\s*<button type="button" class="ticket-help-trigger"/, 'ปุ่ม ? อยู่นอก <label>');
-    assert.match(create, /asset\('images\/'\.rawurlencode\('Anydesk - Example\.png'\)\)/);
-    assert.match(create, /data-help-dialog-close aria-label="ปิดหน้าต่างวิธีหาเลข AnyDesk"/);
+    // dialog เดียว ไม่มีใครคัดลอก markup ไปไว้ในหน้าตัวเอง
+    for (const page of [publicCreate, internalCreate, landing]) {
+        assert.ok(page.includes("@include('tickets.components.anydesk-help-dialog')"), 'ทุกหน้า include dialog ตัวเดียวกัน');
+        assert.doesNotMatch(page, /<dialog/, 'ไม่มีใครเขียน <dialog> ซ้ำในหน้าตัวเอง');
+    }
+
+    // อยู่นอก <form> เสมอ — ปุ่มใน dialog จึงไม่มีทางส่งฟอร์มแจ้งปัญหา
+    assert.ok(publicCreate.indexOf('anydesk-help-dialog') > publicCreate.indexOf('</form>'), 'หน้าสาธารณะ: dialog อยู่นอกฟอร์ม');
+    assert.ok(internalCreate.indexOf('anydesk-help-dialog') > internalCreate.indexOf('</form>'), 'ฟอร์มหน้าเดียว: dialog อยู่นอกฟอร์ม');
+    assert.ok(landing.indexOf('anydesk-help-dialog') > landing.indexOf('submit-modal'), 'หน้า /tickets: dialog อยู่หลัง modal แจ้งปัญหา');
+
+    assert.match(dialog, /<dialog class="ticket-help-dialog" id="ticket-anydesk-help"/);
+    assert.match(dialog, /asset\('images\/'\.rawurlencode\('Anydesk - Example\.png'\)\)/);
+    assert.match(dialog, /data-help-dialog-close aria-label="ปิดหน้าต่างวิธีหาเลข AnyDesk"/);
+
+    assert.match(contact, /data-help-dialog-open="ticket-anydesk-help" aria-label="วิธีหาเลข AnyDesk"/);
+    assert.match(contact, /<\/label>\s*<button type="button" class="ticket-help-trigger"/, 'ปุ่ม ? อยู่นอก <label>');
+
     assert.match(read('resources/js/pages/tickets/public.js'), /initHelpDialogs\(root\)/);
+    // หน้าภายในโหลดแค่ form.js — การผูก dialog จึงต้องอยู่ที่นั่นด้วย
+    assert.match(read('resources/js/pages/tickets/form.js'), /initHelpDialogs\(document\)/);
 });

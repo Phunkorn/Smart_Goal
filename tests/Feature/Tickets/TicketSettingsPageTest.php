@@ -148,7 +148,7 @@ class TicketSettingsPageTest extends TestCase
         $this->actingAs($admin)->post(route('admin.tickets.locations.store'), ['name' => 'สาขาบางนา'])->assertSessionHasErrors('name');
 
         $ticket = app(TicketSubmissionService::class)->submitPublic([
-            'requester_name' => 'ผู้แจ้ง', 'description' => 'จอไม่ติด', 'location_id' => $location->id,
+            'requester_name' => 'ผู้แจ้ง', 'requester_department' => 'Callcenter', 'description' => 'จอไม่ติด', 'location_id' => $location->id,
         ], null);
 
         $this->actingAs($admin)->patch(route('admin.tickets.locations.update', $location), ['name' => 'สาขาบางนา (ใหม่)', 'is_active' => 0])

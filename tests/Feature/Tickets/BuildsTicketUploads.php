@@ -59,10 +59,12 @@ trait BuildsTicketUploads
     {
         return [
             'requester_name' => 'สมชาย ใจดี',
+            // แผนกของฟอร์มสาธารณะเลือกจากรายการปิด (App\Support\PublicTicketDepartments)
+            'requester_department' => 'Callcenter',
             'location_id' => 'other',
             'location_name' => 'สาขาบางนา',
             'description' => 'คอมพิวเตอร์เครื่องแคชเชียร์เปิดไม่ติด',
-            // ฟอร์มสาธารณะบังคับเบอร์โทร 10 หลัก
+            // ทั้งสองช่องทางบังคับเบอร์โทร 10 หลัก
             'contact' => '0812345678',
             'submission_key' => (string) Str::uuid(),
             TicketSubmissionGuard::TOKEN_FIELD => $this->formToken(),
@@ -78,6 +80,7 @@ trait BuildsTicketUploads
             'location_id' => 'other',
             'location_name' => 'ชั้น 3 ฝ่ายบัญชี',
             'description' => 'เครื่องพิมพ์ชั้น 3 พิมพ์ไม่ออก',
+            'contact' => '0898765432',
             'submission_key' => (string) Str::uuid(),
             ...$overrides,
         ];

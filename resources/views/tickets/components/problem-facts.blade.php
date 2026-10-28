@@ -18,10 +18,11 @@
 <dl class="ticket-facts">
     @unless ($compact)
         <div class="ticket-fact bi bi-person"><dt>ผู้แจ้ง</dt><dd>{{ $ticket->requester_name }}</dd></div>
-        <div class="ticket-fact bi bi-building"><dt>แผนก</dt><dd>{{ $ticket->requester_department_name ?? 'บุคคลภายนอก' }}</dd></div>
+        {{-- ฟอร์มสาธารณะให้ผู้แจ้งเลือกแผนกเอง (PublicTicketDepartments) · Ticket เก่าที่ไม่มีค่ายังขึ้นตามช่องทางที่แจ้ง --}}
+        <div class="ticket-fact bi bi-building"><dt>แผนก</dt><dd>{{ $ticket->requester_department_name ?? ($ticket->source === Ticket::SOURCE_PUBLIC ? 'บุคคลภายนอก' : 'ไม่ระบุแผนก') }}</dd></div>
     @endunless
     <div class="ticket-fact bi bi-geo-alt-fill"><dt>สาขา/สถานที่</dt><dd>{{ $ticket->location_name }}</dd></div>
-    {{-- ฟอร์มสาธารณะบังคับเบอร์โทร 10 หลัก (กดโทรได้) · Ticket เก่าอาจเป็นข้อความอิสระ จึงแสดงตามเดิม --}}
+    {{-- ทั้งสองช่องทางบังคับเบอร์โทร 10 หลัก (กดโทรได้) · Ticket เก่าอาจเป็นข้อความอิสระหรือว่าง จึงแสดงตามเดิม --}}
     @if (! $compact && $ticket->contact)
         <div class="ticket-fact bi bi-telephone"><dt>ช่องทางติดต่อ</dt><dd>
             @if (preg_match(\App\Services\TicketSubmissionService::PHONE_PATTERN, $ticket->contact))
@@ -39,7 +40,7 @@
         <div class="ticket-fact bi bi-line"><dt>LINE</dt><dd>{{ $ticket->line_display_name }}</dd></div>
     @endif
     @unless ($compact)
-        <div class="ticket-fact bi bi-chat-square-text"><dt>ช่องทางที่แจ้ง</dt><dd>{{ $ticket->source === Ticket::SOURCE_PUBLIC ? 'ฟอร์มสาธารณะ' : 'ผู้ใช้ในระบบ' }}</dd></div>
+        <div class="ticket-fact bi bi-chat-square-text"><dt>ช่องทางที่แจ้ง</dt><dd>{{ $ticket->source === Ticket::SOURCE_PUBLIC ? 'Smart Ticket' : 'Smart Goals' }}</dd></div>
     @endunless
     @if (! $compact && $ticket->first_responded_at)
         <div class="ticket-fact bi bi-calendar3"><dt>รับงานครั้งแรก</dt><dd>{{ TicketDesign::when($ticket->first_responded_at) }}</dd></div>

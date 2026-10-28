@@ -80,6 +80,31 @@
     box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
+/*
+    dropdown เนทีฟของฟอร์มแจ้งปัญหา (แผนก, สาขา/สถานที่) — ใช้ token ชุดเดียวกับช่องกรอกอื่น
+    ไม่ใช้ appearance: base-select เพื่อจัดสไตล์รายการทั้งก้อน เพราะรองรับแค่ Chrome
+    Firefox/Safari จะกลับไปเป็น dropdown เปล่า จึงจัดเท่าที่ทุกเบราว์เซอร์ให้: สีของ option และสถานะกางรายการ
+*/
+.ticket-form .form-select option {
+    background-color: var(--surface);
+    color: var(--text);
+}
+
+.ticket-form .form-select option:disabled {
+    color: var(--text-muted);
+}
+
+/* ขณะกางรายการ เน้นขอบเหมือนตอนโฟกัส — :open ยังใหม่ (Chrome 133+, Safari 26+) เบราว์เซอร์ที่ไม่รู้จักข้ามกฎนี้ไป */
+.ticket-form .form-select:open {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ยังไม่ได้เลือก (ค้างที่ option ว่าง) → ตัวอักษรจางเท่ากับ placeholder ของ <input> */
+.ticket-form .form-select:has(option[value=""]:checked) {
+    color: var(--text-muted);
+}
+
 .ticket-form .form-control.is-invalid,
 .ticket-form .form-select.is-invalid {
     border-color: var(--red);

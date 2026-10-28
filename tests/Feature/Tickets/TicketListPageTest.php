@@ -206,16 +206,23 @@ class TicketListPageTest extends TestCase
             ->assertSee('rel="next"', false);
     }
 
-    public function test_public_tickets_show_an_outside_requester_instead_of_a_department(): void
+    public function test_public_tickets_show_the_chosen_department_and_older_ones_stay_outside(): void
     {
         $this->publicTicket('คุณภายนอก');
 
         $agent = $this->agent();
+        $ticket = Ticket::query()->sole();
 
         $this->actingAs($agent)->get(route('tickets.index'))->assertSee('คุณภายนอก');
 
-        // ผู้แจ้งสาธารณะไม่มีแผนก — หน้ารายละเอียดระบุว่าเป็นบุคคลภายนอก
-        $this->actingAs($agent)->get(route('tickets.show', Ticket::query()->sole()))->assertSee('บุคคลภายนอก');
+        // แผนกที่ผู้แจ้งเลือกเองบนฟอร์ม /support ขึ้นที่หน้ารายละเอียด แทนคำว่าบุคคลภายนอก
+        $this->actingAs($agent)->get(route('tickets.show', $ticket))
+            ->assertSee('Callcenter')
+            ->assertDontSee('บุคคลภายนอก');
+
+        // Ticket สาธารณะที่แจ้งไว้ก่อนมีช่องแผนก (ค่าว่าง) ยังขึ้นว่าเป็นบุคคลภายนอกตามเดิม
+        $ticket->forceFill(['requester_department_name' => null])->save();
+        $this->actingAs($agent)->get(route('tickets.show', $ticket))->assertSee('บุคคลภายนอก');
     }
 
     public function test_search_status_location_and_scope_filters(): void
@@ -224,7 +231,7 @@ class TicketListPageTest extends TestCase
         $location = $this->location('สาขาบางนา');
         $printer = $this->ticketFrom($this->staff($this->department('Sales')), 'เครื่องพิมพ์เสีย');
         $network = app(TicketSubmissionService::class)->submitPublic([
-            'requester_name' => 'ผู้แจ้ง', 'description' => 'อินเทอร์เน็ตหลุดบ่อย', 'location_id' => $location->id,
+            'requester_name' => 'ผู้แจ้ง', 'requester_department' => 'Callcenter', 'description' => 'อินเทอร์เน็ตหลุดบ่อย', 'location_id' => $location->id,
         ], null);
         $this->startedBy($agent, $network);
 

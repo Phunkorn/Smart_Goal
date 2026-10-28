@@ -32,7 +32,7 @@
                 <div class="modal-body ticket-preview__body">
                     <ul class="ticket-history" aria-labelledby="ticket-history-title">
                         @foreach ($history as $item)
-                            @php($status = TicketDesign::status($item->status))
+                            @php($status = TicketDesign::ticketStatus($item))
                             <li>
                                 <a class="ticket-history__item" href="{{ route('tickets.index', ['ticket' => $item->id]) }}">
                                     <span class="ticket-history__top">

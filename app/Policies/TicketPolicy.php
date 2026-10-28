@@ -117,6 +117,15 @@ class TicketPolicy
         return $this->canTransitionAsParticipant($user, $ticket, Ticket::ACTION_CLOSE);
     }
 
+    public function cancel(User $user, Ticket $ticket): bool
+    {
+        if ($ticket->status === Ticket::STATUS_NEW) {
+            return $this->handles($user, $ticket);
+        }
+
+        return $this->canTransitionAsParticipant($user, $ticket, Ticket::ACTION_CANCEL);
+    }
+
     public function reopen(User $user, Ticket $ticket): bool
     {
         return $this->handles($user, $ticket)
@@ -146,8 +155,7 @@ class TicketPolicy
             Ticket::ACTION_FOLLOW_UP => 'followUp',
             Ticket::ACTION_RESUME => 'resume',
             Ticket::ACTION_CLOSE => 'close',
-            // ยกเลิกงานคือการปิดแบบยกเลิก — สิทธิ์เดียวกับปิดงาน (ผู้เข้าร่วมที่กำลังทำงานอยู่)
-            Ticket::ACTION_CANCEL => 'close',
+            Ticket::ACTION_CANCEL => 'cancel',
             Ticket::ACTION_REOPEN => 'reopen',
         };
     }

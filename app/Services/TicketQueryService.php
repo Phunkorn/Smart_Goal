@@ -118,6 +118,7 @@ class TicketQueryService
     public function paginate(User $user, array $filters): LengthAwarePaginator
     {
         return $this->filtered($user, $filters)
+            ->with('closingActivity')
             ->withExists(['activeParticipants as viewer_participating' => fn (Builder $query) => $query->where('user_id', $user->id)])
             ->when($filters['status'] !== '', fn (Builder $query) => $query->where('status', $filters['status']))
             ->latest()

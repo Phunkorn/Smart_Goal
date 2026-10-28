@@ -642,6 +642,7 @@ class TicketReportTest extends TestCase
         $payload = '</script><script>alert(1)</script>';
         app(TicketSubmissionService::class)->submitPublic([
             'requester_name' => 'คุณ <img src=x onerror=alert(2)>',
+            'requester_department' => 'Callcenter',
             'description' => 'ปริ้นเตอร์เสีย '.$payload,
             'location_name' => 'สาขา '.$payload,
         ], '203.0.113.7');

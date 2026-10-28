@@ -51,12 +51,14 @@ class TicketCreationTest extends TestCase
         $this->assertSame(Ticket::STATUS_NEW, $ticket->status);
     }
 
-    public function test_a_public_ticket_has_no_account_or_department(): void
+    public function test_a_public_ticket_has_no_account_and_no_department_link(): void
     {
         $ticket = $this->publicTicket('คุณสมศรี');
 
         $this->assertSame(Ticket::SOURCE_PUBLIC, $ticket->source);
         $this->assertNull($ticket->requester_id);
+        // แผนกที่ผู้แจ้งเลือกเองเก็บเป็น "ชื่อ" ไม่ผูก id ของแผนกในระบบ — สิทธิ์หัวหน้าแผนกอ่านจาก id
+        $this->assertSame('Callcenter', $ticket->requester_department_name);
         $this->assertNull($ticket->requester_department_id);
         $this->assertSame('คุณสมศรี', $ticket->requester_name);
         $this->assertSame('203.0.113.5', $ticket->submitter_ip);
@@ -67,18 +69,24 @@ class TicketCreationTest extends TestCase
         $this->assertSame('คุณสมศรี', $created->user_name);
     }
 
-    public function test_public_submission_needs_only_name_location_and_description(): void
+    public function test_public_submission_requires_name_department_location_and_description(): void
     {
         $ticket = app(TicketSubmissionService::class)->submitPublic([
             'requester_name' => 'ผู้แจ้ง',
+            'requester_department' => 'HR',
             'description' => 'จอไม่ติด',
             'location_name' => 'สาขา 1',
         ], null);
 
         $this->assertNull($ticket->contact);
+        // แผนกที่เลือกเองเก็บเป็นชื่อเท่านั้น — id ต้องว่างเสมอ ไม่งั้นหัวหน้าแผนกจะเห็น Ticket ของบุคคลภายนอก
+        $this->assertSame('HR', $ticket->requester_department_name);
+        $this->assertNull($ticket->requester_department_id);
+
+        $base = ['requester_name' => 'ผู้แจ้ง', 'requester_department' => 'HR', 'description' => 'จอไม่ติด', 'location_name' => 'สาขา 1'];
 
         foreach (['requester_name', 'description', 'location_name'] as $missing) {
-            $input = ['requester_name' => 'ผู้แจ้ง', 'description' => 'จอไม่ติด', 'location_name' => 'สาขา 1'];
+            $input = $base;
             $input[$missing] = '  ';
 
             try {
@@ -86,6 +94,19 @@ class TicketCreationTest extends TestCase
                 $this->fail("{$missing} should be required");
             } catch (ValidationException $e) {
                 $this->assertArrayHasKey($missing, $e->errors());
+            }
+        }
+
+        // แผนกที่หายไปหรือไม่อยู่ในรายการปิดถูกปฏิเสธที่ชั้น service ด้วย ไม่ใช่แค่ Form Request
+        foreach ([null, '', 'IT', 'callcenter', 'ฝ่ายขาย'] as $rejected) {
+            $input = $base;
+            $input['requester_department'] = $rejected;
+
+            try {
+                app(TicketSubmissionService::class)->submitPublic($input, null);
+                $this->fail('requester_department should reject '.var_export($rejected, true));
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('requester_department', $e->errors());
             }
         }
     }
@@ -96,6 +117,7 @@ class TicketCreationTest extends TestCase
 
         $ticket = app(TicketSubmissionService::class)->submitPublic([
             'requester_name' => 'ผู้แจ้ง',
+            'requester_department' => 'Callcenter',
             'description' => 'เน็ตช้า',
             'location_id' => $location->id,
         ], null);
@@ -111,6 +133,7 @@ class TicketCreationTest extends TestCase
         $this->expectException(ValidationException::class);
         app(TicketSubmissionService::class)->submitPublic([
             'requester_name' => 'ผู้แจ้ง',
+            'requester_department' => 'Callcenter',
             'description' => 'เน็ตช้า',
             'location_id' => $closed->id,
         ], null);

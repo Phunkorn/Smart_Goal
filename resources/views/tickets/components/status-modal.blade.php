@@ -9,8 +9,10 @@
     use App\Http\Requests\Tickets\UpdateTicketStatusRequest;
     use App\Support\TodayWorkspace;
 
-    $modalId = 'ticket-modal-'.str_replace('_', '-', $action);
-    $reopen = old('action') === $action && ($errors->has('note') || $errors->has('follow_up_date') || $errors->has('action'));
+    $modalId ??= 'ticket-modal-'.str_replace('_', '-', $action);
+    $reopen = old('action') === $action
+        && (! isset($queueTicketId) || (string) old('ticket_id') === (string) $queueTicketId)
+        && ($errors->has('note') || $errors->has('follow_up_date') || $errors->has('action'));
 @endphp
 <div class="modal fade ticket-modal" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $modalId }}-title" aria-hidden="true"
     data-ticket-modal @if ($reopen) data-open-on-load="true" @endif>
@@ -20,6 +22,9 @@
             @method('PATCH')
             <input type="hidden" name="action" value="{{ $action }}">
             <input type="hidden" name="expected_status" value="{{ $ticket->status }}">
+            @if (isset($queueTicketId))
+                <input type="hidden" name="ticket_id" value="{{ $queueTicketId }}">
+            @endif
 
             <div class="modal-header">
                 <h2 class="modal-title" id="{{ $modalId }}-title">{{ $title }}</h2>

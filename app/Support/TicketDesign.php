@@ -64,6 +64,16 @@ final class TicketDesign
         return self::STATUSES[$status] ?? ['label' => 'ไม่ทราบสถานะ', 'tone' => 'gray', 'icon' => 'bi-question-circle'];
     }
 
+    /** สถานะที่แสดงของ Ticket ปัจจุบัน: closed ที่เกิดจาก cancel ต้องบอกให้ต่างจากปิดงาน */
+    public static function ticketStatus(Ticket $ticket): array
+    {
+        if ($ticket->status === Ticket::STATUS_CLOSED && ($ticket->closingActivity?->data['action'] ?? null) === Ticket::ACTION_CANCEL) {
+            return ['label' => 'ยกเลิก', 'tone' => 'red', 'icon' => 'bi-x-circle'];
+        }
+
+        return self::status($ticket->status);
+    }
+
     /**
      * ลิงก์กรองคิวงานตามสถานะ ('' = ทุกสถานะ) และช่วงวัน ('' = ทุกวัน) — การ์ดภาพรวมของหน้ารับแจ้งปัญหา
      * และแท็บสถานะของรายการแผนก คงตัวกรองอื่น (ค้นหา สาขา ขอบเขต) ไว้ แต่เริ่มหน้า 1 ใหม่เสมอ

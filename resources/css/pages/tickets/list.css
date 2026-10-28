@@ -3,7 +3,7 @@
  *
  * ตาราง markup ชุดเดียว: ตั้งแต่ 1280px เป็นตาราง (เจ็ดคอลัมน์เต็มความกว้างของเนื้อหา)
  * แคบกว่านั้นแต่ละแถวเป็นการ์ด ป้ายของแต่ละช่องมาจาก data-label (กฎอยู่ใน responsive.css)
- * ข้อมูลทุกช่องแสดงเสมอ — โหมดตารางตัดข้อความยาวด้วย … (title เก็บข้อความเต็ม) · การ์ดตัดบรรทัดแสดงเต็ม
+ * ข้อมูลทุกช่องแสดงเสมอ — โหมดตารางตัดหัวข้อและชื่อยาวด้วย … · เหตุผลยกเลิกตัดบรรทัดแสดงเต็ม
  */
 
 .ticket-queue {
@@ -255,6 +255,21 @@
     width: 36px;
 }
 
+.ticket-queue__status-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+}
+
+.ticket-queue__cancel-reason {
+    color: var(--text-muted);
+    font-size: .76rem;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 /* "ดูรายละเอียด" — ปุ่มไอคอนรูปตา 36px ข้างปุ่มรับงาน/เข้าร่วม (การ์ดบนจอสัมผัส 44px — responsive.css) */
 .ticket-queue__open {
     display: inline-flex;
@@ -291,12 +306,12 @@
 @media (min-width: 1280px) {
     .ticket-queue__table {
         --ticket-col-number: 11%;
-        --ticket-col-problem: 21%;
-        --ticket-col-requester: 13%;
-        --ticket-col-location: 11%;
-        --ticket-col-time: 18.5%;
-        --ticket-col-status: 14%;
-        --ticket-col-action: 11.5%;
+        --ticket-col-problem: 16%;
+        --ticket-col-requester: 12%;
+        --ticket-col-location: 10%;
+        --ticket-col-time: 16%;
+        --ticket-col-status: 19%;
+        --ticket-col-action: 16%;
         table-layout: fixed;
     }
 
@@ -346,29 +361,37 @@
     .ticket-queue__table:has(.ticket-queue__claim-actions form) .ticket-queue__open {
         grid-column: 2;
     }
+
+    .ticket-queue__table:has(.ticket-queue__claim-actions [data-bs-target^="#ticket-modal-cancel-"]) .ticket-actions.ticket-queue__claim-actions {
+        grid-template-columns: repeat(3, 36px);
+    }
+
+    .ticket-queue__table:has(.ticket-queue__claim-actions [data-bs-target^="#ticket-modal-cancel-"]) .ticket-queue__open {
+        grid-column: 3;
+    }
 }
 
 @media (min-width: 1440px) {
     .ticket-queue__table {
         --ticket-col-number: 10%;
-        --ticket-col-problem: 25%;
-        --ticket-col-requester: 14%;
-        --ticket-col-location: 12%;
-        --ticket-col-time: 17%;
-        --ticket-col-status: 12.5%;
-        --ticket-col-action: 9.5%;
+        --ticket-col-problem: 19%;
+        --ticket-col-requester: 13%;
+        --ticket-col-location: 11%;
+        --ticket-col-time: 16%;
+        --ticket-col-status: 17%;
+        --ticket-col-action: 14%;
     }
 }
 
 @media (min-width: 1600px) {
     .ticket-queue__table {
         --ticket-col-number: 9%;
-        --ticket-col-problem: 28%;
-        --ticket-col-requester: 15%;
-        --ticket-col-location: 13%;
-        --ticket-col-time: 16%;
-        --ticket-col-status: 11%;
-        --ticket-col-action: 8%;
+        --ticket-col-problem: 23%;
+        --ticket-col-requester: 14%;
+        --ticket-col-location: 12%;
+        --ticket-col-time: 15%;
+        --ticket-col-status: 15%;
+        --ticket-col-action: 12%;
     }
 }
 

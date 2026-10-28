@@ -7,9 +7,9 @@
 
     ตาราง markup ชุดเดียว: ตั้งแต่ 1280px เป็นตาราง แคบกว่านั้นแต่ละแถวเป็นการ์ด (tickets/list.css + responsive.css)
     ข้อมูลทุกช่องแสดงเสมอ ไม่ซ่อนตาม breakpoint · โหมดตารางความกว้างคอลัมน์มาจาก <colgroup> (ไม่ตามข้อความในแถว)
-    ข้อความยาวตัดด้วย … และ title เก็บข้อความเต็ม · การ์ดตัดบรรทัดแสดงเต็ม
+    หัวข้อและชื่อยาวตัดด้วย … และ title เก็บข้อความเต็ม · เหตุผลยกเลิกตัดบรรทัดแสดงเต็ม
     เจ็ดคอลัมน์ บรรทัดเดียวต่อแถว: เลข Ticket · หัวข้อปัญหา · ผู้แจ้ง · สาขา/สถานที่ · เวลาแจ้ง · สถานะ · ดำเนินการ
-    ดำเนินการ = ปุ่มไอคอนรับงาน/เข้าร่วม (เฉพาะคิวงาน) + ไอคอนรูปตา "ดูรายละเอียด" (ทุกรายการ รวมรายการของหัวหน้าแผนก)
+    ดำเนินการ = ปุ่มรับงาน/เข้าร่วม · ยกเลิก Ticket ใหม่ · ดูรายละเอียด ตามสิทธิ์ของผู้ดู
     ผู้แจ้งและสาขาเป็น snapshot บน Ticket (requester_name, location_name) — ไม่มีคิวรีเพิ่มต่อแถว · ผู้แจ้งแสดงชื่ออย่างเดียว
     ดำเนินการ = ปุ่มไอคอนรับงาน/เข้าร่วม (components/claim-actions แบบ compact) ตาม TicketPolicy — viewer_participating มาจาก withExists ในคิวรีเดียว
     ดูรายละเอียดเปิด modal (components/preview-modal + tickets/desk.js) ลิงก์ยังชี้หน้ารายละเอียดเต็มสำหรับเปิดแท็บใหม่/ไม่มี JS
@@ -156,10 +156,12 @@
             <tbody>
                 @foreach ($tickets as $ticket)
                     @php
-                        $status = TicketDesign::status($ticket->status);
+                        $status = TicketDesign::ticketStatus($ticket);
+                        $cancelReason = $status['label'] === 'ยกเลิก' ? $ticket->closingActivity?->body : null;
                         $when = TicketDesign::whenParts($ticket->created_at);
                         $canStart = ! $readonly && $viewer->can('start', $ticket);
                         $canJoin = ! $readonly && $viewer->can('join', $ticket) && ! $ticket->viewer_participating;
+                        $canCancel = ! $readonly && $ticket->status === \App\Models\Ticket::STATUS_NEW && $viewer->can('cancel', $ticket);
                     @endphp
                     <tr id="ticket-row-{{ $ticket->id }}" data-ticket-row="{{ $ticket->id }}">
                         <th scope="row" class="ticket-queue__ticket">
@@ -179,13 +181,25 @@
                             <time class="ticket-queue__time" datetime="{{ $ticket->created_at->toIso8601String() }}"><span>{{ $when['date'] }}</span> <span>{{ $when['time'] }}</span></time>
                         </td>
                         <td data-label="สถานะ">
-                            <span class="badge-soft {{ $status['tone'] }} ticket-status">{{ $status['label'] }}</span>
+                            <div class="ticket-queue__status-content">
+                                <span class="badge-soft {{ $status['tone'] }} ticket-status">{{ $status['label'] }}</span>
+                                @if ($cancelReason)
+                                    <span class="ticket-queue__cancel-reason">เหตุผล: {{ $cancelReason }}</span>
+                                @endif
+                            </div>
                         </td>
-                        {{-- ดำเนินการ: รับงาน/เข้าร่วม (เฉพาะคิวงาน) และดูรายละเอียด (ไอคอนรูปตา เปิด modal — data-ticket-preview) --}}
+                        {{-- ดำเนินการ: รับงาน/เข้าร่วม ยกเลิก Ticket ใหม่ และดูรายละเอียด --}}
                         <td class="ticket-queue__claim" data-label="ดำเนินการ">
                             <div class="ticket-actions ticket-queue__claim-actions">
                                 @if ($canStart || $canJoin)
                                     @include('tickets.components.claim-actions', ['compact' => true])
+                                @endif
+                                @if ($canCancel)
+                                    <button type="button" class="ticket-button ticket-button--danger ticket-button--icon ticket-actions__button"
+                                        data-bs-toggle="modal" data-bs-target="#ticket-modal-cancel-{{ $ticket->id }}"
+                                        aria-label="ยกเลิกงาน {{ $ticket->ticket_number }}" title="ยกเลิกงาน">
+                                        <i class="bi bi-x-circle" aria-hidden="true"></i>
+                                    </button>
                                 @endif
                                 <a class="ticket-queue__open" href="{{ route('tickets.show', $ticket) }}"
                                     data-ticket-preview="{{ route('tickets.preview', $ticket) }}"
@@ -198,6 +212,17 @@
                 @endforeach
             </tbody>
         </table>
+
+        @foreach ($tickets as $ticket)
+            @if (! $readonly && $ticket->status === \App\Models\Ticket::STATUS_NEW && $viewer->can('cancel', $ticket))
+                @include('tickets.components.status-modal', [
+                    'action' => \App\Models\Ticket::ACTION_CANCEL, 'modalId' => 'ticket-modal-cancel-'.$ticket->id,
+                    'queueTicketId' => $ticket->id, 'title' => 'ยกเลิกงาน '.$ticket->ticket_number,
+                    'noteLabel' => 'เหตุผลที่ยกเลิก', 'placeholder' => 'ระบุเหตุผลที่ยกเลิก Ticket นี้',
+                    'submitLabel' => 'ยืนยันยกเลิกงาน', 'tone' => 'danger', 'withDate' => false,
+                ])
+            @endif
+        @endforeach
 
         {{ $tickets->fragment('ticket-queue')->links('tickets.components.pagination') }}
     @endif

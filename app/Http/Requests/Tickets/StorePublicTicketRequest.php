@@ -4,14 +4,21 @@ namespace App\Http\Requests\Tickets;
 
 use App\Services\LineLogin;
 use App\Services\TicketSubmissionService;
+use App\Support\PublicTicketDepartments;
 use App\Support\TicketSubmissionGuard;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 /**
  * แจ้งปัญหาจากฟอร์มสาธารณะ /support — ไม่ต้องเข้าสู่ระบบ
  *
- * บังคับ ชื่อผู้แจ้ง สาขา รายละเอียด และเบอร์โทร (ตัวเลข 10 หลัก) ส่วนรหัสรีโมทและรูปไม่บังคับ
- * เบอร์โทรที่พิมพ์/วางมาพร้อมขีดหรือช่องว่างถูกตัดเหลือตัวเลขก่อนตรวจ
+ * บังคับ ชื่อผู้แจ้ง แผนก สาขา รายละเอียด และเบอร์โทร (ตัวเลข 10 หลัก) ส่วนรหัสรีโมทและรูปไม่บังคับ
+ * เบอร์โทรและรหัสรีโมทใช้กติกาชุดเดียวกับฟอร์มภายใน (TicketSubmissionRequest::sharedRules)
+ *
+ * แผนกเป็นค่าที่ผู้แจ้งเลือกเองจากรายการปิด (PublicTicketDepartments) ไม่ใช่แผนกในระบบ
+ * จึงไม่มีฟิลด์ requester_department_id ในกติกานี้ — Ticket สาธารณะมี requester_department_id
+ * เป็น null ตลอด (ดู TicketSubmissionService::submitPublic)
+ *
  * honeypot และเวลากรอกขั้นต่ำตรวจหลังกติกาปกติผ่าน (TicketSubmissionGuard)
  * เมื่อเปิดใช้ LINE Login ต้องยืนยันตัวด้วย LINE ก่อนส่ง (ตัวตนอ่านจาก session ไม่ใช่จากฟอร์ม)
  */
@@ -22,26 +29,12 @@ class StorePublicTicketRequest extends TicketSubmissionRequest
         return true;
     }
 
-    protected function prepareForValidation(): void
-    {
-        parent::prepareForValidation();
-
-        if (is_string($this->input('contact'))) {
-            $this->merge(['contact' => preg_replace('/\D+/', '', $this->input('contact'))]);
-        }
-
-        if (is_string($this->input('remote_access'))) {
-            $this->merge(['remote_access' => trim($this->input('remote_access'))]);
-        }
-    }
-
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
         return [
             'requester_name' => ['required', 'string', 'max:'.TicketSubmissionService::NAME_MAX],
-            'contact' => ['required', 'string', 'regex:'.TicketSubmissionService::PHONE_PATTERN],
-            'remote_access' => ['nullable', 'string', 'regex:'.TicketSubmissionService::REMOTE_ACCESS_PATTERN],
+            'requester_department' => ['required', Rule::in(PublicTicketDepartments::OPTIONS)],
             ...$this->sharedRules(),
         ];
     }
@@ -85,11 +78,9 @@ class StorePublicTicketRequest extends TicketSubmissionRequest
             ...parent::messages(),
             'requester_name.required' => 'กรุณาระบุชื่อผู้แจ้ง',
             'requester_name.max' => 'ชื่อผู้แจ้งยาวเกิน :max ตัวอักษร',
-            'contact.required' => 'กรุณาระบุเบอร์โทรติดต่อกลับ',
-            'contact.regex' => 'เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0',
-            'contact.string' => 'เบอร์โทรต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0',
-            'remote_access.regex' => 'กรอกเฉพาะเลข AnyDesk / รหัสรีโมท (ตัวเลข 6–20 หลัก) — ห้ามใส่รหัสผ่าน',
-            'remote_access.string' => 'กรอกเฉพาะเลข AnyDesk / รหัสรีโมท (ตัวเลข 6–20 หลัก) — ห้ามใส่รหัสผ่าน',
+            // ค่าที่ไม่อยู่ในรายการคือการแก้ HTML ไม่ใช่การพิมพ์ผิดของผู้แจ้ง จึงใช้ข้อความเดียวกัน
+            'requester_department.required' => 'กรุณาเลือกแผนก',
+            'requester_department.in' => 'กรุณาเลือกแผนก',
         ];
     }
 }

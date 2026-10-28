@@ -1,16 +1,22 @@
 {{--
     Modal แจ้งปัญหา IT แบบ 3 ขั้น — ฟอร์มจริงตัวเดียวส่งไป tickets.store (TicketController::store) ตามเดิม
-      1. ข้อมูลผู้แจ้ง (จากบัญชี อ่านอย่างเดียว)   2. สาขา/สถานที่   3. รายละเอียดและรูปภาพ
+      1. ข้อมูลผู้แจ้ง (จากบัญชี อ่านอย่างเดียว)   2. สาขา/สถานที่   3. รายละเอียด เบอร์โทร AnyDesk และรูปภาพ
     ช่องกรอกมาจาก partial ชุดเดียวกับฟอร์มหน้าเดียว (/tickets/create) และหน้าสาธารณะ
 
+    เบอร์โทรติดต่อกลับบังคับกรอกเหมือนหน้าสาธารณะ และตั้งต้นจากเบอร์ในโปรไฟล์เมื่อเป็นเบอร์มือถือ 10 หลัก
+    (TicketSubmissionService::prefillPhone) ผู้แจ้งแก้ได้ — เบอร์ที่ส่งมาคือเบอร์ที่ถูกบันทึกลง Ticket
+    ช่อง AnyDesk ใช้ dialog วิธีหาเลขตัวเดียวกับหน้าสาธารณะ ซึ่ง include ไว้นอกฟอร์มที่ tickets/landing.blade.php
+
     พฤติกรรมอยู่ใน tickets/stepper.js (ขั้นตอน, เปิดค้างหลังส่งไม่ผ่าน, ปุ่มย้อนกลับของเบราว์เซอร์)
-    และ tickets/form.js (สาขา "อื่น ๆ", รูปภาพ, กันกดส่งซ้ำ) — โหลดผ่าน tickets/index.js
+    และ tickets/form.js (สาขา "อื่น ๆ", เบอร์โทร, รูปภาพ, กันกดส่งซ้ำ, dialog วิธีหาเลข AnyDesk) — โหลดผ่าน tickets/index.js
     ไม่มี JavaScript: ปุ่มเปิดเป็นลิงก์ไป /tickets/create ซึ่งเป็นฟอร์มเดียวกันแบบหน้าเดียว
 
     พารามิเตอร์: $requester, $locations, $submissionKey
     $errors ไม่ว่างหลังส่งไม่ผ่าน → data-open-on-load ให้ stepper เปิด modal ที่ขั้นแรกที่มีข้อผิดพลาด
 --}}
 @php
+    use App\Services\TicketSubmissionService;
+
     // ตัวแปรของ loop ต้องไม่ชื่อ $label — partial ที่ include ต่อ (photo-picker, submit-button) รับ $label เป็นพารามิเตอร์
     // และ Blade ส่งตัวแปรของหน้าแม่ลงไปให้ partial ทุกตัว
     $steps = [1 => 'ข้อมูลผู้แจ้ง', 2 => 'สาขา/สถานที่', 3 => 'รายละเอียดปัญหา'];
@@ -76,7 +82,10 @@
                         <span class="ticket-step__count" aria-hidden="true">ขั้นที่ 3 จาก 3</span>
                         <h3 class="ticket-step__title" id="ticket-step-3-title" tabindex="-1">เกิดปัญหาอะไร</h3>
                     </div>
-                    @include('tickets.components.problem-fields')
+                    {{-- รูปภาพ include แยกท้ายสุด เพื่อให้ช่องติดต่อกลับอยู่ก่อนตัวเลือกรูป --}}
+                    @include('tickets.components.problem-fields', ['withPhotos' => false])
+                    @include('tickets.components.contact-fields', ['contactValue' => TicketSubmissionService::prefillPhone($requester->phone)])
+                    @include('tickets.components.photo-picker')
                 </section>
             </div>
 

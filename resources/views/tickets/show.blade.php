@@ -15,7 +15,7 @@
     use App\Models\Ticket;
     use App\Support\TicketDesign;
 
-    $status = TicketDesign::status($ticket->status);
+    $status = TicketDesign::ticketStatus($ticket);
 @endphp
 {{--
     หัว Ticket: เลข สถานะ และเวลาแจ้ง · การ์ด "รายละเอียดปัญหา" (components/problem): ปัญหาที่แจ้งและข้อเท็จจริงพร้อมไอคอน
@@ -94,6 +94,8 @@
     @if ($can['close'])
         {{-- ปิดงานแบบขั้นตอน: ผลการแก้ไข → รูปหลังแก้ไข (ไม่บังคับ) → ตรวจทาน --}}
         @include('tickets.components.close-modal')
+    @endif
+    @if ($can['cancel'])
         {{-- ยกเลิกงาน: ปิดแบบยกเลิก ต้องระบุเหตุผล (ผู้แจ้งเห็นเหตุผลในความคืบหน้า) --}}
         @include('tickets.components.status-modal', [
             'action' => Ticket::ACTION_CANCEL, 'title' => 'ยกเลิกงาน', 'noteLabel' => 'เหตุผลที่ยกเลิก',

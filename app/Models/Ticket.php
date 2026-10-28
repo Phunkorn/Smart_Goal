@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 /**
@@ -41,13 +42,13 @@ class Ticket extends Model
 
     public const ACTION_REOPEN = 'reopen';
 
-    /** ยกเลิกงาน — ปิด Ticket แบบยกเลิก (สถานะ closed เหมือนปิดงาน) ต้องมีเหตุผล · แยกจากการปิดด้วย data.action ของ activity */
+    /** ยกเลิกงาน — เก็บสถานะ closed เพื่อรักษากติกา Ticket ที่เปิดอยู่ และแยกด้วย activity ล่าสุดที่ปิดงาน */
     public const ACTION_CANCEL = 'cancel';
 
     /**
      * action => [สถานะต้นทางที่อนุญาต, สถานะปลายทาง]
      *
-     * ไม่มีทางจาก new ไป closed โดยตรง — ทุก Ticket ต้องถูกรับงานก่อนปิด
+     * ปิดงานปกติต้องรับงานก่อน ส่วนยกเลิก Ticket ใหม่ทำได้โดยเจ้าหน้าที่โดยไม่ต้องรับงาน
      *
      * @var array<string, array{from: array<int, string>, to: string}>
      */
@@ -56,7 +57,7 @@ class Ticket extends Model
         self::ACTION_FOLLOW_UP => ['from' => [self::STATUS_ACTIVE], 'to' => self::STATUS_FOLLOW_UP],
         self::ACTION_RESUME => ['from' => [self::STATUS_FOLLOW_UP], 'to' => self::STATUS_ACTIVE],
         self::ACTION_CLOSE => ['from' => [self::STATUS_ACTIVE, self::STATUS_FOLLOW_UP], 'to' => self::STATUS_CLOSED],
-        self::ACTION_CANCEL => ['from' => [self::STATUS_ACTIVE, self::STATUS_FOLLOW_UP], 'to' => self::STATUS_CLOSED],
+        self::ACTION_CANCEL => ['from' => [self::STATUS_NEW, self::STATUS_ACTIVE, self::STATUS_FOLLOW_UP], 'to' => self::STATUS_CLOSED],
         self::ACTION_REOPEN => ['from' => [self::STATUS_CLOSED], 'to' => self::STATUS_ACTIVE],
     ];
 
@@ -161,6 +162,15 @@ class Ticket extends Model
     public function activities(): HasMany
     {
         return $this->hasMany(TicketActivity::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    /** เหตุการณ์ปิดล่าสุดใช้แยก "ยกเลิก" จาก "ปิดงาน" รวมกรณีเปิดงานใหม่แล้วปิดอีกครั้ง */
+    public function closingActivity(): HasOne
+    {
+        return $this->hasOne(TicketActivity::class)
+            ->where('type', TicketActivity::TYPE_STATUS_CHANGED)
+            ->where('to_status', self::STATUS_CLOSED)
+            ->latestOfMany('id');
     }
 
     public function attachments(): HasMany
