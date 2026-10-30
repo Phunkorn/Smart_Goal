@@ -406,7 +406,7 @@ class TicketReportService
     {
         return $this->ranked($rows, function ($row): array {
             if ($row->source === Ticket::SOURCE_PUBLIC) {
-                return ['public', 'บุคคลภายนอก'];
+                return ['public', 'Smart Ticket'];
             }
 
             return [

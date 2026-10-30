@@ -21,10 +21,13 @@ class TicketPolicyTest extends TestCase
     {
         $sales = $this->department('Sales');
 
-        // [viewAny, create] — แจ้งได้เฉพาะพนักงานทั่วไปที่ไม่ใช่ Handler / หัวหน้าแผนก / admin
+        // [viewAny, create] — แจ้งได้เฉพาะพนักงานที่ไม่ใช่ Handler และไม่ได้ดูคิวของแผนกตัวเอง (admin แจ้งไม่ได้)
         foreach ([
             'user' => [$this->staff($sales), true, true],
-            'head' => [$this->staff($sales, head: true), true, false],
+            // แผนกไม่ได้รับผิดชอบ Ticket — หัวหน้าแผนกเป็นผู้แจ้งเหมือนพนักงานทั่วไป
+            'head' => [$this->staff($sales, head: true), true, true],
+            // แผนกรับผิดชอบ Ticket แต่ถูกปิดสิทธิ์ Handler รายคน — ดูรายการของแผนกแทน จึงแจ้งเองไม่ได้
+            'overseeing head' => [$this->overseeingHead($this->overseenDepartment('IT Helpdesk')), true, false],
             'admin' => [$this->staff($sales, role: 'admin'), true, false],
             'agent (by department)' => [$this->agent(), true, false],
             'agent head' => [$this->staff($this->itDepartment(), head: true), true, false],

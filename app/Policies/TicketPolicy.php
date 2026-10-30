@@ -15,13 +15,15 @@ use Illuminate\Auth\Access\Response;
  *   - viewer / บัญชีปิดใช้งาน: ไม่เห็นอะไรเลย
  *   - admin และ agent: ทุกใบ
  *   - พนักงาน: ใบที่ตัวเองแจ้ง (อ่านอย่างเดียวผ่าน modal ใน /tickets)
- *   - หัวหน้าแผนก: ใบที่ตัวเองแจ้ง + ใบที่สมาชิกแผนกตัวเองแจ้ง (อ่านอย่างเดียว)
+ *   - หัวหน้าแผนกของแผนกที่รับผิดชอบ Ticket (TicketAgentAccess::seesDepartmentTickets):
+ *     ใบที่ตัวเองแจ้ง + ใบที่สมาชิกแผนกตัวเองแจ้ง (อ่านอย่างเดียว)
+ *     หัวหน้าแผนกที่แผนกไม่ได้จัดการ Ticket เป็นผู้แจ้งธรรมดา — เห็นเฉพาะใบที่ตัวเองแจ้ง
  *     อ้างอิงแผนกจาก snapshot requester_department_id ตอนแจ้ง ไม่ใช่แผนกปัจจุบันของผู้แจ้ง
  *     Ticket จากฟอร์มสาธารณะไม่มีแผนก หัวหน้าแผนกจึงไม่เห็น
  *
  * แยกหน้าที่ผู้แจ้ง (Reporter) กับผู้รับงาน (Handler) เด็ดขาด
  * ---------------------------------------------------------------
- *   - แจ้ง Ticket: TicketAgentAccess::canReport — พนักงานทั่วไปเท่านั้น (Handler / หัวหน้าแผนก / admin แจ้งไม่ได้)
+ *   - แจ้ง Ticket: TicketAgentAccess::canReport — พนักงานที่ไม่ใช่ Handler และไม่ได้ดูคิวของแผนก (admin แจ้งไม่ได้)
  *   - Handler จัดการ Ticket ที่ตัวเองเป็นผู้แจ้งไม่ได้ (handles()) — เช่นผู้ที่มีเคสค้างก่อนถูกตั้งเป็น Handler
  *     ยกเว้น "ออกจาก Ticket" ที่ยังทำได้ เพื่อถอนตัวจากเคสเดิม
  *   - viewInternal: บันทึกการดำเนินงาน รูปของบันทึก และหน้ารายละเอียดเต็ม — เฉพาะผู้ที่เห็นคิวงาน (admin / Handler)
@@ -69,6 +71,7 @@ class TicketPolicy
         }
 
         return $ticket->requester_department_id !== null
+            && TicketAgentAccess::seesDepartmentTickets($user)
             && $user->overseesDepartment($ticket->requester_department_id);
     }
 

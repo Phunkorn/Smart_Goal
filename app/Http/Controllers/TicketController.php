@@ -38,7 +38,7 @@ class TicketController extends Controller
     /**
      * หน้าเดียวกัน สามประสบการณ์ ตามความสามารถจริงของบัญชี (ไม่ใช่ชื่อแผนก):
      * - เห็น Ticket ทั้งหมด (admin / Handler) → คิวงานของทีม IT (ไม่มีปุ่มแจ้งปัญหา)
-     * - หัวหน้าแผนกที่ไม่ใช่ Handler → รายการ Ticket ของแผนกแบบอ่านอย่างเดียว
+     * - หัวหน้าแผนกของแผนกที่รับผิดชอบ Ticket แต่ไม่ใช่ Handler → รายการ Ticket ของแผนกแบบอ่านอย่างเดียว
      * - ผู้แจ้ง → การ์ดสถานะ Ticket ของตัวเอง (แจ้งได้เมื่อไม่มีใบที่ยังไม่ปิด)
      * ?ticket={id} เปิด modal อ่านอย่างเดียวของใบนั้นเมื่อ TicketPolicy::view อนุญาต (ลิงก์แจ้งเตือน / redirect จาก show)
      */
@@ -58,7 +58,7 @@ class TicketController extends Controller
             ]);
         }
 
-        if ($user->isDepartmentHead()) {
+        if (TicketAgentAccess::seesDepartmentTickets($user)) {
             $list = $this->listData($request, $tickets, $user);
 
             // รายการแผนกไม่มีการ์ดภาพรวม (ตัวเลขทั้งระบบ) จึงกรองสถานะด้วยแท็บที่นับตามขอบเขตของแผนก

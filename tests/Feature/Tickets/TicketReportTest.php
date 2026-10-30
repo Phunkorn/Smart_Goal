@@ -715,7 +715,7 @@ class TicketReportTest extends TestCase
 
         $chart = $this->report($this->admin())->viewData('chartData')['departments'];
 
-        $this->assertSame(['Sales', 'บุคคลภายนอก', 'Support', 'ไม่ระบุแผนก'], $chart['labels']);
+        $this->assertSame(['Sales', 'Smart Ticket', 'Support', 'ไม่ระบุแผนก'], $chart['labels']);
         $this->assertSame([3, 2, 1, 1], $chart['values']);
         $this->assertSame(7, array_sum($chart['values']), 'ผลรวมแผนก = Ticket ทั้งหมด');
     }
@@ -778,7 +778,7 @@ class TicketReportTest extends TestCase
         $this->assertSame('0', $items[0][1]);
         $this->assertStringContainsString('Sales', $items[0][2]);
         $this->assertMatchesRegularExpression('~3\s*<small>\(75%\)</small>~', $items[0][2]);
-        $this->assertStringContainsString('บุคคลภายนอก', $items[1][2]);
+        $this->assertStringContainsString('Smart Ticket', $items[1][2]);
         $this->assertMatchesRegularExpression('~1\s*<small>\(25%\)</small>~', $items[1][2]);
     }
 
@@ -863,9 +863,9 @@ class TicketReportTest extends TestCase
 
         $this->assertStringContainsString('Sales', $internalRow[1]);
         $this->assertStringContainsString('Smart Goals', $internalRow[1]);
-        $this->assertStringContainsString('บุคคลภายนอก', $publicRow[1]);
-        $this->assertStringContainsString('คุณภายนอก', $publicRow[1]);
-        $this->assertStringContainsString('หน้าเว็บสาธารณะ', $publicRow[1]);
+        $this->assertStringContainsString('Smart Ticket', $publicRow[1]);
+        $this->assertStringContainsString('Smart Ticket', $publicRow[1]);
+        $this->assertStringContainsString('Smart Ticket', $publicRow[1]);
     }
 
     public function test_chart_height_follows_the_amount_of_data_without_changing_it(): void

@@ -165,9 +165,9 @@ class TicketDeskPageTest extends TestCase
 
     public function test_the_department_list_keeps_its_status_tabs_because_it_has_no_overview(): void
     {
-        $sales = $this->department('Sales');
-        $head = $this->staff($sales, head: true);
-        $this->ticketFrom($this->staff($sales));
+        $sales = $this->overseenDepartment('Sales');
+        $head = $this->overseeingHead($sales);
+        $this->ticketFrom($this->reporterIn($sales));
 
         $this->actingAs($head)->get(route('tickets.index'))
             ->assertOk()
@@ -240,7 +240,7 @@ class TicketDeskPageTest extends TestCase
         $this->travelTo(Carbon::parse('2026-10-15 07:30:00', 'UTC'));
 
         // คิวงานและรายการของหัวหน้าแผนกใช้ป้ายเวลาชุดเดียวกัน (components/desk-stamp) ไม่มีปุ่มรีเฟรช — desk.js โหลดใหม่เอง
-        $head = $this->staff($this->department('Sales'), head: true);
+        $head = $this->overseeingHead($this->overseenDepartment('Sales'));
         $this->actingAs($head)->get(route('tickets.index'))->assertOk()
             ->assertSee('อัปเดตอัตโนมัติ · ข้อมูล ณ <time datetime="2026-10-15T07:30:00+00:00">', false)
             ->assertDontSee('data-ticket-refresh', false)

@@ -87,7 +87,8 @@ final class TicketAgentAccess
      *
      * พนักงานทั่วไป (role user) ที่ไม่ใช่ Handler และไม่ใช่หัวหน้าแผนก
      *   - Handler (isAgent: override รายคนของ admin > แผนกที่รับผิดชอบ) แจ้งไม่ได้ ไม่ว่าเป็นหัวหน้าแผนกหรือไม่
-     *   - หัวหน้าแผนก (User::isDepartmentHead) แจ้งไม่ได้แม้ไม่ใช่ Handler — ดู Ticket ของแผนกแบบอ่านอย่างเดียวแทน
+     *   - หัวหน้าแผนกของแผนกที่รับผิดชอบ Ticket (seesDepartmentTickets) แจ้งไม่ได้ — ดูรายการของแผนกแบบอ่านอย่างเดียวแทน
+     *   - หัวหน้าแผนกอื่น (แผนกไม่ได้รับผิดชอบ Ticket) แจ้งได้เหมือนพนักงานทั่วไป — แผนกนั้นไม่ได้จัดการ Ticket
      *   - admin แจ้งไม่ได้ (ดูทั้งหมดและตั้งค่า แต่ไม่ใช่ผู้แจ้ง)
      * อ่านจากฐานข้อมูลทุกคำขอ admin เปลี่ยนสิทธิ์แล้วมีผลทันที — ไม่แตะ Ticket เดิมของบัญชีนั้น
      */
@@ -95,8 +96,29 @@ final class TicketAgentAccess
     {
         return self::isStaff($user)
             && $user->role === 'user'
-            && ! $user->isDepartmentHead()
+            && ! self::seesDepartmentTickets($user)
             && ! self::isAgent($user);
+    }
+
+    /**
+     * เห็นรายการ Ticket ของแผนกตัวเองแบบอ่านอย่างเดียว (ticket-queue panel ของหัวหน้าแผนก)
+     *
+     * เฉพาะหัวหน้าแผนกที่ "แผนกของตัวเองรับผิดชอบ Ticket" (departments.ticket_responsible)
+     * หัวหน้าแผนกที่แผนกไม่ได้จัดการ Ticket (เช่น การตลาด) ไม่มีส่วนเกี่ยวข้องกับคิวงาน
+     * จึงเป็นผู้แจ้งธรรมดา — ไม่เห็นเมนู/หน้ารายการของแผนก และไม่เห็นใบของสมาชิกแผนก
+     *
+     * ตามปกติหัวหน้าแผนกที่รับผิดชอบ Ticket จะเป็น agent อยู่แล้วและเห็นทั้งหมด (seesAllTickets)
+     * ที่เหลือคือกรณีที่ admin ปิดสิทธิ์ Handler รายคนไว้ — ยังดูของแผนกตัวเองได้
+     */
+    public static function seesDepartmentTickets(?User $user): bool
+    {
+        if (! self::isStaff($user) || ! $user->isDepartmentHead()) {
+            return false;
+        }
+
+        $user->loadMissing('department');
+
+        return (bool) $user->department?->ticket_responsible;
     }
 
     /** เห็น Ticket ทุกใบ: admin และ agent */

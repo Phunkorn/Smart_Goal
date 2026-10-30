@@ -47,6 +47,45 @@ trait BuildsTickets
         return $this->staff($department ?? $this->itDepartment());
     }
 
+    /**
+     * แผนกที่ "หัวหน้ายังดูคิวของแผนกตัวเองได้" หลังกติกาใหม่
+     *
+     * TicketAgentAccess::seesDepartmentTickets ให้หน้ารายการของแผนกเฉพาะหัวหน้าของแผนกที่
+     * รับผิดชอบ Ticket (departments.ticket_responsible) หัวหน้าแผนกที่ไม่ได้จัดการ Ticket
+     * เป็นผู้แจ้งธรรมดา ใช้คู่กับ reporterIn()/overseeingHead() ที่ปิดสิทธิ์ Handler รายคน
+     * ให้คนในแผนกยังเป็นผู้แจ้ง/ผู้ดูแลแบบอ่านอย่างเดียวเหมือนเดิม
+     */
+    protected function overseenDepartment(string $name = 'Sales'): Department
+    {
+        return $this->department($name, responsible: true);
+    }
+
+    /** พนักงานผู้แจ้งในแผนกนั้น — ปิดสิทธิ์ Handler รายคนเมื่อแผนกรับผิดชอบ Ticket จึงยังแจ้งได้ */
+    protected function reporterIn(Department $department): User
+    {
+        $user = $this->staff($department);
+
+        if ($department->ticket_responsible) {
+            $this->override($user, false);
+            $user->unsetRelation('ticketAgent');
+        }
+
+        return $user;
+    }
+
+    /** หัวหน้าแผนกที่เห็นรายการ Ticket ของแผนกตัวเองแบบอ่านอย่างเดียว (ไม่ใช่ Handler) */
+    protected function overseeingHead(Department $department): User
+    {
+        $head = $this->staff($department, head: true);
+
+        if ($department->ticket_responsible) {
+            $this->override($head, false);
+            $head->unsetRelation('ticketAgent');
+        }
+
+        return $head;
+    }
+
     protected function override(User $user, bool $enabled, bool $alerts = true): TicketAgent
     {
         return TicketAgent::query()->forceCreate([

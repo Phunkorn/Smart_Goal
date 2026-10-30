@@ -37,7 +37,7 @@ final class TicketDesign
     /** ช่องทางที่แจ้ง (tickets.source) — ใช้ทั้งคิวงานและรายงาน */
     private const SOURCES = [
         Ticket::SOURCE_INTERNAL => ['label' => 'Smart Goals', 'icon' => 'bi-building'],
-        Ticket::SOURCE_PUBLIC => ['label' => 'หน้าเว็บสาธารณะ', 'icon' => 'bi-globe2'],
+        Ticket::SOURCE_PUBLIC => ['label' => 'Smart Ticket', 'icon' => 'bi-globe2'],
     ];
 
     /** @return array<string, array{label: string, tone: string, icon: string}> */

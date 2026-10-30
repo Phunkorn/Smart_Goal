@@ -56,9 +56,9 @@ class TicketCloseStepsTest extends TestCase
 
     public function test_after_fix_photos_belong_to_the_close_activity_and_stay_internal(): void
     {
-        $sales = $this->department('Sales');
-        $reporter = $this->staff($sales);
-        $head = $this->staff($sales, head: true);
+        $sales = $this->overseenDepartment('Sales');
+        $reporter = $this->reporterIn($sales);
+        $head = $this->overseeingHead($sales);
         $agent = $this->agent();
         $ticket = $this->startedBy($agent, $this->ticketFrom($reporter));
 

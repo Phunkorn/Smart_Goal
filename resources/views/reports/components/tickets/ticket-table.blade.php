@@ -100,7 +100,7 @@
                         {{-- เซลล์ที่มีข้อมูลรองห่อเป็นก้อนเดียว: โหมดการ์ดจัดเป็นสองคอลัมน์ (ป้าย | ค่า) --}}
                         <td data-label="แผนก/หน่วยงาน">
                             <div class="ticket-report__stack">
-                                {{ $ticket->source === Ticket::SOURCE_PUBLIC ? 'บุคคลภายนอก' : ($ticket->requester_department_name ?? 'ไม่ระบุแผนก') }}
+                                {{ $ticket->source === Ticket::SOURCE_PUBLIC ? 'Smart Ticket' : ($ticket->requester_department_name ?? 'ไม่ระบุแผนก') }}
                                 <small class="ticket-report__muted">{{ $ticket->location_name }}</small>
                             </div>
                         </td>

@@ -55,7 +55,7 @@ class TicketQueryService
             $scope->where('requester_id', $user->id);
 
             // ตรงกับ User::overseesDepartment() ที่ policy ใช้ — อ่านแผนกจาก snapshot ตอนแจ้ง
-            if ($user->isDepartmentHead()) {
+            if (TicketAgentAccess::seesDepartmentTickets($user)) {
                 $scope->orWhere('requester_department_id', $user->department_id);
             }
         });
@@ -74,11 +74,11 @@ class TicketQueryService
             $options[self::SCOPE_PARTICIPATING] = 'ที่ฉันเข้าร่วม';
         }
 
-        if (TicketAgentAccess::seesAllTickets($user) || $user->isDepartmentHead()) {
+        if (TicketAgentAccess::seesAllTickets($user) || TicketAgentAccess::seesDepartmentTickets($user)) {
             $options[self::SCOPE_REQUESTED] = 'ที่ฉันแจ้ง';
         }
 
-        if ($user->isDepartmentHead()) {
+        if (TicketAgentAccess::seesDepartmentTickets($user)) {
             $options[self::SCOPE_DEPARTMENT] = 'ของแผนกฉัน';
         }
 

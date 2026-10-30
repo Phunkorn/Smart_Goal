@@ -31,15 +31,20 @@ class TicketVisibilityTest extends TestCase
     {
         parent::setUp();
 
-        $sales = $this->department('Sales');
-        $hr = $this->department('HR');
+        // แผนกที่รับผิดชอบ Ticket — หัวหน้าของแผนกเท่านั้นที่ยังดูใบของลูกทีมได้ (TicketAgentAccess::seesDepartmentTickets)
+        $sales = $this->overseenDepartment('Sales');
+        $hr = $this->overseenDepartment('HR');
+        $marketing = $this->department('Marketing');
 
         $this->people = [
-            'salesHead' => $this->staff($sales, head: true),
-            'salesMember' => $this->staff($sales),
-            'salesColleague' => $this->staff($sales),
-            'hrHead' => $this->staff($hr, head: true),
-            'hrMember' => $this->staff($hr),
+            'salesHead' => $this->overseeingHead($sales),
+            'salesMember' => $this->reporterIn($sales),
+            'salesColleague' => $this->reporterIn($sales),
+            'hrHead' => $this->overseeingHead($hr),
+            'hrMember' => $this->reporterIn($hr),
+            // หัวหน้าแผนกที่แผนกไม่ได้จัดการ Ticket — ผู้แจ้งธรรมดา
+            'marketingHead' => $this->staff($marketing, head: true),
+            'marketingMember' => $this->staff($marketing),
             'agent' => $this->agent(),
             'admin' => $this->staff($this->department('Management'), role: 'admin'),
             'viewer' => $this->staff($sales, role: 'viewer'),
@@ -48,6 +53,7 @@ class TicketVisibilityTest extends TestCase
 
         $this->tickets = [
             'bySalesMember' => $this->ticketFrom($this->people['salesMember']),
+            'byMarketingMember' => $this->ticketFrom($this->people['marketingMember']),
             'bySalesColleague' => $this->ticketFrom($this->people['salesColleague']),
             // หัวหน้าแผนกแจ้งเองไม่ได้แล้ว — ใบนี้คือใบที่แจ้งไว้ก่อนได้เป็นหัวหน้า
             'bySalesHead' => $this->ticketFromBeforeRoleChange($this->people['salesHead']),
@@ -65,6 +71,22 @@ class TicketVisibilityTest extends TestCase
     {
         $this->assertVisible('salesHead', ['bySalesMember', 'bySalesColleague', 'bySalesHead']);
         $this->assertVisible('hrHead', ['byHrMember']);
+    }
+
+    /**
+     * หัวหน้าแผนกที่แผนกไม่ได้รับผิดชอบ Ticket เป็นผู้แจ้งธรรมดา
+     * เห็นเฉพาะใบของตัวเอง ไม่เห็นใบของลูกทีม (และไม่มีหน้ารายการของแผนก)
+     */
+    public function test_a_head_of_a_department_that_does_not_handle_tickets_sees_only_their_own(): void
+    {
+        $head = $this->people['marketingHead'];
+
+        $this->assertVisible('marketingHead', []);
+        $this->assertFalse(Gate::forUser($head)->allows('view', $this->tickets['byMarketingMember']));
+        $this->assertTrue(Gate::forUser($head)->allows('create', Ticket::class));
+
+        $own = $this->ticketFrom($head, 'จอของหัวหน้าการตลาดดับ');
+        $this->assertTrue(Gate::forUser($head->fresh())->allows('view', $own));
     }
 
     public function test_a_department_head_cannot_open_another_departments_ticket(): void

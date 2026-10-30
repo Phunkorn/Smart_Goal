@@ -30,7 +30,7 @@ class TicketAttachmentAccessTest extends TestCase
         parent::setUp();
         Storage::fake('local');
 
-        $this->requester = $this->staff($this->department('Sales'));
+        $this->requester = $this->reporterIn($this->overseenDepartment('Sales'));
         $this->ticket = app(TicketSubmissionService::class)->submitInternal(
             $this->requester,
             $this->internalForm(['location_id' => null]),
@@ -45,7 +45,7 @@ class TicketAttachmentAccessTest extends TestCase
 
         foreach ([
             'requester' => $this->requester,
-            'department head' => $this->staff($sales, head: true),
+            'department head' => $this->overseeingHead($sales),
             'agent' => $this->agent(),
             'admin' => $this->staff($this->department('Management'), role: 'admin'),
         ] as $who => $user) {
@@ -59,7 +59,7 @@ class TicketAttachmentAccessTest extends TestCase
     public function test_everyone_else_is_refused(): void
     {
         foreach ([
-            'colleague' => $this->staff($this->requester->department),
+            'colleague' => $this->reporterIn($this->requester->department),
             'other department head' => $this->staff($this->department('HR'), head: true),
             'viewer' => $this->staff($this->requester->department, role: 'viewer'),
         ] as $who => $user) {

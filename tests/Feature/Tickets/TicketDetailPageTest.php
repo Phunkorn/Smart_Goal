@@ -21,8 +21,8 @@ class TicketDetailPageTest extends TestCase
 
     public function test_who_can_open_a_ticket_page(): void
     {
-        $sales = $this->department('Sales');
-        $requester = $this->staff($sales);
+        $sales = $this->overseenDepartment('Sales');
+        $requester = $this->reporterIn($sales);
         $ticket = $this->ticketFrom($requester);
         $url = route('tickets.show', $ticket);
 
@@ -33,10 +33,10 @@ class TicketDetailPageTest extends TestCase
         $back = route('tickets.index', ['ticket' => $ticket->id]);
         foreach ([
             'requester' => [$requester, 302],
-            'same department head' => [$this->staff($sales, head: true), 302],
+            'same department head' => [$this->overseeingHead($sales), 302],
             'agent' => [$this->agent(), 200],
             'admin' => [$this->staff($this->department('Management'), role: 'admin'), 200],
-            'colleague' => [$this->staff($sales), 403],
+            'colleague' => [$this->reporterIn($sales), 403],
             'other department head' => [$this->staff($this->department('HR'), head: true), 403],
             'viewer' => [$this->staff($sales, role: 'viewer'), 403],
         ] as $who => [$user, $status]) {
@@ -49,13 +49,13 @@ class TicketDetailPageTest extends TestCase
 
     public function test_read_only_viewers_of_a_ticket_see_no_action_buttons(): void
     {
-        $sales = $this->department('Sales');
-        $ticket = $this->ticketFrom($this->staff($sales));
+        $sales = $this->overseenDepartment('Sales');
+        $ticket = $this->ticketFrom($this->reporterIn($sales));
 
         // admin (ไม่ใช่ Handler) เปิดหน้ารายละเอียดเต็มได้แต่ไม่มีปุ่ม · หัวหน้าแผนกเห็นผ่าน modal อ่านอย่างเดียว
         $pages = [
             'admin' => $this->actingAs($this->staff($this->department('Management'), role: 'admin'))->get(route('tickets.show', $ticket))->assertOk(),
-            'department head' => $this->actingAs($this->staff($sales, head: true))->get(route('tickets.preview', $ticket))->assertOk()
+            'department head' => $this->actingAs($this->overseeingHead($sales))->get(route('tickets.preview', $ticket))->assertOk()
                 ->assertViewIs('tickets.components.readonly-preview'),
         ];
         foreach ($pages as $who => $page) {

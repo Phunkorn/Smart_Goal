@@ -68,9 +68,29 @@ class TicketLandingPageTest extends TestCase
         $this->assertMatchesRegularExpression('~<textarea id="ticket-description" name="description"[^>]*\srequired~s', $html);
     }
 
+    /**
+     * หัวหน้าแผนกที่แผนกไม่ได้รับผิดชอบ Ticket (เช่น หัวหน้าการตลาด) ไม่เกี่ยวกับคิวงานเลย
+     * จึงได้หน้าของผู้แจ้งเหมือนพนักงานทั่วไป ไม่ใช่รายการ Ticket ของแผนก
+     */
+    public function test_a_head_of_a_department_that_does_not_handle_tickets_gets_the_reporter_page(): void
+    {
+        $marketing = $this->department('Marketing');
+        $head = $this->staff($marketing, head: true);
+        $this->ticketFrom($this->staff($marketing), 'ปัญหาของลูกทีมการตลาด');
+
+        $this->actingAs($head)->get(route('tickets.index'))->assertOk()
+            ->assertViewIs('tickets.landing')
+            ->assertSee('ticket-reporter__card', false)
+            ->assertSee('id="ticket-submit-modal"', false)
+            // ไม่มีคิวงาน/รายการของแผนก และไม่เห็นใบของลูกทีม
+            ->assertDontSee('data-ticket-queue-results', false)
+            ->assertDontSee('ปัญหาของลูกทีมการตลาด');
+        $this->actingAs($head)->get(route('tickets.create'))->assertOk();
+    }
+
     public function test_department_heads_who_are_not_agents_get_the_department_list_and_no_report_button(): void
     {
-        $head = $this->staff($this->department('Sales'), head: true);
+        $head = $this->overseeingHead($this->overseenDepartment('Sales'));
 
         $this->actingAs($head)->get(route('tickets.index'))->assertOk()->assertViewIs('tickets.department')
             ->assertDontSee('data-ticket-open-modal', false)

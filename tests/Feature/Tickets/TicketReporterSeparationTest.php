@@ -188,7 +188,8 @@ class TicketReporterSeparationTest extends TestCase
             'IT staff (department handler)' => $this->staff($it),
             'IT head (handler)' => $this->staff($it, head: true),
             'handler by override' => tap($this->staff($this->department('Sales')), fn ($user) => $this->override($user, enabled: true)),
-            'department head (not handler)' => $this->staff($this->department('HR'), head: true),
+            // หัวหน้าแผนกที่ดูคิวของแผนกตัวเอง (แผนกรับผิดชอบ Ticket แต่ถูกปิดสิทธิ์ Handler รายคน)
+            'overseeing head (not handler)' => $this->overseeingHead($this->overseenDepartment('IT Helpdesk')),
             'admin (not handler)' => $this->staff($this->department('Management'), role: 'admin'),
         ] as $who => $user) {
             $user = $user->fresh();
@@ -249,9 +250,9 @@ class TicketReporterSeparationTest extends TestCase
     {
         Storage::fake('local');
         $agent = $this->agent();
-        $sales = $this->department('Sales');
-        $reporter = $this->staff($sales);
-        $head = $this->staff($sales, head: true);
+        $sales = $this->overseenDepartment('Sales');
+        $reporter = $this->reporterIn($sales);
+        $head = $this->overseeingHead($sales);
         $ticket = $this->startedBy($agent, $this->ticketFrom($reporter));
         app(TicketNoteService::class)->add($ticket, $agent, 'บันทึกภายใน: รหัสเราเตอร์ชั้น 3', [$this->photo('note.jpg')]);
         $notePhoto = TicketAttachment::query()->whereNotNull('ticket_activity_id')->sole();
@@ -282,9 +283,9 @@ class TicketReporterSeparationTest extends TestCase
     public function test_the_requesters_own_modal_hides_facts_they_already_know_but_others_keep_them(): void
     {
         $agent = $this->agent();
-        $sales = $this->department('Sales');
-        $reporter = $this->staff($sales);
-        $head = $this->staff($sales, head: true);
+        $sales = $this->overseenDepartment('Sales');
+        $reporter = $this->reporterIn($sales);
+        $head = $this->overseeingHead($sales);
         $ticket = $this->ticketFrom($reporter, 'อินเทอร์เน็ตหลุดบ่อย');
         $this->transition($this->startedBy($agent, $ticket), Ticket::ACTION_CLOSE, $agent, ['note' => 'เปลี่ยนสายแลนแล้ว']);
 
@@ -330,9 +331,9 @@ class TicketReporterSeparationTest extends TestCase
     public function test_the_requester_sees_who_is_responsible_with_avatars_and_the_head_does_not(): void
     {
         Storage::fake('public');
-        $sales = $this->department('Sales');
-        $reporter = $this->staff($sales);
-        $head = $this->staff($sales, head: true);
+        $sales = $this->overseenDepartment('Sales');
+        $reporter = $this->reporterIn($sales);
+        $head = $this->overseeingHead($sales);
         $lead = $this->agent();
         $helper = $this->agent();
         $leaver = $this->agent();

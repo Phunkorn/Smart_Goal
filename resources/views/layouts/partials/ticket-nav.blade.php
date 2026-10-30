@@ -5,7 +5,8 @@
       เห็น Ticket ทั้งหมด (TicketAgentAccess::seesAllTickets)
         - Handler (isAgent)          → "จัดการ Ticket" + ป้าย Ticket ที่รอรับงาน (AppServiceProvider คำนวณเฉพาะ agent)
         - admin ที่ไม่ใช่ Handler      → "Ticket ทั้งหมด" (อ่านอย่างเดียว)
-      หัวหน้าแผนกที่ไม่ใช่ Handler      → "Ticket ของแผนก" (อ่านอย่างเดียว)
+      หัวหน้าแผนกของแผนกที่รับผิดชอบ Ticket แต่ไม่ใช่ Handler → "Ticket ของแผนก" (อ่านอย่างเดียว)
+      หัวหน้าแผนกที่แผนกไม่ได้จัดการ Ticket → "แจ้งปัญหา IT" เหมือนพนักงานทั่วไป
       ผู้แจ้ง (TicketPolicy::create)   → "แจ้งปัญหา IT"
 
     รายงานแจ้งปัญหาอยู่ในกลุ่ม "รายงาน" (layouts/partials/report-nav) ร่วมกับรายงานอื่น
@@ -19,7 +20,7 @@
         $ticketLabel = match (true) {
             \App\Support\TicketAgentAccess::isAgent($ticketUser) => 'จัดการ Ticket',
             \App\Support\TicketAgentAccess::seesAllTickets($ticketUser) => 'Ticket ทั้งหมด',
-            $ticketUser->isDepartmentHead() => 'Ticket ของแผนก',
+            \App\Support\TicketAgentAccess::seesDepartmentTickets($ticketUser) => 'Ticket ของแผนก',
             $ticketUser->can('create', \App\Models\Ticket::class) => 'แจ้งปัญหา IT',
             default => null,
         };

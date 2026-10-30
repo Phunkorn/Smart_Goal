@@ -12,7 +12,8 @@
 
 @section('content')
 {{--
-    หัวหน้าแผนกที่ไม่ใช่ Handler — Ticket ของแผนกแบบอ่านอย่างเดียว (TicketController::index)
+    หัวหน้าแผนกของแผนกที่รับผิดชอบ Ticket แต่ไม่ใช่ Handler — Ticket ของแผนกแบบอ่านอย่างเดียว (TicketController::index)
+    หัวหน้าแผนกที่แผนกไม่ได้จัดการ Ticket ไม่เห็นหน้านี้ — เป็นผู้แจ้งเหมือนพนักงานทั่วไป (TicketAgentAccess::seesDepartmentTickets)
 
     ขอบเขตคือกติกาเดิม TicketQueryService::visibleTo() = TicketPolicy::view() (ใบที่ตัวเองแจ้ง + ใบที่สมาชิกแผนกแจ้ง
     อ้างอิงแผนกจาก snapshot ตอนแจ้ง) ตัวกรองและการแบ่งหน้าเป็นชุดเดียวกับคิวงาน (components/queue แบบ readonly)

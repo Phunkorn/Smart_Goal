@@ -32,11 +32,11 @@ class TicketListPageTest extends TestCase
 
     public function test_each_role_lists_exactly_what_it_may_open(): void
     {
-        $sales = $this->department('Sales');
+        $sales = $this->overseenDepartment('Sales');
         $hr = $this->department('HR');
-        $member = $this->staff($sales);
-        $colleague = $this->staff($sales);
-        $salesHead = $this->staff($sales, head: true);
+        $member = $this->reporterIn($sales);
+        $colleague = $this->reporterIn($sales);
+        $salesHead = $this->overseeingHead($sales);
         $hrMember = $this->staff($hr);
 
         $mine = $this->ticketFrom($member, 'ปัญหาของสมาชิกฝ่ายขาย');
@@ -218,11 +218,11 @@ class TicketListPageTest extends TestCase
         // แผนกที่ผู้แจ้งเลือกเองบนฟอร์ม /support ขึ้นที่หน้ารายละเอียด แทนคำว่าบุคคลภายนอก
         $this->actingAs($agent)->get(route('tickets.show', $ticket))
             ->assertSee('Callcenter')
-            ->assertDontSee('บุคคลภายนอก');
+            ->assertDontSee('Smart Ticket');
 
         // Ticket สาธารณะที่แจ้งไว้ก่อนมีช่องแผนก (ค่าว่าง) ยังขึ้นว่าเป็นบุคคลภายนอกตามเดิม
         $ticket->forceFill(['requester_department_name' => null])->save();
-        $this->actingAs($agent)->get(route('tickets.show', $ticket))->assertSee('บุคคลภายนอก');
+        $this->actingAs($agent)->get(route('tickets.show', $ticket))->assertSee('Smart Ticket');
     }
 
     public function test_search_status_location_and_scope_filters(): void
@@ -249,16 +249,16 @@ class TicketListPageTest extends TestCase
      */
     public function test_department_heads_can_narrow_to_their_department_and_unknown_values_are_ignored(): void
     {
-        $sales = $this->department('Sales');
-        $head = $this->staff($sales, head: true);
+        $sales = $this->overseenDepartment('Sales');
+        $head = $this->overseeingHead($sales);
         $own = $this->ticketFromBeforeRoleChange($head, 'ปัญหาของหัวหน้าเอง');
-        $team = $this->ticketFrom($this->staff($sales), 'ปัญหาของลูกทีม');
+        $team = $this->ticketFrom($this->reporterIn($sales), 'ปัญหาของลูกทีม');
 
         $this->assertVisible($head, [$own, $team], [], ['scope' => TicketQueryService::SCOPE_DEPARTMENT]);
         $this->assertVisible($head, [$own], [$team], ['scope' => TicketQueryService::SCOPE_REQUESTED]);
 
         // พนักงานทั่วไปส่ง scope ที่ตัวเองไม่มีสิทธิ์เลือก — ถูกทิ้ง ไม่ขยายขอบเขต
-        $member = $this->staff($sales);
+        $member = $this->reporterIn($sales);
         $mine = $this->ticketFrom($member, 'ของพนักงานเอง');
         $this->assertSame(
             ['q' => '', 'status' => '', 'location' => '', 'scope' => '', 'day' => ''],

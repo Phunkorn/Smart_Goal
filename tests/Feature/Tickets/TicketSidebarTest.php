@@ -93,7 +93,9 @@ class TicketSidebarTest extends TestCase
 
         foreach ([
             'employee' => [$this->staff($sales), route('mytasks.index'), 'แจ้งปัญหา IT', false],
-            'department head' => [$this->staff($sales, head: true), route('mytasks.index'), 'Ticket ของแผนก', false],
+            // หัวหน้าแผนกที่แผนกไม่ได้จัดการ Ticket — เป็นผู้แจ้ง ไม่เห็นเมนู/หน้ารายการของแผนก
+            'department head (department does not handle tickets)' => [$this->staff($sales, head: true), route('mytasks.index'), 'แจ้งปัญหา IT', false],
+            'overseeing head' => [$this->overseeingHead($this->overseenDepartment('IT Helpdesk')), route('mytasks.index'), 'Ticket ของแผนก', false],
             'agent' => [$this->agent(), route('mytasks.index'), 'จัดการ Ticket', true],
             'agent head' => [$this->staff($this->itDepartment(), head: true), route('mytasks.index'), 'จัดการ Ticket', true],
             'handler by override' => [$handlerOverride->fresh(), route('mytasks.index'), 'จัดการ Ticket', true],
