@@ -546,7 +546,7 @@
         </div>
 
         <footer class="task-workspace__footer">
-            <p class="task-workspace__hint"><i class="bi bi-info-circle" aria-hidden="true"></i> การเปลี่ยนแปลงจะถูกบันทึกเมื่อกดปุ่มบันทึก</p>
+            <p class="task-workspace__hint"> </p>
             <div class="task-workspace__actions">
                 <button type="button" class="task-secondary" data-review-return hidden>ส่งกลับแก้ไข</button>
                 <button type="button" class="notion-primary" data-review-approve hidden>อนุมัติและปิดงาน</button>

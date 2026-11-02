@@ -9,52 +9,65 @@
     CSS/JS ของกล่องนี้โหลดที่ layout โดยตรง ไม่ใช้ @push เพราะ @stack('styles') ใน <head>
     ถูกวาดไปก่อนที่ layout จะ include ไฟล์นี้ ของที่ push มาทีหลังจะหายเงียบ ๆ
 
+    การจัดวาง: หัวกล่องสีขาวเต็มความกว้าง เนื้อหาสองคอลัมน์บนเดสก์ท็อป (คอลัมน์หลักคือ
+    อันดับงานล่าช้า คอลัมน์รองคืองานประจำและประกาศ) และคอลัมน์เดียวเรียงตามลำดับ DOM
+    บนจอเล็ก ท้ายกล่องมีปุ่มรับทราบเพียงปุ่มเดียว
+
     เนื้อหาประกาศแสดงแบบ escape + nl2br เท่านั้น ห้ามใช้ {!! !!} กับข้อความของผู้ใช้
 --}}
+@php
+    $overdueShown = count($brief['overdue_tasks']);
+    $overdueTotal = $brief['overdue_total'];
+@endphp
 <div class="daily-brief" data-daily-brief hidden
     role="dialog" aria-modal="true" aria-labelledby="dailyBriefTitle"
     data-acknowledge-url="{{ route('daily-brief.acknowledge') }}"
     data-brief-date="{{ $brief['date'] }}">
     <div class="daily-brief__panel">
-        <header class="daily-brief__hero">
-            <span class="daily-brief__sun" aria-hidden="true"><i class="bi bi-brightness-high-fill"></i></span>
-            <div class="daily-brief__heading">
-                <h2 id="dailyBriefTitle">สรุปประจำวัน</h2>
-                <p class="daily-brief__date">{{ $brief['date_label'] }}</p>
-                <p class="daily-brief__lead">เริ่มต้นวันทำงานด้วยเป้าหมายที่ชัดเจน</p>
-            </div>
+        <header class="daily-brief__head">
+            <h2 id="dailyBriefTitle" class="daily-brief__title">สรุปประจำวัน</h2>
+            <p class="daily-brief__date">{{ $brief['date_label'] }}</p>
+            <p class="daily-brief__lead">สิ่งที่ต้องจัดการก่อนเริ่มวันทำงาน</p>
         </header>
 
         <div class="daily-brief__body">
-            <div class="daily-brief__column">
+            <div class="daily-brief__column daily-brief__column--main">
                 <section class="daily-brief__card daily-brief__card--project" aria-labelledby="dailyBriefProjectTitle">
                     <header class="daily-brief__card-head">
-                        <span class="daily-brief__card-icon" aria-hidden="true"><i class="bi bi-kanban"></i></span>
-                        <h3 id="dailyBriefProjectTitle">งานโปรเจกต์วันนี้</h3>
-                        <span class="badge-soft accent">{{ $brief['project_total'] }} งาน</span>
+                        <h3 id="dailyBriefProjectTitle" class="daily-brief__card-title">
+                            @if($overdueTotal > $overdueShown)
+                                {{ $overdueShown }} งานโปรเจกต์ล่าช้าที่สุด
+                            @else
+                                งานโปรเจกต์ล่าช้า
+                            @endif
+                        </h3>
+                        @if($overdueTotal > 0)
+                            <span class="daily-brief__card-count">{{ $overdueTotal }} งาน</span>
+                        @endif
                     </header>
-                    <div class="daily-brief__list">
-                        @forelse($brief['project_tasks'] as $task)
-                            @include('daily-brief.partials.task-row', [
-                                'row' => $task,
-                                'meta' => $task['project'].' · '.$task['status_label'],
-                            ])
-                        @empty
-                            <p class="daily-brief__empty">วันนี้ไม่มีงานโปรเจกต์ที่ต้องทำ</p>
-                        @endforelse
-                    </div>
-                    @if($brief['project_total'] > count($brief['project_tasks']))
+                    @if($overdueShown > 0)
+                        <ol class="daily-brief__ranked">
+                            @foreach($brief['overdue_tasks'] as $index => $task)
+                                @include('daily-brief.partials.overdue-row', ['row' => $task, 'rank' => $index + 1])
+                            @endforeach
+                        </ol>
+                    @else
+                        <p class="daily-brief__empty">ไม่มีงานโปรเจกต์ล่าช้า</p>
+                    @endif
+                    @if($overdueTotal > $overdueShown)
                         <button type="button" class="daily-brief__more" data-daily-brief-expand="project" aria-haspopup="dialog">
-                            ดูงานวันนี้ทั้งหมด {{ $brief['project_total'] }} งาน <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            ดูงานล่าช้าทั้งหมด {{ $overdueTotal }} งาน <i class="bi bi-arrow-right" aria-hidden="true"></i>
                         </button>
                     @endif
                 </section>
+            </div>
 
+            <div class="daily-brief__column daily-brief__column--side">
                 <section class="daily-brief__card daily-brief__card--routine" aria-labelledby="dailyBriefRoutineTitle">
                     <header class="daily-brief__card-head">
                         <span class="daily-brief__card-icon" aria-hidden="true"><i class="bi bi-journal-check"></i></span>
-                        <h3 id="dailyBriefRoutineTitle">งานประจำวันนี้</h3>
-                        <span class="badge-soft accent">{{ $brief['routine_total'] }} งาน</span>
+                        <h3 id="dailyBriefRoutineTitle" class="daily-brief__card-title">งานประจำวันนี้</h3>
+                        <span class="daily-brief__card-count">{{ $brief['routine_total'] }} งาน</span>
                     </header>
                     <div class="daily-brief__list">
                         @forelse($brief['routine_tasks'] as $routine)
@@ -72,16 +85,11 @@
                         </button>
                     @endif
                 </section>
-            </div>
 
-            <div class="daily-brief__column">
                 <section class="daily-brief__card daily-brief__card--department" aria-labelledby="dailyBriefDepartmentTitle">
                     <header class="daily-brief__card-head">
                         <span class="daily-brief__card-icon" aria-hidden="true"><i class="bi bi-megaphone"></i></span>
-                        <h3 id="dailyBriefDepartmentTitle">ประกาศจาก{{ $brief['department_name'] ? 'แผนก '.$brief['department_name'] : 'แผนกของคุณ' }}</h3>
-                        @if(collect($brief['department_announcements'])->contains('is_new', true))
-                            <span class="badge-soft red">ใหม่</span>
-                        @endif
+                        <h3 id="dailyBriefDepartmentTitle" class="daily-brief__card-title">ประกาศจาก{{ $brief['department_name'] ? 'แผนก '.$brief['department_name'] : 'แผนกของคุณ' }}</h3>
                     </header>
                     <div class="daily-brief__list">
                         @forelse($brief['department_announcements'] as $announcement)
@@ -95,10 +103,7 @@
                 <section class="daily-brief__card daily-brief__card--all" aria-labelledby="dailyBriefAllTitle">
                     <header class="daily-brief__card-head">
                         <span class="daily-brief__card-icon" aria-hidden="true"><i class="bi bi-globe2"></i></span>
-                        <h3 id="dailyBriefAllTitle">ประกาศทุกแผนก</h3>
-                        @if(collect($brief['all_announcements'])->contains('is_new', true))
-                            <span class="badge-soft blue">ใหม่</span>
-                        @endif
+                        <h3 id="dailyBriefAllTitle" class="daily-brief__card-title">ประกาศทุกแผนก</h3>
                     </header>
                     <div class="daily-brief__list">
                         @forelse($brief['all_announcements'] as $announcement)
@@ -123,12 +128,13 @@
     กล่อง "ดูทั้งหมด" ซ้อนบนสรุปผ่าน modal-stack ต้องเป็นพี่น้องของ .daily-brief ไม่ใช่ลูก
     เพราะ modal-stack ใส่ inert ให้ชั้นล่าง ถ้าวางไว้ข้างในจะกดอะไรในกล่องนี้ไม่ได้เลย
 --}}
-@if($brief['project_total'] > count($brief['project_tasks']))
+@if($overdueTotal > $overdueShown)
     @include('daily-brief.partials.task-list-dialog', [
         'key' => 'project',
-        'title' => 'งานโปรเจกต์วันนี้ทั้งหมด',
-        'icon' => 'bi-kanban',
-        'rows' => $brief['project_all_tasks'],
+        'title' => 'งานโปรเจกต์ล่าช้าทั้งหมด',
+        'icon' => 'bi-exclamation-triangle',
+        'rows' => $brief['overdue_all_tasks'],
+        'ranked' => true,
     ])
 @endif
 @if($brief['routine_total'] > count($brief['routine_tasks']))

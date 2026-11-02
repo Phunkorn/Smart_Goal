@@ -287,8 +287,10 @@ export function initEntryForm({
 
             showMode('once');
             showStep(form, 2);
-            setMultipleDateMode(false);
+            setMultipleDateMode(true, presented.work_date || '');
             fillFrom(presented);
+            // การแก้ไขทุกประเภทเลือกวันล่วงหน้าได้ตามเพดานที่ server ส่งให้ชนิด field
+            syncDateLimit(modal, 'field');
             showError('');
             stack.open(modal, opener);
         },

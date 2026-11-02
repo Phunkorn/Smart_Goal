@@ -30,6 +30,7 @@ class AttachmentPolicy
         'jpg' => ['image/jpeg'],
         'jpeg' => ['image/jpeg'],
         'png' => ['image/png'],
+        'txt' => ['text/plain'],
         'pdf' => ['application/pdf'],
         'doc' => ['application/msword'],
         'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -101,7 +102,7 @@ class AttachmentPolicy
     /** ข้อความอธิบายชนิดไฟล์สำหรับผู้ใช้ ใช้ให้ตรงกันทุกหน้า */
     public static function typesLabel(): string
     {
-        return 'JPG, PNG, PDF, Word, Excel, PowerPoint, ZIP';
+        return 'JPG, PNG, TXT, PDF, Word, Excel, PowerPoint, ZIP';
     }
 
     /** ข้อความสรุปเพดานสำหรับผู้ใช้ */

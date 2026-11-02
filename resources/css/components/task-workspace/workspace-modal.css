@@ -634,12 +634,12 @@
     margin: 0;
     color: #64748b;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 400;
     text-align: center;
 }
 
 .task-workspace__timeline-items .task-timeline-empty::before {
-    content: "\F3E5";
+    content: "\F267";
     color: #c7d5e8;
     font-family: bootstrap-icons;
     font-size: 40px;

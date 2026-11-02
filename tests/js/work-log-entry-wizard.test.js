@@ -121,5 +121,13 @@ test('งานนอกสถานที่เลือกวันล่ว�
         assert.equal(date.value, '2026-10-01');
         assert.equal(root.querySelector('[data-entry-start]').value, '09:00');
         assert.equal(root.querySelector('[data-entry-end]').value, '11:30');
+
+        // รายการงานประจำที่แก้ไขใช้เพดานวันล่วงหน้าเดียวกัน
+        wizard.openForEdit({id: 8, kind: 'routine', work_date: '2026-09-15'});
+        assert.equal(date.max, '2026-12-14');
+        assert.equal(date.dataset.datePickerMultiple, 'on');
+        assert.equal(date.dataset.datePickerValues, '2026-09-15');
+        wizard.openForCreate({mode: 'choice'});
+        assert.equal(date.max, '2026-09-15');
     } finally { dom.cleanup(); }
 });

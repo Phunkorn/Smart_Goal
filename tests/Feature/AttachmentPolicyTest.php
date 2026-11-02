@@ -35,6 +35,17 @@ class AttachmentPolicyTest extends TestCase
         $this->assertNull(AttachmentPolicy::rejectionReason($this->zip('งาน.zip')));
     }
 
+    public function test_plain_text_is_accepted_but_a_renamed_archive_is_not(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'sgtxt');
+        file_put_contents($path, "บันทึกงาน\nข้อความทั่วไป\n");
+        $this->temporaryFiles[] = $path;
+
+        $this->assertContains('txt', AttachmentPolicy::extensions());
+        $this->assertNull(AttachmentPolicy::rejectionReason(new UploadedFile($path, 'notes.txt', 'application/zip', null, true)));
+        $this->assertStringContainsString('ไม่ตรงกับนามสกุล', AttachmentPolicy::rejectionReason($this->zip('fake.txt')));
+    }
+
     /**
      * หัวใจของการเปิดรับ ZIP: ต้องจับคู่ "นามสกุล ↔ MIME" ไม่ใช่ตรวจสองรายการแยกกัน
      * มิฉะนั้นไฟล์ ZIP ที่เปลี่ยนชื่อเป็น .docx จะผ่านทันทีเพราะ MIME ของ zip อยู่ในรายการรวม

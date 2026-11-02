@@ -25,9 +25,9 @@ class WorkLogService
     /**
      * @param  array<string, mixed>  $data  ค่าที่ผ่าน validation จาก controller แล้ว
      */
-    public function create(User $owner, User $actor, array $data): WorkLog
+    public function create(User $owner, User $actor, array $data, bool $allowAdvanceForEdit = false): WorkLog
     {
-        $businessDay = $this->businessDay($data['work_date'] ?? null, $data['kind'] ?? WorkLogDesign::DEFAULT_KIND);
+        $businessDay = $this->businessDay($data['work_date'] ?? null, $data['kind'] ?? WorkLogDesign::DEFAULT_KIND, $allowAdvanceForEdit);
         [$startedAt, $endedAt, $minutes, $plannedStart, $plannedEnd] = $this->scheduleFor($businessDay, $data);
 
         /*
@@ -86,15 +86,17 @@ class WorkLogService
     public function update(WorkLog $log, User $actor, array $data): WorkLog
     {
         $before = $this->auditSnapshot($log);
-        // งานประจำจากแม่แบบไม่เคยลงล่วงหน้าได้ แม้คำขอจะส่งประเภทอื่นมา
-        $kind = $log->work_log_template_id === null ? ($data['kind'] ?? $log->kind) : null;
-        $businessDay = $this->businessDay($data['work_date'] ?? $log->work_date?->format('Y-m-d'), $kind);
+        // เส้นทางแก้ไขอนุญาตให้ย้ายรายการไปวันล่วงหน้าได้ โดยยังใช้เพดานเดียวกับงานนอกสถานที่
+        $businessDay = $this->businessDay($data['work_date'] ?? $log->work_date?->format('Y-m-d'), $log->kind, true);
         [$startedAt, $endedAt, $minutes, $plannedStart, $plannedEnd] = $this->scheduleFor($businessDay, $data);
         $isFuture = $this->isFutureDay($businessDay);
 
-        // เวลาที่วางไว้ของบันทึกเอง มาจากการลงล่วงหน้าเท่านั้น — ย้ายกลับมาเป็นวันที่ถึงแล้วจึงล้างทิ้ง
-        // แม่แบบงานประจำและสำเนาของผู้ร่วมงานได้เวลาที่วางไว้จากต้นทางของตัวเอง ห้ามล้าง
-        $planned = $log->work_log_template_id === null && ($isFuture || $log->shared_from_work_log_id === null)
+        // เมื่อย้ายวัน ต้องย้ายหรือล้างเวลาที่วางไว้ด้วย ไม่ให้ค้างอยู่ที่วันเดิม
+        // หากวันไม่เปลี่ยน แม่แบบและสำเนาของผู้ร่วมงานยังเก็บเวลาจากต้นทางตามเดิม
+        $dateChanged = $log->work_date?->format('Y-m-d') !== $businessDay->format('Y-m-d');
+        $shouldUpdatePlan = $dateChanged
+            || ($log->work_log_template_id === null && ($isFuture || $log->shared_from_work_log_id === null));
+        $planned = $shouldUpdatePlan
             ? ['planned_start_at' => $plannedStart, 'planned_end_at' => $plannedEnd]
             : [];
 
@@ -547,9 +549,9 @@ class WorkLogService
     /**
      * แปลงวันที่ทำงานจากข้อความเป็นวันทำการ พร้อมตรวจขอบเขตที่ยอมรับได้
      *
-     * ลงล่วงหน้าได้เฉพาะประเภทใน WorkLogDesign::ADVANCE_KINDS (งานนอกสถานที่)
+     * การสร้างลงล่วงหน้าได้เฉพาะ ADVANCE_KINDS; การแก้ไขใช้เพดานเดียวกันทุกประเภท
      */
-    private function businessDay(mixed $workDate, ?string $kind = null): CarbonInterface
+    private function businessDay(mixed $workDate, ?string $kind = null, bool $allowAdvanceForEdit = false): CarbonInterface
     {
         $today = TodayWorkspace::businessNow()->startOfDay();
 
@@ -571,13 +573,13 @@ class WorkLogService
             ]);
         }
 
-        if ($day->greaterThan($today) && ! WorkLogDesign::allowsAdvance($kind)) {
+        if ($day->greaterThan($today) && ! $allowAdvanceForEdit && ! WorkLogDesign::allowsAdvance($kind)) {
             throw ValidationException::withMessages([
                 'work_date' => 'บันทึกงานล่วงหน้าไม่ได้',
             ]);
         }
 
-        if ($day->format('Y-m-d') > WorkLogDesign::latestWorkDate($kind)) {
+        if ($day->format('Y-m-d') > WorkLogDesign::latestWorkDate($allowAdvanceForEdit ? 'field' : $kind)) {
             throw ValidationException::withMessages([
                 'work_date' => sprintf('ลงล่วงหน้าได้ไม่เกิน %d วัน', WorkLogDesign::MAX_ADVANCE_DAYS),
             ]);

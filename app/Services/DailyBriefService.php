@@ -9,6 +9,7 @@ use App\Models\WorkLog;
 use App\Models\WorkOrder;
 use App\Support\AnnouncementDesign;
 use App\Support\RoleLabel;
+use App\Support\ThaiDate;
 use App\Support\TodayWorkspace;
 use App\Support\WorkBoardDesign;
 use App\Support\WorkLogDesign;
@@ -28,11 +29,22 @@ use Illuminate\Support\Collection;
  *
  * งานที่แสดงคือ "งานที่ฉันรับผิดชอบหรือร่วมงานโดยตรง" (MemberWorkloadQuery) ที่อนุมัติแล้ว
  * แม้เป็นหัวหน้าก็ไม่รวมงานทั้งแผนก สรุปนี้จึงสั้นกว่าหน้า "งานของฉัน > วันนี้" โดยตั้งใจ
+ *
+ * การ์ดงานโปรเจกต์ตอบคำถามเดียวคือ "งานไหนล่าช้าที่สุด" ไม่ใช่ "วันนี้มีงานอะไร"
+ * เดิมการ์ดกางงานของวันนี้ทั้งหมดจนผู้ใช้ต้องเลื่อนอ่านยาว สิ่งที่ต้องตัดสินใจก่อน
+ * เริ่มวันจึงจมอยู่กลางรายการ การ์ดนี้แสดงเฉพาะงานที่เลยกำหนดส่งแล้วและยังไม่ปิด
+ * เรียงจากล่าช้านานที่สุด แล้วตัดเหลือ OVERDUE_LIMIT รายการ ที่เหลือดูได้ในกล่อง "ดูทั้งหมด"
  */
 class DailyBriefService
 {
-    /** จำนวนแถวงานสูงสุดต่อการ์ด ที่เหลือบอกเป็นตัวเลขพร้อมลิงก์ไปดูทั้งหมด */
+    /** จำนวนแถวงานประจำสูงสุดต่อการ์ด ที่เหลือบอกเป็นตัวเลขพร้อมลิงก์ไปดูทั้งหมด */
     public const TASK_LIMIT = 8;
+
+    /** จำนวนอันดับงานโปรเจกต์ล่าช้าที่การ์ดสรุปแสดง — ที่เหลือดูได้ในกล่อง "ดูทั้งหมด" */
+    public const OVERDUE_LIMIT = 5;
+
+    /** สถานะ "เสร็จแล้ว/ปิดงาน" — งานที่ปิดแล้วไม่ใช่งานล่าช้าแม้กำหนดส่งจะผ่านไปแล้ว */
+    private const DONE_STATUS = 4;
 
     public function __construct(
         private readonly MemberWorkloadQuery $workload,
@@ -79,7 +91,7 @@ class DailyBriefService
             ->latest('brief_date')
             ->value('acknowledged_at');
 
-        $projectTasks = $this->projectTasks($user);
+        $overdueTasks = $this->overdueProjectTasks($user);
         $routineTasks = $this->routineTasks($user, $today);
         $announcements = $this->announcements->activeFor($user, $today)
             ->map(fn (Announcement $announcement): array => $this->presentAnnouncement($announcement, $lastAcknowledgedAt));
@@ -88,10 +100,10 @@ class DailyBriefService
             'date' => $today,
             'date_label' => AnnouncementDesign::longDate($businessDay),
             'department_name' => $user->department?->department_name,
-            'project_tasks' => $projectTasks->take(self::TASK_LIMIT)->values()->all(),
+            'overdue_tasks' => $overdueTasks->take(self::OVERDUE_LIMIT)->values()->all(),
             // รายการเต็มสำหรับกล่อง "ดูทั้งหมด" ที่ซ้อนบนสรุป — เปิดดูได้โดยไม่ต้องออกจากสรุป
-            'project_all_tasks' => $projectTasks->values()->all(),
-            'project_total' => $projectTasks->count(),
+            'overdue_all_tasks' => $overdueTasks->values()->all(),
+            'overdue_total' => $overdueTasks->count(),
             'routine_tasks' => $routineTasks->take(self::TASK_LIMIT)->values()->all(),
             'routine_all_tasks' => $routineTasks->values()->all(),
             'routine_total' => $routineTasks->count(),
@@ -125,11 +137,18 @@ class DailyBriefService
     }
 
     /**
-     * งานโปรเจกต์/งานมอบหมายของวันนี้ — นิยาม "วันนี้" จาก TodayWorkspace::tasks() ชุดเดียวกับหน้างานของฉัน
+     * งานโปรเจกต์ที่ล่าช้าที่สุดของผู้ใช้คนนี้ เรียงจากล่าช้านานที่สุด
+     *
+     * ขอบเขตการมองเห็นเป็นชุดเดียวกับการ์ดเดิม (MemberWorkloadQuery::forMember บวก
+     * งานที่อนุมัติแล้วและโปรเจกต์ที่ยังไม่จัดเก็บ) เปลี่ยนแค่เงื่อนไขการคัดเลือก
+     *
+     * การจัดอันดับเกิดในฐานข้อมูลบนชุดงานที่ผู้ใช้เห็นได้ทั้งหมด ไม่ใช่บนชุดของวันนี้
+     * ที่ถูกตัดมาก่อน เพราะงาน "รอตรวจ" ที่เลยกำหนดไม่อยู่ในนิยามของวันนี้ แต่ยังล่าช้า
+     * และต้องถูกนับในอันดับ
      *
      * @return Collection<int, array<string, mixed>>
      */
-    private function projectTasks(User $user): Collection
+    private function overdueProjectTasks(User $user): Collection
     {
         $query = $this->workload->forMember($user)
             // ผู้รับผิดชอบยังไม่เห็นงานที่รออนุมัติในหน้างานของฉัน (WorkOrder::scopeInvolving)
@@ -140,79 +159,42 @@ class DailyBriefService
                 ->whereNull('work_order_list_id')
                 ->orWhereHas('taskList', fn (Builder $project) => $project->whereNull('archived_at')));
 
-        // งานที่เลยกำหนดแต่ยังไม่ถูกดันเป็น "ล่าช้า" จะหลุดจากนิยามของวันนี้ จึงต้องซิงก์ก่อนอ่าน
+        // งานที่เลยกำหนดแต่ยังไม่ถูกดันเป็น "ล่าช้า" ต้องถูกซิงก์ก่อน ป้ายสถานะในสรุป
+        // จึงตรงกับสถานะที่เก็บไว้จริง เหมือนที่หน้า "งานของฉัน" ทำ
         TodayWorkspace::synchronizeLate($query);
 
-        $tasks = (clone $query)->with('taskList')
-            // MySQL เรียง NULL ขึ้นก่อนเมื่อเรียงจากน้อยไปมาก งานที่ไม่มีกำหนดส่งจึงต้องถูกดันไปท้ายเอง
-            ->orderByRaw('job_due_at is null asc')
-            ->orderBy('job_due_at')
-            ->get();
-
-        return TodayWorkspace::tasks($tasks)
-            ->reject(fn (WorkOrder $task): bool => (int) $task->job_status === 4)
-            // งานล่าช้าขึ้นก่อน เพราะเป็นสิ่งแรกที่ต้องจัดการของวัน — sortBy คงลำดับกำหนดส่งเดิมไว้ในกลุ่มเดียวกัน
-            ->sortBy(fn (WorkOrder $task): int => WorkBoardDesign::statusKey($task) === 'late' ? 0 : 1)
-            ->values()
-            ->map(fn (WorkOrder $task): array => $this->presentTask($task));
+        return (clone $query)->with('taskList')
+            // "ล่าช้าจริง" = เลยขณะเวลาที่ครบกำหนดแล้วและยังไม่ปิดงาน (TodayWorkspace::isOverdue)
+            ->whereNotNull('work_orders.job_due_at')
+            ->where('work_orders.job_due_at', '<', now())
+            ->where('work_orders.job_status', '!=', self::DONE_STATUS)
+            // กำหนดส่งเก่าสุด = ล่าช้านานสุด จัดอันดับในฐานข้อมูลโดยไม่ดึงงานที่ไม่ล่าช้ามาคัดใน PHP
+            ->orderBy('work_orders.job_due_at')
+            // ลำดับรองที่แน่นอนเมื่อล่าช้าเท่ากัน: งานด่วนก่อน แล้วตัดสินด้วยคีย์
+            ->orderByDesc('work_orders.job_priority')
+            ->orderBy('work_orders.job_id')
+            ->get()
+            ->map(fn (WorkOrder $task): array => $this->presentOverdueTask($task));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function presentTask(WorkOrder $task): array
+    private function presentOverdueTask(WorkOrder $task): array
     {
-        $status = WorkBoardDesign::status($task);
-        $priority = (int) $task->job_priority === 3 ? WorkBoardDesign::taskPriority(3) : null;
+        $overdueDays = TodayWorkspace::overdueDays($task);
 
         return [
             'id' => $task->job_id,
             'title' => $task->job_topic,
             'project' => $task->taskList?->name ?? 'งานทั่วไป',
-            'time' => $this->taskTimeLabel($task),
-            'status_label' => $status['label'],
-            'is_late' => WorkBoardDesign::statusKey($task) === 'late',
-            'priority' => $priority,
+            'due_label' => ThaiDate::day(TodayWorkspace::businessNow($task->job_due_at)),
+            'overdue_days' => $overdueDays,
+            // งานที่เพิ่งเลยกำหนดวันนี้ยังนับเป็นศูนย์วัน ป้ายจึงต้องบอกเวลาที่เกิดขึ้นจริง
+            'overdue_label' => $overdueDays > 0 ? 'ล่าช้า '.$overdueDays.' วัน' : 'เลยกำหนดวันนี้',
+            'priority' => (int) $task->job_priority === 3 ? WorkBoardDesign::taskPriority(3) : null,
             'url' => route('mytasks.index', ['open_task' => $task->job_id]),
         ];
-    }
-
-    private function taskTimeLabel(WorkOrder $task): string
-    {
-        $overdueDays = TodayWorkspace::overdueDays($task);
-
-        if ($overdueDays > 0) {
-            return 'เลยกำหนด '.$overdueDays.' วัน';
-        }
-
-        // งานที่ไม่มีกำหนดส่งอยู่ในรายการวันนี้ตั้งแต่วันเริ่ม ป้ายจึงต้องบอกเหตุผล ไม่ใช่เว้นว่าง
-        if (TodayWorkspace::dueIsUnset($task)) {
-            return TodayWorkspace::NO_DUE_LABEL;
-        }
-
-        $progress = TodayWorkspace::timeProgress($task);
-
-        if (! $progress) {
-            return '';
-        }
-
-        if (! $progress['is_single_day']) {
-            return $progress['progress_label'];
-        }
-
-        // ผู้ใช้ที่เลือก "ไม่ระบุเวลากำหนดส่ง" ไม่ได้ตั้งเวลา 23:59 น. ไว้เอง
-        // การพูดว่า "ภายใน 23:59 น." จึงเป็นการอ้างเวลาที่เขาไม่เคยตกลง
-        if (TodayWorkspace::dueTimeIsUnset($task)) {
-            return 'ภายในวันนี้';
-        }
-
-        $start = TodayWorkspace::clockTime($task->job_start_at);
-        $due = TodayWorkspace::clockTime($task->job_due_at);
-
-        // เวลาเริ่ม 00:00 คือค่าตั้งต้นตอนผู้ใช้เลือกแค่วันที่ ไม่ใช่เวลาที่นัดไว้จริง
-        return $start === TodayWorkspace::DEFAULT_START_TIME
-            ? 'ภายใน '.$due.' น.'
-            : $start.' - '.$due;
     }
 
     /**
@@ -263,7 +245,6 @@ class DailyBriefService
             'title' => $announcement->title,
             'body' => $announcement->body,
             'audience' => $announcement->audience,
-            'audience_meta' => AnnouncementDesign::audience($announcement->audience),
             'author' => $author,
             'author_role' => $author ? RoleLabel::withDepartment($author) : '',
             'posted_at' => AnnouncementDesign::postedAt($announcement->created_at),

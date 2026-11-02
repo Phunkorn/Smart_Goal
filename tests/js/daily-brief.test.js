@@ -239,6 +239,60 @@ test('task rows carry no status circle icon (removed at the owner request)', () 
     assert.doesNotMatch(cssSource, /daily-brief__mark/);
 });
 
+test('the header is a plain white band with no sunrise mark and no gradient', () => {
+    const cssSource = readFileSync(new URL('../../resources/css/components/daily-brief.css', import.meta.url), 'utf8');
+    const rowSource = readFileSync(new URL('../../resources/views/daily-brief/partials/overdue-row.blade.php', import.meta.url), 'utf8');
+
+    assert.doesNotMatch(modalSource, /daily-brief__sun/);
+    assert.doesNotMatch(cssSource, /daily-brief__sun|daily-brief-sunrise|daily-brief-sheen|daily-brief-shift/);
+    assert.doesNotMatch(cssSource, /linear-gradient\(|radial-gradient\(/);
+    assert.match(modalSource, /<header class="daily-brief__head">/);
+    // หัวกล่องและเนื้อหาแยกกันด้วยเส้นขอบบาง ไม่ใช่พื้นสีเข้ม
+    assert.match(cssSource, /\.daily-brief__head\s*\{[^}]*border-bottom:\s*1px solid var\(--border\)/);
+    assert.match(cssSource, /\.daily-brief__head\s*\{[^}]*background:\s*var\(--surface\)/);
+    assert.doesNotMatch(rowSource, /style=/);
+});
+
+test('overdue work is a ranked ordered list of task, project, overdue badge and due date', () => {
+    const rowSource = withoutBladeComments(readFileSync(new URL('../../resources/views/daily-brief/partials/overdue-row.blade.php', import.meta.url), 'utf8'));
+
+    // รายการจัดอันดับเป็น <ol> จริง ตัวเลขอันดับจึงซ้ำกับลำดับที่โปรแกรมอ่านหน้าจอรู้อยู่แล้ว
+    assert.match(modalSource, /<ol class="daily-brief__ranked">/);
+    assert.match(modalSource, /@include\('daily-brief\.partials\.overdue-row', \['row' => \$task, 'rank' => \$index \+ 1\]\)/);
+    assert.match(rowSource, /<li class="daily-brief__rank-item">/);
+    assert.match(rowSource, /class="daily-brief__rank-number" aria-hidden="true">\{\{ str_pad/);
+    assert.match(rowSource, /\$row\['overdue_label'\]/);
+    assert.match(rowSource, /ครบกำหนด \{\{ \$row\['due_label'\] \}\}/);
+    assert.match(rowSource, /data-daily-brief-link/);
+    // การ์ดเดียวกันต้องมีสถานะว่างที่สั้นและอ่านง่าย
+    assert.match(modalSource, /ไม่มีงานโปรเจกต์ล่าช้า/);
+});
+
+test('the overdue badge reads red on a soft red surface and the row keeps a touch target', () => {
+    const cssSource = readFileSync(new URL('../../resources/css/components/daily-brief.css', import.meta.url), 'utf8');
+
+    assert.match(cssSource, /\.daily-brief__rank-overdue\s*\{[^}]*background:\s*var\(--red-dim\)/);
+    assert.match(cssSource, /\.daily-brief__rank-overdue\s*\{[^}]*color:\s*var\(--red-strong\)/);
+    assert.match(cssSource, /\.daily-brief__rank-link\s*\{[^}]*min-height:\s*56px/);
+    assert.match(cssSource, /\.daily-brief__acknowledge\s*\{[^}]*min-height:\s*44px/);
+    assert.match(cssSource, /\.daily-brief-list__close\s*\{[^}]*height:\s*44px/);
+});
+
+test('small screens drop to one column and move the overdue badge below the task name', () => {
+    const cssSource = readFileSync(new URL('../../resources/css/components/daily-brief.css', import.meta.url), 'utf8');
+
+    assert.match(cssSource, /@media \(max-width: 991\.98px\)\s*\{\s*\.daily-brief__body\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
+    // ป้ายล่าช้าและกำหนดส่งลงบรรทัดใหม่ใต้ชื่องาน จึงไม่เบียดชื่อและไม่ล้นแนวนอน
+    assert.match(cssSource, /\.daily-brief__rank-meta\s*\{\s*grid-column:\s*2;\s*flex-direction:\s*row/);
+    assert.match(cssSource, /\.daily-brief__rank-link\s*\{\s*grid-template-columns:\s*auto minmax\(0, 1fr\)/);
+});
+
+test('each announcement carries one badge at most and never repeats its card audience', () => {
+    assert.doesNotMatch(cardSource, /daily-brief__audience/);
+    assert.doesNotMatch(modalSource, /contains\('is_new', true\)/);
+    assert.match(cardSource, /daily-brief__new/);
+});
+
 test('entrance animation replays on every open and respects reduced motion', () => {
     const cssSource = readFileSync(new URL('../../resources/css/components/daily-brief.css', import.meta.url), 'utf8');
 

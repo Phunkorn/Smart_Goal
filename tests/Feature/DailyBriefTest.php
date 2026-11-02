@@ -132,57 +132,143 @@ class DailyBriefTest extends TestCase
         $this->assertSame(1, DailyBriefAcknowledgement::count());
     }
 
-    public function test_project_section_lists_only_my_approved_work_for_today(): void
+    public function test_overdue_section_lists_only_my_approved_overdue_work(): void
     {
         $employee = $this->user('user', $this->it);
         $colleague = $this->user('user', $this->it);
         $project = WorkOrderList::create(['user_id' => $employee->id, 'name' => 'ระบบสมาชิก']);
         $archived = WorkOrderList::create(['user_id' => $employee->id, 'name' => 'โปรเจกต์เก่า', 'archived_at' => now()]);
 
-        $this->task($employee, 'พัฒนา API ระบบสมาชิก', ['work_order_list_id' => $project->id, 'job_priority' => 3]);
-        $this->task($employee, 'งานรออนุมัติ', ['approval_status' => 'pending']);
-        $this->task($employee, 'งานที่เสร็จแล้ว', ['job_status' => 4, 'job_completed_at' => now()]);
-        $this->task($employee, 'งานของสัปดาห์หน้า', ['job_start_at' => now()->addDays(7), 'job_due_at' => now()->addDays(8)]);
-        $this->task($employee, 'งานในโปรเจกต์ที่จัดเก็บ', ['work_order_list_id' => $archived->id]);
-        $this->task($colleague, 'งานของเพื่อนร่วมงาน');
-        $this->task($employee, 'งานที่เลยกำหนดแล้ว', [
-            'job_start_at' => now()->subDays(3),
-            'job_due_at' => now()->subDays(2),
-        ]);
+        $this->overdueTask($employee, 'พัฒนา API ระบบสมาชิก', 3, ['work_order_list_id' => $project->id, 'job_priority' => 3]);
+        $this->task($employee, 'งานที่ยังไม่เลยกำหนด');
+        $this->overdueTask($employee, 'งานล่าช้าที่รออนุมัติ', 4, ['approval_status' => 'pending']);
+        $this->overdueTask($employee, 'งานล่าช้าที่ปิดไปแล้ว', 5, ['job_status' => 4, 'job_completed_at' => now()]);
+        $this->overdueTask($employee, 'งานล่าช้าในโปรเจกต์ที่จัดเก็บ', 6, ['work_order_list_id' => $archived->id]);
+        $this->overdueTask($colleague, 'งานล่าช้าของเพื่อนร่วมงาน', 7);
 
         $brief = app(DailyBriefService::class)->build($employee);
-        $titles = collect($brief['project_tasks'])->pluck('title');
 
-        $this->assertEqualsCanonicalizing(['พัฒนา API ระบบสมาชิก', 'งานที่เลยกำหนดแล้ว'], $titles->all());
-        // งานล่าช้าขึ้นก่อน และถูกซิงก์เป็นสถานะล่าช้าจริงในฐานข้อมูล
-        $this->assertSame('งานที่เลยกำหนดแล้ว', $titles->first());
-        $this->assertSame(6, (int) WorkOrder::where('job_topic', 'งานที่เลยกำหนดแล้ว')->value('job_status'));
+        $this->assertSame(['พัฒนา API ระบบสมาชิก'], collect($brief['overdue_tasks'])->pluck('title')->all());
+        $this->assertSame(1, $brief['overdue_total']);
 
-        $apiTask = collect($brief['project_tasks'])->firstWhere('title', 'พัฒนา API ระบบสมาชิก');
-        $this->assertSame('ระบบสมาชิก', $apiTask['project']);
-        $this->assertSame('สำคัญด่วน', $apiTask['priority']['label']);
-        $this->assertStringContainsString('open_task=', $apiTask['url']);
+        $task = $brief['overdue_tasks'][0];
+        $this->assertSame('ระบบสมาชิก', $task['project']);
+        $this->assertSame(3, $task['overdue_days']);
+        $this->assertSame('ล่าช้า 3 วัน', $task['overdue_label']);
+        $this->assertSame('22 ก.ย. 2569', $task['due_label']);
+        $this->assertSame('สำคัญด่วน', $task['priority']['label']);
+        $this->assertStringContainsString('open_task=', $task['url']);
+
+        // งานที่เลยกำหนดแต่ยังไม่ถูกดันเป็นล่าช้า ถูกซิงก์เป็นสถานะล่าช้าจริงในฐานข้อมูล
+        $this->assertSame(6, (int) WorkOrder::where('job_topic', 'พัฒนา API ระบบสมาชิก')->value('job_status'));
     }
 
-    public function test_see_all_lists_every_task_inside_the_brief_without_leaving_the_page(): void
+    public function test_overdue_section_keeps_only_the_five_latest_tasks_ranked_by_days(): void
     {
         $employee = $this->user('user', $this->it);
-        foreach (range(1, 12) as $number) {
-            $this->task($employee, sprintf('งานวันนี้ลำดับ %02d', $number));
+        foreach (range(1, 8) as $days) {
+            $this->overdueTask($employee, 'ล่าช้า '.$days.' วัน', $days);
         }
 
         $brief = app(DailyBriefService::class)->build($employee);
-        $this->assertSame(12, $brief['project_total']);
-        $this->assertCount(DailyBriefService::TASK_LIMIT, $brief['project_tasks']);
-        $this->assertCount(12, $brief['project_all_tasks']);
+
+        $this->assertSame(8, $brief['overdue_total']);
+        $this->assertCount(DailyBriefService::OVERDUE_LIMIT, $brief['overdue_tasks']);
+        // ล่าช้ามากที่สุดขึ้นก่อน และอันดับมาจากงานล่าช้าทั้งหมด ไม่ใช่จากห้าใบแรกที่เจอ
+        $this->assertSame(
+            ['ล่าช้า 8 วัน', 'ล่าช้า 7 วัน', 'ล่าช้า 6 วัน', 'ล่าช้า 5 วัน', 'ล่าช้า 4 วัน'],
+            collect($brief['overdue_tasks'])->pluck('title')->all()
+        );
+        $this->assertSame([8, 7, 6, 5, 4], collect($brief['overdue_tasks'])->pluck('overdue_days')->all());
+        $this->assertCount(8, $brief['overdue_all_tasks']);
+    }
+
+    public function test_overdue_section_shows_an_empty_state_when_nothing_is_late(): void
+    {
+        $employee = $this->user('user', $this->it);
+        $this->task($employee, 'งานของวันนี้ที่ยังไม่เลยกำหนด');
+
+        $brief = app(DailyBriefService::class)->build($employee);
+
+        $this->assertSame([], $brief['overdue_tasks']);
+        $this->assertSame(0, $brief['overdue_total']);
 
         $this->actingAs($employee)->get(route('settings.index'))
+            ->assertSee('ไม่มีงานโปรเจกต์ล่าช้า')
+            ->assertDontSee('data-daily-brief-expand="project"', false);
+    }
+
+    public function test_a_single_overdue_task_is_shown_without_the_top_five_heading(): void
+    {
+        $employee = $this->user('user', $this->it);
+        $this->overdueTask($employee, 'งานล่าช้าใบเดียว', 2);
+
+        $this->actingAs($employee)->get(route('settings.index'))
+            ->assertSee('งานโปรเจกต์ล่าช้า')
+            ->assertDontSee('งานโปรเจกต์ล่าช้าที่สุด')
+            ->assertSee('งานล่าช้าใบเดียว')
+            ->assertSee('ล่าช้า 2 วัน')
+            ->assertSee('ครบกำหนด 23 ก.ย. 2569');
+    }
+
+    public function test_tasks_overdue_by_the_same_number_of_days_keep_a_stable_order(): void
+    {
+        $employee = $this->user('user', $this->it);
+        $later = $this->overdueTask($employee, 'ล่าช้าเท่ากัน ใบที่สอง', 2);
+        $urgent = $this->overdueTask($employee, 'ล่าช้าเท่ากัน ใบด่วน', 2, ['job_priority' => 3]);
+
+        $first = app(DailyBriefService::class)->build($employee);
+        $second = app(DailyBriefService::class)->build($employee);
+
+        // งานด่วนชนะเมื่อล่าช้าเท่ากัน และลำดับไม่สลับระหว่างการเรียกสองครั้ง
+        $this->assertSame(
+            ['ล่าช้าเท่ากัน ใบด่วน', 'ล่าช้าเท่ากัน ใบที่สอง'],
+            collect($first['overdue_tasks'])->pluck('title')->all()
+        );
+        $this->assertSame([$urgent->job_id, $later->job_id], collect($first['overdue_tasks'])->pluck('id')->all());
+        $this->assertSame(
+            collect($first['overdue_tasks'])->pluck('id')->all(),
+            collect($second['overdue_tasks'])->pluck('id')->all()
+        );
+    }
+
+    public function test_overdue_days_are_counted_from_the_bangkok_business_day(): void
+    {
+        $employee = $this->user('user', $this->it);
+
+        // 16:59 UTC ของวันที่ 24 คือ 23:59 เวลาไทยของวันที่ 24 จึงล่าช้าหนึ่งวันตามวันไทย
+        $task = $this->task($employee, 'งานที่หมดเวลาเมื่อคืน', [
+            'job_start_at' => now()->subDays(2),
+            'job_due_at' => now()->parse('2026-09-24 16:59:00', 'UTC'),
+        ]);
+
+        $brief = app(DailyBriefService::class)->build($employee);
+
+        $this->assertSame($task->job_id, $brief['overdue_tasks'][0]['id']);
+        $this->assertSame(1, $brief['overdue_tasks'][0]['overdue_days']);
+        $this->assertSame('24 ก.ย. 2569', $brief['overdue_tasks'][0]['due_label']);
+    }
+
+    public function test_see_all_lists_every_overdue_task_inside_the_brief_without_leaving_the_page(): void
+    {
+        $employee = $this->user('user', $this->it);
+        foreach (range(1, 12) as $days) {
+            $this->overdueTask($employee, sprintf('งานล่าช้าลำดับ %02d', $days), $days);
+        }
+
+        $brief = app(DailyBriefService::class)->build($employee);
+        $this->assertSame(12, $brief['overdue_total']);
+        $this->assertCount(DailyBriefService::OVERDUE_LIMIT, $brief['overdue_tasks']);
+        $this->assertCount(12, $brief['overdue_all_tasks']);
+
+        $this->actingAs($employee)->get(route('settings.index'))
+            ->assertSee('5 งานโปรเจกต์ล่าช้าที่สุด')
             ->assertSee('data-daily-brief-expand="project"', false)
-            ->assertSee('ดูงานวันนี้ทั้งหมด 12 งาน')
+            ->assertSee('ดูงานล่าช้าทั้งหมด 12 งาน')
             ->assertSee('data-daily-brief-list="project"', false)
-            ->assertSee('งานโปรเจกต์วันนี้ทั้งหมด')
+            ->assertSee('งานโปรเจกต์ล่าช้าทั้งหมด')
             // งานที่เกินการ์ดสรุปต้องอยู่ในกล่อง "ดูทั้งหมด"
-            ->assertSee('งานวันนี้ลำดับ 12')
+            ->assertSee('งานล่าช้าลำดับ 01')
             // ไม่มีลิงก์พาออกไปหน้างานของฉันแบบเดิมแล้ว
             ->assertDontSee('task_scope=today', false);
     }
@@ -270,6 +356,16 @@ class DailyBriefTest extends TestCase
 
         $this->assertFalse($flags[$old->title]);
         $this->assertTrue($flags['ประกาศใหม่']);
+    }
+
+    /** งานที่เลยกำหนดส่งมาแล้ว $days วันตามวันทำการไทย */
+    private function overdueTask(User $assignee, string $topic, int $days, array $attributes = []): WorkOrder
+    {
+        return $this->task($assignee, $topic, [
+            'job_start_at' => now()->subDays($days + 1),
+            'job_due_at' => now()->subDays($days),
+            ...$attributes,
+        ]);
     }
 
     private function task(User $assignee, string $topic, array $attributes = []): WorkOrder

@@ -290,16 +290,40 @@ class WorkLogController extends Controller
 
         $actor = Auth::user();
         $data = $request->validate($this->validationRules());
+        $dates = collect($data['work_dates'] ?? [])->filter()->unique()->values();
+        if ($dates->isEmpty()) {
+            $dates->push($data['work_date'] ?? $workLog->work_date?->format('Y-m-d'));
+        }
+        if ($dates->count() > 1) {
+            Gate::authorize('create', WorkLog::class);
+        }
 
-        $workLog = $this->logs->update($workLog, $actor, $data);
-        $this->participants->sync($workLog, $actor, $request->input('participants', []));
+        $originalDate = $workLog->work_date?->format('Y-m-d');
+        $primaryDate = $dates->contains($originalDate) ? $originalDate : $dates->first();
+        $extraDates = $dates->reject(fn ($date) => $date === $primaryDate)->values();
+
+        $workLog = DB::transaction(function () use ($workLog, $actor, $data, $primaryDate, $extraDates, $request): WorkLog {
+            $workLog = $this->logs->update($workLog, $actor, [...$data, 'work_date' => $primaryDate]);
+            $this->participants->sync($workLog, $actor, $request->input('participants', []));
+
+            foreach ($extraDates as $date) {
+                $copy = $this->logs->create($actor, $actor, [
+                    ...$data,
+                    'kind' => $workLog->kind,
+                    'work_date' => $date,
+                ], true);
+                $this->participants->sync($copy, $actor, $request->input('participants', []));
+            }
+
+            return $workLog;
+        });
 
         return $this->jsonOrBack(
             $request,
             true,
             'แก้ไขบันทึกงานเรียบร้อย',
             200,
-            $this->mutationPayload($actor, $workLog)
+            [...$this->mutationPayload($actor, $workLog), 'created_count' => $extraDates->count() + 1]
         );
     }
 

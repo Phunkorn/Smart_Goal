@@ -224,7 +224,7 @@ test('the client hint matches the server allow-list exactly', async () => {
         .match(/^\s{8}'([a-z0-9]+)' =>/gm)
         .map((line) => line.trim().split("'")[1]);
 
-    assert.deepEqual(allowed, ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip']);
+    assert.deepEqual(allowed, ['jpg', 'jpeg', 'png', 'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip']);
 
     const iconMap = icons.slice(icons.indexOf('export const FILE_ICONS'), icons.indexOf('export const extensionOf'));
     assert.ok(iconMap.length > 0, 'ต้องหาตาราง FILE_ICONS เจอ ไม่ใช่ slice ว่าง');

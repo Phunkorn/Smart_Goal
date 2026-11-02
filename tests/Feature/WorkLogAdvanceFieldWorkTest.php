@@ -98,6 +98,75 @@ class WorkLogAdvanceFieldWorkTest extends TestCase
         $this->assertSame(0, WorkLog::query()->count());
     }
 
+    public function test_editing_a_routine_log_can_move_it_ahead_within_the_advance_limit(): void
+    {
+        $owner = $this->user();
+        $this->actingAs($owner)->postJson(route('daily-logs.store'), [
+            'title' => 'งานประจำวันนี้',
+            'kind' => 'routine',
+            'work_date' => '2026-09-08',
+        ])->assertOk();
+        $log = WorkLog::query()->firstOrFail();
+
+        $this->actingAs($owner)->patchJson(route('daily-logs.update', $log), [
+            'title' => 'งานประจำสัปดาห์หน้า',
+            'kind' => 'routine',
+            'work_date' => '2026-09-15',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+        ])->assertOk()->assertJsonPath('log.is_future_day', true)
+            ->assertJsonPath('log.status', 'open');
+
+        $log->refresh();
+        $this->assertSame('2026-09-15', $log->work_date->format('Y-m-d'));
+        $this->assertNull($log->started_at);
+        $this->assertSame('2026-09-15 02:00:00', $log->planned_start_at->utc()->format('Y-m-d H:i:s'));
+
+        $this->actingAs($owner)->patchJson(route('daily-logs.update', $log), [
+            'title' => 'ไกลเกินไป',
+            'kind' => 'routine',
+            'work_date' => CarbonImmutable::parse('2026-09-08')->addDays(WorkLogDesign::MAX_ADVANCE_DAYS + 1)->format('Y-m-d'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('work_date');
+    }
+
+    public function test_editing_can_select_multiple_future_days_and_keeps_the_original_log(): void
+    {
+        $owner = $this->user();
+        $this->actingAs($owner)->postJson(route('daily-logs.store'), [
+            'title' => 'งานเดิม',
+            'kind' => 'routine',
+            'work_date' => '2026-09-08',
+        ])->assertOk();
+        $log = WorkLog::query()->firstOrFail();
+
+        $payload = [
+            'title' => 'งานหลายวัน',
+            'kind' => 'routine',
+            'work_date' => '2026-09-08',
+            'work_dates' => ['2026-09-08', '2026-09-15', '2026-09-16'],
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+        ];
+        $this->actingAs($owner)->patchJson(route('daily-logs.update', $log), $payload)
+            ->assertOk()->assertJsonPath('created_count', 3);
+
+        $this->assertSame('2026-09-08', $log->fresh()->work_date->format('Y-m-d'));
+        $this->assertEqualsCanonicalizing(
+            ['2026-09-08', '2026-09-15', '2026-09-16'],
+            WorkLog::query()->get()->map(fn (WorkLog $item) => $item->work_date->format('Y-m-d'))->all()
+        );
+        $this->assertSame(2, WorkLog::query()->where('status', 'open')->count());
+
+        $tooFar = CarbonImmutable::parse('2026-09-08')->addDays(WorkLogDesign::MAX_ADVANCE_DAYS + 1)->format('Y-m-d');
+        $this->actingAs($owner)->patchJson(route('daily-logs.update', $log), [
+            ...$payload,
+            'title' => 'ไม่ควรบันทึก',
+            'work_dates' => ['2026-09-08', $tooFar],
+        ])->assertUnprocessable()->assertJsonValidationErrors('work_date');
+        $this->assertSame(3, WorkLog::query()->count());
+        $this->assertSame('งานหลายวัน', $log->fresh()->title);
+    }
+
     public function test_field_work_cannot_go_further_than_the_advance_limit(): void
     {
         $owner = $this->user();

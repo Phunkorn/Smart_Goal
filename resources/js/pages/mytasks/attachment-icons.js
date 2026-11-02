@@ -10,6 +10,7 @@
  */
 export const FILE_ICONS = {
     jpg: 'bi-file-earmark-image', jpeg: 'bi-file-earmark-image', png: 'bi-file-earmark-image',
+    txt: 'bi-file-earmark-text',
     pdf: 'bi-file-earmark-pdf',
     doc: 'bi-file-earmark-word', docx: 'bi-file-earmark-word',
     xls: 'bi-file-earmark-excel', xlsx: 'bi-file-earmark-excel',
