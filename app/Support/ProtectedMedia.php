@@ -16,7 +16,11 @@ final class ProtectedMedia
 
     public static function storeAttachment(UploadedFile $file, string $directory): string
     {
-        $path = $file->store($directory, self::ATTACHMENT_DISK);
+        $extension = AttachmentPolicy::storedExtensionOverride($file);
+
+        $path = $extension === null
+            ? $file->store($directory, self::ATTACHMENT_DISK)
+            : $file->storeAs($directory, $file->hashName().'.'.$extension, self::ATTACHMENT_DISK);
 
         if (! is_string($path) || $path === '') {
             throw new RuntimeException('Unable to store protected attachment.');

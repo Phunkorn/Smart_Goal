@@ -644,7 +644,7 @@ class MyTaskController extends Controller
             'job_priority' => ['nullable', 'integer', 'in:2,3,4,5'],
             'project_priority' => ['nullable', 'integer', 'in:1,2,3'],
             'attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
-            'attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            'attachments.*' => AttachmentPolicy::fileRules(),
         ];
     }
 
@@ -812,7 +812,7 @@ class MyTaskController extends Controller
 
         $request->validate([
             'attachments' => ['required', 'array', 'min:1', 'max:'.AttachmentPolicy::MAX_FILES],
-            'attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            'attachments.*' => AttachmentPolicy::fileRules(),
         ]);
 
         $incomingFiles = $request->file('attachments', []);

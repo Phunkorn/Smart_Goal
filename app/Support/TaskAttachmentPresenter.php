@@ -36,6 +36,8 @@ final class TaskAttachmentPresenter
             'name' => self::name($file),
             'url' => route('media.task-attachments.show', $file),
             'download_url' => self::downloadUrl($file),
+            // หน้าจอแสดงไอคอนกุญแจให้รู้ก่อนเปิดว่าต้องมีรหัสผ่าน
+            'password_protected' => AttachmentPolicy::isPasswordProtectedType($file->file_type),
             'delete_url' => $canManage
                 ? route('tasks.attachments.destroy', [$jobId, $file])
                 : null,

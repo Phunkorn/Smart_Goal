@@ -122,7 +122,27 @@ export async function confirmTaskTransition(currentStatus, targetStatus, capabil
      * แต่ทุกทางผ่านฟังก์ชันนี้ ด่านจึงอยู่ที่เดียวและครอบคลุมทั้งหมด
      * server ปฏิเสธซ้ำอยู่แล้ว ตรงนี้มีไว้บอกเหตุผลก่อนที่ผู้ใช้จะเสียเวลายิง request
      */
-    const blocked = subtaskGateMessage(Number(targetStatus), openSubtasksFor(capabilities));
+    const openSubtasks = openSubtasksFor(capabilities);
+    const blocked = subtaskGateMessage(Number(targetStatus), openSubtasks);
+    if (blocked && Number(targetStatus) === 4 && capabilities.can_close_with_subtasks === true) {
+        /*
+         * ผู้ดูแลระบบปิดงานพร้อมงานย่อยที่ค้างได้ — สิทธิ์มาจาก server (closeWithSubtasks)
+         * ต้องยืนยันพร้อมจำนวนงานก่อนทุกครั้ง แล้วส่งธง close_subtasks ไปขอแบบชัดแจ้ง
+         * server ไม่ปิดงานย่อยให้ถ้าไม่มีธงนี้ การกดพลาดจึงไม่ปิดงานของคนอื่นไปเงียบ ๆ
+         */
+        const result = await window.Swal.fire({
+            icon: 'warning',
+            title: 'ปิดงานพร้อมงานย่อยที่ค้าง?',
+            text: `ยังมีงานย่อยที่ไม่เสร็จ ${Number(openSubtasks)} งาน ระบบจะปิดงานย่อยทั้งหมดไปพร้อมกับงานนี้ และบันทึกในประวัติของทุกงาน`,
+            showCancelButton: true,
+            confirmButtonText: 'ปิดงานทั้งหมด',
+            cancelButtonText: 'ยกเลิก',
+            reverseButtons: true,
+            customClass: {container: 'task-transition-dialog'},
+        });
+
+        return result.isConfirmed ? {job_status: 4, close_subtasks: true} : null;
+    }
     if (blocked) {
         await window.Swal.fire({
             icon: 'warning',

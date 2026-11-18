@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldRevealComments, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from '../../resources/js/pages/mytasks/task-comments-model.js';
 import {click, pressKey} from './helpers/dom.js';
 import {mountTaskWorkspace} from './helpers/task-workspace-fixture.js';
+import {attachmentStore} from '../../resources/js/pages/mytasks/attachment-store.js';
 
 let timelineFixture = 0;
 
@@ -490,6 +491,35 @@ test('รูปในคอมเมนต์เปิดเป็นกล่�
     // ปิดแล้วต้องไม่เหลือรูปเดิมค้างไว้ให้เห็นแวบหนึ่งตอนเปิดรูปใบถัดไป
     assert.equal(modal.querySelector('[data-comment-image-view]').getAttribute('src'), '');
     // Task Workspace ต้องยังเปิดอยู่ ผู้ใช้กลับไปอ่านบทสนทนาต่อได้ทันที
+    assert.equal(ui.taskModal.hidden, false);
+});
+
+test('ไฟล์ภาพในรายการไฟล์แนบเปิด modal เดียวกับรูปคอมเมนต์ และเอกสารยังเป็นลิงก์เดิม', async (t) => {
+    const ui = await bootTimeline(t, 'http://localhost/my-tasks?view=board');
+    attachmentStore(ui.document)['7'] = {
+        can_upload: false,
+        files: [
+            {name: 'PC - 1.png', url: '/media/task-attachments/1'},
+            {name: 'PC - 2.jpg', url: '/media/task-attachments/2'},
+            {name: 'สรุป.pdf', url: '/media/task-attachments/3'},
+        ],
+    };
+    click(ui.boardTitle());
+
+    const images = ui.taskModal.querySelectorAll('[data-open-attachment-image]');
+    assert.equal(images.length, 2);
+    assert.equal(images[0].hasAttribute('target'), false);
+    const documentLink = ui.taskModal.querySelector('.task-inline-files a[href="/media/task-attachments/3"]');
+    assert.equal(documentLink.getAttribute('target'), '_blank');
+
+    click(images[0]);
+    const modal = ui.imageModal();
+    assert.equal(modal.hidden, false);
+    assert.equal(modal.querySelector('[data-comment-image-view]').getAttribute('src'), '/media/task-attachments/1');
+    assert.equal(modal.querySelector('[data-comment-image-name]').textContent, 'PC - 1.png');
+
+    click(modal.querySelector('[data-close-comment-image]'));
+    assert.equal(modal.hidden, true);
     assert.equal(ui.taskModal.hidden, false);
 });
 

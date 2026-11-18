@@ -163,6 +163,68 @@ test('confirmTaskTransition เด้ง SweetAlert และไม่ยอม�
     }
 });
 
+test('ผู้ดูแลระบบได้กล่องยืนยันปิดพร้อมงานย่อย และส่งธง close_subtasks ไปขอแบบชัดแจ้ง', async () => {
+    const dom = mountDom(workspaceMarkup(41, [4, 2, 5]));
+
+    try {
+        const dialogs = [];
+        let answer = true;
+        window.Swal = {
+            fire: (options) => {
+                dialogs.push(options);
+
+                return Promise.resolve({isConfirmed: answer});
+            },
+        };
+
+        const capabilities = {
+            task_id: 41,
+            can_admin_override: true,
+            can_close_with_subtasks: true,
+            allowed_statuses: [2, 3, 4, 5],
+        };
+
+        const payload = await confirmTaskTransition(2, 4, capabilities);
+
+        assert.deepEqual(payload, {job_status: 4, close_subtasks: true});
+        assert.equal(dialogs.length, 1);
+        assert.equal(dialogs[0].title, 'ปิดงานพร้อมงานย่อยที่ค้าง?');
+        // จำนวนต้องมาจากงานย่อยที่ค้างจริง (2 และ 5) ไม่ใช่จำนวนงานย่อยทั้งหมด
+        assert.match(dialogs[0].text, /ไม่เสร็จ 2 งาน/);
+        assert.equal(dialogs[0].showCancelButton, true);
+        assert.equal(dialogs[0].customClass.container, 'task-transition-dialog');
+
+        // กดยกเลิกต้องไม่ยิง request
+        answer = false;
+        assert.equal(await confirmTaskTransition(2, 4, capabilities), null);
+
+        // ธงนี้ใช้กับการปิดงานเท่านั้น การส่งตรวจยังถูกบล็อกเหมือนเดิม
+        answer = true;
+        assert.equal(await confirmTaskTransition(2, 3, capabilities), null);
+        assert.equal(dialogs.at(-1).title, 'ยังเคลียร์งานย่อยไม่ครบ');
+    } finally {
+        delete window.Swal;
+        dom.cleanup();
+    }
+});
+
+test('ผู้ใช้ที่ server ไม่ให้สิทธิ์ปิดพร้อมงานย่อยยังถูกบล็อก แม้จะ override สถานะได้', async () => {
+    const dom = mountDom(workspaceMarkup(41, [2]));
+
+    try {
+        const dialogs = [];
+        window.Swal = {fire: (options) => { dialogs.push(options); return Promise.resolve({isConfirmed: true}); }};
+
+        const blocked = await confirmTaskTransition(2, 4, {task_id: 41, can_admin_override: true, allowed_statuses: [2, 4, 5]});
+
+        assert.equal(blocked, null);
+        assert.equal(dialogs[0].title, 'ยังเคลียร์งานย่อยไม่ครบ');
+    } finally {
+        delete window.Swal;
+        dom.cleanup();
+    }
+});
+
 test('งานที่ไม่มีงานย่อยเลยยังปิดได้ทันทีเหมือนเดิม', async () => {
     const dom = mountDom(workspaceMarkup(41, []));
 

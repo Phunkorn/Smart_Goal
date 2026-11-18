@@ -56,6 +56,13 @@
         $systemNotifications = $notificationService->dropdown($currentUser);
         $notificationCount = $notificationService->unreadCount($currentUser);
         $notificationDisplayCount = $notificationService->displayCount($notificationCount);
+        $adminNavExpanded = [
+            'overview' => request()->routeIs('board.*', 'reports.*'),
+            'communication' => request()->routeIs('notifications.*', 'tickets.*'),
+            'work' => request()->routeIs('admin.approvals.*', 'shares.*', 'daily-logs.*', 'workspace.*'),
+            'people' => request()->routeIs('employees.*', 'admin.departments.*'),
+            'system' => request()->routeIs('admin.accounts.*', 'admin.work-log-categories.*', 'admin.tickets.*', 'admin.audit.*', 'settings.*'),
+        ];
     @endphp
 
     <aside class="sidebar" id="appSidebar">
@@ -72,11 +79,17 @@
         <div class="sidebar-nav">
             @if ($isAdmin)
                 {{--
-                    แถบข้างของ admin แบ่งตามจังหวะการใช้งานสี่หมวด:
-                    ภาพรวมองค์กร / งานและการติดตาม / บุคลากรและแผนก / การตั้งค่าระบบ
+                    แถบข้างของ admin แบ่งตามหน้าที่ห้าหมวด:
+                    ภาพรวมองค์กร / การสื่อสารและบริการ / การทำงาน / บุคลากรและแผนก / การตั้งค่าระบบ
                     เพื่อให้เมนูข้อมูลคนไม่ปนกับบัญชี สิทธิ์ และเครื่องมือตรวจสอบระบบ
                 --}}
-                <div class="nav-section-label">ภาพรวมองค์กร</div>
+                <div class="sidebar-nav__group" role="group" aria-label="ภาพรวมองค์กร">
+                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-overview" aria-controls="admin-nav-overview" aria-expanded="{{ $adminNavExpanded['overview'] ? 'true' : 'false' }}">
+                    <i class="bi bi-grid-1x2 sidebar-nav__group-icon" aria-hidden="true"></i>
+                    <span>ภาพรวมองค์กร</span>
+                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
+                </button>
+                <div id="admin-nav-overview" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['overview'] ? ' show' : '' }}">
 
                 {{-- เมนู "การประชุม" อยู่ใน Admin Member Workspace เพื่อให้ดูในบริบทของสมาชิก --}}
                 <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}" @if(request()->routeIs('board.*')) aria-current="page" @endif>
@@ -84,6 +97,8 @@
                     <span class="nav-item__label">บอร์ดรวม</span>
                 </a>
                 @include('layouts.partials.report-nav')
+                </div>
+                </div>
             @elseif ($isViewer)
                 <div class="nav-section-label">ภาพรวม</div>
 
@@ -164,7 +179,17 @@
                 @include('layouts.partials.ticket-nav', ['withSection' => true])
             @endif
 
-            <div class="nav-section-label">{{ $isAdmin ? 'งานและการติดตาม' : 'การสื่อสาร' }}</div>
+            @if ($isAdmin)
+                <div class="sidebar-nav__group" role="group" aria-label="การสื่อสารและบริการ">
+                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-communication" aria-controls="admin-nav-communication" aria-expanded="{{ $adminNavExpanded['communication'] ? 'true' : 'false' }}">
+                    <i class="bi bi-chat-dots sidebar-nav__group-icon" aria-hidden="true"></i>
+                    <span>การสื่อสารและบริการ</span>
+                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
+                </button>
+                <div id="admin-nav-communication" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['communication'] ? ' show' : '' }}">
+            @else
+                <div class="nav-section-label">การสื่อสาร</div>
+            @endif
 
             <a href="{{ route('notifications.index') }}"
                 class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}" @if(request()->routeIs('notifications.*')) aria-current="page" @endif>
@@ -174,8 +199,18 @@
             </a>
 
             @if ($isAdmin)
-                {{-- Smart Ticket ของ admin อยู่ในหมวดงานและการติดตามเดิม (เมนูเดียว ชื่อตามสิทธิ์ — layouts/partials/ticket-nav) --}}
+                {{-- Smart Ticket ใช้เมนูและสิทธิ์เดิมในหมวดการสื่อสารและบริการ --}}
                 @include('layouts.partials.ticket-nav')
+                </div>
+                </div>
+
+                <div class="sidebar-nav__group" role="group" aria-label="การทำงาน">
+                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-work" aria-controls="admin-nav-work" aria-expanded="{{ $adminNavExpanded['work'] ? 'true' : 'false' }}">
+                    <i class="bi bi-briefcase sidebar-nav__group-icon" aria-hidden="true"></i>
+                    <span>การทำงาน</span>
+                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
+                </button>
+                <div id="admin-nav-work" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['work'] ? ' show' : '' }}">
 
                 {{--
                     admin เห็นคำขออนุมัติเฉพาะตอนมีของค้างจริง เพราะ admin เป็นผู้ดูแลระบบ ไม่ใช่ผู้อนุมัติงาน
@@ -192,9 +227,7 @@
             @endif
             @if ($isAdmin)
                 {{--
-                    เครื่องมือที่ admin ลงมือใช้เอง อยู่กลุ่มเดียวกับการแจ้งเตือน เพราะเป็น
-                    สิ่งที่ตอบคำถาม "วันนี้ฉันต้องทำอะไร" ไม่ใช่ภาพรวมขององค์กร
-
+                    รวมเครื่องมือทำงานและทำงานร่วมกันไว้ในหมวดการทำงาน
                     ป้ายตัวเลขของแชร์งานอธิบายไว้ใน layouts/partials/share-nav-item
                 --}}
                 @include('layouts.partials.share-nav-item')
@@ -207,6 +240,8 @@
                     <i class="bi bi-easel"></i>
                     <span class="nav-item__label">กระดานไอเดีย</span>
                 </a>
+                </div>
+                </div>
             @endif
 
             @if ($isViewer)
@@ -217,7 +252,17 @@
             @endif
 
             @if ($isAdmin || $isViewer)
-                <div class="nav-section-label">{{ $isAdmin ? 'บุคลากรและแผนก' : 'องค์กร' }}</div>
+                @if ($isAdmin)
+                    <div class="sidebar-nav__group" role="group" aria-label="บุคลากรและแผนก">
+                    <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-people" aria-controls="admin-nav-people" aria-expanded="{{ $adminNavExpanded['people'] ? 'true' : 'false' }}">
+                        <i class="bi bi-people sidebar-nav__group-icon" aria-hidden="true"></i>
+                        <span>บุคลากรและแผนก</span>
+                        <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div id="admin-nav-people" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['people'] ? ' show' : '' }}">
+                @else
+                    <div class="nav-section-label">องค์กร</div>
+                @endif
 
                 <a href="{{ route('employees.index') }}"
                     class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}" @if(request()->routeIs('employees.*')) aria-current="page" @endif>
@@ -230,10 +275,22 @@
                         <i class="bi bi-diagram-3"></i>
                         <span class="nav-item__label">จัดการแผนก</span>
                     </a>
+                    </div>
+                    </div>
                 @endif
             @endif
 
-            <div class="nav-section-label">{{ $isAdmin ? 'การตั้งค่าระบบ' : 'ระบบ' }}</div>
+            @if ($isAdmin)
+                <div class="sidebar-nav__group" role="group" aria-label="การตั้งค่าระบบ">
+                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-system" aria-controls="admin-nav-system" aria-expanded="{{ $adminNavExpanded['system'] ? 'true' : 'false' }}">
+                    <i class="bi bi-gear sidebar-nav__group-icon" aria-hidden="true"></i>
+                    <span>การตั้งค่าระบบ</span>
+                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
+                </button>
+                <div id="admin-nav-system" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['system'] ? ' show' : '' }}">
+            @else
+                <div class="nav-section-label">ระบบ</div>
+            @endif
 
             @if ($isAdmin)
                 <a href="{{ route('admin.accounts.index') }}"
@@ -271,6 +328,10 @@
                 <i class="bi bi-gear"></i>
                 <span class="nav-item__label">ตั้งค่า</span>
             </a>
+            @if ($isAdmin)
+                </div>
+                </div>
+            @endif
         </div>
 
         <div class="sidebar-foot">

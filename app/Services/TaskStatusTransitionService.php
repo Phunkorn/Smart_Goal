@@ -9,6 +9,7 @@ use App\Support\CrossDepartmentWork;
 use App\Support\TaskReviewStage;
 use App\Support\TodayWorkspace;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +39,8 @@ class TaskStatusTransitionService
             'can_review' => $status === 3 && Gate::forUser($actor)->allows('review', $task),
             'can_self_close' => $actor->role !== 'viewer' && $status !== 4 && $selfTask,
             'can_reopen' => Gate::forUser($actor)->allows('reopen', $task),
+            // หน้าจอใช้ค่านี้เลือกระหว่าง "เด้งบอกว่าปิดไม่ได้" กับ "เด้งยืนยันปิดพร้อมงานย่อย"
+            'can_close_with_subtasks' => $status !== 4 && $this->canCloseWithSubtasks($task, $actor),
             'is_final' => $status === 4,
             'is_self_task' => $selfTask,
             // งานของตัวเองไม่มีขั้นตรวจสอบ หน้าจอจึงต้องไม่แสดงสถานะ 3 ให้เลือกเลย
@@ -86,13 +89,34 @@ class TaskStatusTransitionService
          *
          * 4 -> 2 (เปิดงานอีกครั้ง) และ 3 -> 2 (ส่งกลับแก้ไข) ไม่ถูกกฎนี้แตะ
          */
+        $closeSubtasks = false;
+
         if (in_array($targetStatus, [3, 4], true) && $from !== 4) {
             $openChildren = $this->openChildCount($task);
 
-            if ($openChildren > 0) {
+            /*
+             * ข้อยกเว้นเดียวของด่านนี้ — ผู้ดูแลระบบปิดงานพร้อมงานย่อยที่ค้างทั้งหมด
+             *
+             * ด่านยังมีอยู่เพื่อไม่ให้เกิดงานแม่ที่ปิดแล้วแต่มีงานย่อยเปิดค้าง ทางนี้จึงไม่ข้ามด่าน
+             * แต่ "เคลียร์ให้ครบ" แทนในคราวเดียว งานย่อยทุกใบถูกปิดผ่าน transition() ตัวนี้เอง
+             * จึงได้กฎสถานะ ด่านงานย่อยชั้นลึกกว่า และ AuditTrail ครบเหมือนการปิดทีละใบ
+             *
+             * ต้องขอมาอย่างชัดแจ้ง (close_subtasks) — หน้าจอเด้งยืนยันพร้อมจำนวนงานย่อยก่อนเสมอ
+             * คำขอที่ไม่ได้ส่งธงมายังถูกปฏิเสธเหมือนเดิม การปิดงานย่อยจึงไม่เกิดขึ้นเงียบ ๆ
+             */
+            $closeSubtasks = $openChildren > 0
+                && $targetStatus === 4
+                && ($options['close_subtasks'] ?? false) === true
+                && $this->canCloseWithSubtasks($task, $actor);
+
+            if ($openChildren > 0 && ! $closeSubtasks) {
                 $this->reject($targetStatus === 4
                     ? 'ยังเคลียร์งานย่อยไม่ครบ เหลืออีก '.$openChildren.' งาน ต้องปิดงานย่อยให้ครบก่อนจึงจะปิดงานนี้ได้'
                     : 'ยังเคลียร์งานย่อยไม่ครบ เหลืออีก '.$openChildren.' งาน ต้องปิดงานย่อยให้ครบก่อนจึงจะส่งตรวจได้');
+            }
+
+            if ($closeSubtasks) {
+                $this->assertSubtasksCanBeClosed($task, $actor);
             }
         }
 
@@ -106,7 +130,11 @@ class TaskStatusTransitionService
 
         $before = $task->attributesToArray();
 
-        return DB::transaction(function () use ($task, $actor, $targetStatus, $action, $reason, $before, $from) {
+        return DB::transaction(function () use ($task, $actor, $targetStatus, $action, $reason, $before, $from, $closeSubtasks) {
+            if ($closeSubtasks) {
+                $this->closeOpenSubtasks($task, $actor);
+            }
+
             $updates = ['job_status' => $targetStatus];
 
             if ($action === 'admin_status_overridden') {
@@ -390,6 +418,87 @@ class TaskStatusTransitionService
     {
         return $task->relationLoaded('children')
             && ! CrossDepartmentWork::childrenWereRestricted($task);
+    }
+
+    /**
+     * รหัสงานย่อยทุกชั้นที่ยังไม่เสร็จ — controller ใช้ส่งสถานะใหม่ของงานย่อยกลับไปให้หน้าจอ
+     * หลังผู้ดูแลระบบปิดงานแม่พร้อมงานย่อย
+     *
+     * @return array<int>
+     */
+    public function openSubtaskIds(WorkOrder $task): array
+    {
+        return $this->openDescendants($task)
+            ->map(fn (WorkOrder $child) => (int) $child->job_id)
+            ->values()
+            ->all();
+    }
+
+    private function canCloseWithSubtasks(WorkOrder $task, User $actor): bool
+    {
+        return Gate::forUser($actor)->allows('closeWithSubtasks', $task);
+    }
+
+    /**
+     * งานย่อยที่ค้างทุกใบต้องปิดได้จริงก่อนเริ่ม ไม่งั้นจะปิดไปได้ครึ่งเดียวแล้วเด้ง 403
+     *
+     * งานย่อยที่ยังรออนุมัติ (หรือถูกปฏิเสธ) ยังไม่อยู่ในวงจรสถานะ ผู้ดูแลต้องตัดสินคำขอนั้นก่อน
+     * ซึ่งตรงกับกติกาของงานแม่ — งานที่ยังไม่อนุมัติเปลี่ยนสถานะไม่ได้
+     */
+    private function assertSubtasksCanBeClosed(WorkOrder $task, User $actor): void
+    {
+        $blocked = $this->openDescendants($task)
+            ->reject(fn (WorkOrder $child) => Gate::forUser($actor)->allows('overrideStatus', $child))
+            ->count();
+
+        if ($blocked > 0) {
+            $this->reject('มีงานย่อยที่ยังไม่ได้รับอนุมัติ '.$blocked.' งาน ต้องอนุมัติหรือปฏิเสธงานย่อยเหล่านั้นก่อนจึงจะปิดงานนี้ได้');
+        }
+    }
+
+    /**
+     * ปิดงานย่อยชั้นถัดไปที่ค้างทีละใบผ่าน transition() — ชั้นที่ลึกกว่าถูกปิดต่อในการเรียกซ้ำ
+     * ทำงานอยู่ใน DB::transaction ของงานแม่ ถ้าใบใดล้ม งานทุกใบย้อนกลับพร้อมกัน
+     */
+    private function closeOpenSubtasks(WorkOrder $task, User $actor): void
+    {
+        $task->children()
+            ->where('job_status', '!=', 4)
+            ->orderBy('parent_sort_order')
+            ->orderBy('job_id')
+            ->get()
+            ->each(fn (WorkOrder $child) => $this->transition($child, $actor, 4, [
+                'close_subtasks' => true,
+                'reason' => 'ปิดพร้อมงานแม่ “'.$task->job_topic.'” โดยผู้ดูแลระบบ',
+            ]));
+    }
+
+    /**
+     * งานย่อยทุกชั้นที่ยังไม่เสร็จ — ไล่ลงไปเฉพาะสายที่ยังเปิดอยู่ เพราะ closeOpenSubtasks()
+     * ข้ามงานที่ปิดแล้วไปทั้งกิ่ง ทั้งสองที่จึงเห็นชุดงานเดียวกัน
+     *
+     * @return Collection<int, WorkOrder>
+     */
+    private function openDescendants(WorkOrder $task): Collection
+    {
+        $found = collect();
+        $seen = [(int) $task->job_id];
+        $parents = $seen;
+
+        while ($parents !== []) {
+            $level = WorkOrder::query()
+                ->whereIn('parent_job_id', $parents)
+                ->where('job_status', '!=', 4)
+                ->get()
+                ->reject(fn (WorkOrder $child) => in_array((int) $child->job_id, $seen, true))
+                ->values();
+
+            $found = $found->merge($level);
+            $parents = $level->map(fn (WorkOrder $child) => (int) $child->job_id)->all();
+            $seen = array_merge($seen, $parents);
+        }
+
+        return $found;
     }
 
     private function isSelfTask(WorkOrder $task, User $actor): bool

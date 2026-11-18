@@ -2,6 +2,8 @@
     $workspaceContext = $workspaceContext ?? 'user';
     $showCreateActions = $showCreateActions ?? true;
     $forceReadOnly = $forceReadOnly ?? false;
+    // การจัดทีมล็อกแยกจากตัวงานได้ — Workspace ของสมาชิกให้ admin จัดการงานได้ แต่จัดทีมไม่ได้
+    $teamReadOnly = $teamReadOnly ?? $forceReadOnly;
     /*
      * โครงสร้างสมาชิกโปรเจกต์ที่หน้าจอใช้ ตรงกับ App\Support\ProjectRoles ทุกประการ:
      *   leader       — หัวหน้าโปรเจกต์ คือผู้สร้างงานใบนั้น
@@ -17,14 +19,14 @@
         'department' => $person->department?->department_name,
         'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
     ];
-    $teamData = $allTasks->mapWithKeys(function ($task) use ($forceReadOnly, $personPayload) {
-        $canManage = ! $forceReadOnly && auth()->user()->can('manageTeam', $task);
+    $teamData = $allTasks->mapWithKeys(function ($task) use ($teamReadOnly, $personPayload) {
+        $canManage = ! $teamReadOnly && auth()->user()->can('manageTeam', $task);
         $leader = \App\Support\ProjectRoles::leader($task);
 
         return [(string) $task->job_id => [
             'id' => $task->job_id,
             'topic' => $task->job_topic,
-            'locked' => $forceReadOnly || ((int) $task->job_status === 4 && auth()->user()->role !== 'admin'),
+            'locked' => $teamReadOnly || ((int) $task->job_status === 4 && auth()->user()->role !== 'admin'),
             'can_manage' => $canManage,
             'add_url' => $canManage ? route('tasks.collaborators.store', $task->job_id) : null,
             'remove_url' => $canManage ? route('tasks.collaborators.destroy', [$task->job_id, '__USER__']) : null,
@@ -152,7 +154,7 @@
         // สิทธิ์จริงตัดสินที่ WorkOrderPolicy::comment() ฝั่ง server ที่เดียว
         'can_comment' => auth()->user()->can('comment', $task),
         'can_view_comments' => auth()->user()->can('viewComments', $task),
-        'can_manage_team' => ! $forceReadOnly && auth()->user()->can('manageTeam', $task),
+        'can_manage_team' => ! $teamReadOnly && auth()->user()->can('manageTeam', $task),
         'project' => $task->taskList?->name ?? 'งานทั่วไป',
         'status' => (int) $task->job_status,
         'submitted_by' => $task->reviewSubmitter?->name,
@@ -244,7 +246,7 @@
 </div>
 
 {{--
-    กล่องดูรูปในคอมเมนต์
+    กล่องดูรูปในคอมเมนต์และไฟล์แนบงาน
 
     เดิมรูปในฟองแชทเป็นลิงก์ที่พาออกไปเปิด URL ของไฟล์ในแท็บใหม่ ผู้ใช้จึงหลุดจากบทสนทนา
     ที่กำลังอ่านอยู่ทุกครั้งที่อยากดูรูปให้ชัด ที่นี่จึงเปิดเป็นชั้นทับใน Workspace แทน

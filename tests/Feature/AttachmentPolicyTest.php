@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Support\AttachmentPolicy;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Validator;
 use Tests\TestCase;
 
 /**
@@ -71,9 +72,21 @@ class AttachmentPolicyTest extends TestCase
     {
         $accept = AttachmentPolicy::acceptAttribute();
 
+        // ข้อความ "ต้องเป็นไฟล์ชนิด: ..." ของกฎ validation ต้องมาจากรายการเดียวกัน
+        $html = tempnam(sys_get_temp_dir(), 'sghtml');
+        file_put_contents($html, '<!doctype html><html><body>page</body></html>');
+        $this->temporaryFiles[] = $html;
+
+        $validator = Validator::make(
+            ['file' => new UploadedFile($html, 'page.html', 'text/html', null, true)],
+            ['file' => AttachmentPolicy::fileRules()]
+        );
+        $this->assertTrue($validator->fails());
+        $rejection = $validator->errors()->first('file');
+
         foreach (AttachmentPolicy::extensions() as $extension) {
             $this->assertStringContainsString('.'.$extension, $accept);
-            $this->assertStringContainsString($extension, AttachmentPolicy::mimesRule());
+            $this->assertStringContainsString($extension, $rejection);
         }
 
         $this->assertStringContainsString('20 ไฟล์', AttachmentPolicy::limitsLabel());

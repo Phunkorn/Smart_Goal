@@ -174,7 +174,7 @@ class WorkOrderPolicy
      */
     public function update(User $user, WorkOrder $workOrder): bool
     {
-        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
+        if ($user->role === 'viewer' || $this->isClosedFor($user, $workOrder)) {
             return false;
         }
 
@@ -208,7 +208,7 @@ class WorkOrderPolicy
      */
     public function work(User $user, WorkOrder $workOrder): bool
     {
-        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
+        if ($user->role === 'viewer' || $this->isClosedFor($user, $workOrder)) {
             return false;
         }
 
@@ -233,7 +233,7 @@ class WorkOrderPolicy
      */
     public function manageSubtasks(User $user, WorkOrder $workOrder): bool
     {
-        if ($user->role === 'viewer' || (int) $workOrder->job_status === 4) {
+        if ($user->role === 'viewer' || $this->isClosedFor($user, $workOrder)) {
             return false;
         }
 
@@ -285,6 +285,17 @@ class WorkOrderPolicy
     }
 
     /**
+     * ปิดงานใบนี้พร้อมปิดงานย่อยที่ยังค้างทั้งหมดในคราวเดียว — ผู้ดูแลระบบเท่านั้น
+     *
+     * เกณฑ์เดียวกับ overrideStatus() เพราะเป็นการปรับสถานะข้ามขั้นแบบเดียวกัน
+     * งานย่อยแต่ละใบยังต้องผ่าน overrideStatus() ของตัวเองอีกชั้นใน TaskStatusTransitionService
+     */
+    public function closeWithSubtasks(User $user, WorkOrder $workOrder): bool
+    {
+        return $this->overrideStatus($user, $workOrder);
+    }
+
+    /**
      * เขียนความคิดเห็นในงาน
      *
      * หัวหน้าแผนกปลายทางคอมเมนต์ได้ แม้ไม่ได้เป็นผู้รับผิดชอบหรือผู้ร่วมงาน
@@ -301,7 +312,7 @@ class WorkOrderPolicy
     {
         return $workOrder->approval_status === 'approved'
             && $user->role !== 'viewer'
-            && (int) $workOrder->job_status !== 4
+            && ! $this->isClosedFor($user, $workOrder)
             && ($this->isTaskParticipant($workOrder, $user)
                 || $user->overseesDepartment($this->destinationDepartmentId($workOrder))
                 || $this->overseesMemberOnTask($workOrder, $user));
@@ -423,6 +434,24 @@ class WorkOrderPolicy
     {
         return $workOrder->parent_job_id !== null
             && $this->manageTeam($user, $workOrder);
+    }
+
+    /**
+     * งานที่ปิดแล้ว (สถานะ 4) ถูกล็อกสำหรับผู้ใช้คนนี้หรือไม่
+     *
+     * ผู้ดูแลระบบ (admin) แก้ไข แนบไฟล์ คอมเมนต์ และจัดการงานย่อยของงานที่ปิดแล้วได้
+     * โดยไม่ต้องเปิดงานอีกครั้ง — กติกาที่เจ้าของระบบกำหนด ส่วน role อื่นยังต้องเปิดงานก่อน
+     *
+     * ก่อนหน้านี้ update/work/manageSubtasks/comment ปฏิเสธงานสถานะ 4 กับทุก role
+     * ข้อยกเว้น "role !== 'admin'" ใน controller และ Blade จึงไม่เคยทำงานจริง
+     * กติกาอยู่ที่นี่ที่เดียว ข้อยกเว้นเหล่านั้นจึงตรงกับ policy แล้ว
+     *
+     * การเปลี่ยนสถานะของงานที่ปิดแล้วยังต้องผ่าน reopen() เหมือนเดิม เพราะ
+     * TaskStatusTransitionService::resolveAction() บังคับเส้นทางนั้นไว้
+     */
+    private function isClosedFor(User $user, WorkOrder $workOrder): bool
+    {
+        return (int) $workOrder->job_status === 4 && $user->role !== 'admin';
     }
 
     /**

@@ -16,7 +16,7 @@
  */
 import {modalStack} from '../../components/modal-stack.js';
 import {attachmentStore} from './attachment-store.js';
-import {iconFor, toneFor} from './attachment-icons.js';
+import {iconFor, lockBadge, toneFor} from './attachment-icons.js';
 
 /* ---------- pure state ---------- */
 
@@ -147,6 +147,7 @@ export function initAttachmentDownload(doc = globalThis.document) {
                         <input type="checkbox" value="${escape(key)}">
                         <i class="bi ${iconFor(file.name)} file-tone-${toneFor(file.name)}" aria-hidden="true"></i>
                         <span>${escape(file.name)}</span>
+                        ${lockBadge(file)}
                     </label>
                     <a href="${escape(file.download_url || file.url)}" download="${escape(file.name)}" title="ดาวน์โหลดไฟล์นี้" aria-label="ดาวน์โหลด ${escape(file.name)}"><i class="bi bi-download" aria-hidden="true"></i></a>
                 </div>`;

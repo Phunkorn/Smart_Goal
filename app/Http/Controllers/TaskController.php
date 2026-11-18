@@ -815,7 +815,7 @@ class TaskController extends Controller
             'project_name' => ['required', 'string', 'max:80'],
             'project_priority' => ['required', 'integer', 'in:1,2,3'],
             'project_attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
-            'project_attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            'project_attachments.*' => AttachmentPolicy::fileRules(),
             'tasks' => ['required', 'array', 'min:1', 'max:20'],
             'tasks.*.job_topic' => ['required', 'string', 'max:255'],
             'tasks.*.job_details' => ['nullable', 'string', 'max:2000'],
@@ -826,7 +826,7 @@ class TaskController extends Controller
             'tasks.*.collaborators' => ['nullable', 'array'],
             'tasks.*.collaborators.*' => ['integer', 'exists:users,id,role,user'],
             'tasks.*.attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
-            'tasks.*.attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            'tasks.*.attachments.*' => AttachmentPolicy::fileRules(),
         ];
     }
 
@@ -844,7 +844,7 @@ class TaskController extends Controller
             'collaborators' => ['nullable', 'array'],
             'collaborators.*' => ['integer', 'exists:users,id,role,user'],
             'attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
-            'attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            'attachments.*' => AttachmentPolicy::fileRules(),
         ];
     }
 

@@ -9,6 +9,8 @@ import {DAILY_LOG_DIALOG_CLASS, sendAction} from './client.js';
 
 /** ไอคอนตามชนิดไฟล์ พอให้แยกออกด้วยตาโดยไม่ต้องอ่านนามสกุล */
 const iconFor = (type = '') => {
+    // Excel ที่ตั้งรหัสผ่าน (AttachmentPolicy::PASSWORD_PROTECTED_MIME) — บอกด้วยไอคอนกุญแจ
+    if (type === 'application/encrypted') return 'bi-file-earmark-lock';
     if (type.startsWith('image/')) return 'bi-file-earmark-image';
     if (type.includes('pdf')) return 'bi-file-earmark-pdf';
     if (type.includes('sheet') || type.includes('excel')) return 'bi-file-earmark-spreadsheet';

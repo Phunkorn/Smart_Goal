@@ -7,7 +7,7 @@ import {publishTaskState, synchronizeTaskSource} from './pages/mytasks/task-stat
 import {taskStateStore} from './pages/mytasks/task-state-store.js';
 import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
 // ไอคอนตามชนิดไฟล์ใช้ตารางร่วมกับกล่องดาวน์โหลดไฟล์แนบ ไม่มีสำเนาแยกอีกชุด
-import {extensionOf, iconFor, toneFor} from './pages/mytasks/attachment-icons.js';
+import {extensionOf, iconFor, lockBadge, toneFor} from './pages/mytasks/attachment-icons.js';
 // การลบไฟล์แนบใช้โมดูลร่วมกับกล่องไฟล์แนบที่เปิดจากปุ่มคลิปหนีบ ไม่มีสำเนาแยก
 import {confirmAttachmentDelete, deleteTaskAttachment} from './pages/mytasks/attachment-delete.js';
 // ป้ายเวลากำหนดส่งใช้ตัวช่วยชุดเดียวกับบอร์ด ตาราง และปฏิทิน ไม่มีสำเนาแยก
@@ -796,12 +796,20 @@ const workspaceDialogLayer = {customClass: {container: 'task-workspace-dialog'}}
         const files = task?.files || [];
         // ไอคอนบอกชนิดไฟล์ตั้งแต่แรกเห็น ไม่ต้องอ่านนามสกุลท้ายชื่อที่มักถูกตัดด้วย ellipsis
         list.innerHTML = files.length
-            ? files.map((file) => `<article><a href="${escape(file.url)}" target="_blank" rel="noopener"><i class="bi ${iconFor(file.name)} file-tone-${toneFor(file.name)}" aria-hidden="true"></i><span>${escape(file.name)}</span></a>${file.delete_url ? `<button type="button" class="attachment-delete" data-delete-attachment="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ''}</article>`).join('')
+            ? files.map((file) => {
+                const image = toneFor(file.name) === 'image';
+                const preview = image
+                    ? ` data-open-attachment-image="${escape(file.url)}" data-image-name="${escape(file.name)}" title="ดูภาพ ${escape(file.name)}"`
+                    : ' target="_blank" rel="noopener"';
+
+                return `<article><a href="${escape(file.url)}"${preview}><i class="bi ${iconFor(file.name)} file-tone-${toneFor(file.name)}" aria-hidden="true"></i><span>${escape(file.name)}</span>${lockBadge(file)}</a>${file.delete_url ? `<button type="button" class="attachment-delete" data-delete-attachment="${escape(file.delete_url)}" aria-label="ลบไฟล์ ${escape(file.name)}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ''}</article>`;
+            }).join('')
             : '<p>ยังไม่มีไฟล์แนบ</p>';
         if (drop) drop.hidden = !task?.can_upload;
         // งานที่แนบไฟล์ไม่ได้ต้องไม่ชวนให้ลาก
         if (typesHint) typesHint.hidden = !task?.can_upload;
-        if (lockedNotice) lockedNotice.hidden = task?.is_closed !== true;
+        // ผู้ดูแลระบบแนบไฟล์ในงานที่ปิดแล้วได้ ป้าย "ปิดแล้ว แนบไม่ได้" จึงขึ้นเฉพาะคนที่ถูกล็อกจริง
+        if (lockedNotice) lockedNotice.hidden = task?.is_closed !== true || task?.can_upload === true;
         if (dropZone) dropZone.classList.toggle('is-droppable', Boolean(task?.can_upload));
 
         // กล่องดาวน์โหลดเป็นโมดูลแยก จึงรับรู้งานที่เปิดอยู่ผ่าน dataset ของปุ่มที่กด

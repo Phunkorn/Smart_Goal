@@ -27,7 +27,7 @@ class TaskAttachmentController extends Controller
 
         $request->validate([
             'completion_attachments' => ['required', 'array', 'min:1', 'max:'.AttachmentPolicy::MAX_FILES],
-            'completion_attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            'completion_attachments.*' => AttachmentPolicy::fileRules(),
         ]);
 
         $incomingCount = count($request->file('completion_attachments', []));

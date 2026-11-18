@@ -529,7 +529,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     });
 
     /*
-     * ดูรูปในคอมเมนต์เป็นชั้นทับ ไม่ใช่การพาออกไปเปิด URL ของไฟล์ในแท็บใหม่
+     * ดูรูปในคอมเมนต์และไฟล์แนบงานด้วยกล่องเดียวกัน
      *
      * ใช้ modalStack ตัวเดียวกับกล่องอื่นใน Workspace เพื่อให้การนับชั้น การล็อก body
      * ปุ่ม Escape และการคืนโฟกัสกลับไปที่รูปที่กด เป็นของเจ้าของเดียวกันทั้งหน้า
@@ -547,14 +547,14 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     };
 
     panel.ownerDocument.addEventListener('click', (event) => {
-        const trigger = event.target.closest('[data-open-comment-image]');
+        const trigger = event.target.closest('[data-open-comment-image], [data-open-attachment-image]');
         const modal = imageModal();
         if (!modal) return;
 
         if (trigger) {
             event.preventDefault();
-            const url = trigger.dataset.openCommentImage;
-            const name = trigger.dataset.imageName || 'รูปในคอมเมนต์';
+            const url = trigger.dataset.openCommentImage || trigger.dataset.openAttachmentImage;
+            const name = trigger.dataset.imageName || 'รูปภาพ';
             const view = modal.querySelector('[data-comment-image-view]');
             if (view) {
                 view.src = url;

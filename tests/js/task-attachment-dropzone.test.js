@@ -196,6 +196,28 @@ test('each attached file is rendered with an icon matching its type', async (t) 
     assert.match(icons[3], /bi-file-earmark-image .*file-tone-image/);
 });
 
+test('a password-protected Excel file shows a lock, also right after it is uploaded', async (t) => {
+    const ui = await boot(t, {files: [{name: 'งบ.xlsx', url: '/media/2'}]});
+
+    assert.equal(ui.list.querySelector('.attachment-lock'), null, 'ไฟล์ปกติต้องไม่มีกุญแจ');
+
+    ui.respond({ok: true, files: [
+        {name: 'งบ.xlsx', url: '/media/2'},
+        {name: 'RSA_04_11_2026.xlsx', url: '/media/5', password_protected: true},
+    ]});
+    dragFilesOnto(ui.window, ui.zone, ['RSA_04_11_2026.xlsx']);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const rows = [...ui.list.querySelectorAll('article')];
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].querySelector('.attachment-lock'), null);
+    const lock = rows[1].querySelector('a .attachment-lock');
+    assert.ok(lock, 'ไฟล์ที่ตั้งรหัสผ่านต้องมีกุญแจท้ายชื่อ');
+    assert.ok(lock.querySelector('i.bi-lock-fill'));
+    // ไอคอนชนิดไฟล์ยังเป็น Excel ตามเดิม กุญแจแค่บอกเพิ่ม
+    assert.match(rows[1].querySelector('a > i').className, /bi-file-earmark-excel/);
+});
+
 /*
  * ชนิดไฟล์ที่โฆษณาไว้บนหน้าจอต้องตรงกับ allow-list ฝั่ง server เสมอ
  * ถ้าวันหนึ่งมีคนเพิ่ม/ลดนามสกุลที่ ValidatesAttachments แล้วลืมแก้ UI ผู้ใช้จะโดนหลอก

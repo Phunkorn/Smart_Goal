@@ -103,11 +103,12 @@ class SidebarNavigationTest extends TestCase
             ->assertOk()
             ->assertDontSee('href="'.route('meetings.index').'"', false)
             ->assertDontSee('<span class="nav-item__label">การประชุม</span>', false)
-            // สี่หัวข้อตามงานจริง: ดูภาพรวม / ติดตามงาน / ดูแลคน / ตั้งค่าระบบ
-            ->assertSee('<div class="nav-section-label">ภาพรวมองค์กร</div>', false)
-            ->assertSee('<div class="nav-section-label">งานและการติดตาม</div>', false)
-            ->assertSee('<div class="nav-section-label">บุคลากรและแผนก</div>', false)
-            ->assertSee('<div class="nav-section-label">การตั้งค่าระบบ</div>', false)
+            // แยกการสื่อสารและบริการออกจากเครื่องมือทำงาน
+            ->assertSee('<span>ภาพรวมองค์กร</span>', false)
+            ->assertSee('<span>การสื่อสารและบริการ</span>', false)
+            ->assertSee('<span>การทำงาน</span>', false)
+            ->assertSee('<span>บุคลากรและแผนก</span>', false)
+            ->assertSee('<span>การตั้งค่าระบบ</span>', false)
             // หัวข้อเดิมที่ถูกยุบรวมต้องไม่เหลืออยู่ ไม่ใช่ว่างเปล่าแต่ยังขึ้นหัวข้อ
             ->assertDontSee('<div class="nav-section-label">ภาพรวม</div>', false)
             ->assertDontSee('<div class="nav-section-label">งานและคำขอ</div>', false)
@@ -121,8 +122,10 @@ class SidebarNavigationTest extends TestCase
             // ภาพรวมองค์กร
             strpos($content, 'href="'.route('board.index').'"'),
             strpos($content, 'href="'.route('reports.operational').'"'),
-            // งานและการติดตาม
+            // การสื่อสารและบริการ
             strpos($content, 'href="'.route('notifications.index').'"'),
+            strpos($content, 'href="'.route('tickets.index').'"'),
+            // การทำงาน
             strpos($content, 'href="'.route('shares.index').'"'),
             strpos($content, 'href="'.route('daily-logs.index').'"'),
             strpos($content, 'href="'.route('workspace.index').'"'),
@@ -138,6 +141,37 @@ class SidebarNavigationTest extends TestCase
 
         $this->assertNotContains(false, $positions);
         $this->assertSame($positions, collect($positions)->sort()->values()->all());
+    }
+
+    public function test_admin_categories_expand_only_the_group_containing_the_current_page(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $pages = [
+            'board.index' => 'overview',
+            'reports.projects' => 'overview',
+            'notifications.index' => 'communication',
+            'tickets.index' => 'communication',
+            'shares.index' => 'work',
+            'daily-logs.index' => 'work',
+            'employees.index' => 'people',
+            'settings.index' => 'system',
+        ];
+
+        foreach ($pages as $route => $expanded) {
+            $html = $this->actingAs($admin)->get(route($route))->assertOk()->getContent();
+
+            foreach (['overview', 'communication', 'work', 'people', 'system'] as $group) {
+                $open = $group === $expanded;
+                $this->assertStringContainsString(
+                    'id="admin-nav-'.$group.'" class="sidebar-nav__group-items collapse'.($open ? ' show' : '').'"',
+                    $html,
+                );
+                $this->assertMatchesRegularExpression(
+                    '/<button[^>]*data-bs-toggle="collapse"[^>]*aria-controls="admin-nav-'.$group.'"[^>]*aria-expanded="'.($open ? 'true' : 'false').'"/',
+                    $html,
+                );
+            }
+        }
     }
 
     public function test_viewer_sidebar_uses_the_shared_information_architecture(): void

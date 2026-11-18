@@ -117,7 +117,10 @@ class TaskReviewWorkflowTest extends TestCase
         $task = $this->task($assignee, $creator, 4, ['job_completed_at' => now(), 'final_approved_by' => $creator->id, 'final_approved_at' => now()]);
 
         $this->actingAs($assignee)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
-        $this->actingAs($admin)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed'])->assertForbidden();
+        // ผู้ดูแลระบบแก้รายละเอียดงานที่ปิดแล้วได้โดยไม่ต้องเปิดงาน (กติกาของเจ้าของระบบ) และงานยังปิดอยู่
+        $this->actingAs($admin)->patchJson(route('tasks.details.update', $task), ['job_topic' => 'Changed by admin'])->assertOk();
+        $this->assertSame('Changed by admin', $task->fresh()->job_topic);
+        $this->assertSame(4, (int) $task->fresh()->job_status);
         $this->actingAs($assignee)->postJson(route('tasks.comments.store', $task), ['message' => 'follow up'])->assertForbidden();
         $this->actingAs($assignee)->postJson(route('tasks.attachments.store', $task), [])->assertForbidden();
         $this->actingAs($assignee)->patchJson(route('tasks.updateStatus', $task), ['job_status' => 2, 'action' => 'reopen'])->assertForbidden();

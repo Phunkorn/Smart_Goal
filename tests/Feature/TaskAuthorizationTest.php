@@ -102,6 +102,8 @@ class TaskAuthorizationTest extends TestCase
                     // ลิงก์บังคับดาวน์โหลด กล่อง "ดาวน์โหลดไฟล์แนบ" ใช้ค่านี้
                     // ชื่อบนดิสก์ถูก hash ชื่อเดิมของผู้ใช้จึงต้องมาจาก Content-Disposition ของ server
                     'download_url' => route('media.task-attachments.show', [$task->images()->firstOrFail(), 'download' => 1]),
+                    // ไฟล์ทั่วไปไม่ได้ตั้งรหัสผ่าน หน้าจอจึงไม่แสดงไอคอนกุญแจ
+                    'password_protected' => false,
                     'delete_url' => route('tasks.attachments.destroy', [$task->job_id, $task->images()->firstOrFail()]),
                 ]],
             ]);

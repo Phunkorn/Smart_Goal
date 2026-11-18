@@ -172,7 +172,10 @@
             'allTasks' => $allTasks->merge($childTasks),
             'workspaceRootLabel' => $member->name,
             'workspaceRootUrl' => route($memberWorkspaceRoute, $memberWorkspaceParameters),
-            'forceReadOnly' => $isReadOnlyWorkspace,
+            // ผู้ดูแลระบบจัดการงานของสมาชิกได้ สิทธิ์รายงานมาจาก policy — หัวหน้าแผนกยังอ่านอย่างเดียว
+            'forceReadOnly' => ! ($canManageMemberTasks ?? false),
+            // การจัดทีมให้สมาชิกเป็นหน้าที่ของหัวหน้าแผนก จึงล็อกไว้ทั้งสองทาง
+            'teamReadOnly' => true,
         ]
     ))
 

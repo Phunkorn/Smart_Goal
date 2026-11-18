@@ -203,6 +203,19 @@ test('each row keeps a direct download link for a single file', async (t) => {
     assert.equal(links[0].closest('label'), null);
 });
 
+test('a password-protected file carries a lock badge inside its row label', async (t) => {
+    const ui = boot(t, {files: [
+        FILES[0],
+        {...FILES[1], password_protected: true},
+    ]});
+    click(ui.trigger);
+
+    const [plain, locked] = ui.rows();
+    assert.equal(plain.querySelector('.attachment-lock'), null);
+    assert.ok(locked.querySelector('label .attachment-lock .bi-lock-fill'));
+    assert.equal(locked.querySelector('label .attachment-lock').getAttribute('title'), 'ไฟล์นี้ตั้งรหัสผ่านไว้');
+});
+
 test('a task with no attachment shows the empty state and no download action', async (t) => {
     const ui = boot(t, {files: []});
     click(ui.trigger);

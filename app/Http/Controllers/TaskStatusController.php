@@ -35,10 +35,13 @@ class TaskStatusController extends Controller
         $validated = $request->validate([
             'job_status' => ['required', 'integer', 'in:2,3,4,5,6'],
             'completion_attachments' => ['nullable', 'array', 'max:'.AttachmentPolicy::MAX_FILES],
-            'completion_attachments.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            'completion_attachments.*' => AttachmentPolicy::fileRules(),
             'action' => ['nullable', 'string', 'in:reopen'],
             'reason' => ['nullable', 'string', 'max:1000'],
+            // ผู้ดูแลระบบยืนยันแล้วว่าให้ปิดงานย่อยที่ค้างพร้อมกัน — สิทธิ์ตัดสินที่ TaskStatusTransitionService
+            'close_subtasks' => ['sometimes', 'boolean'],
         ]);
+        $closeSubtasks = $request->boolean('close_subtasks');
 
         if ($request->hasFile('completion_attachments') && $job->images()->count() + count($request->file('completion_attachments', [])) > AttachmentPolicy::MAX_FILES) {
             return $this->jsonOrBack($request, false, AttachmentPolicy::tooManyMessage($job->images()->count()), 422);
@@ -46,9 +49,12 @@ class TaskStatusController extends Controller
 
         $this->assertAllowedAttachments($request, 'completion_attachments');
 
+        $subtaskIds = $closeSubtasks ? $transitions->openSubtaskIds($job) : [];
+
         $job = $transitions->transition($job, $user, (int) $validated['job_status'], [
             'action' => $validated['action'] ?? null,
             'reason' => $validated['reason'] ?? null,
+            'close_subtasks' => $closeSubtasks,
         ]);
 
         if ((int) $job->job_status === 4 && $request->hasFile('completion_attachments')) {
@@ -71,10 +77,37 @@ class TaskStatusController extends Controller
                 // จึงต้องมาจาก server ด้วย ไม่ใช่ให้ฝั่งหน้าจอนับแถวงานย่อยใน DOM เอง
                 // ซึ่งเป็นแหล่งความจริงที่สองและนับผิดได้เมื่อแถวถูกตัดด้วยสิทธิ์
                 'parent' => $this->parentPayload($job, $user, $transitions),
+                // งานย่อยที่ถูกปิดไปพร้อมงานนี้ หน้าจอวาดแถวของมันใหม่ผ่าน publishTaskState() ทางเดียวกัน
+                'closed_subtasks' => $this->closedSubtasksPayload($subtaskIds, $user, $transitions),
             ], static fn ($value) => $value !== null));
         }
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * สถานะและสิทธิ์ชุดใหม่ของงานย่อยที่ถูกปิดพร้อมงานแม่ — null เมื่อไม่มี
+     *
+     * @param  array<int>  $subtaskIds
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function closedSubtasksPayload(array $subtaskIds, User $user, TaskStatusTransitionService $transitions): ?array
+    {
+        if ($subtaskIds === []) {
+            return null;
+        }
+
+        return WorkOrder::with('collaborators')
+            ->whereIn('job_id', $subtaskIds)
+            ->get()
+            ->filter(fn (WorkOrder $subtask) => $user->can('view', $subtask))
+            ->map(fn (WorkOrder $subtask) => [
+                'job_id' => (int) $subtask->job_id,
+                'job_status' => (int) $subtask->job_status,
+                'transitions' => $transitions->capabilities($subtask, $user),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

@@ -190,6 +190,20 @@ export const publishTaskState = (workspace, id, response = {}, fallbackStatus = 
     const store = taskStateStore(workspace?.ownerDocument || globalThis.document);
     const status = Number(response.job_status ?? fallbackStatus ?? store[String(id)]?.status ?? 0);
 
+    /*
+     * งานย่อยที่ผู้ดูแลระบบปิดไปพร้อมงานนี้ — วาดก่อนงานแม่ เพื่อให้ตัวนับงานย่อยใน DOM
+     * เป็นค่าหลังปิดแล้วตอนที่มุมมองต่าง ๆ วาดแถวของงานแม่ใหม่
+     */
+    (Array.isArray(response.closed_subtasks) ? response.closed_subtasks : []).forEach((subtask) => {
+        if (!subtask?.job_id) return;
+        const subtaskId = String(subtask.job_id);
+        synchronizeTaskManagement(store, subtaskId, {
+            job_status: subtask.job_status,
+            transitions: subtask.transitions,
+        }, eventTarget);
+        synchronizeTaskSource(workspace, subtaskId, {status: Number(subtask.job_status ?? 4)}, eventTarget, subtask);
+    });
+
     synchronizeTaskManagement(store, id, response, eventTarget);
     const detail = synchronizeTaskSource(workspace, id, {status}, eventTarget, response);
 

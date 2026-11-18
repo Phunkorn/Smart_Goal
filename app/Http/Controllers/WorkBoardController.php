@@ -204,8 +204,23 @@ class WorkBoardController extends Controller
         $viewer = $request->user();
         $limitToViewerScope = $viaDepartmentHead && ! $viewer->overseesDepartment($department->id);
 
-        // ไม่มีใครเขียนในหน้านี้ได้อีกแล้ว ทั้ง admin และหัวหน้าแผนก
+        // การสร้างและมอบหมายงานใหม่ไม่อยู่ในหน้านี้ ทั้ง admin และหัวหน้าแผนก
+        // (admin มอบหมายงานจากบอร์ดผู้ดูแลระบบ หัวหน้าแผนกจากบอร์ดของแผนก)
         $isReadOnlyWorkspace = true;
+
+        /*
+         * แต่ผู้ดูแลระบบจัดการ "งานที่มีอยู่แล้ว" ของสมาชิกได้ครบจากหน้านี้
+         *
+         * ปิดงาน (รวมงานล่าช้า) เปลี่ยนสถานะ แก้ไข แนบไฟล์ และจัดการงานย่อย ตามที่เจ้าของระบบกำหนด
+         * การจัดทีม (เพิ่ม/นำผู้ร่วมงานออก) ยังล็อกอยู่ เพราะเป็นงานมอบหมายของหัวหน้าแผนก
+         * เดิมหน้านี้บังคับอ่านอย่างเดียวกับ admin ด้วย ผู้ดูแลระบบจึงเห็นงานล่าช้าของสมาชิก
+         * แต่ปิดงานไม่ได้ ทั้งที่ policy อนุญาตอยู่แล้ว
+         *
+         * ค่านี้แค่เลิก "บังคับปิด" ปุ่มทั้งหน้า สิทธิ์ของงานแต่ละใบยังมาจาก WorkOrderPolicy
+         * และ TaskStatusTransitionService เหมือนหน้า "งานของฉัน" ทุกประการ
+         * หัวหน้าแผนก (และผู้ได้สิทธิ์ดูงานของแผนก) ยังดูได้อย่างเดียวเหมือนเดิม
+         */
+        $canManageMemberTasks = ! $viaDepartmentHead && $viewer->role === 'admin';
 
         $workspaceView = $this->resolveMemberWorkspaceView($request);
 
@@ -375,6 +390,7 @@ class WorkBoardController extends Controller
         return view('work-board.admin.member', [
             'workspaceView' => $workspaceView,
             'isReadOnlyWorkspace' => $isReadOnlyWorkspace,
+            'canManageMemberTasks' => $canManageMemberTasks,
             // ใช้เลือกชุด route ของ breadcrumb และแถบมุมมอง — คนละเรื่องกับสิทธิ์เขียน
             // admin ใช้ admin.work-board.* ส่วนหัวหน้าแผนกใช้ work-board.* ซึ่งเป็นคนละกลุ่ม
             // middleware กัน (admin เข้ากลุ่ม role:user ไม่ได้)

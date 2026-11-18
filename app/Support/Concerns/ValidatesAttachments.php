@@ -48,7 +48,7 @@ trait ValidatesAttachments
     {
         return [
             $field => [$required ? 'required' : 'nullable', 'array', ...($required ? ['min:1'] : []), 'max:'.AttachmentPolicy::MAX_FILES],
-            $field.'.*' => ['file', 'mimes:'.AttachmentPolicy::mimesRule(), 'max:'.AttachmentPolicy::MAX_KILOBYTES],
+            $field.'.*' => AttachmentPolicy::fileRules(),
         ];
     }
 

@@ -22,7 +22,8 @@ const attachmentData = {
         files: [
             {name: 'สัญญา.pdf', url: '/media/1', download_url: '/media/1?download=1', delete_url: '/tasks/9/attachments/1'},
             // ไฟล์ที่ผู้ใช้ไม่มีสิทธิ์ลบ server ไม่ส่ง delete_url มา จึงต้องไม่มีปุ่มลบ
-            {name: 'ของคนอื่น.pdf', url: '/media/2', download_url: '/media/2?download=1', delete_url: null},
+            // ไฟล์ที่ตั้งรหัสผ่าน server ส่ง password_protected มา จึงต้องมีไอคอนกุญแจ
+            {name: 'ของคนอื่น.xlsx', url: '/media/2', download_url: '/media/2?download=1', delete_url: null, password_protected: true},
         ],
     },
 };
@@ -114,6 +115,18 @@ test('ปุ่มลบขึ้นเฉพาะไฟล์ที่ server 
     );
 });
 
+test('ไฟล์ที่ตั้งรหัสผ่านมีไอคอนกุญแจ ส่วนไฟล์ปกติไม่มี', () => {
+    openModal();
+
+    assert.equal(rows()[0].querySelector('.attachment-lock'), null, 'ไฟล์ปกติต้องไม่มีกุญแจ');
+    const lock = rows()[1].querySelector('a .attachment-lock');
+    assert.ok(lock, 'ไฟล์ที่ตั้งรหัสผ่านต้องมีกุญแจในลิงก์ของแถว');
+    assert.ok(lock.querySelector('.bi-lock-fill'));
+    assert.match(lock.textContent, /ตั้งรหัสผ่าน/, 'โปรแกรมอ่านหน้าจอต้องได้ยินว่าไฟล์มีรหัสผ่าน');
+    // CSS จับไอคอนเปิดแท็บด้วย i:last-child กุญแจจึงต้องไม่แย่งตำแหน่งสุดท้าย
+    assert.match(rows()[1].querySelector('a > i:last-child').className, /bi-box-arrow-up-right/);
+});
+
 test('ยกเลิกในกล่องยืนยันแล้วต้องไม่เรียก server', async () => {
     openModal();
     requests.length = 0;
@@ -143,4 +156,29 @@ test('กดปุ่มลบแล้วยิง DELETE ไปที่ delet
     assert.equal(rows().length, 1, 'กล่องต้องวาดใหม่ตามรายการไฟล์ที่เหลือ');
     const counter = document.querySelector('[data-board-open-attachments="9"] strong');
     assert.equal(counter.textContent, '1', 'ตัวเลขบนปุ่มคลิปหนีบต้องลดลงทันที');
+});
+
+/*
+ * ผู้ดูแลระบบแนบไฟล์ในงานที่ปิดแล้วได้ (WorkOrderPolicy::work) ป้าย "งานนี้ปิดแล้ว ไม่สามารถแนบไฟล์ได้"
+ * จึงต้องขึ้นเฉพาะคนที่ถูกล็อกจริง ไม่ใช่ขึ้นทุกครั้งที่งานปิด จนขัดกับช่องแนบไฟล์ที่เปิดอยู่
+ */
+test('ป้ายงานปิดแล้วขึ้นเฉพาะคนที่แนบไฟล์ไม่ได้จริง', async () => {
+    const {attachmentStore} = await import('../../resources/js/pages/mytasks/attachment-store.js');
+    const data = attachmentStore(document)['9'];
+    const locked = document.querySelector('[data-board-attachment-locked]');
+    const upload = document.querySelector('[data-board-attachment-upload]');
+
+    data.is_closed = true;
+    data.can_upload = true;
+    openModal();
+    assert.equal(locked.hidden, true, 'ผู้ดูแลที่แนบไฟล์ได้ต้องไม่เห็นป้ายล็อก');
+    assert.equal(upload.hidden, false);
+
+    data.can_upload = false;
+    openModal();
+    assert.equal(locked.hidden, false, 'คนที่ถูกล็อกต้องเห็นเหตุผล');
+    assert.equal(upload.hidden, true);
+
+    data.is_closed = false;
+    data.can_upload = true;
 });

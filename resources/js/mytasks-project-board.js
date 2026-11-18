@@ -11,7 +11,7 @@ import {publishTaskState, synchronizeCompletedTaskGroup, synchronizeTaskManageme
 import {taskStateStore} from './pages/mytasks/task-state-store.js';
 import {attachmentLimits, attachmentStore, publishTaskFiles} from './pages/mytasks/attachment-store.js';
 // ไอคอนตามชนิดไฟล์ใช้ตารางเดียวกับการ์ดไฟล์แนบและกล่องดาวน์โหลด ไม่มีสำเนาแยก
-import {iconFor, toneFor} from './pages/mytasks/attachment-icons.js';
+import {iconFor, lockBadge, toneFor} from './pages/mytasks/attachment-icons.js';
 // ปุ่มลบไฟล์แนบใช้โมดูลเดียวกับการ์ด "ไฟล์แนบ" ใน Task Workspace ไม่มีสำเนาแยก
 import {attachmentDeleteButton, confirmAttachmentDelete, deleteTaskAttachment} from './pages/mytasks/attachment-delete.js';
 import {canTransitionTo, confirmTaskTransition} from './pages/mytasks/task-transitions.js';
@@ -473,6 +473,8 @@ import {expandedProjectKeys, rememberProjectExpanded} from './pages/mytasks/boar
             open.className = 'bi bi-box-arrow-up-right';
             open.setAttribute('aria-hidden', 'true');
             link.append(icon, name, open);
+            // กุญแจต้องอยู่ก่อนไอคอนเปิดแท็บ เพราะ CSS จับไอคอนนั้นด้วย i:last-child
+            name.insertAdjacentHTML('afterend', lockBadge(file));
             // แถวไฟล์ครอบลิงก์กับปุ่มลบไว้ด้วยกัน เพราะปุ่มลบต้องไม่อยู่ในลิงก์เปิดไฟล์
             const row = document.createElement('div');
             row.className = 'board-attachment-modal__row';
@@ -489,7 +491,8 @@ import {expandedProjectKeys, rememberProjectExpanded} from './pages/mytasks/boar
             download.dataset.taskId = String(taskId);
         }
         upload.hidden = !data.can_upload;
-        if (locked) locked.hidden = data.is_closed !== true;
+        // ผู้ดูแลระบบแนบไฟล์ในงานที่ปิดแล้วได้ ป้าย "ปิดแล้ว แนบไม่ได้" จึงขึ้นเฉพาะคนที่ถูกล็อกจริง
+        if (locked) locked.hidden = data.is_closed !== true || data.can_upload === true;
         [input].filter(Boolean).forEach((field) => {
             field.dataset.url = data.upload_url;
             field.dataset.existingCount = String((data.files || []).length);

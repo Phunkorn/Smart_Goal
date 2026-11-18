@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Rules\AllowedAttachmentType;
 use Illuminate\Http\UploadedFile;
 
 /**
@@ -42,6 +43,31 @@ class AttachmentPolicy
     ];
 
     /**
+     * MIME ที่ fileinfo รายงานสำหรับไฟล์ Office ที่ตั้งรหัสผ่านเปิดไฟล์ (Encrypt with Password)
+     *
+     * ไฟล์แบบนี้ไม่ใช่ ZIP แต่เป็นกล่อง OLE2 ที่ห่อเนื้อไฟล์ที่เข้ารหัสไว้ ระบบจึงอ่านไม่ได้ว่า
+     * ข้างในเป็น xlsx docx หรือ pptx ได้แค่รู้ว่าเป็นไฟล์ Office ที่ถูกเข้ารหัส
+     */
+    public const PASSWORD_PROTECTED_MIME = 'application/encrypted';
+
+    /**
+     * นามสกุลที่ยอมรับแบบตั้งรหัสผ่านได้ — เปิดเฉพาะ Excel ตามที่ผู้ใช้งานต้องการ
+     *
+     * @var array<int, string>
+     */
+    private const PASSWORD_PROTECTED_EXTENSIONS = ['xlsx'];
+
+    /** 8 ไบต์แรกของไฟล์ OLE2 (Compound File Binary) */
+    private const COMPOUND_FILE_SIGNATURE = "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1";
+
+    /**
+     * นามสกุลที่ mimes: ของ Laravel บล็อกไว้เสมอ — คงพฤติกรรมเดิมไว้
+     *
+     * @var array<int, string>
+     */
+    private const PHP_EXTENSIONS = ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar'];
+
+    /**
      * จำนวนไฟล์สูงสุดต่อหนึ่งงาน
      *
      * ตั้งไว้ที่ 20 เพราะ PHP มี max_file_uploads เป็นเพดานแข็งที่ 20 ไฟล์ต่อหนึ่ง request
@@ -69,12 +95,6 @@ class AttachmentPolicy
     public static function acceptAttribute(): string
     {
         return '.'.implode(',.', self::extensions());
-    }
-
-    /** ค่าใส่ใน validation rule mimes: ของ Laravel */
-    public static function mimesRule(): string
-    {
-        return implode(',', self::extensions());
     }
 
     public static function maxMegabytes(): int
@@ -132,7 +152,8 @@ class AttachmentPolicy
             return 'ไม่อนุญาตไฟล์นามสกุล .'.$extension.' — แนบได้เฉพาะ '.self::typesLabel();
         }
 
-        if (! in_array((string) $file->getMimeType(), self::TYPES[$extension], true)) {
+        if (! in_array((string) $file->getMimeType(), self::TYPES[$extension], true)
+            && ! self::isPasswordProtectedSpreadsheet($file)) {
             return 'ไฟล์ "'.$name.'" มีเนื้อหาไม่ตรงกับนามสกุล .'.$extension;
         }
 
@@ -141,6 +162,85 @@ class AttachmentPolicy
         }
 
         return null;
+    }
+
+    /**
+     * กฎ validation ของ Laravel สำหรับไฟล์แนบหนึ่งไฟล์ — ทุก controller ใช้ชุดนี้ชุดเดียว
+     *
+     * ใช้ AllowedAttachmentType แทน mimes: ของ Laravel เพราะ mimes: เดานามสกุลจาก MIME
+     * และ application/encrypted ไม่มีนามสกุลคู่ ไฟล์ Excel ที่ตั้งรหัสผ่านจึงตกทุกครั้ง
+     *
+     * @return array<int, mixed>
+     */
+    public static function fileRules(): array
+    {
+        return ['file', new AllowedAttachmentType, 'max:'.self::MAX_KILOBYTES];
+    }
+
+    /**
+     * ด่านแรกของ validation — ผลเหมือน mimes: เดิมทุกกรณี ต่างกันแค่ยอมรับ Excel ที่ตั้งรหัสผ่าน
+     *
+     * การจับคู่นามสกุล↔MIME แบบเข้มยังเป็นหน้าที่ของ rejectionReason() ที่ทำงานถัดไป
+     */
+    public static function contentTypeIsAllowed(UploadedFile $file): bool
+    {
+        if (in_array(strtolower((string) $file->getClientOriginalExtension()), self::PHP_EXTENSIONS, true)) {
+            return false;
+        }
+
+        return in_array($file->guessExtension(), self::extensions(), true)
+            || self::isPasswordProtectedSpreadsheet($file);
+    }
+
+    /**
+     * ไฟล์ Excel ที่ตั้งรหัสผ่านเปิดไฟล์ไว้หรือไม่
+     *
+     * ต้องผ่านครบสามข้อ: นามสกุล .xlsx, fileinfo ตรวจเนื้อไฟล์แล้วได้ application/encrypted
+     * (libmagic ให้ค่านี้เมื่อพบ stream EncryptionInfo/EncryptedPackage ในกล่อง OLE2)
+     * และ 8 ไบต์แรกเป็นลายเซ็น OLE2 จริง
+     *
+     * ข้อจำกัด: ไม่มีรหัสผ่านจึงยืนยันไม่ได้ว่าข้างในเป็น xlsx ไม่ใช่ docx/pptx ที่ถูกเปลี่ยนชื่อ
+     * แต่ทุกกรณียังเป็นไฟล์ Office ที่ถูกเข้ารหัส ไม่ใช่ไฟล์ชนิดอื่นปลอมตัวมา
+     */
+    public static function isPasswordProtectedSpreadsheet(UploadedFile $file): bool
+    {
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+
+        if (! in_array($extension, self::PASSWORD_PROTECTED_EXTENSIONS, true)
+            || $file->getMimeType() !== self::PASSWORD_PROTECTED_MIME) {
+            return false;
+        }
+
+        $path = $file->getRealPath();
+        $handle = $path === false ? false : @fopen($path, 'rb');
+
+        if ($handle === false) {
+            return false;
+        }
+
+        $head = fread($handle, strlen(self::COMPOUND_FILE_SIGNATURE));
+        fclose($handle);
+
+        return $head === self::COMPOUND_FILE_SIGNATURE;
+    }
+
+    /** ใช้กับค่า file_type ที่บันทึกไว้แล้ว เพื่อบอกหน้าจอว่าไฟล์นี้ตั้งรหัสผ่าน */
+    public static function isPasswordProtectedType(?string $fileType): bool
+    {
+        return $fileType === self::PASSWORD_PROTECTED_MIME;
+    }
+
+    /**
+     * นามสกุลที่ต้องต่อท้ายชื่อไฟล์บนดิสก์ หรือ null เมื่อให้ Laravel เดาเองได้
+     *
+     * Laravel ตั้งชื่อไฟล์จาก guessExtension() ซึ่งไม่รู้จัก application/encrypted
+     * ถ้าไม่ระบุ ไฟล์ Excel ที่ตั้งรหัสผ่านจะถูกเก็บโดยไม่มีนามสกุลเลย
+     */
+    public static function storedExtensionOverride(UploadedFile $file): ?string
+    {
+        return self::isPasswordProtectedSpreadsheet($file)
+            ? strtolower((string) $file->getClientOriginalExtension())
+            : null;
     }
 
     /*

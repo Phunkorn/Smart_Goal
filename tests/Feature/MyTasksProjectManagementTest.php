@@ -400,7 +400,11 @@ class MyTasksProjectManagementTest extends TestCase
         ]);
     }
 
-    public function test_completed_task_fields_are_locked_for_user_and_admin(): void
+    /**
+     * งานที่ปิดแล้วล็อกสำหรับผู้ใช้ แต่ผู้ดูแลระบบแก้ได้โดยไม่ต้องเปิดงานอีกครั้ง
+     * (กติกาของเจ้าของระบบ — ดู WorkOrderPolicy::isClosedFor() และ AdminFullTaskControlTest)
+     */
+    public function test_completed_task_fields_are_locked_for_user_but_editable_by_admin(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $owner = User::factory()->create(['role' => 'user']);
@@ -447,12 +451,15 @@ class MyTasksProjectManagementTest extends TestCase
             ->patchJson(route('mytasks.lists.update', $list), ['name' => 'Admin rename'])
             ->assertOk();
 
+        $this->assertSame(2, (int) $job->fresh()->job_priority, 'ผู้ใช้ต้องแก้งานที่ปิดแล้วไม่ได้');
+
         $this->actingAs($admin)
             ->postJson(route('mytasks.updatePriority', $job->job_id), ['job_priority' => 3])
-            ->assertForbidden();
+            ->assertOk();
 
         $this->assertSame('Admin rename', $list->fresh()->name);
-        $this->assertSame(2, (int) $job->fresh()->job_priority);
+        $this->assertSame(3, (int) $job->fresh()->job_priority);
+        $this->assertSame(4, (int) $job->fresh()->job_status, 'การแก้ไขของผู้ดูแลต้องไม่เปิดงานใหม่โดยไม่ตั้งใจ');
     }
 
     public function test_completed_status_always_persists_completion_timestamp(): void

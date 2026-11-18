@@ -23,3 +23,15 @@ export const extensionOf = (name) => String(name ?? '').split('.').pop().toLower
 export const iconFor = (name) => FILE_ICONS[extensionOf(name)] || 'bi-file-earmark';
 
 export const toneFor = (name) => FILE_ICONS[extensionOf(name)]?.replace('bi-file-earmark-', '') || 'other';
+
+export const PASSWORD_LOCK_LABEL = 'ไฟล์นี้ตั้งรหัสผ่านไว้';
+
+/**
+ * ไอคอนกุญแจท้ายชื่อไฟล์ที่ตั้งรหัสผ่าน — ทุกกล่องที่แสดงไฟล์แนบของงานเรียกที่นี่ที่เดียว
+ *
+ * ค่า password_protected มาจาก TaskAttachmentPresenter ฝั่ง server
+ * ข้อความซ่อนไว้ให้โปรแกรมอ่านหน้าจออ่านต่อจากชื่อไฟล์ ส่วน title ให้คนใช้เมาส์ชี้ดู
+ */
+export const lockBadge = (file) => (file?.password_protected === true
+    ? `<span class="attachment-lock" title="${PASSWORD_LOCK_LABEL}"><i class="bi bi-lock-fill" aria-hidden="true"></i><span class="visually-hidden">${PASSWORD_LOCK_LABEL}</span></span>`
+    : '');

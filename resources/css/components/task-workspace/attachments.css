@@ -327,6 +327,20 @@
 .file-tone-text { color: #475569; }
 .file-tone-other { color: #64748b; }
 
+/*
+ * กุญแจท้ายชื่อไฟล์ที่ตั้งรหัสผ่าน — มาจาก lockBadge() ใน pages/mytasks/attachment-icons.js
+ * ใช้โทนเดียวกับ .file-tone-zip ให้เด่นพอสังเกต แต่ไม่แรงเท่าสีแจ้งเตือนข้อผิดพลาด
+ * ห้ามหดเพราะชื่อไฟล์ยาวต้องถูกตัดด้วย ellipsis ก่อน กุญแจจึงยังเห็นเสมอ
+ */
+.attachment-lock {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    color: #b45309;
+    font-size: 13px;
+    line-height: 1;
+}
+
 .attachment-download-modal__empty {
     display: grid;
     place-items: center;
