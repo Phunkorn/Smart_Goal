@@ -216,37 +216,42 @@ class SidebarNavigationTest extends TestCase
      * และต้องเป็นชุดเดียวกันทุกบทบาท เพราะเป็นตัวตนของระบบ ไม่ใช่ของผู้ใช้คนใดคนหนึ่ง
      */
     /**
-     * โลโก้อยู่ในหัว Sidebar ส่วนชื่อระบบอยู่บนแถบบน
-     *
-     * ชื่อระบบต้องอ่านได้แม้ Sidebar ถูกย่อหรือปิดอยู่ จึงย้ายมาไว้ข้างปุ่มเมนูบน Topbar
-     * และต้องมีที่เดียวเท่านั้น ไม่ใช่ประกาศซ้ำทั้งสองที่จนกลายเป็นสองแหล่งความจริง
+     * Sidebar เริ่มจากเมนูทันทีโดยไม่มีโลโก้หรือหัวเปล่า
+     * ปุ่มปิดบนมือถือยังอยู่ และชื่อระบบคงอยู่บน Topbar เหมือนเดิม
      */
-    public function test_sidebar_shows_only_the_logo_while_the_topbar_carries_the_product_name(): void
+    public function test_sidebar_starts_with_navigation_without_logo_and_preserves_mobile_close(): void
     {
-        $logo = asset('images/premiuum-care-logo.png');
-
         foreach ([
             'user' => 'mytasks.index',
             'admin' => 'board.index',
             'viewer' => 'board.index',
         ] as $role => $routeName) {
-            $this->actingAs($this->userWithRole($role))
+            $content = $this->actingAs($this->userWithRole($role))
                 ->get(route($routeName))
                 ->assertOk()
-                ->assertSee('<span class="brand-mark" aria-hidden="true"><img src="'.$logo.'" alt=""></span>', false)
                 ->assertSee('<div class="topbar-brand">', false)
                 ->assertDontSee('<a class="topbar-brand"', false)
                 ->assertSee('<span class="topbar-brand__name">Smart Goals</span>', false)
                 ->assertSee('<span class="topbar-brand__subtitle">ระบบจัดการองค์กร</span>', false)
-                // ชื่อระบบต้องไม่เหลือค้างอยู่ในหัว Sidebar อีก
-                ->assertDontSee('<div class="brand-name">', false)
-                ->assertDontSee('<div class="brand-subtitle">', false)
-                ->assertDontSee('bi-buildings', false)
-                ->assertDontSee('bi-bullseye', false);
-        }
+                ->getContent();
 
-        // ไฟล์โลโก้ต้องมีอยู่จริง ไม่เช่นนั้นทุกหน้าจะโหลดรูปที่ 404 โดยไม่มีใครสังเกต
-        $this->assertFileExists(public_path('images/premiuum-care-logo.png'));
+            $sidebarStart = strpos($content, '<aside class="sidebar"');
+            $sidebarEnd = strpos($content, '</aside>', $sidebarStart);
+            $menuStart = strpos($content, '<div class="sidebar-nav">', $sidebarStart);
+            $closeButton = strpos($content, 'data-sidebar-close', $sidebarStart);
+
+            $this->assertNotFalse($sidebarStart);
+            $this->assertNotFalse($sidebarEnd);
+            $this->assertNotFalse($menuStart);
+            $this->assertNotFalse($closeButton);
+            $this->assertLessThan($menuStart, $closeButton, 'ปุ่มปิดมือถือควรอยู่ก่อนเมนู');
+            $this->assertLessThan($sidebarEnd, $menuStart, 'เมนูต้องอยู่ใน Sidebar');
+
+            $sidebar = substr($content, $sidebarStart, $sidebarEnd - $sidebarStart);
+            $this->assertStringNotContainsString('sidebar-brand', $sidebar);
+            $this->assertStringNotContainsString('brand-mark', $sidebar);
+            $this->assertStringNotContainsString('premiuum-care-logo.png', $sidebar);
+        }
     }
 
     public function test_role_chip_keeps_an_accessible_name_after_the_visible_label_was_removed(): void

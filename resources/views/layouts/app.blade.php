@@ -66,15 +66,10 @@
     @endphp
 
     <aside class="sidebar" id="appSidebar">
-        <div class="sidebar-brand">
-            {{-- โลโก้บริษัทอยู่ใน public/images จึงเสิร์ฟตรงได้ ไม่ต้องผ่าน MediaController ที่มีไว้สำหรับไฟล์ส่วนตัว
-                 หัว Sidebar เหลือเฉพาะโลโก้ที่กินความกว้างเต็มแถบ ส่วนชื่อระบบย้ายไปอยู่บน Topbar
-                 ข้างปุ่มเมนู เพื่อให้ชื่อระบบยังอ่านได้แม้ Sidebar ถูกย่อหรือปิดอยู่ --}}
-            <span class="brand-mark" aria-hidden="true"><img src="{{ asset('images/premiuum-care-logo.png') }}" alt=""></span>
-            <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
+        {{-- ปุ่มปิด Sidebar บนจอเล็ก: อยู่เหนือเมนูโดยไม่ต้องมีหัวโลโก้ --}}
+        <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
 
         <div class="sidebar-nav">
             @if ($isAdmin)

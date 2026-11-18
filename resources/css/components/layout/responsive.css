@@ -45,30 +45,31 @@
                 min-height: 42px;
             }
 
-            .sidebar-brand {
-                padding: .85rem .85rem .85rem 1rem;
-                justify-content: space-between;
-            }
-
-            .sidebar-brand > div {
-                min-width: 0;
-            }
-
             .sidebar-close,
             .mobile-menu-btn {
                 display: flex;
             }
 
+            /* ไม่มีหัวโลโก้: ปุ่มปิดลอยที่มุมขวาบน โดยไม่ดันเมนูให้ต่ำลง */
             .sidebar-close {
-                width: 36px;
-                height: 36px;
-                border-radius: 10px;
+                position: absolute;
+                top: .5rem;
+                right: .6rem;
+                z-index: 2;
+                width: 32px;
+                height: 32px;
+                border-radius: 9px;
                 align-items: center;
                 justify-content: center;
                 border: 1px solid var(--border);
                 background: var(--surface);
                 color: var(--text-muted);
                 flex: 0 0 auto;
+            }
+
+            /* หัวข้อหมวดแรกของ admin มีลูกศรด้านขวา จึงเว้นที่ให้ปุ่มปิด */
+            .sidebar-nav > .sidebar-nav__group:first-child > .sidebar-nav__group-toggle {
+                padding-right: 2.65rem;
             }
 
             .mobile-menu-btn {
