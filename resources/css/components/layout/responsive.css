@@ -31,18 +31,12 @@
             .sidebar-nav {
                 display: block;
                 overflow-y: auto;
-                padding: .75rem;
+                padding: 12px var(--sidebar-nav-padding);
             }
 
-            .nav-section-label,
-            .sidebar-foot {
+            .sidebar .nav-section-label,
+            .sidebar .sidebar-foot {
                 display: flex;
-            }
-
-            .nav-item {
-                margin-bottom: .25rem;
-                white-space: normal;
-                min-height: 42px;
             }
 
             .sidebar-close,

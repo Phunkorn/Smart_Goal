@@ -3,6 +3,10 @@
            สถานะย่อคุมด้วย body.sidebar-collapsed และมีผลเฉพาะจอ >= 992px
            จอเล็กกว่านั้นยังใช้ off-canvas เดิมที่ประกาศไว้ใน responsive.css */
         .sidebar {
+            --sidebar-menu-height: 38px;
+            --sidebar-menu-gap: 4px;
+            --sidebar-nav-padding: 12px;
+            --sidebar-menu-radius: 8px;
             position: fixed;
             top: 0;
             left: 0;
@@ -41,12 +45,13 @@
         }
 
 
-        .nav-section-label {
-            font-size: .66rem;
+        .sidebar .nav-section-label {
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: .9px;
+            letter-spacing: .5px;
             color: var(--text-muted);
-            padding: 1.35rem .7rem .4rem;
+            padding: 16px 10px 4px;
+            line-height: 1.6;
             font-weight: 600;
             white-space: nowrap;
         }
@@ -56,8 +61,10 @@
         }
 
         .sidebar-nav {
-            padding: .5rem .75rem 1rem;
-            flex: 1;
+            padding: 8px var(--sidebar-nav-padding) 16px;
+            flex: 1 1 0;
+            min-height: 0;
+            min-width: 0;
             overflow-y: auto;
             overscroll-behavior: contain;
         }
@@ -70,16 +77,16 @@
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            gap: .5rem;
+            gap: 10px;
             width: 100%;
             border: 0;
             background: transparent;
             text-align: left;
-            font-size: 14px;
         }
 
         .sidebar-nav .sidebar-nav__group-icon {
-            flex: 0 0 1em;
+            flex: 0 0 17px;
+            font-size: 16px;
             line-height: 1;
             text-align: center;
         }
@@ -94,7 +101,7 @@
         }
 
         .sidebar-nav .sidebar-nav__group-toggle:focus-visible {
-            outline: 2px solid var(--accent);
+            outline: 1px solid var(--accent-strong);
             outline-offset: -2px;
         }
 
@@ -128,68 +135,65 @@
             left: calc(-1 * var(--sidebar-branch-indent));
             top: 0;
             width: var(--sidebar-branch-indent);
-            height: calc(100% + .25rem);
+            height: calc(100% + var(--sidebar-menu-gap));
             border-left: 1px solid var(--border);
-            background: linear-gradient(var(--border), var(--border)) left 20px / 100% 1px no-repeat;
+            background: linear-gradient(var(--border), var(--border)) left 19px / 100% 1px no-repeat;
             pointer-events: none;
         }
 
         .sidebar-nav .sidebar-nav__group-items > :is(.nav-item, .report-nav):last-child::after {
-            height: 21px;
-        }
-
-        .sidebar-nav .sidebar-nav__group-items .nav-item.active {
-            font-size: 12px;
+            height: 20px;
         }
 
         .sidebar-nav .sidebar-nav__group-items > .nav-item.active::before {
-            left: -2.25rem;
+            left: calc(-1 * (var(--sidebar-nav-padding) + .7rem + var(--sidebar-branch-indent)));
         }
 
-        .nav-item {
+        .sidebar .nav-item {
             position: relative;
             display: flex;
             align-items: center;
-            gap: .75rem;
-            min-height: 40px;
-            padding: .5rem .7rem;
-            margin-bottom: .25rem;
-            border-radius: 9px;
+            gap: 10px;
+            min-height: var(--sidebar-menu-height);
+            padding: 7px 10px;
+            margin-bottom: var(--sidebar-menu-gap);
+            border-radius: var(--sidebar-menu-radius);
             color: var(--text-muted);
-            font-size: .86rem;
+            font-size: 13px;
+            line-height: 24px;
             font-weight: 500;
             transition: background .15s ease, color .15s ease;
         }
 
-        .nav-item i {
-            font-size: 1.125rem;
+        .sidebar .nav-item i {
+            font-size: 17px;
             line-height: 1;
-            width: 22px;
-            flex: 0 0 22px;
+            width: 17px;
+            flex: 0 0 17px;
             text-align: center;
         }
 
-        .nav-item:hover {
+        .sidebar .nav-item:hover {
             background: var(--surface-2);
             color: var(--text);
         }
 
-        .nav-item:focus-visible {
-            outline: 2px solid var(--accent);
+        .sidebar .nav-item:focus-visible {
+            outline: 1px solid var(--accent-strong);
             outline-offset: -2px;
         }
 
-        .nav-item.active {
+        .sidebar .nav-item.active {
             background: var(--accent-dim);
             color: var(--accent-strong);
             font-weight: 600;
         }
 
         /* แถบชี้เมนูปัจจุบันชิดขอบซ้ายของ Sidebar ทั้งตอนกางและตอนย่อ */
-        .nav-item.active::before {
+        .sidebar .nav-item.active::before {
             content: "";
             position: absolute;
-            left: -.75rem;
+            left: calc(-1 * var(--sidebar-nav-padding));
             top: 50%;
             transform: translateY(-50%);
             width: 3px;
@@ -198,7 +202,7 @@
             background: var(--accent);
         }
 
-        .nav-item .soon {
+        .sidebar .nav-item .soon {
             margin-left: auto;
             font-size: .6rem;
             font-family: 'Prompt', sans-serif;
@@ -209,7 +213,7 @@
             border: 1px solid var(--border);
         }
 
-        .nav-item__label {
+        .sidebar .nav-item__label {
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -225,7 +229,7 @@
             display: none;
         }
 
-        .sidebar-nav .report-nav__chevron {
+        .sidebar-nav .report-nav__toggle .report-nav__chevron {
             width: auto;
             margin-left: auto;
             font-size: .75rem;
@@ -272,41 +276,36 @@
             }
         }
 
-        .sidebar-nav .report-nav__link {
-            min-height: 42px;
-            padding-left: 1.35rem;
-            font-size: .82rem;
-        }
-
         .sidebar-nav .report-nav__link.active::before {
             display: none;
         }
 
-        .nav-item__count {
+        .sidebar .nav-item__count {
             flex: 0 0 auto;
             margin-left: auto;
-            min-width: 1.35rem;
-            padding: .08rem .35rem;
+            min-width: 18px;
+            padding: 2px 5px;
             border-radius: 999px;
             background: var(--danger, #dc3545);
             color: #fff;
-            font-size: .68rem;
+            font-size: 10px;
             font-weight: 700;
-            line-height: 1.35;
+            line-height: 14px;
             text-align: center;
         }
 
         /* เมนูที่มีสองป้าย (แชร์งาน) — ป้ายที่สองชิดป้ายแรก ไม่ถูก margin-left:auto ดันแยกออกไป */
-        .nav-item__count + .nav-item__count {
+        .sidebar .nav-item__count + .nav-item__count {
             margin-left: 4px;
         }
 
         /* คำขอที่รอเราอนุมัติ — สีต่างจากป้ายจำนวนงาน เพื่อให้แยกออกว่าเป็นคนละเรื่อง */
-        .nav-item__count--request {
+        .sidebar .nav-item__count--request {
             background: #f59e0b;
         }
 
-        .sidebar-foot {
+        .sidebar .sidebar-foot {
+            flex: 0 0 auto;
             border-top: 1px solid var(--border);
             padding: .8rem 1rem;
             display: flex;
@@ -329,18 +328,18 @@
             overflow: hidden;
         }
 
-        .avatar img {
+        .sidebar .avatar img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
-        .sidebar-foot__identity {
+        .sidebar .sidebar-foot__identity {
             min-width: 0;
         }
 
-        .sidebar-foot .who {
-            font-size: .82rem;
+        .sidebar .sidebar-foot .who {
+            font-size: 13px;
             font-weight: 600;
             color: var(--text);
             overflow: hidden;
@@ -348,8 +347,8 @@
             white-space: nowrap;
         }
 
-        .sidebar-foot .role {
-            font-size: .7rem;
+        .sidebar .sidebar-foot .role {
+            font-size: 11px;
             font-weight: 400;
             color: var(--text-muted);
             overflow: hidden;
@@ -385,7 +384,7 @@
                 content: "";
                 display: block;
                 height: 1px;
-                margin: 1.1rem .55rem .7rem;
+                margin: 16px .55rem 8px;
                 background: var(--border);
             }
 
@@ -401,24 +400,20 @@
                 left: -.5rem;
             }
 
-            body.sidebar-collapsed .nav-item {
+            body.sidebar-collapsed .sidebar .nav-item {
                 justify-content: center;
                 gap: 0;
                 padding-left: 0;
                 padding-right: 0;
             }
 
-            body.sidebar-collapsed .nav-item i {
-                font-size: 1.3rem;
-            }
-
-            body.sidebar-collapsed .nav-item.active::before {
+            body.sidebar-collapsed .sidebar .nav-item.active::before {
                 left: -.5rem;
             }
 
             /* ซ่อนข้อความแต่ยังให้ screen reader อ่านชื่อเมนูและชื่อผู้ใช้ได้ */
-            body.sidebar-collapsed .nav-item__label,
-            body.sidebar-collapsed .sidebar-foot__identity {
+            body.sidebar-collapsed .sidebar .nav-item__label,
+            body.sidebar-collapsed .sidebar .sidebar-foot__identity {
                 position: absolute;
                 width: 1px;
                 height: 1px;
@@ -430,9 +425,9 @@
             }
 
             /* หัวข้อหมวดกลายเป็นเส้นคั่นบาง ๆ เพื่อยังแบ่งกลุ่มเมนูให้เห็น */
-            body.sidebar-collapsed .nav-section-label {
+            body.sidebar-collapsed .sidebar .nav-section-label {
                 height: 1px;
-                margin: 1.1rem .55rem .7rem;
+                margin: 16px .55rem 8px;
                 padding: 0;
                 overflow: hidden;
                 background: var(--border);
@@ -445,7 +440,7 @@
                 padding-top: 0;
             }
 
-            body.sidebar-collapsed .nav-item__count {
+            body.sidebar-collapsed .sidebar .nav-item__count {
                 position: absolute;
                 top: 5px;
                 right: 13px;
@@ -460,7 +455,7 @@
             }
 
             /* แถบข้างย่อ: ป้ายที่สองเป็นจุดถัดลงมา ไม่ทับจุดแรก */
-            body.sidebar-collapsed .nav-item__count + .nav-item__count {
+            body.sidebar-collapsed .sidebar .nav-item__count + .nav-item__count {
                 top: 16px;
             }
 
@@ -474,7 +469,7 @@
                 color: var(--accent-strong);
             }
 
-            body.sidebar-collapsed .sidebar-foot {
+            body.sidebar-collapsed .sidebar .sidebar-foot {
                 flex-direction: column;
                 gap: .5rem;
                 padding: .8rem .5rem;
