@@ -325,6 +325,68 @@ class TopNavigationTest extends TestCase
         $this->assertStringNotContainsString("\u{FFFD}", $avatar);
     }
 
+    /**
+     * แถบเมนูด้านข้าง (< 992px) ต้องมีรายการเดียวกับเมนูแนวนอน (≥ 992px) ทุกบทบาท ทุกลำดับ
+     * เพราะทั้งคู่วาดจาก $navigation ชุดเดียว (App\Support\TopNavigation) ไม่มีกฎสิทธิ์ชุดที่สอง
+     */
+    public function test_mobile_sidebar_lists_exactly_the_same_entries_as_the_desktop_menu_for_every_role(): void
+    {
+        foreach ([
+            'user' => 'mytasks.index',
+            'head' => 'announcements.index',
+            'admin' => 'employees.index',
+            'viewer' => 'meetings.index',
+        ] as $role => $page) {
+            $content = $this->actingAs($this->userWithRole($role))->get(route($page))->assertOk()->getContent();
+            $desktop = $this->nav($content);
+            $mobile = $this->mobileNav($content);
+
+            $this->assertSame($this->hrefs($desktop), $this->hrefs($mobile), "{$role}: ลิงก์และลำดับต้องตรงกัน");
+            $this->assertSame(1, substr_count($mobile, 'aria-current='), $role);
+            $this->assertMatchesRegularExpression('/href="'.preg_quote(route($page), '/').'" class="mobile-nav__(sub)?link is-active"\s+aria-current="page"/', $mobile, $role);
+            // ป้ายแจ้งเตือนในแถบข้างยังมี hook ของ realtime-sync.js
+            $this->assertStringContainsString('data-notification-count data-nav-notification-count', $mobile, $role);
+        }
+    }
+
+    public function test_mobile_sidebar_starts_closed_and_expands_only_the_group_of_the_current_page(): void
+    {
+        $content = $this->actingAs($this->userWithRole('admin'))->get(route('employees.index'))->assertOk()->getContent();
+
+        // ปุ่ม ☰ อยู่ใน Topbar และควบคุมแถบที่อยู่นอก header (backdrop-filter ของ header ยึด position: fixed)
+        $header = $this->between($content, '<header class="topbar">', '</header>');
+        $this->assertStringContainsString('data-mobile-sidebar-open aria-controls="mobileSidebar"', $header);
+        $this->assertStringContainsString('aria-expanded="false" aria-label="เปิดเมนู"', $header);
+        $this->assertStringNotContainsString('data-mobile-sidebar ', $header);
+        $this->assertMatchesRegularExpression('/<div class="mobile-sidebar" id="mobileSidebar" role="dialog" aria-modal="true" aria-labelledby="mobileSidebarTitle"\s+data-mobile-sidebar inert>/', $content);
+
+        $mobile = $this->mobileNav($content);
+        // กลุ่ม "ผู้ดูแลระบบ" มีหน้าปัจจุบัน — กางและ Tab เข้าได้ กลุ่มอื่นพับและเป็น inert
+        $this->assertMatchesRegularExpression('/<li class="mobile-nav__group is-open" data-mobile-nav-group>\s*<button[^>]*aria-expanded="true"\s+aria-controls="mobile-nav-admin"/', $mobile);
+        $this->assertMatchesRegularExpression('/id="mobile-nav-admin" data-mobile-nav-panel\s*>/', $mobile);
+        foreach (['reports', 'more'] as $collapsed) {
+            $this->assertMatchesRegularExpression('/aria-expanded="false"\s+aria-controls="mobile-nav-'.$collapsed.'"/', $mobile, $collapsed);
+            $this->assertMatchesRegularExpression('/id="mobile-nav-'.$collapsed.'" data-mobile-nav-panel\s+inert\s*>/', $mobile, $collapsed);
+        }
+
+        // ไม่มีชื่อ view-transition หรือ id ซ้ำกับเมนูแนวนอน
+        $this->assertStringNotContainsString('top-nav__link', $mobile);
+        $this->assertStringNotContainsString('id="top-nav-', $mobile);
+    }
+
+    private function mobileNav(string $content): string
+    {
+        return $this->between($content, '<nav class="mobile-nav"', '</nav>');
+    }
+
+    /** @return list<string> */
+    private function hrefs(string $html): array
+    {
+        preg_match_all('/href="([^"]+)"/', $html, $matches);
+
+        return $matches[1];
+    }
+
     private function userWithRole(string $role): User
     {
         $department = Department::create(['department_name' => 'Navigation '.uniqid()]);

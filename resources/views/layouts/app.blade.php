@@ -41,14 +41,29 @@
         $systemNotifications = $notificationService->dropdown($currentUser);
         $notificationCount = $notificationService->unreadCount($currentUser);
         $notificationDisplayCount = $notificationService->displayCount($notificationCount);
+        // เมนูตามสิทธิ์คำนวณครั้งเดียว แล้วส่งให้ทั้งเมนูแนวนอน (≥ 992px) และแถบเมนูด้านข้าง (< 992px)
+        $navigation = \App\Support\TopNavigation::for($currentUser, request(), [
+            'ticketsInstalled' => $ticketsInstalled ?? false,
+            'ticketQueueCount' => $ticketQueueCount ?? 0,
+            'shareRequestCount' => $shareRequestCount ?? 0,
+            'approvalTotal' => $approvalCounts['total'] ?? 0,
+            'notificationCount' => $notificationCount,
+            'notificationDisplay' => $notificationDisplayCount,
+        ]);
     @endphp
 
     {{--
-        Topbar แนวนอนแทนแถบข้างเดิม: แบรนด์ · เมนูหลัก · เครื่องมือ (ค้นหา งานประจำ แจ้งเตือน บัญชี)
-        ตัว header โปร่งใส มีพื้นหลังเฉพาะชิ้นที่ต้องการ (แถบเมนู ช่องค้นหา ปุ่ม และบัญชี)
-        เมนูตามสิทธิ์มาจาก App\Support\TopNavigation ที่เดียว — layouts/components/top-navigation
+        Topbar: แบรนด์ · เมนูหลัก · เครื่องมือ (ค้นหา งานประจำ แจ้งเตือน บัญชี)
+        จอ ≥ 992px ใช้เมนูแนวนอน (layouts/components/top-navigation)
+        จอ < 992px ซ่อนเมนูแนวนอน แล้วใช้ปุ่ม ☰ เปิดแถบเมนูด้านข้าง (layouts/components/mobile-sidebar)
+        เมนูทั้งสองแบบวาดจาก $navigation ชุดเดียวกัน (App\Support\TopNavigation)
     --}}
     <header class="topbar">
+        <button type="button" class="topbar-menu-btn" data-mobile-sidebar-open aria-controls="mobileSidebar"
+            aria-expanded="false" aria-label="เปิดเมนู">
+            <i class="bi bi-list" aria-hidden="true"></i>
+        </button>
+
         {{-- ชื่อระบบอยู่ที่นี่ที่เดียว --}}
         <div class="topbar-brand">
             <span class="topbar-brand__mark" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
@@ -66,7 +81,7 @@
                 <div class="dropdown routine-topbar" data-routine-topbar data-routine-status-url="{{ route('daily-logs.routine-status') }}">
                     <button type="button" class="icon-btn routine-topbar__button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
                         title="งานประจำวันนี้" aria-label="งานประจำที่ต้องจัดการ {{ $routineAttention['total'] }} รายการ">
-                        <i class="bi bi-alarm-fill" aria-hidden="true"></i>
+                        <i class="bi bi-alarm" aria-hidden="true"></i>
                         <span class="notification-count routine-topbar__count" data-routine-count @if($routineAttention['total'] === 0) hidden @endif>{{ $routineAttention['total'] }}</span>
                     </button>
                     <div class="dropdown-menu dropdown-menu-end topbar-slide-menu routine-topbar__menu">
@@ -97,7 +112,7 @@
             @endunless
             <div class="dropdown">
                 <button type="button" class="icon-btn" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" title="แจ้งเตือน" aria-label="การแจ้งเตือน">
-                    <i class="bi bi-bell-fill" aria-hidden="true"></i>
+                    <i class="bi bi-bell" aria-hidden="true"></i>
                     <span class="notification-count" data-notification-count data-bell-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end topbar-slide-menu notification-menu" data-notification-menu>
@@ -157,6 +172,9 @@
         </div>
     </header>
 
+    {{-- อยู่นอก header เพราะ backdrop-filter ของ Topbar จะเป็นที่ยึดของ position: fixed --}}
+    @include('layouts.components.mobile-sidebar')
+
     <main class="main">
         @yield('content')
     </main>
@@ -170,6 +188,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     {{-- เมนูแนวนอน (คีย์บอร์ด และเลื่อนให้เห็นเมนูปัจจุบันบนจอแคบ) กับช่องค้นหา Ctrl/⌘ + K --}}
     @vite('resources/js/components/top-navigation.js')
+    @vite('resources/js/components/mobile-sidebar.js')
     @vite('resources/js/components/global-search.js')
     @vite('resources/js/components/avatar-fallback.js')
     @vite('resources/js/components/realtime-sync.js')

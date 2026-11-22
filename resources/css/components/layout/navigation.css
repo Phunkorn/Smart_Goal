@@ -263,10 +263,10 @@
 }
 
 /*
- * แท็บเล็ต: แถบเมนูเป็นแถวที่สองกึ่งกลาง ถ้าเมนูของบทบาทนั้นยาวเกินแถว ให้ขึ้นบรรทัดใหม่
- * แทนการล้นจอหรือซ้อนกัน (มุมโค้งลดลงเพราะแถบอาจสูงสองบรรทัด)
+ * เดสก์ท็อปที่แคบ (992–1279px): แถบเมนูเป็นแถวที่สองกึ่งกลาง ถ้าเมนูของบทบาทนั้นยาวเกินแถว
+ * ให้ขึ้นบรรทัดใหม่แทนการล้นจอหรือซ้อนกัน (มุมโค้งลดลงเพราะแถบอาจสูงสองบรรทัด)
  */
-@media (max-width: 1279.98px) {
+@media (min-width: 992px) and (max-width: 1279.98px) {
     .top-nav { justify-self: stretch; }
     .top-nav__list {
         flex-wrap: wrap;
@@ -276,44 +276,9 @@
 }
 
 /*
- * โทรศัพท์: แถบเมนูเลื่อนแนวนอนได้ (ไม่ขึ้นบรรทัดใหม่ ไม่ใช่ลิ้นชักข้างจอ)
- *
- * ดร็อปดาวน์อยู่ในแถวที่เลื่อนได้ ถ้าแถวหรือตัวห่อเป็นที่ยึดของมัน เมนูจะถูก overflow ของแถวตัดทิ้ง
- * จึงให้ทั้งแถวและตัวห่อเป็น static แล้วยึดกับ Topbar (relative) แทน: เมนูกางเต็มความกว้างใต้ Topbar
- * ตำแหน่งนี้คงที่ทั้งตอนเปิดและตอนเฟดปิด และไม่หลุดขอบจอ
+ * จอต่ำกว่า 992px ใช้แถบเมนูด้านข้าง (mobile-sidebar.css) ที่วาดจากข้อมูลชุดเดียวกัน
+ * จุดตัด 991.98 / 992 เป็นคู่เดียวกับ mobile-sidebar.css และ topbar.css จึงไม่มีช่วงจอที่เห็นทั้งสองแบบ
  */
-@media (max-width: 767.98px) {
-    .top-nav__list {
-        flex-wrap: nowrap;
-        justify-content: flex-start;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        scroll-padding-inline: 5px;
-        scrollbar-width: none;
-        border-radius: 999px;
-    }
-
-    .top-nav__list::-webkit-scrollbar { display: none; }
-
-    .top-nav__item.dropdown { position: static; }
-
-    .top-nav__link {
-        height: 38px;
-        padding: 0 13px;
-        font-size: .84rem;
-    }
-
-    .top-nav .dropdown-menu.topbar-slide-menu.nav-dropdown,
-    .top-nav .dropdown-menu.topbar-slide-menu.nav-dropdown:not(.dropdown-menu-end) {
-        top: 100%;
-        right: var(--topbar-pad-x, .75rem);
-        left: var(--topbar-pad-x, .75rem);
-        max-width: none;
-        max-height: min(520px, calc(100dvh - 140px));
-        margin-top: 0;
-        overflow-y: auto;
-    }
-
-    /* แตะง่ายบนจอสัมผัส */
-    .dropdown-menu.nav-dropdown .nav-dropdown__item { min-height: 46px; }
+@media (max-width: 991.98px) {
+    .top-nav { display: none; }
 }

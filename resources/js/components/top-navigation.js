@@ -7,7 +7,8 @@
  *
  * - ลูกศรซ้าย/ขวา Home/End ย้ายโฟกัสระหว่างเมนูหลัก (ทั้งจากตัวเมนูหลักและจากในดร็อปดาวน์ที่เปิดอยู่
  *   ซึ่งจะถูกปิดก่อนย้าย) ตามแบบแผนของแถบเมนูแนวนอน
- * - จอแคบที่แถวเมนูเลื่อนแนวนอนได้ เลื่อนให้เห็นเมนูของหน้าปัจจุบันตั้งแต่โหลดหน้า
+ *
+ * จอต่ำกว่า 992px ไม่มีเมนูแนวนอน (ใช้ mobile-sidebar.js ที่วาดจากข้อมูลเมนูชุดเดียวกัน)
  *
  * สถานะการมองเห็นทั้งหมดเป็น class/ARIA ที่ Bootstrap ตั้ง (show, aria-expanded) ไม่มีการแก้ style ที่นี่
  * เรียกซ้ำได้โดยไม่ผูก listener ซ้ำ และ destroy() ถอด listener ทั้งหมด
@@ -51,32 +52,12 @@ export function initTopNavigation(doc = document, {win = doc.defaultView} = {}) 
         target.focus();
     }, {signal: listeners.signal});
 
-    revealCurrentEntry(nav);
-
     return {
         destroy() {
             listeners.abort();
             delete nav.dataset.topNavReady;
         },
     };
-}
-
-/**
- * แถวเมนูบนจอแคบเลื่อนแนวนอนได้ — เลื่อนแถวเอง (ไม่ใช่ scrollIntoView ที่เลื่อนทั้งหน้าตามไปด้วย)
- * ให้เมนูของหน้าปัจจุบันอยู่กลางแถว ถ้าแถวไม่ล้นก็ไม่ทำอะไร
- */
-export function revealCurrentEntry(nav) {
-    const list = nav.querySelector('[data-top-nav-list]');
-    const active = nav.querySelector('[data-top-nav-entry].is-active');
-    if (! list || ! active || list.scrollWidth <= list.clientWidth) return;
-
-    /*
-     * วัดด้วย getBoundingClientRect ไม่ใช่ offsetLeft — แถวเมนูบนจอแคบต้องไม่เป็น positioned element
-     * (ดร็อปดาวน์จึงยึดกับ Topbar และไม่ถูกแถวที่เลื่อนได้ตัดทิ้ง) offsetLeft จึงนับจาก Topbar ไม่ใช่จากแถว
-     */
-    const item = (active.closest('.top-nav__item') ?? active).getBoundingClientRect();
-    const row = list.getBoundingClientRect();
-    list.scrollLeft = Math.max(0, list.scrollLeft + item.left - row.left - (list.clientWidth - item.width) / 2);
 }
 
 if (typeof document !== 'undefined') initTopNavigation(document);

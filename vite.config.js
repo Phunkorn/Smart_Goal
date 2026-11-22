@@ -42,6 +42,7 @@ export default defineConfig({
                 'resources/js/components/avatar-fallback.js',
                 'resources/js/components/daily-brief.js',
                 'resources/js/components/global-search.js',
+                'resources/js/components/mobile-sidebar.js',
                 'resources/js/components/realtime-sync.js',
                 'resources/js/components/ticket-alert.js',
                 'resources/js/components/top-navigation.js',

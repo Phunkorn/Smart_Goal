@@ -4,10 +4,12 @@ import {existsSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 
 /*
- * สัญญาของ Topbar แนวนอนที่มาแทนแถบข้าง — ตรวจจากไฟล์ต้นฉบับจริง
+ * สัญญาของการนำทาง — ตรวจจากไฟล์ต้นฉบับจริง
+ *   ≥ 992px  เมนูแนวนอนบน Topbar (top-navigation)
+ *   < 992px  แถบเมนูด้านข้างแบบ off-canvas (mobile-sidebar) ที่วาดจากข้อมูลชุดเดียวกัน
  *
  * jsdom ไม่คำนวณ layout ผลการวางตำแหน่งจริงต้องดูบนเบราว์เซอร์ที่ 320–1920px
- * ไฟล์นี้กันไม่ให้แถบข้างหรือโค้ด inline กลับมา และกันไม่ให้ hook ที่สคริปต์ใช้หลุดจาก Blade
+ * ไฟล์นี้กันไม่ให้แถบข้างแบบเดสก์ท็อปเดิมหรือโค้ด inline กลับมา และกันไม่ให้ hook ที่สคริปต์ใช้หลุดจาก Blade
  */
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const code = (path) => read(path).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{\{--[\s\S]*?--\}\}/g, '');
@@ -25,12 +27,13 @@ const files = (directory, extensions) => readdirSync(new URL(`../../${directory}
 
 const navigationViews = [
     'resources/views/layouts/components/top-navigation.blade.php',
+    'resources/views/layouts/components/mobile-sidebar.blade.php',
     'resources/views/layouts/components/top-navigation-badge.blade.php',
     'resources/views/layouts/components/global-search.blade.php',
     'resources/views/layouts/components/user-dropdown.blade.php',
 ];
 
-test('the sidebar is gone from the code base, not hidden', () => {
+test('the old desktop sidebar is gone; only the mobile off-canvas sidebar exists', () => {
     for (const removed of [
         'resources/js/components/sidebar.js',
         'resources/css/components/layout/sidebar.css',
@@ -41,25 +44,44 @@ test('the sidebar is gone from the code base, not hidden', () => {
         assert.equal(existsSync(new URL(`../../${removed}`, import.meta.url)), false, `ยังพบ ${removed}`);
     }
 
+    // ไม่มีโหมดย่อ/ขยายของเดสก์ท็อปหรือการเว้นระยะหลบแถบข้างอีก
     for (const path of [...files('resources/css', ['.css']), ...files('resources/js', ['.js']), ...files('resources/views/layouts', ['.blade.php'])]) {
         const source = code(path);
-        for (const legacy of ['--sidebar-w', '--sidebar-collapsed-w', 'sidebar-collapsed', 'sidebar-open', 'data-sidebar', 'appSidebar', 'mobile-menu-btn', 'smartgoal.sidebar', 'nav-section-label']) {
+        for (const legacy of ['--sidebar-w', '--sidebar-collapsed-w', 'sidebar-collapsed', 'data-sidebar-', 'appSidebar', 'mobile-menu-btn', 'smartgoal.sidebar', 'nav-section-label']) {
             assert.ok(! source.includes(legacy), `${path} ยังอ้าง ${legacy}`);
         }
+        assert.doesNotMatch(source, /(^|[^-\w])sidebar-open/, `${path} ยังอ้างคลาส sidebar-open เดิม`);
     }
 
     const layout = read('resources/views/layouts/app.blade.php');
     assert.doesNotMatch(layout, /<aside/);
-    assert.doesNotMatch(layout, /sidebar/i);
-    assert.doesNotMatch(code('resources/css/components/layout.css'), /sidebar/);
-    assert.doesNotMatch(read('vite.config.js'), /sidebar/);
+    assert.doesNotMatch(layout, /components\/sidebar|class="sidebar/);
+    assert.ok(layout.includes("@include('layouts.components.mobile-sidebar')"));
+    // แถบเมนูด้านข้างอยู่นอก header (backdrop-filter ของ header จะเป็นที่ยึดของ position: fixed)
+    assert.ok(layout.indexOf("@include('layouts.components.mobile-sidebar')") > layout.indexOf('</header>'));
+    assert.doesNotMatch(code('resources/css/components/layout.css'), /'\.\/layout\/sidebar\.css'/);
+    assert.doesNotMatch(read('vite.config.js'), /components\/sidebar\.js/);
+});
+
+test('desktop and mobile menus render one $navigation computed once in the layout', () => {
+    const layout = read('resources/views/layouts/app.blade.php');
+    const desktop = read('resources/views/layouts/components/top-navigation.blade.php');
+    const mobile = read('resources/views/layouts/components/mobile-sidebar.blade.php');
+
+    assert.equal(layout.split('TopNavigation::for(').length - 1, 1, 'คำนวณเมนูตามสิทธิ์ครั้งเดียว');
+    for (const view of [desktop, mobile]) {
+        assert.ok(! view.includes('TopNavigation::for('), 'component ไม่คำนวณเมนูเอง');
+        assert.match(view, /@foreach \(\$navigation as \$item\)/);
+        // ไม่ตัดสินสิทธิ์ใน Blade
+        assert.doesNotMatch(code(view === desktop ? 'resources/views/layouts/components/top-navigation.blade.php' : 'resources/views/layouts/components/mobile-sidebar.blade.php'), /->can\(|->role|isDepartmentHead|TicketAgentAccess/);
+    }
 });
 
 test('the layout loads the navigation through Vite and has no inline script or style', () => {
     const layout = read('resources/views/layouts/app.blade.php');
     const vite = read('vite.config.js');
 
-    for (const entry of ['resources/js/components/top-navigation.js', 'resources/js/components/global-search.js']) {
+    for (const entry of ['resources/js/components/top-navigation.js', 'resources/js/components/mobile-sidebar.js', 'resources/js/components/global-search.js']) {
         assert.ok(layout.includes(`@vite('${entry}')`), `layout ต้องโหลด ${entry}`);
         assert.ok(vite.includes(`'${entry}'`), `vite.config.js ต้องลงทะเบียน ${entry}`);
     }
@@ -81,7 +103,7 @@ test('the layout loads the navigation through Vite and has no inline script or s
 });
 
 test('the scripts style through classes and ARIA, not by writing inline styles', () => {
-    for (const path of ['resources/js/components/top-navigation.js', 'resources/js/components/global-search.js']) {
+    for (const path of ['resources/js/components/top-navigation.js', 'resources/js/components/mobile-sidebar.js', 'resources/js/components/global-search.js']) {
         const source = code(path);
         assert.doesNotMatch(source, /\.style\.|setAttribute\(\s*'style'|cssText/, `${path} แก้ style ตรง ๆ`);
         assert.doesNotMatch(source, /innerHTML|insertAdjacentHTML|outerHTML/, `${path} ประกอบ HTML จากข้อความ`);
@@ -95,17 +117,27 @@ test('every hook the scripts look up exists in the Blade the layout renders', ()
     const navScript = read('resources/js/components/top-navigation.js');
     const searchScript = read('resources/js/components/global-search.js');
 
-    for (const hook of ['data-top-nav', 'data-top-nav-list', 'data-top-nav-entry']) {
+    for (const hook of ['data-top-nav', 'data-top-nav-entry']) {
         assert.ok(navScript.includes(`[${hook}]`), `top-navigation.js ไม่ใช้ ${hook}`);
         assert.ok(nav.includes(hook), `Blade ไม่มี ${hook}`);
     }
     for (const hook of ['data-global-search', 'data-global-search-trigger', 'data-global-search-panel', 'data-global-search-input',
-        'data-global-search-results', 'data-global-search-message', 'data-global-search-status', 'data-global-search-clear',
-        'data-global-search-shortcut']) {
+        'data-global-search-results', 'data-global-search-message', 'data-global-search-status', 'data-global-search-clear']) {
         assert.ok(searchScript.includes(`[${hook}]`), `global-search.js ไม่ใช้ ${hook}`);
         assert.ok(search.includes(hook), `Blade ไม่มี ${hook}`);
     }
     assert.ok(search.includes("data-search-url=\"{{ route('search') }}\""));
+
+    const sidebar = read('resources/views/layouts/components/mobile-sidebar.blade.php');
+    const sidebarScript = read('resources/js/components/mobile-sidebar.js');
+    const layout = read('resources/views/layouts/app.blade.php');
+    for (const hook of ['data-mobile-sidebar', 'data-mobile-sidebar-close', 'data-mobile-nav-toggle', 'data-mobile-nav-group', 'data-mobile-nav-panel']) {
+        assert.ok(sidebarScript.includes(`[${hook}]`), `mobile-sidebar.js ไม่ใช้ ${hook}`);
+        assert.ok(sidebar.includes(hook), `Blade ไม่มี ${hook}`);
+    }
+    assert.ok(sidebarScript.includes('[data-mobile-sidebar-open]'));
+    assert.match(layout, /data-mobile-sidebar-open aria-controls="mobileSidebar"/);
+    assert.match(sidebar, /role="dialog" aria-modal="true"[\s\S]*?data-mobile-sidebar inert>/);
 
     // ทุกกลุ่มเมนูเปิดแบบ static ด้วยคลาสสไลด์ชุดเดียวกับกระดิ่งและบัญชี
     assert.match(nav, /data-bs-toggle="dropdown" data-bs-display="static"/);
@@ -132,7 +164,7 @@ test('one dropdown animation serves the whole topbar, with the agreed timing and
     assert.match(closed, /\.18s|\.2s/);
     assert.match(opened, /opacity:\s*1/);
 
-    for (const path of ['resources/css/components/layout/navigation.css', 'resources/css/components/layout/global-search.css', 'resources/css/components/layout/topbar.css', 'resources/css/components/layout/shell.css']) {
+    for (const path of ['resources/css/components/layout/navigation.css', 'resources/css/components/layout/mobile-sidebar.css', 'resources/css/components/layout/global-search.css', 'resources/css/components/layout/topbar.css', 'resources/css/components/layout/shell.css']) {
         assert.match(read(path), /prefers-reduced-motion:\s*reduce/, `${path} ต้องรองรับ reduced motion`);
     }
 
@@ -147,11 +179,16 @@ test('one dropdown animation serves the whole topbar, with the agreed timing and
     assert.match(block(search, '.global-search.is-open .global-search__panel'), /visibility:\s*visible/);
 });
 
-test('the topbar is transparent; only its pieces carry a surface', () => {
-    const topbar = block(code('resources/css/components/layout/topbar.css'), '.topbar');
+test('the topbar has a thin translucent surface with a readable fallback; its pieces keep their own white', () => {
+    const css = code('resources/css/components/layout/topbar.css');
+    const topbar = block(css, '.topbar');
 
-    assert.doesNotMatch(topbar, /background|border-bottom|box-shadow|position:\s*sticky|backdrop-filter/);
+    // เดิมเป็นพื้นขาวทึบเต็มแถบ — ตอนนี้เป็นขาวโปร่งบาง ๆ กับเส้นล่างจาง ๆ ไม่มีเงา ไม่ติดบนสุด
+    assert.match(topbar, /background:\s*rgba\(255, 255, 255, \.9\)/, 'fallback เมื่อไม่มี backdrop-filter');
+    assert.match(topbar, /border-bottom:\s*1px solid rgba\(/);
+    assert.doesNotMatch(topbar, /box-shadow|position:\s*sticky/);
     assert.match(topbar, /position:\s*relative/);
+    assert.match(css, /@supports \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*\.topbar \{[^}]*background:\s*rgba\(255, 255, 255, \.65\)[^}]*backdrop-filter:\s*blur\(10px\)/);
     assert.match(block(code('resources/css/components/layout/navigation.css'), '.top-nav__list'), /background:\s*var\(--surface\)/);
     assert.match(block(code('resources/css/components/layout/global-search.css'), '.global-search__trigger'), /background:\s*var\(--surface\)/);
 });
@@ -168,14 +205,48 @@ test('the content uses the full width and pages change with a progressive view t
     assert.match(code('resources/css/components/layout/navigation.css'), /view-transition-name:\s*top-nav-active/);
 });
 
-test('the layout reflows to two rows on tablets and a scrollable row on phones without a drawer', () => {
+test('one 991.98/992px switch: horizontal menu above, off-canvas sidebar below, never both or neither', () => {
     const topbar = code('resources/css/components/layout/topbar.css');
     const navigation = code('resources/css/components/layout/navigation.css');
+    const sidebar = code('resources/css/components/layout/mobile-sidebar.css');
 
-    assert.match(topbar, /@media \(max-width: 1279\.98px\) \{\s*\.topbar \{[\s\S]*?"brand tools"\s*"nav nav"/);
-    assert.match(navigation, /@media \(max-width: 767\.98px\) \{\s*\.top-nav__list \{[^}]*overflow-x:\s*auto/);
-    assert.match(navigation, /\.top-nav__item\.dropdown \{ position: static; \}/);
-    for (const source of [topbar, navigation]) {
-        assert.doesNotMatch(source, /translateX\(-|off-canvas|offcanvas|drawer/i);
+    assert.match(navigation, /@media \(max-width: 991\.98px\) \{\s*\.top-nav \{ display: none; \}/);
+    assert.match(sidebar, /^\s*\.mobile-sidebar,\s*\.mobile-sidebar-backdrop \{\s*display: none;/);
+    assert.match(sidebar, /@media \(max-width: 991\.98px\) \{\s*\.mobile-sidebar \{/);
+    assert.match(topbar, /@media \(max-width: 991\.98px\) \{[\s\S]*?"menu brand tools"[\s\S]*?\.topbar-menu-btn \{ display: grid; \}/);
+    assert.match(block(topbar, '.topbar-menu-btn'), /display:\s*none/);
+    assert.match(topbar, /@media \(min-width: 992px\) and \(max-width: 1279\.98px\) \{\s*\.topbar \{[\s\S]*?"brand tools"\s*"nav nav"/);
+
+    // ไม่มีจุดตัดอื่นที่ขัดกัน และไม่มีแถบเมนูแนวนอนแบบเลื่อนบนโทรศัพท์อีก
+    for (const source of [navigation, sidebar]) {
+        for (const [query] of source.matchAll(/@media[^{]*/g)) {
+            assert.doesNotMatch(query, /767\.98|575\.98/, `จุดตัดที่ไม่ใช่คู่ 992: ${query}`);
+        }
     }
+    assert.doesNotMatch(navigation, /overflow-x:\s*auto/);
+
+    // แถบเมนูด้านข้าง: เลื่อนเข้าจากซ้าย ฉากหลังเฟด ล็อกการเลื่อนหน้าเฉพาะตอนเปิด
+    assert.match(block(sidebar, '.mobile-sidebar'), /transform:\s*translateX\(-102%\)/);
+    assert.match(block(sidebar, '.mobile-sidebar'), /\.24s/);
+    assert.match(sidebar, /body\.mobile-sidebar-open \.mobile-sidebar \{[^}]*transform:\s*none/);
+    assert.match(sidebar, /body\.mobile-sidebar-open \.mobile-sidebar-backdrop \{[^}]*opacity:\s*1/);
+    assert.match(sidebar, /body\.mobile-sidebar-open \{\s*overflow:\s*hidden;/);
+    assert.match(block(sidebar, '.mobile-sidebar'), /width:\s*min\(300px, calc\(100vw - 48px\)\)/);
+});
+
+test('routine and notification buttons share one white style with outline icons; no blue-button rule remains', () => {
+    const css = code('resources/css/components/layout/topbar.css');
+    const layout = read('resources/views/layouts/app.blade.php');
+    const header = layout.slice(layout.indexOf('<header class="topbar">'), layout.indexOf('</header>'));
+
+    assert.doesNotMatch(css, /topbar-action/);
+    assert.doesNotMatch(layout, /topbar-action/);
+    assert.match(header, /class="icon-btn routine-topbar__button"[\s\S]*?<i class="bi bi-alarm" aria-hidden="true"><\/i>/);
+    assert.match(header, /<button type="button" class="icon-btn" data-bs-toggle="dropdown"[^>]*title="แจ้งเตือน"[^>]*>\s*<i class="bi bi-bell" aria-hidden="true"><\/i>/);
+    assert.doesNotMatch(header, /bi-alarm-fill|bi-bell-fill/);
+    assert.doesNotMatch(header, /\sstyle=/);
+
+    // ไม่มีกฎสีเดิมของปุ่มงานประจำที่ทำให้สองปุ่มต่างกัน และขนาดเดิมไม่เปลี่ยน
+    assert.doesNotMatch(css, /\.routine-topbar__button\s*\{/);
+    assert.match(block(css, '.topbar .icon-btn'), /width:\s*var\(--topbar-control\);\s*height:\s*var\(--topbar-control\)/);
 });

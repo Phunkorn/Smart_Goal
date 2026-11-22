@@ -45,7 +45,8 @@
  */
 .shares-panel {
     display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));
+    /* min(..., 100%): จอ 320px มีที่ให้การ์ดไม่ถึง 320px ขั้นต่ำคงที่จึงดันกริดล้นจอ 26px */
+    grid-template-columns:repeat(auto-fill, minmax(min(320px, 100%), 1fr));
     align-items:start;
     gap:12px;
 }
@@ -166,7 +167,7 @@
  */
 .shares-my-list {
     display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns:repeat(auto-fill, minmax(min(260px, 100%), 1fr));
     /* ไม่ใช้ align-items:start เพื่อให้ทุกใบในแถวสูงเท่ากัน แม้ชื่องานจะยาวไม่เท่ากัน */
     gap:9px;
 }

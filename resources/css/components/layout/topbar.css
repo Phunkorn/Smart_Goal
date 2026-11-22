@@ -4,13 +4,17 @@
  * ตัว header โปร่งใส ไม่มีแถบสีขาวเต็มความกว้าง — ชิ้นที่ต้องมีพื้นหลัง (แถบเมนู ช่องค้นหา ปุ่ม บัญชี)
  * มีพื้นหลังของตัวเอง และไม่ติดบนสุดตอนเลื่อน เนื้อหาจึงไม่ไหลลอดใต้ชิ้นที่โปร่งใส
  *
- * position: relative + z-index ทำให้ Topbar เป็นที่ยึดของดร็อปดาวน์บนจอแคบ (ดูท้ายไฟล์และ navigation.css)
- * และให้เมนูที่เปิดลงมาอยู่เหนือเนื้อหาของหน้า แต่ยังต่ำกว่า modal ของ Bootstrap (1050+)
+ * พื้นหลังของ header เป็นขาวโปร่งแสงบาง ๆ กับเส้นล่างจาง ๆ เพื่อแยกแถบนำทางออกจากเนื้อหา
+ * (ไม่ใช่แถบขาวทึบของรุ่นเดิม) แถบเมนู ช่องค้นหา ปุ่ม และบัญชียังมีพื้นขาวของตัวเอง
  *
- * เลย์เอาต์ตามความกว้างจอ (DOM ลำดับเดียว: แบรนด์ → เมนู → เครื่องมือ):
+ * position: relative + z-index ทำให้ Topbar เป็นที่ยึดของดร็อปดาวน์บนจอแคบ (ดูท้ายไฟล์)
+ * และให้เมนูที่เปิดลงมาอยู่เหนือเนื้อหาของหน้า แต่ยังต่ำกว่า modal ของ Bootstrap (1050+)
+ * backdrop-filter ทำให้ header เป็นที่ยึดของ position: fixed ด้วย แถบเมนูด้านข้างจึงอยู่นอก header
+ *
+ * เลย์เอาต์ตามความกว้างจอ (DOM ลำดับเดียว: ☰ → แบรนด์ → เมนู → เครื่องมือ):
  *   ≥ 1280px      แถวเดียว แบรนด์ | เมนูกลาง | เครื่องมือ
- *   768–1279px    แถวแรก แบรนด์ | เครื่องมือ  แถวสองเป็นแถบเมนูกึ่งกลาง (ขึ้นบรรทัดใหม่ได้ ไม่ล้นจอ)
- *   < 768px       เหมือนกัน แต่เครื่องมือเหลือแต่ไอคอน และแถบเมนูเลื่อนแนวนอน
+ *   992–1279px    แถวแรก แบรนด์ | เครื่องมือ  แถวสองเป็นแถบเมนูกึ่งกลาง (ขึ้นบรรทัดใหม่ได้ ไม่ล้นจอ)
+ *   < 992px       ☰ | แบรนด์ | เครื่องมือ แถวเดียว ไม่มีแถบเมนูแนวนอน (ใช้แถบเมนูด้านข้างแทน)
  */
 .topbar {
     --topbar-pad-x: 1.75rem;
@@ -24,9 +28,49 @@
     align-items: center;
     column-gap: 1.25rem;
     row-gap: 12px;
-    padding: var(--topbar-pad-top) var(--topbar-pad-x) 10px;
+    /* ระยะล่าง 9px + เส้นล่าง 1px = 10px เท่าเดิม ความสูง Topbar บนเดสก์ท็อปจึงไม่เปลี่ยน */
+    padding: var(--topbar-pad-top) var(--topbar-pad-x) 9px;
+    border-bottom: 1px solid rgba(210, 220, 235, .45);
+    background: rgba(255, 255, 255, .9);
     /* คงที่ระหว่างการเปลี่ยนหน้า (View Transition ใน shell.css) — มีแต่เนื้อหาที่เฟด */
     view-transition-name: app-topbar;
+}
+
+/* เบราว์เซอร์ที่ทำ blur ได้ใช้พื้นโปร่งกว่า เบราว์เซอร์ที่ทำไม่ได้ยังได้พื้นขาวเกือบทึบที่อ่านง่าย */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .topbar {
+        background: rgba(255, 255, 255, .65);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+    }
+}
+
+/* ปุ่ม ☰ เปิดแถบเมนูด้านข้าง — แสดงเฉพาะจอต่ำกว่า 992px (ดูท้ายไฟล์) */
+.topbar-menu-btn {
+    grid-area: menu;
+    display: none;
+    place-items: center;
+    width: var(--topbar-control);
+    height: var(--topbar-control);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    color: var(--text);
+    font-size: 1.35rem;
+    transition: background-color .16s ease, color .16s ease;
+}
+
+.topbar-menu-btn:hover,
+.topbar-menu-btn[aria-expanded="true"] {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.topbar-menu-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* ---------- Brand ---------- */
@@ -173,7 +217,6 @@
     outline-offset: 2px;
 }
 
-.routine-topbar__button { color:#2563eb; }
 .routine-topbar__count { background:#2563eb !important; font-size:.72rem; font-weight:500; letter-spacing:.02em; font-variant-numeric:tabular-nums; }
 .routine-topbar__menu { width:min(360px,calc(100vw - 20px)); padding:0; overflow:hidden; border:1px solid #dce5f1; border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,.16); }
 .routine-topbar__head { display:flex; align-items:center; justify-content:space-between; padding:13px 14px 9px; }
@@ -273,8 +316,8 @@
     .topbar .topbar-account__trigger { padding-right: .6rem; }
 }
 
-/* แท็บเล็ตและเล็กกว่า: เมนูหลักลงไปเป็นแถวที่สองเต็มความกว้าง */
-@media (max-width: 1279.98px) {
+/* เดสก์ท็อปที่แคบ: เมนูหลักลงไปเป็นแถวที่สองเต็มความกว้าง */
+@media (min-width: 992px) and (max-width: 1279.98px) {
     .topbar {
         grid-template-columns: minmax(0, 1fr) auto;
         grid-template-areas:
@@ -284,13 +327,29 @@
     }
 }
 
+/*
+ * แท็บเล็ตและโทรศัพท์ (< 992px): ☰ · แบรนด์ · เครื่องมือ ในแถวเดียว
+ * เมนูหลักอยู่ในแถบเมนูด้านข้างที่ปุ่ม ☰ เปิด (mobile-sidebar.css) ไม่มีแถบเมนูแนวนอนอีก
+ */
+@media (max-width: 991.98px) {
+    .topbar {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: "menu brand tools";
+        column-gap: .75rem;
+        padding-inline: 1.25rem;
+    }
+
+    .topbar-menu-btn { display: grid; }
+    .topbar .topbar-account__identity { display: none; }
+    .topbar .topbar-account__trigger { padding-right: .6rem; }
+}
+
 @media (max-width: 767.98px) {
     .topbar {
         --topbar-pad-x: .75rem;
         --topbar-pad-top: 10px;
         --topbar-control: 40px;
         column-gap: .5rem;
-        row-gap: 10px;
         padding-inline: var(--topbar-pad-x);
     }
 
@@ -323,7 +382,16 @@
     .topbar .topbar-account__trigger { padding: .2rem; border-radius: 50%; }
 }
 
-/* จอเล็กมาก: เหลือแต่เครื่องหมายของแบรนด์ เครื่องมือทั้งสี่ปุ่มจึงยังอยู่ครบในแถวเดียว */
+/*
+ * จอเล็กมาก: ย่อแบรนด์ก่อนเครื่องมือ ปุ่ม ☰ และเครื่องมือทั้งสี่ปุ่มจึงยังอยู่ครบในแถวเดียว
+ *   360–399px  เหลือชื่อ Smart Goals ไม่มีวงโลโก้
+ *   < 360px    เหลือวงโลโก้อย่างเดียว
+ */
+@media (max-width: 399.98px) {
+    .topbar .topbar-brand__mark { display: none; }
+}
+
 @media (max-width: 359.98px) {
+    .topbar .topbar-brand__mark { display: grid; }
     .topbar .topbar-brand__text { display: none; }
 }

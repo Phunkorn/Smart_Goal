@@ -448,7 +448,11 @@ class TicketReportTest extends TestCase
             ->getContent();
         $this->assertStringNotContainsString('data-ticket-nav', $page);
         $this->assertMatchesRegularExpression('~nav-dropdown__item is-active"\s+aria-current="page"\s*>\s*<i class="bi bi-headset nav-dropdown__icon" aria-hidden="true"></i>\s*<span class="nav-dropdown__label">รายงานแจ้งปัญหา~u', $page);
-        $this->assertSame(1, substr_count($page, $link));
+        // หนึ่งครั้งต่อเมนู: เมนูแนวนอน (≥ 992px) และแถบเมนูด้านข้าง (< 992px) วาดจากข้อมูลชุดเดียวกัน
+        foreach (['<nav class="top-nav"', '<nav class="mobile-nav"'] as $menu) {
+            $start = (int) strpos($page, $menu);
+            $this->assertSame(1, substr_count(substr($page, $start, (int) strpos($page, '</nav>', $start) - $start), $link), $menu);
+        }
     }
 
     /* ---------------------------------------------------------------

@@ -1,23 +1,14 @@
 {{--
-    เมนูหลักแนวนอนบน Topbar — วาดอย่างเดียว ไม่ตัดสินสิทธิ์
+    เมนูหลักแนวนอนบน Topbar (จอ ≥ 992px) — วาดอย่างเดียว ไม่ตัดสินสิทธิ์
+    $navigation มาจาก layouts/app.blade.php ชุดเดียวกับ layouts/components/mobile-sidebar
     ใครเห็นเมนูอะไร ป้ายตัวเลข และเมนูไหนเป็นหน้าปัจจุบัน มาจาก App\Support\TopNavigation ที่เดียว
 
     กลุ่มเมนูเป็น Bootstrap dropdown ชุดเดียวกับกระดิ่ง/งานประจำ/บัญชี (topbar-slide-menu):
     data-bs-display="static" ให้ CSS กำหนดตำแหน่งเอง เมนูจึงเฟดและเลื่อนลงได้ทั้งตอนเปิดและตอนปิด
     คีย์บอร์ด: ลูกศรขึ้น/ลงในเมนู และ Escape มาจาก Bootstrap ลูกศรซ้าย/ขวาระหว่างเมนูหลักมาจาก top-navigation.js
 --}}
-@php
-    $navigation = \App\Support\TopNavigation::for($currentUser, request(), [
-        'ticketsInstalled' => $ticketsInstalled ?? false,
-        'ticketQueueCount' => $ticketQueueCount ?? 0,
-        'shareRequestCount' => $shareRequestCount ?? 0,
-        'approvalTotal' => $approvalCounts['total'] ?? 0,
-        'notificationCount' => $notificationCount,
-        'notificationDisplay' => $notificationDisplayCount,
-    ]);
-@endphp
 <nav class="top-nav" aria-label="เมนูหลัก" data-top-nav>
-    <ul class="top-nav__list" data-top-nav-list>
+    <ul class="top-nav__list">
         @foreach ($navigation as $item)
             @if ($item['type'] === 'link')
                 <li class="top-nav__item">

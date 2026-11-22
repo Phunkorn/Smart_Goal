@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
-import {initTopNavigation, revealCurrentEntry} from '../../resources/js/components/top-navigation.js';
+import {initTopNavigation} from '../../resources/js/components/top-navigation.js';
 
 /*
  * เมนูหลักแนวนอน (layouts/components/top-navigation.blade.php + resources/js/components/top-navigation.js)
@@ -29,7 +29,7 @@ function setup(t, {activeGroup = false} = {}) {
     const dom = new JSDOM(`<!doctype html><html><body>
         <header class="topbar">
             <nav class="top-nav" aria-label="เมนูหลัก" data-top-nav>
-                <ul class="top-nav__list" data-top-nav-list>
+                <ul class="top-nav__list">
                     <li class="top-nav__item"><a href="/my-tasks" class="top-nav__link" data-top-nav-entry id="mytasks">งานของฉัน</a></li>
                     <li class="top-nav__item"><a href="/daily-logs" class="top-nav__link is-active" data-top-nav-entry aria-current="page" id="daily">บันทึกงานประจำวัน</a></li>
                     ${group('reports', 'รายงาน', ['operational', 'projects'], activeGroup)}
@@ -150,27 +150,4 @@ test('initialising twice does not double the listeners, and destroy removes them
     api.destroy();
     key(doc.activeElement, 'ArrowRight');
     assert.equal(doc.activeElement.id, 'daily', 'หลัง destroy ไม่มี listener ของเราแล้ว');
-});
-
-test('a narrow scrollable row is scrolled so the current entry sits in view, a row that fits is left alone', (t) => {
-    const {$} = setup(t);
-    const nav = $('[data-top-nav]');
-    const list = $('[data-top-nav-list]');
-    const item = $('#daily').closest('.top-nav__item');
-    const measure = (element, values) => {
-        for (const [property, value] of Object.entries(values)) {
-            Object.defineProperty(element, property, {configurable: true, value});
-        }
-    };
-
-    measure(list, {scrollWidth: 300, clientWidth: 300});
-    list.scrollLeft = 0;
-    revealCurrentEntry(nav);
-    assert.equal(list.scrollLeft, 0, 'แถวที่ไม่ล้นไม่ต้องเลื่อน');
-
-    // แถวกว้าง 300 เนื้อหา 900 รายการปัจจุบันอยู่ที่ x=500 กว้าง 100 → เลื่อนให้อยู่กลางแถว
-    measure(list, {scrollWidth: 900, clientWidth: 300, getBoundingClientRect: () => ({left: 0, width: 300})});
-    measure(item, {getBoundingClientRect: () => ({left: 500, width: 100})});
-    revealCurrentEntry(nav);
-    assert.equal(list.scrollLeft, 400);
 });

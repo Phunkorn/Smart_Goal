@@ -52,8 +52,7 @@
     white-space: nowrap;
 }
 
-.global-search kbd,
-.global-search__kbd {
+.global-search kbd {
     display: inline-flex;
     align-items: center;
     flex: 0 0 auto;
@@ -344,16 +343,15 @@
 
 /* ---------- Responsive ---------- */
 
-/* ปุ่มเหลือแต่ไอคอนเมื่อต้องแบ่งที่ให้เมนูหลักอยู่แถวเดียวกัน และบนโทรศัพท์ */
-@media (min-width: 1280px) and (max-width: 1599.98px), (max-width: 767.98px) {
+/* ปุ่มเหลือแต่ไอคอนเมื่อต้องแบ่งที่ให้เมนูหลักอยู่แถวเดียวกัน และบนแท็บเล็ต/โทรศัพท์ (แถวเดียวกับ ☰) */
+@media (min-width: 1280px) and (max-width: 1599.98px), (max-width: 991.98px) {
     .global-search__trigger {
         justify-content: center;
         width: var(--topbar-control, 44px);
         padding: 0;
     }
 
-    .global-search__placeholder,
-    .global-search__trigger .global-search__kbd {
+    .global-search__placeholder {
         display: none;
     }
 }

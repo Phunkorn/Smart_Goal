@@ -1,11 +1,12 @@
 /* Authenticated application shell entry point. Import order mirrors the
    historical monolithic stylesheet and is part of the cascade contract.
-   Navigation is a horizontal top bar (topbar → navigation → global-search);
-   there is no sidebar. */
+   Desktop (>= 992px) navigates with the horizontal top bar (navigation.css);
+   below 992px the same menu opens as an off-canvas sidebar (mobile-sidebar.css). */
 @import '../foundations/tokens.css';
 @import '../foundations/typography.css';
 @import './layout/topbar.css';
 @import './layout/navigation.css';
+@import './layout/mobile-sidebar.css';
 @import './layout/global-search.css';
 @import './layout/shell.css';
 @import './layout/shared-ui.css';

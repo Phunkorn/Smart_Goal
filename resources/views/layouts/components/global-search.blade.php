@@ -12,7 +12,6 @@
         aria-keyshortcuts="Control+K Meta+K" aria-label="ค้นหางานหรือโปรเจกต์">
         <i class="bi bi-search global-search__trigger-icon" aria-hidden="true"></i>
         <span class="global-search__placeholder" aria-hidden="true">ค้นหางานหรือโปรเจกต์...</span>
-        <kbd class="global-search__kbd" data-global-search-shortcut aria-hidden="true">Ctrl + K</kbd>
     </button>
 
     <div class="global-search__panel" id="globalSearchPanel" role="dialog" aria-modal="false"

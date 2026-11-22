@@ -20,11 +20,6 @@ const MESSAGES = {
     error: 'ค้นหาไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
 };
 
-export function isMacPlatform(nav) {
-    const platform = nav?.userAgentData?.platform || nav?.platform || '';
-    return /mac|iphone|ipad|ipod/i.test(platform);
-}
-
 /**
  * แบ่งข้อความเป็นส่วนที่ตรง/ไม่ตรงคำค้น (ไม่สนตัวพิมพ์) — ฟังก์ชันล้วน ไม่แตะ DOM
  *
@@ -72,7 +67,6 @@ export function initGlobalSearch(doc = document, {
     const message = root.querySelector('[data-global-search-message]');
     const status = root.querySelector('[data-global-search-status]');
     const clear = root.querySelector('[data-global-search-clear]');
-    const shortcut = root.querySelector('[data-global-search-shortcut]');
     const endpoint = root.dataset.searchUrl;
     const minLength = Number(root.dataset.searchMinLength) || 2;
 
@@ -83,8 +77,6 @@ export function initGlobalSearch(doc = document, {
     let sequence = 0;
     let activeIndex = -1;
     let lastQuery = null;
-
-    if (shortcut && isMacPlatform(win?.navigator)) shortcut.textContent = '⌘ K';
 
     const isOpen = () => root.classList.contains('is-open');
     const options = () => [...results.querySelectorAll('[role="option"]')];
@@ -365,7 +357,8 @@ export function initGlobalSearch(doc = document, {
     doc.addEventListener('keydown', (event) => {
         if (! (event.ctrlKey || event.metaKey) || event.altKey || event.key?.toLowerCase() !== 'k') return;
         // modal ของหน้าเป็นเจ้าของโฟกัสอยู่ คีย์ลัดไม่ควรเปิดกล่องค้นหาไว้ข้างหลัง modal
-        if (doc.body.classList.contains('modal-open')) return;
+        // แถบเมนูด้านข้างบนจอเล็กก็เป็น modal เช่นกัน (Topbar เป็น inert ระหว่างนั้น)
+        if (doc.body.classList.contains('modal-open') || doc.body.classList.contains('mobile-sidebar-open')) return;
         event.preventDefault();
         open();
     }, {signal});

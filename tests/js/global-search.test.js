@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
-import {highlightParts, initGlobalSearch, isMacPlatform} from '../../resources/js/components/global-search.js';
+import {highlightParts, initGlobalSearch} from '../../resources/js/components/global-search.js';
 
 /*
  * ช่องค้นหาบน Topbar (layouts/components/global-search.blade.php + resources/js/components/global-search.js)
@@ -25,14 +25,13 @@ const payload = (overrides = {}) => ({
     ...overrides,
 });
 
-function setup(t, {fetchImpl, platform = 'Win32', withDropdown = false} = {}) {
+function setup(t, {fetchImpl, withDropdown = false} = {}) {
     const dom = new JSDOM(`<!doctype html><html><body>
         <header class="topbar">
             ${withDropdown ? `<div class="dropdown"><button type="button" id="bell" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">bell</button>
                 <div class="dropdown-menu topbar-slide-menu"><a class="dropdown-item" href="/n">n</a></div></div>` : ''}
             <div class="global-search" data-global-search data-search-url="/search" data-search-min-length="2">
                 <button type="button" class="global-search__trigger" data-global-search-trigger aria-haspopup="dialog" aria-expanded="false" aria-controls="globalSearchPanel">
-                    <kbd data-global-search-shortcut>Ctrl + K</kbd>
                 </button>
                 <div class="global-search__panel" id="globalSearchPanel" role="dialog" aria-modal="false" data-global-search-panel>
                     <input type="search" data-global-search-input role="combobox" aria-expanded="false" aria-controls="globalSearchResults">
@@ -47,7 +46,6 @@ function setup(t, {fetchImpl, platform = 'Win32', withDropdown = false} = {}) {
         <main id="outside" tabindex="0">content</main>
     </body></html>`, {url: 'https://smartgoal.test/my-tasks', runScripts: 'outside-only', pretendToBeVisual: true});
     t.after(() => dom.window.close());
-    Object.defineProperty(dom.window.navigator, 'platform', {configurable: true, value: platform});
     dom.window.HTMLElement.prototype.getClientRects = () => [{width: 100, height: 30}];
     dom.window.eval(bootstrapSource);
 
@@ -92,12 +90,6 @@ test('highlightParts splits Thai and English text around every case-insensitive 
     ]);
     assert.deepEqual(highlightParts('งาน', ''), [{text: 'งาน', match: false}]);
     assert.deepEqual(highlightParts('', 'x'), []);
-});
-
-test('the shortcut hint follows the platform', (t) => {
-    assert.equal(isMacPlatform({platform: 'MacIntel'}), true);
-    assert.equal(isMacPlatform({userAgentData: {platform: 'Windows'}}), false);
-    assert.equal(setup(t, {platform: 'MacIntel'}).$('[data-global-search-shortcut]').textContent, '⌘ K');
 });
 
 test('the trigger opens a non-modal popover, Escape closes it and returns focus to the trigger', (t) => {
