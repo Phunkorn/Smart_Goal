@@ -14,6 +14,8 @@ namespace App\Support;
  * JPEG: ตัด APP1 (EXIF, XMP), APP13 (IPTC) และ COM — คง APP0 (JFIF), APP2 (ICC สี), APP14 (Adobe)
  *       แล้วใส่ EXIF ขนาดเล็กที่มีแค่ Orientation กลับไป ถ้าเดิมไม่ใช่ 1 รูปจึงไม่หมุนผิดหลังลบ
  * PNG:  ตัด eXIf, tEXt, zTXt, iTXt, tIME — chunk ที่เหลือคงไว้ทั้ง CRC
+ * WebP: ตัด chunk EXIF และ XMP แล้วล้างธงใน VP8X ใส่ EXIF ที่มีแค่ Orientation กลับเมื่อไม่ใช่ 1
+ *       (รูปของชุมชน — ทุกคนในองค์กรเปิดดูได้)
  *
  * อ่านไฟล์ไม่ออกตามโครงสร้าง → ไม่แก้ไฟล์และคืน false (ไฟล์ผ่าน getimagesize มาแล้ว จึงยังแสดงได้)
  */
@@ -22,6 +24,11 @@ final class ImageMetadata
     private const JPEG_DROP = [0xE1, 0xED, 0xFE];
 
     private const PNG_DROP = ['eXIf', 'tEXt', 'zTXt', 'iTXt', 'tIME'];
+
+    /** ธงใน VP8X: บิต 3 = มี EXIF, บิต 2 = มี XMP */
+    private const WEBP_EXIF_FLAG = 0x08;
+
+    private const WEBP_XMP_FLAG = 0x04;
 
     /** @return bool true เมื่อเขียนไฟล์ใหม่แล้ว (หรือไม่มีอะไรต้องลบ) */
     public static function strip(string $path, string $mimeType): bool
@@ -34,6 +41,7 @@ final class ImageMetadata
         $clean = match ($mimeType) {
             'image/jpeg' => self::stripJpeg($data),
             'image/png' => self::stripPng($data),
+            'image/webp' => self::stripWebp($data),
             default => null,
         };
 
@@ -154,13 +162,71 @@ final class ImageMetadata
             return '';
         }
 
-        $tiff = 'MM'.pack('n', 0x2A).pack('N', 8)       // header, IFD0 อยู่ที่ไบต์ 8
+        $payload = "Exif\0\0".self::orientationTiff($orientation);
+
+        return "\xFF\xE1".pack('n', strlen($payload) + 2).$payload;
+    }
+
+    /** ข้อมูล TIFF ที่มีแค่ Orientation (big-endian) — ใช้ทั้ง APP1 ของ JPEG และ chunk EXIF ของ WebP */
+    private static function orientationTiff(int $orientation): string
+    {
+        return 'MM'.pack('n', 0x2A).pack('N', 8)       // header, IFD0 อยู่ที่ไบต์ 8
             .pack('n', 1)                                 // หนึ่ง entry
             .pack('nnN', 0x0112, 3, 1).pack('nn', $orientation, 0) // Orientation, SHORT, 1 ค่า
             .pack('N', 0);                                // ไม่มี IFD ถัดไป
-        $payload = "Exif\0\0".$tiff;
+    }
 
-        return "\xFF\xE1".pack('n', strlen($payload) + 2).$payload;
+    /**
+     * WebP (RIFF): ไฟล์แบบธรรมดา (VP8 / VP8L) ไม่มีที่ให้ใส่ metadata จึงคืนไฟล์เดิม
+     * ไฟล์แบบขยาย (VP8X) ตัด chunk EXIF / XMP แล้วล้างธงที่บอกว่ามี chunk เหล่านั้น
+     */
+    private static function stripWebp(string $data): ?string
+    {
+        $length = strlen($data);
+        if ($length < 20 || substr($data, 0, 4) !== 'RIFF' || substr($data, 8, 4) !== 'WEBP') {
+            return null;
+        }
+
+        $chunks = [];
+        $orientation = 1;
+        $offset = 12;
+
+        while ($offset + 8 <= $length) {
+            $type = substr($data, $offset, 4);
+            $size = unpack('V', substr($data, $offset + 4, 4))[1];
+            $total = 8 + $size + ($size % 2);
+
+            if ($offset + 8 + $size > $length) {
+                return null;
+            }
+
+            if ($type === 'EXIF') {
+                $exif = substr($data, $offset + 8, $size);
+                $orientation = self::readOrientation(str_starts_with($exif, "Exif\0\0") ? substr($exif, 6) : $exif) ?? $orientation;
+            } elseif ($type !== 'XMP ') {
+                $chunks[] = substr($data, $offset, min($total, $length - $offset));
+            }
+
+            $offset += $total;
+        }
+
+        if ($chunks === []) {
+            return null;
+        }
+
+        if (str_starts_with($chunks[0], 'VP8X') && strlen($chunks[0]) >= 9) {
+            $flags = (ord($chunks[0][8]) & ~(self::WEBP_EXIF_FLAG | self::WEBP_XMP_FLAG)) | ($orientation !== 1 ? self::WEBP_EXIF_FLAG : 0);
+            $chunks[0][8] = chr($flags);
+
+            if ($orientation !== 1) {
+                $tiff = self::orientationTiff($orientation);
+                $chunks[] = 'EXIF'.pack('V', strlen($tiff)).$tiff.(strlen($tiff) % 2 ? "\0" : '');
+            }
+        }
+
+        $body = 'WEBP'.implode('', $chunks);
+
+        return 'RIFF'.pack('V', strlen($body)).$body;
     }
 
     private static function stripPng(string $data): ?string

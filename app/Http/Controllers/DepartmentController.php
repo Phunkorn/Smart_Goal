@@ -155,8 +155,10 @@ class DepartmentController extends Controller
             $hasWorkspaceBoards = $lockedDepartment->workspaceBoards()->withTrashed()->exists();
             // ประกาศผูกกับแผนกด้วย FK แบบ restrict เช่นเดียวกับกระดานไอเดีย
             $hasAnnouncements = $lockedDepartment->announcements()->withTrashed()->exists();
+            // โพสต์ชุมชนที่จำกัดเฉพาะแผนกนี้ผูกด้วย FK แบบ restrict เช่นเดียวกัน (รวมโพสต์ในถังขยะ)
+            $hasSocialPosts = $lockedDepartment->socialPosts()->withTrashed()->exists();
 
-            if ($hasUsers || $hasJobs || $hasWorkspaceBoards || $hasAnnouncements) {
+            if ($hasUsers || $hasJobs || $hasWorkspaceBoards || $hasAnnouncements || $hasSocialPosts) {
                 return false;
             }
 

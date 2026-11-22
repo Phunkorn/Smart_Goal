@@ -158,7 +158,8 @@ class DepartmentHeadAuthorizationTest extends TestCase
 
         $this->actingAs($head)->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('หัวหน้าแผนก')
+            // เครื่องมือของหัวหน้าในเมนู (เดิมตรวจคำว่า "หัวหน้าแผนก" ซึ่งมาจากบรรทัดบทบาทในหน้าตั้งค่าบัญชีที่เอาออกแล้ว)
+            ->assertSee('งานข้ามแผนกของทีม')
             ->assertSee(route('admin.approvals.index'), false)
             ->assertDontSee('href="'.route('meetings.index').'"', false)
             ->assertSee('href="'.route('mytasks.index', ['view' => 'meeting']).'"', false)

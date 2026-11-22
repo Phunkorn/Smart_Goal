@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -192,5 +193,21 @@ class User extends Authenticatable
     public function ticketAgent(): HasOne
     {
         return $this->hasOne(TicketAgent::class);
+    }
+
+    public function socialPosts(): HasMany
+    {
+        return $this->hasMany(SocialPost::class);
+    }
+
+    /**
+     * รูปของโพสต์ชุมชนทุกโพสต์ของบัญชีนี้ รวมโพสต์ที่อยู่ในถังขยะ
+     *
+     * ใช้ตอนลบบัญชีถาวร (TrashRestorers::FILE_RELATIONS) — FK cascade ลบแถวให้แต่ไม่ลบไฟล์
+     * withTrashedParents() จำเป็น เพราะ through-relation ข้ามโพสต์ที่ถูก soft delete โดยปริยาย
+     */
+    public function socialPostMedia(): HasManyThrough
+    {
+        return $this->hasManyThrough(SocialPostMedia::class, SocialPost::class)->withTrashedParents();
     }
 }

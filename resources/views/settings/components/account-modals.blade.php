@@ -2,28 +2,23 @@
     @include('settings.components.profile-modal', ['errors' => request()->routeIs('settings.index') ? $errors : new \Illuminate\Support\ViewErrorBag])
     @include('settings.components.password-modal', ['errors' => request()->routeIs('settings.index') ? $errors : new \Illuminate\Support\ViewErrorBag])
 
-    <x-account-modal id="settingsModal" title="ตั้งค่าระบบ" size="lg"
+    {{--
+        modal การเชื่อม Telegram — มีเฉพาะการ์ด Telegram (settings.components.telegram-card)
+        ข้อมูลโปรไฟล์และรหัสผ่านอยู่ใน settingsProfileModal / settingsPasswordModal ที่เปิดจากเมนูบัญชีโดยตรง
+        id ยังเป็น settingsModal เพราะสคริปต์ (settings/index.js) และ route หน้า /settings เปิดด้วย id นี้
+    --}}
+    <x-account-modal id="settingsModal" title="การเชื่อม Telegram" size="lg"
         :data-open-on-load="request()->routeIs('settings.index') && ! $errors->hasAny(['name', 'phone', 'profile_image', 'current_password', 'password']) ? 'true' : null">
         <div class="modal-body">
             <div class="alert {{ session('success') ? 'alert-success' : ($errors->has('telegram') ? 'alert-danger' : 'd-none') }}" role="status" aria-live="polite" data-account-feedback>{{ session('success') ?: $errors->first('telegram') }}</div>
-            <section class="settings-card mb-3" aria-labelledby="accountSettingsIdentity">
-                <div class="settings-card__header">
-                    <h3 id="accountSettingsIdentity" data-account-name>{{ $user->name }}</h3>
-                    <p>{{ $user->email ?: '@'.$user->username }}</p>
-                    <p>{{ \App\Support\RoleLabel::for($user) }} · {{ optional($user->department)->department_name ?? 'ไม่ได้ระบุแผนก' }}</p>
-                    <p>การเปลี่ยนสิทธิ์และแผนกต้องดำเนินการโดย Admin</p>
-                    <button type="button" class="btn btn-outline-primary mt-2" data-account-open="settingsProfileModal">แก้ไขโปรไฟล์</button>
-                </div>
-            </section>
-            <section class="settings-card mb-3" aria-labelledby="password-settings-title">
-                <div class="settings-card__header">
-                    <h3 id="password-settings-title">ความปลอดภัย</h3>
-                    <p>จัดการรหัสผ่านและออกจากระบบบนอุปกรณ์อื่น</p>
-                    <button type="button" class="btn btn-outline-primary mt-2" data-account-open="settingsPasswordModal">เปลี่ยนรหัสผ่าน</button>
-                </div>
-            </section>
             @if($user->role !== 'viewer')
                 <div data-account-telegram>@include('settings.components.telegram-card')</div>
+            @else
+                {{-- viewer ไม่เป็นผู้รับการแจ้งเตือน (TelegramSettingsController) จึงไม่มีการ์ด Telegram ให้เชื่อม --}}
+                <p class="settings-security__notice mb-0">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span>บัญชีสิทธิ์อ่านอย่างเดียวไม่รับการแจ้งเตือนผ่าน Telegram</span>
+                </p>
             @endif
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">ปิด</button></div>

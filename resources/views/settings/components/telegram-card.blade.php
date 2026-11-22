@@ -43,10 +43,7 @@
     </div>
 
     @if(! $telegramConfigured && ! $telegramLinked)
-        <div class="settings-security__notice">
-            <i class="bi bi-info-circle" aria-hidden="true"></i>
-            <span>ผู้ดูแลระบบยังไม่ได้เปิดใช้งานการแจ้งเตือนผ่าน Telegram</span>
-        </div>
+       
     @elseif($telegramLinked)
         <div class="settings-telegram__state">
             <span class="settings-telegram__badge {{ $user->telegram_notifications_enabled ? 'settings-telegram__badge--on' : 'settings-telegram__badge--off' }}">

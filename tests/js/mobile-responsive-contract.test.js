@@ -99,16 +99,25 @@ test('the animated backdrop ships with a reduced-motion escape hatch', async () 
     assert.match(reduced, /\.auth-bg__sheen,?[\s\S]{0,200}animation:\s*none/);
 });
 
-test('account pill stays compact on phones and exposes the real role', async () => {
+test('account button is a profile-only circle at every width, with no name, role or chevron left behind', async () => {
     const source = await css('resources/css/components/layout/topbar.css');
     const blade = await css('resources/views/layouts/components/user-dropdown.blade.php');
-    assert.match(source, /max-width: 575\.98px/);
-    assert.match(source, /\.topbar-account__identity,[\s\S]*?display: none/);
+    const layout = await css('resources/views/layouts/app.blade.php');
+    const trigger = source.match(/\.topbar \.topbar-account__trigger \{([^}]*)\}/)[1];
+
+    assert.match(trigger, /width: var\(--topbar-control\)/);
+    assert.match(trigger, /height: var\(--topbar-control\)/);
+    assert.match(trigger, /border-radius: 50%/);
     assert.match(source, /width: min\(290px, calc\(100vw - 24px\)\)/);
     assert.match(blade, /aria-label="เมนูบัญชีผู้ใช้"/);
-    assert.match(blade, /\$currentUser->name/);
-    assert.match(blade, /\$roleLabel/);
+    assert.match(blade, /data-account-avatar/);
+    // ตัวอักษรย่อบนวงกลม (mb_substr($currentUser->name...)) ยังมีได้ — ห้ามมีป้ายชื่อ บทบาท หรือลูกศร
+    assert.doesNotMatch(blade, /data-account-name|\$roleLabel|topbar-account__(identity|name|role|chevron)/);
+    assert.match(blade, /mb_substr\(\$currentUser->name, 0, 2\)/);
     assert.doesNotMatch(blade, /role-chip--mobile-only/);
+    // CSS และตัวแปรที่เคยรองรับชื่อ/บทบาท/ลูกศรต้องไม่ค้าง
+    assert.doesNotMatch(source, /topbar-account__(identity|name|role|chevron)/);
+    assert.doesNotMatch(layout, /\$roleLabel/);
 });
 
 test('mobile kanban stacks status columns without the desktop minimum width', async () => {

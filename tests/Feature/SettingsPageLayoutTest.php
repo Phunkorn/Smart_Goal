@@ -31,6 +31,40 @@ class SettingsPageLayoutTest extends TestCase
         $this->assertStringNotContainsString('data-open-on-load="true"', $this->modal($html, 'settingsModal'));
     }
 
+    /**
+     * เมนูบัญชีข้อที่เปิด settingsModal ชื่อ "การเชื่อม Telegram" และ modal นั้นมีเฉพาะการ์ด Telegram
+     * โปรไฟล์กับรหัสผ่านมี modal ของตัวเองและเปิดจากเมนูบัญชีโดยตรง ไม่ซ้ำซ้อนอยู่ในนี้
+     */
+    public function test_the_telegram_modal_contains_only_the_telegram_card_and_the_menu_says_so(): void
+    {
+        $html = $this->actingAs($this->user('user'))->get(route('settings.index'))->assertOk()->getContent();
+        $modal = $this->modal($html, 'settingsModal');
+
+        $this->assertStringContainsString('การเชื่อม Telegram', $modal);
+        $this->assertStringContainsString('settings-card__header settings-telegram__header', $modal);
+        $this->assertSame(1, substr_count($modal, 'data-telegram-settings'));
+        foreach (['accountSettingsIdentity', 'password-settings-title', 'ความปลอดภัย', 'แก้ไขโปรไฟล์', 'เปลี่ยนรหัสผ่าน', 'การเปลี่ยนสิทธิ์และแผนกต้องดำเนินการโดย Admin'] as $removed) {
+            $this->assertStringNotContainsString($removed, $modal, $removed);
+        }
+        $this->assertDoesNotMatchRegularExpression('/data-account-open="settings(Profile|Password)Modal"/', $modal);
+
+        // ปุ่มในเมนูบัญชีเปลี่ยนชื่อและไอคอน ส่วนโปรไฟล์/รหัสผ่านยังเปิด modal ของตัวเองจากเมนูเดิม
+        $this->assertMatchesRegularExpression('/data-account-open="settingsModal"><i class="bi bi-telegram" aria-hidden="true"><\/i>การเชื่อม Telegram<\/button>/', $html);
+        $this->assertStringNotContainsString('>ตั้งค่าระบบ</button>', $html);
+        $this->assertMatchesRegularExpression('/data-account-open="settingsProfileModal"><i class="bi bi-person" aria-hidden="true"><\/i>แก้ไขโปรไฟล์<\/button>/', $html);
+        $this->assertMatchesRegularExpression('/data-account-open="settingsPasswordModal"[^>]*><i class="bi bi-key" aria-hidden="true"><\/i>เปลี่ยนรหัสผ่าน<\/button>/', $html);
+        $this->assertStringContainsString('เปิดการเชื่อม Telegram</button>', $html);
+    }
+
+    public function test_a_viewer_opening_the_telegram_modal_gets_an_explanation_not_an_empty_box(): void
+    {
+        $html = $this->actingAs($this->user('viewer'))->get(route('settings.index'))->assertOk()->getContent();
+        $modal = $this->modal($html, 'settingsModal');
+
+        $this->assertStringNotContainsString('data-telegram-settings', $modal);
+        $this->assertStringContainsString('บัญชีสิทธิ์อ่านอย่างเดียวไม่รับการแจ้งเตือนผ่าน Telegram', $modal);
+    }
+
     public function test_profile_modal_keeps_the_existing_editable_fields_and_endpoint(): void
     {
         $user = $this->user('user', ['name' => 'สมหญิง ทดสอบ']);

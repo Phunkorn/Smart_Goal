@@ -1,0 +1,240 @@
+/* ความคิดเห็นและการตอบกลับ — ฟองข้อความแบบกะทัดรัด การตอบกลับเยื้องเข้าหนึ่งระดับ */
+.social-comments {
+    display: grid;
+    gap: 10px;
+    padding: 10px 12px 14px;
+    border-top: 1px solid var(--border);
+}
+
+.social-comments__older {
+    justify-self: start;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: .84rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.social-comments__older:hover {
+    color: var(--text);
+    text-decoration: underline;
+}
+
+.social-comments__status,
+.social-comments__empty {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .84rem;
+}
+
+.social-comments__list,
+.social-comment__replies {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.social-comments__list:empty,
+.social-comment__replies:empty {
+    display: none;
+}
+
+.social-comment {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+}
+
+.social-comment__main {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 4px;
+    min-width: 0;
+}
+
+.social-comment__bubble {
+    justify-self: start;
+    max-width: 100%;
+    padding: 8px 12px;
+    border-radius: 16px;
+    background: var(--surface-2);
+}
+
+.social-comment__author {
+    margin-right: 6px;
+    color: var(--text);
+    font-size: .84rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.social-comment__department {
+    color: var(--text-muted);
+    font-size: .74rem;
+}
+
+.social-comment__text {
+    margin: 2px 0 0;
+    color: var(--text);
+    font-size: .9rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.social-comment__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 12px;
+    padding-left: 12px;
+    color: var(--text-muted);
+    font-size: .76rem;
+}
+
+.social-comment__meta time,
+.social-comment__edited {
+    cursor: help;
+}
+
+.social-comment__link {
+    min-height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.social-comment__link:hover {
+    color: var(--text);
+    text-decoration: underline;
+}
+
+.social-comment__link--danger:hover {
+    color: var(--red-strong);
+}
+
+.social-comment__replies {
+    margin-top: 6px;
+}
+
+/* ---------- ฟอร์มความคิดเห็น / ตอบกลับ / แก้ไข ---------- */
+.social-comment-form {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+}
+
+.social-comment-form--reply {
+    margin-top: 8px;
+}
+
+.social-comment-form__stack {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 4px;
+    min-width: 0;
+}
+
+.social-comment-form__context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .76rem;
+}
+
+.social-comment-form__field {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.social-comment-form__field textarea,
+.social-comment-edit textarea {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    max-height: 160px;
+    padding: 9px 48px 9px 14px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    /* 16px กันเบราว์เซอร์มือถือซูมหน้าเมื่อแตะช่องพิมพ์ */
+    font-size: 1rem;
+    line-height: 1.4;
+    resize: none;
+}
+
+.social-comment-form__field textarea:focus,
+.social-comment-edit textarea:focus {
+    border-color: var(--accent);
+    background: var(--surface);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.social-comment-form__send {
+    position: absolute;
+    right: 4px;
+    bottom: 2px;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.social-comment-form__send:hover:not(:disabled) {
+    background: var(--accent-dim);
+}
+
+.social-comment-form__send:disabled {
+    cursor: progress;
+    opacity: .6;
+}
+
+.social-comment-edit {
+    display: grid;
+    gap: 6px;
+}
+
+.social-comment-edit textarea {
+    padding-right: 14px;
+    border-radius: var(--radius-sm);
+}
+
+.social-comment-edit__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+@media (min-width: 576px) {
+    .social-comments {
+        padding: 12px 16px 16px;
+    }
+
+    .social-comment__replies {
+        padding-left: 4px;
+    }
+}

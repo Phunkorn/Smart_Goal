@@ -1,0 +1,7 @@
+/* ชุมชน (Social Community) — resources/views/social/index.blade.php
+   สีทั้งหมดมาจาก design token ใน foundations/tokens.css ไม่มีค่าสีที่เลือกเองนอกจากพื้นของตัวดูรูป */
+@import './social/feed.css';
+@import './social/post.css';
+@import './social/comments.css';
+@import './social/modal.css';
+@import './social/viewer.css';

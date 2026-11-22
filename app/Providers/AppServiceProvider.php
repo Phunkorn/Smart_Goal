@@ -7,9 +7,9 @@ use App\Models\WorkOrderList;
 use App\Models\WorkOrderListTaskRequest;
 use App\Services\AdminApprovalQuery;
 use App\Services\DailyBriefService;
+use App\Services\SocialFeedReadService;
 use App\Services\Telegram\TelegramOutbox;
 use App\Services\TicketSchemaStatus;
-use App\Services\WorkOrderShareQuery;
 use App\Support\TicketAgentAccess;
 use App\Support\TicketSubmissionGuard;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -65,17 +65,17 @@ class AppServiceProvider extends ServiceProvider
             }
 
             /*
-             * ป้ายตัวเลขของเมนู "แชร์งาน" นับเฉพาะคำขอที่รอ "ฉัน" ตัดสินในฐานะผู้แชร์
-             * ไม่ใช่จำนวนประกาศในฟีด เพราะสิ่งที่ค้างอยู่ที่ตัวผู้ใช้คือคำขอ ไม่ใช่ประกาศ
-             *
-             * ประกาศไว้ที่ composer ตัวเดียวกับ approvalCounts เพื่อไม่ให้ทุก
-             * controller ที่ render layout ต้องส่งค่านี้เอง
+             * จำนวนโพสต์ใหม่บนเมนู "ชุมชน" — ทุกบทบาทใช้ชุมชนได้ จึงนับก่อนเงื่อนไขเฉพาะ admin/หัวหน้าด้านล่าง
+             * กติกาการมองเห็นอยู่ที่ SocialFeedReadService (ใช้ SocialPost::scopeVisibleTo ชุดเดียวกับฟีด)
              */
-            if (! array_key_exists('shareRequestCount', $view->getData())) {
-                $view->with('shareRequestCount', $user->role === 'viewer'
-                    ? 0
-                    : app(WorkOrderShareQuery::class)->pendingIncomingCount($user));
+            if (! array_key_exists('socialNewPostCount', $view->getData())) {
+                $view->with('socialNewPostCount', app(SocialFeedReadService::class)->newPostCount($user));
             }
+
+            /*
+             * เมนู "แชร์งาน" ถูกถอดออกจาก Topbar (แทนที่ด้วย "ชุมชน") หน้า /shared-tasks ยังเปิดได้ตามสิทธิ์เดิม
+             * คำขอร่วมงานที่รอผู้แชร์ตัดสินยังแจ้งผ่านกระดิ่ง (share_join_requested) จึงไม่ต้องนับป้ายที่นี่อีก
+             */
 
             /*
              * สรุปประจำวันแสดงบนหน้าแรกที่เปิดในวันนั้นจนกว่าจะกดรับทราบ จึงต้องอยู่ที่ layout
@@ -169,5 +169,25 @@ class AppServiceProvider extends ServiceProvider
                         ->withHeaders($headers);
                 });
         });
+
+        /*
+         * ชุมชน (Social Community) — จำกัดต่อบัญชี กันการยิงซ้ำรัว ๆ ไม่ใช่โควตาการใช้งานปกติ
+         * เพดานอยู่ที่ config/social.php ตอบเป็นข้อความไทยรูปแบบเดียวกับ jsonOrBack()
+         */
+        foreach (['social-posts' => 'posts', 'social-comments' => 'comments', 'social-likes' => 'likes'] as $limiter => $key) {
+            RateLimiter::for($limiter, function (Request $request) use ($limiter, $key): Limit {
+                $message = 'ทำรายการถี่เกินไป กรุณารอสักครู่แล้วลองใหม่';
+
+                return Limit::perMinute(max(1, (int) config('social.rate_limits.'.$key, 30)))
+                    ->by($limiter.':'.($request->user()?->getAuthIdentifier() ?? $request->ip()))
+                    ->response(function (Request $request, array $headers) use ($message) {
+                        if ($request->expectsJson() || $request->ajax()) {
+                            return response()->json(['ok' => false, 'message' => $message], 429, $headers);
+                        }
+
+                        return back()->withErrors(['status' => $message])->withHeaders($headers);
+                    });
+            });
+        }
     }
 }

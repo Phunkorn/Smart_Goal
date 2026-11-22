@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobImage;
+use App\Models\SocialPostMedia;
 use App\Models\TicketAttachment;
 use App\Models\User;
 use App\Models\WorkLogAttachment;
@@ -159,6 +160,27 @@ class MediaController extends Controller
             $attachment->file_path,
             TicketPhotoStore::DIRECTORY.'/'.$ticket->id.'/',
             $attachment->original_name,
+            $request->boolean('download')
+        );
+    }
+
+    /**
+     * รูปภาพของโพสต์ในชุมชน
+     *
+     * ตรวจสิทธิ์จากโพสต์แม่ด้วย SocialPostPolicy::view() — ทุกบัญชีที่เข้าสู่ระบบเห็นได้ (route นี้อยู่
+     * ในกลุ่ม auth ผู้ที่ไม่ได้เข้าสู่ระบบจึงเปิดไม่ได้) และโพสต์ที่ถูกลบแล้วตอบ 404 ทันที
+     * ไฟล์ยังอยู่บนดิสก์จนกว่าจะถูกลบถาวร แต่ไม่มีทางเปิดดูได้ระหว่างอยู่ในถังขยะ
+     */
+    public function socialPostMedia(Request $request, SocialPostMedia $media): BinaryFileResponse
+    {
+        $post = $media->post()->firstOrFail();
+
+        Gate::forUser($request->user())->authorize('view', $post);
+
+        return $this->attachmentResponse(
+            $media->file_path,
+            SocialPostMedia::directoryFor($post).'/',
+            $media->original_name,
             $request->boolean('download')
         );
     }

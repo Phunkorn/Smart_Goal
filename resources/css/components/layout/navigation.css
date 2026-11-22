@@ -142,13 +142,46 @@
     display: none;
 }
 
-/* คำขอที่รอเราอนุมัติ — สีต่างจากป้ายจำนวนงาน เพื่อให้แยกออกว่าเป็นคนละเรื่อง */
-.top-nav__badge--request {
-    background: #f59e0b;
-}
-
 .top-nav__link.is-active .top-nav__badge {
     box-shadow: 0 0 0 2px rgba(255, 255, 255, .85);
+}
+
+/*
+ * ป้ายซ้อนที่มุมขวาบนของไอคอน (ป้ายโพสต์ใหม่ของเมนูชุมชน) — ขนาด สี และขอบเดียวกับ
+ * .icon-btn .notification-count ของกระดิ่งใน topbar.css (18px, พื้นแดง, ตัวเลขขาว, ขอบ 2px สี surface)
+ *
+ * wrapper ครอบเฉพาะไอคอนและมีขนาดเท่าไอคอน ป้ายเป็น absolute จึงไม่กินพื้นที่ในแถว เมนูไม่ขยับ
+ * ขอบสี surface ทำหน้าที่แทน ring ของป้ายต่อท้ายข้อความ จึงปิด box-shadow ของสถานะ active ไว้
+ * pointer-events: none ให้คลิกที่ป้ายนับเป็นคลิกลิงก์ ไม่มีจุดบอดบนไอคอน
+ */
+.top-nav__icon-wrap,
+.mobile-nav__icon-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.top-nav__icon-wrap {
+    flex: 0 0 auto;
+}
+
+.top-nav__badge--icon {
+    position: absolute;
+    top: -9px;
+    right: -11px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border: 2px solid var(--surface);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .02em;
+    pointer-events: none;
+}
+
+.top-nav__link.is-active .top-nav__badge--icon {
+    box-shadow: none;
 }
 
 /* ---------- ดร็อปดาวน์ของกลุ่มเมนู ---------- */

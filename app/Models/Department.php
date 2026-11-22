@@ -58,4 +58,10 @@ class Department extends Model
     {
         return $this->hasMany(Announcement::class, 'department_id');
     }
+
+    /** โพสต์ชุมชนที่จำกัดการมองเห็นเฉพาะแผนกนี้ — ดู SocialPost::scopeVisibleTo() */
+    public function socialPosts(): HasMany
+    {
+        return $this->hasMany(SocialPost::class, 'target_department_id');
+    }
 }

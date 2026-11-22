@@ -285,8 +285,34 @@ class AttachmentPolicy
         return 'JPG หรือ PNG · รูปละไม่เกิน '.(int) (self::IMAGE_MAX_KILOBYTES / 1024).' MB';
     }
 
+    /**
+     * รูปแบบรูปภาพที่ระบบรู้จัก: นามสกุล => [MIME ที่อ่านจากเนื้อไฟล์, ชนิดที่ getimagesize รายงาน]
+     *
+     * แยกจาก TYPES เพราะ TYPES คือ allow-list ของไฟล์แนบงานทั่วไป การเพิ่ม webp ที่นี่จึงไม่ทำให้
+     * ไฟล์แนบงานรับ WebP ไปด้วย แต่ละผู้เรียกเลือกชุดนามสกุลของตัวเองผ่าน imageRejectionReasonFor()
+     *
+     * @var array<string, array{mime: string, type: int}>
+     */
+    private const IMAGE_FORMATS = [
+        'jpg' => ['mime' => 'image/jpeg', 'type' => IMAGETYPE_JPEG],
+        'jpeg' => ['mime' => 'image/jpeg', 'type' => IMAGETYPE_JPEG],
+        'png' => ['mime' => 'image/png', 'type' => IMAGETYPE_PNG],
+        'webp' => ['mime' => 'image/webp', 'type' => IMAGETYPE_WEBP],
+    ];
+
     /** ตรวจรูปหนึ่งรูป คืนข้อความผิดพลาดภาษาไทย หรือ null เมื่อผ่าน */
     public static function imageRejectionReason(UploadedFile $file): ?string
+    {
+        return self::imageRejectionReasonFor($file, self::IMAGE_EXTENSIONS, self::IMAGE_MAX_KILOBYTES, 'JPG หรือ PNG');
+    }
+
+    /**
+     * ตรวจรูปตามชุดนามสกุลและเพดานขนาดของผู้เรียก — กติกาความปลอดภัยชุดเดียวของรูปทั้งระบบ
+     * (Smart Ticket ใช้ JPG/PNG ผ่าน imageRejectionReason() ชุมชนใช้ JPG/PNG/WebP ผ่าน SocialImageRules)
+     *
+     * @param  list<string>  $extensions  ต้องเป็นคีย์ของ IMAGE_FORMATS
+     */
+    public static function imageRejectionReasonFor(UploadedFile $file, array $extensions, int $maxKilobytes, string $typesLabel): ?string
     {
         if (! $file->isValid()) {
             return 'อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
@@ -294,22 +320,25 @@ class AttachmentPolicy
 
         $name = $file->getClientOriginalName();
         $extension = strtolower((string) $file->getClientOriginalExtension());
+        $format = self::IMAGE_FORMATS[$extension] ?? null;
 
-        if (! in_array($extension, self::IMAGE_EXTENSIONS, true)) {
-            return 'แนบได้เฉพาะรูป JPG หรือ PNG ("'.$name.'" ไม่ใช่รูปที่รองรับ)';
+        if ($format === null || ! in_array($extension, $extensions, true)) {
+            return 'แนบได้เฉพาะรูป '.$typesLabel.' ("'.$name.'" ไม่ใช่รูปที่รองรับ)';
         }
 
         // MIME จากเนื้อไฟล์จริง ไม่ใช่ Content-Type ที่ client ส่งมา
-        if (! in_array((string) $file->getMimeType(), self::TYPES[$extension], true)) {
+        if ((string) $file->getMimeType() !== $format['mime']) {
             return 'ไฟล์ "'.$name.'" มีเนื้อหาไม่ตรงกับนามสกุล .'.$extension;
         }
 
-        if ($file->getSize() / 1024 > self::IMAGE_MAX_KILOBYTES) {
-            return 'รูป "'.$name.'" มีขนาดเกิน '.(int) (self::IMAGE_MAX_KILOBYTES / 1024).' MB';
+        if ($file->getSize() / 1024 > $maxKilobytes) {
+            $megabytes = $maxKilobytes / 1024;
+
+            return 'รูป "'.$name.'" มีขนาดเกิน '.(floor($megabytes) == $megabytes ? (int) $megabytes : round($megabytes, 1)).' MB';
         }
 
         $info = @getimagesize((string) $file->getRealPath());
-        if ($info === false || ! in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) {
+        if ($info === false || $info[2] !== $format['type']) {
             return 'ไฟล์ "'.$name.'" ไม่ใช่รูปภาพที่เปิดได้';
         }
 

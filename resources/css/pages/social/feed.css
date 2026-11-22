@@ -1,0 +1,284 @@
+/*
+ * โครงหน้า หัวหน้า แถบเริ่มโพสต์ และฟีด
+ * mobile-first: ค่าพื้นฐานคือจอแคบ แล้วเพิ่มระยะเมื่อจอกว้างขึ้น
+ */
+.social-page {
+    padding: 4px 0 32px;
+}
+
+.social-page__column {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+    max-width: 680px;
+    min-width: 0;
+    margin-inline: auto;
+}
+
+.social-page__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 4px 2px;
+}
+
+.social-page__icon {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 1.25rem;
+}
+
+.social-page__header h1 {
+    margin: 0;
+    font-size: clamp(1.2rem, 4.6vw, 1.55rem);
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text);
+}
+
+.social-page__header p {
+    margin: 2px 0 0;
+    color: var(--text-muted);
+    font-size: .84rem;
+}
+
+/* การ์ดพื้นฐานของหน้านี้ — แถบเริ่มโพสต์และโพสต์ใช้ร่วมกัน */
+.social-card {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ---------- แถบเริ่มโพสต์ ---------- */
+.social-composer {
+    padding: 12px 12px 6px;
+}
+
+.social-composer__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.social-composer__prompt {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 16px;
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: .92rem;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+.social-composer__prompt:hover {
+    background: var(--gray-dim);
+}
+
+.social-composer__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin-top: 10px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.social-composer__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .15s ease;
+}
+
+.social-composer__action:hover {
+    background: var(--surface-2);
+}
+
+.social-composer__icon {
+    font-size: 1.15rem;
+}
+
+.social-composer__icon--image {
+    color: var(--green-strong);
+}
+
+.social-composer__icon--emoji {
+    color: var(--amber);
+}
+
+/* ---------- ฟีด ---------- */
+.social-feed {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.social-feed__list {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.social-feed__empty {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 40px 20px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.social-feed__empty-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 4px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 1.5rem;
+}
+
+.social-feed__empty strong {
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.social-feed__empty p {
+    margin: 0;
+    font-size: .86rem;
+}
+
+.social-feed__more {
+    display: grid;
+    justify-items: center;
+}
+
+.social-feed__more-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 22px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--accent-strong);
+    font: inherit;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+}
+
+.social-feed__more-button:hover:not(:disabled) {
+    background: var(--accent-dim);
+}
+
+.social-feed__more-button:disabled {
+    cursor: progress;
+    opacity: .75;
+}
+
+.social-feed__end {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: .82rem;
+}
+
+/* ---------- วงกลมโปรไฟล์ ---------- */
+.social-avatar {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-size: .9rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.social-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.social-avatar--sm {
+    width: 34px;
+    height: 34px;
+    font-size: .74rem;
+}
+
+.social-avatar--xs {
+    width: 28px;
+    height: 28px;
+    font-size: .66rem;
+}
+
+/* โฟกัสด้วยคีย์บอร์ดของทุกปุ่มในหน้านี้ — ชุดเดียวกับหน้าประกาศ (ช่องพิมพ์มีสถานะโฟกัสของตัวเอง) */
+.social-page :is(button, a):focus-visible {
+    outline: 3px solid rgb(59 130 246 / 28%);
+    outline-offset: 2px;
+}
+
+@media (min-width: 576px) {
+    .social-page__column,
+    .social-feed,
+    .social-feed__list {
+        gap: 16px;
+    }
+
+    .social-composer {
+        padding: 14px 16px 8px;
+    }
+
+    .social-page__icon {
+        width: 46px;
+        height: 46px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .social-page *,
+    .social-modal *,
+    .social-viewer * {
+        transition: none !important;
+    }
+}

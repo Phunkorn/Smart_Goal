@@ -14,9 +14,9 @@
                 <li class="top-nav__item">
                     <a href="{{ $item['url'] }}" class="top-nav__link{{ $item['active'] ? ' is-active' : '' }}" data-top-nav-entry
                         @if($item['current']) aria-current="{{ $item['current'] }}" @endif>
-                        <i class="bi {{ $item['icon'] }} top-nav__icon" aria-hidden="true"></i>
+                        @include('layouts.components.top-navigation-icon', ['icon' => $item['icon'], 'iconClass' => 'top-nav__icon', 'wrapClass' => 'top-nav__icon-wrap', 'badge' => $item['badge']])
                         <span class="top-nav__label">{{ $item['label'] }}</span>
-                        @includeWhen($item['badge'], 'layouts.components.top-navigation-badge', ['badge' => $item['badge']])
+                        @includeWhen($item['badge'] && ($item['badge']['placement'] ?? null) !== 'icon', 'layouts.components.top-navigation-badge', ['badge' => $item['badge']])
                     </a>
                 </li>
             @else

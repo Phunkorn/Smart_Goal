@@ -1,0 +1,514 @@
+/*
+ * modal สร้าง/แก้ไขโพสต์ — Bootstrap Modal กำหนดชั้น backdrop และการล็อกการเลื่อน
+ * จอแคบกว่า 576px ใช้เต็มจอ ช่องพิมพ์และปุ่มโพสต์จึงไม่ถูกคีย์บอร์ดบัง (dvh ตามความสูงที่มองเห็นจริง)
+ */
+.social-modal__dialog {
+    max-width: 560px;
+}
+
+.social-modal__content {
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+}
+
+.social-modal__header {
+    position: relative;
+    justify-content: center;
+    padding: 14px 52px;
+    border-bottom: 1px solid var(--border);
+}
+
+.social-modal__title {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.social-modal__header .btn-close {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    background-color: var(--surface-2);
+    transform: translateY(-50%);
+}
+
+.social-modal__body {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    /* สูงพอให้แผงเลือกผู้ที่มองเห็นโพสต์ (ยาวสุดเมื่อมีคำอธิบายสองบรรทัด) ไม่ดันให้เกิดแถบเลื่อน */
+    min-height: 272px;
+    padding: 14px 16px;
+}
+
+.social-modal__author {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.social-modal__identity {
+    display: grid;
+    justify-items: start;
+    gap: 2px;
+    min-width: 0;
+}
+
+.social-modal__identity strong {
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-size: .95rem;
+}
+
+/* ---------- popover ที่ใช้ร่วมกัน (ผู้ที่มองเห็นโพสต์ / อีโมจิ) — สถานะจาก popover.js ----------
+   ซ่อนด้วย visibility เพื่อให้แอนิเมชันทั้งตอนเปิดและปิด และไม่ให้ Tab/screen reader เข้าแผงที่ปิดอยู่ */
+.social-popover {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-4px) scale(.98);
+    transition: opacity .14s ease, transform .14s ease, visibility 0s linear .14s;
+}
+
+.social-popover[data-open='true'] {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition: opacity .14s ease, transform .14s ease, visibility 0s linear 0s;
+}
+
+/* ---------- ตัวเลือกผู้ที่มองเห็นโพสต์ ---------- */
+.social-audience {
+    position: relative;
+}
+
+.social-audience__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.social-audience__toggle span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.social-audience__toggle:hover,
+.social-audience__toggle[aria-expanded='true'] {
+    background: var(--gray-dim);
+}
+
+.social-audience__caret {
+    font-size: .7rem;
+    transition: transform .14s ease;
+}
+
+.social-audience__toggle[aria-expanded='true'] .social-audience__caret {
+    transform: rotate(180deg);
+}
+
+.social-audience__panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 6;
+    display: grid;
+    gap: 2px;
+    width: min(320px, calc(100vw - 48px));
+    min-width: 0;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    transform-origin: top left;
+}
+
+/* float ทำให้ legend อยู่ในแผง ไม่ถูกวาดทับเส้นขอบบนของ fieldset ตามค่าตั้งต้นของเบราว์เซอร์ */
+.social-audience__legend {
+    float: left;
+    width: 100%;
+    margin: 2px 6px 6px;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: .74rem;
+    font-weight: 600;
+}
+
+.social-audience__choice {
+    position: relative;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 18px;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.social-audience__choice:hover {
+    background: var(--surface-2);
+}
+
+.social-audience__choice.is-selected {
+    background: var(--accent-dim);
+}
+
+.social-audience__choice.is-disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+.social-audience__choice.is-disabled:hover {
+    background: transparent;
+}
+
+/* radio จริงยังรับโฟกัสและลูกศรได้ — ซ่อนแค่ทางสายตา แล้วแสดงสถานะที่แถวทั้งแถว */
+.social-audience__radio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.social-audience__choice:has(.social-audience__radio:focus-visible) {
+    outline: 3px solid rgb(59 130 246 / 28%);
+    outline-offset: 1px;
+}
+
+.social-audience__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.social-audience__choice.is-selected .social-audience__icon {
+    background: var(--surface);
+    color: var(--accent);
+}
+
+.social-audience__text {
+    display: grid;
+    min-width: 0;
+}
+
+.social-audience__text strong {
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-size: .86rem;
+}
+
+.social-audience__text small {
+    overflow-wrap: anywhere;
+    color: var(--text-muted);
+    font-size: .74rem;
+    line-height: 1.4;
+}
+
+.social-audience__check {
+    visibility: hidden;
+    color: var(--accent);
+    font-size: 1.05rem;
+}
+
+.social-audience__choice.is-selected .social-audience__check {
+    visibility: visible;
+}
+
+.social-modal__textarea {
+    display: block;
+    width: 100%;
+    min-height: 120px;
+    max-height: 40vh;
+    padding: 4px 2px;
+    overflow-y: auto;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    resize: none;
+}
+
+.social-modal__textarea:focus {
+    outline: none;
+}
+
+.social-modal__textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.social-modal__counter {
+    justify-self: end;
+    margin: -4px 0 0;
+    color: var(--text-muted);
+    font-size: .74rem;
+}
+
+.social-modal__counter.is-near-limit {
+    color: var(--red-strong);
+}
+
+.social-modal__error {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--red-dim);
+    color: var(--red-strong);
+    font-size: .84rem;
+}
+
+/* ---------- ตัวอย่างรูปก่อนโพสต์ ---------- */
+.social-modal__media {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.social-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.social-upload-grid__item {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--gray-dim);
+}
+
+.social-upload-grid__item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.social-upload-grid__remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(22 35 61 / 70%);
+    color: #fff;
+    font-size: .8rem;
+    cursor: pointer;
+}
+
+.social-upload-grid__remove:hover {
+    background: rgb(22 35 61 / 88%);
+}
+
+/* ---------- แถบเครื่องมือ ---------- */
+.social-modal__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 4px;
+    margin: 0 16px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.social-modal__tools-label {
+    margin-right: auto;
+    color: var(--text);
+    font-size: .86rem;
+    font-weight: 600;
+}
+
+.social-modal__limits {
+    flex-basis: 100%;
+    color: var(--text-muted);
+    font-size: .72rem;
+}
+
+.social-tool {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    font-size: 1.25rem;
+    cursor: pointer;
+}
+
+.social-tool:hover,
+.social-tool[aria-expanded='true'] {
+    background: var(--surface-2);
+}
+
+.social-tool--image {
+    color: var(--green-strong);
+}
+
+.social-tool--emoji {
+    color: var(--amber);
+}
+
+/* ---------- ตัวเลือกอีโมจิ (popover ยึดกับปุ่ม) ---------- */
+.social-emoji {
+    position: relative;
+}
+
+.social-emoji__panel {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(8, 36px);
+    gap: 2px;
+    max-width: min(312px, calc(100vw - 48px));
+    max-height: 220px;
+    padding: 8px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    transform-origin: bottom right;
+}
+
+.social-emoji__option {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.social-emoji__option:hover,
+.social-emoji__option:focus-visible {
+    background: var(--surface-2);
+}
+
+.social-modal__footer {
+    gap: 8px;
+    padding: 12px 16px 16px;
+    border-top: 0;
+}
+
+.social-modal__footer .btn {
+    min-height: 44px;
+    margin: 0;
+    padding-inline: 20px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+}
+
+.social-modal__submit {
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.social-modal__submit:hover:not(:disabled) {
+    border-color: var(--accent-strong);
+    background: var(--accent-strong);
+}
+
+.social-modal__cancel {
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .social-popover,
+    .social-popover[data-open='true'],
+    .social-audience__caret {
+        transition: none;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .social-modal .modal-dialog {
+        max-width: none;
+        height: 100%;
+        margin: 0;
+    }
+
+    .social-modal .modal-dialog-scrollable {
+        height: 100dvh;
+    }
+
+    .social-modal__content {
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+    }
+
+    .social-modal__textarea {
+        max-height: none;
+    }
+
+    .social-emoji__panel {
+        grid-template-columns: repeat(auto-fill, 36px);
+        width: min(312px, calc(100vw - 48px));
+    }
+
+    /* จอแคบ: ปุ่มถูกเยื้องเข้าตามรูปโปรไฟล์ แผงที่ยึดกับปุ่มจึงล้นขอบขวา (วัดที่ 320px: ขอบขวา 340px)
+       ยึดกับแถวผู้โพสต์ทั้งแถวแทน แผงจึงกว้างเต็มพื้นที่เนื้อหาของ modal พอดี */
+    .social-modal__author {
+        position: relative;
+    }
+
+    .social-audience {
+        position: static;
+    }
+
+    .social-audience__panel {
+        right: 0;
+        width: auto;
+    }
+}

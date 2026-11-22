@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Department;
 use App\Models\JobImage;
 use App\Models\Meeting;
+use App\Models\SocialPost;
 use App\Models\User;
 use App\Models\WorkLog;
 use App\Models\WorkLogAttachment;
@@ -48,6 +49,7 @@ final class TrashRestorers
         WorkOrder::class => ['strategy' => self::SOFT, 'label' => 'งาน', 'payload_key' => 'work_order'],
         WorkLog::class => ['strategy' => self::SOFT, 'label' => 'บันทึกงานประจำวัน', 'payload_key' => null],
         WorkspaceBoard::class => ['strategy' => self::SOFT, 'label' => 'กระดานไอเดีย', 'payload_key' => 'board'],
+        SocialPost::class => ['strategy' => self::SOFT, 'label' => 'โพสต์ชุมชน', 'payload_key' => 'post'],
 
         JobImage::class => ['strategy' => self::SOFT, 'label' => 'ไฟล์แนบงาน', 'payload_key' => 'attachment'],
         WorkOrderListAttachment::class => ['strategy' => self::SOFT, 'label' => 'ไฟล์แนบโปรเจกต์', 'payload_key' => 'attachment'],
@@ -85,6 +87,9 @@ final class TrashRestorers
      * @var array<class-string, array<int, string>>
      */
     public const FILE_RELATIONS = [
+        // บัญชีที่ถูกลบถาวรพาโพสต์ชุมชนทั้งหมดไปด้วย (FK cascade) — รูปของโพสต์ต้องถูกลบผ่าน Eloquent ก่อน
+        User::class => ['socialPostMedia'],
+        SocialPost::class => ['media'],
         WorkOrder::class => ['images'],
         WorkOrderList::class => ['attachments'],
         WorkLog::class => ['attachments'],

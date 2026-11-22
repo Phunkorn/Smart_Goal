@@ -63,12 +63,16 @@ class TopNavigationTest extends TestCase
             'href="'.route('mytasks.index').'"',
             'href="'.route('daily-logs.index').'"',
             'href="'.route('work-board.index').'"',
-            'href="'.route('shares.index').'"',
+            // ชุมชนอยู่ในตำแหน่งเดิมของแชร์งาน ซึ่งถูกถอดออกจากเมนู (หน้า /shared-tasks ยังเปิดตรง ๆ ได้)
+            'href="'.route('social.index').'"',
             'href="'.route('workspace.index').'"',
             'id="top-nav-reports"',
             'id="top-nav-more"',
         ]);
         $this->assertSame(['reports', 'more'], $this->groupKeys($nav));
+        $this->assertStringNotContainsString('href="'.route('shares.index').'"', $nav);
+        $this->assertStringNotContainsString('แชร์งาน', $nav);
+        $this->assertMatchesRegularExpression('/href="'.preg_quote(route('social.index'), '/').'" class="top-nav__link" data-top-nav-entry\s*>\s*<i class="bi bi-chat-square-text top-nav__icon" aria-hidden="true"><\/i>\s*<span class="top-nav__label">ชุมชน<\/span>/', $nav);
 
         $this->assertInOrder($this->menu($nav, 'reports'), [
             'href="'.route('reports.operational').'"',
@@ -126,13 +130,14 @@ class TopNavigationTest extends TestCase
         $this->assertInOrder($nav, [
             'href="'.route('board.index').'"',
             'href="'.route('daily-logs.index').'"',
-            'href="'.route('shares.index').'"',
+            'href="'.route('social.index').'"',
             'href="'.route('workspace.index').'"',
             'id="top-nav-reports"',
             'id="top-nav-admin"',
             'id="top-nav-more"',
         ]);
         $this->assertSame(['reports', 'admin', 'more'], $this->groupKeys($nav));
+        $this->assertStringNotContainsString('href="'.route('shares.index').'"', $nav);
 
         $this->assertInOrder($this->menu($nav, 'admin'), [
             'aria-label="บุคลากรและแผนก"',
@@ -166,6 +171,8 @@ class TopNavigationTest extends TestCase
             'href="'.route('board.index').'"',
             // กระดานที่ตั้งเป็น "ทั้งองค์กร" เปิดให้อ่านได้ทุกคน ส่วนการวาดถูกปิดที่ WorkspaceBoardPolicy
             'href="'.route('workspace.index').'"',
+            // ชุมชนเปิดให้ทุกบทบาท รวมถึง viewer (SocialPostPolicy)
+            'href="'.route('social.index').'"',
             'id="top-nav-reports"',
             'href="'.route('meetings.index').'"',
             'href="'.route('employees.index').'"',
@@ -188,7 +195,10 @@ class TopNavigationTest extends TestCase
     {
         foreach ([
             ['user', 'mytasks.index', 'mytasks.index', null],
-            ['user', 'shares.index', 'shares.index', null],
+            ['user', 'social.index', 'social.index', null],
+            ['head', 'social.index', 'social.index', null],
+            ['admin', 'social.index', 'social.index', null],
+            ['viewer', 'social.index', 'social.index', null],
             ['user', 'notifications.index', 'notifications.index', 'more'],
             ['user', 'reports.projects', 'reports.projects', 'reports'],
             ['user', 'reports.operational', 'reports.operational', 'reports'],
@@ -213,10 +223,12 @@ class TopNavigationTest extends TestCase
             }
         }
 
-        // หน้าที่ไม่อยู่ในเมนู (ตั้งค่า) ไม่มีเมนูใดถูกไฮไลต์
-        $nav = $this->nav($this->actingAs($this->userWithRole('user'))->get(route('settings.index'))->assertOk()->getContent());
-        $this->assertSame(0, substr_count($nav, 'aria-current='));
-        $this->assertStringNotContainsString('is-active', $nav);
+        // หน้าที่ไม่อยู่ในเมนู (ตั้งค่า และแชร์งานที่ถูกถอดจากเมนู) ไม่มีเมนูใดถูกไฮไลต์
+        foreach (['settings.index', 'shares.index'] as $page) {
+            $nav = $this->nav($this->actingAs($this->userWithRole('user'))->get(route($page))->assertOk()->getContent());
+            $this->assertSame(0, substr_count($nav, 'aria-current='), $page);
+            $this->assertStringNotContainsString('is-active', $nav, $page);
+        }
     }
 
     public function test_pages_below_a_menu_entry_are_announced_as_a_location_not_the_page(): void
@@ -237,27 +249,42 @@ class TopNavigationTest extends TestCase
         $this->assertStringNotContainsString('top-nav__dot', $nav);
     }
 
-    public function test_account_dropdown_shows_the_real_role_and_username(): void
+    public function test_account_dropdown_shows_the_real_username(): void
     {
         foreach (['admin', 'viewer', 'user'] as $role) {
             $user = $this->userWithRole($role);
             $this->actingAs($user)->get(route('settings.index'))->assertOk()
                 ->assertSee('aria-label="เมนูบัญชีผู้ใช้"', false)
-                ->assertSee($user->username)
-                ->assertSee('<span class="topbar-account__role">'.RoleLabel::for($user).'</span>', false)
+                ->assertSee('เข้าสู่ระบบในชื่อ <strong>'.$user->username.'</strong>', false)
                 // ใช้การเปิด/ปิดชุดเดียวกับเมนูหลัก
                 ->assertSee('id="topbarAccountTrigger" data-bs-toggle="dropdown" data-bs-display="static"', false)
                 ->assertSee('class="dropdown-menu dropdown-menu-end topbar-slide-menu topbar-account__menu"', false);
         }
     }
 
-    public function test_account_identity_lives_in_the_topbar(): void
+    /**
+     * ปุ่มบัญชีบน Topbar แสดงเฉพาะรูปโปรไฟล์ — ไม่มีชื่อ บทบาท แผนก หรือลูกศร
+     * ชื่อกับบทบาท/แผนกยังอยู่ในหน้าตั้งค่าบัญชี (test ถัดไป)
+     */
+    public function test_the_account_button_shows_only_the_profile_picture(): void
     {
-        $this->actingAs($this->userWithRole('user'))->get(route('mytasks.index'))->assertOk()
-            ->assertSee('topbar-account__identity', false)
-            ->assertDontSee('sidebar-foot', false)
-            ->assertDontSee('role-chip--mobile-only', false)
-            ->assertDontSee('href="'.route('settings.index').'"', false);
+        foreach (['user', 'head', 'admin', 'viewer'] as $role) {
+            $user = $this->userWithRole($role);
+            $user->forceFill(['name' => 'สมชาย ทดสอบบัญชี'])->save();
+            // settings.index เปิดได้ทุกบทบาท (viewer เปิด mytasks ไม่ได้)
+            $content = $this->actingAs($user)->get(route('settings.index'))->assertOk()->getContent();
+            $trigger = $this->between($content, '<button type="button" class="topbar-account__trigger"', '</button>');
+
+            $this->assertStringContainsString('data-account-avatar', $trigger, $role);
+            $this->assertStringContainsString('aria-label="เมนูบัญชีผู้ใช้"', $trigger, $role);
+            $this->assertStringContainsString('สม', $trigger, $role);
+            foreach (['topbar-account__identity', 'topbar-account__name', 'topbar-account__role', 'topbar-account__chevron', 'สมชาย ทดสอบบัญชี', RoleLabel::for($user), $user->department->department_name] as $hidden) {
+                $this->assertStringNotContainsString($hidden, $trigger, "{$role}: {$hidden}");
+            }
+            $this->assertStringNotContainsString('sidebar-foot', $content);
+            $this->assertStringNotContainsString('role-chip--mobile-only', $content);
+            $this->assertStringNotContainsString('href="'.route('settings.index').'"', $content);
+        }
     }
 
     /**
@@ -266,15 +293,18 @@ class TopNavigationTest extends TestCase
      */
     public function test_role_label_separates_head_from_staff(): void
     {
-        $this->actingAs($this->userWithRole('user'))->get(route('mytasks.index'))
-            ->assertOk()
-            ->assertSee('<span class="topbar-account__role">พนักงาน</span>', false)
-            ->assertDontSee('role-chip__label', false);
+        foreach (['user' => 'พนักงาน', 'head' => 'หัวหน้าแผนก'] as $role => $label) {
+            $user = $this->userWithRole($role);
 
-        $this->actingAs($this->userWithRole('head'))->get(route('mytasks.index'))
-            ->assertOk()
-            ->assertSee('<span class="topbar-account__role">หัวหน้าแผนก</span>', false)
-            ->assertDontSee('role-chip__label', false);
+            // ตัวช่วยกลางยังแยกสองบทบาทออกจากกัน (ใช้ที่การ์ดสมาชิก ผู้เข้าร่วมประชุม ฯลฯ)
+            // ส่วน Topbar และเมนูบัญชีไม่แสดงบทบาทหรือแผนกของผู้ใช้อีกแล้ว
+            $this->assertSame($label, RoleLabel::for($user));
+            $this->actingAs($user)->get(route('settings.index'))
+                ->assertOk()
+                ->assertDontSee('role-chip__label', false)
+                ->assertDontSee('topbar-account__role', false)
+                ->assertDontSee('<p>'.$label.' · '.$user->department->department_name.'</p>', false);
+        }
     }
 
     /**
@@ -287,12 +317,9 @@ class TopNavigationTest extends TestCase
 
         $this->assertSame('หัวหน้าแผนก', RoleLabel::for($head));
 
-        foreach (['settings.index', 'mytasks.index'] as $page) {
-            $this->actingAs($head)->get(route($page))
-                ->assertOk()
-                ->assertSee('<span class="topbar-account__role">หัวหน้าแผนก</span>', false)
-                ->assertDontSee('<span class="topbar-account__role">พนักงาน</span>', false);
-        }
+        // ธง is_department_head เปลี่ยนชื่อบทบาททุกที่ที่ใช้ตัวช่วยนี้ — ปิดธงแล้วกลับเป็นพนักงาน
+        $head->forceFill(['is_department_head' => false])->save();
+        $this->assertSame('พนักงาน', RoleLabel::for($head->fresh()));
     }
 
     public function test_logout_lives_in_the_topbar_after_notifications(): void
@@ -335,10 +362,11 @@ class TopNavigationTest extends TestCase
             'user' => 'mytasks.index',
             'head' => 'announcements.index',
             'admin' => 'employees.index',
-            'viewer' => 'meetings.index',
+            'viewer' => 'social.index',
         ] as $role => $page) {
             $content = $this->actingAs($this->userWithRole($role))->get(route($page))->assertOk()->getContent();
             $desktop = $this->nav($content);
+            $this->assertStringContainsString('href="'.route('social.index').'"', $this->mobileNav($content), $role);
             $mobile = $this->mobileNav($content);
 
             $this->assertSame($this->hrefs($desktop), $this->hrefs($mobile), "{$role}: ลิงก์และลำดับต้องตรงกัน");

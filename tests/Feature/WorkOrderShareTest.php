@@ -672,31 +672,49 @@ class WorkOrderShareTest extends TestCase
         $this->assertSame($notificationsBefore, SystemNotification::count());
     }
 
-    public function test_the_navigation_keeps_the_request_badge_for_requests_waiting_on_the_sharer(): void
+    /**
+     * เมนู "แชร์งาน" ย้ายออกจาก Topbar (แทนที่ด้วย "ชุมชน") — ป้ายนับคำขอบนเมนูจึงหายไปด้วย
+     * คำขอที่รอผู้แชร์ตัดสินต้องยังไปถึงผู้แชร์ผ่านกระดิ่ง และพาไปแท็บคำขอของหน้าแชร์งานได้
+     */
+    public function test_requests_waiting_on_the_sharer_still_reach_them_through_the_bell(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $owner = $this->member($it);
         $colleague = $this->member($it);
         $share = $this->openShare($owner, $this->task($owner), 'department');
-        $this->join($share, $colleague);
 
-        $this->actingAs($owner)->get(route('shares.index'))
+        $this->actingAs($colleague)->postJson(route('shares.requests.store', $share))->assertCreated();
+
+        $notification = SystemNotification::query()
+            ->where('user_id', $owner->id)
+            ->where('type', 'share_join_requested')
+            ->firstOrFail();
+
+        $this->actingAs($owner)->get(route('notifications.open', $notification))
+            ->assertRedirect(route('shares.index', ['tab' => 'incoming']));
+        $this->actingAs($owner)->get(route('shares.index', ['tab' => 'incoming']))
             ->assertOk()
-            ->assertSee('class="top-nav__badge top-nav__badge--request" data-share-request-count', false)
-            ->assertSee('คำขอร่วมงานรอคุณอนุมัติ 1 รายการ');
+            ->assertSee($colleague->name)
+            ->assertDontSee('data-share-request-count', false);
     }
 
-    public function test_an_admin_keeps_the_share_menu_without_an_informational_badge(): void
+    public function test_shared_tasks_stays_reachable_by_url_after_leaving_the_topbar(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $owner = $this->member($it);
         $admin = $this->member(null, 'admin');
         $this->openShare($owner, $this->task($owner), 'organization');
 
-        $this->actingAs($admin)->get(route('shares.index'))
-            ->assertOk()
-            ->assertSee('href="'.route('shares.index').'"', false)
-            ->assertDontSee('data-share-feed-count', false);
+        foreach ([$admin, $owner] as $user) {
+            $content = $this->actingAs($user)->get(route('shares.index'))
+                ->assertOk()
+                ->assertDontSee('data-share-feed-count', false)
+                ->getContent();
+            $nav = substr($content, strpos($content, '<nav class="top-nav"'), strpos($content, '</nav>') - strpos($content, '<nav class="top-nav"'));
+
+            $this->assertStringNotContainsString('href="'.route('shares.index').'"', $nav);
+            $this->assertStringContainsString('href="'.route('social.index').'"', $nav);
+        }
     }
 
     private function openShare(User $owner, WorkOrder $task, string $scope): WorkOrderShare

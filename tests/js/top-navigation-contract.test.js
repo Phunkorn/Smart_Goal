@@ -250,3 +250,13 @@ test('routine and notification buttons share one white style with outline icons;
     assert.doesNotMatch(css, /\.routine-topbar__button\s*\{/);
     assert.match(block(css, '.topbar .icon-btn'), /width:\s*var\(--topbar-control\);\s*height:\s*var\(--topbar-control\)/);
 });
+
+test('the brand name on the topbar uses the system blue token, not a hand-picked colour', () => {
+    const css = code('resources/css/components/layout/topbar.css');
+    const rule = block(css, '.topbar-brand__name');
+
+    assert.match(rule, /color:\s*var\(--accent\)/);
+    assert.doesNotMatch(rule, /color:\s*(#|rgb)/);
+    // แก้เฉพาะ .topbar-brand__name — บรรทัดคำอธิบายใต้ชื่อยังเป็นสีเดิม
+    assert.doesNotMatch(block(css, '.topbar-brand__subtitle'), /var\(--accent\)/);
+});

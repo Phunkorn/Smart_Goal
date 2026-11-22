@@ -166,10 +166,11 @@ class UsernameEmployeeManagementTest extends TestCase
             ->assertSee('บัญชีผู้ใช้งาน')
             ->assertSee('noemail-user')
             ->assertDontSee('@noemail-user');
+        // ผู้ใช้ไม่มีอีเมลยังเห็นตัวตนของตัวเองในเมนูบัญชี (เดิมตรวจ "@username" ในการ์ดโปรไฟล์ของ modal ซึ่งเอาออกแล้ว)
         $this->actingAs($employee)
             ->get(route('settings.index'))
             ->assertOk()
-            ->assertSee('@noemail-user');
+            ->assertSee('เข้าสู่ระบบในชื่อ <strong>noemail-user</strong>', false);
         foreach ([
             route('work-board.department', ['department' => $department, 'search' => 'noemail-user']),
             route('work-board.member', [$department, $employee]),

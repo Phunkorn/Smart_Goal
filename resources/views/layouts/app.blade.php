@@ -34,8 +34,6 @@
     @php
         $currentUser = auth()->user();
         $isViewer = $currentUser?->role === 'viewer';
-        // ชื่อบทบาทมาจาก Support ตัวเดียวเสมอ เพื่อไม่ให้หน้าไหนลืมธง is_department_head
-        $roleLabel = \App\Support\RoleLabel::for($currentUser);
         $routineAttention = app(\App\Services\RoutineAttentionService::class)->summary($currentUser);
         $notificationService = app(\App\Services\NotificationService::class);
         $systemNotifications = $notificationService->dropdown($currentUser);
@@ -45,7 +43,7 @@
         $navigation = \App\Support\TopNavigation::for($currentUser, request(), [
             'ticketsInstalled' => $ticketsInstalled ?? false,
             'ticketQueueCount' => $ticketQueueCount ?? 0,
-            'shareRequestCount' => $shareRequestCount ?? 0,
+            'socialNewPostCount' => $socialNewPostCount ?? 0,
             'approvalTotal' => $approvalCounts['total'] ?? 0,
             'notificationCount' => $notificationCount,
             'notificationDisplay' => $notificationDisplayCount,
@@ -66,7 +64,6 @@
 
         {{-- ชื่อระบบอยู่ที่นี่ที่เดียว --}}
         <div class="topbar-brand">
-            <span class="topbar-brand__mark" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
             <span class="topbar-brand__text">
                 <span class="topbar-brand__name">Smart Goals</span>
                 <span class="topbar-brand__subtitle">ระบบบริหารงานองค์กร</span>

@@ -29,9 +29,9 @@
                     <li>
                         <a href="{{ $item['url'] }}" class="mobile-nav__link{{ $item['active'] ? ' is-active' : '' }}"
                             @if($item['current']) aria-current="{{ $item['current'] }}" @endif>
-                            <i class="bi {{ $item['icon'] }} mobile-nav__icon" aria-hidden="true"></i>
+                            @include('layouts.components.top-navigation-icon', ['icon' => $item['icon'], 'iconClass' => 'mobile-nav__icon', 'wrapClass' => 'mobile-nav__icon-wrap', 'badge' => $item['badge']])
                             <span class="mobile-nav__label">{{ $item['label'] }}</span>
-                            @includeWhen($item['badge'], 'layouts.components.top-navigation-badge', ['badge' => $item['badge']])
+                            @includeWhen($item['badge'] && ($item['badge']['placement'] ?? null) !== 'icon', 'layouts.components.top-navigation-badge', ['badge' => $item['badge']])
                         </a>
                     </li>
                 @else

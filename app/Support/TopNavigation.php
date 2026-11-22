@@ -14,14 +14,17 @@ use Illuminate\Http\Request;
  * Blade วาดผลลัพธ์จากที่นี่อย่างเดียว ไม่ตัดสินสิทธิ์เอง
  *
  * โครงเมนูตามบทบาท (เมนูใช้บ่อยอยู่แถวบนสุด ส่วนที่เหลือจัดกลุ่มเป็นดร็อปดาวน์ตามหน้าที่):
- *   พนักงาน/หัวหน้าแผนก  งานของฉัน · บันทึกงานประจำวัน · บอร์ดงาน · แชร์งาน · กระดานไอเดีย · รายงาน▾ · เพิ่มเติม▾
- *   admin              บอร์ดรวม · บันทึกงานประจำวัน · แชร์งาน · กระดานไอเดีย · รายงาน▾ · ผู้ดูแลระบบ▾ · เพิ่มเติม▾
- *   viewer             แดชบอร์ด · กระดานไอเดีย · รายงาน▾ · การประชุม · พนักงาน · การแจ้งเตือน
+ *   พนักงาน/หัวหน้าแผนก  งานของฉัน · บันทึกงานประจำวัน · บอร์ดงาน · ชุมชน · กระดานไอเดีย · รายงาน▾ · เพิ่มเติม▾
+ *   admin              บอร์ดรวม · บันทึกงานประจำวัน · ชุมชน · กระดานไอเดีย · รายงาน▾ · ผู้ดูแลระบบ▾ · เพิ่มเติม▾
+ *   viewer             แดชบอร์ด · กระดานไอเดีย · ชุมชน · รายงาน▾ · การประชุม · พนักงาน · การแจ้งเตือน
+ *
+ * "ชุมชน" (/social) อยู่ในตำแหน่งเดิมของ "แชร์งาน" ซึ่งถูกถอดออกจากเมนู หน้า /shared-tasks
+ * ยังเปิดได้ตรง ๆ ตามสิทธิ์เดิม และคำขอร่วมงานยังแจ้งผู้แชร์ผ่านกระดิ่ง
  *
  * ชุดเมนูของแต่ละบทบาทเท่ากับแถบข้างเดิมทุกรายการ — การซ่อนเมนูไม่ใช่การให้สิทธิ์
  * ทุก route ยังตรวจ middleware/policy ของตัวเองเสมอ
  *
- * @phpstan-type Badge array{count: int, display: string, tone: string, label: string|null, hooks: list<string>, hidden: bool}
+ * @phpstan-type Badge array{count: int, display: string, tone: string, label: string|null, hooks: list<string>, hidden: bool, placement: 'inline'|'icon'}
  * @phpstan-type Link array{type: 'link', key: string, label: string, icon: string, url: string, active: bool, current: string|null, badge: Badge|null}
  * @phpstan-type Section array{label: string|null, items: list<Link>}
  * @phpstan-type Group array{type: 'group', key: string, label: string, icon: string, active: bool, attention: bool, align: string, sections: list<Section>}
@@ -32,7 +35,7 @@ class TopNavigation
      * @param  array{
      *     ticketsInstalled?: bool,
      *     ticketQueueCount?: int,
-     *     shareRequestCount?: int,
+     *     socialNewPostCount?: int,
      *     approvalTotal?: int,
      *     notificationCount?: int,
      *     notificationDisplay?: string,
@@ -72,7 +75,7 @@ class TopNavigation
             $this->link('work-board', 'บอร์ดงาน', 'bi-kanban',
                 $isHead ? route('work-board.department', $this->user->department_id) : route('work-board.index'),
                 $isHead ? 'work-board.department' : 'work-board.index', 'work-board.*'),
-            $this->shareLink(),
+            $this->socialLink(),
             $this->link('workspace', 'กระดานไอเดีย', 'bi-easel', route('workspace.index'), 'workspace.index', 'workspace.*'),
             $this->reportGroup(),
             $this->group('more', 'เพิ่มเติม', 'bi-grid', [
@@ -103,7 +106,7 @@ class TopNavigation
             // การประชุมอยู่ใน Member Workspace ของ admin เพื่อให้ดูในบริบทของสมาชิก จึงไม่มีเมนูของตัวเอง
             $this->link('board', 'บอร์ดรวม', 'bi-kanban', route('board.index'), 'board.index', 'board.*'),
             $this->link('daily-logs', 'บันทึกงานประจำวัน', 'bi-journal-check', route('daily-logs.index'), 'daily-logs.index', 'daily-logs.*'),
-            $this->shareLink(),
+            $this->socialLink(),
             $this->link('workspace', 'กระดานไอเดีย', 'bi-easel', route('workspace.index'), 'workspace.index', 'workspace.*'),
             $this->reportGroup(),
             $this->group('admin', 'ผู้ดูแลระบบ', 'bi-gear', [
@@ -138,7 +141,8 @@ class TopNavigation
     }
 
     /**
-     * viewer อ่านอย่างเดียว — ไม่มีบันทึกงานประจำวัน แชร์งาน หรือประกาศ เพราะทุก route นั้นกัน viewer ไว้
+     * viewer อ่านอย่างเดียวในงาน — ไม่มีบันทึกงานประจำวัน แชร์งาน หรือประกาศ เพราะทุก route นั้นกัน viewer ไว้
+     * ชุมชนเปิดให้ทุกบทบาท (SocialPostPolicy) viewer จึงเห็นเมนูนี้ด้วย
      *
      * @return list<Link|Group>
      */
@@ -148,6 +152,7 @@ class TopNavigation
             $this->link('board', 'แดชบอร์ด', 'bi-grid-1x2', route('board.index'), 'board.index', 'board.*'),
             // กระดานที่ตั้งเป็น "ทั้งองค์กร" เปิดให้อ่านได้ทุกคน ส่วนการวาดถูกปิดที่ WorkspaceBoardPolicy
             $this->link('workspace', 'กระดานไอเดีย', 'bi-easel', route('workspace.index'), 'workspace.index', 'workspace.*'),
+            $this->socialLink(),
             $this->reportGroup(),
             $this->link('meetings', 'การประชุม', 'bi-calendar-event', route('meetings.index'), 'meetings.index', 'meetings.*'),
             $this->link('employees', 'พนักงาน', 'bi-people', route('employees.index'), 'employees.index', 'employees.*'),
@@ -214,17 +219,20 @@ class TopNavigation
     }
 
     /**
-     * แชร์งาน — ป้ายนับเฉพาะคำขอร่วมงานที่รอผู้ใช้ตัดสินในฐานะผู้แชร์
-     * จำนวนงานที่แชร์เปิดรับเป็นข้อมูล ไม่ใช่เรื่องรอทำ จึงไม่ขึ้นป้าย
+     * ชุมชน — ฟีดส่วนกลางของทุกแผนก ทุกบทบาทเปิดได้ (SocialPostPolicy::viewAny)
+     * ไอคอนไม่ซ้ำกับ "พนักงาน" (bi-people) เพราะ viewer เห็นสองเมนูนี้ในแถวเดียวกัน
+     *
+     * ป้ายจำนวนโพสต์ใหม่ซ้อนที่มุมขวาบนของไอคอนเหมือนป้ายกระดิ่ง (placement = icon) ไม่ต่อท้ายข้อความ
+     * จึงไม่ดันขนาดเมนู ไม่มีโพสต์ใหม่ = ไม่วาดป้าย จำนวนมาจาก SocialFeedReadService
      *
      * @return Link
      */
-    private function shareLink(): array
+    private function socialLink(): array
     {
-        $count = (int) ($this->context['shareRequestCount'] ?? 0);
+        $count = (int) ($this->context['socialNewPostCount'] ?? 0);
 
-        return $this->link('shares', 'แชร์งาน', 'bi-share', route('shares.index'), 'shares.index', 'shares.*',
-            $count > 0 ? $this->countBadge($count, ['data-share-request-count'], 'คำขอร่วมงานรอคุณอนุมัติ '.$count.' รายการ', 'request') : null);
+        return $this->link('social', 'ชุมชน', 'bi-chat-square-text', route('social.index'), 'social.index', 'social.*',
+            $count > 0 ? $this->countBadge($count, [], 'โพสต์ใหม่ '.($count > 99 ? 'มากกว่า 99' : $count).' โพสต์', 'danger', 'icon') : null);
     }
 
     /**
@@ -244,6 +252,7 @@ class TopNavigation
             'label' => null,
             'hooks' => ['data-notification-count', 'data-nav-notification-count'],
             'hidden' => $count === 0,
+            'placement' => 'inline',
         ]);
     }
 
@@ -307,7 +316,7 @@ class TopNavigation
     /**
      * @param  list<string>  $hooks  attribute ที่สคริปต์เดิมใช้หาป้ายนี้ (เช่น data-approval-count)
      */
-    private function countBadge(int $count, array $hooks, ?string $label = null, string $tone = 'danger'): array
+    private function countBadge(int $count, array $hooks, ?string $label = null, string $tone = 'danger', string $placement = 'inline'): array
     {
         return [
             'count' => $count,
@@ -316,6 +325,7 @@ class TopNavigation
             'label' => $label,
             'hooks' => $hooks,
             'hidden' => false,
+            'placement' => $placement,
         ];
     }
 

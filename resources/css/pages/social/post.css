@@ -1,0 +1,318 @@
+/* การ์ดโพสต์ — หัว ข้อความ รูป ตัวเลข และปุ่มถูกใจ/แสดงความคิดเห็น */
+.social-post {
+    padding: 12px 0 0;
+}
+
+.social-post[aria-busy='true'] {
+    opacity: .6;
+    pointer-events: none;
+}
+
+.social-post__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 0 12px;
+}
+
+.social-post__meta {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 1px;
+    min-width: 0;
+}
+
+.social-post__author {
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-size: .95rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.social-post__sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 5px;
+    color: var(--text-muted);
+    font-size: .76rem;
+    line-height: 1.5;
+}
+
+.social-post__department {
+    overflow-wrap: anywhere;
+}
+
+/* ผู้ที่มองเห็นโพสต์ — ไอคอนเล็กในบรรทัดเดียวกับเวลา รายละเอียดอยู่ใน tooltip และข้อความสำหรับ screen reader */
+.social-post__audience {
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+}
+
+.social-post__audience.is-department {
+    color: var(--accent-strong);
+}
+
+.social-post__sub time,
+.social-post__edited {
+    cursor: help;
+    white-space: nowrap;
+}
+
+.social-icon-button {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin: -4px -6px 0 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.social-icon-button:hover,
+.social-icon-button[aria-expanded='true'] {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.social-post__menu-list {
+    min-width: 200px;
+    padding: 6px;
+    border-color: var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    font-size: .88rem;
+}
+
+.social-post__menu-list .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    border-radius: 6px;
+}
+
+.social-post__body {
+    margin: 10px 12px 0;
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-size: .95rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* ---------- ตารางรูป ----------
+   รูปเดียว: แสดงตามสัดส่วนจริง (width/height จาก server จองพื้นที่ไว้ก่อนโหลด หน้าไม่กระโดด)
+   หลายรูป: ช่องสัดส่วนคงที่ ตัดขอบด้วย object-fit ไม่ให้ล้นการ์ด */
+.social-media-grid {
+    display: grid;
+    gap: 3px;
+    margin-top: 12px;
+    overflow: hidden;
+    background: var(--surface-2);
+}
+
+.social-media-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.social-media-grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.social-media-grid--3 .social-media-grid__item:first-child {
+    grid-row: span 2;
+    aspect-ratio: auto;
+}
+
+.social-media-grid--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.social-media-grid__item {
+    position: relative;
+    display: block;
+    min-width: 0;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    background: var(--gray-dim);
+    cursor: zoom-in;
+}
+
+.social-media-grid--1 .social-media-grid__item {
+    aspect-ratio: auto;
+}
+
+.social-media-grid__item img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity .2s ease;
+}
+
+/* เฟดเข้าเมื่อโหลดเสร็จ — เฉพาะเมื่อสคริปต์ของหน้าทำงานแล้ว ถ้าสคริปต์ไม่โหลด รูปยังแสดงตามปกติ */
+[data-social-ready='true'] .social-media-grid__item:not(.is-loaded) img {
+    opacity: 0;
+}
+
+.social-media-grid--1 .social-media-grid__item img {
+    height: auto;
+    max-height: min(70vh, 640px);
+    object-fit: contain;
+    background: var(--gray-dim);
+}
+
+/* โหลดไม่สำเร็จ: ซ่อนไอคอนรูปเสียของเบราว์เซอร์ แสดงไอคอนของระบบแทน */
+.social-media-grid__item.is-broken {
+    min-height: 160px;
+    cursor: default;
+}
+
+.social-media-grid__item.is-broken img {
+    visibility: hidden;
+}
+
+.social-media-grid__item.is-broken::after {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--text-muted);
+    font-size: .82rem;
+    content: 'โหลดรูปไม่สำเร็จ';
+}
+
+.social-media-grid__item:focus-visible {
+    outline-offset: -3px;
+}
+
+.social-media-grid__more {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgb(22 35 61 / 55%);
+    color: #fff;
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+/* ---------- ตัวเลข ---------- */
+.social-post__stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 12px;
+    margin: 0 12px;
+    padding: 10px 0 0;
+    color: var(--text-muted);
+    font-size: .82rem;
+}
+
+.social-post__likes {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.social-post__like-badge {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: .64rem;
+}
+
+.social-post__comment-count {
+    margin-left: auto;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.social-post__comment-count:hover {
+    color: var(--text);
+    text-decoration: underline;
+}
+
+/* ---------- ปุ่มถูกใจ / แสดงความคิดเห็น ---------- */
+.social-post__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin: 8px 12px 0;
+    padding: 4px 0;
+    border-top: 1px solid var(--border);
+}
+
+.social-post__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: 44px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.social-post__action span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.social-post__action i {
+    font-size: 1.1rem;
+}
+
+.social-post__action:hover {
+    background: var(--surface-2);
+}
+
+.social-post__action.is-active {
+    color: var(--accent);
+}
+
+@media (min-width: 576px) {
+    .social-post {
+        padding-top: 16px;
+    }
+
+    .social-post__head {
+        padding: 0 16px;
+    }
+
+    .social-post__body {
+        margin: 12px 16px 0;
+    }
+
+    .social-post__stats,
+    .social-post__actions {
+        margin-inline: 16px;
+    }
+}

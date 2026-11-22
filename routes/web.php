@@ -21,6 +21,10 @@ use App\Http\Controllers\PublicTicketController;
 use App\Http\Controllers\RealtimeSyncController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SocialCommentController;
+use App\Http\Controllers\SocialFeedController;
+use App\Http\Controllers\SocialPostController;
+use App\Http\Controllers\SocialPostLikeController;
 use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCollaboratorController;
 use App\Http\Controllers\TaskCommentController;
@@ -397,6 +401,8 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->name('media.workspace-board-attachments.show');
     Route::get('/media/comment-attachments/{attachment}', [MediaController::class, 'commentAttachment'])
         ->name('media.comment-attachments.show');
+    Route::get('/media/social-post-media/{media}', [MediaController::class, 'socialPostMedia'])
+        ->name('media.social-post-media.show');
     Route::get('/media/ticket-attachments/{attachment}', [MediaController::class, 'ticketAttachment'])
         ->middleware('tickets.installed')
         ->name('media.ticket-attachments.show');
@@ -786,6 +792,37 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         Route::put('/agents/{user}', [TicketSettingsController::class, 'updateAgent'])->name('agents.update');
         Route::post('/locations', [TicketSettingsController::class, 'storeLocation'])->name('locations.store');
         Route::patch('/locations/{location}', [TicketSettingsController::class, 'updateLocation'])->name('locations.update');
+    });
+
+    /*
+     * ชุมชน (Social Community) — ฟีดส่วนกลางของพนักงานทุกแผนก ทุกบทบาทที่เข้าสู่ระบบได้ใช้งาน
+     * จึงไม่มี middleware role ที่นี่ สิทธิ์แก้ไข/ลบ (เจ้าของ และ admin สำหรับการลบ) อยู่ที่
+     * SocialPostPolicy / SocialCommentPolicy เพดานการโพสต์/ความคิดเห็น/ถูกใจอยู่ที่ AppServiceProvider
+     */
+    Route::prefix('social')->name('social.')->group(function (): void {
+        Route::get('/', [SocialFeedController::class, 'index'])->name('index');
+        Route::get('/posts', [SocialFeedController::class, 'posts'])->name('posts.index');
+        Route::post('/posts', [SocialPostController::class, 'store'])
+            ->middleware('throttle:social-posts')
+            ->name('posts.store');
+        Route::patch('/posts/{post}', [SocialPostController::class, 'update'])
+            ->middleware('throttle:social-posts')
+            ->name('posts.update');
+        Route::delete('/posts/{post}', [SocialPostController::class, 'destroy'])->name('posts.destroy');
+
+        Route::middleware('throttle:social-likes')->group(function (): void {
+            Route::put('/posts/{post}/like', [SocialPostLikeController::class, 'store'])->name('posts.like.store');
+            Route::delete('/posts/{post}/like', [SocialPostLikeController::class, 'destroy'])->name('posts.like.destroy');
+        });
+
+        Route::get('/posts/{post}/comments', [SocialCommentController::class, 'index'])->name('posts.comments.index');
+        Route::post('/posts/{post}/comments', [SocialCommentController::class, 'store'])
+            ->middleware('throttle:social-comments')
+            ->name('posts.comments.store');
+        Route::patch('/comments/{comment}', [SocialCommentController::class, 'update'])
+            ->middleware('throttle:social-comments')
+            ->name('comments.update');
+        Route::delete('/comments/{comment}', [SocialCommentController::class, 'destroy'])->name('comments.destroy');
     });
 
     // ศูนย์ประกาศของหัวหน้าแผนก — role:user กัน admin/viewer ชั้นแรก
