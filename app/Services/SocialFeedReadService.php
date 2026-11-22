@@ -13,7 +13,7 @@ use App\Models\User;
  * ไม่ใช่ของตัวเอง และสร้างหลังจากครั้งล่าสุดที่ผู้ใช้เปิดหน้าชุมชน
  * โพสต์เฉพาะแผนกอื่นจึงไม่ถูกนับ และตัวเลขบนเมนูไม่บอกใบ้ว่ามีโพสต์ที่ผู้ใช้ไม่มีสิทธิ์เห็น
  *
- * ผู้ใช้ที่ยังไม่เคยเปิดฟีด (ไม่มีแถว) ได้ 0 — ไม่นับโพสต์ย้อนหลังทั้งหมดเป็นของใหม่
+ * ผู้ใช้ที่ยังไม่เคยเปิดฟีด (ไม่มีแถว) นับเฉพาะโพสต์ย้อนหลังไม่เกิน social.unread_lookback_days วัน
  * ตัวเลขนับสูงสุด DISPLAY_CAP รายการ เมนูแสดง 99+ เมื่อเกิน จึงไม่ต้องนับทั้งตาราง
  */
 class SocialFeedReadService
@@ -22,11 +22,15 @@ class SocialFeedReadService
 
     public function newPostCount(User $user): int
     {
-        $seenAt = SocialFeedRead::query()->whereKey($user->id)->value('seen_at');
-
-        if ($seenAt === null) {
-            return 0;
-        }
+        /*
+         * ยังไม่เคยเปิดฟีด (ไม่มีแถว) → นับย้อนหลังไม่เกิน unread_lookback_days วัน
+         *
+         * เดิมคืน 0 ทันที ซึ่งทำให้ป้ายไม่ขึ้นเลยบน production: หลัง deploy ไม่มีผู้ใช้คนใดมีแถวนี้
+         * บัญชีที่ยังไม่เคยเข้าหน้าชุมชนจึงไม่เคยเห็นโพสต์ใหม่ของคนอื่น ช่วงย้อนหลังที่จำกัดไว้ยังกัน
+         * ไม่ให้ประวัติทั้งหมดถูกนับเป็นของใหม่ (และตัวเลขถูกตัดที่ DISPLAY_CAP อยู่แล้ว)
+         */
+        $seenAt = SocialFeedRead::query()->whereKey($user->id)->value('seen_at')
+            ?? now()->subDays(max(1, (int) config('social.unread_lookback_days', 7)));
 
         return SocialPost::query()
             ->visibleTo($user)

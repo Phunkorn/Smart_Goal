@@ -21,6 +21,9 @@ return [
     'post_max_length' => 5000,
     'comment_max_length' => 2000,
 
+    // ผู้ที่ยังไม่เคยเปิดหน้าชุมชน: ป้าย "โพสต์ใหม่" นับโพสต์ย้อนหลังไม่เกินกี่วัน (ไม่ท่วมด้วยประวัติทั้งหมด)
+    'unread_lookback_days' => 7,
+
     'feed_page_size' => 10,
     'comment_page_size' => 10,
 

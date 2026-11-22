@@ -63,12 +63,52 @@ class SocialNewPostBadgeTest extends SocialFeatureCase
         $this->assertStringNotContainsString('top-nav__badge', $this->socialLinks($admin)['desktop']);
     }
 
-    public function test_a_user_who_never_opened_the_feed_is_not_flooded_with_history(): void
+    /**
+     * บั๊กจริงบน production (commit dd7daf9): หลัง deploy ไม่มีใครมีแถวใน social_feed_reads
+     * เดิมผู้ที่ยังไม่เคยเปิดฟีดได้ 0 เสมอ ป้ายจึงไม่ถูกวาดเลยแม้มีโพสต์ใหม่
+     * ตอนนี้นับโพสต์ย้อนหลังไม่เกิน social.unread_lookback_days วัน — ไม่ท่วมด้วยประวัติทั้งหมด
+     */
+    public function test_a_user_who_never_opened_the_feed_counts_recent_posts_but_not_old_history(): void
     {
+        config(['social.unread_lookback_days' => 7]);
         $me = $this->member('user', 'IT');
-        $this->createPost($this->member('user', 'HR'));
+        $this->createPost($this->member('user', 'HR'), 'เมื่อวาน', ['created_at' => now()->subDay()]);
+        $this->createPost($this->member('user', 'HR'), 'เดือนก่อน', ['created_at' => now()->subDays(30)]);
 
-        $this->assertSame(0, $this->newPosts($me));
+        $this->assertSame(1, $this->newPosts($me));
+    }
+
+    /**
+     * ขั้นตอนทดสอบจริงของเจ้าของระบบ ผ่าน HTTP ทั้งหมด (ไม่เขียนตาราง social_feed_reads เอง):
+     * A โพสต์ → B เห็นป้าย → B เข้าชุมชน ป้ายหาย → A โพสต์อีก → B เห็นป้ายใหม่ · และโพสต์เฉพาะแผนกอื่นไม่ถูกนับ
+     */
+    public function test_the_owner_scenario_end_to_end_with_cross_department_visibility(): void
+    {
+        $a = $this->member('user', 'IT');
+        $b = $this->member('user', 'IT');
+        $hr = $this->member('user', 'HR');
+        $badge = fn (User $user): ?string => preg_match('/top-nav__badge--icon"[^>]*>([^<]+)<\/span>/', $this->socialLinks($user)['desktop'], $m) ? $m[1] : null;
+        $post = fn (User $author, array $data) => $this->actingAs($author)->withHeaders($this->ajax())->post(route('social.posts.store'), $data)->assertCreated();
+
+        $post($a, ['body' => 'โพสต์แรกของ A']);
+        $this->flushHeaders();
+        $this->assertSame('1', $badge($b), 'B ยังไม่เคยเปิดฟีด แต่ต้องเห็นโพสต์ใหม่ของ A');
+        $this->assertNull($badge($a), 'ไม่นับโพสต์ของตัวเอง');
+
+        // โพสต์เฉพาะแผนก HR — B (IT) ต้องไม่ถูกนับ
+        $post($hr, ['body' => 'เฉพาะ HR', 'visibility' => 'department']);
+        $this->flushHeaders();
+        $this->assertSame('1', $badge($b));
+
+        $this->actingAs($b)->get(route('social.index'))->assertOk();
+        $this->assertNull($badge($b), 'เปิดชุมชนแล้วป้ายหาย');
+
+        $this->travel(1)->minutes();
+        $post($a, ['body' => 'โพสต์ที่สองของ A']);
+        $post($a, ['body' => 'เฉพาะ IT', 'visibility' => 'department']);
+        $this->flushHeaders();
+        $this->assertSame('2', $badge($b), 'โพสต์ใหม่หลังเปิดฟีดนับอีกครั้ง รวมโพสต์เฉพาะแผนกของตัวเอง');
+        $this->assertSame('2', preg_match('/top-nav__badge--icon"[^>]*>([^<]+)<\/span>/', $this->socialLinks($b)['mobile'], $m) ? $m[1] : null, 'แถบข้างมือถือเห็นตัวเลขเดียวกัน');
     }
 
     public function test_opening_the_feed_clears_the_count_and_later_posts_count_again(): void
