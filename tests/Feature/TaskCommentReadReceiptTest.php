@@ -16,6 +16,78 @@ class TaskCommentReadReceiptTest extends TestCase
 
     private ?Department $sharedDepartment = null;
 
+    public function test_history_reconciles_for_readers_without_notifications_and_survives_reload(): void
+    {
+        $owner = $this->user();
+        $member = $this->user();
+        $admin = $this->user('admin');
+        $project = $this->project($owner);
+        $direct = $this->task($owner, $owner, $project);
+        $sibling = $this->task($owner, $owner, $project);
+        $direct->collaborators()->attach($member->id, ['added_by' => $owner->id, 'status' => 'accepted']);
+        $parentComment = $this->actingAs($owner)->postJson(route('tasks.comments.store', $sibling), ['message' => 'Parent history'])
+            ->assertCreated()->json('comment');
+        $child = $this->task($owner, $owner, $project);
+        $child->update(['parent_job_id' => $sibling->job_id]);
+        $childComment = $this->actingAs($owner)->postJson(route('tasks.comments.store', $child), ['message' => 'Child history'])
+            ->assertCreated()->json('comment');
+        $this->assertDatabaseMissing('system_notifications', ['user_id' => $member->id, 'work_order_id' => $sibling->job_id]);
+        foreach ([$member, $admin] as $reader) {
+            $this->actingAs($reader)->getJson(route('tasks.comments.index', $sibling))->assertOk()
+                ->assertJsonCount(1, 'comments')->assertJsonPath('comments.0.id', $parentComment['id'])
+                ->assertHeader('Cache-Control', 'no-store, private');
+        }
+        $this->actingAs($owner)->getJson(route('tasks.comments.index', $child))->assertOk()
+            ->assertJsonCount(1, 'comments')->assertJsonPath('comments.0.id', $childComment['id']);
+        $this->actingAs($member)->getJson(route('tasks.comments.index', $sibling))->assertOk()
+            ->assertJsonCount(1, 'comments')->assertJsonPath('comments.0.id', $parentComment['id']);
+        foreach ([$this->user(), $this->user('viewer')] as $denied) {
+            $this->actingAs($denied)->getJson(route('tasks.comments.index', $sibling))->assertForbidden();
+        }
+    }
+
+    public function test_read_boundary_is_required_task_scoped_monotonic_and_preserves_new_notifications(): void
+    {
+        $owner = $this->user();
+        $reader = $this->user();
+        $task = $this->task($reader, $owner);
+        $other = $this->task($owner, $owner);
+        $first = $this->actingAs($owner)->postJson(route('tasks.comments.store', $task), ['message' => 'First'])->json('comment.id');
+        $second = $this->actingAs($owner)->postJson(route('tasks.comments.store', $task), ['message' => 'Second'])->json('comment.id');
+        $foreign = $this->actingAs($owner)->postJson(route('tasks.comments.store', $other), ['message' => 'Other'])->json('comment.id');
+        $url = route('tasks.comments.read', $task);
+        $this->actingAs($reader)->postJson($url)->assertUnprocessable();
+        $this->postJson($url, ['latest_comment_id' => $foreign])->assertUnprocessable();
+        $this->postJson($url, ['latest_comment_id' => 999999])->assertUnprocessable();
+        $this->postJson($url, ['latest_comment_id' => 0])->assertOk()->assertJsonPath('unread_comments', 2);
+        $this->postJson($url, ['latest_comment_id' => $first])->assertOk()
+            ->assertJsonPath('latest_comment_id', $first)->assertJsonPath('unread_comments', 1);
+        $this->assertDatabaseHas('system_notifications', ['user_id' => $reader->id, 'work_order_id' => $task->job_id, 'read_at' => null]);
+        $this->postJson($url, ['latest_comment_id' => $second])->assertOk()->assertJsonPath('unread_comments', 0);
+        $this->postJson($url, ['latest_comment_id' => $first])->assertOk()->assertJsonPath('latest_comment_id', $second);
+    }
+
+    public function test_history_uses_presenter_for_images_reply_mentions_pin_and_receipts(): void
+    {
+        $owner = $this->user();
+        $reader = $this->user();
+        $task = $this->task($reader, $owner);
+        $first = $this->actingAs($owner)->postJson(route('tasks.comments.store', $task), ['message' => 'Image source'])->json('comment.id');
+        $comment = \App\Models\WorkOrderUpdate::findOrFail($first);
+        $comment->attachments()->create(['file_path' => 'comment-attachments/'.$task->job_id.'/test.png', 'original_name' => 'test.png', 'file_type' => 'png', 'uploaded_by' => $owner->id]);
+        $reply = $this->postJson(route('tasks.comments.store', $task), ['message' => '@'.$reader->name, 'reply_to_id' => $first, 'mentions' => [$reader->id]])
+            ->assertCreated()->json('comment.id');
+        $this->postJson(route('tasks.comments.pin', [$task, $reply]))->assertOk();
+        $this->actingAs($reader)->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => $reply])->assertOk();
+        $history = $this->actingAs($owner)->getJson(route('tasks.comments.index', $task))->assertOk()->json('comments');
+        $this->assertSame($reply, $history[0]['id']);
+        $this->assertTrue($history[0]['pinned']);
+        $this->assertSame($reader->id, $history[0]['mentions'][0]['id']);
+        $this->assertSame($reader->id, $history[0]['readers'][0]['id']);
+        $this->assertCount(1, $history[0]['reply_to']['images']);
+        $this->assertCount(1, $history[1]['images']);
+    }
+
     public function test_admin_and_user_share_comments_read_receipts_and_bangkok_time(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-01 06:26:00', 'UTC'));
@@ -35,7 +107,7 @@ class TaskCommentReadReceiptTest extends TestCase
         $this->assertStringEndsWith('13:26', $adminComment['at']);
 
         $memberRead = $this->actingAs($member)
-            ->postJson(route('tasks.comments.read', $task))
+            ->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])
             ->assertOk()
             ->json('receipts');
 
@@ -47,7 +119,7 @@ class TaskCommentReadReceiptTest extends TestCase
             ->json('comment');
 
         $adminRead = $this->actingAs($admin)
-            ->postJson(route('tasks.comments.read', $task))
+            ->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])
             ->assertOk()
             ->json('receipts');
 
@@ -79,16 +151,16 @@ class TaskCommentReadReceiptTest extends TestCase
             ->assertCreated();
 
         $this->actingAs($member)
-            ->postJson(route('tasks.comments.read', $siblingTask))
+            ->postJson(route('tasks.comments.read', $siblingTask), ['latest_comment_id' => (int) $siblingTask->updates()->where('is_comment', true)->max('id')])
             ->assertOk();
         $this->actingAs($member)
             ->postJson(route('tasks.comments.store', $siblingTask), ['message' => 'Not a direct participant'])
             ->assertForbidden();
         $this->actingAs($outsider)
-            ->postJson(route('tasks.comments.read', $siblingTask))
+            ->postJson(route('tasks.comments.read', $siblingTask), ['latest_comment_id' => (int) $siblingTask->updates()->where('is_comment', true)->max('id')])
             ->assertForbidden();
         $this->actingAs($viewer)
-            ->postJson(route('tasks.comments.read', $siblingTask))
+            ->postJson(route('tasks.comments.read', $siblingTask), ['latest_comment_id' => (int) $siblingTask->updates()->where('is_comment', true)->max('id')])
             ->assertForbidden();
     }
 
@@ -103,7 +175,7 @@ class TaskCommentReadReceiptTest extends TestCase
             ->assertCreated()
             ->json('comment');
 
-        $this->actingAs($admin)->postJson(route('tasks.comments.read', $task))->assertOk();
+        $this->actingAs($admin)->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])->assertOk();
 
         $this->actingAs($member)
             ->getJson(route('realtime.sync', ['after' => 0, 'task_id' => $task->job_id]))

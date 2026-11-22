@@ -161,6 +161,7 @@
         'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
         'comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
         'read_comments_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.read', $task) : null,
+        'comments_history_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.index', $task) : null,
         // __COMMENT__ ถูกแทนที่ด้วย id จริงฝั่ง client เหมือนรูปแบบ remove_url ของทีมด้านบน
         'pin_comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.pin', [$task, '__COMMENT__']) : null,
         'unpin_comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.unpin', [$task, '__COMMENT__']) : null,

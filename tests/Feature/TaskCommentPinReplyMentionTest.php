@@ -230,7 +230,7 @@ class TaskCommentPinReplyMentionTest extends TestCase
         $notice = SystemNotification::where('user_id', $collaborator->id)->where('type', 'task_comment_mention')->firstOrFail();
         $this->assertNull($notice->read_at);
 
-        $this->actingAs($collaborator)->postJson(route('tasks.comments.read', $task))->assertOk();
+        $this->actingAs($collaborator)->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])->assertOk();
 
         $this->assertNotNull($notice->fresh()->read_at, 'อ่านคอมเมนต์ในงานแล้ว ฉบับกล่าวถึงต้องถูกอ่านไปด้วย ไม่ใช่ค้างแจ้งเตือนตลอดไป');
     }

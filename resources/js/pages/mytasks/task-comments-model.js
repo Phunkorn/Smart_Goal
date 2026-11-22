@@ -49,7 +49,11 @@ export function withoutTaskDeepLink(href) {
 
 export function prependComment(timeline, taskId, comment) {
     timeline[String(taskId)] ||= {updates: [], activity: []};
-    timeline[String(taskId)].updates.unshift(comment);
+    const updates = timeline[String(taskId)].updates;
+    const index = updates.findIndex((item) => String(item.id) === String(comment.id));
+    if (index < 0) updates.push(comment);
+    else updates[index] = {...updates[index], ...comment};
+    updates.sort((a, b) => Number(b.id) - Number(a.id));
     return timeline[String(taskId)].updates;
 }
 

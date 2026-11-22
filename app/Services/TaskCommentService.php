@@ -60,11 +60,6 @@ class TaskCommentService
                 $comment->mentions()->sync($eligibleMentionIds);
             }
 
-            WorkOrderCommentRead::updateOrCreate(
-                ['work_order_id' => $task->job_id, 'user_id' => $author->id],
-                ['last_read_update_id' => $comment->id]
-            );
-
             $audienceIds = $this->audienceIds($task)->reject(fn ($id) => $id === (int) $author->id);
             $generalRecipientIds = $audienceIds->diff($eligibleMentionIds);
 
@@ -162,14 +157,17 @@ class TaskCommentService
             ->values();
     }
 
-    public function markRead(WorkOrder $task, User $user): int
+    public function markRead(WorkOrder $task, User $user, int $throughId): int
     {
-        return DB::transaction(function () use ($task, $user) {
-            $latestId = (int) $task->updates()->where('is_comment', true)->max('id');
-            WorkOrderCommentRead::updateOrCreate(
+        return DB::transaction(function () use ($task, $user, $throughId) {
+            WorkOrderCommentRead::firstOrCreate(
                 ['work_order_id' => $task->job_id, 'user_id' => $user->id],
-                ['last_read_update_id' => $latestId ?: null]
+                ['last_read_update_id' => null]
             );
+            $read = WorkOrderCommentRead::where('work_order_id', $task->job_id)
+                ->where('user_id', $user->id)->lockForUpdate()->firstOrFail();
+            $latestId = max((int) $read->last_read_update_id, $throughId);
+            $read->update(['last_read_update_id' => $latestId ?: null]);
 
             if ($latestId) {
                 // ต้องรวม task_comment_mention ด้วย ไม่ใช่แค่ task_comment ธรรมดา ไม่งั้นคนที่ถูก
@@ -193,6 +191,7 @@ class TaskCommentService
 
         return WorkOrderUpdate::query()->selectRaw('work_order_id, COUNT(*) AS aggregate')
             ->whereIn('work_order_id', $taskIds)->where('is_comment', true)
+            ->where(fn ($query) => $query->where('user_id', '!=', $user->id)->orWhereNull('user_id'))
             ->whereNotExists(function ($query) use ($user) {
                 $query->selectRaw('1')->from('work_order_comment_reads')
                     ->whereColumn('work_order_comment_reads.work_order_id', 'work_order_updates.work_order_id')

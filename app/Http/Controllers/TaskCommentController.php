@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCommentRead;
 use App\Models\WorkOrderUpdate;
 use App\Services\NotificationService;
 use App\Services\TaskCommentService;
@@ -28,6 +29,27 @@ use Throwable;
 class TaskCommentController extends Controller
 {
     use ValidatesAttachments;
+
+    public function index(Request $request, WorkOrder $task, TaskCommentPresenter $presenter): JsonResponse
+    {
+        $this->authorize('viewComments', $task);
+        $task->load(['updates' => fn ($query) => $query->where('is_comment', true)->reorder('id', 'desc'),
+            'updates.user', 'updates.attachments', 'updates.replyTo.user',
+            'updates.replyTo.attachments', 'updates.mentions']);
+        $receipts = $presenter->receipts($task);
+        $readThrough = (int) WorkOrderCommentRead::where('work_order_id', $task->job_id)
+            ->where('user_id', $request->user()->id)->value('last_read_update_id');
+
+        return response()->json([
+            'task_id' => $task->job_id,
+            'comments' => $task->updates->map(fn ($comment) => $presenter->comment(
+                $comment, $request->user(), $receipts[(string) $comment->id] ?? []
+            ))->values(),
+            'read_through_id' => $readThrough,
+            'unread_comments' => $task->updates->where('id', '>', $readThrough)
+                ->where('user_id', '!=', $request->user()->id)->count(),
+        ])->header('Cache-Control', 'no-store, private');
+    }
 
     /** รูปต่อหนึ่งความคิดเห็น มากกว่านี้ฟองแชทจะอ่านไม่รู้เรื่อง */
     private const MAX_IMAGES = 4;
@@ -132,11 +154,18 @@ class TaskCommentController extends Controller
     {
         $task->loadMissing(['collaborators', 'updates.user', 'updates.attachments']);
         $this->authorize('viewComments', $task);
-        $latestId = $comments->markRead($task, $request->user());
+        $validated = $request->validate(['latest_comment_id' => ['required', 'integer', 'min:0']]);
+        $throughId = (int) $validated['latest_comment_id'];
+        if ($throughId && ! $task->updates()->where('is_comment', true)->whereKey($throughId)->exists()) {
+            throw ValidationException::withMessages(['latest_comment_id' => 'ความคิดเห็นไม่อยู่ในงานนี้']);
+        }
+        $latestId = $comments->markRead($task, $request->user(), $throughId);
 
         return response()->json([
             'ok' => true,
             'latest_comment_id' => $latestId,
+            'task_id' => $task->job_id,
+            'unread_comments' => (int) $comments->unreadCounts(collect([$task->job_id]), $request->user())->get($task->job_id, 0),
             'unread_count' => $notifications->unreadCount($request->user()),
             'receipts' => $presenter->receipts($task),
         ]);

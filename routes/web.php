@@ -716,6 +716,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::delete('/tasks/{id}/collaborators/{user}', [TaskCollaboratorController::class, 'removeCollaborator'])
         ->name('tasks.collaborators.destroy');
 
+    Route::get('/tasks/{task}/comments', [TaskCommentController::class, 'index'])->name('tasks.comments.index');
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
     Route::post('/tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->name('tasks.comments.read');
     Route::post('/tasks/{task}/comments/{comment}/pin', [TaskCommentController::class, 'pin'])->name('tasks.comments.pin');

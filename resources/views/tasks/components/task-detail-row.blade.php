@@ -140,7 +140,11 @@
 
     <button type="button" class="board-attachments {{ $detailFiles ? 'has-files' : '' }}" data-board-open-attachments="{{ $detail->job_id }}" title="{{ $detailFiles ? 'ดูไฟล์แนบ '.$detailFiles.' ไฟล์' : 'แนบไฟล์ให้งานย่อยนี้' }}"><i class="bi bi-paperclip"></i><strong>{{ $detailFiles ?: '-' }}</strong></button>
 
+    @if(auth()->user()->can('viewComments', $detail))
     <button type="button" class="board-comments{{ $detailComments ? ' has-comments' : '' }}" data-open-task-modal data-task-id="{{ $detail->job_id }}" data-task-tab="updates" data-unread-comments="{{ $detail->job_id }}" data-unread-persistent data-comment-label="{{ $detailCommentLabel }}" title="{{ $detailCommentLabel }}" aria-label="{{ $detailCommentLabel }} ของงานย่อย {{ $detail->job_topic }}"><i class="bi bi-chat-left-text" aria-hidden="true"></i><strong>{{ $detailComments ?: '-' }}</strong></button>
+    @else
+    <span class="board-comments" role="img" aria-label="ไม่มีสิทธิ์อ่านความคิดเห็น" title="ไม่มีสิทธิ์อ่านความคิดเห็น"><i class="bi bi-lock" aria-hidden="true"></i><strong>—</strong></span>
+    @endif
 
     @if($canManageTaskDetails || auth()->user()->can('share', $detail))
         <details class="task-more-menu board-reference-menu board-task-detail__menu">

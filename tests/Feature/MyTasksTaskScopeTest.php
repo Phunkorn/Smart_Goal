@@ -140,7 +140,7 @@ class MyTasksTaskScopeTest extends TestCase
         $this->assertStringContainsString($boardUnread, $response->getContent());
         $this->assertStringContainsString($kanbanUnread, $response->getContent());
 
-        $this->actingAs($actor)->postJson(route('tasks.comments.read', $task))->assertOk();
+        $this->actingAs($actor)->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])->assertOk();
         $content = $this->actingAs($actor)
             ->get(route('mytasks.index', ['task_scope' => 'assigned_by_me']))
             ->assertOk()

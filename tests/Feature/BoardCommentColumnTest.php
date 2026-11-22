@@ -97,7 +97,7 @@ class BoardCommentColumnTest extends TestCase
         $this->comment($task, $author, 'คอมเมนต์ที่หนึ่ง');
         $this->comment($task, $author, 'คอมเมนต์ที่สอง');
         // อ่านครบแล้ว จำนวนรวมต้องยังเป็น 2 และหายไปเฉพาะสถานะ unread
-        app(TaskCommentService::class)->markRead($task->fresh(), $member);
+        app(TaskCommentService::class)->markRead($task->fresh(), $member, (int) $task->updates()->where('is_comment', true)->max('id'));
 
         $cell = $this->commentCell($this->actingAs($member)->get(route('mytasks.index'))->assertOk()->getContent());
 

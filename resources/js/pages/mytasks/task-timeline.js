@@ -1,5 +1,5 @@
 import {taskStateStore} from './task-state-store.js';
-import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldRevealComments, shouldSubmitOnEnter, splitMentionSegments, unreadCountAfterRead, withoutTaskDeepLink} from './task-comments-model.js';
+import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCandidates, insertMention, mentionQueryAt, mentionsEveryone, prependComment, shouldMarkCommentsRead, shouldRevealComments, shouldSubmitOnEnter, splitMentionSegments, withoutTaskDeepLink} from './task-comments-model.js';
 import {modalStack} from '../../components/modal-stack.js';
 import {shouldSendUpdate} from './task-workspace-model.js';
 
@@ -27,8 +27,51 @@ import {shouldSendUpdate} from './task-workspace-model.js';
      * ในกล่องพิมพ์ของงานที่เพิ่งเปิด เหมือนเป็นฉบับร่างของงานใหม่ทั้งที่ยังไม่ได้พิมพ์เลย
      */
     const drafts = {};
+    let composeVersion = 0;
+    const sending = new Set();
+    const historyRequests = {};
+    const revisions = {};
+    const readThrough = {};
+    const pinRequests = {};
+    const totals = {};
+    document.querySelectorAll('[data-unread-persistent]').forEach((badge) => {
+        totals[badge.dataset.unreadComments] = Number(badge.querySelector('strong')?.textContent) || 0;
+    });
+    const isViewing = (id) => String(taskId) === String(id) && tab === 'updates' && !modal.hidden;
+    const touch = (id) => { revisions[id] = (revisions[id] || 0) + 1; };
+    const commentsFor = (id) => (timeline[String(id)]?.updates || []).filter((item) => item.is_comment !== false);
+    const syncBadges = (id) => {
+        const count = totals[id] ?? commentsFor(id).length;
+        const unread = Number(management[id]?.unread_comments || 0);
+        document.querySelectorAll(`[data-unread-comments="${CSS.escape(String(id))}"]`).forEach((badge) => {
+            if (!badge.hasAttribute('data-unread-persistent')) {
+                if (!unread) badge.remove();
+                else if (badge.querySelector('b')) badge.querySelector('b').textContent = String(unread);
+                return;
+            }
+            const label = count ? `ดูคอมเมนต์ ${count} รายการ` : 'ยังไม่มีคอมเมนต์';
+            if (badge.querySelector('strong')) badge.querySelector('strong').textContent = count ? String(count) : '-';
+            badge.classList.toggle('has-comments', count > 0);
+            badge.classList.toggle('has-unread', unread > 0);
+            badge.dataset.commentLabel = label;
+            badge.title = label;
+            badge.setAttribute('aria-label', label + (unread ? ' และมีคอมเมนต์ใหม่ที่ยังไม่ได้อ่าน' : ''));
+        });
+    };
+    const acceptComment = (id, comment, {unread = false} = {}) => {
+        const exists = commentsFor(id).some((item) => String(item.id) === String(comment.id));
+        // Duplicate delivery must not replace richer history/receipts with an older event.
+        if (exists) return false;
+        totals[id] = (totals[id] ?? commentsFor(id).length) + 1;
+        prependComment(timeline, id, comment);
+        touch(id);
+        if (unread && management[id]) management[id].unread_comments = Number(management[id].unread_comments || 0) + 1;
+        syncBadges(id);
+        return true;
+    };
 
     const switchComposeDraft = (nextTaskId) => {
+        composeVersion += 1;
         const input = panel.querySelector('[data-task-update-note]');
         if (input && taskId) drafts[taskId] = input.value;
 
@@ -133,7 +176,8 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     const compose = panel.querySelector('.task-timeline__compose');
     const lockedNotice = panel.querySelector('[data-comment-locked]');
 
-    const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม' : 'ยังไม่มีรายการอัปเดต';
+    const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม'
+        : management[String(taskId)]?.can_view_comments === false ? 'ไม่มีสิทธิ์อ่านความคิดเห็น' : 'ยังไม่มีรายการอัปเดต';
 
     const isNearBottom = (items) => items.scrollHeight - items.scrollTop - items.clientHeight <= 48;
 
@@ -174,6 +218,8 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         }
         const taskManagement = management[String(taskId)];
         const canCompose = canComposeComment(taskManagement);
+        const sendButton = panel.querySelector('[data-submit-task-update]');
+        if (sendButton) sendButton.disabled = sending.has(String(taskId));
         if (compose) compose.hidden = tab !== 'updates' || !canCompose;
         if (lockedNotice) {
             lockedNotice.hidden = tab !== 'updates'
@@ -181,20 +227,6 @@ import {shouldSendUpdate} from './task-workspace-model.js';
                 || taskManagement?.transitions?.is_final !== true;
         }
         if (tab === 'updates') renderPinnedBanner();
-    };
-
-    const clearBadges = () => {
-        document.querySelectorAll(`[data-unread-comments="${CSS.escape(String(taskId))}"]`).forEach((badge) => {
-            // คอลัมน์คอมเมนต์บนบอร์ดเป็นช่องหนึ่งของกริด ถ้าลบทิ้งคอลัมน์ที่เหลือจะเลื่อนไปทั้งแถว
-            // จึงล้างเฉพาะสถานะ unread และคงจำนวนคอมเมนต์รวมไว้เท่าเดิม
-            if (badge.hasAttribute('data-unread-persistent')) {
-                badge.classList.remove('has-unread');
-                if (badge.dataset.commentLabel) badge.setAttribute('aria-label', badge.dataset.commentLabel);
-                return;
-            }
-            badge.remove();
-        });
-        if (management[String(taskId)]) management[String(taskId)].unread_comments = unreadCountAfterRead();
     };
 
     const updateNotificationCount = (count) => {
@@ -210,22 +242,60 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         });
     };
 
-    const markRead = async () => {
-        const url = management[String(taskId)]?.read_comments_url;
+    const markRead = async (id = String(taskId)) => {
+        if (!isViewing(id)) return;
+        const url = management[id]?.read_comments_url;
+        const throughId = Math.max(0, ...commentsFor(id).map((item) => Number(item.id) || 0));
         if (!url) return;
         try {
             const response = await fetch(url, {
                 method: 'POST',
-                headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+                headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+                body: JSON.stringify({latest_comment_id: throughId}),
             });
-            if (response.ok) {
-                clearBadges();
-                const payload = await response.json();
-                updateNotificationCount(payload.unread_count);
-                mergeReceipts(taskId, payload.receipts);
+            if (!response.ok) return;
+            const payload = await response.json();
+            if (payload.task_id != null && String(payload.task_id) !== id) return;
+            if (throughId < (readThrough[id] || 0)) return;
+            readThrough[id] = Math.max(throughId, Number(payload.latest_comment_id || 0));
+            touch(id);
+            // Preserve unread messages delivered while this request was in flight.
+            const newer = commentsFor(id).filter((item) => Number(item.id) > readThrough[id] && !item.is_mine).length;
+            if (management[id]) management[id].unread_comments = Math.max(newer, Number(payload.unread_comments || 0));
+            syncBadges(id);
+            if (isViewing(id)) updateNotificationCount(payload.unread_count);
+            mergeReceipts(id, payload.receipts);
+        } catch (_) {
+            // Keep history and unread state; retry on the next explicit read.
+        }
+    };
+
+    const reconcileHistory = async (id, shouldRead = false, scroll = 'preserve') => {
+        const url = management[id]?.comments_history_url;
+        if (!url) { if (shouldRead) markRead(id); return; }
+        const request = historyRequests[id] = (historyRequests[id] || 0) + 1;
+        const revision = revisions[id] || 0;
+        try {
+            const response = await fetch(url, {headers: {'Accept': 'application/json'}, cache: 'no-store'});
+            if (!response.ok) return;
+            const payload = await response.json();
+            if (historyRequests[id] !== request || String(payload.task_id) !== id || !Array.isArray(payload.comments)) return;
+            // A send, realtime event or pin changed this task after the GET started.
+            if ((revisions[id] || 0) !== revision) {
+                if (isViewing(id)) reconcileHistory(id, shouldRead, scroll);
+                return;
+            }
+            payload.comments.forEach((comment) => prependComment(timeline, id, comment));
+            totals[id] = commentsFor(id).length;
+            readThrough[id] = Math.max(readThrough[id] || 0, Number(payload.read_through_id || 0));
+            if (management[id]) management[id].unread_comments = commentsFor(id).filter((item) => Number(item.id) > readThrough[id] && !item.is_mine).length;
+            syncBadges(id);
+            if (isViewing(id)) {
+                render({scroll});
+                if (shouldRead) markRead(id);
             }
         } catch (_) {
-            // Keep the comment visible; a later tab selection or incoming event retries the read receipt.
+            // A failed refresh must never erase the page-load history.
         }
     };
 
@@ -244,7 +314,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         document.body.dataset.realtimeTaskId = String(taskId);
         render({scroll: 'bottom'});
         document.dispatchEvent(new CustomEvent('smartgoal:realtime-refresh'));
-        if (shouldMarkCommentsRead(source, tab)) markRead();
+        reconcileHistory(String(taskId), shouldMarkCommentsRead(source, tab), 'bottom');
         if (shouldRevealComments(source)) revealTimeline();
     };
 
@@ -279,6 +349,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             item.readers = readers;
             return true;
         });
+        if (changed.length) touch(String(receiptTaskId));
         if (!changed.length || String(taskId) !== String(receiptTaskId) || tab !== 'updates' || modal.hidden) return;
 
         const items = panel.querySelector('[data-timeline-items]');
@@ -311,7 +382,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         if (!button || !taskId) return;
         tab = button.dataset.timelineTab;
         render({scroll: tab === 'updates' ? 'bottom' : 'preserve'});
-        if (shouldMarkCommentsRead('tab', tab)) markRead();
+        if (tab === 'updates') reconcileHistory(String(taskId), true, 'bottom');
     });
 
     const replyPreviewNode = () => panel.querySelector('[data-comment-reply-preview]');
@@ -368,8 +439,8 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     };
 
     /** อัปเดตสถานะปักหมุดใน state ฝั่ง client ให้ตรงกับสิ่งที่ server ยืนยันกลับมา (ปักได้ทีละ 1 ข้อความ) */
-    const applyPinResult = (comment) => {
-        (timeline[String(taskId)]?.updates || []).forEach((item) => {
+    const applyPinResult = (id, comment) => {
+        (timeline[String(id)]?.updates || []).forEach((item) => {
             if (item.is_comment !== true) return;
             item.pinned = comment.pinned === true && String(item.id) === String(comment.id);
             if (String(item.id) === String(comment.id)) item.pinned_at = comment.pinned_at;
@@ -377,9 +448,13 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     };
 
     const togglePin = async (commentId, pin) => {
-        const template = pin ? management[String(taskId)]?.pin_comment_url : management[String(taskId)]?.unpin_comment_url;
+        const id = String(taskId);
+        if (pinRequests[id]) return;
+        const template = pin ? management[id]?.pin_comment_url : management[id]?.unpin_comment_url;
         const url = template?.replace('__COMMENT__', commentId);
         if (!url) return;
+        pinRequests[id] = true;
+        touch(id);
 
         try {
             const response = await fetch(url, {
@@ -388,10 +463,13 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             });
             if (!response.ok) throw new Error();
             const payload = await response.json();
-            applyPinResult(payload.comment);
-            render();
+            touch(id);
+            applyPinResult(id, payload.comment);
+            if (isViewing(id)) render();
         } catch (_) {
             window.Swal?.fire({icon: 'error', title: pin ? 'ปักหมุดไม่สำเร็จ' : 'เลิกปักหมุดไม่สำเร็จ'});
+        } finally {
+            pinRequests[id] = false;
         }
     };
 
@@ -418,7 +496,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
 
     /**
      * ปุ่มส่งและปุ่ม Enter ใช้เส้นทางเดียวกันทั้งหมด รวมถึงการกันกดซ้ำ
-     * ต้องอ่าน button ใหม่ทุกครั้ง เพราะ button.disabled คือ state ที่ใช้กันการส่งซ้อน
+     * แยก pending ตาม Task เพื่อยังเปิดหรือส่งข้อความของงานอื่นได้ระหว่างรอ
      */
     /*
      * รูปที่เลือกไว้แต่ยังไม่ได้ส่ง
@@ -580,10 +658,13 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const button = panel.querySelector('[data-submit-task-update]');
         if (!input || !button) return;
 
+        const id = String(taskId);
+        const sentComposeVersion = composeVersion;
         const message = input.value.trim();
-        const url = management[String(taskId)]?.comment_url;
-        // pending มาจากปุ่มที่ถูก disable ระหว่างรอ ทำให้กดรัว ๆ ไม่เกิดข้อความซ้ำ
-        if (!shouldSendUpdate({taskId, url, message, pending: button.disabled, imageCount: pendingImages.length})) return;
+        const url = management[id]?.comment_url;
+        // Guard the source task even when the shared composer switches tasks.
+        if (!shouldSendUpdate({taskId, url, message, pending: sending.has(id), imageCount: pendingImages.length})) return;
+        sending.add(id);
         button.disabled = true;
         try {
             // ต้องเป็น FormData เมื่อมีไฟล์ และห้ามตั้ง Content-Type เอง
@@ -604,18 +685,29 @@ import {shouldSendUpdate} from './task-workspace-model.js';
             });
             if (!response.ok) throw new Error();
             const payload = await response.json();
-            prependComment(timeline, taskId, payload.comment);
-            input.value = '';
-            clearImages();
-            cancelReply();
-            closeMentionMenu();
-            tab = 'updates';
-            render({scroll: 'bottom'});
-            markRead();
+            acceptComment(id, payload.comment);
+            if (String(taskId) === id) {
+                // Do not erase a draft typed after leaving and returning to this task.
+                if (composeVersion === sentComposeVersion && input.value.trim() === message) {
+                    input.value = '';
+                    drafts[id] = '';
+                }
+                if (!modal.hidden) {
+                    if (composeVersion === sentComposeVersion) {
+                        clearImages();
+                        cancelReply();
+                        closeMentionMenu();
+                    }
+                    tab = 'updates';
+                    render({scroll: 'bottom'});
+                    reconcileHistory(id, true);
+                }
+            } else if ((drafts[id] || '').trim() === message) drafts[id] = '';
         } catch (_) {
             window.Swal?.fire({icon: 'error', title: 'ส่งความคิดเห็นไม่สำเร็จ', text: 'กรุณาลองใหม่อีกครั้ง'});
         } finally {
-            button.disabled = false;
+            sending.delete(id);
+            button.disabled = sending.has(String(taskId));
         }
     };
 
@@ -764,54 +856,10 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         if (incoming?.category !== 'comment' || ! incoming.task_id || ! incoming.comment) return;
 
         const incomingTaskId = String(incoming.task_id);
-        const updates = timeline[incomingTaskId]?.updates || [];
-        if (updates.some((item) => String(item.id) === String(incoming.comment.id))) return;
-        prependComment(timeline, incomingTaskId, incoming.comment);
-        const activelyViewing = taskId === incomingTaskId && tab === 'updates' && !modal.hidden;
+        const activelyViewing = isViewing(incomingTaskId);
         const items = panel.querySelector('[data-timeline-items]');
         const followIncoming = activelyViewing && isNearBottom(items);
-
-        if (management[incomingTaskId]) {
-            management[incomingTaskId].unread_comments = activelyViewing
-                ? 0
-                : Number(management[incomingTaskId].unread_comments || 0) + 1;
-        }
-
-        document.querySelectorAll(`[data-unread-comments="${CSS.escape(incomingTaskId)}"]`).forEach((badge) => {
-            if (activelyViewing && !badge.hasAttribute('data-unread-persistent')) {
-                badge.remove();
-                return;
-            }
-
-            if (activelyViewing) {
-                const total = badge.querySelector('strong');
-                const nextTotal = Number(total?.textContent === '-' ? 0 : total?.textContent || 0) + 1;
-                if (total) total.textContent = String(nextTotal);
-                badge.classList.add('has-comments');
-                badge.classList.remove('has-unread');
-                const label = `ดูคอมเมนต์ ${nextTotal} รายการ`;
-                badge.dataset.commentLabel = label;
-                badge.title = label;
-                badge.setAttribute('aria-label', label);
-                return;
-            }
-
-            badge.classList.add('has-unread');
-            if (! badge.hasAttribute('data-unread-persistent')) {
-                const count = badge.querySelector('b');
-                if (count) count.textContent = String(Number(count.textContent || 0) + 1);
-                return;
-            }
-
-            const total = badge.querySelector('strong');
-            const nextTotal = Number(total?.textContent === '-' ? 0 : total?.textContent || 0) + 1;
-            if (total) total.textContent = String(nextTotal);
-            badge.classList.add('has-comments');
-            const label = `ดูคอมเมนต์ ${nextTotal} รายการ`;
-            badge.dataset.commentLabel = label;
-            badge.title = label;
-            badge.setAttribute('aria-label', `${label} และมีคอมเมนต์ใหม่ที่ยังไม่ได้อ่าน`);
-        });
+        if (!acceptComment(incomingTaskId, incoming.comment, {unread: !incoming.comment.is_mine})) return;
 
         if (activelyViewing) {
             render({scroll: followIncoming ? 'bottom' : 'preserve'});

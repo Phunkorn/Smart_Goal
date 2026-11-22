@@ -141,14 +141,10 @@ class TaskCommentTest extends TestCase
         WorkOrderUpdate::create(['work_order_id' => $task->job_id, 'user_id' => $author->id, 'note' => 'legacy']);
 
         $this->actingAs($author)->postJson(route('tasks.comments.store', $task), ['message' => 'first'])->assertCreated();
-        $this->assertDatabaseCount('work_order_comment_reads', 1);
-        $this->assertDatabaseHas('work_order_comment_reads', [
-            'work_order_id' => $task->job_id,
-            'user_id' => $author->id,
-            'last_read_update_id' => WorkOrderUpdate::where('is_comment', true)->max('id'),
-        ]);
+        // Sending alone must not mark earlier, unseen messages as read.
+        $this->assertDatabaseCount('work_order_comment_reads', 0);
 
-        $this->actingAs($reader)->postJson(route('tasks.comments.read', $task))->assertOk();
+        $this->actingAs($reader)->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])->assertOk();
         $receipt = WorkOrderCommentRead::where(['work_order_id' => $task->job_id, 'user_id' => $reader->id])->firstOrFail();
         $this->assertSame(WorkOrderUpdate::where('is_comment', true)->max('id'), $receipt->last_read_update_id);
         $this->assertNotNull(SystemNotification::where('user_id', $reader->id)->firstOrFail()->read_at);
@@ -167,7 +163,7 @@ class TaskCommentTest extends TestCase
 
         $this->actingAs($owner)->postJson(route('tasks.comments.store', $task), ['message' => '   '])->assertUnprocessable();
         $this->actingAs($owner)->postJson(route('tasks.comments.store', $task), ['message' => str_repeat('x', 2001)])->assertUnprocessable();
-        $this->actingAs($stranger)->postJson(route('tasks.comments.read', $task))->assertForbidden();
+        $this->actingAs($stranger)->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])->assertForbidden();
     }
 
     public function test_user_and_admin_cards_render_the_same_viewer_specific_unread_badge(): void
@@ -191,7 +187,7 @@ class TaskCommentTest extends TestCase
         $this->actingAs($admin)->get(route('admin.work-board.member', [$department, $member]))
             ->assertOk()->assertSee($unread, false);
 
-        $this->actingAs($member)->postJson(route('tasks.comments.read', $task))->assertOk();
+        $this->actingAs($member)->postJson(route('tasks.comments.read', $task), ['latest_comment_id' => (int) $task->updates()->where('is_comment', true)->max('id')])->assertOk();
         // อ่านแล้วต้องหายเฉพาะสถานะ unread ส่วนช่องและจำนวนรวมยังต้องอยู่ครบ
         $this->actingAs($member)->get(route('mytasks.index'))
             ->assertOk()->assertDontSee($unread, false)->assertSee($read, false);

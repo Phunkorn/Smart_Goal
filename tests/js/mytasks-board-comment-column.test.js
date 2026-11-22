@@ -106,5 +106,5 @@ test('การล้างสถานะอ่านแล้วต้อง�
     const source = await read('resources/js/pages/mytasks/task-timeline.js');
 
     assert.match(source, /data-unread-persistent/);
-    assert.match(source, /classList\.remove\('has-unread'\)/);
+    assert.match(source, /classList\.toggle\('has-unread', unread > 0\)/);
 });

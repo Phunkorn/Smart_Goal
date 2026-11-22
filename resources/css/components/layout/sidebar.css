@@ -240,8 +240,42 @@
             transform: rotate(180deg);
         }
 
+        /*
+         * เส้นเชื่อมเมนูรายงาน -> รายการย่อย:
+         * แกนตั้งเริ่มใต้ไอคอนของเมนูหลักและหยุดที่กึ่งกลางรายการสุดท้าย
+         * กิ่งแนวนอนของแต่ละรายการวาดด้วย ::after ไม่ชน active indicator (::before)
+         * เส้นทั้งหมดอยู่ภายใน submenu เพื่อไม่ให้ถูก overflow: clip ตัด
+         */
         .sidebar-nav .report-nav__submenu {
-            margin-left: 1.6rem;
+            position: relative;
+            margin-left: 1.25rem;
+            padding-left: .9rem;
+        }
+
+        .sidebar-nav .report-nav__submenu::before {
+            content: "";
+            position: absolute;
+            left: .15rem;
+            top: 0;
+            bottom: calc(21px + .25rem);
+            width: 1px;
+            background: var(--border);
+            pointer-events: none;
+        }
+
+        .sidebar-nav .report-nav__link {
+            position: relative;
+        }
+
+        .sidebar-nav .report-nav__link::after {
+            content: "";
+            position: absolute;
+            left: -.75rem;
+            top: 50%;
+            width: .75rem;
+            height: 1px;
+            background: var(--border);
+            pointer-events: none;
         }
 
         @supports selector(::details-content) {
@@ -276,6 +310,15 @@
             }
         }
 
+<<<<<<< HEAD
+=======
+        .sidebar-nav .report-nav__link {
+            min-height: 42px;
+            padding-left: .65rem;
+            font-size: .82rem;
+        }
+
+>>>>>>> b5155054425a152d0dd33ac34ae27660d0435600
         .sidebar-nav .report-nav__link.active::before {
             display: none;
         }

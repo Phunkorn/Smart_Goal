@@ -4,8 +4,178 @@ import {canComposeComment, commentDeepLink, extractMentionIds, filterMentionCand
 import {click, pressKey} from './helpers/dom.js';
 import {mountTaskWorkspace} from './helpers/task-workspace-fixture.js';
 import {attachmentStore} from '../../resources/js/pages/mytasks/attachment-store.js';
+import {taskStateStore} from '../../resources/js/pages/mytasks/task-state-store.js';
 
 let timelineFixture = 0;
+
+// Full server history and controllable transport for cross-task async regressions.
+async function reconciliationUI(t, fetchImpl, initial = {}) {
+    const ui = await mountTaskWorkspace({taskId: 7, secondTaskId: 8}, {url: 'http://localhost/my-tasks?view=board'});
+    t.after(ui.cleanup);
+    const meta = ui.document.querySelector('[data-task-management-data]');
+    const data = JSON.parse(meta.textContent);
+    for (const id of ['7', '8']) {
+        data[id].comments_history_url = `/tasks/${id}/comments`;
+        const badge = ui.document.querySelector(`[data-unread-comments="${id}"]`);
+        badge.querySelector('strong').textContent = String(initial[id]?.updates?.length || 0);
+    }
+    meta.textContent = JSON.stringify(data);
+    Object.assign(taskStateStore(ui.document), data);
+    ui.document.querySelector('[data-timeline-data]').textContent = JSON.stringify(initial);
+    globalThis.fetch = fetchImpl;
+    await import(`../../resources/js/pages/mytasks/task-timeline.js?fixture=${++timelineFixture}`);
+    return ui;
+}
+
+const syntheticComment = (id, note, extra = {}) => ({id, note, author: 'Test', is_comment: true, readers: [], ...extra});
+const ok = (payload) => ({ok: true, json: async () => payload});
+const history = (id, comments) => ok({task_id: id, comments, read_through_id: 0});
+const content = (ui) => ui.document.querySelector('[data-timeline-items]').textContent;
+const countFor = (ui, id) => ui.document.querySelector(`[data-unread-comments="${id}"] strong`).textContent;
+
+test('send A then switch B preserves B draft, images and reply; A response stays in A', async (t) => {
+    let release;
+    const ui = await reconciliationUI(t, (url, options = {}) => {
+        if (options.method === 'POST' && String(url).endsWith('/comments')) return new Promise((resolve) => { release = resolve; });
+        if (options.method === 'POST') return Promise.resolve(ok({task_id: Number(String(url).split('/')[2]), unread_comments: 0}));
+        return Promise.resolve(history(Number(String(url).split('/')[2]), []));
+    });
+    click(ui.boardTitleFor(7));
+    await flush();
+    ui.compose().value = 'Sent A';
+    click(ui.sendUpdate());
+    click(ui.boardTitleFor(8));
+    await flush();
+    ui.compose().value = 'Draft B';
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        category: 'comment', task_id: 8, comment: syntheticComment(80, 'Reply B'),
+    }}));
+    click(ui.replyButton(80));
+    const file = new ui.window.File(['image'], 'b.png', {type: 'image/png'});
+    Object.defineProperty(ui.imageInput(), 'files', {configurable: true, value: [file]});
+    ui.imageInput().dispatchEvent(new ui.window.Event('change', {bubbles: true}));
+    release(ok({comment: syntheticComment(70, 'Sent A', {is_mine: true})}));
+    await flush();
+    assert.equal(ui.compose().value, 'Draft B');
+    assert.equal(ui.replyPreview().hidden, false);
+    assert.equal(ui.previews().hidden, false);
+    assert.doesNotMatch(content(ui), /Sent A/);
+    assert.equal(countFor(ui, 7), '1');
+    click(ui.boardTitleFor(7));
+    assert.match(content(ui), /Sent A/);
+});
+
+test('own response and duplicate realtime deliveries count and render once', async (t) => {
+    const comment = syntheticComment(70, 'Saved', {is_mine: true});
+    const ui = await reconciliationUI(t, async (url, options = {}) => {
+        if (options.method === 'POST' && String(url).endsWith('/comments')) return ok({comment});
+        if (options.method === 'POST') return ok({task_id: 7, unread_comments: 0});
+        return history(7, []);
+    });
+    click(ui.boardTitleFor(7)); await flush();
+    ui.compose().value = 'Saved'; click(ui.sendUpdate()); await flush();
+    for (let i = 0; i < 2; i++) ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {category: 'comment', task_id: 7, comment}}));
+    assert.equal(countFor(ui, 7), '1');
+    assert.equal(ui.document.querySelectorAll('[data-comment-id="70"]').length, 1);
+});
+
+test('opening chat reconciles missed server history and complete old messages without notifications', async (t) => {
+    const comments = [syntheticComment(72, 'Latest'), syntheticComment(71, 'Old')];
+    const ui = await reconciliationUI(t, async (url, options = {}) => options.method === 'POST'
+        ? ok({task_id: 7, unread_comments: 0}) : history(7, comments));
+    click(ui.boardTitleFor(7)); await flush();
+    assert.match(content(ui), /Latest/); assert.match(content(ui), /Old/);
+    assert.equal(countFor(ui, 7), '2');
+    click(ui.boardTitleFor(8)); click(ui.boardTitleFor(7)); await flush();
+    assert.equal(ui.document.querySelectorAll('[data-comment-id="72"]').length, 1);
+});
+
+test('history A arriving after opening B updates only A and does not reopen a closed modal', async (t) => {
+    let release;
+    const ui = await reconciliationUI(t, (url) => String(url).includes('/7/')
+        ? new Promise((resolve) => { release = resolve; }) : Promise.resolve(history(8, [])));
+    click(ui.boardTitleFor(7)); click(ui.boardTitleFor(8));
+    release(history(7, [syntheticComment(71, 'History A')])); await flush();
+    assert.doesNotMatch(content(ui), /History A/);
+    click(ui.boardTitleFor(7)); assert.match(content(ui), /History A/);
+    click(ui.taskModal.querySelector('[data-close-task]'));
+    release(history(7, [syntheticComment(72, 'Later A')])); await flush();
+    assert.equal(ui.taskModal.hidden, true);
+});
+
+test('older history cannot overwrite a newer realtime comment or pin state', async (t) => {
+    const pending = [];
+    const ui = await reconciliationUI(t, () => new Promise((resolve) => pending.push(resolve)));
+    click(ui.boardTitleFor(7));
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        category: 'comment', task_id: 7, comment: syntheticComment(71, 'New', {pinned: true}),
+    }}));
+    pending[0](history(7, [syntheticComment(71, 'Stale', {pinned: false})])); await flush();
+    assert.match(content(ui), /New/); assert.doesNotMatch(content(ui), /Stale/);
+    assert.equal(ui.pinnedBanner().hidden, false);
+});
+
+test('network error retains snapshot and board count', async (t) => {
+    const ui = await reconciliationUI(t, async () => { throw new Error('offline'); }, {'7': {updates: [syntheticComment(70, 'Existing')], activity: []}});
+    click(ui.boardTitleFor(7)); await flush();
+    assert.match(content(ui), /Existing/); assert.equal(countFor(ui, 7), '1');
+});
+
+test('an older GET cannot overwrite a newer GET for the same task', async (t) => {
+    const pending = [];
+    const ui = await reconciliationUI(t, () => new Promise((resolve) => pending.push(resolve)));
+    click(ui.boardTitleFor(7));
+    click(ui.taskModal.querySelector('[data-timeline-tab="updates"]'));
+    pending[1](history(7, [syntheticComment(70, 'Current', {pinned: true})])); await flush();
+    pending[0](history(7, [syntheticComment(70, 'Old response', {pinned: false})])); await flush();
+    assert.match(content(ui), /Current/); assert.doesNotMatch(content(ui), /Old response/);
+    assert.equal(ui.pinnedBanner().hidden, false);
+});
+
+test('a send completing after closing the modal cannot reopen it', async (t) => {
+    let release;
+    const ui = await reconciliationUI(t, (url, options = {}) => options.method === 'POST'
+        ? new Promise((resolve) => { release = resolve; }) : Promise.resolve(history(7, [])));
+    click(ui.boardTitleFor(7)); await flush();
+    ui.compose().value = 'Closed send'; click(ui.sendUpdate());
+    click(ui.taskModal.querySelector('[data-close-task]'));
+    release(ok({comment: syntheticComment(70, 'Closed send', {is_mine: true})})); await flush();
+    assert.equal(ui.taskModal.hidden, true); assert.equal(countFor(ui, 7), '1');
+    click(ui.boardTitleFor(7)); assert.match(content(ui), /Closed send/);
+});
+
+test('read A response cannot clear B unread or mark comments delivered later as read', async (t) => {
+    let releaseRead;
+    let submitted;
+    const ui = await reconciliationUI(t, (url, options = {}) => {
+        if (options.method === 'POST') {
+            submitted = JSON.parse(options.body);
+            return new Promise((resolve) => { releaseRead = resolve; });
+        }
+        return Promise.resolve(history(Number(String(url).split('/')[2]), []));
+    }, {'7': {updates: [syntheticComment(70, 'A')], activity: []}});
+    click(ui.boardComment()); await flush();
+    assert.equal(submitted.latest_comment_id, 70);
+    click(ui.boardTitleFor(8)); await flush();
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        category: 'comment', task_id: 7, comment: syntheticComment(71, 'Unseen A'),
+    }}));
+    releaseRead(ok({task_id: 7, latest_comment_id: 70, unread_comments: 1})); await flush();
+    assert.equal(ui.boardComment().classList.contains('has-unread'), true);
+    assert.doesNotMatch(content(ui), /Unseen A/);
+});
+
+test('pin response from A changes A only after switching B', async (t) => {
+    let release;
+    const ui = await reconciliationUI(t, (url, options = {}) => options.method === 'POST'
+        ? new Promise((resolve) => { release = resolve; }) : Promise.resolve(history(Number(String(url).split('/')[2]), [])),
+    {'7': {updates: [syntheticComment(70, 'A')], activity: []}});
+    click(ui.boardTitleFor(7)); await flush(); click(ui.pinButton(70));
+    click(ui.boardTitleFor(8)); await flush();
+    release(ok({comment: {id: 70, pinned: true}})); await flush();
+    assert.equal(ui.pinnedBanner().hidden, true);
+    click(ui.boardTitleFor(7)); assert.equal(ui.pinnedBanner().hidden, false);
+});
 
 async function bootTimeline(t, url, taskId = 7, mentionable = [], extra = {}) {
     const ui = await mountTaskWorkspace({taskId, mentionable, ...extra}, {url});
@@ -85,6 +255,7 @@ test('an incoming realtime comment updates the open timeline without a reload', 
 
     assert.match(ui.taskModal.querySelector('[data-timeline-items]').textContent, /ข้อความที่เข้ามาใหม่/);
     assert.equal(ui.boardComment().querySelector('strong').textContent, '3');
+    await flush();
     assert.equal(ui.boardComment().classList.contains('has-unread'), false);
     assert.equal(fetches.calls.some((call) => String(call.url).endsWith('/comments/read')), true);
 });
