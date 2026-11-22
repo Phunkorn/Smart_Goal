@@ -197,6 +197,36 @@ class SettingsPasswordTest extends TestCase
         $this->assertSame($originalHash, $user->fresh()->password);
     }
 
+    public function test_json_password_change_preserves_login_revocation_and_audit(): void
+    {
+        $user = $this->user();
+        DB::table('sessions')->insert([
+            'id' => 'json-other-session', 'user_id' => $user->id,
+            'payload' => 'payload', 'last_activity' => now()->timestamp,
+        ]);
+        $this->actingAs($user)->patchJson(route('settings.password.update'), [
+            'current_password' => 'password', 'password' => 'NewSecurePassword!123',
+            'password_confirmation' => 'NewSecurePassword!123',
+        ])->assertOk()->assertJsonStructure(['message']);
+        $this->assertAuthenticatedAs($user);
+        $this->assertTrue(Hash::check('NewSecurePassword!123', $user->fresh()->password));
+        $this->assertDatabaseMissing('sessions', ['id' => 'json-other-session']);
+        $this->assertDatabaseHas('activity_logs', ['user_id' => $user->id, 'action' => 'password_changed']);
+    }
+
+    public function test_json_password_attempts_are_validated_and_rate_limited(): void
+    {
+        $user = $this->user();
+        $this->actingAs($user);
+        for ($attempt = 0; $attempt < 6; $attempt++) {
+            $this->patchJson(route('settings.password.update'), [
+                'current_password' => 'incorrect', 'password' => 'weak', 'password_confirmation' => 'different',
+            ])->assertUnprocessable()->assertJsonValidationErrors(['current_password', 'password']);
+        }
+        $this->patchJson(route('settings.password.update'), [])->assertStatus(429);
+        $this->assertTrue(Hash::check('password', $user->fresh()->password));
+    }
+
     private function user(): User
     {
         return User::factory()->create([

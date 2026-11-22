@@ -119,7 +119,7 @@ class TicketDetailPageTest extends TestCase
         $ticket = $this->ticketFrom($requester);
 
         $html = $this->actingAs($requester)->get(route('tickets.index'))->assertOk()->getContent();
-        $modal = substr($html, (int) strpos($html, 'id="ticket-reporter-modal"'));
+        $modal = substr(strstr($html, '</main>', true), (int) strpos($html, 'id="ticket-reporter-modal"'));
 
         $this->assertStringContainsString($ticket->ticket_number, $modal);
         $this->assertStringNotContainsString('id="ticket-note-body"', $modal);

@@ -10,6 +10,7 @@ use App\Support\TelegramMessageComposer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -66,7 +67,7 @@ class TelegramSettingsController extends Controller
         ]);
     }
 
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request): RedirectResponse|JsonResponse
     {
         $user = $this->eligibleUser($request);
 
@@ -75,41 +76,50 @@ class TelegramSettingsController extends Controller
         ]);
 
         if ($user->telegram_chat_id === null) {
-            return back()->withErrors(['telegram' => 'ยังไม่ได้เชื่อมต่อ Telegram']);
+            throw ValidationException::withMessages(['telegram' => 'ยังไม่ได้เชื่อมต่อ Telegram']);
         }
 
         $enabled = (bool) $validated['telegram_notifications_enabled'];
         $this->links->setEnabled($user, $enabled);
 
-        return back()->with('success', $enabled
+        return $this->saved($request, $enabled
             ? 'เปิดการแจ้งเตือนผ่าน Telegram แล้ว'
             : 'ปิดการแจ้งเตือนผ่าน Telegram แล้ว');
     }
 
-    public function test(Request $request): RedirectResponse
+    public function test(Request $request): RedirectResponse|JsonResponse
     {
         $user = $this->eligibleUser($request);
 
         if ($user->telegram_chat_id === null) {
-            return back()->withErrors(['telegram' => 'ยังไม่ได้เชื่อมต่อ Telegram']);
+            throw ValidationException::withMessages(['telegram' => 'ยังไม่ได้เชื่อมต่อ Telegram']);
         }
 
         if (! $this->client->enabled()) {
-            return back()->withErrors(['telegram' => 'ระบบยังไม่ได้เปิดใช้งานการแจ้งเตือนผ่าน Telegram']);
+            throw ValidationException::withMessages(['telegram' => 'ระบบยังไม่ได้เปิดใช้งานการแจ้งเตือนผ่าน Telegram']);
         }
 
         $result = $this->outbox->sendNow($user, TelegramMessageComposer::test($user->name));
 
-        return $result->ok
-            ? back()->with('success', 'ส่งข้อความทดสอบไปที่ Telegram แล้ว')
-            : back()->withErrors(['telegram' => 'ส่งไม่สำเร็จ: '.($result->description ?: 'ไม่ทราบสาเหตุ')]);
+        if (! $result->ok) {
+            throw ValidationException::withMessages(['telegram' => 'ส่งไม่สำเร็จ: '.($result->description ?: 'ไม่ทราบสาเหตุ')]);
+        }
+
+        return $this->saved($request, 'ส่งข้อความทดสอบไปที่ Telegram แล้ว');
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request): RedirectResponse|JsonResponse
     {
         $this->links->unlink($this->eligibleUser($request));
 
-        return back()->with('success', 'ยกเลิกการเชื่อมต่อ Telegram แล้ว');
+        return $this->saved($request, 'ยกเลิกการเชื่อมต่อ Telegram แล้ว');
+    }
+
+    private function saved(Request $request, string $message): RedirectResponse|JsonResponse
+    {
+        return $request->expectsJson()
+            ? response()->json(['message' => $message])
+            : back()->with('success', $message);
     }
 
     /**

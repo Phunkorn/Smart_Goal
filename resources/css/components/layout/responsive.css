@@ -34,8 +34,7 @@
                 padding: 12px var(--sidebar-nav-padding);
             }
 
-            .sidebar .nav-section-label,
-            .sidebar .sidebar-foot {
+            .sidebar .nav-section-label {
                 display: flex;
             }
 
@@ -107,20 +106,6 @@
                 max-width: none;
                 min-width: 0;
                 flex: 1;
-            }
-
-            .role-chip {
-                width: auto;
-                min-width: 0;
-                max-width: 52vw;
-                flex: 0 1 auto;
-                justify-content: center;
-                gap: .35rem;
-                padding: 0 .65rem;
-            }
-
-            .role-chip i {
-                margin: 0;
             }
         }
 

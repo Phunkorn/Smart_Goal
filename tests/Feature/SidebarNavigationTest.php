@@ -136,7 +136,6 @@ class SidebarNavigationTest extends TestCase
             strpos($content, 'href="'.route('admin.accounts.index').'"'),
             strpos($content, 'href="'.route('admin.work-log-categories.index').'"'),
             strpos($content, 'href="'.route('admin.audit.index').'"'),
-            strpos($content, 'href="'.route('settings.index').'"'),
         ];
 
         $this->assertNotContains(false, $positions);
@@ -154,7 +153,7 @@ class SidebarNavigationTest extends TestCase
             'shares.index' => 'work',
             'daily-logs.index' => 'work',
             'employees.index' => 'people',
-            'settings.index' => 'system',
+            'admin.audit.index' => 'system',
         ];
 
         foreach ($pages as $route => $expanded) {
@@ -204,7 +203,6 @@ class SidebarNavigationTest extends TestCase
             strpos($content, 'href="'.route('notifications.index').'"'),
             strpos($content, 'href="'.route('meetings.index').'"'),
             strpos($content, 'href="'.route('employees.index').'"'),
-            strpos($content, 'href="'.route('settings.index').'"'),
         ];
 
         $this->assertNotContains(false, $positions);
@@ -254,22 +252,14 @@ class SidebarNavigationTest extends TestCase
         }
     }
 
-    public function test_role_chip_keeps_an_accessible_name_after_the_visible_label_was_removed(): void
+    public function test_account_dropdown_shows_the_real_role_and_username(): void
     {
-        // admin และ viewer ไม่ผูกกับแผนก ป้ายจึงมีแต่ชื่อบทบาท
-        foreach ([
-            'admin' => ['board.index', 'admin', 'ผู้ดูแลระบบ'],
-            'viewer' => ['board.index', 'viewer', 'ผู้เข้าชม'],
-        ] as $role => [$routeName, $chipClass, $label]) {
-            $this->actingAs($this->userWithRole($role))
-                ->get(route($routeName))
-                ->assertOk()
-                ->assertSee(
-                    '<span class="role-chip role-chip--mobile-only '.$chipClass.'" aria-label="'.$label.'" title="'.$label.'">',
-                    false
-                )
-                // ป้ายข้อความถูกถอดออกแล้ว บทบาทจึงเหลืออยู่ใน aria-label กับ title เท่านั้น
-                ->assertDontSee('role-chip__label', false);
+        foreach (['admin', 'viewer', 'user'] as $role) {
+            $user = $this->userWithRole($role);
+            $this->actingAs($user)->get(route('settings.index'))->assertOk()
+                ->assertSee('aria-label="เมนูบัญชีผู้ใช้"', false)
+                ->assertSee($user->username)
+                ->assertSee('<span class="topbar-account__role">'.RoleLabel::for($user).'</span>', false);
         }
     }
 
@@ -280,16 +270,13 @@ class SidebarNavigationTest extends TestCase
      * ป้ายนี้จึงเป็นข้อมูลซ้ำที่กินพื้นที่แถบบน แต่ยังต้องอยู่ใน DOM
      * เพราะจอเล็กที่ Sidebar ปิดอยู่ ป้ายนี้คือที่เดียวที่บอกว่ากำลังใช้งานในบทบาทใด
      */
-    public function test_role_chip_is_present_but_hidden_on_desktop_widths(): void
+    public function test_account_identity_has_moved_out_of_the_sidebar(): void
     {
-        $content = $this->actingAs($this->userWithRole('user'))
-            ->get(route('mytasks.index'))
-            ->assertOk()
-            ->assertSee('role-chip--mobile-only', false)
-            ->getContent();
-
-        // ท้าย Sidebar ยังบอกบทบาทอยู่ ป้ายมุมขวาบนจึงไม่ใช่แหล่งเดียวบนเดสก์ท็อป
-        $this->assertStringContainsString('<div class="role">', $content);
+        $this->actingAs($this->userWithRole('user'))->get(route('mytasks.index'))->assertOk()
+            ->assertSee('topbar-account__identity', false)
+            ->assertDontSee('sidebar-foot', false)
+            ->assertDontSee('role-chip--mobile-only', false)
+            ->assertDontSee('href="'.route('settings.index').'"', false);
     }
 
     /**
@@ -317,12 +304,12 @@ class SidebarNavigationTest extends TestCase
 
         $this->actingAs($staff)->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('<span class="role-chip role-chip--mobile-only user" aria-label="พนักงาน IT" title="พนักงาน IT">', false)
+            ->assertSee('<span class="topbar-account__role">พนักงาน</span>', false)
             ->assertDontSee('role-chip__label', false);
 
         $this->actingAs($head)->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('<span class="role-chip role-chip--mobile-only department-head" aria-label="หัวหน้าแผนก IT" title="หัวหน้าแผนก IT">', false)
+            ->assertSee('<span class="topbar-account__role">หัวหน้าแผนก</span>', false)
             ->assertDontSee('role-chip__label', false);
     }
 
@@ -349,13 +336,13 @@ class SidebarNavigationTest extends TestCase
 
         $this->actingAs($head)->get(route('settings.index'))
             ->assertOk()
-            ->assertSee('<strong>หัวหน้าแผนก</strong>', false)
-            ->assertDontSee('<strong>พนักงาน</strong>', false);
+            ->assertSee('<span class="topbar-account__role">หัวหน้าแผนก</span>', false)
+            ->assertDontSee('<span class="topbar-account__role">พนักงาน</span>', false);
 
         // ท้าย Sidebar ยังบอกว่ากำลังใช้งานในนามใคร ด้วยชื่อบทบาทเดียวกัน
         $this->actingAs($head)->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('<div class="role">หัวหน้าแผนก · IT</div>', false);
+            ->assertSee('<span class="topbar-account__role">หัวหน้าแผนก</span>', false);
     }
 
     /**
@@ -368,12 +355,12 @@ class SidebarNavigationTest extends TestCase
 
         $content = $this->actingAs($user)->get(route('mytasks.index'))
             ->assertOk()
-            ->assertSee('class="topbar-logout"', false)
+            ->assertSee('data-account-open="accountLogoutModal"', false)
             ->assertDontSee('class="sidebar-foot__logout"', false)
             ->getContent();
 
         $notificationBell = strpos($content, 'data-bell-notification-count');
-        $logout = strpos($content, 'class="topbar-logout"');
+        $logout = strpos($content, 'data-account-open="accountLogoutModal"');
         $topbarEnd = strpos($content, '</header>');
         $sidebarEnd = strpos($content, '</aside>');
 
@@ -459,7 +446,6 @@ class SidebarNavigationTest extends TestCase
             strpos($content, $announcementLink),
             strpos($content, '<summary class="nav-item report-nav__toggle">'),
             strpos($content, 'href="'.route('notifications.index').'"'),
-            strpos($content, 'href="'.route('settings.index').'"'),
         ];
 
         $this->assertNotContains(false, $positions);
@@ -481,13 +467,14 @@ class SidebarNavigationTest extends TestCase
         ]);
     }
 
-    public function test_the_sidebar_initials_cut_by_character_not_by_byte(): void
+    public function test_the_topbar_initials_cut_by_character_not_by_byte(): void
     {
         $user = $this->userWithRole('user');
         $user->forceFill(['name' => 'สมหญิง ใจดี', 'profile_image' => null])->save();
 
         $content = $this->actingAs($user)->get(route('mytasks.index'))->assertOk()->getContent();
-        $avatar = substr($content, (int) strpos($content, '<div class="sidebar-foot">'), 600);
+        preg_match('/data-account-avatar>(.*?)<\/span>/s', $content, $match);
+        $avatar = $match[1];
 
         $this->assertStringContainsString('สม', $avatar);
         $this->assertTrue(mb_check_encoding($avatar, 'UTF-8'), 'ไม่มีอักษรที่ถูกตัดกลางตัว');
@@ -521,7 +508,6 @@ class SidebarNavigationTest extends TestCase
         foreach ([
             ['user', 'mytasks.index', 'mytasks.index'],
             ['user', 'notifications.index', 'notifications.index'],
-            ['user', 'settings.index', 'settings.index'],
             ['user', 'shares.index', 'shares.index'],
             ['admin', 'board.index', 'board.index'],
             ['admin', 'employees.index', 'employees.index'],

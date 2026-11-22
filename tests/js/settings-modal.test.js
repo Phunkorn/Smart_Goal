@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {JSDOM} from 'jsdom';
+import {readFileSync} from 'node:fs';
 import {initializeSettingsPage, openPasswordModal} from '../../resources/js/pages/settings/index.js';
 
 test('opens the password modal after server validation errors', () => {
@@ -14,4 +15,180 @@ test('opens the password modal after server validation errors', () => {
 test('does not open an unmarked password modal', () => {
     const dom = new JSDOM('<div data-password-modal></div>');
     assert.equal(openPasswordModal(dom.window.document, {}), false);
+});
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({message: 'saved'})}), telegram = '') {
+    const modal = (id, form) => `<div class="modal fade account-modal" id="${id}" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <button data-bs-dismiss="modal" aria-label="close">close</button>${form}</div></div></div>`;
+    const feedback = '<div class="alert d-none" data-account-feedback role="status"></div>';
+    const dom = new JSDOM(`<!doctype html><html><head><meta name="csrf-token" content="csrf"></head><body>
+        <header class="topbar"><div class="dropdown"><button id="topbarAccountTrigger" data-bs-toggle="dropdown">account</button>
+        <ul class="dropdown-menu"><li><button class="dropdown-item" data-account-open="settingsProfileModal">profile</button></li>
+        <li><button class="dropdown-item" data-account-open="settingsPasswordModal">password</button></li>
+        <li><button class="dropdown-item" data-account-open="settingsModal">settings</button></li>
+        <li><button class="dropdown-item" data-account-open="accountLogoutModal">logout</button></li></ul></div>
+        <span data-account-name>Old</span><span data-account-avatar>Ol</span></header>
+        <main id="outside" tabindex="0">content</main><div class="settings-page" data-settings-page data-settings-url="/settings">
+        ${modal('settingsProfileModal', `<form action="/settings" data-account-form="profile">${feedback}
+            <input name="_token" type="hidden" value="csrf"><input name="_method" type="hidden" value="PATCH">
+            <label for="settingsName">Name</label><input id="settingsName" name="name" value="Old">
+            <input id="settingsProfileImage" name="profile_image" type="file"><button type="submit">save</button></form>`)}
+        ${modal('settingsPasswordModal', `<form action="/settings/password" data-account-form="password">${feedback}
+            <input name="current_password" type="password"><input name="password" type="password"><input name="password_confirmation" type="password">
+            <button type="submit">save</button></form>`)}
+        ${modal('settingsModal', `${feedback}<button data-account-open="settingsPasswordModal">password</button>${telegram ? `<div data-account-telegram>${telegram}</div>` : ''}`)}
+        ${modal('accountLogoutModal', '<form action="/logout" method="POST" data-account-logout><input type="hidden" name="_token" value="csrf"><button type="submit">confirm</button></form>')}
+        </div></body></html>`, {url: 'https://smartgoal.test/tasks', runScripts: 'outside-only', pretendToBeVisual: true});
+    t.after(() => dom.window.close());
+    // jsdom has no layout engine; Bootstrap's visibility check needs a box.
+    dom.window.HTMLElement.prototype.getClientRects = () => [{width: 100, height: 30}];
+    dom.window.eval(readFileSync(new URL('../../node_modules/bootstrap/dist/js/bootstrap.bundle.js', import.meta.url), 'utf8'));
+    const doc = dom.window.document;
+    initializeSettingsPage(doc, dom.window.bootstrap, {fetcher});
+    const click = (selector) => doc.querySelector(selector).click();
+    const open = async (id) => {
+        click('#topbarAccountTrigger');
+        click(`[data-account-open="${id}"]`);
+        await flush();
+    };
+    const submit = (selector) => doc.querySelector(selector).dispatchEvent(new dom.window.Event('submit', {bubbles: true, cancelable: true}));
+    return {doc, win: dom.window, click, open, submit};
+}
+
+test('real Bootstrap dropdown closes outside and on Escape, then opens one modal with focus return', async (t) => {
+    const ui = accountUI(t);
+    ui.click('#topbarAccountTrigger');
+    assert.equal(ui.doc.querySelector('.dropdown-menu').classList.contains('show'), true);
+    ui.click('#outside');
+    assert.equal(ui.doc.querySelector('.dropdown-menu').classList.contains('show'), false);
+    ui.click('#topbarAccountTrigger');
+    ui.doc.querySelector('#topbarAccountTrigger').dispatchEvent(new ui.win.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    assert.equal(ui.doc.querySelector('.dropdown-menu').classList.contains('show'), false);
+    await ui.open('settingsProfileModal');
+    assert.equal(ui.doc.querySelector('.dropdown-menu').classList.contains('show'), false);
+    assert.equal(ui.doc.querySelectorAll('.modal.show').length, 1);
+    assert.equal(ui.doc.activeElement.id, 'settingsName');
+    assert.equal(ui.doc.body.classList.contains('modal-open'), true);
+    ui.doc.querySelector('#outside').focus();
+    assert.equal(ui.doc.getElementById('settingsProfileModal').contains(ui.doc.activeElement), true);
+    ui.doc.querySelector('#settingsProfileModal').dispatchEvent(new ui.win.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    await flush();
+    assert.equal(ui.doc.querySelectorAll('.modal.show').length, 0);
+    assert.equal(ui.doc.activeElement.id, 'topbarAccountTrigger');
+    assert.equal(ui.doc.body.classList.contains('modal-open'), false);
+});
+
+test('profile saves once with multipart CSRF, blocks dismissal while saving, and updates identity safely', async (t) => {
+    let resolve;
+    const requests = [];
+    const ui = accountUI(t, (url, options) => { requests.push({url, options}); return new Promise((done) => { resolve = done; }); });
+    await ui.open('settingsProfileModal');
+    ui.doc.querySelector('#settingsName').value = '<New Name>';
+    ui.submit('[data-account-form="profile"]');
+    ui.submit('[data-account-form="profile"]');
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].options.body.get('name'), '<New Name>');
+    assert.equal(requests[0].options.headers['X-CSRF-TOKEN'], 'csrf');
+    ui.win.bootstrap.Modal.getInstance(ui.doc.getElementById('settingsProfileModal')).hide();
+    assert.equal(ui.doc.getElementById('settingsProfileModal').classList.contains('show'), true);
+    resolve({ok: true, json: async () => ({message: 'saved', user: {name: '<New Name>', initials: '<N', avatar_url: '/avatar?v=2'}})});
+    await flush();
+    assert.equal(ui.doc.querySelector('[data-account-name]').textContent, '<New Name>');
+    assert.equal(ui.doc.querySelector('[data-account-name]').children.length, 0);
+    assert.match(ui.doc.querySelector('[data-account-avatar] img').src, /avatar\?v=2/);
+    assert.equal(ui.doc.querySelector('#settingsProfileModal [data-account-feedback]').textContent, 'saved');
+    ui.win.bootstrap.Modal.getInstance(ui.doc.getElementById('settingsProfileModal')).hide(); await flush();
+    assert.equal(ui.doc.getElementById('settingsName').value, '<New Name>');
+});
+
+test('server errors appear below the field and focus it; retry can recover', async (t) => {
+    let status = 422;
+    const ui = accountUI(t, async () => ({
+        ok: status === 200, status,
+        json: async () => status === 422 ? {errors: {name: ['Name is required']}} : {message: 'saved'},
+    }));
+    await ui.open('settingsProfileModal');
+    ui.submit('[data-account-form="profile"]'); await flush();
+    assert.equal(ui.doc.getElementById('settingsNameError').textContent, 'Name is required');
+    assert.equal(ui.doc.getElementById('settingsName').getAttribute('aria-invalid'), 'true');
+    assert.equal(ui.doc.activeElement.id, 'settingsName');
+    status = 200;
+    ui.submit('[data-account-form="profile"]'); await flush();
+    assert.equal(ui.doc.getElementById('settingsNameError'), null);
+    assert.equal(ui.doc.getElementById('settingsName').disabled, false);
+});
+
+test('switching account dialogs does not stack backdrops and passwords clear on success and close', async (t) => {
+    const ui = accountUI(t);
+    await ui.open('settingsModal');
+    ui.click('#settingsModal [data-account-open]'); await flush(); await flush();
+    assert.equal(ui.doc.querySelectorAll('.modal.show').length, 1);
+    assert.equal(ui.doc.querySelectorAll('.modal-backdrop').length, 1);
+    const fields = ui.doc.querySelectorAll('[type="password"]');
+    fields.forEach((field) => { field.value = 'test-only'; });
+    ui.submit('[data-account-form="password"]'); await flush();
+    assert.equal([...fields].every((field) => field.value === ''), true);
+    fields[0].value = 'unsaved';
+    ui.click('#settingsPasswordModal [data-bs-dismiss]'); await flush();
+    assert.equal([...fields].every((field) => field.value === ''), true);
+    assert.equal(ui.doc.querySelectorAll('.modal-backdrop').length, 0);
+});
+
+test('logout asks for confirmation and only posts when the confirmation form is submitted', async (t) => {
+    let requests = 0;
+    const ui = accountUI(t, async () => { requests++; });
+    await ui.open('accountLogoutModal');
+    assert.equal(requests, 0);
+    const form = ui.doc.querySelector('[data-account-logout]');
+    assert.equal(form.method, 'post');
+    assert.match(form.action, /\/logout$/);
+    ui.click('#accountLogoutModal [data-bs-dismiss]'); await flush();
+    assert.equal(requests, 0);
+    await ui.open('accountLogoutModal');
+    assert.equal(ui.submit('[data-account-logout]'), true);
+    assert.equal(new ui.win.FormData(form).get('_token'), 'csrf');
+    assert.equal(ui.submit('[data-account-logout]'), false);
+});
+
+test('session expiry and network errors keep the dialog open and allow retries', async (t) => {
+    let status = 419;
+    const ui = accountUI(t, async () => {
+        if (status === 0) throw new Error('Failed to fetch');
+        return {ok: false, status, json: async () => ({})};
+    });
+    await ui.open('settingsProfileModal');
+    for (const code of [419, 429, 0]) {
+        status = code;
+        ui.submit('[data-account-form="profile"]'); await flush();
+        assert.equal(ui.doc.querySelectorAll('.modal.show').length, 1);
+        assert.equal(ui.doc.querySelector('#settingsProfileModal [type="submit"]').disabled, false);
+        assert.equal(ui.doc.querySelector('#settingsProfileModal [data-account-feedback]').classList.contains('alert-danger'), true);
+    }
+});
+
+test('Telegram unlink confirms inline and updates its card through existing endpoints', async (t) => {
+    const telegram = `<section data-telegram-settings><form action="/settings/telegram" data-telegram-unlink-form>
+        <input name="_method" type="hidden" value="DELETE"><button type="submit">unlink</button></form>
+        <div data-telegram-unlink-confirm hidden><button data-telegram-unlink-no>cancel</button><button data-telegram-unlink-yes>confirm</button></div></section>`;
+    const requests = [];
+    const ui = accountUI(t, async (url, options) => {
+        requests.push({url, options});
+        return {ok: true, json: async () => options?.method === 'POST' ? {message: 'unlinked'}
+            : {telegram_html: '<section data-telegram-settings>disconnected</section>'}};
+    }, telegram);
+    await ui.open('settingsModal');
+    ui.submit('[data-telegram-unlink-form]');
+    assert.equal(ui.doc.querySelector('[data-telegram-unlink-confirm]').hidden, false);
+    assert.equal(requests.length, 0);
+    ui.click('[data-telegram-unlink-no]');
+    assert.equal(ui.doc.querySelector('[data-telegram-unlink-confirm]').hidden, true);
+    ui.submit('[data-telegram-unlink-form]');
+    ui.click('[data-telegram-unlink-yes]'); await flush();
+    assert.equal(requests[0].options.body.get('_method'), 'DELETE');
+    assert.equal(requests[1].url, '/settings');
+    assert.equal(ui.doc.querySelector('[data-account-telegram]').textContent, 'disconnected');
+    assert.equal(ui.doc.querySelectorAll('.modal.show').length, 1);
+    assert.equal(ui.win.location.pathname, '/tasks');
 });

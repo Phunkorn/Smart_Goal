@@ -46,7 +46,6 @@ class TicketSidebarTest extends TestCase
             strpos($content, 'href="'.route('tickets.index').'"'),
             strpos($content, '<div class="nav-section-label">การสื่อสาร</div>'),
             strpos($content, 'href="'.route('notifications.index').'"'),
-            strpos($content, 'href="'.route('settings.index').'"'),
         ];
 
         $this->assertNotContains(false, $positions);

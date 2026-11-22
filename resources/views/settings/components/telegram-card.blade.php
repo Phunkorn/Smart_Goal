@@ -72,46 +72,37 @@
             </form>
         </div>
     @endif
-</section>
-
-<div class="modal fade settings-telegram-modal" id="settingsTelegramModal" tabindex="-1"
-    aria-labelledby="settingsTelegramModalTitle" aria-hidden="true" data-telegram-modal>
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header settings-telegram-modal__header">
-                <div class="settings-telegram__icon" aria-hidden="true"><i class="bi bi-telegram"></i></div>
-                <div class="settings-telegram-modal__heading">
-                    <span class="settings-card__eyebrow">การแจ้งเตือน</span>
-                    <h2 class="modal-title" id="settingsTelegramModalTitle">เชื่อมต่อ Telegram</h2>
-                    <p>ทำสามขั้นตอนนี้ในแอป Telegram ของคุณ</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
-            </div>
-            <div class="modal-body">
-                <ol class="settings-telegram-steps">
-                    <li><span>กดปุ่มด้านล่างเพื่อเปิดบอทของ Smart Goal ในแอป Telegram</span></li>
-                    <li><span>กด <strong>Start</strong> ในหน้าแชทที่เปิดขึ้นมา</span></li>
-                    <li><span>กลับมาที่หน้านี้ ระบบจะอัปเดตสถานะให้อัตโนมัติ</span></li>
-                </ol>
-
-                <a class="settings-telegram-link" href="#" target="_blank" rel="noopener" data-telegram-deep-link hidden>
-                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-                    เปิดบอทใน Telegram
-                </a>
-
-                <div class="settings-telegram-waiting" data-telegram-waiting hidden>
-                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                    <span>กำลังรอการยืนยันจาก Telegram…</span>
-                </div>
-
-                <div class="settings-security__notice">
-                    <i class="bi bi-shield-check" aria-hidden="true"></i>
-                    <span>รหัสเชื่อมต่อใช้ได้ครั้งเดียวและหมดอายุใน {{ \App\Models\TelegramLinkToken::LIFETIME_MINUTES }} นาที อย่าส่งต่อให้ผู้อื่น</span>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">ปิด</button>
+    @if($telegramLinked)
+        <div class="alert alert-warning m-3" data-telegram-unlink-confirm hidden>
+            <p>ยกเลิกการเชื่อมต่อ Telegram? คุณจะไม่ได้รับการแจ้งเตือนจนกว่าจะเชื่อมต่อใหม่</p>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-light" data-telegram-unlink-no>ไม่ใช่ตอนนี้</button>
+                <button type="button" class="btn btn-danger" data-telegram-unlink-yes>ยกเลิกการเชื่อมต่อ</button>
             </div>
         </div>
+    @endif
+</section>
+
+<section class="settings-card settings-telegram-linking mt-3 p-3" aria-label="เชื่อมต่อ Telegram" data-telegram-modal hidden>
+    <ol class="settings-telegram-steps">
+        <li><span>กดปุ่มด้านล่างเพื่อเปิดบอทของ Smart Goal ในแอป Telegram</span></li>
+        <li><span>กด <strong>Start</strong> ในหน้าแชทที่เปิดขึ้นมา</span></li>
+        <li><span>กลับมาที่หน้านี้ ระบบจะอัปเดตสถานะให้อัตโนมัติ</span></li>
+    </ol>
+
+    <a class="settings-telegram-link" href="#" target="_blank" rel="noopener" data-telegram-deep-link hidden>
+        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+        เปิดบอทใน Telegram
+    </a>
+
+    <div class="settings-telegram-waiting" data-telegram-waiting hidden>
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span>กำลังรอการยืนยันจาก Telegram…</span>
     </div>
-</div>
+
+    <div class="settings-security__notice">
+        <i class="bi bi-shield-check" aria-hidden="true"></i>
+        <span>รหัสเชื่อมต่อใช้ได้ครั้งเดียวและหมดอายุใน {{ \App\Models\TelegramLinkToken::LIFETIME_MINUTES }} นาที อย่าส่งต่อให้ผู้อื่น</span>
+    </div>
+
+</section>

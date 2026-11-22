@@ -15,7 +15,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
-    @vite('resources/css/components/layout.css')
+    @vite(['resources/css/components/layout.css', 'resources/css/pages/settings.css'])
 
     {{-- สรุปประจำวันมีเฉพาะหน้าแรกของวันที่ยังไม่รับทราบ (AppServiceProvider ส่ง $dailyBrief) --}}
     @if(! empty($dailyBrief))
@@ -61,7 +61,7 @@
             'communication' => request()->routeIs('notifications.*', 'tickets.*'),
             'work' => request()->routeIs('admin.approvals.*', 'shares.*', 'daily-logs.*', 'workspace.*'),
             'people' => request()->routeIs('employees.*', 'admin.departments.*'),
-            'system' => request()->routeIs('admin.accounts.*', 'admin.work-log-categories.*', 'admin.tickets.*', 'admin.audit.*', 'settings.*'),
+            'system' => request()->routeIs('admin.accounts.*', 'admin.work-log-categories.*', 'admin.tickets.*', 'admin.audit.*'),
         ];
     @endphp
 
@@ -311,7 +311,7 @@
                 @endif
 
                 {{-- บันทึกระบบกับถังขยะรวมเป็นเมนูเดียว เพราะทั้งคู่ตอบคำถามเดียวกันว่าใครทำอะไรกับข้อมูล
-                     อยู่ท้ายกลุ่มคู่กับ "ตั้งค่า" เพราะเป็นการย้อนตรวจ ไม่ใช่งานที่ทำทุกวัน --}}
+                     อยู่ท้ายกลุ่มเพราะเป็นการย้อนตรวจ ไม่ใช่งานที่ทำทุกวัน --}}
                 <a href="{{ route('admin.audit.index') }}"
                     class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}" @if(request()->routeIs('admin.audit.*')) aria-current="page" @endif>
                     <i class="bi bi-shield-lock"></i>
@@ -319,36 +319,10 @@
                 </a>
             @endif
 
-            <a href="{{ route('settings.index') }}" class="nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}" @if(request()->routeIs('settings.*')) aria-current="page" @endif>
-                <i class="bi bi-gear"></i>
-                <span class="nav-item__label">ตั้งค่า</span>
-            </a>
             @if ($isAdmin)
                 </div>
                 </div>
             @endif
-        </div>
-
-        <div class="sidebar-foot">
-            <div class="avatar" title="{{ $currentUser->name }}">
-                @if($currentUser->profile_image)
-                    <img src="{{ route('media.profile', $currentUser) }}" alt="{{ $currentUser->name }}">
-                @else
-                    {{-- ตัดตามตัวอักษร ไม่ใช่ไบต์ — ชื่อภาษาไทยเคยถูกตัดกลางตัวอักษรเป็น "�" --}}
-                    {{ mb_strtoupper(mb_substr(trim($currentUser->name), 0, 2)) }}
-                @endif
-            </div>
-
-            <div class="flex-grow-1 sidebar-foot__identity">
-                <div class="who">{{ $currentUser->name }}</div>
-                <div class="role">{{ $roleLabel }}{{ optional($currentUser->department)->department_name ? ' · ' . optional($currentUser->department)->department_name : '' }}</div>
-            </div>
-
-            {{--
-                ปุ่มออกจากระบบอยู่ที่ Topbar ถัดจากไอคอนแจ้งเตือน ไม่ใช่ที่นี่
-                ท้าย Sidebar เหลือไว้เพื่อบอกว่า "กำลังใช้งานในนามใคร" อย่างเดียว
-                และเมื่อ Sidebar ถูกย่อหรือปิดบนจอเล็ก ปุ่มออกจากระบบต้องยังกดได้อยู่
-            --}}
         </div>
 
     </aside>
@@ -365,42 +339,6 @@
             <span class="topbar-brand__subtitle">ระบบจัดการองค์กร</span>
         </div>
         <div class="ms-auto d-flex align-items-center gap-2">
-            @php
-                // ป้ายบทบาทมุมขวาบนเคยมีแค่สองสี (admin เป็นม่วง ที่เหลือเขียวหมด)
-                // หัวหน้าแผนกกับพนักงานจึงหน้าตาเหมือนกัน และไม่บอกด้วยว่าอยู่แผนกไหน
-                // ตอนนี้ใช้ชุดสีและคำเดียวกับ .employee-role บนการ์ดหน้าจัดการพนักงาน
-                // เพื่อให้บทบาทเดียวกันอ่านได้เหมือนกันทุกหน้า
-                $roleChipClass = match (true) {
-                    $isAdmin => 'admin',
-                    $isDepartmentHead => 'department-head',
-                    $isViewer => 'viewer',
-                    default => 'user',
-                };
-                /*
-                 * ไอคอนคือสิ่งที่แยกบทบาท เพราะป้ายใช้พื้นฟ้าอ่อนชุดเดียวกันทุกบทบาท
-                 *
-                 * พนักงานกับหัวหน้าแผนกใช้รูปคนเหมือนกัน เพราะทั้งคู่คือ "คนทำงาน"
-                 * ในสายตาของระบบ ต่างกันที่ขอบเขตความรับผิดชอบซึ่งข้อความข้าง ๆ
-                 * บอกอยู่แล้ว ส่วนโล่สงวนไว้ให้ผู้ดูแลระบบซึ่งมีสิทธิ์เหนือทุกแผนก
-                 */
-                $roleChipIcon = match ($roleChipClass) {
-                    'admin' => 'bi-shield-check',
-                    'viewer' => 'bi-eye',
-                    default => 'bi-person-fill',
-                };
-                // admin และ viewer ไม่ผูกกับแผนก (UserController บังคับ department_id เป็น null)
-                $roleChipDepartment = $isAdmin || $isViewer
-                    ? null
-                    : optional($currentUser?->department)->department_name;
-                $roleChipText = $roleLabel.($roleChipDepartment ? ' '.$roleChipDepartment : '');
-            @endphp
-            {{--
-                ป้ายบทบาทซ้ำกับท้าย Sidebar ซึ่งบอกทั้งชื่อ บทบาท และแผนกอยู่แล้วบนเดสก์ท็อป
-                จึงแสดงเฉพาะจอเล็กที่ Sidebar ถูกยุบเป็น off-canvas และมองไม่เห็นท้ายเมนู
-            --}}
-            <span class="role-chip role-chip--mobile-only {{ $roleChipClass }}" aria-label="{{ $roleChipText }}" title="{{ $roleChipText }}">
-                <i class="bi {{ $roleChipIcon }}"></i>
-            </span>
             @unless($isViewer)
                 <div class="dropdown routine-topbar" data-routine-topbar data-routine-status-url="{{ route('daily-logs.routine-status') }}">
                     <button class="icon-btn routine-topbar__button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
@@ -492,20 +430,15 @@
                 </div>
             </div>
 
-            {{-- ออกจากระบบเป็น mutation จึงต้องเป็น POST ที่มี CSRF ไม่ใช่ลิงก์ --}}
-            <form method="POST" action="{{ route('logout') }}" class="topbar-logout">
-                @csrf
-                <button type="submit" class="icon-btn topbar-logout__button" title="ออกจากระบบ" aria-label="ออกจากระบบ">
-                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
-                    <span class="topbar-logout__label">ออกจากระบบ</span>
-                </button>
-            </form>
+            @include('layouts.components.user-dropdown')
         </div>
     </header>
 
     <main class="main">
         @yield('content')
     </main>
+
+    @include('settings.components.account-modals', ['user' => $currentUser])
 
     @if(! empty($dailyBrief))
         @include('daily-brief.modal', ['brief' => $dailyBrief])
@@ -524,6 +457,7 @@
     @if(! empty($dailyBrief))
         @vite('resources/js/components/daily-brief.js')
     @endif
+    @vite('resources/js/pages/settings/index.js')
     @stack('scripts')
 </body>
 

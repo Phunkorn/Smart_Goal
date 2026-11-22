@@ -815,7 +815,7 @@ class MeetingManagementTest extends TestCase
 
         foreach ([$createHtml, $editHtml] as $html) {
             $this->assertStringContainsString('modal-dialog modal-lg modal-dialog-centered', $html);
-            $this->assertStringNotContainsString('modal-dialog-scrollable', $html);
+            $this->assertStringNotContainsString('modal-dialog-scrollable', strstr($html, '</main>', true));
             $this->assertStringContainsString('data-meeting-form', $html);
         }
 

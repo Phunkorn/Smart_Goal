@@ -356,6 +356,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
         ->name('settings.update');
 
     Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
+        ->middleware('throttle:6,1')
         ->name('settings.password.update');
 
     // การเชื่อมต่อ Telegram ของบัญชีตัวเอง (viewer ถูกกันไว้ในคอนโทรลเลอร์)

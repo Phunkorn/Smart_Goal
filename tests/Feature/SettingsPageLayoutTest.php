@@ -3,110 +3,127 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Support\RoleLabel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-/**
- * หน้าตั้งค่าบัญชีถูกจัดวางใหม่เป็นแถบสรุปด้านบนและสองคอลัมน์ด้านล่าง
- * การทดสอบนี้ล็อกว่าฟอร์มและปุ่มเดิมยังส่งไปที่เดิมด้วยชื่อ field เดิม
- * และการ์ดแต่ละใบอยู่ในส่วนที่ถูกต้องของเลย์เอาต์ใหม่
- */
 class SettingsPageLayoutTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    public function test_account_modals_are_available_on_regular_pages_for_every_role(): void
     {
-        parent::setUp();
-
-        config()->set('session.driver', 'database');
-    }
-
-    public function test_profile_form_keeps_its_action_method_and_field_names(): void
-    {
-        foreach (['user', 'admin'] as $role) {
+        foreach (['admin', 'user', 'viewer'] as $role) {
             $html = $this->actingAs($this->user($role))->get(route('settings.index'))->assertOk()->getContent();
-
-            $form = $this->between($html, 'class="settings-card settings-details"', 'class="settings-page__side"');
-            $this->assertStringContainsString('action="'.route('settings.update').'"', $form, $role);
-            $this->assertStringContainsString('enctype="multipart/form-data"', $form, $role);
-            $this->assertStringContainsString('name="_method" value="PATCH"', $form, $role);
-            $this->assertStringContainsString('name="name"', $form, $role);
-            $this->assertStringContainsString('name="phone"', $form, $role);
-            $this->assertMatchesRegularExpression('/<input[^>]*type="file"[^>]*name="profile_image"[^>]*accept="image\/png,image\/jpeg,image\/webp"/s', $form, $role);
-            $this->assertStringContainsString('type="submit"', $form, $role);
+            foreach (['settingsProfileModal', 'settingsPasswordModal', 'settingsModal', 'accountLogoutModal'] as $id) {
+                $this->assertSame(1, substr_count($html, 'id="'.$id.'"'));
+                $this->assertStringContainsString('data-account-open="'.$id.'"', $html);
+            }
+            $this->assertStringNotContainsString('sidebar-foot', $html);
+            $this->assertStringNotContainsString('href="'.route('settings.index').'"', $html);
+            $this->assertStringContainsString('method="POST"', $this->modal($html, 'accountLogoutModal'));
+            $this->assertStringContainsString('action="'.route('logout').'"', $this->modal($html, 'accountLogoutModal'));
+            $this->assertSame($role !== 'viewer', str_contains($html, 'data-telegram-settings'));
         }
+        $html = $this->actingAs($this->user('user'))->get(route('mytasks.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('id="settingsProfileModal"', $html);
+        $this->assertStringNotContainsString('data-open-on-load="true"', $this->modal($html, 'settingsModal'));
     }
 
-    public function test_summary_bar_shows_identity_role_and_department_above_the_columns(): void
+    public function test_profile_modal_keeps_the_existing_editable_fields_and_endpoint(): void
     {
-        $user = $this->user('user', ['name' => 'สมชาย ทดสอบ', 'email' => 'somchai@example.com']);
-
+        $user = $this->user('user', ['name' => 'สมหญิง ทดสอบ']);
         $html = $this->actingAs($user)->get(route('settings.index'))->assertOk()->getContent();
-        $summary = $this->between($html, 'class="settings-card settings-summary"', 'class="settings-page__layout"');
-
-        $this->assertStringContainsString('สมชาย ทดสอบ', $summary);
-        $this->assertStringContainsString('somchai@example.com', $summary);
-        $this->assertStringContainsString('สิทธิ์การใช้งาน', $summary);
-        $this->assertStringContainsString(RoleLabel::for($user), $summary);
-        $this->assertStringContainsString('แผนก', $summary);
-        $this->assertStringContainsString('การเปลี่ยนสิทธิ์และแผนกต้องดำเนินการโดย Admin', $summary);
+        $form = $this->modal($html, 'settingsProfileModal');
+        $this->assertStringContainsString('action="'.route('settings.update').'"', $form);
+        $this->assertStringContainsString('enctype="multipart/form-data"', $form);
+        foreach (['name', 'phone', 'profile_image'] as $field) {
+            $this->assertStringContainsString('name="'.$field.'"', $form);
+        }
+        $this->assertStringContainsString('name="_method" value="PATCH"', $form);
+        $this->assertStringContainsString('value="สมหญิง ทดสอบ"', $form);
+        $this->assertStringNotContainsString('name="role"', $form);
+        $this->assertStringNotContainsString('name="email"', $form);
+        $this->assertStringContainsString('data-open-on-load="true"', $this->modal($html, 'settingsModal'));
     }
 
-    public function test_password_and_telegram_cards_share_the_side_column(): void
+    public function test_profile_saves_as_json_without_allowing_privilege_changes(): void
     {
-        $html = $this->actingAs($this->user('user'))->get(route('settings.index'))->assertOk()->getContent();
-        $side = $this->between($html, 'class="settings-page__side"', 'data-password-modal');
-
-        $this->assertStringContainsString('data-bs-target="#settingsPasswordModal"', $side);
-        $this->assertStringContainsString('data-telegram-settings', $side);
+        Storage::fake('public');
+        $user = $this->user('user');
+        $response = $this->actingAs($user)->patchJson(route('settings.update'), [
+            'name' => 'ชื่อใหม่', 'phone' => '0123456789', 'role' => 'admin',
+            'is_department_head' => true, 'email' => 'changed@example.com',
+            'profile_image' => UploadedFile::fake()->image('avatar.png'),
+        ])->assertOk()->assertJsonPath('user.name', 'ชื่อใหม่')->assertJsonPath('user.initials', 'ชื');
+        $this->assertStringContainsString(route('media.profile', $user), $response->json('user.avatar_url'));
+        $user->refresh();
+        $this->assertSame('user', $user->role);
+        $this->assertFalse($user->is_department_head);
+        $this->assertNotSame('changed@example.com', $user->email);
+        Storage::disk('public')->assertExists($user->profile_image);
     }
 
-    public function test_viewer_side_column_has_only_the_password_card(): void
+    public function test_json_validation_preserves_profile_data(): void
     {
-        $html = $this->actingAs($this->user('viewer'))->get(route('settings.index'))->assertOk()->getContent();
-        $side = $this->between($html, 'class="settings-page__side"', 'data-password-modal');
-
-        $this->assertStringContainsString('data-bs-target="#settingsPasswordModal"', $side);
-        $this->assertStringNotContainsString('data-telegram-settings', $html);
+        $user = $this->user('user');
+        $this->actingAs($user)->patchJson(route('settings.update'), [
+            'name' => '', 'profile_image' => UploadedFile::fake()->create('wrong.pdf', 10, 'application/pdf'),
+        ])->assertUnprocessable()->assertJsonValidationErrors(['name', 'profile_image']);
+        $this->assertSame($user->name, $user->fresh()->name);
     }
 
-    public function test_profile_image_error_is_shown_under_the_upload_box(): void
+    public function test_legacy_profile_validation_reopens_only_the_profile_modal(): void
     {
-        $html = $this->actingAs($this->user('user'))
-            ->from(route('settings.index'))
-            ->followingRedirects()
-            ->patch(route('settings.update'), [
-                'name' => 'ชื่อทดสอบ',
-                'profile_image' => UploadedFile::fake()->create('not-an-image.pdf', 10, 'application/pdf'),
-            ])
-            ->assertOk()
-            ->getContent();
-
-        $this->assertMatchesRegularExpression('/class="settings-upload\s+is-invalid\s*"/', $html);
-        $this->assertMatchesRegularExpression('/<div class="invalid-feedback d-block">[^<]+<\/div>\s*<p id="settingsProfileImageHelp"/', $html);
+        $this->actingAs($this->user('user'))->from(route('settings.index'))
+            ->patch(route('settings.update'), ['name' => ''])
+            ->assertRedirect(route('settings.index'))->assertSessionHasErrors('name');
+        $html = $this->get(route('settings.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('data-open-on-load="true"', $this->modal($html, 'settingsProfileModal'));
+        $this->assertStringNotContainsString('data-open-on-load="true"', $this->modal($html, 'settingsModal'));
     }
 
-    private function between(string $html, string $start, string $end): string
+    public function test_settings_fragment_preserves_telegram_permissions(): void
     {
-        $from = strpos($html, $start);
-        $this->assertNotFalse($from, "ไม่พบ {$start}");
-        $to = strpos($html, $end, $from);
-        $this->assertNotFalse($to, "ไม่พบ {$end} หลัง {$start}");
+        $this->actingAs($this->user('user'))->getJson(route('settings.index'))->assertOk()
+            ->assertJsonStructure(['telegram_html']);
+        $this->actingAs($this->user('viewer'))->getJson(route('settings.index'))->assertOk()
+            ->assertJsonPath('telegram_html', '');
+        foreach (['settings.telegram.link', 'settings.telegram.test'] as $route) {
+            $this->postJson(route($route))->assertForbidden();
+        }
+        $this->patchJson(route('settings.telegram.update'), ['telegram_notifications_enabled' => true])->assertForbidden();
+        $this->deleteJson(route('settings.telegram.destroy'))->assertForbidden();
+    }
 
-        return substr($html, $from, $to - $from);
+    public function test_validation_from_another_feature_cannot_open_or_populate_account_dialogs(): void
+    {
+        $user = $this->user('user', ['name' => 'My account']);
+        $html = $this->actingAs($user)->withSession([
+            '_old_input' => ['name' => 'An employee being edited'],
+            'errors' => (new \Illuminate\Support\ViewErrorBag)->put('default', new \Illuminate\Support\MessageBag(['name' => ['Required']])),
+        ])->get(route('mytasks.index'))->assertOk()->getContent();
+        $profile = $this->modal($html, 'settingsProfileModal');
+        $this->assertStringNotContainsString('data-open-on-load="true"', $profile);
+        $this->assertStringNotContainsString('An employee being edited', $profile);
+        $this->assertStringContainsString('value="My account"', $profile);
+    }
+
+    private function modal(string $html, string $id): string
+    {
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        $node = (new \DOMXPath($dom))->query('//*[@id="'.$id.'"]')->item(0);
+        $this->assertNotNull($node);
+
+        return $dom->saveHTML($node);
     }
 
     private function user(string $role, array $attributes = []): User
     {
         return User::factory()->create(array_merge([
-            'role' => $role,
-            'password' => Hash::make('password'),
-            'must_change_password' => false,
-            'is_active' => true,
+            'role' => $role, 'must_change_password' => false, 'is_active' => true,
         ], $attributes));
     }
 }

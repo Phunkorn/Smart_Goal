@@ -170,16 +170,17 @@ class UsernameEmployeeManagementTest extends TestCase
             ->get(route('settings.index'))
             ->assertOk()
             ->assertSee('@noemail-user');
-        $this->actingAs($employee)
-            ->get(route('work-board.department', ['department' => $department, 'search' => 'noemail-user']))
-            ->assertOk()
-            ->assertSee('No Email Employee')
-            ->assertDontSee('@noemail-user');
-        $this->actingAs($employee)
-            ->get(route('work-board.member', [$department, $employee]))
-            ->assertOk()
-            ->assertSee('No Email Employee')
-            ->assertDontSee('@noemail-user');
+        foreach ([
+            route('work-board.department', ['department' => $department, 'search' => 'noemail-user']),
+            route('work-board.member', [$department, $employee]),
+        ] as $url) {
+            $html = $this->actingAs($employee)->get($url)->assertOk()->getContent();
+            $start = strpos($html, '<main class="main">');
+            // Member previews return a fragment; full pages also contain global account dialogs.
+            $main = $start === false ? $html : substr($html, $start, strpos($html, '</main>', $start) - $start);
+            $this->assertStringContainsString('No Email Employee', $main);
+            $this->assertStringNotContainsString('@noemail-user', $main);
+        }
     }
 
     private function employeePayload(array $overrides = []): array

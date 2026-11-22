@@ -162,78 +162,63 @@
         .routine-topbar__empty { margin:0; padding:22px 14px; border-top:1px solid #edf1f6; color:#7b8a9f; font-size:.78rem; text-align:center; }
         .routine-topbar__all { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border-top:1px solid #e3eaf3; background:#f8fafc; color:#2563eb; font-size:.76rem; font-weight:700; text-decoration:none; }
 
-        /* ---------- ออกจากระบบ ----------
-         *
-         * ย้ายมาจากท้าย Sidebar เพราะที่นั่นเข้าถึงไม่ได้ในสองสถานะที่พบบ่อยที่สุด:
-         * เมื่อ Sidebar ถูกย่อบนเดสก์ท็อป และเมื่อ Sidebar เป็น off-canvas ที่ปิดอยู่บนจอเล็ก
-         * ตอนนี้อยู่ถัดจากไอคอนแจ้งเตือน ซึ่งเป็นมุมที่ผู้ใช้มองหาบัญชีของตัวเองอยู่แล้ว
-         */
-        .topbar-logout {
-            margin: 0;
-            flex: 0 0 auto;
-        }
-
-        .topbar-logout__button {
-            width: auto;
-            gap: .45rem;
-            padding: 0 .7rem;
-            font-size: .82rem;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .topbar-logout__button:hover {
-            border-color: var(--brand-red);
-            background: var(--brand-red-dim);
-            color: var(--brand-red);
-        }
-
-        .topbar-logout__button:focus-visible {
-            outline: 0;
-            border-color: var(--brand-red);
-            box-shadow: 0 0 0 3px rgba(232, 53, 43, .18);
-        }
-
-        /* จอแคบเหลือแค่ไอคอน เพื่อไม่ให้แถบบนล้นจนป้ายบทบาทถูกบีบหาย */
-        @media (max-width: 767.98px) {
-            /* จอเล็กมีที่ให้ชื่อระบบบรรทัดเดียว คำอธิบายจึงถูกตัดออกก่อนที่แถวจะแน่น */
-            .topbar-brand__subtitle {
-                display: none;
-            }
-
-            .topbar-logout__label {
-                position: absolute;
-                width: 1px;
-                height: 1px;
-                margin: -1px;
-                padding: 0;
-                overflow: hidden;
-                clip-path: inset(50%);
-                white-space: nowrap;
-            }
-
-            .topbar-logout__button {
-                width: 36px;
-                padding: 0;
-            }
-        }
-
-        /*
-         * ป้ายบทบาทมุมขวาบนแสดงเฉพาะจอเล็ก
-         *
-         * บนเดสก์ท็อป Sidebar กางอยู่และท้ายเมนูบอก ชื่อ / บทบาท / แผนก ครบอยู่แล้ว
-         * ป้ายนี้จึงเป็นข้อมูลซ้ำที่กินพื้นที่แถบบนไปเปล่า ๆ
-         * จอเล็กที่ Sidebar เป็น off-canvas ปิดอยู่ ป้ายนี้คือที่เดียวที่บอกว่ากำลังใช้งานในบทบาทใด
-         *
-         * ใช้ display:none ไม่ใช่ visibility หรือ opacity เพื่อไม่ให้เหลือกล่องว่างค้างในแถว
-         *
-         * ต้องเจาะจงด้วย .topbar นำหน้า (0,2,0) ไม่ใช่ .role-chip--mobile-only เปล่า ๆ
-         * เพราะ shared-ui.css ถูก import ทีหลังไฟล์นี้ และประกาศ .role-chip { display:inline-flex }
-         * ด้วย specificity เท่ากัน (0,1,0) กฎที่มาทีหลังจึงชนะ — media query ไม่เพิ่ม
-         * specificity ให้ ป้ายจึงเคยโผล่บนเดสก์ท็อปทั้งที่ตั้งใจซ่อนไว้
-         */
-        @media (min-width: 992px) {
-            .topbar .role-chip--mobile-only {
-                display: none;
-            }
-        }
+.topbar .topbar-account { flex: 0 0 auto; }
+.topbar .topbar-account__trigger {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    max-width: 260px;
+    padding: .3rem .7rem .3rem .35rem;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+    transition: background-color .15s, box-shadow .15s;
+}
+.topbar .topbar-account__trigger:hover,
+.topbar .topbar-account__trigger[aria-expanded="true"] { background: var(--accent-dim); }
+.topbar .topbar-account__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.topbar .topbar-account__avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-size: .8rem;
+    font-weight: 600;
+}
+.topbar .topbar-account__avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.topbar .topbar-account__identity { display: grid; min-width: 0; }
+.topbar .topbar-account__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; font-weight: 500; }
+.topbar .topbar-account__role { color: var(--text-muted); font-size: .65rem; }
+.topbar .topbar-account__chevron { color: var(--accent-strong); font-size: .7rem; }
+.topbar .topbar-account__menu {
+    width: min(290px, calc(100vw - 24px));
+    padding: .5rem;
+    border-color: var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+}
+.topbar .topbar-account__header { padding: .65rem .75rem; overflow-wrap: anywhere; color: var(--text-muted); font-size: .75rem; }
+.topbar .topbar-account__header strong { color: var(--text); font-weight: 500; }
+.topbar .topbar-account__menu .dropdown-item { display: flex; align-items: center; gap: .75rem; padding: .7rem .75rem; border-radius: var(--radius-sm); font-size: .83rem; }
+.topbar .topbar-account__menu .dropdown-item i { font-size: 1.05rem; }
+.topbar .topbar-account__menu .dropdown-item:hover,
+.topbar .topbar-account__menu .dropdown-item:focus { background: var(--accent-dim); color: var(--accent-strong); }
+@media (max-width: 767.98px) {
+    .topbar .topbar-brand__subtitle { display: none; }
+    .topbar .topbar-account__trigger { max-width: 180px; }
+}
+@media (max-width: 575.98px) {
+    .topbar .topbar-account__identity,
+    .topbar .topbar-account__chevron { display: none; }
+    .topbar .topbar-account__trigger { padding: .25rem; }
+    .topbar .mobile-menu-btn { flex-shrink: 0; }
+}

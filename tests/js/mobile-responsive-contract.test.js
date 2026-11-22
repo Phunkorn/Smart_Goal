@@ -99,94 +99,16 @@ test('the animated backdrop ships with a reduced-motion escape hatch', async () 
     assert.match(reduced, /\.auth-bg__sheen,?[\s\S]{0,200}animation:\s*none/);
 });
 
-test('mobile role chip keeps a compact visible label with an accessible name', async () => {
-    const source = await css('resources/css/components/layout/responsive.css');
-    const blade = await css('resources/views/layouts/app.blade.php');
-    const shared = await css('resources/css/components/layout/shared-ui.css');
-    const mobile = source.slice(source.indexOf('@media (max-width: 991px)'));
-
-    // ป้ายบทบาทมีชื่อแผนกต่อท้ายแล้ว จึงต้องยอมย่อและตัดคำแทนที่จะดันปุ่มแจ้งเตือนตกบรรทัด
-    assert.match(mobile, /\.role-chip\s*\{[^}]*width:\s*auto[^}]*min-width:\s*0[^}]*max-width:\s*52vw[^}]*flex:\s*0 1 auto[^}]*justify-content:\s*center[^}]*gap:\s*\.35rem[^}]*padding:\s*0 \.65rem/s);
-    assert.match(mobile, /\.role-chip i\s*\{[^}]*margin:\s*0/s);
-    assert.match(shared, /\.role-chip i\s*\{[^}]*flex:\s*0 0 auto/s);
-    // ป้ายบทบาทถูกจำกัดให้เห็นเฉพาะจอเล็ก เพราะบนเดสก์ท็อปท้าย Sidebar บอกบทบาทอยู่แล้ว
-    assert.match(blade, /class="role-chip role-chip--mobile-only \{\{ \$roleChipClass \}\}" aria-label="\{\{ \$roleChipText \}\}" title="\{\{ \$roleChipText \}\}"/);
-    /*
-     * ป้ายข้อความถูกถอดออกตามที่เจ้าของระบบสั่ง เหลือไอคอนอย่างเดียว
-     * บทบาทยังถูกอ่านออกเสียงได้จาก aria-label และเห็นได้จาก title เมื่อชี้ค้าง
-     * สไตล์ของป้ายต้องถูกลบทิ้งจริงด้วย ไม่ใช่ปล่อยค้างไว้เป็นกฎที่ไม่มีอะไรมาใช้
-     */
-    assert.doesNotMatch(blade, /role-chip__label/);
-    assert.doesNotMatch(mobile, /role-chip__label/);
-    assert.doesNotMatch(shared, /role-chip__label/);
-    // ตัวเลือกต้องเจาะจงกว่ากฎฐาน .role-chip ที่ import ทีหลัง (ดูเทสต์ของกฎซ่อนด้านล่าง)
-    assert.match(
-        await css('resources/css/components/layout/topbar.css'),
-        /@media \(min-width: 992px\) \{\s*\.topbar \.role-chip--mobile-only \{\s*display: none/s,
-    );
-});
-
-/*
- * ป้ายบทบาทใช้พื้นฟ้าอ่อนชุดเดียวกันทุกบทบาท และแยกบทบาทด้วยไอคอน
- *
- * สีที่ต่างกันสี่ชุดบนแถบบนอ่านเป็น "สถานะ" (เขียวคือดี แดงคือเตือน) ทั้งที่บทบาท
- * ไม่มีดีหรือแย่ ส่วนฟ้าอ่อนเป็นสีกลางชุดเดียวกับ badge อื่นในระบบ
- */
-/*
- * ป้ายบทบาทต้องหายไปจริงบนเดสก์ท็อป ไม่ใช่แค่ "มีกฎซ่อนไว้"
- *
- * shared-ui.css ถูก import ทีหลัง topbar.css และประกาศ .role-chip { display:inline-flex }
- * ด้วย specificity เท่ากับ .role-chip--mobile-only (0,1,0) กฎที่มาทีหลังจึงชนะ
- * และ media query ก็ไม่เพิ่ม specificity ให้ ผลคือป้ายเคยโผล่บนเดสก์ท็อปทั้งที่
- * ตั้งใจซ่อนไว้ กฎซ่อนจึงต้องเจาะจงกว่ากฎฐานเสมอ
- */
-test('the role chip is actually hidden on desktop, not just declared hidden', async () => {
-    const topbar = await css('resources/css/components/layout/topbar.css');
-    const shared = await css('resources/css/components/layout/shared-ui.css');
-
-    const desktop = topbar.slice(topbar.indexOf('@media (min-width: 992px)'));
-    const hideRule = desktop.match(/([^{}]*\.role-chip--mobile-only)\s*\{([^}]*)\}/);
-
-    assert.ok(hideRule, 'ต้องมีกฎซ่อนป้ายบทบาทในช่วงเดสก์ท็อป');
-    assert.match(hideRule[2], /display:\s*none/);
-
-    // กฎฐานที่ประกาศ display มาทีหลัง จึงต้องถูกกฎซ่อนที่เจาะจงกว่าเอาชนะ
-    assert.match(shared.match(/\.role-chip \{([^}]*)\}/)?.[1] ?? '', /display:\s*inline-flex/);
-    assert.match(
-        hideRule[1],
-        /\.\w[\w-]*\s+\.role-chip--mobile-only/,
-        'ตัวเลือกของกฎซ่อนต้องเจาะจงกว่า .role-chip เปล่า ๆ ไม่งั้นกฎที่ import ทีหลังจะชนะ',
-    );
-});
-
-test('the role chip shares one theme blue and tells roles apart by icon', async () => {
-    const shared = await css('resources/css/components/layout/shared-ui.css');
-    const blade = await css('resources/views/layouts/app.blade.php');
-
-    const chip = shared.match(/\.role-chip \{([^}]*)\}/)?.[1] ?? '';
-
-    assert.match(chip, /background:\s*var\(--accent-strong\)/, 'ป้ายบทบาทต้องใช้สีน้ำเงินเข้มของธีม');
-    assert.match(chip, /border-radius:\s*999px/, 'ต้องเป็นแคปซูลเหมือน badge อื่น');
-
-    // สีไม่ใช่ตัวแยกบทบาท จึงต้องไม่มีกฎที่ผูกสีกลับเข้ากับ class บทบาท
-    for (const role of ['admin', 'department-head', 'user', 'viewer']) {
-        assert.doesNotMatch(
-            shared,
-            new RegExp(`\.role-chip\.${role}[^{]*\{[^}]*background:`, 's'),
-            `.role-chip.${role} ต้องไม่กำหนดพื้นหลังของตัวเอง สีไม่ใช่ตัวแยกบทบาท`,
-        );
-    }
-
-    // ไอคอนคือสิ่งที่แยกบทบาท โล่สงวนไว้ให้ผู้ดูแลระบบเท่านั้น
-    const icons = blade.match(/\$roleChipIcon = match \(\$roleChipClass\) \{([^}]*)\}/s)?.[1] ?? '';
-
-    assert.match(icons, /'admin' => 'bi-shield-check'/, 'ผู้ดูแลระบบใช้โล่');
-    assert.match(icons, /'viewer' => 'bi-eye'/, 'ผู้เข้าชมใช้รูปตา');
-    assert.match(icons, /default => 'bi-person-fill'/, 'พนักงานกับหัวหน้าแผนกใช้รูปคนเหมือนกัน');
-    assert.doesNotMatch(icons, /'department-head' =>/, 'หัวหน้าแผนกต้องตกไปใช้รูปคนตัวเดียวกับพนักงาน');
-
-    // โล่ปรากฏได้ครั้งเดียวในตารางนี้ คือบรรทัดของผู้ดูแลระบบ
-    assert.equal((icons.match(/bi-shield/g) ?? []).length, 1, 'โล่สงวนไว้ให้ผู้ดูแลระบบเท่านั้น');
+test('account pill stays compact on phones and exposes the real role', async () => {
+    const source = await css('resources/css/components/layout/topbar.css');
+    const blade = await css('resources/views/layouts/components/user-dropdown.blade.php');
+    assert.match(source, /max-width: 575\.98px/);
+    assert.match(source, /\.topbar-account__identity,[\s\S]*?display: none/);
+    assert.match(source, /width: min\(290px, calc\(100vw - 24px\)\)/);
+    assert.match(blade, /aria-label="เมนูบัญชีผู้ใช้"/);
+    assert.match(blade, /\$currentUser->name/);
+    assert.match(blade, /\$roleLabel/);
+    assert.doesNotMatch(blade, /role-chip--mobile-only/);
 });
 
 test('mobile kanban stacks status columns without the desktop minimum width', async () => {

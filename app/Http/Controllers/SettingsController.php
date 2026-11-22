@@ -13,8 +13,16 @@ use Illuminate\Support\Str;
 
 class SettingsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'telegram_html' => $request->user()->role === 'viewer' ? '' : view('settings.components.telegram-card', [
+                    'user' => $request->user(),
+                ])->render(),
+            ]);
+        }
+
         return view('settings.index', ['user' => auth()->user()->load('department')]);
     }
 
@@ -39,6 +47,18 @@ class SettingsController extends Controller
         }
 
         $user->save();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
+                'user' => [
+                    'name' => $user->name,
+                    'phone' => $user->phone,
+                    'initials' => mb_substr($user->name, 0, 2),
+                    'avatar_url' => $user->profile_image ? route('media.profile', $user).'?v='.Str::uuid() : null,
+                ],
+            ]);
+        }
 
         return back()->with('success', 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว');
     }
@@ -71,6 +91,10 @@ class SettingsController extends Controller
         });
 
         $request->session()->regenerate();
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว อุปกรณ์อื่นถูกนำออกจากระบบ']);
+        }
 
         return back()->with('success', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว อุปกรณ์อื่นถูกนำออกจากระบบ');
     }

@@ -73,10 +73,10 @@ test('เรียกซ้ำไม่ผูก listener ซ้ำ', () => {
 });
 
 test('Blade หน้าตั้งค่ายังคงชื่อ field, action และ hook เดิมทั้งหมด', async () => {
-    const markup = await readFile(new URL('../../resources/views/settings/index.blade.php', import.meta.url), 'utf8');
+    const markup = await readFile(new URL('../../resources/views/settings/components/profile-modal.blade.php', import.meta.url), 'utf8');
 
     for (const needle of [
-        'data-settings-page',
+        'data-account-form="profile"',
         "route('settings.update')",
         'enctype="multipart/form-data"',
         "@method('PATCH')",
@@ -84,9 +84,6 @@ test('Blade หน้าตั้งค่ายังคงชื่อ field, 
         'name="phone"',
         'name="profile_image"',
         'accept="image/png,image/jpeg,image/webp"',
-        'data-bs-target="#settingsPasswordModal"',
-        "@include('settings.components.telegram-card')",
-        "@include('settings.components.password-modal')",
         'data-profile-image-picker',
         'data-profile-image-input',
         'data-profile-image-name',

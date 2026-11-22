@@ -73,6 +73,23 @@ class TelegramLinkingTest extends TestCase
         $this->actingAs($this->user('viewer'))->postJson(route('settings.telegram.link'))->assertForbidden();
     }
 
+    public function test_modal_actions_save_as_json_and_refresh_the_existing_card(): void
+    {
+        $user = $this->user();
+        $user->forceFill(['telegram_chat_id' => 555001, 'telegram_notifications_enabled' => true])->save();
+        $this->actingAs($user)->patchJson(route('settings.telegram.update'), ['telegram_notifications_enabled' => false])
+            ->assertOk()->assertJsonStructure(['message']);
+        $this->assertFalse($user->fresh()->telegram_notifications_enabled);
+        $this->postJson(route('settings.telegram.test'))->assertOk()->assertJsonStructure(['message']);
+        $this->deleteJson(route('settings.telegram.destroy'))->assertOk()->assertJsonStructure(['message']);
+        $this->assertNull($user->fresh()->telegram_chat_id);
+        $this->getJson(route('settings.index'))->assertOk()
+            ->assertJson(fn ($json) => $json->where('telegram_html', fn ($html) => str_contains($html, 'data-telegram-connect')));
+        $this->patchJson(route('settings.telegram.update'), ['telegram_notifications_enabled' => true])
+            ->assertUnprocessable()->assertJsonValidationErrors('telegram');
+        $this->postJson(route('settings.telegram.test'))->assertUnprocessable()->assertJsonValidationErrors('telegram');
+    }
+
     public function test_requesting_a_new_token_invalidates_the_previous_one(): void
     {
         $user = $this->user();

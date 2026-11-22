@@ -310,15 +310,12 @@
             }
         }
 
-<<<<<<< HEAD
-=======
         .sidebar-nav .report-nav__link {
             min-height: 42px;
             padding-left: .65rem;
             font-size: .82rem;
         }
 
->>>>>>> b5155054425a152d0dd33ac34ae27660d0435600
         .sidebar-nav .report-nav__link.active::before {
             display: none;
         }
@@ -345,58 +342,6 @@
         /* คำขอที่รอเราอนุมัติ — สีต่างจากป้ายจำนวนงาน เพื่อให้แยกออกว่าเป็นคนละเรื่อง */
         .sidebar .nav-item__count--request {
             background: #f59e0b;
-        }
-
-        .sidebar .sidebar-foot {
-            flex: 0 0 auto;
-            border-top: 1px solid var(--border);
-            padding: .8rem 1rem;
-            display: flex;
-            align-items: center;
-            gap: .7rem;
-        }
-
-        .avatar {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            background: var(--accent-dim);
-            color: var(--accent-strong);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: .78rem;
-            flex-shrink: 0;
-            overflow: hidden;
-        }
-
-        .sidebar .avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .sidebar .sidebar-foot__identity {
-            min-width: 0;
-        }
-
-        .sidebar .sidebar-foot .who {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .sidebar .sidebar-foot .role {
-            font-size: 11px;
-            font-weight: 400;
-            color: var(--text-muted);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
         }
 
         /* ---------- สถานะย่อ: เดสก์ท็อปเท่านั้น ---------- */
@@ -455,8 +400,7 @@
             }
 
             /* ซ่อนข้อความแต่ยังให้ screen reader อ่านชื่อเมนูและชื่อผู้ใช้ได้ */
-            body.sidebar-collapsed .sidebar .nav-item__label,
-            body.sidebar-collapsed .sidebar .sidebar-foot__identity {
+            body.sidebar-collapsed .sidebar .nav-item__label {
                 position: absolute;
                 width: 1px;
                 height: 1px;
@@ -512,11 +456,6 @@
                 color: var(--accent-strong);
             }
 
-            body.sidebar-collapsed .sidebar .sidebar-foot {
-                flex-direction: column;
-                gap: .5rem;
-                padding: .8rem .5rem;
-            }
         }
 
 

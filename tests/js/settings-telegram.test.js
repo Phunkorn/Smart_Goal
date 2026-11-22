@@ -76,6 +76,7 @@ test('การกดเชื่อมต่อขอลิงก์ลึก �
     assert.equal(requests[0].options.method, 'POST');
     assert.equal(requests[0].options.headers['X-CSRF-TOKEN'], 'test-csrf');
 
+    dom.document.querySelector('[data-telegram-modal]').dispatchEvent(new dom.window.Event('hidden.bs.modal'));
     dom.cleanup();
 });
 
@@ -238,4 +239,21 @@ test('การ์ด Telegram ใน Blade มี hook ที่โมดูล
     ]) {
         assert.ok(markup.includes(hook), `Blade ต้องมี ${hook}`);
     }
+});
+
+test('closing Telegram settings ignores a status response already in flight', async () => {
+    let release;
+    let linked = 0;
+    const poller = createTelegramLinkPoller({
+        statusUrl: STATUS_URL,
+        fetcher: () => new Promise((resolve) => { release = resolve; }),
+        onLinked: () => { linked++; },
+    });
+    poller.start();
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS + 20));
+    poller.stop();
+    release({json: async () => ({linked: true})});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(linked, 0);
+    assert.equal(poller.running, false);
 });

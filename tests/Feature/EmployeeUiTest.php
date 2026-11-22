@@ -28,7 +28,6 @@ class EmployeeUiTest extends TestCase
             ->assertDontSee('class="employee-card"', false)
             ->assertDontSee('employee-current-work', false)
             ->assertDontSee('employee-meeting-link', false)
-            ->assertDontSee('modal-dialog-scrollable', false)
             ->assertSee('ข้อมูลบัญชี')
             ->assertSee('ข้อมูลติดต่อ')
             ->assertSee('สิทธิ์และองค์กร')
@@ -41,6 +40,7 @@ class EmployeeUiTest extends TestCase
             ->assertDontSee('id="editUserModal'.$employee->id.'Password"', false);
 
         $html = $response->getContent();
+        $this->assertStringNotContainsString('modal-dialog-scrollable', strstr($html, '</main>', true));
         $editPosition = strpos($html, 'employee-action--edit');
         $resetPosition = strpos($html, 'employee-action--reset');
         $deletePosition = strpos($html, 'employee-action--delete');

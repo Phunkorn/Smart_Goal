@@ -221,7 +221,7 @@ class TicketLandingPageTest extends TestCase
 
         $this->assertStringContainsString('data-bs-target="#ticket-reporter-modal"', $card);
         $this->assertLessThan(strpos($card, 'ticket-reporter__history'), strpos($card, 'data-bs-target="#ticket-reporter-modal"'));
-        $modal = substr($html, (int) strpos($html, 'id="ticket-history-modal"'));
+        $modal = substr(strstr($html, '</main>', true), (int) strpos($html, 'id="ticket-history-modal"'));
         $this->assertStringContainsString($open->ticket_number, $modal);
         $this->assertStringContainsString('ทั้งหมด 1 รายการ', $modal);
     }
@@ -239,7 +239,7 @@ class TicketLandingPageTest extends TestCase
         $this->publicTicket();
 
         $html = $this->actingAs($member)->get(route('tickets.index'))->assertOk()->getContent();
-        $modal = substr($html, (int) strpos($html, 'id="ticket-history-modal"'));
+        $modal = substr(strstr($html, '</main>', true), (int) strpos($html, 'id="ticket-history-modal"'));
 
         $this->assertStringContainsString('ทั้งหมด 2 รายการ', $modal);
         $this->assertStringNotContainsString('ของคนอื่นห้ามเห็น', $modal);
@@ -269,7 +269,7 @@ class TicketLandingPageTest extends TestCase
         }
 
         $html = $this->actingAs($member)->get(route('tickets.index'))->assertOk()->getContent();
-        $modal = substr($html, (int) strpos($html, 'id="ticket-history-modal"'));
+        $modal = substr(strstr($html, '</main>', true), (int) strpos($html, 'id="ticket-history-modal"'));
 
         $this->assertSame(20, substr_count($modal, 'class="ticket-history__item"'));
         $this->assertStringContainsString('แสดง 20 รายการล่าสุดจากทั้งหมด 21 รายการ', $modal);
