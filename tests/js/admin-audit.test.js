@@ -156,12 +156,13 @@ test('หน้าเดิมทั้งสองถูกลบออกจ�
     }
 });
 
-test('เมนูข้างรวมเหลือรายการเดียวและชี้ไปหน้า Audit Log', async () => {
-    const layout = await read('resources/views/layouts/app.blade.php');
+test('เมนูหลักรวมเหลือรายการเดียวและชี้ไปหน้า Audit Log', async () => {
+    // เมนูตามสิทธิ์ย้ายจาก layouts/app.blade.php มาอยู่ที่ App\Support\TopNavigation ที่เดียว
+    const navigation = await read('app/Support/TopNavigation.php');
 
-    assert.match(layout, /route\('admin\.audit\.index'\)/);
-    assert.equal(layout.includes("route('admin.activity-logs.index')"), false);
-    assert.equal(layout.includes("route('admin.trash.index')"), false);
+    assert.match(navigation, /route\('admin\.audit\.index'\)/);
+    assert.equal(navigation.includes("route('admin.activity-logs.index')"), false);
+    assert.equal(navigation.includes("route('admin.trash.index')"), false);
 });
 
 test('สไตล์ที่ซ้ำกันสองไฟล์ถูกยุบเหลือชุดเดียว', async () => {

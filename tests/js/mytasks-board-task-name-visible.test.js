@@ -38,7 +38,7 @@ test('คอลัมน์ชื่องานมีขั้นต่ำท�
         .map(tracksOf)
         .filter((tracks) => tracks.length === 11);
 
-    assert.ok(grids.length >= 2, 'ต้องมีกฎคอลัมน์ทั้งตอน Sidebar พับและกาง');
+    assert.ok(grids.length >= 1, 'ต้องมีกฎคอลัมน์ของมุมมองตารางแบบเต็มสิบเอ็ดคอลัมน์');
 
     for (const tracks of grids) {
         const nameMinimum = pixels(tracks[0]);
@@ -50,25 +50,28 @@ test('คอลัมน์ชื่องานมีขั้นต่ำท�
     }
 });
 
+/*
+ * ไม่มีแถบข้างแล้ว พื้นที่เนื้อหามีสถานะเดียว — กฎชุด body:not(.sidebar-collapsed) ที่เคยบีบตาราง
+ * ตอนแถบข้างกางถูกลบ และต้องไม่กลับมา เพราะ selector นั้นจะเป็นจริงทุกหน้าเมื่อไม่มีคลาสนี้บน body
+ */
 test('min-width ของตารางเท่ากับผลรวมของทุกคอลัมน์ คอลัมน์ชื่องานจึงไม่ถูกบีบต่ำกว่าขั้นต่ำ', async () => {
     const css = await read('resources/css/pages/mytasks/project-board.css');
     const rules = boardRules(css);
-    const sidebarOpen = (selector) => selector.includes('body:not(.sidebar-collapsed)');
 
-    for (const open of [false, true]) {
-        const tracks = rules
-            .filter(({selector, body}) => sidebarOpen(selector) === open && /--board-columns:/.test(body))
-            .map(({body}) => tracksOf(body.match(/--board-columns:([^;]+)/)[1]))
-            .find((candidate) => candidate.length === 11);
-        const minWidth = rules
-            .filter(({selector}) => sidebarOpen(selector) === open && selector.endsWith('.board-reference-list'))
-            .map(({body}) => pixels(body.match(/min-width:\s*([^;]+)/)?.[1] || ''))
-            .find((value) => value > 0);
+    assert.ok(! css.includes('sidebar-collapsed'), 'ยังมีกฎที่อ้างสถานะของแถบข้าง');
 
-        const sum = tracks.reduce((total, track) => total + pixels(track), 0);
+    const tracks = rules
+        .filter(({body}) => /--board-columns:/.test(body))
+        .map(({body}) => tracksOf(body.match(/--board-columns:([^;]+)/)[1]))
+        .find((candidate) => candidate.length === 11);
+    const minWidth = rules
+        .filter(({selector}) => selector.endsWith('.board-reference-list'))
+        .map(({body}) => pixels(body.match(/min-width:\s*([^;]+)/)?.[1] || ''))
+        .find((value) => value > 0);
 
-        assert.equal(minWidth, sum, `Sidebar ${open ? 'กาง' : 'พับ'}: min-width ${minWidth}px ต้องเท่ากับผลรวมคอลัมน์ ${sum}px`);
-    }
+    const sum = tracks.reduce((total, track) => total + pixels(track), 0);
+
+    assert.equal(minWidth, sum, `min-width ${minWidth}px ต้องเท่ากับผลรวมคอลัมน์ ${sum}px`);
 });
 
 test('บนมือถือ min-width ของตารางถูกคืนเป็น 0 การ์ดงานจึงไม่กว้างเกินจอ', async () => {

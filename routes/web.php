@@ -9,6 +9,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ComputerCheckController;
 use App\Http\Controllers\DailyBriefController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MeetingAttendeeResponseController;
 use App\Http\Controllers\MeetingCalendarController;
@@ -722,6 +723,12 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::post('/tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->name('tasks.comments.read');
     Route::post('/tasks/{task}/comments/{comment}/pin', [TaskCommentController::class, 'pin'])->name('tasks.comments.pin');
     Route::post('/tasks/{task}/comments/{comment}/unpin', [TaskCommentController::class, 'unpin'])->name('tasks.comments.unpin');
+
+    // ช่องค้นหางานและโปรเจกต์บน Topbar — ขอบเขตตามสิทธิ์อยู่ใน GlobalSearchService
+    // หน้าเว็บหน่วงการพิมพ์ ~300ms แล้วยกเลิกคำขอเก่า เพดานนี้กันการยิงตรงจากที่อื่น
+    Route::get('/search', GlobalSearchController::class)
+        ->middleware('throttle:60,1')
+        ->name('search');
 
     Route::get('/realtime/sync', RealtimeSyncController::class)
         ->middleware('throttle:120,1')

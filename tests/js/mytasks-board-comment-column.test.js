@@ -43,11 +43,13 @@ test('ทุก breakpoint ของแถวบอร์ดประกาศ�
 
     // desktop = 11 ช่องตามหัวตาราง (คอลัมน์เวลากำหนดส่งเพิ่มเข้ามาหลังกำหนดส่ง)
     // มือถือ = 2 ช่อง (fallback เดิม) หรือ 4 ช่องของเลย์เอาต์การ์ด
+    // ไม่มีแถบข้างแล้ว กฎชุด "ตอนแถบข้างกาง" (body:not(.sidebar-collapsed)) จึงถูกลบ เหลือ 6 กฎ 11 ช่อง
     assert.ok(rules.length >= 9, `พบกฎกริดของแถวบอร์ดเพียง ${rules.length} กฎ`);
     for (const rule of rules) {
         assert.ok([11, 2, 4].includes(rule.tracks), `${rule.selector} ประกาศ ${rule.tracks} track`);
+        assert.ok(! rule.selector.includes('sidebar'), `${rule.selector} ยังอ้างสถานะของแถบข้างที่ไม่มีแล้ว`);
     }
-    assert.equal(rules.filter((rule) => rule.tracks === 11).length, 9);
+    assert.equal(rules.filter((rule) => rule.tracks === 11).length, 6);
 });
 
 test('หัวตารางจัดกึ่งกลางครอบคลุมถึงคอลัมน์คอมเมนต์', async () => {

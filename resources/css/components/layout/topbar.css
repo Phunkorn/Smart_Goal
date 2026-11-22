@@ -1,191 +1,226 @@
-        /* ---------- Topbar ---------- */
-        .topbar {
-            margin-left: var(--sidebar-w);
-            height: 64px;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0 1.75rem;
-            border-bottom: 1px solid var(--border);
-            background: rgba(255, 255, 255, .9);
-            backdrop-filter: blur(6px);
-            position: sticky;
-            top: 0;
-            z-index: 30;
-            transition: margin-left .22s ease;
-        }
+/* ---------- Topbar ----------
+ * แถวบนสุดของทุกหน้า: แบรนด์ · เมนูหลัก (navigation.css) · เครื่องมือ (ค้นหา งานประจำ แจ้งเตือน บัญชี)
+ *
+ * ตัว header โปร่งใส ไม่มีแถบสีขาวเต็มความกว้าง — ชิ้นที่ต้องมีพื้นหลัง (แถบเมนู ช่องค้นหา ปุ่ม บัญชี)
+ * มีพื้นหลังของตัวเอง และไม่ติดบนสุดตอนเลื่อน เนื้อหาจึงไม่ไหลลอดใต้ชิ้นที่โปร่งใส
+ *
+ * position: relative + z-index ทำให้ Topbar เป็นที่ยึดของดร็อปดาวน์บนจอแคบ (ดูท้ายไฟล์และ navigation.css)
+ * และให้เมนูที่เปิดลงมาอยู่เหนือเนื้อหาของหน้า แต่ยังต่ำกว่า modal ของ Bootstrap (1050+)
+ *
+ * เลย์เอาต์ตามความกว้างจอ (DOM ลำดับเดียว: แบรนด์ → เมนู → เครื่องมือ):
+ *   ≥ 1280px      แถวเดียว แบรนด์ | เมนูกลาง | เครื่องมือ
+ *   768–1279px    แถวแรก แบรนด์ | เครื่องมือ  แถวสองเป็นแถบเมนูกึ่งกลาง (ขึ้นบรรทัดใหม่ได้ ไม่ล้นจอ)
+ *   < 768px       เหมือนกัน แต่เครื่องมือเหลือแต่ไอคอน และแถบเมนูเลื่อนแนวนอน
+ */
+.topbar {
+    --topbar-pad-x: 1.75rem;
+    --topbar-pad-top: 14px;
+    --topbar-control: 44px;
+    position: relative;
+    z-index: 1030;
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+    grid-template-areas: "brand nav tools";
+    align-items: center;
+    column-gap: 1.25rem;
+    row-gap: 12px;
+    padding: var(--topbar-pad-top) var(--topbar-pad-x) 10px;
+    /* คงที่ระหว่างการเปลี่ยนหน้า (View Transition ใน shell.css) — มีแต่เนื้อหาที่เฟด */
+    view-transition-name: app-topbar;
+}
 
-        /*
-         * ชื่อระบบบนแถบบน — ย้ายมาจากหัว Sidebar
-         *
-         * ที่นี่อ่านได้ตลอดเวลา ไม่ว่าผู้ใช้จะย่อ Sidebar หรืออยู่บนจอเล็กที่ Sidebar
-         * ถูกปิดเป็น off-canvas ส่วนหัว Sidebar เหลือไว้ให้โลโก้เต็มความกว้าง
-         */
-        .topbar-brand {
-            display: grid;
-            min-width: 0;
-            row-gap: 0;
-            color: inherit;
-            text-decoration: none;
-        }
+/* ---------- Brand ---------- */
+.topbar-brand {
+    grid-area: brand;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    color: inherit;
+}
 
-        /*
-         * ชื่อระบบเป็นอักษรละตินล้วน จึงบีบความสูงบรรทัดได้โดยไม่ตัดสระหรือวรรณยุกต์
-         * สองบรรทัดนี้เป็นชื่อเดียวกัน จึงควรอยู่ชิดกันมากกว่าระยะบรรทัดปกติของเนื้อความ
-         */
-        .topbar-brand__name {
-            overflow: hidden;
-            color: var(--accent-strong);
-            font-size: .96rem;
-            font-weight: 700;
-            letter-spacing: .2px;
-            line-height: 1.1;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+.topbar-brand__mark {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #2f6bf2, var(--accent-strong));
+    box-shadow: 0 6px 16px rgba(30, 79, 214, .28), inset 0 0 0 3px rgba(255, 255, 255, .18);
+    color: #fff;
+    font-size: 1.3rem;
+}
 
-        /*
-         * บรรทัดคำอธิบายเป็นภาษาไทย ความสูงบรรทัดจึงต้องพอสำหรับสระบนและวรรณยุกต์
-         * ดึงให้ชิดขึ้นด้วยการหักขอบบนของกล่อง ไม่ใช่ด้วยการบีบ line-height จนตัวอักษรถูกตัด
-         */
-        .topbar-brand__subtitle {
-            overflow: hidden;
-            margin-top: -2px;
-            color: var(--text-muted);
-            font-size: .72rem;
-            line-height: 1.35;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+.topbar-brand__text {
+    display: grid;
+    min-width: 0;
+}
 
-        .topbar .search {
-            flex: 1;
-            max-width: 380px;
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: .45rem .8rem;
-            display: flex;
-            align-items: center;
-            gap: .5rem;
-            color: var(--text-muted);
-            font-size: .85rem;
-        }
+/*
+ * ชื่อระบบเป็นอักษรละตินล้วน จึงบีบความสูงบรรทัดได้โดยไม่ตัดสระหรือวรรณยุกต์
+ * สองบรรทัดนี้เป็นชื่อเดียวกัน จึงควรอยู่ชิดกันมากกว่าระยะบรรทัดปกติของเนื้อความ
+ */
+.topbar-brand__name {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 1.08rem;
+    font-weight: 700;
+    letter-spacing: .1px;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
-        .topbar .search input {
-            background: transparent;
-            border: 0;
-            outline: 0;
-            color: var(--text);
-            width: 100%;
-            font-family: 'Prompt', sans-serif;
-            font-size: .85rem;
-        }
+/*
+ * บรรทัดคำอธิบายเป็นภาษาไทย ความสูงบรรทัดจึงต้องพอสำหรับสระบนและวรรณยุกต์
+ * ดึงให้ชิดขึ้นด้วยการหักขอบบนของกล่อง ไม่ใช่ด้วยการบีบ line-height จนตัวอักษรถูกตัด
+ */
+.topbar-brand__subtitle {
+    overflow: hidden;
+    margin-top: -1px;
+    color: var(--text-muted);
+    font-size: .74rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
-        .topbar .search input::placeholder {
-            color: var(--text-muted);
-        }
+/* ---------- Utilities ---------- */
+.topbar-utilities {
+    grid-area: tools;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    min-width: 0;
+}
 
-        .icon-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            position: relative;
-        }
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    position: relative;
+}
 
-        .icon-btn:hover {
-            background: var(--surface-2);
-            color: var(--text);
-        }
+.icon-btn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
 
-        .icon-btn .ping {
-            position: absolute;
-            top: 6px;
-            right: 7px;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--red);
-            box-shadow: 0 0 0 2px var(--surface);
-        }
+.icon-btn .ping {
+    position: absolute;
+    top: 6px;
+    right: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 0 2px var(--surface);
+}
 
-        .icon-btn .notification-count {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            min-width: 18px;
-            height: 18px;
-            padding: 0 5px;
-            border-radius: 999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--red);
-            color: #fff;
-            border: 2px solid var(--surface);
-            /*
-             * ตัวเลขแจ้งเตือนอ่านยากเพราะ "หนา" ไม่ใช่เพราะใหญ่
-             * เส้นตัวเลขที่หนามากบนป้ายกลมเล็ก ๆ จะเชื่อมติดกันจนแยกไม่ออกว่าเลขอะไร
-             * จึงลดเฉพาะน้ำหนัก และขยายขนาดขึ้นเล็กน้อยเพื่อให้อ่านออกชัดกว่าเดิม
-             */
-            font-size: .72rem;
-            line-height: 1;
-            font-weight: 500;
-            letter-spacing: .02em;
-            font-variant-numeric: tabular-nums;
-        }
+.icon-btn .notification-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--red);
+    color: #fff;
+    border: 2px solid var(--surface);
+    /*
+     * ตัวเลขแจ้งเตือนอ่านยากเพราะ "หนา" ไม่ใช่เพราะใหญ่
+     * เส้นตัวเลขที่หนามากบนป้ายกลมเล็ก ๆ จะเชื่อมติดกันจนแยกไม่ออกว่าเลขอะไร
+     * จึงลดเฉพาะน้ำหนัก และขยายขนาดขึ้นเล็กน้อยเพื่อให้อ่านออกชัดกว่าเดิม
+     */
+    font-size: .72rem;
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: .02em;
+    font-variant-numeric: tabular-nums;
+}
 
-        .routine-topbar__button { color:#2563eb; }
-        .routine-topbar__count { background:#2563eb !important; font-size:.72rem; font-weight:500; letter-spacing:.02em; font-variant-numeric:tabular-nums; }
-        .routine-topbar__menu { width:min(360px,calc(100vw - 20px)); padding:0; overflow:hidden; border:1px solid #dce5f1; border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,.16); }
-        .routine-topbar__head { display:flex; align-items:center; justify-content:space-between; padding:13px 14px 9px; }
-        .routine-topbar__head strong { color:#1e293b; font-size:.9rem; }
-        .routine-topbar__head span { color:#64748b; font-size:.72rem; }
-        .routine-topbar__summary { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; padding:0 10px 10px; }
-        .routine-topbar__summary span { padding:7px 4px; border-radius:8px; background:#f1f5f9; color:#64748b; font-size:.7rem; text-align:center; }
-        .routine-topbar__summary b { color:#334155; }
-        .routine-topbar__summary .is-overdue { background:#fff0f0; color:#c62828; }
-        .routine-topbar__summary .is-overdue b { color:#c62828; }
-        .routine-topbar__item { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:center; gap:8px; padding:9px 13px; border-top:1px solid #edf1f6; color:#475569; text-decoration:none; }
-        .routine-topbar__item:hover { background:#f6f9fd; color:#1d4ed8; }
-        .routine-topbar__item > i { display:grid; width:28px; height:28px; place-items:center; border-radius:8px; background:#eaf2ff; color:#2563eb; }
-        .routine-topbar__item > span { display:grid; min-width:0; }
-        .routine-topbar__item strong { overflow:hidden; color:#24324a; font-size:.78rem; text-overflow:ellipsis; white-space:nowrap; }
-        .routine-topbar__item small { color:#7b8a9f; font-size:.68rem; }
-        .routine-topbar__item.is-overdue > i { background:#feecec; color:#dc2626; }
-        .routine-topbar__empty { margin:0; padding:22px 14px; border-top:1px solid #edf1f6; color:#7b8a9f; font-size:.78rem; text-align:center; }
-        .routine-topbar__all { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border-top:1px solid #e3eaf3; background:#f8fafc; color:#2563eb; font-size:.76rem; font-weight:700; text-decoration:none; }
+/* ปุ่มไอคอนบน Topbar ใหญ่กว่า .icon-btn ทั่วไป (ปุ่มบนหน้าอื่น เช่นหน้ารับแจ้งปัญหา ยังเป็น 36px) */
+.topbar .icon-btn {
+    width: var(--topbar-control);
+    height: var(--topbar-control);
+    border-radius: 14px;
+    color: var(--text);
+    font-size: 1.08rem;
+    box-shadow: var(--shadow-sm);
+    transition: background-color .16s ease, color .16s ease, box-shadow .16s ease;
+}
 
+.topbar .icon-btn:hover,
+.topbar .icon-btn[aria-expanded="true"] {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+}
+
+.topbar .icon-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.routine-topbar__button { color:#2563eb; }
+.routine-topbar__count { background:#2563eb !important; font-size:.72rem; font-weight:500; letter-spacing:.02em; font-variant-numeric:tabular-nums; }
+.routine-topbar__menu { width:min(360px,calc(100vw - 20px)); padding:0; overflow:hidden; border:1px solid #dce5f1; border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,.16); }
+.routine-topbar__head { display:flex; align-items:center; justify-content:space-between; padding:13px 14px 9px; }
+.routine-topbar__head strong { color:#1e293b; font-size:.9rem; }
+.routine-topbar__head span { color:#64748b; font-size:.72rem; }
+.routine-topbar__summary { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; padding:0 10px 10px; }
+.routine-topbar__summary span { padding:7px 4px; border-radius:8px; background:#f1f5f9; color:#64748b; font-size:.7rem; text-align:center; }
+.routine-topbar__summary b { color:#334155; }
+.routine-topbar__summary .is-overdue { background:#fff0f0; color:#c62828; }
+.routine-topbar__summary .is-overdue b { color:#c62828; }
+.routine-topbar__item { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:center; gap:8px; padding:9px 13px; border-top:1px solid #edf1f6; color:#475569; text-decoration:none; }
+.routine-topbar__item:hover { background:#f6f9fd; color:#1d4ed8; }
+.routine-topbar__item > i { display:grid; width:28px; height:28px; place-items:center; border-radius:8px; background:#eaf2ff; color:#2563eb; }
+.routine-topbar__item > span { display:grid; min-width:0; }
+.routine-topbar__item strong { overflow:hidden; color:#24324a; font-size:.78rem; text-overflow:ellipsis; white-space:nowrap; }
+.routine-topbar__item small { color:#7b8a9f; font-size:.68rem; }
+.routine-topbar__item.is-overdue > i { background:#feecec; color:#dc2626; }
+.routine-topbar__empty { margin:0; padding:22px 14px; border-top:1px solid #edf1f6; color:#7b8a9f; font-size:.78rem; text-align:center; }
+.routine-topbar__all { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border-top:1px solid #e3eaf3; background:#f8fafc; color:#2563eb; font-size:.76rem; font-weight:700; text-decoration:none; }
+
+/* ---------- Account ---------- */
 .topbar .topbar-account { flex: 0 0 auto; }
 .topbar .topbar-account__trigger {
     display: flex;
     align-items: center;
-    gap: .6rem;
-    max-width: 260px;
-    padding: .3rem .7rem .3rem .35rem;
-    border: 1px solid var(--accent);
-    border-radius: 999px;
+    gap: .65rem;
+    max-width: 240px;
+    min-height: var(--topbar-control);
+    padding: .3rem .8rem .3rem .35rem;
+    border: 1px solid var(--border);
+    border-radius: 16px;
     background: var(--surface);
+    box-shadow: var(--shadow-sm);
     color: var(--text);
     text-align: left;
-    transition: background-color .15s, box-shadow .15s;
+    transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
 }
 .topbar .topbar-account__trigger:hover,
-.topbar .topbar-account__trigger[aria-expanded="true"] { background: var(--accent-dim); }
+.topbar .topbar-account__trigger[aria-expanded="true"] { border-color: #c9d6f2; background: var(--accent-dim); }
 .topbar .topbar-account__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .topbar .topbar-account__avatar {
     position: relative;
     display: grid;
     place-items: center;
-    flex: 0 0 32px;
-    width: 32px;
-    height: 32px;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
     overflow: hidden;
     border-radius: 50%;
     background: var(--accent-dim);
@@ -195,16 +230,21 @@
 }
 .topbar .topbar-account__avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .topbar .topbar-account__identity { display: grid; min-width: 0; }
-.topbar .topbar-account__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; font-weight: 500; }
-.topbar .topbar-account__role { color: var(--text-muted); font-size: .65rem; }
-.topbar .topbar-account__chevron { color: var(--accent-strong); font-size: .7rem; }
+.topbar .topbar-account__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; font-weight: 600; line-height: 1.3; }
+.topbar .topbar-account__role { overflow: hidden; color: var(--text-muted); font-size: .7rem; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .topbar-account__chevron {
+    color: var(--text-muted);
+    font-size: .72rem;
+    transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+}
+.topbar .topbar-account__trigger[aria-expanded="true"] .topbar-account__chevron { transform: rotate(180deg); }
 .topbar .topbar-account__menu {
     width: min(290px, calc(100vw - 24px));
     padding: .5rem;
     border-color: var(--border);
-    border-radius: var(--radius);
+    border-radius: 14px;
     background: var(--surface);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 18px 44px rgba(22, 35, 61, .16);
 }
 .topbar .topbar-account__header { padding: .65rem .75rem; overflow-wrap: anywhere; color: var(--text-muted); font-size: .75rem; }
 .topbar .topbar-account__header strong { color: var(--text); font-weight: 500; }
@@ -212,13 +252,78 @@
 .topbar .topbar-account__menu .dropdown-item i { font-size: 1.05rem; }
 .topbar .topbar-account__menu .dropdown-item:hover,
 .topbar .topbar-account__menu .dropdown-item:focus { background: var(--accent-dim); color: var(--accent-strong); }
-@media (max-width: 767.98px) {
-    .topbar .topbar-brand__subtitle { display: none; }
-    .topbar .topbar-account__trigger { max-width: 180px; }
+
+/* ระยะห่างจากปุ่มเท่ากับดร็อปดาวน์ของเมนูหลัก (navigation.css) */
+.topbar-utilities .dropdown-menu.dropdown-menu-end.topbar-slide-menu {
+    margin-top: 10px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .topbar .icon-btn,
+    .topbar .topbar-account__trigger,
+    .topbar .topbar-account__chevron { transition: none; }
+}
+
+/* ---------- Responsive ---------- */
+
+/* จอเดสก์ท็อปที่ไม่กว้างมาก: ย่อบัญชีเหลือรูป เพื่อให้เมนูหลักอยู่แถวเดียวกับแบรนด์ได้ */
+@media (min-width: 1280px) and (max-width: 1599.98px) {
+    .topbar { column-gap: 1rem; padding-inline: 1.25rem; }
+    .topbar .topbar-account__identity { display: none; }
+    .topbar .topbar-account__trigger { padding-right: .6rem; }
+}
+
+/* แท็บเล็ตและเล็กกว่า: เมนูหลักลงไปเป็นแถวที่สองเต็มความกว้าง */
+@media (max-width: 1279.98px) {
+    .topbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "brand tools"
+            "nav nav";
+        padding-inline: 1.25rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .topbar {
+        --topbar-pad-x: .75rem;
+        --topbar-pad-top: 10px;
+        --topbar-control: 40px;
+        column-gap: .5rem;
+        row-gap: 10px;
+        padding-inline: var(--topbar-pad-x);
+    }
+
+    .topbar .topbar-brand__subtitle { display: none; }
+    .topbar-brand { gap: 9px; }
+    .topbar-brand__mark { width: 38px; height: 38px; font-size: 1.1rem; }
+    .topbar-utilities { gap: 6px; }
+
+    /*
+     * เมนูของเครื่องมือ (งานประจำ แจ้งเตือน บัญชี) ยึดกับ Topbar ทั้งแถว ไม่ใช่ขอบปุ่ม
+     * ปุ่มอยู่ห่างขอบจอขวาไม่เท่ากัน เมนูกว้าง 290–360px ที่ยึดขอบปุ่มจึงเลยขอบซ้ายของจอแคบ
+     * ตัวห่อ .dropdown เป็น static เพื่อให้ Topbar (relative) เป็นที่ยึด ตำแหน่งจึงคงที่
+     * ทั้งตอนเปิดและตอนเฟดปิด และเลื่อนไปกับหน้าตามปกติเพราะ Topbar ไม่ได้ติดบนสุด
+     */
+    .topbar-utilities .dropdown { position: static; }
+    .topbar-utilities .dropdown-menu.dropdown-menu-end.topbar-slide-menu {
+        top: calc(var(--topbar-pad-top) + var(--topbar-control) + 6px);
+        right: var(--topbar-pad-x);
+        left: var(--topbar-pad-x);
+        width: auto;
+        max-height: min(480px, calc(100dvh - 76px));
+        margin-top: 0;
+        overflow-y: auto;
+    }
+}
+
 @media (max-width: 575.98px) {
     .topbar .topbar-account__identity,
     .topbar .topbar-account__chevron { display: none; }
-    .topbar .topbar-account__trigger { padding: .25rem; }
-    .topbar .mobile-menu-btn { flex-shrink: 0; }
+    .topbar .topbar-account__trigger { padding: .2rem; border-radius: 50%; }
+}
+
+/* จอเล็กมาก: เหลือแต่เครื่องหมายของแบรนด์ เครื่องมือทั้งสี่ปุ่มจึงยังอยู่ครบในแถวเดียว */
+@media (max-width: 359.98px) {
+    .topbar .topbar-brand__text { display: none; }
 }

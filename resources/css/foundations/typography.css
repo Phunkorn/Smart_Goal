@@ -48,7 +48,6 @@ button {
 
 /* ป้ายที่ประกาศ text-transform: uppercase ไว้ตรง ๆ */
 .table-clean th,
-.nav-section-label,
 .admin-approvals-list__header,
 .admin-approvals-request__cell::before,
 .employee-reset-modal__eyebrow,

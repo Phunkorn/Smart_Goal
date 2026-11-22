@@ -693,55 +693,6 @@
 :is(.my-tasks-page,.sg-task-theme) .priority-option-4 { color: #d66d08; }
 :is(.my-tasks-page,.sg-task-theme) .priority-option-5 { color: #07845f; }
 
-/* The expanded desktop sidebar reduces the workspace without changing the
-   viewport media-query width. Keep the board grid inside that real space. */
-@media (min-width: 992px) {
-body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-}
-
-body:not(.sidebar-collapsed) .my-tasks-page .board-reference-columns,
-body:not(.sidebar-collapsed) .my-tasks-page .board-reference-row {
-    --board-columns:
-        minmax(240px, 28%)
-        113px
-        144px
-        109px
-        109px
-        109px
-        65px
-        83px
-        68px
-        68px
-        32px;
-}
-
-body:not(.sidebar-collapsed) .my-tasks-page .board-reference-list {
-    min-width: 1292px;
-}
-
-body:not(.sidebar-collapsed) .my-tasks-page .board-project-rule {
-    flex-basis: 220px;
-    width: min(18vw, 220px);
-}
-
-body:not(.sidebar-collapsed) .my-tasks-page .notion-summary {
-    grid-template-columns: minmax(160px, 190px) minmax(0, 1fr) minmax(210px, 260px);
-}
-
-body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
-    min-width: 0;
-}
-}
-
-@media (min-width: 992px) and (max-width: 1250px) {
-    body:not(.sidebar-collapsed) .my-tasks-page .notion-summary {
-        grid-template-columns: 160px minmax(0, 1fr);
-    }
-
-}
-
 /* Board dropdowns use one viewport coordinate system so horizontal scrolling
    and clipped board containers cannot detach them from their triggers. */
 .my-tasks-page [data-project-board] [data-board-status-menu] > div,
@@ -849,28 +800,6 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
         38px;
 }
 
-@media (min-width: 992px) {
-    body:not(.sidebar-collapsed) .my-tasks-page .board-reference-columns,
-    body:not(.sidebar-collapsed) .my-tasks-page .board-reference-row {
-        --board-columns:
-        minmax(260px, 1fr)
-        113px
-        126px
-        113px
-        113px
-        113px
-        94px
-        89px
-        74px
-        74px
-        34px;
-    }
-
-    body:not(.sidebar-collapsed) .my-tasks-page .board-reference-list {
-        min-width: 1222px;
-    }
-}
-
 @media (max-width: 760px) {
     .my-tasks-page .board-reference-row {
         --board-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -921,33 +850,6 @@ body:not(.sidebar-collapsed) .my-tasks-page .overview-states {
 /* คอลัมน์ผู้รับผิดชอบกว้างขึ้นเพื่อให้ชื่ออยู่ข้างรูป (87 → 150) ผลรวมจึงเป็น 280 + 1055 */
 .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
     min-width: 1335px;
-}
-
-@media (min-width: 992px) {
-    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .notion-table-scroll {
-        overflow-x: auto;
-    }
-
-    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-columns,
-body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-row {
-        --board-columns:
-        minmax(280px, 1fr)
-        113px
-        135px
-        100px
-        100px
-        100px
-        144px
-        124px
-        72px
-        76px
-        34px;
-    }
-
-    /* คอลัมน์ของชุดนี้แคบกว่า ผลรวมจึงเป็น 280 + 998 (ผู้รับผิดชอบ 83 → 144 เพื่อให้มีชื่อ) */
-    body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] .board-reference-list {
-        min-width: 1278px;
-    }
 }
 
 /* มือถือใช้เลย์เอาต์ 2 คอลัมน์เดิม กฎบอร์ดด้านบน specificity สูงกว่าจึงต้องคืนค่าให้ชัด */
@@ -1356,7 +1258,7 @@ body:not(.sidebar-collapsed) .my-tasks-page .notion-database[data-view="board"] 
 /*
  * จุดเดียวที่นำ --board-columns ไปใช้จริง
  *
- * ความกว้างของคอลัมน์ถูกประกาศไว้หลายที่ตามขนาดจอและสถานะ sidebar แต่ทุกที่ประกาศเป็น
+ * ความกว้างของคอลัมน์ถูกประกาศไว้หลายที่ตามขนาดจอ แต่ทุกที่ประกาศเป็น
  * ตัวแปรเท่านั้น แถวงานย่อย (.board-task-detail) จึงอ่านค่าเดียวกันได้ทุก breakpoint
  * โดยไม่ต้องรู้ว่ากฎไหนชนะ ถ้าเพิ่ม breakpoint ใหม่ให้ประกาศเป็น --board-columns เช่นกัน
  */

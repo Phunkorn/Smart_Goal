@@ -144,7 +144,8 @@
         }
 
         /*
-         * ดร็อปดาวน์บนแถบบนสไลด์เปิดแทนการกระโดดโผล่ ใช้ร่วมกันทั้งกระดิ่งแจ้งเตือนและงานประจำ
+         * ดร็อปดาวน์บนแถบบนสไลด์เปิดแทนการกระโดดโผล่ — ชุดเดียวของทั้ง Topbar:
+         * กลุ่มเมนูหลัก (navigation.css) กระดิ่งแจ้งเตือน งานประจำ และเมนูบัญชี
          *
          * Bootstrap ปิดเมนูด้วย display:none ซึ่งตัด transition ทิ้ง จึงบังคับให้เป็น block
          * เสมอแล้วคุมการมองเห็นด้วย visibility/opacity แทน
@@ -180,14 +181,14 @@
             visibility: hidden;
             transform: translateY(-8px) scaleY(.98);
             transform-origin: top center;
-            transition: opacity .18s ease, transform .2s cubic-bezier(.2, .8, .3, 1), visibility 0s linear .2s;
+            transition: opacity .18s ease, transform .2s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .2s;
         }
 
         .dropdown-menu.topbar-slide-menu.show {
             opacity: 1;
             visibility: visible;
             transform: none;
-            transition: opacity .18s ease, transform .2s cubic-bezier(.2, .8, .3, 1);
+            transition: opacity .18s ease, transform .2s cubic-bezier(.2, .8, .2, 1);
         }
 
         .dropdown-menu.notification-menu {
@@ -205,25 +206,8 @@
         .dropdown-menu.topbar-slide-menu:not(.show) { overflow: hidden; pointer-events: none; }
 
         /*
-         * จอโทรศัพท์: เมนูยึดกับขอบจอ ไม่ใช่ขอบปุ่ม
-         *
-         * right:0 ยึดขอบขวาของปุ่มกระดิ่ง/นาฬิกา ซึ่งอยู่ห่างขอบจอขวาอีกหลายสิบพิกเซล
-         * เมนูกว้าง 360px จึงเลยขอบซ้ายของจอ 375px ไปราว 43px หัวข้อ "การแจ้งเตือน" ถูกตัด
-         * position:fixed + left/right ทั้งคู่ทำให้เมนูพอดีจอเสมอ และยังคงเป็นค่าคงที่
-         * ตลอดทั้งตอนเปิดและตอนเฟดปิด (Bootstrap ถอด data-bs-popper ตอนปิด ตามคอมเมนต์ด้านบน)
+         * จอแคบ: เมนูยึดกับ Topbar ทั้งแถว ไม่ใช่ขอบปุ่ม — topbar.css (เครื่องมือ) และ navigation.css (กลุ่มเมนู)
          */
-        @media (max-width: 575.98px) {
-            .dropdown-menu.dropdown-menu-end.topbar-slide-menu {
-                position: fixed;
-                top: 62px;
-                right: 8px;
-                left: 8px;
-                width: auto;
-                max-height: min(480px, calc(100dvh - 76px));
-                margin-top: 0;
-                overflow-y: auto;
-            }
-        }
 
         @media (prefers-reduced-motion: reduce) {
             .dropdown-menu.topbar-slide-menu,

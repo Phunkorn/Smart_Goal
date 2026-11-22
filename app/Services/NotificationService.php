@@ -15,6 +15,7 @@ use App\Services\Telegram\TelegramOutbox;
 use App\Support\ApprovalPresenter;
 use App\Support\ProjectRoles;
 use App\Support\TaskCommentPresenter;
+use App\Support\TaskLink;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -662,34 +663,8 @@ class NotificationService
             return route('notifications.index');
         }
 
-        $query = ['open_task' => $task->job_id];
-        if ($notification->category === 'comment') {
-            $query['task_tab'] = 'updates';
-        }
-
-        if ($viewer->role === 'admin' && $task->user?->role === 'user' && $task->user?->department_id) {
-            return route('admin.work-board.member', [
-                'department' => $task->user->department_id,
-                'user' => $task->user_id,
-            ] + $query);
-        }
-
-        // งานของลูกทีมไม่ได้อยู่ในหน้า "งานของฉัน" ของหัวหน้า การส่งไป mytasks จึงเปิดงานไม่เจอ
-        // ต้องพาไป Workspace ของสมาชิกคนนั้นซึ่งเป็นที่เดียวที่หัวหน้าเปิดงานนี้ได้จริง
-        if ($task->user_id !== $viewer->id
-            && $task->user?->role === 'user'
-            && $viewer->overseesDepartment($task->user?->department_id)) {
-            return route('work-board.member', [
-                'department' => $task->user->department_id,
-                'user' => $task->user_id,
-                'workspace' => 1,
-            ] + $query);
-        }
-        if ($viewer->role === 'viewer') {
-            return route('tasks.show', $task->job_id);
-        }
-
-        return route('mytasks.index', $query);
+        // หน้าที่เปิดงานได้จริงต่างกันตามบทบาท — กติกาอยู่ที่ TaskLink ที่เดียว (การค้นหาบน Topbar ใช้ร่วมกัน)
+        return TaskLink::open($task, $viewer, $notification->category === 'comment' ? ['task_tab' => 'updates'] : []);
     }
 
     public function targetUnavailable(SystemNotification $notification, User $viewer): bool

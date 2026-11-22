@@ -69,8 +69,9 @@ test('the collaborator column is wide enough that avatars never cover the paperc
             .map(([, value]) => tracksOf(value)));
 
     // กฎของจอแคบยุบเหลือสองคอลัมน์แบบการ์ด จึงดูเฉพาะกฎที่ยังเป็นตารางเต็มสิบเอ็ดคอลัมน์
+    // (ไม่มีแถบข้างแล้ว จึงเหลือกฎกริดของมุมมองบอร์ดชุดเดียว ไม่ใช่ชุดตอนแถบข้างย่อและกาง)
     const tenColumnRules = boardRules.filter((tracks) => tracks.length === 11);
-    assert.ok(tenColumnRules.length >= 2, 'ต้องมีกฎกริดของมุมมองบอร์ดทั้งตอน Sidebar ย่อและกาง');
+    assert.ok(tenColumnRules.length >= 1, 'ต้องมีกฎกริดของมุมมองบอร์ดแบบเต็มสิบเอ็ดคอลัมน์');
 
     for (const tracks of tenColumnRules) {
 

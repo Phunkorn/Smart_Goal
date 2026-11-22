@@ -69,7 +69,7 @@ test('all-caps labels get one shared tracking value instead of none', async () =
     // ถูก import ก่อนไฟล์ของแต่ละหน้า หน้าที่ต้องการค่าเฉพาะจึงยังทับได้
     assert.match(layout, /@import '\.\.\/foundations\/typography\.css';/);
     assert.ok(
-        layout.indexOf('typography.css') < layout.indexOf('./layout/sidebar.css'),
+        layout.indexOf('typography.css') < layout.indexOf('./layout/topbar.css'),
         'typography.css ต้องถูก import ก่อนสไตล์ของแต่ละส่วน',
     );
 

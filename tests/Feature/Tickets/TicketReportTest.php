@@ -442,10 +442,12 @@ class TicketReportTest extends TestCase
         $this->actingAs($this->staff($sales))->get(route('tickets.index'))->assertDontSee($link, false);
         $this->actingAs($this->staff(null, 'viewer'))->get(route('reports.projects'))->assertOk()->assertDontSee($link, false);
 
-        // ลิงก์รายงานอยู่ในกลุ่ม "รายงาน" (layouts/partials/report-nav) ร่วมกับรายงานอื่น และมีที่เดียว
-        $page = $this->report($this->agent())->assertSee('<details class="report-nav report-nav--active" open>', false)->getContent();
+        // ลิงก์รายงานอยู่ในกลุ่ม "รายงาน" ของเมนูหลัก (App\Support\TopNavigation) ร่วมกับรายงานอื่น และมีที่เดียว
+        $page = $this->report($this->agent())
+            ->assertSee('class="top-nav__link top-nav__toggle is-active" data-top-nav-entry', false)
+            ->getContent();
         $this->assertStringNotContainsString('data-ticket-nav', $page);
-        $this->assertMatchesRegularExpression('~report-nav__link active"\s+aria-current="page"\s*>\s*<span class="nav-item__label">รายงานแจ้งปัญหา~u', $page);
+        $this->assertMatchesRegularExpression('~nav-dropdown__item is-active"\s+aria-current="page"\s*>\s*<i class="bi bi-headset nav-dropdown__icon" aria-hidden="true"></i>\s*<span class="nav-dropdown__label">รายงานแจ้งปัญหา~u', $page);
         $this->assertSame(1, substr_count($page, $link));
     }
 

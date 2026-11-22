@@ -31,24 +31,9 @@
     {{-- agent ที่ฟังเสียง Ticket ใหม่: แท็บที่ถูกซ่อน (อยู่แท็บอื่น/ย่อหน้าต่าง) ยังตรวจทุก 10 วินาที เสียงจึงดังได้ — ผู้ใช้อื่นหยุดตรวจเมื่อซ่อนเหมือนเดิม
          ไฟล์เสียงและเวลาที่เล่นวนต่อ Ticket มาจาก config/tickets.php (alert) --}}
     @if ($ticketAlertEnabled ?? false) data-realtime-background-interval="10000" data-ticket-alert-sound="{{ $ticketAlertSound }}" data-ticket-alert-seconds="{{ (int) config('tickets.alert.loop_seconds', 20) }}" @endif>
-    {{-- คืนสถานะย่อ/ขยายก่อน Sidebar ถูก render เพื่อไม่ให้เห็นการกระตุกตอนโหลดหน้า --}}
-    <script>
-        (() => {
-            try {
-                if (window.innerWidth > 991 && localStorage.getItem('smartgoal.sidebar.collapsed') === '1') {
-                    document.body.classList.add('sidebar-collapsed');
-                }
-            } catch (error) {
-                /* บางเบราว์เซอร์ปิด localStorage ไว้ ให้ถือว่าเป็นสถานะกางตามค่าเริ่มต้น */
-            }
-        })();
-    </script>
-
     @php
         $currentUser = auth()->user();
-        $isAdmin = $currentUser?->role === 'admin';
         $isViewer = $currentUser?->role === 'viewer';
-        $isDepartmentHead = $currentUser?->isDepartmentHead() ?? false;
         // ชื่อบทบาทมาจาก Support ตัวเดียวเสมอ เพื่อไม่ให้หน้าไหนลืมธง is_department_head
         $roleLabel = \App\Support\RoleLabel::for($currentUser);
         $routineAttention = app(\App\Services\RoutineAttentionService::class)->summary($currentUser);
@@ -56,292 +41,30 @@
         $systemNotifications = $notificationService->dropdown($currentUser);
         $notificationCount = $notificationService->unreadCount($currentUser);
         $notificationDisplayCount = $notificationService->displayCount($notificationCount);
-        $adminNavExpanded = [
-            'overview' => request()->routeIs('board.*', 'reports.*'),
-            'communication' => request()->routeIs('notifications.*', 'tickets.*'),
-            'work' => request()->routeIs('admin.approvals.*', 'shares.*', 'daily-logs.*', 'workspace.*'),
-            'people' => request()->routeIs('employees.*', 'admin.departments.*'),
-            'system' => request()->routeIs('admin.accounts.*', 'admin.work-log-categories.*', 'admin.tickets.*', 'admin.audit.*'),
-        ];
     @endphp
 
-    <aside class="sidebar" id="appSidebar">
-        {{-- ปุ่มปิด Sidebar บนจอเล็ก: อยู่เหนือเมนูโดยไม่ต้องมีหัวโลโก้ --}}
-        <button type="button" class="sidebar-close" aria-label="ปิดเมนู" data-sidebar-close>
-            <i class="bi bi-x-lg" aria-hidden="true"></i>
-        </button>
-
-        <div class="sidebar-nav">
-            @if ($isAdmin)
-                {{--
-                    แถบข้างของ admin แบ่งตามหน้าที่ห้าหมวด:
-                    ภาพรวมองค์กร / การสื่อสารและบริการ / การทำงาน / บุคลากรและแผนก / การตั้งค่าระบบ
-                    เพื่อให้เมนูข้อมูลคนไม่ปนกับบัญชี สิทธิ์ และเครื่องมือตรวจสอบระบบ
-                --}}
-                <div class="sidebar-nav__group" role="group" aria-label="ภาพรวมองค์กร">
-                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-overview" aria-controls="admin-nav-overview" aria-expanded="{{ $adminNavExpanded['overview'] ? 'true' : 'false' }}">
-                    <i class="bi bi-grid-1x2 sidebar-nav__group-icon" aria-hidden="true"></i>
-                    <span>ภาพรวมองค์กร</span>
-                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
-                </button>
-                <div id="admin-nav-overview" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['overview'] ? ' show' : '' }}">
-
-                {{-- เมนู "การประชุม" อยู่ใน Admin Member Workspace เพื่อให้ดูในบริบทของสมาชิก --}}
-                <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}" @if(request()->routeIs('board.*')) aria-current="page" @endif>
-                    <i class="bi bi-kanban"></i>
-                    <span class="nav-item__label">บอร์ดรวม</span>
-                </a>
-                @include('layouts.partials.report-nav')
-                </div>
-                </div>
-            @elseif ($isViewer)
-                <div class="nav-section-label">ภาพรวม</div>
-
-                <a href="{{ route('board.index') }}" class="nav-item {{ request()->routeIs('board.*') ? 'active' : '' }}" @if(request()->routeIs('board.*')) aria-current="page" @endif>
-                    <i class="bi bi-grid-1x2"></i>
-                    <span class="nav-item__label">แดชบอร์ด</span>
-                </a>
-                <a href="{{ route('workspace.index') }}"
-                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}" @if(request()->routeIs('workspace.*')) aria-current="page" @endif>
-                    <i class="bi bi-easel"></i>
-                    <span class="nav-item__label">กระดานไอเดีย</span>
-                </a>
-                @include('layouts.partials.report-nav')
-            @else
-                {{--
-                    พนักงานและหัวหน้าแผนก — หัวข้อคงที่ตามหน้าที่ของเมนู (ไม่เปลี่ยนชื่อตามบทบาท ยกเว้นกลุ่มทีม)
-                      การทำงาน     งานของตัวเองวันนี้
-                      ทีม/แผนกของฉัน งานร่วมกับคนอื่น (หัวหน้า: บอร์ดแผนก งานข้ามแผนก และประกาศ ซึ่งเป็นเครื่องมือดูแลแผนก)
-                      รายงาน▾     การสรุปผลย้อนหลังทุกชนิดที่มีสิทธิ์ (layouts/partials/report-nav)
-                      Smart Ticket เมนูเดียวตามสิทธิ์จริง (layouts/partials/ticket-nav)
-                      การสื่อสาร   การแจ้งเตือน · ระบบ ตั้งค่า
-                    ลำดับภายในกลุ่มเดิมคงไว้ (SidebarNavigationTest ตรวจลำดับนี้อยู่)
-                --}}
-                <div class="nav-section-label">การทำงาน</div>
-
-                <a href="{{ route('mytasks.index') }}"
-                    class="nav-item {{ request()->routeIs('mytasks.*') ? 'active' : '' }}" @if(request()->routeIs('mytasks.*')) aria-current="page" @endif>
-                    <i class="bi bi-briefcase"></i>
-                    <span class="nav-item__label">งานของฉัน</span>
-                </a>
-                {{-- บันทึกงานประจำวันเป็นเรื่องส่วนตัวก่อน จึงอยู่ถัดจาก "งานของฉัน" --}}
-                <a href="{{ route('daily-logs.index') }}"
-                    class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}" @if(request()->routeIs('daily-logs.*')) aria-current="page" @endif>
-                    <i class="bi bi-journal-check"></i>
-                    <span class="nav-item__label">บันทึกงานประจำวัน</span>
-                </a>
-
-                {{-- งานที่ทำร่วมกับคนอื่น — หัวหน้าเห็นในบริบทของแผนกตัวเอง --}}
-                <div class="nav-section-label">{{ $isDepartmentHead ? 'แผนกของฉัน' : 'ทีม' }}</div>
-
-                <a href="{{ $isDepartmentHead ? route('work-board.department', $currentUser->department_id) : route('work-board.index') }}"
-                    class="nav-item {{ request()->routeIs('work-board.*') ? 'active' : '' }}" @if(request()->routeIs('work-board.*')) aria-current="page" @endif>
-                    <i class="bi bi-kanban"></i>
-                    <span class="nav-item__label">บอร์ดงาน</span>
-                </a>
-                {{-- แชร์งาน — การทำงานร่วมกับคนอื่น ป้ายตัวเลขอธิบายไว้ใน layouts/partials/share-nav-item --}}
-                @include('layouts.partials.share-nav-item')
-                <a href="{{ route('workspace.index') }}"
-                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}" @if(request()->routeIs('workspace.*')) aria-current="page" @endif>
-                    <i class="bi bi-easel"></i>
-                    <span class="nav-item__label">กระดานไอเดีย</span>
-                </a>
-
-                @if ($isDepartmentHead)
-                    {{--
-                        เครื่องมือดูแลแผนกของหัวหน้า:
-                        งานข้ามแผนกของทีม — หน้าติดตามว่าลูกทีมไปร่วมโปรเจกต์ของแผนกใด ป้ายนับเรื่องที่รอเขาตัดสินจริง
-                        ประกาศ — ประกาศถึงแผนก/ทุกแผนก (AnnouncementPolicy) พนักงานเห็นประกาศในสรุปประจำวัน
-                    --}}
-                    <a href="{{ route('admin.approvals.index') }}"
-                        class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}" @if(request()->routeIs('admin.approvals.*')) aria-current="page" @endif>
-                        <i class="bi bi-shield-check"></i>
-                        <span class="nav-item__label">งานข้ามแผนกของทีม</span>
-                        @if($approvalCounts['total'] > 0)
-                            <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
-                        @endif
-                    </a>
-                    <a href="{{ route('announcements.index') }}"
-                        class="nav-item {{ request()->routeIs('announcements.*') ? 'active' : '' }}" @if(request()->routeIs('announcements.*')) aria-current="page" @endif>
-                        <i class="bi bi-megaphone"></i>
-                        <span class="nav-item__label">ประกาศ</span>
-                    </a>
-                @endif
-
-                @include('layouts.partials.report-nav')
-
-                {{-- Smart Ticket — หัวข้อของตัวเอง เมนูเดียวตามสิทธิ์ (แจ้งปัญหา / Ticket ของแผนก / จัดการ Ticket) --}}
-                @include('layouts.partials.ticket-nav', ['withSection' => true])
-            @endif
-
-            @if ($isAdmin)
-                <div class="sidebar-nav__group" role="group" aria-label="การสื่อสารและบริการ">
-                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-communication" aria-controls="admin-nav-communication" aria-expanded="{{ $adminNavExpanded['communication'] ? 'true' : 'false' }}">
-                    <i class="bi bi-chat-dots sidebar-nav__group-icon" aria-hidden="true"></i>
-                    <span>การสื่อสารและบริการ</span>
-                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
-                </button>
-                <div id="admin-nav-communication" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['communication'] ? ' show' : '' }}">
-            @else
-                <div class="nav-section-label">การสื่อสาร</div>
-            @endif
-
-            <a href="{{ route('notifications.index') }}"
-                class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}" @if(request()->routeIs('notifications.*')) aria-current="page" @endif>
-                <i class="bi bi-bell"></i>
-                <span class="nav-item__label">การแจ้งเตือน</span>
-                <span class="nav-item__count" data-notification-count data-sidebar-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
-            </a>
-
-            @if ($isAdmin)
-                {{-- Smart Ticket ใช้เมนูและสิทธิ์เดิมในหมวดการสื่อสารและบริการ --}}
-                @include('layouts.partials.ticket-nav')
-                </div>
-                </div>
-
-                <div class="sidebar-nav__group" role="group" aria-label="การทำงาน">
-                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-work" aria-controls="admin-nav-work" aria-expanded="{{ $adminNavExpanded['work'] ? 'true' : 'false' }}">
-                    <i class="bi bi-briefcase sidebar-nav__group-icon" aria-hidden="true"></i>
-                    <span>การทำงาน</span>
-                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
-                </button>
-                <div id="admin-nav-work" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['work'] ? ' show' : '' }}">
-
-                {{--
-                    admin เห็นคำขออนุมัติเฉพาะตอนมีของค้างจริง เพราะ admin เป็นผู้ดูแลระบบ ไม่ใช่ผู้อนุมัติงาน
-                    คิวของ admin ถูกจำกัดเหลือเฉพาะคำขอที่ไม่มีหัวหน้าแผนกรับผิดชอบแล้ว (AdminApprovalQuery::scopeAssignments)
-                --}}
-                @if (($approvalCounts['total'] ?? 0) > 0)
-                    <a href="{{ route('admin.approvals.index') }}"
-                        class="nav-item {{ request()->routeIs('admin.approvals.*') ? 'active' : '' }}" @if(request()->routeIs('admin.approvals.*')) aria-current="page" @endif>
-                        <i class="bi bi-shield-check"></i>
-                        <span class="nav-item__label">คำขออนุมัติ</span>
-                        <span class="nav-item__count" data-approval-count>{{ $approvalCounts['total'] }}</span>
-                    </a>
-                @endif
-            @endif
-            @if ($isAdmin)
-                {{--
-                    รวมเครื่องมือทำงานและทำงานร่วมกันไว้ในหมวดการทำงาน
-                    ป้ายตัวเลขของแชร์งานอธิบายไว้ใน layouts/partials/share-nav-item
-                --}}
-                @include('layouts.partials.share-nav-item')
-                <a href="{{ route('daily-logs.index') }}" class="nav-item {{ request()->routeIs('daily-logs.*') ? 'active' : '' }}" @if(request()->routeIs('daily-logs.*')) aria-current="page" @endif>
-                    <i class="bi bi-journal-check"></i>
-                    <span class="nav-item__label">บันทึกงานประจำวัน</span>
-                </a>
-                <a href="{{ route('workspace.index') }}"
-                    class="nav-item {{ request()->routeIs('workspace.*') ? 'active' : '' }}" @if(request()->routeIs('workspace.*')) aria-current="page" @endif>
-                    <i class="bi bi-easel"></i>
-                    <span class="nav-item__label">กระดานไอเดีย</span>
-                </a>
-                </div>
-                </div>
-            @endif
-
-            @if ($isViewer)
-                <a href="{{ route('meetings.index') }}" class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}" @if(request()->routeIs('meetings.*')) aria-current="page" @endif>
-                    <i class="bi bi-calendar-event"></i>
-                    <span class="nav-item__label">การประชุม</span>
-                </a>
-            @endif
-
-            @if ($isAdmin || $isViewer)
-                @if ($isAdmin)
-                    <div class="sidebar-nav__group" role="group" aria-label="บุคลากรและแผนก">
-                    <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-people" aria-controls="admin-nav-people" aria-expanded="{{ $adminNavExpanded['people'] ? 'true' : 'false' }}">
-                        <i class="bi bi-people sidebar-nav__group-icon" aria-hidden="true"></i>
-                        <span>บุคลากรและแผนก</span>
-                        <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
-                    </button>
-                    <div id="admin-nav-people" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['people'] ? ' show' : '' }}">
-                @else
-                    <div class="nav-section-label">องค์กร</div>
-                @endif
-
-                <a href="{{ route('employees.index') }}"
-                    class="nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}" @if(request()->routeIs('employees.*')) aria-current="page" @endif>
-                    <i class="bi bi-people"></i>
-                    <span class="nav-item__label">พนักงาน</span>
-                </a>
-                @if ($isAdmin)
-                    <a href="{{ route('admin.departments.index') }}"
-                        class="nav-item {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}" @if(request()->routeIs('admin.departments.*')) aria-current="page" @endif>
-                        <i class="bi bi-diagram-3"></i>
-                        <span class="nav-item__label">จัดการแผนก</span>
-                    </a>
-                    </div>
-                    </div>
-                @endif
-            @endif
-
-            @if ($isAdmin)
-                <div class="sidebar-nav__group" role="group" aria-label="การตั้งค่าระบบ">
-                <button class="nav-section-label sidebar-nav__group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#admin-nav-system" aria-controls="admin-nav-system" aria-expanded="{{ $adminNavExpanded['system'] ? 'true' : 'false' }}">
-                    <i class="bi bi-gear sidebar-nav__group-icon" aria-hidden="true"></i>
-                    <span>การตั้งค่าระบบ</span>
-                    <i class="bi bi-chevron-down sidebar-nav__group-chevron" aria-hidden="true"></i>
-                </button>
-                <div id="admin-nav-system" class="sidebar-nav__group-items collapse{{ $adminNavExpanded['system'] ? ' show' : '' }}">
-            @else
-                <div class="nav-section-label">ระบบ</div>
-            @endif
-
-            @if ($isAdmin)
-                <a href="{{ route('admin.accounts.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.accounts.*') ? 'active' : '' }}" @if(request()->routeIs('admin.accounts.*')) aria-current="page" @endif>
-                    <i class="bi bi-person-gear"></i>
-                    <span class="nav-item__label">บัญชีระบบ</span>
-                </a>
-
-                {{-- หมวดงานของบันทึกงานประจำวันเป็นตาราง lookup ที่ admin แก้ได้เอง
-                     จึงเป็นการตั้งค่าข้อมูล ไม่ใช่กลุ่มงาน --}}
-                <a href="{{ route('admin.work-log-categories.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.work-log-categories.*') ? 'active' : '' }}" @if(request()->routeIs('admin.work-log-categories.*')) aria-current="page" @endif>
-                    <i class="bi bi-tags"></i>
-                    <span class="nav-item__label">หมวดงานประจำวัน</span>
-                </a>
-
-                @if (($ticketsInstalled ?? false) && auth()->user()->can('manageSettings', \App\Models\Ticket::class))
-                    <a href="{{ route('admin.tickets.index') }}"
-                        class="nav-item {{ request()->routeIs('admin.tickets.*') ? 'active' : '' }}" @if(request()->routeIs('admin.tickets.*')) aria-current="page" @endif>
-                        <i class="bi bi-sliders"></i>
-                        <span class="nav-item__label">ตั้งค่า Smart Ticket</span>
-                    </a>
-                @endif
-
-                {{-- บันทึกระบบกับถังขยะรวมเป็นเมนูเดียว เพราะทั้งคู่ตอบคำถามเดียวกันว่าใครทำอะไรกับข้อมูล
-                     อยู่ท้ายกลุ่มเพราะเป็นการย้อนตรวจ ไม่ใช่งานที่ทำทุกวัน --}}
-                <a href="{{ route('admin.audit.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}" @if(request()->routeIs('admin.audit.*')) aria-current="page" @endif>
-                    <i class="bi bi-shield-lock"></i>
-                    <span class="nav-item__label">Audit Log</span>
-                </a>
-            @endif
-
-            @if ($isAdmin)
-                </div>
-                </div>
-            @endif
-        </div>
-
-    </aside>
-    <div class="sidebar-backdrop" data-sidebar-close></div>
-
+    {{--
+        Topbar แนวนอนแทนแถบข้างเดิม: แบรนด์ · เมนูหลัก · เครื่องมือ (ค้นหา งานประจำ แจ้งเตือน บัญชี)
+        ตัว header โปร่งใส มีพื้นหลังเฉพาะชิ้นที่ต้องการ (แถบเมนู ช่องค้นหา ปุ่ม และบัญชี)
+        เมนูตามสิทธิ์มาจาก App\Support\TopNavigation ที่เดียว — layouts/components/top-navigation
+    --}}
     <header class="topbar">
-        {{-- ปุ่มเดียวกันทำหน้าที่ย่อ/ขยาย Sidebar บนเดสก์ท็อป และเปิด/ปิด off-canvas บนจอเล็ก --}}
-        <button type="button" class="mobile-menu-btn" aria-label="ย่อหรือขยายเมนู" title="ย่อหรือขยายเมนู" aria-controls="appSidebar" aria-expanded="false" data-sidebar-open>
-            <i class="bi bi-list"></i>
-        </button>
-        {{-- ชื่อระบบอยู่ที่นี่ที่เดียว ไม่ซ้ำกับหัว Sidebar --}}
+        {{-- ชื่อระบบอยู่ที่นี่ที่เดียว --}}
         <div class="topbar-brand">
-            <span class="topbar-brand__name">Smart Goals</span>
-            <span class="topbar-brand__subtitle">ระบบจัดการองค์กร</span>
+            <span class="topbar-brand__mark" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
+            <span class="topbar-brand__text">
+                <span class="topbar-brand__name">Smart Goals</span>
+                <span class="topbar-brand__subtitle">ระบบบริหารงานองค์กร</span>
+            </span>
         </div>
-        <div class="ms-auto d-flex align-items-center gap-2">
+
+        @include('layouts.components.top-navigation')
+
+        <div class="topbar-utilities">
+            @include('layouts.components.global-search')
             @unless($isViewer)
                 <div class="dropdown routine-topbar" data-routine-topbar data-routine-status-url="{{ route('daily-logs.routine-status') }}">
-                    <button class="icon-btn routine-topbar__button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
+                    <button type="button" class="icon-btn routine-topbar__button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
                         title="งานประจำวันนี้" aria-label="งานประจำที่ต้องจัดการ {{ $routineAttention['total'] }} รายการ">
                         <i class="bi bi-alarm-fill" aria-hidden="true"></i>
                         <span class="notification-count routine-topbar__count" data-routine-count @if($routineAttention['total'] === 0) hidden @endif>{{ $routineAttention['total'] }}</span>
@@ -373,8 +96,8 @@
                 </div>
             @endunless
             <div class="dropdown">
-                <button class="icon-btn" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" title="แจ้งเตือน">
-                    <i class="bi bi-bell-fill"></i>
+                <button type="button" class="icon-btn" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" title="แจ้งเตือน" aria-label="การแจ้งเตือน">
+                    <i class="bi bi-bell-fill" aria-hidden="true"></i>
                     <span class="notification-count" data-notification-count data-bell-notification-count{{ $notificationCount === 0 ? ' hidden' : '' }}>{{ $notificationDisplayCount }}</span>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end topbar-slide-menu notification-menu" data-notification-menu>
@@ -445,8 +168,9 @@
     @endif
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    {{-- แถบข้าง: ย่อ/กาง เดสก์ท็อป, drawer จอเล็ก, tooltip ตอนย่อ — resources/js/components/sidebar.js --}}
-    @vite('resources/js/components/sidebar.js')
+    {{-- เมนูแนวนอน (คีย์บอร์ด และเลื่อนให้เห็นเมนูปัจจุบันบนจอแคบ) กับช่องค้นหา Ctrl/⌘ + K --}}
+    @vite('resources/js/components/top-navigation.js')
+    @vite('resources/js/components/global-search.js')
     @vite('resources/js/components/avatar-fallback.js')
     @vite('resources/js/components/realtime-sync.js')
     {{-- เสียงแจ้ง Ticket ใหม่ทุกหน้า — ฟัง event ของ realtime-sync ไม่ยิงคำขอเอง (เฉพาะ agent ที่เปิดรับแจ้งเตือน)

@@ -1,0 +1,319 @@
+/* ---------- เมนูหลักแนวนอน (layouts/components/top-navigation.blade.php) ----------
+ *
+ * แถบเมนูเป็น "เม็ดยา" ลอยบนพื้นหน้า: พื้นขาว เส้นขอบอ่อน มุมโค้งเต็ม เงานุ่ม
+ * เมนูปัจจุบันเป็นพื้นน้ำเงินตัวอักษรขาว ส่วนเมนูอื่นเป็นตัวอักษรเข้มกับไอคอนเส้น
+ *
+ * ดร็อปดาวน์ของกลุ่มเมนูใช้การเปิด/ปิดชุดเดียวกับกระดิ่งและบัญชี (.topbar-slide-menu ใน shared-ui.css)
+ * ไฟล์นี้กำหนดเฉพาะหน้าตาของรายการและตำแหน่งยึดของเมนูที่ชิดซ้าย
+ */
+.top-nav {
+    grid-area: nav;
+    justify-self: center;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.top-nav__list {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin: 0;
+    padding: 5px;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgba(22, 35, 61, .06), 0 1px 2px rgba(22, 35, 61, .04);
+}
+
+.top-nav__item {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.top-nav__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 15px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: .86rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+        background-color .18s cubic-bezier(.2, .8, .2, 1),
+        color .18s cubic-bezier(.2, .8, .2, 1),
+        box-shadow .18s cubic-bezier(.2, .8, .2, 1);
+}
+
+.top-nav__icon {
+    color: var(--text-muted);
+    font-size: 1.02rem;
+    line-height: 1;
+    transition: color .18s cubic-bezier(.2, .8, .2, 1);
+}
+
+.top-nav__link:hover,
+.top-nav__toggle[aria-expanded="true"] {
+    background: var(--surface-2);
+    color: var(--accent-strong);
+}
+
+.top-nav__link:hover .top-nav__icon,
+.top-nav__toggle[aria-expanded="true"] .top-nav__icon {
+    color: var(--accent);
+}
+
+.top-nav__link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/*
+ * เมนูของหน้าปัจจุบัน (หรือกลุ่มที่มีหน้าปัจจุบันอยู่ข้างใน) — มีได้รายการเดียวต่อหน้า
+ * view-transition-name ทำให้เม็ดสีน้ำเงินเลื่อนจากเมนูเดิมไปเมนูใหม่ตอนเปลี่ยนหน้า (shell.css)
+ */
+.top-nav__link.is-active,
+.top-nav__link.is-active:hover,
+.top-nav__toggle.is-active[aria-expanded="true"] {
+    background: var(--accent);
+    box-shadow: 0 6px 16px rgba(30, 79, 214, .28);
+    color: #fff;
+    view-transition-name: top-nav-active;
+}
+
+.top-nav__link.is-active .top-nav__icon {
+    color: #fff;
+}
+
+.top-nav__link.is-active:focus-visible {
+    outline-color: var(--accent-strong);
+}
+
+.top-nav__chevron {
+    margin-left: -2px;
+    font-size: .7rem;
+    transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+}
+
+.top-nav__toggle[aria-expanded="true"] .top-nav__chevron {
+    transform: rotate(180deg);
+}
+
+/* จุดเตือนบนหัวกลุ่ม: ข้างในมีเรื่องรอผู้ใช้ (คำขออนุมัติ Ticket รอรับงาน) */
+.top-nav__dot {
+    width: 7px;
+    height: 7px;
+    margin-left: -3px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 0 2px var(--surface);
+}
+
+.top-nav__link.is-active .top-nav__dot {
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+.top-nav__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--red);
+    color: #fff;
+    font-size: .68rem;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.top-nav__badge[hidden] {
+    display: none;
+}
+
+/* คำขอที่รอเราอนุมัติ — สีต่างจากป้ายจำนวนงาน เพื่อให้แยกออกว่าเป็นคนละเรื่อง */
+.top-nav__badge--request {
+    background: #f59e0b;
+}
+
+.top-nav__link.is-active .top-nav__badge {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .85);
+}
+
+/* ---------- ดร็อปดาวน์ของกลุ่มเมนู ---------- */
+
+/*
+ * เมนูที่ชิดซ้ายต้องมีตำแหน่งของตัวเองเช่นเดียวกับ .dropdown-menu-end.topbar-slide-menu
+ * เพราะ Bootstrap ถอด data-bs-popper ตอนปิด เมนูที่ยังวาดอยู่ระหว่างเฟดออกจึงต้องไม่พึ่ง attribute นั้น
+ *
+ * กฎตำแหน่งขึ้นต้นด้วย .top-nav เสมอ เพราะ shared-ui.css ถูก import หลังไฟล์นี้
+ * และกฎ .dropdown-menu.dropdown-menu-end.topbar-slide-menu ของมันจะชนะถ้า specificity เท่ากัน
+ */
+.top-nav .dropdown-menu.topbar-slide-menu.nav-dropdown {
+    top: 100%;
+    margin-top: 10px;
+}
+
+.top-nav .dropdown-menu.topbar-slide-menu.nav-dropdown:not(.dropdown-menu-end) {
+    right: auto;
+    left: 0;
+}
+
+.dropdown-menu.nav-dropdown {
+    min-width: 250px;
+    max-width: min(320px, calc(100vw - 24px));
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 18px 44px rgba(22, 35, 61, .14), 0 2px 6px rgba(22, 35, 61, .05);
+}
+
+.nav-dropdown__section + .nav-dropdown__section {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
+.nav-dropdown__heading {
+    margin: 0;
+    padding: 8px 12px 4px;
+    color: var(--text-muted);
+    font-size: .7rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.dropdown-menu.nav-dropdown .nav-dropdown__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    color: var(--text);
+    font-size: .85rem;
+    font-weight: 500;
+    white-space: normal;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.nav-dropdown__icon {
+    flex: 0 0 18px;
+    color: var(--text-muted);
+    font-size: 1rem;
+    text-align: center;
+    transition: color .15s ease;
+}
+
+.nav-dropdown__label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.dropdown-menu.nav-dropdown .nav-dropdown__item:hover,
+.dropdown-menu.nav-dropdown .nav-dropdown__item:focus {
+    background: var(--surface-2);
+    color: var(--accent-strong);
+}
+
+.dropdown-menu.nav-dropdown .nav-dropdown__item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.dropdown-menu.nav-dropdown .nav-dropdown__item:hover .nav-dropdown__icon,
+.dropdown-menu.nav-dropdown .nav-dropdown__item:focus .nav-dropdown__icon,
+.dropdown-menu.nav-dropdown .nav-dropdown__item.is-active .nav-dropdown__icon {
+    color: var(--accent);
+}
+
+/* หน้าปัจจุบันในดร็อปดาวน์ — พื้นฟ้าอ่อน ไม่ใช่พื้นน้ำเงินทึบของ .dropdown-item.active ใน Bootstrap */
+.dropdown-menu.nav-dropdown .nav-dropdown__item.is-active {
+    background: var(--accent-dim);
+    color: var(--accent-strong);
+    font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .top-nav__link,
+    .top-nav__icon,
+    .top-nav__chevron,
+    .dropdown-menu.nav-dropdown .nav-dropdown__item,
+    .nav-dropdown__icon {
+        transition: none;
+    }
+}
+
+/* ---------- Responsive ---------- */
+
+@media (min-width: 1280px) and (max-width: 1599.98px) {
+    .top-nav__link { padding: 0 12px; font-size: .84rem; gap: 7px; }
+}
+
+/*
+ * แท็บเล็ต: แถบเมนูเป็นแถวที่สองกึ่งกลาง ถ้าเมนูของบทบาทนั้นยาวเกินแถว ให้ขึ้นบรรทัดใหม่
+ * แทนการล้นจอหรือซ้อนกัน (มุมโค้งลดลงเพราะแถบอาจสูงสองบรรทัด)
+ */
+@media (max-width: 1279.98px) {
+    .top-nav { justify-self: stretch; }
+    .top-nav__list {
+        flex-wrap: wrap;
+        justify-content: center;
+        border-radius: 24px;
+    }
+}
+
+/*
+ * โทรศัพท์: แถบเมนูเลื่อนแนวนอนได้ (ไม่ขึ้นบรรทัดใหม่ ไม่ใช่ลิ้นชักข้างจอ)
+ *
+ * ดร็อปดาวน์อยู่ในแถวที่เลื่อนได้ ถ้าแถวหรือตัวห่อเป็นที่ยึดของมัน เมนูจะถูก overflow ของแถวตัดทิ้ง
+ * จึงให้ทั้งแถวและตัวห่อเป็น static แล้วยึดกับ Topbar (relative) แทน: เมนูกางเต็มความกว้างใต้ Topbar
+ * ตำแหน่งนี้คงที่ทั้งตอนเปิดและตอนเฟดปิด และไม่หลุดขอบจอ
+ */
+@media (max-width: 767.98px) {
+    .top-nav__list {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-padding-inline: 5px;
+        scrollbar-width: none;
+        border-radius: 999px;
+    }
+
+    .top-nav__list::-webkit-scrollbar { display: none; }
+
+    .top-nav__item.dropdown { position: static; }
+
+    .top-nav__link {
+        height: 38px;
+        padding: 0 13px;
+        font-size: .84rem;
+    }
+
+    .top-nav .dropdown-menu.topbar-slide-menu.nav-dropdown,
+    .top-nav .dropdown-menu.topbar-slide-menu.nav-dropdown:not(.dropdown-menu-end) {
+        top: 100%;
+        right: var(--topbar-pad-x, .75rem);
+        left: var(--topbar-pad-x, .75rem);
+        max-width: none;
+        max-height: min(520px, calc(100dvh - 140px));
+        margin-top: 0;
+        overflow-y: auto;
+    }
+
+    /* แตะง่ายบนจอสัมผัส */
+    .dropdown-menu.nav-dropdown .nav-dropdown__item { min-height: 46px; }
+}

@@ -1,16 +1,13 @@
-        /* ---------- Main ---------- */
+        /* ---------- Main ----------
+           ไม่มีแถบข้างแล้ว เนื้อหาจึงใช้ความกว้างจอเต็มโดยไม่ต้องเว้นระยะหลบ
+           ระยะขอบบนสั้นกว่าด้านข้างเพราะ Topbar มีระยะขอบล่างของตัวเองอยู่แล้ว */
         .main {
-            margin-left: var(--sidebar-w);
-            padding: 1.75rem;
-            transition: margin-left .22s ease;
+            padding: .75rem 1.75rem 1.75rem;
         }
 
-        /* สถานะย่อไม่ได้ซ่อน Sidebar แต่เหลือเป็นแถบไอคอน จึงต้องเว้นระยะเท่าความกว้างแถบ
-           (จอเล็กใช้ off-canvas จึงกันไว้เฉพาะเดสก์ท็อป) */
-        @media (min-width: 992px) {
-            body.sidebar-collapsed .topbar,
-            body.sidebar-collapsed .main {
-                margin-left: var(--sidebar-collapsed-w);
+        @media (max-width: 1279.98px) {
+            .main {
+                padding-inline: 1.25rem;
             }
         }
 
@@ -46,3 +43,46 @@
             margin: .25rem 0 0;
             font-size: .85rem;
         }
+
+/* ---------- การเปลี่ยนหน้า ----------
+ *
+ * ระบบเป็น Blade แบบโหลดทั้งหน้า จึงใช้ cross-document View Transition ของเบราว์เซอร์
+ * (Chrome/Edge 126+, Safari 18.2+) ไม่ใช่การดักลิงก์ด้วยสคริปต์ — ลิงก์ ฟอร์ม ดาวน์โหลด ปุ่มย้อนกลับ
+ * ประวัติ deep link และการคืนตำแหน่งเลื่อนทำงานตามปกติของเบราว์เซอร์ทุกอย่าง
+ *
+ * - Topbar มีชื่อของตัวเอง (topbar.css) จึงอยู่นิ่ง มีแต่เนื้อหาที่เฟดและเลื่อนขึ้นเล็กน้อย
+ * - เม็ดสีของเมนูปัจจุบัน (navigation.css) เลื่อนจากเมนูเดิมไปเมนูใหม่
+ * - เบราว์เซอร์ที่ไม่รองรับเปลี่ยนหน้าตามปกติโดยไม่มีแอนิเมชัน ไม่มีการเล่นซ้ำซ้อนกับแอนิเมชันอื่น
+ *   เพราะเนื้อหาไม่มีแอนิเมชันตอนโหลดของตัวเอง
+ * - ไม่แตะ transform/opacity ของ .main เอง modal ที่อยู่ในเนื้อหาจึงไม่ถูกยึดตำแหน่งผิดระหว่างเปลี่ยนหน้า
+ */
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition-old(root) {
+    animation: app-page-out .14s cubic-bezier(.4, 0, 1, 1) both;
+}
+
+::view-transition-new(root) {
+    animation: app-page-in .24s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+::view-transition-group(top-nav-active) {
+    animation-duration: .26s;
+    animation-timing-function: cubic-bezier(.2, .8, .2, 1);
+}
+
+@keyframes app-page-out {
+    to { opacity: 0; }
+}
+
+@keyframes app-page-in {
+    from { opacity: 0; transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @view-transition {
+        navigation: none;
+    }
+}

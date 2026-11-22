@@ -18,22 +18,22 @@ class NotificationCenterTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sidebar_entry_count_and_active_state_are_shared_for_every_role(): void
+    public function test_navigation_entry_count_and_active_state_are_shared_for_every_role(): void
     {
         foreach (['user', 'admin', 'viewer'] as $role) {
             $user = $this->user($role);
-            $this->notice($user, 'sidebar unread', now());
+            $this->notice($user, 'navigation unread', now());
             $response = $this->actingAs($user)->get(route('notifications.index'))->assertOk();
             $response->assertSee(route('notifications.index'), false)
-                ->assertSee('nav-item active', false)
-                ->assertSee('nav-item__count', false)
+                ->assertSee('is-active" data-top-nav-entry', false)
+                ->assertSee('top-nav__badge', false)
                 ->assertSee('data-notification-count', false)
                 ->assertSee('data-delete-notification-form', false);
         }
 
         $zero = $this->user();
         $this->actingAs($zero)->get(route('notifications.index'))->assertOk()
-            ->assertSee('data-sidebar-notification-count', false)
+            ->assertSee('data-nav-notification-count', false)
             ->assertSee('data-bell-notification-count', false);
 
         $known = $this->user();
@@ -41,7 +41,7 @@ class NotificationCenterTest extends TestCase
             $this->notice($known, 'known '.$index, now());
         }
         $this->actingAs($known)->get(route('notifications.index'))->assertOk()
-            ->assertSee('data-sidebar-notification-count>5</span>', false)
+            ->assertSee('data-nav-notification-count >5</span>', false)
             ->assertSee('data-bell-notification-count>5</span>', false);
 
         $large = $this->user();
@@ -49,7 +49,7 @@ class NotificationCenterTest extends TestCase
             $this->notice($large, 'large '.$index, now());
         }
         $this->actingAs($large)->get(route('notifications.index'))->assertOk()
-            ->assertSee('data-sidebar-notification-count>99+</span>', false)
+            ->assertSee('data-nav-notification-count >99+</span>', false)
             ->assertSee('data-bell-notification-count>99+</span>', false);
     }
 

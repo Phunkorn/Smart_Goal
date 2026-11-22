@@ -672,7 +672,7 @@ class WorkOrderShareTest extends TestCase
         $this->assertSame($notificationsBefore, SystemNotification::count());
     }
 
-    public function test_the_sidebar_keeps_the_request_badge_for_requests_waiting_on_the_sharer(): void
+    public function test_the_navigation_keeps_the_request_badge_for_requests_waiting_on_the_sharer(): void
     {
         $it = Department::create(['department_name' => 'IT']);
         $owner = $this->member($it);
@@ -682,7 +682,7 @@ class WorkOrderShareTest extends TestCase
 
         $this->actingAs($owner)->get(route('shares.index'))
             ->assertOk()
-            ->assertSee('class="nav-item__count nav-item__count--request" data-share-request-count', false)
+            ->assertSee('class="top-nav__badge top-nav__badge--request" data-share-request-count', false)
             ->assertSee('คำขอร่วมงานรอคุณอนุมัติ 1 รายการ');
     }
 

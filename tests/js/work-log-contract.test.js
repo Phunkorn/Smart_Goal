@@ -23,7 +23,8 @@ const codeOf = (relativePath) => read(relativePath)
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 const viteConfig = read('vite.config.js');
-const layout = read('resources/views/layouts/app.blade.php');
+// เมนูตามสิทธิ์อยู่ที่ App\Support\TopNavigation ที่เดียว (เดิมเป็นแถบข้างใน layouts/app.blade.php)
+const navigation = read('app/Support/TopNavigation.php');
 const cssEntry = read('resources/css/pages/daily-logs.css');
 const indexView = read('resources/views/daily-logs/index.blade.php');
 
@@ -145,17 +146,21 @@ test('หน้าบันทึกงานโหลดสไตล์ขอ�
     );
 });
 
-test('เมนูข้างมีบันทึกงานประจำวันทั้งฝั่งพนักงานและ admin', () => {
-    const occurrences = layout.split("route('daily-logs.index')").length - 1;
+const navigationBranch = (name) => {
+    const start = navigation.indexOf(`private function ${name}(`);
+    return navigation.slice(start, navigation.indexOf('private function', start + 1));
+};
 
-    // อย่างน้อยหนึ่งครั้งในสาขา admin และอีกหนึ่งครั้งในสาขาพนักงาน
-    // ลิงก์จากตัวแจ้งเตือนงานประจำบน topbar อาจใช้ route เดียวกันเพิ่มเติมได้
-    assert.ok(occurrences >= 2, 'ต้องมีเมนูทั้งสาขา admin และสาขาพนักงาน');
-    assert.ok(layout.includes('บันทึกงานประจำวัน'));
-    assert.ok(
-        layout.includes("request()->routeIs('daily-logs.*')"),
-        'เมนูต้องไฮไลต์เมื่ออยู่ในหน้าของฟีเจอร์นี้'
-    );
+test('เมนูหลักมีบันทึกงานประจำวันทั้งฝั่งพนักงานและ admin', () => {
+    for (const branch of ['memberItems', 'adminItems']) {
+        const items = navigationBranch(branch);
+
+        assert.ok(items.length > 0, `ต้องหาสาขา ${branch} เจอ`);
+        assert.ok(items.includes("route('daily-logs.index')"), `${branch} ต้องมีเมนูบันทึกงานประจำวัน`);
+        assert.ok(items.includes('บันทึกงานประจำวัน'));
+        // เมนูต้องไฮไลต์เมื่ออยู่ในหน้าของฟีเจอร์นี้ (TopNavigation::link() เทียบด้วย routeIs)
+        assert.ok(items.includes("'daily-logs.*'"), 'เมนูต้องไฮไลต์เมื่ออยู่ในหน้าของฟีเจอร์นี้');
+    }
 });
 
 /*
@@ -163,14 +168,12 @@ test('เมนูข้างมีบันทึกงานประจำ�
  * สาขา viewer ในเมนูจึงต้องไม่มีรายการนี้ (สิทธิ์จริงถูกบังคับที่ route และ policy
  * เทสต์นี้กันแค่ไม่ให้ผู้ใช้เห็นเมนูที่กดแล้วเจอ 403)
  */
-test('สาขา viewer ในเมนูข้างไม่มีบันทึกงานประจำวัน', () => {
-    // ยึดจุดตัดที่โครงสร้างของ Blade เอง ไม่ใช่ข้อความคอมเมนต์ซึ่งแก้ถ้อยคำได้ตลอด
-    const marker = '@elseif ($isViewer)';
-    const viewerStart = layout.indexOf(marker);
-    // ค้นหา @else ถัดจากตัว @elseif เอง ไม่งั้นจะเจอตัวมันเองแล้วได้ช่วงว่าง
-    const viewerBranch = layout.slice(viewerStart, layout.indexOf('@else', viewerStart + marker.length));
+test('สาขา viewer ในเมนูหลักไม่มีบันทึกงานประจำวัน', () => {
+    // ยึดจุดตัดที่โครงสร้างของโค้ดเอง (เมธอดของ viewer) ไม่ใช่ข้อความคอมเมนต์ซึ่งแก้ถ้อยคำได้ตลอด
+    // ผลที่วาดจริงต่อบทบาทตรวจซ้ำใน tests/Feature/TopNavigationTest.php
+    const viewerBranch = navigationBranch('viewerItems');
 
-    assert.ok(viewerBranch.length > 0, 'ต้องหาสาขา viewer ในเลย์เอาต์เจอ');
+    assert.ok(viewerBranch.length > 0, 'ต้องหาสาขา viewer ในเมนูหลักเจอ');
     assert.ok(! viewerBranch.includes('daily-logs.index'));
 });
 

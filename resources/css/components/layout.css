@@ -1,9 +1,12 @@
 /* Authenticated application shell entry point. Import order mirrors the
-   historical monolithic stylesheet and is part of the cascade contract. */
+   historical monolithic stylesheet and is part of the cascade contract.
+   Navigation is a horizontal top bar (topbar → navigation → global-search);
+   there is no sidebar. */
 @import '../foundations/tokens.css';
 @import '../foundations/typography.css';
-@import './layout/sidebar.css';
 @import './layout/topbar.css';
+@import './layout/navigation.css';
+@import './layout/global-search.css';
 @import './layout/shell.css';
 @import './layout/shared-ui.css';
 @import './layout/realtime-sync.css';
