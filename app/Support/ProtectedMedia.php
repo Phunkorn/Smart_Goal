@@ -57,6 +57,11 @@ final class ProtectedMedia
         return self::absolutePath(self::PROFILE_DISK, $path);
     }
 
+    public static function coverAbsolutePath(string $path): ?string
+    {
+        return self::absolutePath(self::ATTACHMENT_DISK, $path);
+    }
+
     /**
      * ชื่อไฟล์ที่ควรใช้บน Content-Disposition — แหล่งความจริงเดียวของทุกชนิดไฟล์แนบ
      *

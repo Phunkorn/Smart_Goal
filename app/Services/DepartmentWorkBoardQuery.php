@@ -107,7 +107,7 @@ final class DepartmentWorkBoardQuery
         $members = User::query()
             // is_department_head ต้องถูกดึงมาด้วย ไม่งั้น RoleLabel::for() บนการ์ดสมาชิก
             // จะอ่านค่าเป็น null แล้วแสดงหัวหน้าแผนกเป็น "พนักงาน" เงียบ ๆ
-            ->select(['id', 'name', 'username', 'email', 'profile_image', 'department_id', 'role', 'is_active', 'is_department_head'])
+            ->select(['id', 'name', 'username', 'email', 'profile_image', 'profile_cover', 'avatar_frame', 'department_id', 'role', 'is_active', 'is_department_head'])
             ->where('department_id', $department->id)
             ->where('role', 'user')
             ->where('is_active', true)

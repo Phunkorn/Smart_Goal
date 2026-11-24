@@ -1,6 +1,7 @@
 <div class="settings-page account-settings" data-settings-page data-settings-url="{{ route('settings.index') }}">
     @include('settings.components.profile-modal', ['errors' => request()->routeIs('settings.index') ? $errors : new \Illuminate\Support\ViewErrorBag])
     @include('settings.components.password-modal', ['errors' => request()->routeIs('settings.index') ? $errors : new \Illuminate\Support\ViewErrorBag])
+    @include('settings.components.appearance-modal')
 
     {{--
         modal การเชื่อม Telegram — มีเฉพาะการ์ด Telegram (settings.components.telegram-card)
@@ -8,7 +9,7 @@
         id ยังเป็น settingsModal เพราะสคริปต์ (settings/index.js) และ route หน้า /settings เปิดด้วย id นี้
     --}}
     <x-account-modal id="settingsModal" title="การเชื่อม Telegram" size="lg"
-        :data-open-on-load="request()->routeIs('settings.index') && ! $errors->hasAny(['name', 'phone', 'profile_image', 'current_password', 'password']) ? 'true' : null">
+        :data-open-on-load="request()->routeIs('settings.index') && ! $errors->hasAny(['name', 'phone', 'profile_image', 'current_password', 'password']) && ! $errors->getBag('appearance')->any() ? 'true' : null">
         <div class="modal-body">
             <div class="alert {{ session('success') ? 'alert-success' : ($errors->has('telegram') ? 'alert-danger' : 'd-none') }}" role="status" aria-live="polite" data-account-feedback>{{ session('success') ?: $errors->first('telegram') }}</div>
             @if($user->role !== 'viewer')

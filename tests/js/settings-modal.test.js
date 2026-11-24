@@ -17,6 +17,35 @@ test('does not open an unmarked password modal', () => {
     assert.equal(openPasswordModal(dom.window.document, {}), false);
 });
 
+test('appearance uses the shared multipart flow, keeps the modal busy, and retains saved choices on reopen', async (t) => {
+    let resolve;
+    let body;
+    const ui = accountUI(t, async (url, options) => {
+        assert.equal(url, 'https://smartgoal.test/settings/appearance');
+        body = options.body;
+        return new Promise((done) => { resolve = done; });
+    });
+    await ui.open('settingsAppearanceModal');
+    const modal = ui.doc.getElementById('settingsAppearanceModal');
+    const select = modal.querySelector('select');
+    select.value = 'gold';
+    select.dispatchEvent(new ui.win.Event('change'));
+    ui.submit('[data-account-form="appearance"]');
+    assert.equal(body.get('avatar_frame'), 'gold');
+    assert.equal(body.get('_method'), 'PATCH');
+    assert.equal(modal.getAttribute('aria-busy'), 'true');
+    ui.win.bootstrap.Modal.getInstance(modal).hide();
+    assert.equal(modal.classList.contains('show'), true);
+    resolve({ok: true, json: async () => ({message: 'saved', appearance: {cover_url: '/new-cover', avatar_frame: 'gold'}})});
+    await flush(ui.doc);
+    assert.equal(modal.querySelector('[data-profile-cover] img').getAttribute('src'), '/new-cover');
+    ui.win.bootstrap.Modal.getInstance(modal).hide();
+    await flush(ui.doc);
+    await ui.open('settingsAppearanceModal');
+    assert.equal(select.value, 'gold');
+    assert.equal(modal.querySelector('[data-profile-frame]').dataset.profileFrame, 'gold');
+});
+
 // jsdom has no CSS transitions. Complete Bootstrap's pending transitions explicitly,
 // including backdrop -> dialog chains, instead of racing a fixed wall-clock delay.
 const flush = async (doc) => {
@@ -36,6 +65,7 @@ function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({mess
         <header class="topbar"><div class="dropdown"><button id="topbarAccountTrigger" data-bs-toggle="dropdown">account</button>
         <ul class="dropdown-menu"><li><button class="dropdown-item" data-account-open="settingsProfileModal">profile</button></li>
         <li><button class="dropdown-item" data-account-open="settingsPasswordModal">password</button></li>
+        <li><button class="dropdown-item" data-account-open="settingsAppearanceModal">appearance</button></li>
         <li><button class="dropdown-item" data-account-open="settingsModal">settings</button></li>
         <li><button class="dropdown-item" data-account-open="accountLogoutModal">logout</button></li></ul></div>
         <span data-account-name>Old</span><span data-account-avatar>Ol</span></header>
@@ -46,6 +76,13 @@ function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({mess
             <input id="settingsProfileImage" name="profile_image" type="file"><button type="submit">save</button></form>`)}
         ${modal('settingsPasswordModal', `<form action="/settings/password" data-account-form="password">${feedback}
             <input name="current_password" type="password"><input name="password" type="password"><input name="password_confirmation" type="password">
+            <button type="submit">save</button></form>`)}
+        ${modal('settingsAppearanceModal', `<form action="/settings/appearance" data-account-form="appearance" data-profile-user="7">${feedback}
+            <input name="_token" type="hidden" value="csrf"><input name="_method" type="hidden" value="PATCH">
+            <input id="settingsProfileCover" name="profile_cover" type="file" data-appearance-cover data-max-bytes="4096" accept="image/png">
+            <input name="remove_profile_cover" type="checkbox" data-appearance-remove>
+            <select id="settingsAvatarFrame" name="avatar_frame" data-appearance-frame><option value="none">None</option><option value="gold">Gold</option></select>
+            <div data-profile-cover data-cover-url="/old-cover"><img src="/old-cover"></div><span data-profile-frame="none"></span>
             <button type="submit">save</button></form>`)}
         ${modal('settingsModal', `${feedback}<button data-account-open="settingsPasswordModal">password</button>${telegram ? `<div data-account-telegram>${telegram}</div>` : ''}`)}
         ${modal('accountLogoutModal', '<form action="/logout" method="POST" data-account-logout><input type="hidden" name="_token" value="csrf"><button type="submit">confirm</button></form>')}

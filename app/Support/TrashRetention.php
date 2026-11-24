@@ -333,11 +333,14 @@ class TrashRetention
      */
     private static function forgetProfileImage(Model $model): void
     {
-        if (! $model instanceof User || ! $model->profile_image) {
+        if (! $model instanceof User) {
             return;
         }
 
-        Storage::disk('public')->delete($model->profile_image);
+        if ($model->profile_image) {
+            Storage::disk('public')->delete($model->profile_image);
+        }
+        ProtectedMedia::deleteAttachment($model->profile_cover);
     }
 
     /**

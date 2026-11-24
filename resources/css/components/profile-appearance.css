@@ -1,0 +1,62 @@
+/* Shared cover and frame shells. Consumers supply the avatar content and size. */
+.sg-profile-cover {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--accent-strong);
+    background-image:
+        repeating-radial-gradient(ellipse at 15% 140%, transparent 0 22px, rgb(255 255 255 / .12) 23px 24px, transparent 25px 40px),
+        linear-gradient(135deg, var(--accent-strong), var(--accent));
+}
+
+.sg-profile-cover img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.sg-profile-portrait {
+    --profile-frame-color: var(--accent);
+    --profile-frame-highlight: var(--blue);
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    isolation: isolate;
+    flex: 0 0 auto;
+    padding: 4px;
+    border: 3px solid var(--surface);
+    border-radius: 50%;
+    background: var(--surface);
+}
+
+.sg-profile-portrait::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, var(--profile-frame-highlight), var(--profile-frame-color));
+    pointer-events: none;
+}
+
+.sg-profile-portrait[data-profile-frame="none"]::before { background: var(--border); }
+.sg-profile-portrait[data-profile-frame="gold"] { --profile-frame-color: var(--amber); --profile-frame-highlight: var(--amber-dim); }
+.sg-profile-portrait[data-profile-frame="emerald"] { --profile-frame-color: var(--green-strong); --profile-frame-highlight: var(--green); }
+.sg-profile-portrait[data-profile-frame="rose"] { --profile-frame-color: var(--red-strong); --profile-frame-highlight: var(--red); }
+.sg-profile-portrait[data-profile-frame="violet"] { --profile-frame-color: #7950c7; --profile-frame-highlight: #c4a7ff; }
+.sg-profile-portrait[data-profile-frame="aurora"]::before {
+    background: conic-gradient(var(--accent), var(--red), var(--blue), var(--green), var(--accent));
+    animation: profile-frame-orbit 6s linear infinite;
+}
+.sg-profile-portrait[data-profile-frame="pulse"]::before {
+    background: linear-gradient(135deg, var(--green), var(--blue));
+    animation: profile-frame-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes profile-frame-orbit { to { transform: rotate(360deg); } }
+@keyframes profile-frame-pulse { 50% { opacity: .45; box-shadow: 0 0 0 3px var(--blue-dim); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .sg-profile-portrait::before { animation: none; }
+}

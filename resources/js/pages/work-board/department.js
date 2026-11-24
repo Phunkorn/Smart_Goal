@@ -65,6 +65,10 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
     let activeRequest = 0;
     let controller = null;
     let lastTrigger = null;
+    const tooltipApi = options.bootstrapApi ?? globalThis.window?.bootstrap;
+    const tooltips = [...directory.querySelectorAll('[data-member-preview-trigger][title]')]
+        .map((trigger) => tooltipApi?.Tooltip?.getOrCreateInstance(trigger, {placement: 'top', trigger: 'hover focus'}))
+        .filter(Boolean);
 
     const clearHeader = () => {
         [headerAvatar, headerMeta, headerAction].filter(Boolean).forEach((slot) => {
@@ -168,6 +172,7 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
         const trigger = event.target.closest?.('[data-member-preview-trigger]');
 
         if (trigger && directory.contains(trigger)) {
+            tooltips.forEach((tooltip) => tooltip.hide());
             lastTrigger = trigger;
             currentUrl = trigger.dataset.previewUrl || '';
             currentName = trigger.dataset.memberName || '';
@@ -228,6 +233,7 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
     return {
         load,
         destroy() {
+            tooltips.forEach((tooltip) => tooltip.dispose());
             activeRequest += 1;
             controller?.abort();
             directory.removeEventListener('click', handleClick);

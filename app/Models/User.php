@@ -30,6 +30,8 @@ class User extends Authenticatable
         'must_change_password',
         'is_active',
         'profile_image',
+        'profile_cover',
+        'avatar_frame',
         'telegram_chat_id',
         'telegram_username',
         'telegram_linked_at',

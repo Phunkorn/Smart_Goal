@@ -1,0 +1,173 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Department;
+use App\Models\User;
+use App\Services\ProfileAppearanceService;
+use App\Support\ProfileAppearance;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use RuntimeException;
+use Tests\TestCase;
+
+class ProfileAppearanceTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('local');
+        Storage::fake('public');
+    }
+
+    public function test_catalog_and_modal_offer_five_static_and_two_animated_frames_to_every_role(): void
+    {
+        $frames = collect(ProfileAppearance::frames());
+        $this->assertCount(5, $frames->where('animated', false));
+        $this->assertCount(2, $frames->where('animated', true));
+
+        foreach (['user', 'admin', 'viewer'] as $role) {
+            $user = User::factory()->create(['role' => $role]);
+            $html = $this->actingAs($user)->get(route('settings.index'))->assertOk()->getContent();
+            $this->assertSame(1, substr_count($html, 'id="settingsAppearanceModal"'));
+            $this->assertStringContainsString('data-account-open="settingsAppearanceModal"', $html);
+            foreach ($frames as $key => $frame) {
+                $this->assertStringContainsString('value="'.$key.'"', $html);
+            }
+        }
+    }
+
+    public function test_cover_upload_is_private_updates_only_the_actor_and_can_be_replaced_and_removed(): void
+    {
+        $actor = User::factory()->create(['role' => 'user', 'must_change_password' => false]);
+        $other = User::factory()->create(['role' => 'user']);
+        $this->actingAs($actor)->patchJson(route('settings.appearance.update'), [
+            'avatar_frame' => 'aurora', 'profile_cover' => UploadedFile::fake()->image('cover.png', 1200, 800),
+            'user_id' => $other->id, 'role' => 'admin', 'is_department_head' => true,
+        ])->assertOk()->assertJsonPath('appearance.avatar_frame', 'aurora');
+        $actor->refresh();
+        $old = $actor->profile_cover;
+        $this->assertStringStartsWith('profile-covers/'.$actor->id.'/', $old);
+        Storage::disk('local')->assertExists($old);
+        Storage::disk('public')->assertMissing($old);
+        $this->assertSame('user', $actor->role);
+        $this->assertFalse($actor->is_department_head);
+        $this->assertNull($other->fresh()->profile_cover);
+        $this->assertNull($other->fresh()->avatar_frame);
+
+        $this->patchJson(route('settings.appearance.update'), ['avatar_frame' => 'gold'])->assertOk();
+        $this->assertSame($old, $actor->fresh()->profile_cover);
+        $this->patchJson(route('settings.appearance.update'), [
+            'avatar_frame' => 'pulse', 'profile_cover' => UploadedFile::fake()->image('next.jpg'),
+        ])->assertOk();
+        Storage::disk('local')->assertMissing($old);
+        $replacement = $actor->fresh()->profile_cover;
+        Storage::disk('local')->assertExists($replacement);
+        $this->patchJson(route('settings.appearance.update'), [
+            'avatar_frame' => 'none', 'remove_profile_cover' => true,
+        ])->assertOk()->assertJsonPath('appearance.cover_url', null);
+        Storage::disk('local')->assertMissing($replacement);
+        $this->assertNull($actor->fresh()->avatar_frame);
+    }
+
+    public function test_invalid_uploads_frames_and_conflicting_remove_are_rejected_without_changing_existing_files(): void
+    {
+        $actor = User::factory()->create(['avatar_frame' => 'gold']);
+        foreach ([
+            ['avatar_frame' => 'unknown'],
+            ['avatar_frame' => 'gold', 'profile_cover' => UploadedFile::fake()->create('script.svg', 1, 'image/svg+xml')],
+            ['avatar_frame' => 'gold', 'profile_cover' => UploadedFile::fake()->create('fake.png', 1, 'text/plain')],
+            ['avatar_frame' => 'gold', 'profile_cover' => UploadedFile::fake()->image('huge.png')->size(4097)],
+            ['avatar_frame' => 'gold', 'profile_cover' => UploadedFile::fake()->image('wide.png', 8193, 1)],
+            ['avatar_frame' => 'gold', 'remove_profile_cover' => true, 'profile_cover' => UploadedFile::fake()->image('cover.png')],
+        ] as $payload) {
+            $this->actingAs($actor)->patchJson(route('settings.appearance.update'), $payload)->assertUnprocessable();
+        }
+        $this->assertSame([], Storage::disk('local')->allFiles());
+        $this->assertSame('gold', $actor->fresh()->avatar_frame);
+    }
+
+    public function test_cover_media_reuses_the_profile_auth_cache_contract_and_rejects_unsafe_or_foreign_paths(): void
+    {
+        $owner = User::factory()->create();
+        $path = 'profile-covers/'.$owner->id.'/cover.png';
+        Storage::disk('local')->put($path, 'cover bytes');
+        $owner->update(['profile_cover' => $path]);
+        $url = route('media.profile-cover', $owner);
+        $this->getJson($url)->assertUnauthorized();
+        $viewer = User::factory()->create();
+        $first = $this->actingAs($viewer)->get($url)->assertOk();
+        $this->assertTrue($first->headers->hasCacheControlDirective('private'));
+        $this->assertTrue($first->headers->hasCacheControlDirective('must-revalidate'));
+        $this->assertSame('nosniff', $first->headers->get('X-Content-Type-Options'));
+        $etag = $first->headers->get('ETag');
+        $this->withCookie(config('session.cookie'), $this->app['session.store']->getId());
+        $this->get($url, ['If-None-Match' => $etag])->assertStatus(304);
+        $this->actingAs($owner)->get($url, ['If-None-Match' => $etag])->assertOk();
+        $this->get(route('media.show', ['path' => $path]))->assertNotFound();
+        $owner->update(['profile_cover' => 'profile-covers/other/cover.png']);
+        $this->get($url)->assertNotFound();
+        $owner->update(['profile_cover' => 'profile-covers/'.$owner->id.'/../../secret']);
+        $this->get($url)->assertNotFound();
+        $this->app['auth']->forgetGuards();
+        $this->getJson($url, ['If-None-Match' => $etag])->assertUnauthorized();
+    }
+
+    public function test_failed_database_save_keeps_old_cover_and_removes_the_new_file(): void
+    {
+        $actor = User::factory()->create(['profile_cover' => 'profile-covers/old.png']);
+        Storage::disk('local')->put($actor->profile_cover, 'original');
+        User::saving(function (User $user): void {
+            if ($user->avatar_frame === 'pulse') {
+                throw new RuntimeException('Simulated save failure');
+            }
+        });
+        try {
+            app(ProfileAppearanceService::class)->update($actor, ['avatar_frame' => 'pulse'], UploadedFile::fake()->image('cover.png'));
+            $this->fail('Save must fail');
+        } catch (RuntimeException $error) {
+            $this->assertSame('Simulated save failure', $error->getMessage());
+        }
+        $this->assertSame(['profile-covers/old.png'], Storage::disk('local')->allFiles());
+        $this->assertSame('profile-covers/old.png', $actor->fresh()->profile_cover);
+    }
+
+    public function test_guest_inactive_and_password_setup_accounts_cannot_edit_or_read_covers(): void
+    {
+        $this->patchJson(route('settings.appearance.update'), ['avatar_frame' => 'gold'])->assertUnauthorized();
+        foreach ([['is_active' => false], ['must_change_password' => true]] as $attributes) {
+            $actor = User::factory()->create($attributes);
+            $this->actingAs($actor)->getJson(route('media.profile-cover', $actor))->assertForbidden();
+            $this->actingAs($actor)->patchJson(route('settings.appearance.update'), ['avatar_frame' => 'gold'])->assertForbidden();
+            $this->assertNull($actor->fresh()->avatar_frame);
+        }
+    }
+
+    public function test_non_json_validation_reopens_appearance_without_opening_another_account_dialog(): void
+    {
+        $actor = User::factory()->create(['must_change_password' => false]);
+        $this->actingAs($actor)->from(route('settings.index'))->patch(route('settings.appearance.update'), [
+            'avatar_frame' => 'unknown',
+        ])->assertRedirect(route('settings.index'))->assertSessionHasErrorsIn('appearance', ['avatar_frame']);
+        $html = $this->get(route('settings.index'))->assertOk()->getContent();
+        $this->assertSame(1, substr_count($html, 'data-open-on-load="true"'));
+        $this->assertMatchesRegularExpression('/id="settingsAppearanceModal"[^>]*data-open-on-load="true"|data-open-on-load="true"[^>]*id="settingsAppearanceModal"/', $html);
+    }
+
+    public function test_work_board_renders_saved_appearance_and_preserves_member_preview_contract(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $actor = User::factory()->create(['role' => 'user', 'department_id' => $department->id,
+            'avatar_frame' => 'emerald', 'profile_cover' => 'profile-covers/test.png']);
+        $response = $this->actingAs($actor)->get(route('work-board.department', $department))->assertOk();
+        $response->assertSee(ProfileAppearance::coverUrl($actor), false)
+            ->assertSee('data-profile-frame="emerald"', false)
+            ->assertSee('bi-arrow-up-right', false)
+            ->assertSee('data-bs-target="#workBoardMemberPreview"', false)
+            ->assertDontSee('wb-member-card__summary', false)
+            ->assertDontSee('มีงานที่กำลังดูแล');
+    }
+}

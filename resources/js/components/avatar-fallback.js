@@ -13,7 +13,7 @@
  * ตัวย่อชื่อถูกเรนเดอร์มาจาก Blade อยู่แล้วในฐานะเนื้อหาสำรองของกล่อง การถอด
  * <img> ออกจึงเผยให้เห็นทันที ไม่ต้องสร้าง DOM ใหม่จาก JavaScript
  */
-const FALLBACK_SELECTOR = '[data-avatar-image]';
+const FALLBACK_SELECTOR = '[data-avatar-image], [data-profile-cover-image]';
 
 document.addEventListener(
     'error',

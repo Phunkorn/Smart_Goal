@@ -1,4 +1,5 @@
 import {initializeProfileImagePicker} from './profile-image.js';
+import {initializeProfileAppearance} from './appearance.js';
 import {initializeTelegramSettings, disposeTelegramSettings} from './telegram.js';
 
 export function openPasswordModal(root = document, bootstrapApi = globalThis.window?.bootstrap) {
@@ -14,6 +15,7 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
     settings.dataset.accountReady = 'true';
     const fetcher = options.fetcher ?? globalThis.fetch?.bind(globalThis);
     const win = root.defaultView;
+    const appearance = initializeProfileAppearance(root);
     const trigger = root.querySelector('#topbarAccountTrigger');
     const busy = new Set();
     let opener = trigger;
@@ -81,6 +83,7 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
             const form = modal.querySelector('[data-account-form]');
             if (form) {
                 form.reset();
+                appearance.reset(form);
                 clearErrors(form);
                 form.querySelector('[data-profile-image-input]')?.dispatchEvent(new win.Event('change'));
             }
@@ -124,6 +127,7 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
                     ? Object.values(data.errors ?? {}).flat()[0] ?? 'กรุณาตรวจสอบข้อมูล' : 'บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง'));
             }
             if (data.user) updateIdentity(root, data.user);
+            if (data.appearance) appearance.commit(form, data.appearance);
             if (form.dataset.accountForm === 'password') form.reset();
             if (form.dataset.accountForm === 'profile') {
                 [...form.elements].filter((field) => field.type !== 'file').forEach((field) => { field.defaultValue = field.value; });

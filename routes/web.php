@@ -368,6 +368,10 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/settings', [SettingsController::class, 'update'])
         ->name('settings.update');
 
+    Route::patch('/settings/appearance', [SettingsController::class, 'updateAppearance'])
+        ->middleware('throttle:20,1')
+        ->name('settings.appearance.update');
+
     Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
         ->middleware('throttle:6,1')
         ->name('settings.password.update');
@@ -398,6 +402,8 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
     Route::get('/media/profile-images/{user}', [MediaController::class, 'profile'])
         ->name('media.profile');
+    Route::get('/media/profile-covers/{user}', [MediaController::class, 'profileCover'])
+        ->name('media.profile-cover');
     Route::get('/media/task-attachments/{attachment}', [MediaController::class, 'taskAttachment'])
         ->name('media.task-attachments.show');
     Route::get('/media/project-attachments/{attachment}', [MediaController::class, 'projectAttachment'])

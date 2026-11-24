@@ -145,8 +145,9 @@ class TicketListPageTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-ticket-preview-modal'));
 
         // ไม่มีคอลัมน์ความสำคัญ (Ticket ไม่มีฟิลด์นี้) ไม่มี checkbox/bulk action และป้ายสถานะไม่มีไอคอนนำหน้า
+        $this->assertSame(1, preg_match('/<table class="ticket-queue__table">(.*?)<\/table>/s', $html, $queue));
+        $this->assertStringNotContainsString('type="checkbox"', $queue[1]);
         $page->assertDontSee('ความสำคัญ')
-            ->assertDontSee('type="checkbox"', false)
             ->assertDontSee('ticket-button--ghost ticket-queue__open', false)
             ->assertDontSee('badge-soft accent ticket-status"><i', false);
     }

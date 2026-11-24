@@ -851,10 +851,11 @@ class TicketReportTest extends TestCase
     {
         $ticket = $this->publicTicket();
 
-        $this->report($this->admin())
+        $response = $this->report($this->admin())
             ->assertSee('href="'.route('tickets.show', $ticket).'"', false)
-            ->assertSee('ดูรายละเอียด '.$ticket->ticket_number, false)
-            ->assertDontSee('type="checkbox"', false);
+            ->assertSee('ดูรายละเอียด '.$ticket->ticket_number, false);
+        $this->assertSame(1, preg_match('/<main class="main">(.*?)<\/main>/s', $response->getContent(), $main));
+        $this->assertStringNotContainsString('type="checkbox"', $main[1]);
     }
 
     public function test_the_table_shows_department_requester_and_the_real_source_of_each_ticket(): void

@@ -3,14 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Http\Middleware\SecurityHeaders;
+use App\Services\ProfileAppearanceService;
 use App\Support\AuditTrail;
 use App\Support\PasswordPolicy;
+use App\Support\ProfileAppearance;
 use App\Support\UserSessionSecurity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class SettingsController extends Controller
 {
@@ -91,6 +94,32 @@ class SettingsController extends Controller
         }
 
         return back()->with('success', 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว');
+    }
+
+    public function updateAppearance(Request $request, ProfileAppearanceService $appearance)
+    {
+        $cover = config('profile-appearance.cover');
+        $validated = $request->validateWithBag('appearance', [
+            'avatar_frame' => ['required', Rule::in(['none', ...array_keys(ProfileAppearance::frames())])],
+            'profile_cover' => ['nullable', 'prohibited_if:remove_profile_cover,1,true', 'image',
+                'mimes:'.implode(',', $cover['mime_types']), 'max:'.$cover['max_kilobytes'],
+                'dimensions:max_width='.$cover['max_dimension'].',max_height='.$cover['max_dimension']],
+            'remove_profile_cover' => ['sometimes', 'boolean'],
+        ]);
+        $user = $appearance->update($request->user(), $validated, $request->file('profile_cover'));
+        $message = 'บันทึกการตกแต่งโปรไฟล์เรียบร้อยแล้ว';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'appearance' => [
+                    'cover_url' => ProfileAppearance::coverUrl($user),
+                    'avatar_frame' => ProfileAppearance::frame($user),
+                ],
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
 
     public function updatePassword(Request $request)

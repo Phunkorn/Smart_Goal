@@ -5,6 +5,7 @@
 @import 'sweetalert2/dist/sweetalert2.min.css';
 @import '../foundations/tokens.css';
 @import '../foundations/typography.css';
+@import './profile-appearance.css';
 @import './layout/topbar.css';
 @import './layout/navigation.css';
 @import './layout/mobile-sidebar.css';

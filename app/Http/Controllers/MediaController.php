@@ -26,7 +26,20 @@ class MediaController extends Controller
 
         abort_unless(str_starts_with($path, 'profiles/'), 404);
 
-        $response = $this->fileResponse(ProtectedMedia::profileAbsolutePath($path));
+        return $this->profileMediaResponse($request, ProtectedMedia::profileAbsolutePath($path), $path);
+    }
+
+    public function profileCover(Request $request, User $user): BinaryFileResponse
+    {
+        $path = (string) $user->profile_cover;
+        abort_unless(str_starts_with($path, 'profile-covers/'.$user->getKey().'/'), 404);
+
+        return $this->profileMediaResponse($request, ProtectedMedia::coverAbsolutePath($path), $path);
+    }
+
+    private function profileMediaResponse(Request $request, ?string $absolutePath, string $path): BinaryFileResponse
+    {
+        $response = $this->fileResponse($absolutePath);
         // The auth/active/password middleware must run on every reuse, including after logout.
         $response->headers->set('Cache-Control', 'private, no-cache, must-revalidate');
         $response->setAutoEtag();

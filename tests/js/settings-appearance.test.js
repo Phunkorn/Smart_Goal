@@ -1,0 +1,84 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {initializeProfileAppearance} from '../../resources/js/pages/settings/appearance.js';
+import {mountDom} from './helpers/dom.js';
+
+function setup(t) {
+    const ui = mountDom(`<form data-account-form="appearance" data-profile-user="7">
+        <input type="file" data-appearance-cover data-max-bytes="4096" accept="image/png,image/jpeg,image/webp">
+        <input type="checkbox" data-appearance-remove>
+        <select data-appearance-frame><option value="none">None</option><option value="gold" selected>Gold</option><option value="aurora">Aurora</option></select>
+        <div data-profile-cover data-cover-url="/old"><img src="/old"></div><span data-profile-frame="gold"></span>
+        </form><article data-profile-user="7"><div data-profile-cover><img src="/old"></div><span data-profile-frame="gold"></span></article>
+        <article data-profile-user="8"><div data-profile-cover><img src="/other"></div><span data-profile-frame="none"></span></article>`);
+    t.after(ui.cleanup);
+    const revoked = [];
+    ui.window.URL.createObjectURL = () => 'blob:preview';
+    ui.window.URL.revokeObjectURL = (url) => revoked.push(url);
+    const controller = initializeProfileAppearance(ui.document);
+    const form = ui.document.querySelector('form');
+    const input = form.querySelector('input[type="file"]');
+    const change = (element) => element.dispatchEvent(new ui.window.Event('change'));
+    const choose = (type = 'image/png', size = 10) => {
+        Object.defineProperty(input, 'files', {configurable: true, value: [new ui.window.File(['x'.repeat(size)], 'cover.png', {type})]});
+        change(input);
+    };
+    return {...ui, controller, revoked, form, input, change, choose};
+}
+
+test('local preview changes immediately without changing saved cards; cancel releases it and restores saved choices', (t) => {
+    const ui = setup(t);
+    const select = ui.form.querySelector('select');
+    select.value = 'aurora';
+    ui.change(select);
+    ui.choose();
+    assert.equal(ui.form.querySelector('[data-profile-frame]').dataset.profileFrame, 'aurora');
+    assert.equal(ui.form.querySelector('img').getAttribute('src'), 'blob:preview');
+    assert.equal(ui.document.querySelector('article img').getAttribute('src'), '/old');
+    Object.defineProperty(ui.input, 'files', {configurable: true, value: []});
+    ui.form.reset();
+    ui.controller.reset(ui.form);
+    assert.equal(ui.form.querySelector('img').getAttribute('src'), '/old');
+    assert.equal(ui.form.querySelector('[data-profile-frame]').dataset.profileFrame, 'gold');
+    assert.deepEqual(ui.revoked, ['blob:preview']);
+});
+
+test('save updates only matching members, clears upload state, and establishes the next cancel baseline', (t) => {
+    const ui = setup(t);
+    ui.choose();
+    Object.defineProperty(ui.input, 'files', {configurable: true, value: []});
+    ui.controller.commit(ui.form, {cover_url: '/saved?v=2', avatar_frame: 'aurora'});
+    assert.equal(ui.document.querySelector('article img').getAttribute('src'), '/saved?v=2');
+    assert.equal(ui.document.querySelectorAll('article img')[1].getAttribute('src'), '/other');
+    assert.deepEqual(ui.revoked, ['blob:preview']);
+    ui.form.querySelector('select').value = 'none';
+    ui.form.reset();
+    ui.controller.reset(ui.form);
+    assert.equal(ui.form.querySelector('select').value, 'aurora');
+    assert.equal(ui.form.querySelector('img').getAttribute('src'), '/saved?v=2');
+    ui.controller.commit(ui.form, {cover_url: null, avatar_frame: 'none'});
+    assert.equal(ui.form.querySelector('img'), null);
+    assert.equal(ui.document.querySelector('article').querySelector('img'), null);
+});
+
+test('invalid local files keep the saved preview and block form validity', (t) => {
+    const ui = setup(t);
+    ui.choose('image/svg+xml');
+    assert.equal(ui.input.validity.customError, true);
+    assert.equal(ui.form.querySelector('img').getAttribute('src'), '/old');
+    ui.choose('image/png', 4097);
+    assert.equal(ui.input.validity.customError, true);
+    ui.choose();
+    assert.equal(ui.input.validity.customError, false);
+});
+
+test('removing the saved cover previews the fallback and cancel restores it', (t) => {
+    const ui = setup(t);
+    const remove = ui.form.querySelector('[data-appearance-remove]');
+    remove.checked = true;
+    ui.change(remove);
+    assert.equal(ui.form.querySelector('img'), null);
+    ui.form.reset();
+    ui.controller.reset(ui.form);
+    assert.equal(ui.form.querySelector('img').getAttribute('src'), '/old');
+});
