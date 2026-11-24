@@ -217,12 +217,12 @@ class TicketListPageTest extends TestCase
 
         // แผนกที่ผู้แจ้งเลือกเองบนฟอร์ม /support ขึ้นที่หน้ารายละเอียด แทนคำว่าบุคคลภายนอก
         $this->actingAs($agent)->get(route('tickets.show', $ticket))
-            ->assertSee('Callcenter')
-            ->assertDontSee('Smart Ticket');
+            ->assertSee('<dt>แผนก</dt><dd>Callcenter</dd>', false);
 
         // Ticket สาธารณะที่แจ้งไว้ก่อนมีช่องแผนก (ค่าว่าง) ยังขึ้นว่าเป็นบุคคลภายนอกตามเดิม
         $ticket->forceFill(['requester_department_name' => null])->save();
-        $this->actingAs($agent)->get(route('tickets.show', $ticket))->assertSee('Smart Ticket');
+        $this->actingAs($agent)->get(route('tickets.show', $ticket))
+            ->assertSee('<dt>แผนก</dt><dd>บุคคลภายนอก</dd>', false);
     }
 
     public function test_search_status_location_and_scope_filters(): void

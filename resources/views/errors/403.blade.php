@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends(auth()->check() ? 'layouts.app' : 'errors.components.http-error')
 
 @section('title', 'ไม่มีสิทธิ์เข้าถึง')
 

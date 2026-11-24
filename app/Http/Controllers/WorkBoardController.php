@@ -260,15 +260,10 @@ class WorkBoardController extends Controller
                 'children.openShare',
                 'children.images',
                 'children.updates',
-                'updates.user.department',
-                'updates.attachments',
-                'updates.replyTo.user',
-                // ต้องดึงไฟล์แนบของข้อความต้นทางด้วย ไม่งั้น TaskCommentPresenter::comment()
-                // จะเห็นว่า relation ยังไม่โหลดแล้วคืน images เป็นอาร์เรย์ว่างเงียบ ๆ
-                // ทำให้บล็อก "กำลังตอบกลับ" ของคอมเมนต์ที่มีแต่รูปกลายเป็นกล่องเปล่า
-                'updates.replyTo.attachments',
-                'updates.mentions',
-                'activityLogs.user.department',
+                // ไทม์ไลน์ (ผู้เขียน ไฟล์แนบ การตอบกลับ mention และกิจกรรม) ไม่ถูกฝังในหน้าอีกแล้ว
+                // โมดัลขอทีละงานผ่าน TaskCommentController::timeline เมื่อเปิดงานนั้น
+                // ที่นี่เหลือแค่แถว updates เพราะบอร์ดยังนับจำนวนคอมเมนต์ของแต่ละงาน
+                'updates',
                 'reviewSubmitter',
             ])
             ->withCount('images')

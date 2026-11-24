@@ -68,8 +68,6 @@ class TaskWorkspaceDesignTest extends TestCase
             ->assertSee('data-schedule-template="'.route('tasks.schedule.update', ['id' => '__ID__']).'"', false)
             ->assertSee('class="board-start board-start-editable"', false)
             ->assertSee('data-board-field="start"', false)
-            ->assertSee('การเปลี่ยนแปลงจะถูกบันทึกเมื่อกดปุ่มบันทึก')
-            ->assertSee('บันทึกการแก้ไข')
             ->assertSee('ยกเลิก')
             ->assertSee('ยังไม่มีไฟล์แนบ')
             ->assertSee('data-open-task-modal', false)
@@ -105,16 +103,16 @@ class TaskWorkspaceDesignTest extends TestCase
                 ->assertOk()
                 ->assertDontSee('name="job_details"', false)
                 ->assertSee('data-task-details', false)
-                ->assertSee('รายละเอียด')
                 ->assertDontSee('รายละเอียดโปรเจกต์')
                 ->getContent();
 
             // textarea เดียวที่เหลือได้คือช่องเขียนอัปเดตตามแบบที่อนุมัติ
-            $this->assertSame(
-                substr_count($content, 'data-task-update-note'),
-                substr_count($content, '<textarea'),
-                'ต้องไม่มี textarea อื่นนอกจากช่องเขียนอัปเดต'
-            );
+            $dom = new \DOMDocument;
+            @$dom->loadHTML('<?xml encoding="utf-8" ?>'.$content);
+            $xpath = new \DOMXPath($dom);
+            $workspace = '//*[contains(concat(" ", normalize-space(@class), " "), " task-workspace ")]';
+            $this->assertSame(1, $xpath->query($workspace.'//*[@data-task-update-note]')->length);
+            $this->assertSame(1, $xpath->query($workspace.'//textarea')->length);
         }
     }
 

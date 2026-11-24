@@ -3,7 +3,7 @@
     ใช้ร่วมกันโดยหน้าที่มีโมดัลมอบหมายงาน: Admin Board Overview และ Admin Member Workspace
 --}}
 @if (session('success') || $errors->any())
-<script>
+<script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
     (function () {
         const Toast = window.Swal.mixin({
             toast: true,

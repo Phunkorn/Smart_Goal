@@ -38,6 +38,20 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
     if (! root || root.dataset.dailyLogReady === 'on') return null;
 
     root.dataset.dailyLogReady = 'on';
+    root.querySelectorAll('[data-day-count]').forEach((chart) => {
+        const count = Number(chart.dataset.dayCount);
+        if (Number.isInteger(count) && count >= 28 && count <= 31) chart.style.setProperty('--day-count', count);
+    });
+    root.querySelectorAll('[data-bar-value]').forEach((bar) => {
+        const ratio = Number(bar.dataset.barValue);
+        const index = Number(bar.dataset.dayIndex);
+        if (Number.isFinite(ratio)) bar.style.setProperty('--bar-value', Math.max(0, Math.min(1, ratio)));
+        if (Number.isInteger(index) && index >= 0 && index < 31) bar.style.setProperty('--day-index', index);
+    });
+    root.querySelectorAll('[data-row-index]').forEach((row) => {
+        const index = Number(row.dataset.rowIndex);
+        if (Number.isInteger(index) && index >= 0) row.style.setProperty('--row-index', index);
+    });
 
     const routes = readJson(doc, 'work-log-routes', {});
     // ป้ายชื่อและเหตุผลสำเร็จรูปทั้งหมดมาจาก WorkLogDesign ผ่าน island นี้
@@ -348,19 +362,28 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
      * จึงเช็ก fingerprint ทุก 10 วินาที (และทันทีที่กลับมาที่แท็บ) แล้วขอการ์ดทั้งวันเฉพาะเมื่อมีอะไรเปลี่ยน
      * timeline.syncCards() เพิ่ม/แทน/ลบการ์ดตามลำดับของ server — ไม่รีโหลดหน้า กล่องที่เปิดอยู่จึงไม่หาย
      */
+    let syncPending = false;
+    let syncAway = false;
+    let syncExpired = false;
     const syncDay = async () => {
-        if (doc.hidden || ! routes.routineStatus) return;
+        if (doc.hidden || syncAway || syncExpired || syncPending || ! routes.routineStatus) return;
+        syncPending = true;
         try {
             // live=1: server ตอบแค่ fingerprint แบบอ่านอย่างเดียว ไม่ปิดรอบ/สร้างงาน/แจ้งเตือนซ้ำทุก 10 วินาที
             const url = new URL(routes.routineStatus, globalThis.location?.origin);
             url.searchParams.set('live', '1');
-            const status = await (await fetch(url, {headers: {Accept: 'application/json'}})).json();
+            const statusResponse = await fetch(url, {headers: {Accept: 'application/json'}});
+            if ([401, 403, 419].includes(statusResponse.status)) syncExpired = true;
+            if (! statusResponse.ok || syncAway) return;
+            const status = await statusResponse.json();
             if (! status.fingerprint || status.fingerprint === root.dataset.dayFingerprint) return;
 
             url.searchParams.set('cards', '1');
             const response = await fetch(url, {headers: {Accept: 'application/json'}});
-            if (! response.ok) return;
+            if ([401, 403, 419].includes(response.status)) syncExpired = true;
+            if (! response.ok || syncAway) return;
             const payload = await response.json();
+            if (syncAway) return;
             const cards = Array.isArray(payload.cards) ? payload.cards : [];
 
             // ข้อมูลของการ์ดที่ปุ่มเริ่ม/เสร็จ/แก้ไขอ่าน ต้องตรงกับการ์ดบนหน้าเสมอ
@@ -374,13 +397,26 @@ export function initDailyLogs({doc = document, swal = globalThis.Swal} = {}) {
             doc.dispatchEvent(new CustomEvent('smartgoal:routine-changed', {detail: {source: 'sync'}}));
         } catch {
             // การอัปเดตสดเป็นส่วนเสริม เมื่อเครือข่ายหลุดให้ข้อมูลเดิมยังอ่านได้
+        } finally {
+            syncPending = false;
         }
     };
 
     if (root.dataset.liveDay === '1' && routes.routineStatus) {
-        globalThis.setInterval(syncDay, 10_000);
+        let syncTimer = globalThis.setInterval(syncDay, 10_000);
         doc.addEventListener('visibilitychange', () => {
             if (! doc.hidden) syncDay();
+        });
+        doc.defaultView?.addEventListener('pagehide', () => {
+            syncAway = true;
+            globalThis.clearInterval(syncTimer);
+        });
+        doc.defaultView?.addEventListener('pageshow', () => {
+            if (! syncAway) return;
+            syncAway = false;
+            globalThis.clearInterval(syncTimer);
+            syncTimer = globalThis.setInterval(syncDay, 10_000);
+            syncDay();
         });
     }
 

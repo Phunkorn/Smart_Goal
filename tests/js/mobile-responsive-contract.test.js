@@ -170,7 +170,8 @@ test('shared board titles and assignee header use explicit compact contracts', a
     assert.match(source, /span:nth-child\(7\)\s*\{[^}]*white-space:\s*nowrap/s);
     assert.match(script, /querySelector\('\.board-reference-task__title'\)/);
     assert.doesNotMatch(script, /board-reference-task__open strong/);
-    assert.match(adminMember, /family=IBM\+Plex\+Sans\+Thai:wght@400;500;600;700/);
+    assert.match(adminMember, /@extends\('layouts\.app'\)/);
+    assert.match(await css('resources/views/layouts/app.blade.php'), /family=Prompt:/);
 });
 
 test('the month grid supports a responsive four-lane timeline and the priority summary view', async () => {

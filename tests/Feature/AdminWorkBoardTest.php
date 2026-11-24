@@ -107,7 +107,9 @@ class AdminWorkBoardTest extends TestCase
             ->assertSee('class="task-workspace"', false)
             ->assertSee('data-team-data', false)
             ->assertSee('data-attachment-data', false)
-            ->assertSee('data-timeline-data', false)
+            // ไทม์ไลน์ไม่ถูกฝังในหน้าแล้ว โมดัลขอผ่าน timeline_url ของแต่ละงานเมื่อเปิดงานนั้น
+            ->assertDontSee('data-timeline-data', false)
+            ->assertSee('"timeline_url"', false)
             ->assertSee('data-task-management-data', false)
             ->assertDontSee('data-task-subtasks', false)
             ->assertDontSee('data-add-subtask', false)
@@ -206,6 +208,11 @@ class AdminWorkBoardTest extends TestCase
         $pending->update(['approval_status' => 'pending', 'approved_by' => null, 'approved_at' => null]);
         $otherTask = $this->task($project, $admin, $otherMember, 'Wrong member task');
 
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = $query->sql;
+        });
+
         $response = $this->actingAs($admin)
             ->get(route('admin.work-board.member.preview', [$department, $member]))
             ->assertOk()
@@ -289,8 +296,8 @@ class AdminWorkBoardTest extends TestCase
         $this->actingAs($admin)
             ->deleteJson(route('mytasks.lists.attachments.destroy', [$project, $attachment]))
             ->assertOk();
-        $this->assertDatabaseMissing('work_order_list_attachments', ['id' => $attachment->id]);
-        Storage::disk('local')->assertMissing($attachment->file_path);
+        $this->assertSoftDeleted('work_order_list_attachments', ['id' => $attachment->id]);
+        Storage::disk('local')->assertExists($attachment->file_path);
     }
 
     public function test_admin_task_delete_returns_json_for_workspace_requests(): void
@@ -328,7 +335,7 @@ class AdminWorkBoardTest extends TestCase
             ->assertDontSee('มอบหมายโดย Member');
     }
 
-    public function test_admin_board_has_visible_assignment_entry_point_and_can_preselect_member(): void
+    public function test_admin_board_supports_assignment_deep_link_and_preselected_member(): void
     {
         $department = Department::create(['department_name' => 'Support']);
         $admin = $this->user('admin', $department, 'Admin');
@@ -337,23 +344,17 @@ class AdminWorkBoardTest extends TestCase
         $response = $this->actingAs($admin)
             ->get(route('board.index', ['open_assignment' => 1, 'assign_to' => $member->id]))
             ->assertOk()
-            ->assertSee('data-open-admin-assignment', false)
+            ->assertSee('data-admin-assignment-modal', false)
+            ->assertSee('data-open-on-load="1"', false)
+            ->assertSee('data-preselect-assignee-id="'.$member->id.'"', false)
             ->assertSee('boardCreateTaskModal', false)
             ->assertSee(route('admin.work-board.department', $department), false)
             ->assertSee((string) $member->id, false);
 
-        $html = $response->getContent();
-        $headerStart = strpos($html, 'class="admin-board-header"');
-        $headerEnd = strpos($html, '</header>', $headerStart);
-        $trigger = strpos($html, 'data-open-admin-assignment');
-
-        $this->assertNotFalse($headerStart);
-        $this->assertNotFalse($headerEnd);
-        $this->assertNotFalse($trigger);
-        $this->assertTrue($headerStart < $trigger && $trigger < $headerEnd, 'ปุ่มสร้างโปรเจกต์ต้องอยู่ใน header');
+        $response->assertSee('admin-board-header', false);
     }
 
-    public function test_admin_overview_job_rows_show_assignee_context_and_open_the_correct_admin_workspace(): void
+    public function test_admin_and_viewer_overview_use_department_links_without_rendering_member_activity(): void
     {
         $adminDepartment = Department::create(['department_name' => 'Management']);
         $recentDepartment = Department::create(['department_name' => 'Sales']);
@@ -385,21 +386,14 @@ class AdminWorkBoardTest extends TestCase
         $fallbackJob->update(['job_due_at' => now()->addDays(30)]);
 
         $response = $this->actingAs($admin)->get(route('board.index'))->assertOk();
-        $html = preg_replace('/[[:space:]]+/', ' ', $response->getContent());
-        $recentUrl = route('admin.work-board.member', [$recentDepartment, $recentAssignee]);
-        $attentionUrl = route('admin.work-board.member', [$attentionDepartment, $attentionAssignee]);
-
-        $this->assertStringContainsString('href="'.$recentUrl.'" class="admin-activity-row"', $html);
-        $this->assertStringContainsString('Recent User · Sales', $html);
-        $this->assertStringContainsString(route('media.profile', $recentAssignee), $html);
-        $this->assertStringContainsString('href="'.$attentionUrl.'" class="admin-attention-row"', $html);
-        $this->assertStringContainsString('Attention User · IT', $html);
-        $this->assertStringContainsString('title="Attention User"> AT </span>', $html);
-        $this->assertStringContainsString(
-            'href="'.route('admin.tasks.show', $fallbackJob->job_id).'" class="admin-activity-row"',
-            $html
-        );
-        $this->assertStringContainsString('Fallback User · ไม่ระบุแผนก', $html);
+        $response->assertSee(route('admin.work-board.department', $recentDepartment), false)
+            ->assertSee(route('admin.work-board.department', $attentionDepartment), false)
+            ->assertDontSee('Recent overview task')
+            ->assertDontSee('Attention overview task')
+            ->assertDontSee('admin-activity-row', false)
+            ->assertViewHas('jobs', fn ($jobs) => $jobs->contains('job_id', $recentJob->job_id)
+                && $jobs->contains('job_id', $attentionJob->job_id)
+                && $jobs->contains('job_id', $fallbackJob->job_id));
 
         $viewer = User::factory()->create([
             'role' => 'viewer',
@@ -408,12 +402,9 @@ class AdminWorkBoardTest extends TestCase
             'must_change_password' => false,
         ]);
         $viewerResponse = $this->actingAs($viewer)->get(route('board.index'))->assertOk();
-        $viewerHtml = preg_replace('/[[:space:]]+/', ' ', $viewerResponse->getContent());
-
-        $this->assertStringContainsString(
-            'href="'.route('tasks.show', $recentJob->job_id).'" class="admin-activity-row"',
-            $viewerHtml
-        );
+        $viewerResponse->assertSee(route('admin.work-board.department', $recentDepartment), false)
+            ->assertDontSee('admin-activity-row', false)
+            ->assertDontSee(route('admin.tasks.show', $recentJob->job_id), false);
     }
 
     public function test_admin_and_user_today_workspaces_share_inclusive_date_range_rules(): void
@@ -543,8 +534,7 @@ class AdminWorkBoardTest extends TestCase
         $this->actingAs($teammate)
             ->get(route('work-board.member', [$department, $member]))
             ->assertOk()
-            ->assertSee('data-preview-readonly', false)
-            ->assertSee('ดูแบบอ่านอย่างเดียว')
+            ->assertSee('data-member-preview-content', false)
             ->assertSee('เมื่อมีงานที่ต้องจัดการในวันนี้ รายการจะแสดงที่นี่')
             ->assertDontSee('เปิดพื้นที่งานของสมาชิก')
             ->assertDontSee('data-preview-workspace-link', false)

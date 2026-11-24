@@ -92,8 +92,8 @@ class AdminApprovalPageTest extends TestCase
             ->assertOk()
             ->assertSee('บอร์ดทุกแผนก')
             ->assertSee('สร้างโปรเจกต์')
-            ->assertSee('แล้วเพิ่มรายการงาน')
-            ->assertSee('สรุปภาพรวมองค์กร')
+            ->assertSee('data-admin-assignment-modal', false)
+            ->assertSee('admin-department-list', false)
             ->assertDontSee('assignment-approval-queue')
             ->assertDontSee('collaborator-approval-queue')
             ->assertDontSee('data-approval-form', false);
@@ -134,8 +134,7 @@ class AdminApprovalPageTest extends TestCase
         $pageQueries = DB::getQueryLog();
         DB::disableQueryLog();
 
-        $this->assertFalse(collect($pageQueries)->contains(fn (array $query): bool =>
-            str_contains(strtolower($query['query']), 'count(')
+        $this->assertFalse(collect($pageQueries)->contains(fn (array $query): bool => str_contains(strtolower($query['query']), 'count(')
             && (str_contains($query['query'], 'work_orders') || str_contains($query['query'], 'work_order_collaborators'))
         ), 'The approval page should reuse list-derived counts instead of querying counts again.');
 
@@ -149,8 +148,7 @@ class AdminApprovalPageTest extends TestCase
         $nonAdminQueries = DB::getQueryLog();
         DB::disableQueryLog();
 
-        $this->assertFalse(collect($nonAdminQueries)->contains(fn (array $query): bool =>
-            str_contains($query['query'], 'work_order_collaborators')
+        $this->assertFalse(collect($nonAdminQueries)->contains(fn (array $query): bool => str_contains($query['query'], 'work_order_collaborators')
             || str_contains($query['query'], 'approval_status')
         ), 'Non-admin layouts must not query approval counts.');
     }

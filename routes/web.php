@@ -7,6 +7,7 @@ use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ComputerCheckController;
+use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\DailyBriefController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GlobalSearchController;
@@ -65,6 +66,13 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::redirect('/', '/login');
+
+// Browser-generated CSP reports carry no CSRF token. Keep this collector stateless;
+// do not exempt any business endpoint or change its authentication/CSRF protection.
+Route::post('/security/csp-reports', CspReportController::class)
+    ->withoutMiddleware('web')
+    ->middleware('throttle:30,1')
+    ->name('security.csp-reports');
 
 /*
 |--------------------------------------------------------------------------
@@ -724,6 +732,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::delete('/tasks/{id}/collaborators/{user}', [TaskCollaboratorController::class, 'removeCollaborator'])
         ->name('tasks.collaborators.destroy');
 
+    Route::get('/tasks/{task}/timeline', [TaskCommentController::class, 'timeline'])->name('tasks.timeline');
     Route::get('/tasks/{task}/comments', [TaskCommentController::class, 'index'])->name('tasks.comments.index');
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
     Route::post('/tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->name('tasks.comments.read');

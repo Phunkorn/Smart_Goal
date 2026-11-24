@@ -157,7 +157,7 @@ test('the comment composer shows about four lines before it needs to scroll', as
 
     for (const [path, selector] of [
         ['resources/css/components/task-workspace/workspace-modal.css', '.task-workspace .task-timeline__compose textarea'],
-        ['resources/css/components/task-workspace/modal.css', '.my-tasks-page ~ .task-edit-modal .task-timeline__compose textarea'],
+        ['resources/css/components/task-workspace/modal.css', '.my-tasks-page~.task-edit-modal .task-timeline__compose textarea'],
     ]) {
         const css = await read(path);
         const rule = ruleFor(css, selector);
@@ -205,7 +205,7 @@ test('the kanban grid follows however many status columns Blade renders', async 
 test('the attach button looks clickable in every context that renders it', async () => {
     const scopes = [
         ['resources/css/components/task-workspace/workspace-modal.css', '.task-workspace'],
-        ['resources/css/components/task-workspace/modal.css', '.my-tasks-page ~ .task-edit-modal'],
+        ['resources/css/components/task-workspace/modal.css', '.my-tasks-page~.task-edit-modal'],
     ];
 
     for (const [path, scope] of scopes) {
@@ -232,7 +232,7 @@ test('the attach button looks clickable in every context that renders it', async
 test('comment image previews and bubbles are styled in both modal contexts', async () => {
     for (const [path, scope] of [
         ['resources/css/components/task-workspace/workspace-modal.css', '.task-workspace'],
-        ['resources/css/components/task-workspace/modal.css', '.my-tasks-page ~ .task-edit-modal'],
+        ['resources/css/components/task-workspace/modal.css', '.my-tasks-page~.task-edit-modal'],
     ]) {
         const css = await read(path);
 

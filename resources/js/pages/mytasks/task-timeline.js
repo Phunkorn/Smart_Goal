@@ -7,11 +7,17 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     const root = document.querySelector('[data-workspace]');
     const modal = document.querySelector('[data-task-modal]');
     const panel = modal?.querySelector('[data-task-timeline]');
-    const timelineNode = document.querySelector('[data-timeline-data]');
     const managementNode = document.querySelector('[data-task-management-data]');
-    if (!root || !modal || !panel || !timelineNode || !managementNode) return;
+    if (!root || !modal || !panel || !managementNode) return;
 
-    const timeline = JSON.parse(timelineNode.textContent || '{}');
+    /*
+     * ไทม์ไลน์ (อัปเดต + กิจกรรม) ของแต่ละงานถูกขอจาก server เมื่อเปิดงานนั้นครั้งแรก
+     * (management[id].timeline_url) ไม่ได้ฝังมากับหน้าแล้ว เพราะการสร้างไทม์ไลน์ของทุกงาน
+     * คือส่วนใหญ่ของเวลาที่หน้า "งานของฉัน" ใช้ก่อนเปิดได้
+     * timelineLoads[id]: 'loading' | 'loaded' | 'failed' — ที่ยังไม่มีคีย์คือยังไม่เคยขอ
+     */
+    const timeline = {};
+    const timelineLoads = {};
     const management = taskStateStore(document);
     const mentionable = JSON.parse(document.querySelector('[data-mentionable-data]')?.textContent || '{}');
     let taskId = null;
@@ -176,8 +182,17 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     const compose = panel.querySelector('.task-timeline__compose');
     const lockedNotice = panel.querySelector('[data-comment-locked]');
 
-    const emptyLabel = () => tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม'
-        : management[String(taskId)]?.can_view_comments === false ? 'ไม่มีสิทธิ์อ่านความคิดเห็น' : 'ยังไม่มีรายการอัปเดต';
+    /*
+     * ระหว่างรอไทม์ไลน์ของงานนี้ ห้ามบอกว่า "ยังไม่มีรายการ" เพราะผู้ใช้จะเข้าใจว่างานนี้ไม่มีอะไรเลย
+     * ถ้าโหลดไม่สำเร็จก็ต้องบอกตรง ๆ และการเปิดงานครั้งถัดไปจะขอใหม่ (loadTimeline)
+     */
+    const emptyLabel = () => {
+        const load = timelineLoads[String(taskId)];
+        if (load === 'loading') return 'กำลังโหลด...';
+        if (load === 'failed') return 'โหลดรายการไม่สำเร็จ ลองเปิดงานนี้อีกครั้ง';
+        return tab === 'activity' ? 'ยังไม่มีรายการกิจกรรม'
+            : management[String(taskId)]?.can_view_comments === false ? 'ไม่มีสิทธิ์อ่านความคิดเห็น' : 'ยังไม่มีรายการอัปเดต';
+    };
 
     const isNearBottom = (items) => items.scrollHeight - items.scrollTop - items.clientHeight <= 48;
 
@@ -300,6 +315,41 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     };
 
     /*
+     * ขอไทม์ไลน์ของงานนี้ครั้งแรกที่เปิด แล้วเก็บไว้ใช้ตลอดอายุหน้า (ครั้งต่อไปไม่ขอซ้ำ)
+     *
+     * รวมเข้ากับของที่มีอยู่ผ่าน prependComment เหมือน reconcileHistory คอมเมนต์ที่มาทาง realtime
+     * หรือที่เพิ่งส่งระหว่างรอจึงไม่หาย ถ้ามีการส่ง/ปักหมุด/realtime ระหว่างที่ request ค้างอยู่
+     * ให้ขอใหม่ เพื่อไม่ให้ข้อมูลเก่าจาก server ทับสถานะที่เพิ่งเปลี่ยน
+     */
+    const loadTimeline = async (id) => {
+        if (timelineLoads[id] === 'loading' || timelineLoads[id] === 'loaded') return;
+        const url = management[id]?.timeline_url;
+        if (!url) return;
+        timelineLoads[id] = 'loading';
+        const revision = revisions[id] || 0;
+        try {
+            const response = await fetch(url, {headers: {'Accept': 'application/json'}, cache: 'no-store'});
+            if (!response.ok) throw new Error('timeline');
+            const payload = await response.json();
+            if (String(payload.task_id) !== id || !Array.isArray(payload.updates) || !Array.isArray(payload.activity)) throw new Error('timeline');
+            if ((revisions[id] || 0) !== revision) {
+                delete timelineLoads[id];
+                if (String(taskId) === id && !modal.hidden) loadTimeline(id);
+                return;
+            }
+            timeline[id] ||= {updates: [], activity: []};
+            payload.updates.forEach((item) => prependComment(timeline, id, item));
+            timeline[id].activity = payload.activity;
+            timelineLoads[id] = 'loaded';
+        } catch (_) {
+            timelineLoads[id] = 'failed';
+        }
+        if (String(taskId) !== id || modal.hidden) return;
+        const followLatest = tab === 'updates' && isNearBottom(panel.querySelector('[data-timeline-items]'));
+        render({scroll: followLatest ? 'bottom' : 'preserve'});
+    };
+
+    /*
      * พาการ์ดแชทมาอยู่ในจอเมื่อผู้ใช้ตั้งใจเปิดมาอ่านแชท
      *
      * บนจอแคบการ์ดเรียงลงมาเป็นชั้นเดียว การ์ดแชทอยู่ใต้ข้อมูลงานและไฟล์แนบ ส่วนบน Desktop
@@ -312,6 +362,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
     const selectUpdates = (source) => {
         tab = 'updates';
         document.body.dataset.realtimeTaskId = String(taskId);
+        loadTimeline(String(taskId));
         render({scroll: 'bottom'});
         document.dispatchEvent(new CustomEvent('smartgoal:realtime-refresh'));
         reconcileHistory(String(taskId), shouldMarkCommentsRead(source, tab), 'bottom');
@@ -381,6 +432,7 @@ import {shouldSendUpdate} from './task-workspace-model.js';
         const button = event.target.closest('[data-timeline-tab]');
         if (!button || !taskId) return;
         tab = button.dataset.timelineTab;
+        loadTimeline(String(taskId));
         render({scroll: tab === 'updates' ? 'bottom' : 'preserve'});
         if (tab === 'updates') reconcileHistory(String(taskId), true, 'bottom');
     });

@@ -1,3 +1,5 @@
+import {initSetupPassword} from './setup-password.js';
+
 /**
  * งานตกแต่งที่ใช้ร่วมกันทั้ง 3 หน้า auth (login / setup-password / welcome)
  *
@@ -118,6 +120,7 @@ bindParallax();
 bindRipple();
 bindSubmitState();
 bindPasswordToggle();
+initSetupPassword(document);
 
 const flash = document.querySelector('[data-auth-toast]')?.dataset.authToast;
 if (flash) window.setTimeout(() => showToast(flash), 400);

@@ -36,7 +36,6 @@
                 data-color="{{ $color }}"
                 data-requires-edit
                 aria-pressed="false"
-                style="--wsb-swatch: {{ $color }}"
                 aria-label="สี {{ $color }}"
                 title="สี {{ $color }}">
                 <span class="wsb-swatch__dot" aria-hidden="true"></span>
@@ -52,21 +51,19 @@
                 aria-controls="wsbStrokePalette"
                 aria-label="สีทั้งหมด"
                 data-tooltip="สีทั้งหมด">
-                <span class="wsb-swatch__dot" data-picker-current="stroke"
-                    style="--wsb-swatch: {{ $design::DEFAULT_STROKE }}" aria-hidden="true"></span>
+                <span class="wsb-swatch__dot" data-picker-current="stroke" aria-hidden="true"></span>
                 <i class="bi bi-chevron-down" aria-hidden="true"></i>
             </button>
 
             <div class="wsb-popover" id="wsbStrokePalette" data-picker-panel hidden
                 role="group" aria-label="สีเส้นและตัวอักษรทั้งหมด">
-                <div class="wsb-palette" style="--wsb-palette-cols: {{ $design::PALETTE_COLUMNS }}">
+                <div class="wsb-palette" data-palette-columns="{{ $design::PALETTE_COLUMNS }}">
                     @foreach ($design::PALETTE as $color)
                         <button type="button"
                             class="wsb-swatch"
                             data-color="{{ $color }}"
                             data-requires-edit
                             aria-pressed="false"
-                            style="--wsb-swatch: {{ $color }}"
                             aria-label="สี {{ $color }}"
                             title="สี {{ $color }}">
                             <span class="wsb-swatch__dot" aria-hidden="true"></span>
@@ -97,7 +94,6 @@
                 data-sticky-color="{{ $color }}"
                 data-requires-edit
                 aria-pressed="false"
-                style="--wsb-swatch: {{ $color }}"
                 aria-label="สีกระดาษโน้ต {{ $color }}"
                 title="สีกระดาษโน้ต {{ $color }}">
                 <span class="wsb-swatch__dot" aria-hidden="true"></span>
@@ -113,21 +109,19 @@
                 aria-controls="wsbStickyPalette"
                 aria-label="สีกระดาษโน้ตทั้งหมด"
                 data-tooltip="สีกระดาษโน้ตทั้งหมด">
-                <span class="wsb-swatch__dot" data-picker-current="sticky"
-                    style="--wsb-swatch: {{ $design::DEFAULT_STICKY_COLOR }}" aria-hidden="true"></span>
+                <span class="wsb-swatch__dot" data-picker-current="sticky" aria-hidden="true"></span>
                 <i class="bi bi-chevron-down" aria-hidden="true"></i>
             </button>
 
             <div class="wsb-popover" id="wsbStickyPalette" data-picker-panel hidden
                 role="group" aria-label="สีกระดาษโน้ตทั้งหมด">
-                <div class="wsb-palette" style="--wsb-palette-cols: {{ $design::PALETTE_COLUMNS }}">
+                <div class="wsb-palette" data-palette-columns="{{ $design::PALETTE_COLUMNS }}">
                     @foreach ($design::STICKY_COLORS as $color)
                         <button type="button"
                             class="wsb-swatch wsb-swatch--sticky"
                             data-sticky-color="{{ $color }}"
                             data-requires-edit
                             aria-pressed="false"
-                            style="--wsb-swatch: {{ $color }}"
                             aria-label="สีกระดาษโน้ต {{ $color }}"
                             title="สีกระดาษโน้ต {{ $color }}">
                             <span class="wsb-swatch__dot" aria-hidden="true"></span>
@@ -154,8 +148,7 @@
                 aria-controls="wsbStrokeWidths"
                 aria-label="ความหนาเส้น"
                 data-tooltip="ความหนาเส้น">
-                <span class="wsb-width__bar" data-picker-current="width"
-                    style="--wsb-width: {{ min($design::DEFAULT_STROKE_WIDTH, 12) }}px" aria-hidden="true"></span>
+                <span class="wsb-width__bar" data-picker-current="width" aria-hidden="true"></span>
                 <i class="bi bi-chevron-down" aria-hidden="true"></i>
             </button>
 
@@ -169,7 +162,7 @@
                         aria-pressed="false"
                         aria-label="ความหนา {{ $width }}"
                         title="ความหนา {{ $width }}">
-                        <span class="wsb-width__bar" style="--wsb-width: {{ min($width, 12) }}px" aria-hidden="true"></span>
+                        <span class="wsb-width__bar" aria-hidden="true"></span>
                     </button>
                 @endforeach
             </div>

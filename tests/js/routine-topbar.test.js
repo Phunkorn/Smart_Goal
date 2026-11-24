@@ -86,3 +86,79 @@ test('หน้าบันทึกงานประจำวันยิง�
     // เมนูบนจอแคบต้องกว้างไม่เกินหน้าจอ ไม่งั้นรายการงานประจำจะถูกดันออกนอกขอบ
     assert.match(topbar, /\.routine-topbar__menu\s*\{[^}]*width:\s*min\(360px,\s*calc\(100vw - 20px\)\)/s);
 });
+
+test('hidden, departed and destroyed topbars do not send requests, and restore resumes once', async () => {
+    const ui = mountTopbar({total: 1});
+    try {
+        assert.equal(initRoutineTopbar({doc: ui.document}), null, 'initialization is idempotent');
+        Object.defineProperty(ui.document, 'hidden', {configurable: true, value: true});
+        await ui.controller.sync();
+        assert.equal(ui.calls.length, 0);
+
+        Object.defineProperty(ui.document, 'hidden', {configurable: true, value: false});
+        ui.window.dispatchEvent(new ui.window.Event('pagehide'));
+        await ui.controller.sync();
+        assert.equal(ui.calls.length, 0);
+        ui.window.dispatchEvent(new ui.window.Event('pageshow'));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.equal(ui.calls.length, 1);
+        ui.window.dispatchEvent(new ui.window.Event('pageshow'));
+        assert.equal(ui.calls.length, 1, 'a second pageshow does not start another poll');
+
+        ui.controller.destroy();
+        ui.document.dispatchEvent(new ui.window.Event('visibilitychange'));
+        ui.document.dispatchEvent(new ui.window.Event('smartgoal:routine-changed'));
+        ui.window.dispatchEvent(new ui.window.Event('pageshow'));
+        await ui.controller.sync();
+        assert.equal(ui.calls.length, 1);
+    } finally {
+        ui.controller.destroy();
+        ui.cleanup();
+    }
+});
+
+test('topbar coalesces concurrent polls but refreshes again after a pending mutation', async () => {
+    const ui = mountDom(topbarMarkup());
+    let calls = 0;
+    let finish;
+    const controller = initRoutineTopbar({doc: ui.document, fetchImpl: () => {
+        calls++;
+        return new Promise((resolve) => { finish = resolve; });
+    }});
+    try {
+        const first = controller.sync();
+        await controller.sync();
+        ui.document.dispatchEvent(new ui.window.Event('visibilitychange'));
+        ui.document.dispatchEvent(new ui.window.Event('smartgoal:routine-changed'));
+        assert.equal(calls, 1);
+        finish({ok: true, json: async () => ({attention: {total: 2}})});
+        await first;
+        assert.equal(calls, 2, 'a change during a request must not be lost');
+        finish({ok: true, json: async () => ({attention: {total: 1}})});
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.equal(ui.document.querySelector('[data-routine-count]').textContent, '1');
+    } finally {
+        controller.destroy();
+        ui.cleanup();
+    }
+});
+
+test('topbar stops network requests after an expired or forbidden session', async () => {
+    for (const status of [401, 403, 419]) {
+        const ui = mountDom(topbarMarkup());
+        let calls = 0;
+        const controller = initRoutineTopbar({doc: ui.document, fetchImpl: async () => {
+            calls++;
+            return {ok: false, status};
+        }});
+        try {
+            await controller.sync();
+            await controller.sync();
+            ui.document.dispatchEvent(new ui.window.Event('visibilitychange'));
+            assert.equal(calls, 1);
+        } finally {
+            controller.destroy();
+            ui.cleanup();
+        }
+    }
+});

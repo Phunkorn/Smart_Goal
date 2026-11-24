@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderList;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
 
 class MyTasksTaskScopeTest extends TestCase
@@ -14,6 +16,83 @@ class MyTasksTaskScopeTest extends TestCase
     use RefreshDatabase;
 
     private ?Department $sharedDepartment = null;
+
+    public function test_workspace_batches_mention_lookups_for_parent_and_child_tasks(): void
+    {
+        $actor = $this->user();
+        $member = $this->user();
+        $list = $this->list($actor);
+        $this->acknowledgeDailyBrief($actor);
+
+        for ($i = 0; $i < 12; $i++) {
+            $parent = $this->task($member, $actor, $list, 'Performance parent '.$i);
+            $child = $this->task($member, $actor, $list, 'Performance child '.$i, ['parent_job_id' => $parent->job_id]);
+            foreach ([$parent, $child] as $task) {
+                $task->updates()->create(['user_id' => $member->id, 'note' => 'Performance comment', 'is_comment' => true]);
+            }
+        }
+
+        DB::enableQueryLog();
+        try {
+            $response = $this->actingAs($actor)->get(route('mytasks.index'))->assertOk();
+            $queries = collect(DB::getQueryLog());
+            $grammar = DB::connection()->getQueryGrammar();
+            $lookup = 'select '.implode(', ', array_map($grammar->wrap(...), ['id', 'name', 'profile_image']))
+                .' from '.$grammar->wrapTable('users').' ';
+            $this->assertCount(1, $queries->filter(fn ($query) => str_starts_with($query['query'], $lookup)),
+                'Mention candidates must be fetched together, not once per task.');
+
+            preg_match('/<script type="application\/json" data-mentionable-data>(.*?)<\/script>/s', $response->getContent(), $matches);
+            $candidates = json_decode($matches[1], true, flags: JSON_THROW_ON_ERROR);
+            $this->assertCount(24, $candidates, 'Both parent and child tasks must retain their mention data.');
+            foreach ($candidates as $people) {
+                $this->assertEqualsCanonicalizing([$actor->id, $member->id], array_column($people, 'id'));
+            }
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+    }
+
+    /**
+     * workspace-interactions เคยถามสิทธิ์เดิมของงานเดิมซ้ำสูงสุด 4 ครั้งต่อ ability ต่องาน
+     * บนหน้าที่มีงานร้อยกว่าใบ การตรวจซ้ำเหล่านี้กินเวลา render เป็นหลักร้อยมิลลิวินาที
+     * ผลต้องเหมือนเดิมทุกค่า แต่ policy ของงานแต่ละใบต้องถูกถามแค่ครั้งเดียวต่อ ability
+     */
+    public function test_workspace_interactions_evaluate_each_task_ability_once_for_user_and_admin(): void
+    {
+        foreach (['user', 'admin'] as $role) {
+            $actor = $this->user($role);
+            $member = $this->user();
+            $list = $this->list($actor);
+            $this->acknowledgeDailyBrief($actor);
+            $taskIds = [];
+            for ($i = 0; $i < 4; $i++) {
+                $parent = $this->task($member, $actor, $list, $role.' ability parent '.$i);
+                $child = $this->task($member, $actor, $list, $role.' ability child '.$i, ['parent_job_id' => $parent->job_id]);
+                array_push($taskIds, $parent->job_id, $child->job_id);
+            }
+
+            $checks = [];
+            Gate::after(function ($user, string $ability, $result, array $arguments) use (&$checks, $actor) {
+                $subject = $arguments[0] ?? null;
+                if ($ability === 'comment' && $user->is($actor) && $subject instanceof WorkOrder) {
+                    $checks[$subject->job_id] = ($checks[$subject->job_id] ?? 0) + 1;
+                }
+            });
+
+            $response = $this->actingAs($actor)->get(route('mytasks.index'))->assertOk();
+
+            preg_match('/<script type="application\/json" data-task-management-data>(.*?)<\/script>/s', $response->getContent(), $matches);
+            $management = json_decode($matches[1], true, flags: JSON_THROW_ON_ERROR);
+            foreach ($taskIds as $taskId) {
+                $this->assertSame(1, $checks[$taskId] ?? 0, "{$role}: comment ability of task {$taskId} must be evaluated once.");
+                $this->assertTrue($management[(string) $taskId]['can_comment'], "{$role}: task {$taskId} stays commentable.");
+                $this->assertNotNull($management[(string) $taskId]['pin_comment_url']);
+                $this->assertNotNull($management[(string) $taskId]['comments_history_url']);
+            }
+        }
+    }
 
     public function test_user_task_scopes_only_narrow_the_accessible_workspace(): void
     {

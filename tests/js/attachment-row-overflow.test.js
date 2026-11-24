@@ -239,6 +239,7 @@ test('ตารางสีไอคอนตามชนิดไฟล์ถ�
         '.file-tone-image',
         '.file-tone-pdf',
         '.file-tone-zip',
+        '.file-tone-text',
         '.file-tone-other',
     ]);
 });

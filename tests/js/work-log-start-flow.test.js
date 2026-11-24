@@ -272,3 +272,59 @@ test('แท็บที่ซ่อนอยู่ไม่เช็กสถ�
         pastDay.cleanup();
     }
 });
+
+test('live polling does not overlap slow requests and stops after session expiry', async () => {
+    const dom = livePage();
+    const previousFetch = globalThis.fetch;
+    let calls = 0;
+    let finish;
+    try {
+        globalThis.fetch = () => {
+            calls++;
+            return new Promise((resolve) => { finish = resolve; });
+        };
+        const sync = openLivePage(dom).find((interval) => interval.delay === 10_000);
+        const first = sync.callback();
+        await sync.callback();
+        dom.document.dispatchEvent(new dom.window.Event('visibilitychange'));
+        assert.equal(calls, 1);
+        finish(response(200, {fingerprint: 'old'}));
+        await first;
+        globalThis.fetch = async () => { calls++; return response(401, {}); };
+        await sync.callback();
+        await sync.callback();
+        dom.document.dispatchEvent(new dom.window.Event('visibilitychange'));
+        assert.equal(calls, 2);
+    } finally {
+        globalThis.fetch = previousFetch;
+        dom.cleanup();
+    }
+});
+
+test('live polling pauses on page departure and restores one timer when returning', async () => {
+    const dom = livePage();
+    const previousFetch = globalThis.fetch;
+    const previousSetInterval = globalThis.setInterval;
+    let calls = 0;
+    let restoredTimers = 0;
+    try {
+        globalThis.fetch = async () => { calls++; return response(200, {fingerprint: 'old'}); };
+        const sync = openLivePage(dom).find((interval) => interval.delay === 10_000);
+        assert.equal(initDailyLogs({doc: dom.document}), null);
+        globalThis.setInterval = () => { restoredTimers++; return 0; };
+        dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+        await sync.callback();
+        dom.document.dispatchEvent(new dom.window.Event('visibilitychange'));
+        assert.equal(calls, 0);
+        dom.window.dispatchEvent(new dom.window.Event('pageshow'));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.equal(calls, 1);
+        assert.equal(restoredTimers, 1);
+        dom.window.dispatchEvent(new dom.window.Event('pageshow'));
+        assert.equal(restoredTimers, 1);
+    } finally {
+        globalThis.fetch = previousFetch;
+        globalThis.setInterval = previousSetInterval;
+        dom.cleanup();
+    }
+});

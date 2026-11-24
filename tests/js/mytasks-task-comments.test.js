@@ -9,20 +9,29 @@ import {taskStateStore} from '../../resources/js/pages/mytasks/task-state-store.
 let timelineFixture = 0;
 
 // Full server history and controllable transport for cross-task async regressions.
-async function reconciliationUI(t, fetchImpl, initial = {}) {
+async function reconciliationUI(t, fetchImpl, initial = {}, {serveTimeline = true} = {}) {
     const ui = await mountTaskWorkspace({taskId: 7, secondTaskId: 8}, {url: 'http://localhost/my-tasks?view=board'});
     t.after(ui.cleanup);
     const meta = ui.document.querySelector('[data-task-management-data]');
     const data = JSON.parse(meta.textContent);
     for (const id of ['7', '8']) {
         data[id].comments_history_url = `/tasks/${id}/comments`;
+        data[id].timeline_url = `/tasks/${id}/timeline`;
         const badge = ui.document.querySelector(`[data-unread-comments="${id}"]`);
         badge.querySelector('strong').textContent = String(initial[id]?.updates?.length || 0);
     }
     meta.textContent = JSON.stringify(data);
     Object.assign(taskStateStore(ui.document), data);
-    ui.document.querySelector('[data-timeline-data]').textContent = JSON.stringify(initial);
-    globalThis.fetch = fetchImpl;
+    // ไทม์ไลน์ตั้งต้นถูกขอผ่าน timeline_url ตอนเปิดงาน (ไม่ได้ฝังในหน้าแล้ว)
+    // helper ตอบเองเพื่อไม่ให้ลำดับ request ของ fetchImpl แต่ละเทสต์เลื่อน
+    globalThis.fetch = (url, options = {}) => {
+        const match = String(url).match(/^\/tasks\/(\d+)\/timeline$/);
+        if (serveTimeline && match && !options.method) {
+            const entry = initial[match[1]] || {};
+            return Promise.resolve(ok({task_id: Number(match[1]), updates: entry.updates || [], activity: entry.activity || []}));
+        }
+        return fetchImpl(url, options);
+    };
     await import(`../../resources/js/pages/mytasks/task-timeline.js?fixture=${++timelineFixture}`);
     return ui;
 }
@@ -119,6 +128,85 @@ test('network error retains snapshot and board count', async (t) => {
     const ui = await reconciliationUI(t, async () => { throw new Error('offline'); }, {'7': {updates: [syntheticComment(70, 'Existing')], activity: []}});
     click(ui.boardTitleFor(7)); await flush();
     assert.match(content(ui), /Existing/); assert.equal(countFor(ui, 7), '1');
+});
+
+// ไทม์ไลน์ถูกขอตอนเปิดงาน ไม่ได้ฝังมากับหน้า — เทสต์ด้านล่างคุมคำตอบของ /timeline เอง
+const timelineUI = (t, handler) => {
+    const calls = [];
+    return reconciliationUI(t, (url, options = {}) => {
+        const path = String(url);
+        if (/\/timeline$/.test(path)) { calls.push(path); return handler(path, calls.length); }
+        if (options.method === 'POST') return Promise.resolve(ok({task_id: Number(path.split('/')[2]), unread_comments: 0}));
+        return Promise.resolve(history(Number(path.split('/')[2]), []));
+    }, {}, {serveTimeline: false}).then((ui) => Object.assign(ui, {timelineCalls: calls}));
+};
+const timelinePayload = (id, updates, activity = []) => ok({task_id: id, updates, activity});
+const legacyUpdate = (id, note) => ({id, note, author: 'Legacy', is_comment: false, readers: []});
+const activityEntry = (note) => ({author: 'ระบบ', avatar_url: null, note, at: '1 ม.ค. 2569 09:00', is_mine: false});
+
+test('opening a task loads its timeline once, shows loading first, then updates and activity', async (t) => {
+    let release;
+    const ui = await timelineUI(t, () => new Promise((resolve) => { release = resolve; }));
+    click(ui.boardTitleFor(7));
+    assert.match(content(ui), /กำลังโหลด/);
+    assert.doesNotMatch(content(ui), /ยังไม่มีรายการอัปเดต/);
+    release(timelinePayload(7, [syntheticComment(71, 'Loaded comment'), legacyUpdate(70, 'Legacy note')], [activityEntry('เปลี่ยนสถานะงาน')]));
+    await flush();
+    assert.match(content(ui), /Loaded comment/);
+    assert.match(content(ui), /Legacy note/);
+    click(ui.taskModal.querySelector('[data-timeline-tab="activity"]'));
+    assert.match(content(ui), /เปลี่ยนสถานะงาน/);
+    click(ui.taskModal.querySelector('[data-close-task]'));
+    click(ui.boardTitleFor(7));
+    await flush();
+    assert.match(content(ui), /Loaded comment/);
+    assert.deepEqual(ui.timelineCalls, ['/tasks/7/timeline']);
+});
+
+test('a failed timeline says so and the next open retries', async (t) => {
+    const ui = await timelineUI(t, (path, attempt) => attempt === 1
+        ? Promise.resolve({ok: false, json: async () => ({})})
+        : Promise.resolve(timelinePayload(7, [syntheticComment(72, 'Second try')])));
+    click(ui.boardTitleFor(7));
+    await flush();
+    assert.match(content(ui), /โหลดรายการไม่สำเร็จ/);
+    click(ui.taskModal.querySelector('[data-close-task]'));
+    click(ui.boardTitleFor(7));
+    await flush();
+    assert.match(content(ui), /Second try/);
+    assert.equal(ui.timelineCalls.length, 2);
+});
+
+test('a realtime comment that arrives while the timeline loads is kept', async (t) => {
+    let release;
+    const ui = await timelineUI(t, (path, attempt) => attempt === 1
+        ? new Promise((resolve) => { release = resolve; })
+        : Promise.resolve(timelinePayload(7, [syntheticComment(71, 'Earlier')])));
+    click(ui.boardTitleFor(7));
+    ui.document.dispatchEvent(new ui.window.CustomEvent('smartgoal:realtime-notification', {detail: {
+        category: 'comment', task_id: 7, comment: syntheticComment(75, 'Live while loading'),
+    }}));
+    release(timelinePayload(7, [syntheticComment(71, 'Earlier')]));
+    await flush();
+    assert.match(content(ui), /Live while loading/);
+    assert.match(content(ui), /Earlier/);
+});
+
+test('a timeline response for task 7 never renders inside task 8', async (t) => {
+    const pending = {};
+    const ui = await timelineUI(t, (path) => new Promise((resolve) => { pending[path] = resolve; }));
+    click(ui.boardTitleFor(7));
+    click(ui.boardTitleFor(8));
+    pending['/tasks/7/timeline'](timelinePayload(7, [syntheticComment(70, 'Only for seven')]));
+    await flush();
+    assert.doesNotMatch(content(ui), /Only for seven/);
+    pending['/tasks/8/timeline'](timelinePayload(8, [syntheticComment(80, 'Eight own')]));
+    await flush();
+    assert.match(content(ui), /Eight own/);
+    click(ui.boardTitleFor(7));
+    await flush();
+    assert.match(content(ui), /Only for seven/);
+    assert.doesNotMatch(content(ui), /Eight own/);
 });
 
 test('an older GET cannot overwrite a newer GET for the same task', async (t) => {

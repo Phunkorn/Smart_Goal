@@ -140,7 +140,6 @@ export function taskWorkspaceMarkup({
 <script type="application/json" data-team-data>${JSON.stringify(teamData)}</script>
 <script type="application/json" data-owner-data>${JSON.stringify(owners)}</script>
 <script type="application/json" data-attachment-data>{}</script>
-<script type="application/json" data-timeline-data>{}</script>
 <script type="application/json" data-task-management-data>${JSON.stringify(managementData)}</script>
 <script type="application/json" data-mentionable-data>${JSON.stringify(mentionableData)}</script>
 

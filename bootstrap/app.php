@@ -5,12 +5,16 @@ use App\Http\Middleware\EnsurePasswordHasBeenChanged;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureTicketsInstalled;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\TrustedProxies;
 use App\Support\ByteSize;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\PostTooLargeException;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -21,14 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
 
-        // Cloudflare Tunnel / reverse proxy
-        $middleware->trustProxies(
-            at: '*',
-            headers: Request::HEADER_X_FORWARDED_FOR
-                | Request::HEADER_X_FORWARDED_HOST
-                | Request::HEADER_X_FORWARDED_PORT
-                | Request::HEADER_X_FORWARDED_PROTO
-        );
+        $middleware->prepend(SecurityHeaders::class);
+
+        // Trust forwarded HTTPS only from explicitly verified hosting/tunnel peers.
+        $middleware->replace(TrustProxies::class, TrustedProxies::class);
 
         /*
          * Telegram ยิง webhook เข้ามาจากเซิร์ฟเวอร์ของตัวเอง ไม่มี session และไม่มี CSRF token
@@ -49,6 +49,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+
+        // Errors raised before routing (maintenance, size limits, 404/500) need headers too.
+        $exceptions->respond(function (Response $response, Throwable $exception, Request $request): Response {
+            return app(SecurityHeaders::class)->apply($request, $response);
+        });
 
         /*
          * Laravel มี ValidatePostSize อยู่ในกลุ่ม web อยู่แล้ว และโยน PostTooLargeException

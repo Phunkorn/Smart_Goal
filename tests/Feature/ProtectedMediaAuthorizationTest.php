@@ -230,6 +230,117 @@ class ProtectedMediaAuthorizationTest extends TestCase
         Storage::disk('local')->assertMissing($path);
     }
 
+    public function test_profile_cache_revalidates_without_resending_the_file_or_losing_session_data(): void
+    {
+        $owner = $this->user();
+        Storage::disk('public')->put('profiles/cache.jpg', str_repeat('profile', 1000));
+        $owner->update(['profile_image' => 'profiles/cache.jpg']);
+
+        foreach ([route('media.profile', $owner), route('media.show', ['path' => $owner->profile_image])] as $url) {
+            $first = $this->actingAs($owner)->withSession(['media-check' => 'kept'])->get($url)->assertOk();
+            $this->assertTrue($first->headers->hasCacheControlDirective('private'));
+            $this->assertTrue($first->headers->hasCacheControlDirective('no-cache'));
+            $this->assertTrue($first->headers->hasCacheControlDirective('must-revalidate'));
+            $this->assertFalse($first->headers->hasCacheControlDirective('no-store'));
+            $this->assertNotEmpty($first->headers->get('ETag'));
+            $this->assertNotEmpty($first->headers->get('Last-Modified'));
+            $this->assertSame('7000', $first->headers->get('Content-Length'));
+
+            $this->withCookie(config('session.cookie'), $this->app['session.store']->getId());
+            $cached = $this->get($url, ['If-None-Match' => $first->headers->get('ETag')])
+                ->assertStatus(304)->assertSessionHas('media-check', 'kept');
+            ob_start();
+            $cached->baseResponse->sendContent();
+            $this->assertSame('', ob_get_clean(), '304 must not transmit the image body.');
+        }
+    }
+
+    public function test_profile_cache_does_not_reuse_another_accounts_or_sessions_validator(): void
+    {
+        $owner = $this->user();
+        Storage::disk('public')->put('profiles/account.jpg', 'profile');
+        $owner->update(['profile_image' => 'profiles/account.jpg']);
+        $url = route('media.profile', $owner);
+        $etag = $this->actingAs($owner)->get($url)->assertOk()->headers->get('ETag');
+        $this->assertNotEmpty($etag);
+
+        $this->withCookie(config('session.cookie'), $this->app['session.store']->getId());
+        $other = $this->actingAs($this->user())->get($url, ['If-None-Match' => $etag])->assertOk();
+        $this->assertNotSame($etag, $other->headers->get('ETag'));
+
+        $etag = $other->headers->get('ETag');
+        $this->get($url, ['If-None-Match' => $etag])->assertStatus(304);
+        $this->app['session.store']->regenerate();
+        $this->withCookie(config('session.cookie'), $this->app['session.store']->getId());
+        $nextSession = $this->get($url, ['If-None-Match' => $etag])->assertOk();
+        $this->assertNotSame($etag, $nextSession->headers->get('ETag'));
+    }
+
+    public function test_profile_cache_checks_access_even_when_the_browser_has_a_validator(): void
+    {
+        $owner = $this->user();
+        Storage::disk('public')->put('profiles/access.jpg', 'profile');
+        $owner->update(['profile_image' => 'profiles/access.jpg']);
+        $url = route('media.profile', $owner);
+        $etag = $this->actingAs($owner)->get($url)->assertOk()->headers->get('ETag');
+        $this->assertNotEmpty($etag);
+
+        $this->app['auth']->forgetGuards();
+        $this->getJson($url, ['If-None-Match' => $etag])->assertUnauthorized();
+        $owner->update(['is_active' => false]);
+        $this->actingAs($owner)->getJson($url, ['If-None-Match' => $etag])->assertForbidden();
+        $owner->update(['is_active' => true, 'must_change_password' => true]);
+        $this->actingAs($owner)->getJson($url, ['If-None-Match' => $etag])->assertForbidden();
+    }
+
+    public function test_profile_cache_detects_changed_bytes_even_with_the_same_size_and_modification_time(): void
+    {
+        $owner = $this->user();
+        $path = 'profiles/replaced.jpg';
+        Storage::disk('public')->put($path, 'before');
+        $owner->update(['profile_image' => $path]);
+        $url = route('media.profile', $owner);
+        $first = $this->actingAs($owner)->get($url)->assertOk();
+        $etag = $first->headers->get('ETag');
+        $this->assertNotEmpty($etag);
+        $this->withCookie(config('session.cookie'), $this->app['session.store']->getId());
+        $mtime = filemtime(Storage::disk('public')->path($path));
+
+        Storage::disk('public')->put($path, 'after!');
+        touch(Storage::disk('public')->path($path), $mtime);
+        $changed = $this->get($url, [
+            'If-None-Match' => $etag,
+            'If-Modified-Since' => $first->headers->get('Last-Modified'),
+        ])->assertOk();
+        $this->assertNotSame($etag, $changed->headers->get('ETag'));
+        // Date-only validators cannot distinguish changes within one second or account switches.
+        $this->get($url, ['If-Modified-Since' => $first->headers->get('Last-Modified')])->assertOk();
+    }
+
+    public function test_profile_cache_loads_the_new_upload_from_the_same_url(): void
+    {
+        $owner = $this->user();
+        Storage::disk('public')->put('profiles/upload.jpg', 'old profile');
+        $owner->update(['profile_image' => 'profiles/upload.jpg']);
+        $url = route('media.profile', $owner);
+        $etag = $this->actingAs($owner)->get($url)->assertOk()->headers->get('ETag');
+        $this->assertNotEmpty($etag);
+
+        $this->withCookie(config('session.cookie'), $this->app['session.store']->getId());
+        $this->withCredentials()->patchJson(route('settings.update'), [
+            'name' => $owner->name,
+            'profile_image' => \Illuminate\Http\UploadedFile::fake()->image('new.png', 80, 80),
+        ])->assertOk()->assertJsonPath('user.avatar_url', $url);
+
+        $changed = $this->get($url, ['If-None-Match' => $etag])->assertOk();
+        $this->assertNotSame($etag, $changed->headers->get('ETag'));
+        $this->assertSame(realpath(Storage::disk('public')->path($owner->fresh()->profile_image)), $changed->baseResponse->getFile()->getPathname());
+        $this->get($url, ['If-None-Match' => $changed->headers->get('ETag')])->assertStatus(304);
+        $this->get(route('media.show', ['path' => 'profiles/upload.jpg']), ['If-None-Match' => $etag])->assertNotFound();
+        $owner->update(['profile_image' => null]);
+        $this->get($url, ['If-None-Match' => $changed->headers->get('ETag')])->assertNotFound();
+    }
+
     public function test_activity_log_renders_a_still_available_profile_image_through_protected_media(): void
     {
         $admin = $this->user('admin');

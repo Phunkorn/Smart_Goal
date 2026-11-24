@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {mountDom} from './helpers/dom.js';
+import {initSetupPassword} from '../../resources/js/pages/auth/setup-password.js';
 
 const blade = readFileSync(new URL('../../resources/views/auth/setup-password.blade.php', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../../resources/css/components/auth/setup-password.css', import.meta.url), 'utf8');
@@ -19,11 +20,10 @@ const renderBlade = () => blade
     .replace(/\{\{ \$minLength \}\}/g, String(MIN_LENGTH))
     .replace(/\{\{[\s\S]*?\}\}/g, '#');
 
-/** jsdom ของโปรเจกต์นี้ไม่เปิด runScripts จึงต้องดึงสคริปต์ inline มาผูกกับ document เอง */
+/** Use the actual module and Blade markup without evaluating inline code. */
 const mountSetupPassword = () => {
     const context = mountDom(renderBlade());
-    const scriptBody = blade.match(/<script>([\s\S]*?)<\/script>/)[1];
-    const api = new Function('document', `${scriptBody}\nreturn {checkPassword, togglePassword};`)(context.document);
+    const api = initSetupPassword(context.document);
 
     return {...context, ...api};
 };
@@ -64,8 +64,16 @@ test('setup password page renders one visible checklist row per policy rule', ()
 });
 
 test('both password fields recheck the policy on every keystroke', () => {
-    assert.match(blade, /id="password"[^>]*oninput="checkPassword\(\)"/);
-    assert.match(blade, /id="password_confirmation"[^>]*oninput="checkPassword\(\)"/);
+    const context = mountSetupPassword();
+    const {document, window, cleanup} = context;
+    document.getElementById('password').value = 'ValidPassword!123';
+    document.getElementById('password').dispatchEvent(new window.Event('input'));
+    assert.equal(document.getElementById('submitBtn').disabled, true);
+    document.getElementById('password_confirmation').value = 'ValidPassword!123';
+    document.getElementById('password_confirmation').dispatchEvent(new window.Event('input'));
+    assert.equal(document.getElementById('submitBtn').disabled, false);
+    assert.doesNotMatch(blade, /\soninput=|<script\b/);
+    cleanup();
 });
 
 test('submit stays disabled until every policy rule and the confirmation pass', () => {

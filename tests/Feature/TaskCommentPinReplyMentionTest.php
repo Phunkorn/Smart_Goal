@@ -6,12 +6,49 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderUpdate;
+use App\Services\TaskCommentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class TaskCommentPinReplyMentionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_batch_mention_candidates_keep_task_audiences_and_account_filters_separate(): void
+    {
+        $author = $this->user();
+        $author->update(['name' => 'Z author']);
+        $member = $this->user();
+        $member->update(['name' => 'A member']);
+        $other = $this->user();
+        $first = $this->task($author, $author);
+        $second = $this->task($other, $other);
+        $first->collaborators()->attach($member->id, ['status' => 'accepted']);
+        $first->collaborators()->attach($this->user()->id, ['status' => 'pending']);
+        $inactive = $this->user();
+        $inactive->update(['is_active' => false]);
+        $deleted = $this->user();
+        $deleted->delete();
+        foreach ([$inactive, $deleted, $this->user('viewer')] as $excluded) {
+            $first->collaborators()->attach($excluded->id, ['status' => 'accepted']);
+        }
+
+        DB::enableQueryLog();
+        try {
+            $service = app(TaskCommentService::class);
+            $candidates = $service->mentionCandidatesForTasks(collect([$first, $second]));
+            $this->assertSame([$member->id, $author->id], $candidates->get($first->job_id)->pluck('id')->all());
+            $this->assertSame([$other->id], $candidates->get($second->job_id)->pluck('id')->all());
+            $this->assertTrue($service->mentionCandidatesForTasks(collect())->isEmpty());
+            $this->assertCount(2, DB::getQueryLog(), 'One collaborators query and one people query for all tasks.');
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertSame($candidates->get($first->job_id)->pluck('id')->all(), $service->mentionCandidates($first)->pluck('id')->all());
+    }
 
     public function test_participant_can_pin_and_pinning_another_comment_unpins_the_previous_one(): void
     {

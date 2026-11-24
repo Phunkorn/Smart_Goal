@@ -5,6 +5,17 @@
     // การจัดทีมล็อกแยกจากตัวงานได้ — Workspace ของสมาชิกให้ admin จัดการงานได้ แต่จัดทีมไม่ได้
     $teamReadOnly = $teamReadOnly ?? $forceReadOnly;
     /*
+     * คำตอบของ policy ต่องานต่อ ability ภายในการ render ครั้งนี้เท่านั้น
+     * บล็อก JSON ด้านล่างเคยถาม work/comment/viewComments ของงานเดิมซ้ำถึง 4 ครั้งต่องาน
+     * ซึ่งบนหน้าที่มีงานร้อยกว่าใบกินเวลา render หลายสิบมิลลิวินาทีโดยได้คำตอบเดิม
+     * ตัวแปรนี้อยู่แค่ใน partial นี้ ไม่ข้าม request และไม่มีการแก้ข้อมูลระหว่าง render
+     */
+    $abilityAnswers = [];
+    $userCan = function (string $ability, $task) use (&$abilityAnswers): bool {
+        // ผูกกับ object ของงาน ไม่ใช่ job_id เพื่อให้ได้คำตอบของ instance เดียวกับที่เคยถามจริง
+        return $abilityAnswers[$ability][spl_object_id($task)] ??= auth()->user()->can($ability, $task);
+    };
+    /*
      * โครงสร้างสมาชิกโปรเจกต์ที่หน้าจอใช้ ตรงกับ App\Support\ProjectRoles ทุกประการ:
      *   leader       — หัวหน้าโปรเจกต์ คือผู้สร้างงานใบนั้น
      *   participants — ผู้เข้าร่วมทั้งหมด ทั้งผู้รับผิดชอบงานและคนที่ถูกเพิ่มเข้ามา
@@ -19,8 +30,8 @@
         'department' => $person->department?->department_name,
         'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
     ];
-    $teamData = $allTasks->mapWithKeys(function ($task) use ($teamReadOnly, $personPayload) {
-        $canManage = ! $teamReadOnly && auth()->user()->can('manageTeam', $task);
+    $teamData = $allTasks->mapWithKeys(function ($task) use ($teamReadOnly, $personPayload, $userCan) {
+        $canManage = ! $teamReadOnly && $userCan('manageTeam', $task);
         $leader = \App\Support\ProjectRoles::leader($task);
 
         return [(string) $task->job_id => [
@@ -67,10 +78,10 @@
         'id' => $task->job_id,
         'topic' => $task->job_topic,
         'is_closed' => (int) $task->job_status === 4,
-        'can_upload' => ! $forceReadOnly && auth()->user()->can('work', $task),
-        'upload_url' => ! $forceReadOnly && auth()->user()->can('work', $task) ? route('tasks.attachments.store', $task->job_id) : null,
+        'can_upload' => ! $forceReadOnly && $userCan('work', $task),
+        'upload_url' => ! $forceReadOnly && $userCan('work', $task) ? route('tasks.attachments.store', $task->job_id) : null,
         // รูปแบบเดียวกับที่ TaskAttachmentController และ TaskStatusController ส่งกลับหลังแนบ/ลบไฟล์
-        'files' => \App\Support\TaskAttachmentPresenter::files($task, ! $forceReadOnly && auth()->user()->can('work', $task)),
+        'files' => \App\Support\TaskAttachmentPresenter::files($task, ! $forceReadOnly && $userCan('work', $task)),
     ]]);
 ?>
 <script type="application/json" data-attachment-data
@@ -80,46 +91,19 @@
     data-extensions="{{ implode(',', \App\Support\AttachmentPolicy::extensions()) }}"
     data-types-label="{{ \App\Support\AttachmentPolicy::typesLabel() }}">@json($attachmentData)</script>
 <?php
-    $commentPresenter = app(\App\Support\TaskCommentPresenter::class);
-    $commentReceipts = $commentPresenter->receiptsForTasks($allTasks);
-    $timelineData = $allTasks->mapWithKeys(function ($task) use ($commentPresenter, $commentReceipts) {
-        $canViewComments = auth()->user()->can('viewComments', $task);
-        $receipts = $commentReceipts->get((string) $task->job_id, []);
-
-        return [(string) $task->job_id => [
-            'updates' => $task->updates
-                ->filter(fn ($update) => ! $update->is_comment || $canViewComments)
-                ->map(fn ($update) => $commentPresenter->comment(
-                    $update,
-                    auth()->user(),
-                    $receipts[(string) $update->id] ?? []
-                ))
-                ->values(),
-            'activity' => $task->activityLogs->map(fn ($log) => [
-                'author' => $log->user?->name ?? 'ระบบ',
-                'avatar_url' => $log->user?->profile_image ? route('media.profile', $log->user) : null,
-                'note' => $log->description,
-                'at' => $commentPresenter->timestamp($log->created_at),
-                'is_mine' => (int) $log->user_id === (int) auth()->id(),
-            ])->values(),
-        ]];
-    });
-?>
-<script type="application/json" data-timeline-data>@json($timelineData)</script>
-<?php
     /*
      * รายชื่อที่ @กล่าวถึงได้ในแต่ละงาน — ชุดเดียวกับผู้รับแจ้งเตือนคอมเมนต์ของงานใบนั้น
      * (TaskCommentService::mentionCandidates()) ไม่ใช่ TaskCollaboratorOptions ซึ่งเป็นรายชื่อ
      * ทั่วทั้งระบบสำหรับหน้าเพิ่มผู้เข้าร่วมโปรเจกต์ คนละขอบเขตกัน
      */
     $taskCommentService = app(\App\Services\TaskCommentService::class);
-    $mentionableData = $allTasks->mapWithKeys(fn ($task) => [(string) $task->job_id =>
-        $taskCommentService->mentionCandidates($task)->map(fn ($person) => [
+    $mentionableData = $taskCommentService->mentionCandidatesForTasks($allTasks)->map(fn ($people) =>
+        $people->map(fn ($person) => [
             'id' => $person->id,
             'name' => $person->name,
             'avatar_url' => $person->profile_image ? route('media.profile', $person) : null,
         ])->values(),
-    ]);
+    );
 ?>
 <script type="application/json" data-mentionable-data>@json($mentionableData)</script>
 <?php
@@ -148,23 +132,26 @@
             : app(\App\Services\TaskStatusTransitionService::class)->capabilities($task, auth()->user()),
         // ใช้ตัดสินว่า Summary Bar จะเป็นตัวควบคุมที่กดได้ หรือแสดงเป็นข้อความอ่านอย่างเดียว
         // การซ่อนปุ่มเป็นเรื่อง UI เท่านั้น สิทธิ์จริงยังถูกตรวจซ้ำที่ Policy ฝั่ง server ทุกครั้ง
-        'can_work' => ! $forceReadOnly && auth()->user()->can('work', $task),
+        'can_work' => ! $forceReadOnly && $userCan('work', $task),
         // ความคิดเห็นไม่ใช่การแก้งาน จึงไม่ถูกปิดด้วย forceReadOnly เหมือนปุ่มอื่น
         // Workspace แบบอ่านอย่างเดียวของหัวหน้าแผนกยังต้องตอบกลับในงานลูกทีมได้
         // สิทธิ์จริงตัดสินที่ WorkOrderPolicy::comment() ฝั่ง server ที่เดียว
-        'can_comment' => auth()->user()->can('comment', $task),
-        'can_view_comments' => auth()->user()->can('viewComments', $task),
-        'can_manage_team' => ! $teamReadOnly && auth()->user()->can('manageTeam', $task),
+        'can_comment' => $userCan('comment', $task),
+        'can_view_comments' => $userCan('viewComments', $task),
+        'can_manage_team' => ! $teamReadOnly && $userCan('manageTeam', $task),
         'project' => $task->taskList?->name ?? 'งานทั่วไป',
         'status' => (int) $task->job_status,
         'submitted_by' => $task->reviewSubmitter?->name,
         'submitted_at' => optional($task->submitted_for_review_at)->translatedFormat('j M Y H:i'),
-        'comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.store', $task) : null,
-        'read_comments_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.read', $task) : null,
-        'comments_history_url' => auth()->user()->can('viewComments', $task) ? route('tasks.comments.index', $task) : null,
+        'comment_url' => $userCan('comment', $task) ? route('tasks.comments.store', $task) : null,
+        'read_comments_url' => $userCan('viewComments', $task) ? route('tasks.comments.read', $task) : null,
+        'comments_history_url' => $userCan('viewComments', $task) ? route('tasks.comments.index', $task) : null,
+        // ไทม์ไลน์ (อัปเดต + กิจกรรม) ไม่ถูกฝังในหน้าอีกแล้ว โมดัลขอทีละงานเมื่อเปิดงานนั้น
+        // (TaskCommentController::timeline) เพื่อไม่ให้ server ต้องสร้างไทม์ไลน์ของทุกงานทุกครั้งที่เปิดหน้า
+        'timeline_url' => route('tasks.timeline', $task),
         // __COMMENT__ ถูกแทนที่ด้วย id จริงฝั่ง client เหมือนรูปแบบ remove_url ของทีมด้านบน
-        'pin_comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.pin', [$task, '__COMMENT__']) : null,
-        'unpin_comment_url' => auth()->user()->can('comment', $task) ? route('tasks.comments.unpin', [$task, '__COMMENT__']) : null,
+        'pin_comment_url' => $userCan('comment', $task) ? route('tasks.comments.pin', [$task, '__COMMENT__']) : null,
+        'unpin_comment_url' => $userCan('comment', $task) ? route('tasks.comments.unpin', [$task, '__COMMENT__']) : null,
         'unread_comments' => (int) ($unreadCommentCounts[$task->job_id] ?? 0),
     ]]);
 ?>

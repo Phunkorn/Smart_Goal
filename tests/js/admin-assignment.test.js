@@ -247,7 +247,7 @@ test('the assignment trigger opens in place and the initializer binds once', (t)
     assert.equal(shown.length, 1);
 });
 
-test('Blade pages share one modal and the user/admin project fields share one component', async () => {
+test('the admin board owns assignment while member workspaces reuse task interactions', async () => {
     const read = async (path) => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
     const partial = await read('resources/views/board/components/admin-assignment-modal.blade.php');
     const projectFields = await read('resources/views/tasks/components/project-form-fields.blade.php');
@@ -266,12 +266,12 @@ test('Blade pages share one modal and the user/admin project fields share one co
     assert.doesNotMatch(partial, /name="job_details"/);
     assert.match(modalCss, /\.admin-project-choice__heading\s*\{/);
     assert.match(modalCss, /@media \(max-width: 430px\)[\s\S]*\.admin-task-heading\s*\{\s*flex-direction: column;/);
-    assert.match(userWorkspace, /tasks\.components\.project-form-fields/);
+    assert.doesNotMatch(userWorkspace, /tasks\.components\.project-form-fields/);
     assert.match(projectFields, /WorkBoardDesign::PROJECT_PRIORITIES/);
     assert.match(boardIndex, /@include\('board\.components\.admin-assignment-modal'/);
-    assert.match(memberWorkspace, /@include\('board\.components\.admin-assignment-modal'/);
-    assert.match(memberWorkspace, /'projectOptions' => \$manageableTaskLists/);
-    assert.match(memberWorkspace, /class="admin-assignment-launch admin-assign-button"/);
+    assert.match(memberWorkspace, /@include\('tasks\.partials\.workspace-interactions'/);
+    assert.match(memberWorkspace, /\$showCreateActions = false/);
+    assert.doesNotMatch(memberWorkspace, /@include\('board\.components\.admin-assignment-modal'/);
 
     for (const source of [boardIndex, memberWorkspace]) {
         assert.equal(source.includes('id="boardCreateTaskModal"'), false);

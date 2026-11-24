@@ -304,7 +304,10 @@ test('the queue table truncates only its text cells, only in table mode, and kee
 
 test('ticket CSS never hides or clips content to fix layout and has no sticky overlays', () => {
     for (const path of ticketCss) {
-        const css = readCss(path).replace(queueTruncation, '');
+        // Mobile table headings stay available to screen readers while each card
+        // supplies its visible labels; this is not content clipping as a layout fix.
+        const css = readCss(path).replace(queueTruncation, '')
+            .replace(/\.ticket-settings__table thead\s*\{[^}]*clip-path:\s*inset\(50%\)[^}]*\}/g, '');
         assert.doesNotMatch(css, /!important/, path);
         assert.doesNotMatch(css, /overflow(-x|-y)?\s*:\s*hidden/, path);
         assert.doesNotMatch(css, /position\s*:\s*(sticky|fixed)/, path);

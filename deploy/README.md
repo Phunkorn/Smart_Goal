@@ -1,5 +1,228 @@
 # นำขึ้นเซิร์ฟเวอร์ DirectAdmin
 
+## Security headers — rollout วันที่ 24 พฤศจิกายน 2026
+
+Baseline commit: `f1ea5e056100f7fe25acd16373543e603f2cefbb` (`Update Fix Newfeature Post`).
+การแก้ครั้งนี้รักษางานที่ยังไม่ commit ของผู้ใช้ไว้ ไม่เปลี่ยน schema, business logic หรือ permissions
+ปรับ frontend เฉพาะ CSP compatibility, error rendering และการตัดขอบที่ซ่อนเนื้อหาใน Ticket settings
+ชุด ZIP เป็น working tree ทั้งหมด จึงรวมงานเดิมของผู้ใช้ด้วย ต้องตรวจ diff ทั้งชุดก่อนนำขึ้นจริง
+
+### สาเหตุและขอบเขตที่ตรวจ
+
+ก่อนแก้ไม่มี global security-header middleware; `public/.htaccess` มีเฉพาะ rewrite;
+`bootstrap/app.php` เชื่อ proxy ทุก IP (`*`) และไม่มี CSP/HSTS configuration
+ตรวจ middleware, exception handling, provider, routes, config/session.php, Vite entries,
+Blade/JS/CSS ทั้ง tree สำหรับ external resources, inline code, fetch, image previews,
+iframe/print, audio, clipboard และ fullscreen รวมถึง deploy/build-update.mjs
+ไม่มี Nginx/Apache virtual-host config จริงหรือ production `.env` อยู่ใน repository
+จึงยังยืนยัน upstream header ownership และ proxy IP ที่ถูกต้องไม่ได้
+
+อ่าน Production `/login` แบบ GET วันที่ 24 พฤศจิกายน 2026 ได้ HTTP 200 ผ่าน Nginx
+และพบว่าขาดทั้ง 6 headers ตาม scan ของผู้ใช้; HTTP ตอบ 301 ไป HTTPS
+พบ Cache-Control และ Pragma ซ้ำอยู่แล้ว ซึ่งอาจมาจากแอปและ hosting หลายชั้น
+ไม่ได้เปลี่ยน production หรืออ้างว่าได้ Grade A/A+ แล้ว
+
+หลังผู้ใช้นำชุดแรกขึ้น Production ภาพ scan ยืนยัน **Grade B**: 4 headers ทำงานแล้ว
+ยังขาด enforcing CSP และ HSTS ตามขั้น Report-Only เดิม รอบตรวจอ่านอย่างเดียวเพิ่มเติมพบว่า
+TLS certificate ผ่าน validation, HTTP redirect ไป HTTPS และการส่ง X-Forwarded-Proto=http /
+X-Forwarded-Host ปลอมจาก client ไม่ทำให้ form action หลุดจาก HTTPS ของโดเมนจริง
+ผลนี้ยังไม่เปิดเผย proxy peer IP หรือแทนการตรวจ virtual-host config จริง
+
+| Header | Production ก่อน deploy | แอปหลังแก้ (ค่าเริ่มต้น) |
+|---|---|---|
+| Strict-Transport-Security | ไม่มี | ยังปิด; เปิดเมื่อยืนยัน TLS/proxy แล้ว เฉพาะ production HTTPS |
+| Content-Security-Policy | ไม่มี | เริ่มด้วย Content-Security-Policy-Report-Only |
+| X-Frame-Options | ไม่มี | SAMEORIGIN (คง iframe รายงานในแอป) |
+| X-Content-Type-Options | ไม่มี | nosniff |
+| Referrer-Policy | ไม่มี | strict-origin-when-cross-origin |
+| Permissions-Policy | ไม่มี | ปิด accelerometer/gyroscope/magnetometer/microphone/payment/usb; camera/geolocation/fullscreen/clipboard/autoplay เฉพาะ self |
+
+### CSP และหลักฐานของ resource
+
+Policy ประกอบจาก `config/security.php`; nonce สุ่ม 32 bytes ใหม่ทุก request
+ถูกส่งเข้า Laravel Vite ก่อน render และใส่ใน inline script เดิมของ admin/departments
+และ board/components/admin-assignment-flash ส่วน setup-password ย้ายไป external module
+ที่ experience.js เดิม import ไม่เพิ่ม unsafe-inline, unsafe-eval, wildcard, dependency หรือ Vite entry
+
+| Directive | เหตุผล / source of truth |
+|---|---|
+| default-src 'self' | Vite assets และทรัพยากรในแอปเป็นค่าเริ่มต้น |
+| base-uri 'self' | จำกัดการเปลี่ยนฐาน URL |
+| object-src 'none' | ไม่มี plugin/embed object ใน source |
+| frame-src / frame-ancestors 'self' | inspection-report-modal ฝังรายงานจาก route ของแอป; สอดคล้อง SAMEORIGIN |
+| form-action 'self' | form ส่งเข้า routes ของแอป; LINE OAuth ออกจากแอปด้วย server redirect ไม่ใช่ browser fetch |
+| script-src 'self' + nonce + CDN paths | layouts/app ใช้ Bootstrap 5.3.3 bundle และ SweetAlert2 11.26.25/dist/sweetalert2.min.js จาก jsDelivr; pin ตาม package ที่ติดตั้งจริง |
+| script-src-attr 'none' | event attributes ใน Blade ถูกย้ายไป external listeners แล้ว |
+| style-src 'self' + nonce + Google Fonts CSS / CDN paths | auth/layout/public-ticket/report ใช้ fonts.googleapis.com, Bootstrap 5.3.3 CSS และ Bootstrap Icons 1.11.3 CSS |
+| style-src-attr unsafe-hashes + hash เดียว | อนุญาตเฉพาะข้อความ `display:none !important` ที่ SweetAlert2 11.26.25 ใช้ตอนปิด popup บน Safari/iOS; style attributes อื่นไม่อนุญาต |
+| font-src 'self' + fonts.gstatic.com + Bootstrap Icons font path | fonts ที่ stylesheet ข้างต้นเรียกจริง |
+| img-src 'self' data: blob: | protected media, upload previews ใน employees/tickets/social/task comments และ SVG ใน Bootstrap CSS |
+| connect-src 'self' | AJAX/fetch/axios ใช้ app routes; LINE/Telegram API เรียกฝั่ง PHP จึงไม่เพิ่มใน browser policy |
+| media-src / manifest-src 'self' | เสียงแจ้ง Ticket และทรัพยากรแอป |
+| worker-src 'none' | ไม่พบ worker/service worker ที่แอปใช้งาน |
+| report-uri /security/csp-reports | collector ใหม่เนื่องจากไม่มี endpoint เดิมสำหรับ CSP; same-origin, stateless, 30 requests/IP/minute, body ไม่เกิน 16 KiB |
+
+Collector รับ application/csp-report หรือ application/json และ log เฉพาะ directive/disposition
+ไม่บันทึก URL, query string, script sample, cookie หรือชื่อผู้ใช้ รายงานที่ถูกส่งมาไม่นับเป็นหลักฐานที่เชื่อถือได้โดยลำพัง
+ใช้ report-uri เพื่อรองรับ browser เดิมโดยไม่พึ่ง external reporting service
+Local HMR derive HTTP/WebSocket origin จาก hot file ของ Vite เท่านั้น ไม่เปิดใน production
+ต้องไม่มี `public/hot` ในชุด production
+
+แนวทางอ้างอิง: [OWASP HTTP Headers Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html),
+[MDN CSP Report-Only](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy-Report-Only)
+และ implementation ของ Laravel 12 ใน vendor ของโปรเจกต์
+
+**แก้ source ที่ขัดกับ CSP แล้ว:** password hints ใช้ external module/listeners;
+ปุ่ม print สองหน้าและ iframe ใช้ printDocument ร่วมกันใน app.js entry เดิม;
+workspace palette, monthly summary และ report legends รับข้อมูลเดิมผ่าน data attributes
+แล้วตั้งเฉพาะ CSS properties ที่ตรวจสอบค่าใน component เดิม ไม่เปิดให้ส่ง CSS อิสระ
+SweetAlert ใช้ JS build ที่ไม่ inject stylesheet และ import CSS ผ่าน components/layout.css
+สี meter ย้ายไป component auth/setup-password.css เดิม ไม่เปลี่ยนสีหรือเกณฑ์รหัสผ่าน
+HTTP error templates ใช้ errors.css เดิมแทน inline CSS ของ framework โดยไม่พึ่ง session
+
+การใช้ CSS properties ผ่าน JavaScript ไม่เท่ากับ setAttribute(style)/cssText ที่ CSP บล็อก
+อ้างอิง [MDN style-src-attr](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/style-src-attr)
+ยังต้องตรวจ browser จริงทุก workflow ก่อนเปลี่ยนเป็น enforce; static/DOM tests ไม่ใช่ผล Console จริง
+
+### ขั้นตอนนำขึ้นแบบ Report-Only
+
+1. สำรอง code และ `Smart-Private/.env` ก่อน งานนี้ไม่ต้อง migrate ฐานข้อมูล
+2. ขอข้อมูล Nginx/Apache/Cloudflare Tunnel จากผู้ดูแล DirectAdmin และระบุ peer IP/CIDR ที่เชื่อถือได้จริง
+   ตั้ง `TRUSTED_PROXIES=` เป็นรายการคั่นด้วย comma; การเชื่อทุก IP ถูกยกเลิกแล้ว
+   ถ้า PHP รับ HTTP จาก proxy ที่ยังไม่อยู่ในรายการ จะสร้าง URL/cookie ตาม scheme ผิดได้
+   ต้องยืนยัน scheme จริง, forwarded proto และป้องกัน client ปลอม forwarded headers ก่อน deploy
+3. ตั้ง `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL` เป็น HTTPS ของโดเมนจริง
+   รักษา `SESSION_ENCRYPT=true`, `SESSION_HTTP_ONLY=true`, `SESSION_SAME_SITE=lax`
+   และ `SESSION_SECURE_COOKIE=true` เดิมที่เหมาะสมไว้ ไม่เปิด debug เพื่อทดสอบบน production
+4. ตั้ง `SECURITY_HEADERS_ENABLED=true`, `SECURITY_CSP_REPORT_ONLY=true`, `SECURITY_HSTS_ENABLED=false`
+   ทดสอบบน staging ก่อน แล้วจึงสร้างชุดด้วย `npm.cmd run deploy:zip`
+   สคริปต์ยืนยันว่ามี middleware/config/collector ในชุด และคง bootstrap ที่ชี้ Smart-Private
+5. ตรวจ ZIP ว่าไม่มี .env/storage/private-path.php/vendor/tests/ฐาน SQLite ของเครื่องพัฒนา
+   อัปและ extract โดยผู้ดูแลตามขั้นตอนเดิม ไม่อัปสำเนา baseline หรือ log การทดสอบ
+6. ล้าง generated cache ที่ระบุด้านล่าง หรือใช้ artisan config:clear/view:clear เมื่อมี SSH
+   หลีกเลี่ยงการลบ private-path.php; หากใช้ config:cache ให้สร้างบนเซิร์ฟเวอร์หลังปรับ .env
+7. ตรวจ raw headers ด้วย GET (อย่าอ่านเฉพาะ HEAD): login, authenticated HTML, redirect,
+   JSON/AJAX, 403/404/419/429/500, protected image, export/download และ 304
+   แต่ละ security header ต้องมีเพียงค่าเดียว ไม่มี upstream CSP ที่บังคับอีก policy ซ้อนกัน
+   ให้แอปเป็นเจ้าของ headers บน PHP responses; ตรวจและแก้ add_header/Header set ที่ hosting ตาม config จริง
+   Nginx static files, HTTP redirect และ web-server errors ที่ไม่เข้า PHP ต้องตรวจแยกโดยผู้ดูแล
+8. เปิด DevTools Network/Console พร้อม Preserve log ตรวจ desktop/tablet/mobile และรวบรวม CSP reports
+   จาก Smart-Private/storage/logs ตาม logging channel จริง การไม่มีรายงานเพราะ throttle/เครือข่าย
+   ไม่ใช่หลักฐานว่าปลอด violation และต้องไม่ cache HTML พร้อม nonce ข้าม request ที่ proxy/CDN
+
+ตัวอย่างอ่าน response (ใช้ curl ที่ TLS ทำงานได้):
+
+```sh
+curl -sS -D - -o /dev/null https://smart-goals.premium-care.in.th/login
+curl -sS -D - -o /dev/null http://smart-goals.premium-care.in.th/login
+```
+
+### HSTS / enforcement gate / rollback
+
+หากไม่มี SSH ใช้ route ตั้งค่าเดิมแบบอ่านอย่างเดียวหลังนำชุดล่าสุดขึ้นแล้ว:
+เข้าสู่ระบบด้วย admin และเปิด `/settings?security_headers=1`
+ผู้ใช้ทั่วไป/viewer อ่านข้อมูลนี้ไม่ได้ และ response ไม่ถูก cache
+JSON แสดง `request.is_secure`, `request.server_https`, `request.peer_is_trusted`,
+`request.peer_address`, `csp_report_only`, `hsts_enabled` และ headers ที่ middleware สร้างจริง
+ไม่แสดง .env, key, token, database connection หรือ X-Forwarded-For ทั้งชุด
+
+ถ้า `request.is_secure=true` แต่ `hsts_enabled=false` ปัญหาที่เหลือคือ flag ยังปิด
+หาก `is_secure=false` ให้ตรวจ TLS termination/forwarding และ peer กับผู้ดูแล hosting ก่อน
+อย่านำ IP ของ client ที่ถูก mod_remoteip เขียนลง REMOTE_ADDR ไปใส่ trusted proxy โดยไม่ยืนยัน topology
+diagnostics ไม่เปลี่ยน config และไม่ทำให้ระบบเปิด HSTS/CSP enforcement อัตโนมัติ
+
+ยืนยัน certificate chain, HTTPS redirect, proxy และ secure session cookie ก่อนเปิด
+`SECURITY_HSTS_ENABLED=true` โดยเริ่ม `SECURITY_HSTS_MAX_AGE=300` ตรวจ HTTPS/redirect/error
+แล้วจึงค่อยเพิ่มเป็น 86400 และ 31536000 หลังช่วงติดตาม ไม่มี preload/includeSubDomains
+อย่าตัดสินใจเพิ่มสองตัวนี้จากการตรวจเพียง subdomain ปัจจุบัน
+
+เมื่อ browser regression ผ่านและไม่มี violation ที่กระทบงาน จึงตั้ง `SECURITY_CSP_REPORT_ONLY=false`
+ทดสอบ staging อีกครั้งก่อน deploy enforcement แล้ว scan Production จริงหลัง deploy
+Report-Only ยังไม่เท่ากับ enforcing CSP และไม่รับประกัน Grade A/A+
+
+Rollback CSP ด้วย `SECURITY_CSP_REPORT_ONLY=true`; emergency header rollback ใช้
+`SECURITY_HEADERS_ENABLED=false` แล้วล้าง/rebuild config cache
+ถ้าต้องยกเลิก HSTS ที่ browser จำแล้ว ให้คง HTTPS และส่ง `max-age=0`
+ด้วย enabled=true/max_age=0 ก่อนปิด ไม่ใช่เพียงลบ header (browser อาจยังจำค่าเดิม)
+หากจำเป็นให้คืนชุด code/Smart-Private.env ที่สำรองไว้พร้อมกัน รวม proxy configuration เดิม
+ไม่ต้อง rollback database สำหรับงาน security headers นี้
+
+### Browser regression ที่ต้องบันทึกก่อนเปิด enforcement
+
+Login/logout และ CSRF/session expiry; Dashboard/Daily Brief; Smart Goals/tasks;
+Smart Ticket รวมกล้อง/เสียงแจ้งเตือน; Social; notification badge; global search;
+desktop dropdown/mobile sidebar; modal/SweetAlert; image upload/preview/protected media;
+AJAX/fetch/API; export/download และ print iframe ต้องผ่านบน desktop/tablet/mobile
+ตรวจทั้ง Console, Network, CSP collector และผลการใช้งานจริง ไม่ใช้เพียง status 200
+
+Browser host และ native pipe ของ Computer Use ไม่พร้อมใช้งานใน session ที่แก้โค้ดนี้
+จึงยังไม่มีผล browser/Console/responsive test จริง ไม่อ้างว่าไม่มี CSP violations
+สถานะสำหรับ staging/rollout แบบ Report-Only: **CONDITIONAL GO** โดยต้องยืนยัน proxy/hosting
+สำหรับ CSP enforcement หรือการยืนยัน Grade A/A+: **NO-GO** จนผ่าน browser และ production gate ข้างต้น
+
+### ไฟล์และการตรวจสอบในเครื่อง
+
+สร้าง `app/Http/Middleware/SecurityHeaders.php`, `app/Http/Middleware/TrustedProxies.php`,
+`app/Http/Controllers/CspReportController.php`, `config/security.php`, `tests/Feature/SecurityHeadersTest.php`
+ใช้ namespace `App\Http\Middleware` และ `App\Http\Controllers`
+แก้ `.env.example`, `bootstrap/app.php`, `routes/web.php`, `deploy/build-update.mjs`, `deploy/README.md`,
+`resources/views/auth/setup-password.blade.php`, `resources/views/admin/departments/index.blade.php`,
+`resources/views/board/components/admin-assignment-flash.blade.php` และ `tests/js/auth-setup-password.test.js`
+รอบแก้เพิ่มเติมสร้าง resources/js/pages/auth/setup-password.js และ HTTP error views
+4xx/5xx/minimal/components/http-error เพื่อแทน inline code; สร้าง CspRenderingTest และ security-csp.test.js
+แก้ app.js/inspection-report-modal เพื่อใช้ print action ร่วมกัน, auth experience/setup-password,
+workspace toolbar, daily-logs index/month-summary, reports projects/legend และ layout SweetAlert
+เพิ่ม import ของ setup-password ผ่าน auth/experience.js เดิม และ SweetAlert CSS ผ่าน layout.css เดิม
+CSS ที่แก้คือ auth/setup-password.css, errors.css และ tickets/settings.css
+ใช้ namespace auth-setup-password, http-error-page, ws-board, daily-log และ project-report
+ไม่มี Vite entry ใหม่หรือ dependency ใหม่
+ไม่แตะ migration ที่เปิดใน IDE และรักษา route timeline ที่ผู้ใช้ยังไม่ commit ไว้ครบ
+
+Security tests รวม CspRenderingTest และ diagnostics ผ่าน 31 รายการ / 423 assertions รวม HTML/JSON/redirect/error/streamed download,
+early 413, nonce/Vite, session cookie flags, CSP observation/enforcement switch, HSTS,
+trusted/untrusted proxy, collector validation/privacy/rate limit และ login CSRF
+ตรวจ config:cache ด้วย cache path แยกใน deploy-output แล้ว /up ตอบ 200 พร้อม CSP ได้
+ลบ config cache ทดสอบหลังตรวจแล้ว ไม่เปลี่ยน cache path ปกติของแอป
+Production session cookie ที่อ่านเฉพาะ flags: Secure=true, HttpOnly=true, SameSite=lax
+ส่วน XSRF-TOKEN เป็น Secure=true, HttpOnly=false, SameSite=lax ตามหน้าที่ให้ JavaScript อ่านได้
+
+`npm.cmd run build`, `npm.cmd run deploy:zip`, PHP lint, Pint และ `git diff --check` ผ่าน
+ตรวจ ZIP ว่ามี security files และ Smart-Private bootstrap ครบ ไม่มี private/development artifacts
+เก็บผลตรวจใน `deploy-output/security-verification/` (ไม่อยู่ใน ZIP หรือ Git)
+แก้ regression tests เดิมให้ตรวจโครงสร้างปัจจุบัน: assignment deep link, department overview,
+preview tabs, shared typography/tokens, public-ticket department fallback และ soft-delete ที่ต้องเก็บไฟล์เพื่อกู้คืน
+เพิ่ม query listener ที่ test ใช้แต่ยังไม่ได้ประกาศ; ไม่เปลี่ยน permission/business behavior เพื่อให้ tests ผ่าน
+settings-modal tests จบ transition ตาม Bootstrap events แทนการรอ 40 ms ที่อาจจบก่อน dialog แสดง
+คงการตรวจ focus return, backdrop, CSRF, read-only scope และการกู้คืนไฟล์แนบ
+
+ผลรอบสุดท้ายหลังแก้ทั้งหมด:
+
+| การตรวจ | ผล |
+|---|---|
+| php artisan test --compact | **1913 passed, 1 skipped, 0 failed / 13922 assertions** |
+| npm.cmd test | **1591 passed, 0 failed** |
+| CSP / Security HTTP tests | **31 passed / 423 assertions** |
+| npm.cmd run build | ผ่าน |
+| npm.cmd run deploy:zip | ผ่าน พร้อมตรวจ source/templates/bootstrap ใน ZIP |
+| git diff --check / Pint | ผ่าน |
+| Browser/Console/responsive จริง | ยังไม่มีผล เนื่องจากเครื่องมือไม่เชื่อมต่อ |
+
+หนึ่ง skipped test เป็นการตรวจขนาดคอลัมน์ varchar บน MySQL ซึ่งไม่ใช้กับ SQLite ที่ suite นี้รันอยู่
+ไม่ได้ skip failure ที่พบจากการแก้ CSP และไม่ได้แก้ schema เพื่อให้ tests ผ่าน
+ไฟล์ SweetAlert 11.26.25 บน CDN ถูกตรวจ SHA-256 แล้วตรงกับ package ที่ใช้ใน tests
+ผล DOM rendering ตรวจ login/setup-password, tasks, daily logs/monthly, Social, notifications,
+workspace/board palette, admin dashboard/departments, tickets และ project report โดยเปิด CSP enforcement ใน test
+การตรวจนี้ยืนยัน markup/policy compatibility ไม่แทนการ execute JavaScript/CSP ใน browser จริง
+
+รอบตรวจเพิ่มเติม: SettingsController reuse `settings.index` สำหรับ admin-only diagnostics
+และเพิ่ม `SecurityHeadersDiagnosticsTest` เพื่อตรวจ guest/user/viewer isolation, no-store,
+untrusted forwarded HTTPS และข้อมูล HSTS/CSP ที่ตรงกับ response จริง
+เตรียม fixture สำหรับ browser ใน deploy-output/security-verification แยก SQLite/storage
+จากแอปจริง และรัน live HTTP regression ด้วย PHP server จริงผ่าน 21 checks:
+session/CSRF login/logout, member/admin pages, AJAX search, CSV export, error response
+และ diagnostics โดยเปิด CSP enforcement ใน fixture
+ยังไม่ได้รัน browser เพราะรอเลือก Chrome headless หรือเชื่อมต่อ Browser ของแอป
+
 ## โครงสร้างบนเซิร์ฟเวอร์
 
 ```

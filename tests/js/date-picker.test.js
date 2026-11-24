@@ -396,7 +396,7 @@ test('the meeting form and the meetings page both opt into the shared picker', a
     const page = await read('resources/js/pages/meetings/index.js');
 
     assert.match(form, /type="datetime-local" data-date-picker id="\{\{ \$modalId \}\}Start"/);
-    assert.match(form, /type="datetime-local" data-date-picker id="\{\{ \$modalId \}\}End"/);
+    assert.match(form, /type="datetime-local"\s+data-date-picker id="\{\{ \$modalId \}\}End"/);
     assert.match(page, /useDatePickers\(\)/);
     assert.match(await read('resources/css/pages/meetings.css'), /components\/date-picker\.css/);
 });

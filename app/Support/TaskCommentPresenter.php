@@ -66,6 +66,43 @@ class TaskCommentPresenter
         ];
     }
 
+    /**
+     * ไทม์ไลน์ของงานหนึ่งใบสำหรับโมดัลรายละเอียดงาน (แท็บ "อัปเดต" และ "กิจกรรม")
+     *
+     * เดิมทุกงานในหน้า "งานของฉัน" ถูกสร้างก้อนนี้ฝังมาตั้งแต่โหลดหน้า ซึ่งเป็นส่วนใหญ่ของ
+     * เวลาที่ server ใช้สร้าง HTML ตอนนี้ถูกขอทีละใบเมื่อผู้ใช้เปิดงานนั้นจริง (TaskCommentController::timeline)
+     * รูปแบบแต่ละรายการต้องเหมือนเดิมทุกคีย์ เพราะ task-timeline.js อ่านชุดเดียวกัน
+     *
+     * ผู้เรียกต้อง eager-load updates.user, updates.attachments, updates.replyTo.user,
+     * updates.replyTo.attachments, updates.mentions และ activityLogs.user มาก่อน
+     *
+     * @return array{updates: list<array<string, mixed>>, activity: list<array<string, mixed>>}
+     */
+    public function timeline(WorkOrder $task, User $viewer): array
+    {
+        $canViewComments = Gate::forUser($viewer)->allows('viewComments', $task);
+        $receipts = $this->receipts($task);
+
+        return [
+            // อัปเดตแบบเก่าที่ไม่ใช่คอมเมนต์ (is_comment = false) ยังแสดงเหมือนเดิม คอมเมนต์ต้องมีสิทธิ์อ่าน
+            'updates' => $task->updates
+                ->filter(fn (WorkOrderUpdate $update) => ! $update->is_comment || $canViewComments)
+                ->map(fn (WorkOrderUpdate $update) => $this->comment($update, $viewer, $receipts[(string) $update->id] ?? []))
+                ->values()
+                ->all(),
+            'activity' => $task->activityLogs
+                ->map(fn ($log) => [
+                    'author' => $log->user?->name ?? 'ระบบ',
+                    'avatar_url' => $log->user?->profile_image ? route('media.profile', $log->user) : null,
+                    'note' => $log->description,
+                    'at' => $this->timestamp($log->created_at),
+                    'is_mine' => (int) $log->user_id === (int) $viewer->id,
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
     public function receipts(WorkOrder $task): array
     {
         return $this->receiptsForTasks(collect([$task]))->get((string) $task->job_id, []);

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $heading }}</title>
     @vite('resources/css/pages/meeting-calendar-export.css')
+    @vite('resources/js/app.js')
 </head>
 {{--
     เอกสารปฏิทินสำหรับสั่งพิมพ์หรือบันทึกเป็น PDF จากเบราว์เซอร์
@@ -20,7 +21,7 @@
         <p>ประเภท: {{ $typeLabel }} · ช่วงวันที่ {{ $rangeLabel }}</p>
     </header>
 
-    <button class="calendar-export__print" type="button" onclick="window.print()">พิมพ์ / บันทึกเป็น PDF</button>
+    <button class="calendar-export__print" type="button" data-document-print>พิมพ์ / บันทึกเป็น PDF</button>
 
     @if ($events->isEmpty())
         <p class="calendar-export__empty">ไม่มีรายการในช่วงวันที่ที่เลือก</p>

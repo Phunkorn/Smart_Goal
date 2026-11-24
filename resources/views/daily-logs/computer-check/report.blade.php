@@ -29,6 +29,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     @vite('resources/css/pages/computer-check-report.css')
+    @vite('resources/js/app.js')
 </head>
 
 {{-- คลาสเสริมเขียนเป็นนิพจน์ ไม่ใช่ @if ติดกับคำหน้า เพราะ Blade ไม่อ่าน
@@ -42,7 +43,7 @@
             <a href="{{ route('daily-logs.computer-check.index', ['session' => $session->id]) }}">
                 <i class="bi bi-arrow-left" aria-hidden="true"></i> กลับไปหน้าตรวจ
             </a>
-            <button type="button" onclick="window.print()">พิมพ์ / บันทึกเป็น PDF</button>
+            <button type="button" data-document-print>พิมพ์ / บันทึกเป็น PDF</button>
         </div>
     @endunless
 

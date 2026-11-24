@@ -30,6 +30,30 @@ class TaskCommentController extends Controller
 {
     use ValidatesAttachments;
 
+    /**
+     * ไทม์ไลน์ทั้งหมดของงานหนึ่งใบ (อัปเดต + กิจกรรม) ขอเมื่อผู้ใช้เปิดโมดัลรายละเอียดงาน
+     *
+     * ขอบเขตสิทธิ์ต้องเท่ากับตอนที่ไทม์ไลน์ยังฝังในหน้า — ดู WorkOrderPolicy::viewTimeline()
+     * ส่วนคอมเมนต์ยังถูกกรองด้วย viewComments ใน TaskCommentPresenter::timeline() เหมือนเดิม
+     */
+    public function timeline(Request $request, WorkOrder $task, TaskCommentPresenter $presenter): JsonResponse
+    {
+        $this->authorize('viewTimeline', $task);
+        $task->load([
+            'updates.user',
+            'updates.attachments',
+            'updates.replyTo.user',
+            'updates.replyTo.attachments',
+            'updates.mentions',
+            'activityLogs.user',
+        ]);
+
+        return response()->json([
+            'task_id' => $task->job_id,
+            ...$presenter->timeline($task, $request->user()),
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
     public function index(Request $request, WorkOrder $task, TaskCommentPresenter $presenter): JsonResponse
     {
         $this->authorize('viewComments', $task);

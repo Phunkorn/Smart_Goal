@@ -111,7 +111,7 @@ class AdminProjectCreationTest extends TestCase
         $this->assertDatabaseHas('system_notifications', [
             'user_id' => $assigneeOne->id,
             'work_order_id' => $firstTask->job_id,
-            'message' => $admin->name.' มอบหมายงาน '.chr(34).'Prepare environment'.chr(34).' ให้คุณ',
+            'message' => $admin->name.' (ผู้ดูแลระบบ) มอบหมายงาน '.chr(34).'Prepare environment'.chr(34).' ให้คุณ',
         ]);
 
         $listCount = WorkOrderList::count();

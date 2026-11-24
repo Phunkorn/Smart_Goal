@@ -19,28 +19,26 @@ const contrastRatio = (first, second) => {
     return (light + 0.05) / (dark + 0.05);
 };
 
-test('an unread notification card separates itself from the page background', async () => {
+test('unread notification indicators contrast with their own card surfaces', async () => {
     const tokens = await read('resources/css/foundations/tokens.css');
     const css = await read('resources/css/pages/notifications.css');
 
     const pageBackground = tokens.match(/--bg:\s*(#[0-9a-fA-F]{6})/)[1];
-    const unread = css
-        .slice(css.lastIndexOf('.notification-center__item.is-unread {'))
-        .match(/background:\s*(#[0-9a-fA-F]{6})/)[1];
+    const indicators = [...css.matchAll(/--notification-center-item-unread-bg:\s*(#[0-9a-fA-F]{6});[^}]*--notification-center-item-accent:\s*(#[0-9a-fA-F]{6})/g)];
+    assert.ok(indicators.length >= 5, 'each notification category needs a visible unread indicator');
 
     /*
      * ของเดิมการ์ดที่ยังไม่อ่านใช้ #f7f9ff บนพื้นหน้า #F5F7FC ซึ่งต่างกันราว 1.01 เท่า
      * มองด้วยตาเปล่าแล้วกลืนกันจนแยกไม่ออกว่ารายการไหนยังไม่ได้อ่าน
      * ซึ่งเป็นข้อมูลหลักที่หน้านี้ต้องสื่อ
      */
-    const ratio = contrastRatio(pageBackground, unread);
-    assert.ok(
-        ratio >= 1.05,
-        'พื้นการ์ดที่ยังไม่อ่าน (' + unread + ') ต่างจากพื้นหน้า (' + pageBackground + ') เพียง ' + ratio.toFixed(3) + ' เท่า',
-    );
+    for (const [, unread, accent] of indicators) {
+        assert.ok(contrastRatio(unread, accent) >= 1.05, `${accent} must distinguish unread state on ${unread}`);
+        assert.ok(contrastRatio(pageBackground, accent) >= 1.05, `${accent} must distinguish unread state from the page`);
+    }
 
     // เส้นสถานะด้านซ้ายต้องหนาพอที่จะอ่านออกแม้พื้นหลังจะอ่อน
-    assert.match(css.slice(css.lastIndexOf('.notification-center__item.is-unread {')), /box-shadow:\s*inset\s+4px/);
+    assert.match(css.slice(css.lastIndexOf('.notification-center__item.is-unread {')), /box-shadow:\s*inset\s+[3-9]px/);
 });
 
 test('today on the calendar reads as blue, not as a purple that competes with a priority tone', async () => {

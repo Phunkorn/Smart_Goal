@@ -69,6 +69,19 @@ export const initToolbar = (toolbar, {
     const roots = [toolbar, contextToolbar].filter(Boolean);
     const find = (selector) => roots.reduce((found, root) => found ?? root.querySelector(selector), null);
     const findAll = (selector) => roots.flatMap((root) => Array.from(root.querySelectorAll(selector)));
+    // Initial palette values use the same data already consumed by the toolbar.
+    findAll('[data-color], [data-sticky-color]').forEach((button) => {
+        const color = button.dataset.color ?? button.dataset.stickyColor;
+        if (/^#[a-f0-9]{6}$/i.test(color)) button.style.setProperty('--wsb-swatch', color);
+    });
+    findAll('[data-palette-columns]').forEach((palette) => {
+        const count = Number(palette.dataset.paletteColumns);
+        if (Number.isInteger(count) && count > 0 && count <= 16) palette.style.setProperty('--wsb-palette-cols', count);
+    });
+    findAll('[data-width]').forEach((button) => {
+        const width = Number(button.dataset.width);
+        if (Number.isFinite(width) && width > 0) button.querySelector('.wsb-width__bar')?.style.setProperty('--wsb-width', Math.min(width, 12) + 'px');
+    });
 
     const handleClick = (event) => {
         const toolButton = event.target.closest('[data-tool]');

@@ -20,13 +20,30 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class MediaController extends Controller
 {
-    public function profile(User $user): BinaryFileResponse
+    public function profile(Request $request, User $user): BinaryFileResponse
     {
         $path = (string) $user->profile_image;
 
         abort_unless(str_starts_with($path, 'profiles/'), 404);
 
-        return $this->fileResponse(ProtectedMedia::profileAbsolutePath($path));
+        $response = $this->fileResponse(ProtectedMedia::profileAbsolutePath($path));
+        // The auth/active/password middleware must run on every reuse, including after logout.
+        $response->headers->set('Cache-Control', 'private, no-cache, must-revalidate');
+        $response->setAutoEtag();
+        $response->setEtag(hash('sha256', implode('|', [
+            $response->getEtag(),
+            $path,
+            (string) $request->user()->getAuthIdentifier(),
+            $request->session()->getId(),
+        ])));
+
+        // Last-Modified alone has second precision and no account/session identity.
+        // Keep it as metadata, but only the scoped content ETag may authorize a 304.
+        if ($request->headers->has('If-None-Match')) {
+            $response->isNotModified($request);
+        }
+
+        return $response;
     }
 
     /**
@@ -206,7 +223,7 @@ class MediaController extends Controller
 
         $profileOwner = User::query()->where('profile_image', $path)->first();
         if ($profileOwner) {
-            return $this->profile($profileOwner);
+            return $this->profile($request, $profileOwner);
         }
 
         abort(404);

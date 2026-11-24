@@ -24,6 +24,9 @@ import {initProjectPeriod} from './project-period.js';
  */
 const page = document.querySelector('.project-report');
 if (page) {
+    page.querySelectorAll('[data-legend-color]').forEach((dot) => {
+        if (/^#[a-f0-9]{6}$/i.test(dot.dataset.legendColor)) dot.style.backgroundColor = dot.dataset.legendColor;
+    });
     initSelectDropdowns(page);
     initAutoSubmitFilters(page);
     // ช่วงวันที่ที่กำหนดเอง: ปฏิทิน พ.ศ. ของระบบ และป้ายวันที่ที่อัปเดตตามค่าที่เลือก

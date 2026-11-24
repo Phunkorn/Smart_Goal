@@ -15,7 +15,7 @@
     margin: 0;
 }
 
-.ticket-settings__workspace { padding: 0; overflow: hidden; }
+.ticket-settings__workspace { padding: 0; }
 .ticket-settings__tabs {
     display: flex;
     gap: 8px;

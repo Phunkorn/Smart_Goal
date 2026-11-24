@@ -12,6 +12,7 @@
  * modal-stack เป็นเจ้าของทั้งหมด ไม่สลับ hidden หรือ z-index เอง
  */
 import {modalStack} from './modal-stack.js';
+import {printDocument} from '../app.js';
 
 export function initInspectionReportModal({doc = document} = {}) {
     const modal = doc.querySelector('[data-cc-report-modal]');
@@ -34,8 +35,7 @@ export function initInspectionReportModal({doc = document} = {}) {
      */
     const printFrame = () => {
         try {
-            frame?.contentWindow?.focus();
-            frame?.contentWindow?.print();
+            printDocument(frame?.contentWindow);
         } catch {
             if (openTab?.href) globalThis.open?.(openTab.href, '_blank', 'noopener');
         }

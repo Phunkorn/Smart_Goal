@@ -94,7 +94,7 @@
                     @endif
                 </header>
 
-                <div class="daily-month__chart" style="--day-count: {{ $lastDay }};">
+                <div class="daily-month__chart" data-day-count="{{ $lastDay }}">
                     @if($activity['max_minutes'] > 0)
                         <span class="daily-month__chart-max" aria-hidden="true">{{ \App\Support\WorkLogDesign::durationLabel($activity['max_minutes']) }}</span>
                     @endif
@@ -113,7 +113,7 @@
                                 data-state="{{ $dayState }}"
                                 data-edge="{{ $edge }}"
                                 data-date="{{ $day['date'] }}" data-minutes="{{ $day['minutes'] }}"
-                                style="--bar-value: {{ $day['ratio'] }}; --day-index: {{ $loop->index }};"
+                                data-bar-value="{{ $day['ratio'] }}" data-day-index="{{ $loop->index }}"
                                 @if($day['count'] > 0) tabindex="0" @endif>
                                 <span class="daily-month__bar-track" aria-hidden="true"><span class="daily-month__bar-fill"></span></span>
                                 <span class="daily-month__day-num" aria-hidden="true">{{ $day['day'] }}</span>
@@ -164,7 +164,7 @@
                     <ol class="daily-month__categories">
                         @foreach($topCategories as $categoryIndex => $category)
                             @php $share = $categoryShare($category); @endphp
-                            <li style="--row-index: {{ $loop->index }};">
+                            <li data-row-index="{{ $loop->index }}">
                                 <span class="daily-month__category-rank" aria-hidden="true">{{ $loop->iteration }}</span>
                                 <span class="daily-month__category-main">
                                     <span class="daily-month__category-name" title="{{ $category['name'] }}">{{ $category['name'] }}</span>

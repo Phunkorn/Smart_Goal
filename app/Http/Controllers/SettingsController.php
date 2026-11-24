@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\SecurityHeaders;
 use App\Support\AuditTrail;
 use App\Support\PasswordPolicy;
 use App\Support\UserSessionSecurity;
@@ -15,6 +16,35 @@ class SettingsController extends Controller
 {
     public function index(Request $request)
     {
+        if ($request->boolean('security_headers')) {
+            abort_unless($request->user()->role === 'admin', 403);
+
+            // Reuse the real policy builder; never expose .env, tokens or full forwarded headers.
+            $preview = app(SecurityHeaders::class)->apply($request, response(''));
+            $headers = [];
+            foreach (['Strict-Transport-Security', 'Content-Security-Policy', 'Content-Security-Policy-Report-Only',
+                'X-Frame-Options', 'X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy'] as $name) {
+                $headers[$name] = $preview->headers->get($name);
+            }
+
+            return response()->json([
+                'environment' => app()->environment(),
+                'headers_enabled' => (bool) config('security.enabled'),
+                'csp_report_only' => (bool) config('security.csp.report_only'),
+                'hsts_enabled' => (bool) config('security.hsts.enabled'),
+                'request' => [
+                    'is_secure' => $request->isSecure(),
+                    'scheme' => $request->getScheme(),
+                    'peer_address' => $request->server('REMOTE_ADDR'),
+                    'peer_is_trusted' => $request->isFromTrustedProxy(),
+                    'forwarded_proto' => in_array($request->header('X-Forwarded-Proto'), ['http', 'https'], true)
+                        ? $request->header('X-Forwarded-Proto') : null,
+                    'server_https' => in_array(strtolower((string) $request->server('HTTPS')), ['on', '1'], true),
+                ],
+                'headers' => $headers,
+            ])->header('Cache-Control', 'private, no-store');
+        }
+
         if ($request->expectsJson()) {
             return response()->json([
                 'telegram_html' => $request->user()->role === 'viewer' ? '' : view('settings.components.telegram-card', [
@@ -55,7 +85,7 @@ class SettingsController extends Controller
                     'name' => $user->name,
                     'phone' => $user->phone,
                     'initials' => mb_substr($user->name, 0, 2),
-                    'avatar_url' => $user->profile_image ? route('media.profile', $user).'?v='.Str::uuid() : null,
+                    'avatar_url' => $user->profile_image ? route('media.profile', $user) : null,
                 ],
             ]);
         }

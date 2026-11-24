@@ -111,18 +111,35 @@ class TaskCommentService
      */
     public function mentionCandidates(WorkOrder $task): Collection
     {
-        $ids = $this->audienceIds($task);
+        return $this->mentionCandidatesForTasks(collect([$task]))->get((string) $task->job_id, collect());
+    }
 
-        if ($ids->isEmpty()) {
+    /** @param Collection<int, WorkOrder> $tasks */
+    public function mentionCandidatesForTasks(Collection $tasks): Collection
+    {
+        if ($tasks->isEmpty()) {
             return collect();
         }
 
-        return User::query()
+        (new \Illuminate\Database\Eloquent\Collection($tasks->all()))->loadMissing('collaborators');
+        $audiences = $tasks->mapWithKeys(fn (WorkOrder $task) => [
+            (string) $task->job_id => $this->audienceIds($task),
+        ]);
+        $ids = $audiences->flatMap(fn (Collection $audience) => $audience->all())->unique()->values();
+
+        if ($ids->isEmpty()) {
+            return $audiences->map(fn () => collect());
+        }
+
+        $people = User::query()
             ->whereIn('id', $ids)
             ->where('is_active', true)
             ->where('role', '!=', 'viewer')
             ->orderBy('name')
             ->get(['id', 'name', 'profile_image']);
+
+        // Keep each task's audience and the database's name ordering; share only the lookup.
+        return $audiences->map(fn (Collection $audience) => $people->whereIn('id', $audience->all())->values());
     }
 
     private function audienceIds(WorkOrder $task): Collection

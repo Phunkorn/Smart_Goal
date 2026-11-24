@@ -216,7 +216,7 @@ class AdminMemberPreviewTodayTest extends TestCase
             ->assertSee('งานที่ต้องจัดการวันนี้')
             ->assertSee('งานวันนี้ของเพื่อนร่วมทีม')
             ->assertDontSee('งานที่เสร็จแล้ว')
-            ->assertSee('data-preview-readonly', false)
+            ->assertSee('data-member-preview-content', false)
             ->assertDontSee('data-preview-task-link', false)
             ->assertDontSee('เปิดพื้นที่งานของสมาชิก');
     }

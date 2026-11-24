@@ -239,7 +239,7 @@ test('task rows carry no status circle icon (removed at the owner request)', () 
     assert.doesNotMatch(cssSource, /daily-brief__mark/);
 });
 
-test('the header is a plain white band with no sunrise mark and no gradient', () => {
+test('the header uses its shared surface token with no sunrise mark or gradient', () => {
     const cssSource = readFileSync(new URL('../../resources/css/components/daily-brief.css', import.meta.url), 'utf8');
     const rowSource = readFileSync(new URL('../../resources/views/daily-brief/partials/overdue-row.blade.php', import.meta.url), 'utf8');
 
@@ -249,7 +249,8 @@ test('the header is a plain white band with no sunrise mark and no gradient', ()
     assert.match(modalSource, /<header class="daily-brief__head">/);
     // หัวกล่องและเนื้อหาแยกกันด้วยเส้นขอบบาง ไม่ใช่พื้นสีเข้ม
     assert.match(cssSource, /\.daily-brief__head\s*\{[^}]*border-bottom:\s*1px solid var\(--border\)/);
-    assert.match(cssSource, /\.daily-brief__head\s*\{[^}]*background:\s*var\(--surface\)/);
+    assert.match(cssSource, /--brief-head-bg:\s*#[0-9a-f]{6}/i);
+    assert.match(cssSource, /\.daily-brief__head\s*\{[^}]*background:\s*var\(--brief-head-bg\)/);
     assert.doesNotMatch(rowSource, /style=/);
 });
 

@@ -102,7 +102,7 @@
                         <tbody>
                             @foreach($statusChart['keys'] as $index => $key)
                                 <tr>
-                                    <th scope="row"><span class="project-report__legend-dot" style="background: {{ $statusChart['colors'][$index] }}" aria-hidden="true"></span><span class="project-report__legend-name">{{ $statusChart['labels'][$index] }}</span></th>
+                                    <th scope="row"><span class="project-report__legend-dot" data-legend-color="{{ $statusChart['colors'][$index] }}" aria-hidden="true"></span><span class="project-report__legend-name">{{ $statusChart['labels'][$index] }}</span></th>
                                     <td>{{ number_format($statusChart['values'][$index]) }}</td>
                                     <td>{{ round($statusChart['values'][$index] / $statusChart['total'] * 100) }}%</td>
                                 </tr>
@@ -168,7 +168,7 @@
                             <tbody>
                                 @foreach($breakdown['labels'] as $index => $label)
                                     <tr>
-                                        <th scope="row"><span class="project-report__legend-dot" style="background: {{ $breakdown['colors'][$index] }}" aria-hidden="true"></span><span class="project-report__legend-name" title="{{ $label }}">{{ $label }}</span></th>
+                                        <th scope="row"><span class="project-report__legend-dot" data-legend-color="{{ $breakdown['colors'][$index] }}" aria-hidden="true"></span><span class="project-report__legend-name" title="{{ $label }}">{{ $label }}</span></th>
                                         <td>{{ number_format($breakdown['values'][$index]) }}</td>
                                         <td>{{ round($breakdown['values'][$index] / $breakdown['total'] * 100) }}%</td>
                                     </tr>
