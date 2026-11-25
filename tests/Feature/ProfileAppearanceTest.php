@@ -30,7 +30,7 @@ class ProfileAppearanceTest extends TestCase
     {
         $frames = collect(ProfileAppearance::frames());
         $this->assertCount(15, $frames->where('animated', false));
-        $this->assertCount(8, $frames->where('animated', true));
+        $this->assertCount(9, $frames->where('animated', true));
 
         foreach (['user', 'admin', 'viewer'] as $role) {
             $user = User::factory()->create(['role' => $role, 'avatar_frame' => 'crystal-energy']);
@@ -60,7 +60,7 @@ class ProfileAppearanceTest extends TestCase
 
     public function test_topbar_loads_only_the_selected_frame_once_and_reuses_the_relation(): void
     {
-        foreach ([null, 'gold', 'rainbow-cloud', 'star-orbit'] as $slug) {
+        foreach ([null, 'gold', 'rainbow-cloud', 'star-orbit', 'enchanted-forest'] as $slug) {
             $user = User::factory()->create(['avatar_frame' => $slug]);
             DB::flushQueryLog();
             DB::enableQueryLog();
@@ -81,6 +81,78 @@ class ProfileAppearanceTest extends TestCase
         }
     }
 
+    public function test_enchanted_forest_gif_can_be_selected_and_has_a_transparent_static_poster(): void
+    {
+        $frame = ProfileFrame::where('slug', 'enchanted-forest')->firstOrFail();
+        $this->assertTrue((bool) $frame->animated);
+        $this->assertSame('animated/enchanted-forest-motion.gif', $frame->asset_path);
+        $this->assertSame('animated/enchanted-forest.webp', $frame->preview_path);
+        $directory = resource_path('images/profile-frames/');
+        $gif = getimagesize($directory.$frame->asset_path);
+        $poster = getimagesize($directory.$frame->preview_path);
+        $this->assertSame([468, 468], array_slice($gif, 0, 2));
+        $this->assertSame('image/gif', $gif['mime']);
+        $this->assertSame('image/webp', $poster['mime']);
+        $this->assertSame(array_slice($gif, 0, 2), array_slice($poster, 0, 2));
+        $image = imagecreatefromwebp($directory.$frame->preview_path);
+        $this->assertSame(127, (imagecolorat($image, 234, 234) >> 24) & 127);
+        imagedestroy($image);
+
+        $user = User::factory()->create(['must_change_password' => false]);
+        $this->actingAs($user)->patchJson(route('settings.appearance.update'), ['avatar_frame' => $frame->slug])
+            ->assertOk()->assertJsonPath('appearance.avatar_frame', $frame->slug);
+        $this->actingAs($user->fresh())->get(route('settings.index'))->assertOk()
+            ->assertSee('data-profile-frame="enchanted-forest"', false)
+            ->assertSee('data-profile-frame-asset="'.$frame->asset_path.'"', false)
+            ->assertSee('data-profile-frame-poster="'.$frame->preview_path.'"', false);
+    }
+
+    public function test_animated_ring_openings_stay_aligned_with_the_avatar(): void
+    {
+        foreach (['star-orbit' => 'y', 'golden-flare' => 'y', 'cyber-neon' => 'x'] as $slug => $axis) {
+            $bytes = file_get_contents(resource_path('images/profile-frames/animated/'.$slug.'-motion.webp'));
+            $centers = [];
+            for ($offset = 12; $offset < strlen($bytes);) {
+                $type = substr($bytes, $offset, 4);
+                $size = unpack('V', substr($bytes, $offset + 4, 4))[1];
+                $data = $offset + 8;
+                if ($type === 'ANMF') {
+                    $uint24 = fn (int $at): int => unpack('V', substr($bytes, $at, 3)."\0")[1];
+                    $x = $uint24($data) * 2;
+                    $y = $uint24($data + 3) * 2;
+                    $width = $uint24($data + 6) + 1;
+                    $height = $uint24($data + 9) + 1;
+                    // Decode the existing frame payload without requiring an animated WebP extension.
+                    $header = 'VP8X'.pack('V', 10)."\x10\0\0\0"
+                        .substr(pack('V', $width - 1), 0, 3).substr(pack('V', $height - 1), 0, 3);
+                    $payload = $header.substr($bytes, $data + 16, $size - 16);
+                    $frame = imagecreatefromstring('RIFF'.pack('V', strlen($payload) + 4).'WEBP'.$payload);
+                    $canvas = imagecreatetruecolor(320, 320);
+                    imagealphablending($canvas, false);
+                    imagefill($canvas, 0, 0, imagecolorallocatealpha($canvas, 0, 0, 0, 127));
+                    imagecopy($canvas, $frame, $x, $y, 0, 0, $width, $height);
+                    $transparent = fn (int $point): bool => ((imagecolorat($canvas,
+                        $axis === 'x' ? $point : 160, $axis === 'y' ? $point : 160) >> 24) & 127) > 115;
+                    $low = $high = 160;
+                    while ($low > 0 && $transparent($low - 1)) {
+                        $low--;
+                    }
+                    while ($high < 319 && $transparent($high + 1)) {
+                        $high++;
+                    }
+                    $centers[] = ($low + $high) / 2;
+                    imagedestroy($canvas);
+                    imagedestroy($frame);
+                }
+                $offset = $data + $size + ($size % 2);
+            }
+            $this->assertCount(6, $centers);
+            foreach ($centers as $center) {
+                $this->assertEqualsWithDelta(160, $center, 1.5, $slug.' opening moved away from the avatar');
+            }
+        }
+    }
+
     public function test_seeding_preserves_legacy_choices_and_existing_catalog_metadata(): void
     {
         $user = User::factory()->create(['avatar_frame' => 'aurora']);
@@ -88,7 +160,7 @@ class ProfileAppearanceTest extends TestCase
         $this->seed(ProfileFrameSeeder::class);
         $this->seed(ProfileFrameSeeder::class);
 
-        $this->assertDatabaseCount('profile_frames', 23);
+        $this->assertDatabaseCount('profile_frames', 24);
         $this->assertSame('aurora', $user->fresh()->avatar_frame);
         $this->assertFalse($user->fresh()->avatarFrame->is_active);
         $this->assertSame('aurora', ProfileAppearance::frame($user->fresh()));

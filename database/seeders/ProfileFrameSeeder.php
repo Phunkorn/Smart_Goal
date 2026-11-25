@@ -32,6 +32,7 @@ class ProfileFrameSeeder extends Seeder
         ['cyber-neon', 'ไซเบอร์นีออน', true, 'animated'],
         ['space-cat', 'แมวอวกาศ', true, 'animated'],
         ['crystal-energy', 'พลังคริสตัล', true, 'animated'],
+        ['enchanted-forest', 'ป่ามนตราเรืองแสง', true, 'animated', 'gif'],
     ];
 
     public function run(): void
@@ -42,11 +43,12 @@ class ProfileFrameSeeder extends Seeder
             $animated = $frame[2] ?? false;
             $directory = $frame[3] ?? null;
             $path = $directory ? $directory.'/'.$slug : null;
+            $extension = $frame[4] ?? 'webp';
             $rows[] = [
                 'slug' => $slug,
                 'name' => $name,
                 'animated' => $animated,
-                'asset_path' => $path ? $path.($animated ? '-motion' : '').'.webp' : null,
+                'asset_path' => $path ? $path.($animated ? '-motion' : '').'.'.$extension : null,
                 'preview_path' => $path ? $path.'.webp' : null,
                 'sort_order' => ($index + 1) * 10,
                 'is_active' => true,

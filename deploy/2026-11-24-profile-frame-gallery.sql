@@ -48,7 +48,8 @@ INSERT IGNORE INTO profile_frames (slug, name, animated, asset_path, preview_pat
   ('golden-flare', 'ประกายทอง', 1, 'animated/golden-flare-motion.webp', 'animated/golden-flare.webp', 200, 1),
   ('cyber-neon', 'ไซเบอร์นีออน', 1, 'animated/cyber-neon-motion.webp', 'animated/cyber-neon.webp', 210, 1),
   ('space-cat', 'แมวอวกาศ', 1, 'animated/space-cat-motion.webp', 'animated/space-cat.webp', 220, 1),
-  ('crystal-energy', 'พลังคริสตัล', 1, 'animated/crystal-energy-motion.webp', 'animated/crystal-energy.webp', 230, 1);
+  ('crystal-energy', 'พลังคริสตัล', 1, 'animated/crystal-energy-motion.webp', 'animated/crystal-energy.webp', 230, 1),
+  ('enchanted-forest', 'ป่ามนตราเรืองแสง', 1, 'animated/enchanted-forest-motion.gif', 'animated/enchanted-forest.webp', 240, 1);
 
 SET @profile_batch = (SELECT COALESCE(MAX(batch), 0) + 1 FROM migrations);
 
@@ -60,7 +61,7 @@ INSERT INTO migrations (migration, batch)
 SELECT '2026_11_24_000002_create_profile_frames_table', @profile_batch
 WHERE NOT EXISTS (SELECT 1 FROM migrations WHERE migration = '2026_11_24_000002_create_profile_frames_table');
 
--- Verification: expect both columns, 23 standard frames, and both migration names.
+-- Verification: expect both columns, 24 standard frames, and both migration names.
 -- Avoid a top-level information_schema SELECT in phpMyAdmin's import results.
 SELECT COUNT(*) AS profile_frames_rows FROM profile_frames;
 SELECT migration, batch FROM migrations
