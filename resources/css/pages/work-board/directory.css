@@ -1,0 +1,180 @@
+/* Organization directory only. Member cards and department workspaces keep their own styles. */
+.work-board-directory-page {
+    --wb-directory-gap: 20px;
+    --wb-directory-radius: calc(var(--radius) + 4px);
+}
+
+.work-board-directory-page .wb-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    max-width: 1440px;
+    margin-bottom: 18px;
+}
+
+.work-board-directory-page .wb-section-head p { margin: 0; }
+
+.work-board-directory-page .wb-department-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: var(--wb-directory-gap);
+    max-width: 1440px;
+}
+
+.work-board-directory-page .wb-department-card {
+    --wb-card-surface: #edf4f0;
+    --wb-card-visual: #e3efe8;
+    --wb-card-ink: #355e50;
+    --wb-card-detail: #527265;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: var(--wb-directory-radius);
+    color: var(--wb-card-ink);
+    background: var(--wb-card-surface);
+}
+
+.work-board-directory-page .wb-department-card--technology {
+    --wb-card-surface: #eaf0fa;
+    --wb-card-visual: #e0eafb;
+    --wb-card-ink: #345d94;
+    --wb-card-detail: #516f99;
+}
+
+.work-board-directory-page .wb-department-card--creative {
+    --wb-card-surface: #f2edf9;
+    --wb-card-visual: #ece3f6;
+    --wb-card-ink: #73528e;
+    --wb-card-detail: #7d6394;
+}
+
+.work-board-directory-page .wb-department-card__visual {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+    height: 184px;
+    padding: 24px;
+    background: var(--wb-card-visual);
+}
+
+.work-board-directory-page .wb-department-card__eyebrow {
+    position: relative;
+    z-index: 1;
+    color: var(--wb-card-detail);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+
+.work-board-directory-page .wb-department-card__display-name {
+    z-index: 1;
+    display: -webkit-box;
+    max-width: 66%;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    font-size: clamp(24px, 2vw, 30px);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -.03em;
+}
+
+.work-board-directory-page .wb-department-card__artwork {
+    position: absolute;
+    z-index: -1;
+    inset: 0 0 0 auto;
+    width: 65%;
+    background: url('../../../images/work-board/collaboration.svg') right center / auto 100% no-repeat;
+}
+
+.work-board-directory-page .wb-department-card--technology .wb-department-card__artwork {
+    background-image: url('../../../images/work-board/technology.svg');
+}
+
+.work-board-directory-page .wb-department-card--creative .wb-department-card__artwork {
+    background-image: url('../../../images/work-board/creative.svg');
+    background-position: right -32px center;
+    background-size: auto 92%;
+}
+
+.work-board-directory-page .wb-department-card__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 80px;
+    padding: 16px 20px;
+}
+
+.work-board-directory-page .wb-department-card__identity { min-width: 0; }
+
+.work-board-directory-page .wb-department-card__identity h3 {
+    overflow: hidden;
+    margin: 0 0 5px;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.work-board-directory-page .wb-department-card__members {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--wb-card-detail);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.work-board-directory-page .wb-department-card__arrow {
+    display: grid;
+    flex: 0 0 36px;
+    place-items: center;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--wb-surface);
+    font-size: 15px;
+    transition: background-color .2s ease;
+}
+
+.work-board-directory-page .wb-department-card__arrow i { transition: transform .2s ease; }
+
+.work-board-directory-page .wb-department-card:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 4px;
+}
+
+.work-board-directory-page .wb-department-card:focus-visible .wb-department-card__arrow i { transform: translate(2px, -2px); }
+
+.work-board-directory-page .wb-department-empty {
+    grid-column: 1 / -1;
+    border: 1px solid var(--wb-line);
+    border-radius: var(--wb-directory-radius);
+    background: var(--wb-surface);
+}
+
+@media (hover: hover) {
+    .work-board-directory-page .wb-department-card:hover .wb-department-card__arrow { background: var(--wb-card-visual); }
+    .work-board-directory-page .wb-department-card:hover .wb-department-card__arrow i { transform: translate(2px, -2px); }
+}
+
+@media (max-width: 767.98px) {
+    .work-board-directory-page .wb-department-grid { grid-template-columns: minmax(0, 1fr); max-width: 380px; }
+    .work-board-directory-page .wb-department-card__display-name { font-size: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .work-board-directory-page .wb-department-card__arrow,
+    .work-board-directory-page .wb-department-card__arrow i { transition: none; }
+    .work-board-directory-page .wb-department-card:is(:hover, :focus-visible) .wb-department-card__arrow i { transform: none; }
+}

@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * แถบเครื่องมือ - เลือกเครื่องมือ สี ความหนา และปุ่มคำสั่ง
  *
@@ -172,7 +173,7 @@ export const initToolbar = (toolbar, {
         }
     };
 
-    roots.forEach((root) => root.addEventListener('click', handleClick));
+    roots.forEach((root) => root.addEventListener('click', handleClick, boardEventOptions(root)));
 
     /*
      * ปุ่มบนแถบรูปแบบต้องไม่ขโมยเคอร์เซอร์ไปจากกล่องข้อความที่กำลังพิมพ์อยู่
@@ -196,7 +197,7 @@ export const initToolbar = (toolbar, {
         if (event.target.closest('button')) {
             event.preventDefault();
         }
-    });
+    }, boardEventOptions(contextToolbar));
 
     const fontField = find('[data-font-size-input]');
 
@@ -214,7 +215,7 @@ export const initToolbar = (toolbar, {
             if (Number.isFinite(value) && value >= fontSizeRange.min && value <= fontSizeRange.max) {
                 onSelectFontSize?.(value);
             }
-        });
+        }, boardEventOptions(fontField));
 
         // บีบค่าให้เข้าช่วงเมื่อออกจากช่อง เพื่อไม่ให้เหลือค่าที่ใช้ไม่ได้ค้างไว้
         fontField.addEventListener('change', () => {
@@ -222,7 +223,7 @@ export const initToolbar = (toolbar, {
 
             fontField.value = String(value);
             onSelectFontSize?.(value);
-        });
+        }, boardEventOptions(fontField));
 
         // Enter ในช่องตัวเลขไม่ควรไปกระตุ้นปุ่มอื่นบนแถบ
         fontField.addEventListener('keydown', (event) => {
@@ -230,7 +231,7 @@ export const initToolbar = (toolbar, {
                 event.preventDefault();
                 fontField.blur();
             }
-        });
+        }, boardEventOptions(fontField));
     }
 
     const spacingField = find('[data-letter-spacing-input]');
@@ -242,28 +243,28 @@ export const initToolbar = (toolbar, {
             if (Number.isFinite(value) && value >= letterSpacingRange.min && value <= letterSpacingRange.max) {
                 onSelectLetterSpacing?.(value);
             }
-        });
+        }, boardEventOptions(spacingField));
 
         spacingField.addEventListener('change', () => {
             const value = clampLetterSpacing(Number(spacingField.value), letterSpacingRange);
 
             spacingField.value = String(value);
             onSelectLetterSpacing?.(value);
-        });
+        }, boardEventOptions(spacingField));
 
         spacingField.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 spacingField.blur();
             }
-        });
+        }, boardEventOptions(spacingField));
     }
 
     const customColor = find('[data-custom-color]');
 
     if (customColor) {
         // input ยิงถี่ระหว่างลากในกล่องเลือกสี ซึ่งดีสำหรับการดูผลสด
-        customColor.addEventListener('input', () => onSelectColor?.(customColor.value));
+        customColor.addEventListener('input', () => onSelectColor?.(customColor.value), boardEventOptions(customColor));
     }
 
     /*
@@ -443,7 +444,7 @@ export const initToolbarCollapse = (toolbar) => {
         handle.setAttribute('aria-expanded', String(expanded));
         handle.setAttribute('aria-label', expanded ? handle.dataset.labelExpanded : handle.dataset.labelCollapsed);
         handle.querySelector('i')?.setAttribute('class', expanded ? 'bi bi-chevron-up' : 'bi bi-chevron-down');
-    });
+    }, boardEventOptions(handle));
 };
 
 const setActive = (nodes, predicate) => {

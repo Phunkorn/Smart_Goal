@@ -20,6 +20,12 @@
     text-decoration: none;
 }
 
+.ws-breadcrumb__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
 .ws-breadcrumb a:hover,
 .ws-breadcrumb a:focus-visible {
     color: #2563eb;
@@ -51,18 +57,6 @@
 .ws-chip--gray {
     background: #f1f5f9;
     color: #475569;
-}
-
-.ws-badge--own {
-    position: absolute;
-    top: 0.6rem;
-    right: 0.6rem;
-    padding: 0.1rem 0.45rem;
-    border-radius: 999px;
-    background: #dbeafe;
-    color: #1d4ed8;
-    font-size: 0.68rem;
-    font-weight: 600;
 }
 
 /* ── ปุ่ม ────────────────────────────────────────────────────── */

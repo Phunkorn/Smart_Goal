@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Department;
+use App\Models\ProfileFrame;
 use App\Models\User;
 use App\Services\ProfileAppearanceService;
 use App\Support\ProfileAppearance;
+use Database\Seeders\ProfileFrameSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Tests\TestCase;
@@ -23,21 +26,61 @@ class ProfileAppearanceTest extends TestCase
         Storage::fake('public');
     }
 
-    public function test_catalog_and_modal_offer_five_static_and_two_animated_frames_to_every_role(): void
+    public function test_catalog_and_modal_offer_all_active_frames_to_every_role(): void
     {
         $frames = collect(ProfileAppearance::frames());
-        $this->assertCount(5, $frames->where('animated', false));
-        $this->assertCount(2, $frames->where('animated', true));
+        $this->assertCount(15, $frames->where('animated', false));
+        $this->assertCount(8, $frames->where('animated', true));
 
         foreach (['user', 'admin', 'viewer'] as $role) {
-            $user = User::factory()->create(['role' => $role]);
+            $user = User::factory()->create(['role' => $role, 'avatar_frame' => 'crystal-energy']);
+            DB::flushQueryLog();
+            DB::enableQueryLog();
             $html = $this->actingAs($user)->get(route('settings.index'))->assertOk()->getContent();
-            $this->assertSame(1, substr_count($html, 'id="settingsAppearanceModal"'));
+            $queries = DB::getQueryLog();
+            DB::disableQueryLog();
+            $this->assertEmpty(array_filter($queries, fn ($query) => str_contains($query['query'], 'profile_frames')));
+            $this->assertStringNotContainsString('id="settingsAppearanceModal"', $html);
             $this->assertStringContainsString('data-account-open="settingsAppearanceModal"', $html);
-            foreach ($frames as $key => $frame) {
-                $this->assertStringContainsString('value="'.$key.'"', $html);
+            $this->assertStringNotContainsString('data-frame-option', $html);
+            $appearance = $this->getJson(route('settings.appearance.show'))->assertOk();
+            $this->assertTrue($appearance->headers->hasCacheControlDirective('no-store'));
+            $this->assertStringContainsString('data-profile-frame="crystal-energy"', $appearance->json('html'));
+            $gallery = $this->getJson(route('settings.appearance.frames'))->assertOk();
+            $this->assertTrue($gallery->headers->hasCacheControlDirective('private'));
+            $this->assertTrue($gallery->headers->hasCacheControlDirective('no-store'));
+            foreach ($frames as $frame) {
+                $this->assertStringContainsString('data-frame-slug="'.$frame->slug.'"', $gallery->json('html'));
             }
         }
+    }
+
+    public function test_seeding_preserves_legacy_choices_and_existing_catalog_metadata(): void
+    {
+        $user = User::factory()->create(['avatar_frame' => 'aurora']);
+        ProfileFrame::query()->where('slug', 'aurora')->update(['is_active' => false]);
+        $this->seed(ProfileFrameSeeder::class);
+        $this->seed(ProfileFrameSeeder::class);
+
+        $this->assertDatabaseCount('profile_frames', 23);
+        $this->assertSame('aurora', $user->fresh()->avatar_frame);
+        $this->assertFalse($user->fresh()->avatarFrame->is_active);
+        $this->assertSame('aurora', ProfileAppearance::frame($user->fresh()));
+        $this->assertFalse(ProfileAppearance::frames()->contains('slug', 'aurora'));
+    }
+
+    public function test_imported_frame_is_saved_rendered_and_disallowed_for_new_choices_when_inactive(): void
+    {
+        $department = Department::create(['department_name' => 'IT']);
+        $actor = User::factory()->create(['role' => 'user', 'department_id' => $department->id, 'must_change_password' => false]);
+        $this->actingAs($actor)->patchJson(route('settings.appearance.update'), ['avatar_frame' => 'crystal-energy'])
+            ->assertOk()->assertJsonPath('appearance.avatar_frame', 'crystal-energy');
+        $this->get(route('work-board.department', $department))->assertOk()
+            ->assertSee('data-profile-frame-asset="animated/crystal-energy-motion.webp"', false);
+        ProfileFrame::query()->where('slug', 'star-orbit')->update(['is_active' => false]);
+        $this->patchJson(route('settings.appearance.update'), ['avatar_frame' => 'star-orbit'])
+            ->assertUnprocessable()->assertJsonValidationErrors('avatar_frame');
+        $this->assertSame('crystal-energy', $actor->fresh()->avatar_frame);
     }
 
     public function test_cover_upload_is_private_updates_only_the_actor_and_can_be_replaced_and_removed(): void
@@ -52,6 +95,7 @@ class ProfileAppearanceTest extends TestCase
         $old = $actor->profile_cover;
         $this->assertStringStartsWith('profile-covers/'.$actor->id.'/', $old);
         Storage::disk('local')->assertExists($old);
+        $this->assertSame('image/webp', getimagesize(Storage::disk('local')->path($old))['mime']);
         Storage::disk('public')->assertMissing($old);
         $this->assertSame('user', $actor->role);
         $this->assertFalse($actor->is_department_head);
@@ -71,6 +115,38 @@ class ProfileAppearanceTest extends TestCase
         ])->assertOk()->assertJsonPath('appearance.cover_url', null);
         Storage::disk('local')->assertMissing($replacement);
         $this->assertNull($actor->fresh()->avatar_frame);
+    }
+
+    public function test_cover_is_resized_once_and_over_budget_images_leave_the_saved_file_intact(): void
+    {
+        $actor = User::factory()->create(['must_change_password' => false]);
+        $this->actingAs($actor)->patchJson(route('settings.appearance.update'), [
+            'avatar_frame' => 'none', 'profile_cover' => UploadedFile::fake()->image('cover.png', 2400, 1200),
+        ])->assertOk();
+        $stored = $actor->fresh()->profile_cover;
+        $size = getimagesize(Storage::disk('local')->path($stored));
+        $this->assertSame([1280, 640], array_slice($size, 0, 2));
+        $this->patchJson(route('settings.appearance.update'), [
+            'avatar_frame' => 'none', 'profile_cover' => UploadedFile::fake()->image('large.png', 4001, 3000),
+        ])->assertUnprocessable()->assertJsonValidationErrors('profile_cover');
+        $this->assertSame([$stored], Storage::disk('local')->allFiles());
+        $this->assertSame($stored, $actor->fresh()->profile_cover);
+    }
+
+    public function test_cover_rejects_large_decode_before_allocating_on_a_constrained_worker(): void
+    {
+        $actor = User::factory()->create(['must_change_password' => false]);
+        $upload = UploadedFile::fake()->image('cover.png', 3840, 2160);
+        $memoryLimit = ini_get('memory_limit');
+        ini_set('memory_limit', (string) (memory_get_usage(true) + 16 * 1024 * 1024));
+        try {
+            $this->actingAs($actor)->patchJson(route('settings.appearance.update'), [
+                'avatar_frame' => 'none', 'profile_cover' => $upload,
+            ])->assertUnprocessable()->assertJsonValidationErrors('profile_cover');
+        } finally {
+            ini_set('memory_limit', $memoryLimit);
+        }
+        $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
     public function test_invalid_uploads_frames_and_conflicting_remove_are_rejected_without_changing_existing_files(): void

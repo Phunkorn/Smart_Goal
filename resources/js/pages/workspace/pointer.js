@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * รับเหตุการณ์จากตัวชี้ (เมาส์ ปากกา นิ้ว) แล้วแปลงเป็นเหตุการณ์ระดับสูง
  *
@@ -175,14 +176,14 @@ export const initPointer = (stage, {
         onPan?.({dx: -event.deltaX, dy: -event.deltaY});
     };
 
-    stage.addEventListener('pointerdown', handleDown);
-    stage.addEventListener('pointermove', handleMove);
-    stage.addEventListener('pointerup', handleUp);
-    stage.addEventListener('pointercancel', handleUp);
-    stage.addEventListener('pointerleave', handleUp);
-    stage.addEventListener('wheel', handleWheel, {passive: false});
-    stage.ownerDocument.addEventListener('keydown', handleShiftChange);
-    stage.ownerDocument.addEventListener('keyup', handleShiftChange);
+    stage.addEventListener('pointerdown', handleDown, boardEventOptions(stage));
+    stage.addEventListener('pointermove', handleMove, boardEventOptions(stage));
+    stage.addEventListener('pointerup', handleUp, boardEventOptions(stage));
+    stage.addEventListener('pointercancel', handleUp, boardEventOptions(stage));
+    stage.addEventListener('pointerleave', handleUp, boardEventOptions(stage));
+    stage.addEventListener('wheel', handleWheel, boardEventOptions(stage, {passive: false}));
+    stage.ownerDocument.addEventListener('keydown', handleShiftChange, boardEventOptions(stage.ownerDocument));
+    stage.ownerDocument.addEventListener('keyup', handleShiftChange, boardEventOptions(stage.ownerDocument));
 
     return {
         destroy() {

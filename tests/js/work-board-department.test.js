@@ -9,7 +9,7 @@ function markup() {
         <div data-work-board-directory>
             <button type="button" data-member-preview-trigger data-preview-url="/work-board/departments/1/members/10" data-member-name="Member A">A</button>
             <button type="button" data-member-preview-trigger data-preview-url="/work-board/departments/1/members/20" data-member-name="Member B">B</button>
-            <aside data-member-preview-panel aria-busy="false">
+            <div data-member-preview-panel tabindex="-1" aria-busy="false">
                 <span data-preview-header-avatar hidden></span>
                 <h2 data-preview-panel-title>งานของสมาชิก</h2>
                 <div data-preview-header-meta hidden></div>
@@ -17,7 +17,7 @@ function markup() {
                 <div data-preview-loading hidden>loading</div>
                 <div data-preview-error hidden><button type="button" data-preview-retry>retry</button></div>
                 <div data-preview-body hidden></div>
-            </aside>
+            </div>
         </div>
     </body></html>`;
 }
@@ -52,7 +52,6 @@ test('member trigger requests the correct preview and renders User tasks without
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, '/work-board/departments/1/members/10');
     assert.equal(calls[0].options.headers.Accept, 'text/html');
-    // ส่วนหัวแสดงชื่อสมาชิกตรง ๆ คำว่า "ภาพรวมงานสมาชิก" อยู่ที่ป้ายเล็กด้านบนแล้ว
     assert.equal(dom.document.querySelector('[data-preview-panel-title]').textContent, 'Member A');
     assert.equal(dom.document.querySelector('[data-preview-body]').hidden, false);
     assert.equal(dom.document.querySelector('[data-preview-task]').tagName, 'ARTICLE');
@@ -120,21 +119,25 @@ test('failed preview shows retry and a retry can render the empty state', async 
     assert.equal(dom.document.querySelector('[data-preview-error]').hidden, true);
 });
 
-test('closing the offcanvas aborts work and restores focus to the last trigger', async (t) => {
+test('closing the modal aborts the request and clears the preview', async (t) => {
     const dom = mountDom(markup());
     t.after(dom.cleanup);
+    let pending;
     initializeDepartmentWorkBoard(dom.document, {
-        fetch: async () => response('<div data-preview-empty></div>'),
+        fetch: (_url, {signal}) => new Promise((resolve) => { pending = {signal, resolve}; }),
     });
 
-    const trigger = dom.document.querySelector('[data-member-name="Member B"]');
-    click(trigger);
+    click(dom.document.querySelector('[data-member-name="Member B"]'));
+    const panel = dom.document.querySelector('[data-member-preview-panel]');
+    panel.dispatchEvent(new dom.window.Event('hide.bs.modal'));
+    assert.equal(pending.signal.aborted, true);
+    panel.dispatchEvent(new dom.window.Event('hidden.bs.modal'));
+    pending.resolve(response('<div data-preview-empty></div>'));
     await tick();
-    dom.document.querySelector('[data-member-preview-panel]').dispatchEvent(
-        new dom.window.CustomEvent('hidden.bs.offcanvas', {bubbles: true}),
-    );
 
-    assert.equal(dom.document.activeElement, trigger);
+    assert.equal(panel.getAttribute('aria-busy'), 'false');
+    assert.equal(panel.querySelector('[data-preview-body]').hidden, true);
+    assert.equal(panel.querySelector('[data-preview-empty]'), null);
 });
 
 const headerTemplate = (name, role) => `<template data-preview-header data-member-name="${name}">
@@ -203,9 +206,16 @@ const tabbedPreview = `<template data-preview-header data-member-name="Member A"
     <button type="button" role="tab" data-preview-tab="all" aria-selected="false" tabindex="-1">all</button>
     <button type="button" role="tab" data-preview-tab="created" aria-selected="false" tabindex="-1">created</button>
 </div>
-<div data-preview-tabpanel="today">T</div>
-<div data-preview-tabpanel="all" hidden>A</div>
-<div data-preview-tabpanel="created" hidden>C</div>`;
+<div data-preview-tabpanel="today" tabindex="0">
+    <a class="wb-spotlight-row" href="/first">First task</a>
+    <a class="wb-spotlight-row" href="/second">Second task</a>
+</div>
+<div data-preview-tabpanel="all" tabindex="0" hidden>
+    <article class="wb-spotlight-row">Read-only task</article>
+</div>
+<div data-preview-tabpanel="created" hidden>
+    <p>Empty</p>
+</div>`;
 
 test('the workspace button moves into the header action slot only when the server sends it', async (t) => {
     const dom = mountDom(markup());
@@ -255,4 +265,31 @@ test('preview tabs switch panels on click and with arrow keys', async (t) => {
     pressKey(tab('created'), 'Home');
     assert.equal(panel('today').hidden, false);
     assert.equal(panel('all').hidden, true);
+});
+
+test('the shown modal focuses the active tab and arrow keys navigate task rows', async (t) => {
+    const dom = mountDom(markup());
+    t.after(dom.cleanup);
+    initializeDepartmentWorkBoard(dom.document, {fetch: async () => response(tabbedPreview)});
+    click(dom.document.querySelector('[data-member-name="Member A"]'));
+    await tick();
+    const panel = dom.document.querySelector('[data-member-preview-panel]');
+    panel.focus();
+    panel.dispatchEvent(new dom.window.Event('shown.bs.modal'));
+    const today = panel.querySelector('[data-preview-tab="today"]');
+    const all = panel.querySelector('[data-preview-tab="all"]');
+    const [first, second] = panel.querySelectorAll('a.wb-spotlight-row');
+    assert.equal(dom.document.activeElement, today);
+    pressKey(today, 'ArrowDown');
+    assert.equal(dom.document.activeElement, first);
+    pressKey(first, 'ArrowDown');
+    assert.equal(dom.document.activeElement, second);
+    pressKey(second, 'ArrowUp');
+    pressKey(first, 'ArrowUp');
+    assert.equal(dom.document.activeElement, today);
+
+    pressKey(today, 'ArrowRight');
+    assert.equal(dom.document.activeElement, all);
+    pressKey(all, 'ArrowDown');
+    assert.equal(dom.document.activeElement, panel.querySelector('[data-preview-tabpanel="all"]'));
 });

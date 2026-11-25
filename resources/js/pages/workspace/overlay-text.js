@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * ชั้นข้อความ - กระดาษโน้ตและกล่องข้อความ เรนเดอร์เป็น HTML ไม่ใช่ SVG
  *
@@ -74,7 +75,11 @@ export const renderOverlay = (layer, elements, {doc = layer.ownerDocument, edita
         // ลงไปให้ระบบตรวจการชนจากตัวแบบข้อมูลตามปกติ
         setEditingState(node, editable && element.id === editingId);
 
-        applyStyles(node, element);
+        const styleSignature = JSON.stringify(element);
+        if (node.dataset.styleSignature !== styleSignature) {
+            applyStyles(node, element);
+            node.dataset.styleSignature = styleSignature;
+        }
 
         // ไม่เขียนทับข้อความขณะที่ผู้ใช้กำลังพิมพ์อยู่ในกล่องนั้น มิฉะนั้นเคอร์เซอร์
         // จะกระโดดกลับไปต้นข้อความทุกครั้งที่มีการเรนเดอร์ใหม่ (draw() ถูกเรียก
@@ -438,7 +443,7 @@ const boxOf = (node) => (node?.nodeType === 1 ? node.closest('[data-el-id]') : n
  *
  * @param {Function} onCommit เรียกด้วย (id, text, lineAligns) เมื่อผู้ใช้พิมพ์เสร็จ
  */
-export const initOverlayEditing = (layer, {onCommit, onFocus, maxLength = 2000}) => {
+export const initOverlayEditing = (layer, {onCommit, onInput, onComposition, onFocus, maxLength = 2000}) => {
     if (! layer) {
         return null;
     }
@@ -454,9 +459,9 @@ export const initOverlayEditing = (layer, {onCommit, onFocus, maxLength = 2000})
 
     layer.addEventListener('focusin', (event) => {
         onFocus?.(boxOf(event.target)?.dataset.elId);
-    });
+    }, boardEventOptions(layer));
 
-    layer.addEventListener('blur', (event) => commit(boxOf(event.target)), true);
+    layer.addEventListener('blur', (event) => commit(boxOf(event.target)), boardEventOptions(layer, true));
 
     layer.addEventListener('input', (event) => {
         const node = boxOf(event.target);
@@ -479,7 +484,16 @@ export const initOverlayEditing = (layer, {onCommit, onFocus, maxLength = 2000})
             renderLines(doc, node, truncated, trimmedAligns);
             placeCaretAtEnd(doc, node);
         }
-    });
+        const latest = readEditableContent(node);
+        onInput?.(node.dataset.elId, latest.text, latest.lineAligns);
+    }, boardEventOptions(layer));
+
+    layer.addEventListener('compositionstart', () => onComposition?.(true), boardEventOptions(layer));
+    layer.addEventListener('compositionend', (event) => {
+        const node = boxOf(event.target);
+        if (node) { const latest = readEditableContent(node); onInput?.(node.dataset.elId, latest.text, latest.lineAligns); }
+        onComposition?.(false);
+    }, boardEventOptions(layer));
 
     layer.addEventListener('keydown', (event) => {
         // Escape จบการพิมพ์ ส่วน Enter ขึ้นบรรทัดใหม่ตามปกติ เพราะโน้ตหลายบรรทัด
@@ -488,7 +502,7 @@ export const initOverlayEditing = (layer, {onCommit, onFocus, maxLength = 2000})
             event.stopPropagation();
             boxOf(event.target)?.blur();
         }
-    });
+    }, boardEventOptions(layer));
 
     // การวางต้องเป็นข้อความล้วนเสมอ ไม่งั้นการคัดลอกจากเว็บอื่นจะพา HTML
     // เข้ามาในกระดาน ซึ่งเป็นทั้งช่องโหว่และทำให้เค้าโครงพัง กล่องเปิด
@@ -531,13 +545,13 @@ export const initOverlayEditing = (layer, {onCommit, onFocus, maxLength = 2000})
         selection.collapseToEnd();
 
         boxOf(event.target)?.dispatchEvent(new doc.defaultView.Event('input', {bubbles: true}));
-    });
+    }, boardEventOptions(layer));
 
     // การลากวางเนื้อหาที่มีรูปแบบเข้ามาเป็นอีกช่องทางเดียวกับการวางที่ plaintext-only
     // เคยกันไว้ก่อนหน้านี้ contenteditable="true" ไม่ได้กันให้ ปฏิเสธไปเฉย ๆ แทน
     // การพยายามรองรับ เพราะเป็นการใช้งานที่พบน้อยมากบนกระดานนี้ ผู้ใช้วางด้วย
     // Ctrl+V ได้อยู่แล้วซึ่งผ่านตัวจัดการ paste ด้านบน
-    layer.addEventListener('drop', (event) => event.preventDefault());
+    layer.addEventListener('drop', (event) => event.preventDefault(), boardEventOptions(layer));
 
     return {
         /** ย้ายโฟกัสไปที่กล่องนั้นเพื่อให้พิมพ์ต่อได้ทันทีหลังสร้าง */

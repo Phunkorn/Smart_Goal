@@ -82,7 +82,7 @@ class WorkBoardTest extends TestCase
             ->assertSee('สำคัญด่วน')
             ->assertSee('data-member-preview-content', false)
             ->assertDontSee($job->job_details)
-            ->assertSee($collaborator->name)
+            ->assertDontSee($collaborator->name)
             ->assertDontSee('data-preview-task-link', false)
             ->assertDontSee(route('tasks.show', $job), false)
             ->assertDontSee(route('admin.work-board.member', [$department, $assignee]), false)
@@ -117,9 +117,10 @@ class WorkBoardTest extends TestCase
             ->assertSee('wb-department-card', false)
             ->assertSee('แผนกทั้งหมด')
             ->assertSee('ภาพรวมแผนกและสมาชิกในองค์กร')
-            ->assertSee('ข้อมูลล่าสุดจากระบบ Smart Goal')
+            ->assertDontSee('ข้อมูลล่าสุดจากระบบ Smart Goal')
             ->assertSee('สมาชิก')
-            ->assertSee('ดูรายละเอียด')
+            ->assertDontSee('ดูรายละเอียด')
+            ->assertSee('bi-arrow-up-right', false)
             ->assertSee(route('work-board.department', $department), false);
 
         // การ์ดต้องเหลือแค่จำนวนสมาชิก ห้ามให้ metric โปรเจกต์/งาน หรือ layout แบบแถวเดิมกลับมา
@@ -210,13 +211,7 @@ class WorkBoardTest extends TestCase
             ->assertDontSee('Sensitive update note')
             ->assertDontSee('hidden-plan.pdf')
             ->assertDontSee('application/pdf')
-            /*
-             * ผู้ดูคนนี้เป็นผู้สร้างงาน (หัวหน้าโปรเจกต์) และเป็นคนเพิ่ม Hidden Collaborator เอง
-             * WorkOrderPolicy::view() จึงอนุญาต — บทบาทในโปรเจกต์แสดงกับทุกคนที่มีสิทธิ์ดูงานใบนั้น
-             * กรณีเพื่อนร่วมแผนกที่ไม่มีสิทธิ์ดูงาน ชื่อทีมยังถูกซ่อนเหมือนเดิม ดู
-             * MemberPreviewProjectRolesTest::test_teammate_without_view_permission_sees_no_team_names
-             */
-            ->assertSee('Hidden Collaborator')
+            ->assertDontSee($collaborator->name)
             ->assertDontSee('data-attachment', false)
             ->assertDontSee('data-preview-task-link', false)
             ->assertDontSee('tasks/', false);

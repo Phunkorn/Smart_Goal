@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * เมนูคลิกขวาบนผืนผ้าใบ
  *
@@ -113,8 +114,8 @@ export const initContextMenu = (stage, menuRoot, {
         }
     };
 
-    stage.addEventListener('contextmenu', handleContextMenu);
-    menuRoot.addEventListener('click', handleClick);
+    stage.addEventListener('contextmenu', handleContextMenu, boardEventOptions(stage));
+    menuRoot.addEventListener('click', handleClick, boardEventOptions(menuRoot));
 
     return {
         close: () => menus.close(),

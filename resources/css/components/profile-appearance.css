@@ -40,6 +40,31 @@
     pointer-events: none;
 }
 
+.sg-profile-portrait[data-profile-frame-asset]:not([data-profile-frame-asset=""])::before {
+    background: none;
+}
+
+.sg-profile-portrait__overlay {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 50%;
+    width: 194%;
+    height: 194%;
+    max-width: none;
+    object-fit: contain;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.sg-profile-portrait__overlay:not([hidden]) { animation: profile-frame-appear .18s ease-out; }
+
+/* The centered opening is normalized to 165px on a 320px asset. */
+.sg-profile-portrait[data-profile-frame-asset]:not([data-profile-frame-asset=""]) {
+    padding: 0;
+    border: 0;
+}
+
 .sg-profile-portrait[data-profile-frame="none"]::before { background: var(--border); }
 .sg-profile-portrait[data-profile-frame="gold"] { --profile-frame-color: var(--amber); --profile-frame-highlight: var(--amber-dim); }
 .sg-profile-portrait[data-profile-frame="emerald"] { --profile-frame-color: var(--green-strong); --profile-frame-highlight: var(--green); }
@@ -56,7 +81,11 @@
 
 @keyframes profile-frame-orbit { to { transform: rotate(360deg); } }
 @keyframes profile-frame-pulse { 50% { opacity: .45; box-shadow: 0 0 0 3px var(--blue-dim); } }
+@keyframes profile-frame-appear { from { opacity: 0; } }
+
+.sg-profile-portrait:not([data-frame-visible])::before { animation-play-state: paused; }
 
 @media (prefers-reduced-motion: reduce) {
-    .sg-profile-portrait::before { animation: none; }
+    .sg-profile-portrait::before,
+    .sg-profile-portrait__overlay:not([hidden]) { animation: none; }
 }

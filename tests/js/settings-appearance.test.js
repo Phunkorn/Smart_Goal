@@ -7,7 +7,7 @@ function setup(t) {
     const ui = mountDom(`<form data-account-form="appearance" data-profile-user="7">
         <input type="file" data-appearance-cover data-max-bytes="4096" accept="image/png,image/jpeg,image/webp">
         <input type="checkbox" data-appearance-remove>
-        <select data-appearance-frame><option value="none">None</option><option value="gold" selected>Gold</option><option value="aurora">Aurora</option></select>
+        <input type="hidden" data-appearance-frame data-saved-frame="gold" value="gold">
         <div data-profile-cover data-cover-url="/old"><img src="/old"></div><span data-profile-frame="gold"></span>
         </form><article data-profile-user="7"><div data-profile-cover><img src="/old"></div><span data-profile-frame="gold"></span></article>
         <article data-profile-user="8"><div data-profile-cover><img src="/other"></div><span data-profile-frame="none"></span></article>`);
@@ -28,7 +28,7 @@ function setup(t) {
 
 test('local preview changes immediately without changing saved cards; cancel releases it and restores saved choices', (t) => {
     const ui = setup(t);
-    const select = ui.form.querySelector('select');
+    const select = ui.form.querySelector('[data-appearance-frame]');
     select.value = 'aurora';
     ui.change(select);
     ui.choose();
@@ -51,10 +51,10 @@ test('save updates only matching members, clears upload state, and establishes t
     assert.equal(ui.document.querySelector('article img').getAttribute('src'), '/saved?v=2');
     assert.equal(ui.document.querySelectorAll('article img')[1].getAttribute('src'), '/other');
     assert.deepEqual(ui.revoked, ['blob:preview']);
-    ui.form.querySelector('select').value = 'none';
+    ui.form.querySelector('[data-appearance-frame]').value = 'none';
     ui.form.reset();
     ui.controller.reset(ui.form);
-    assert.equal(ui.form.querySelector('select').value, 'aurora');
+    assert.equal(ui.form.querySelector('[data-appearance-frame]').value, 'aurora');
     assert.equal(ui.form.querySelector('img').getAttribute('src'), '/saved?v=2');
     ui.controller.commit(ui.form, {cover_url: null, avatar_frame: 'none'});
     assert.equal(ui.form.querySelector('img'), null);

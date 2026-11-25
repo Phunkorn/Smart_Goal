@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Smart Ticket — migration 2026_10_23_000001 .. 000008 + 2026_10_24_000001 (MySQL 8)
 -- สถานะ: ฉบับร่าง (DRAFT) · สร้างจาก `php artisan migrate --pretend` · ยังไม่เคยรันบน production
--- ห้ามรันจนกว่าจะได้รับอนุมัติ — ดู docs/plans/smart-ticket-release.md
+-- ห้ามรันจนกว่าจะได้รับอนุมัติ — ดู deploy/README.md หัวข้อ Smart Ticket และการกู้คืน
 --
 -- ก่อนรัน
 --   1. สำรองฐานข้อมูล (phpMyAdmin › Export › Quick › SQL)

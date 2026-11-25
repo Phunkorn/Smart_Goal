@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 class SettingsController extends Controller
 {
@@ -96,11 +95,29 @@ class SettingsController extends Controller
         return back()->with('success', 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว');
     }
 
+    public function appearance(Request $request)
+    {
+        return response()->json([
+            'html' => view('settings.components.appearance-modal', ['user' => $request->user()])->render(),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function appearanceFrames(Request $request)
+    {
+        $user = $request->user();
+        $profileFrames = ProfileAppearance::frames()->keyBy('slug');
+        $savedFrame = $profileFrames->get($user->avatar_frame) ?? $user->avatarFrame;
+
+        return response()->json([
+            'html' => view('settings.components.frame-gallery', compact('user', 'profileFrames', 'savedFrame'))->render(),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     public function updateAppearance(Request $request, ProfileAppearanceService $appearance)
     {
         $cover = config('profile-appearance.cover');
         $validated = $request->validateWithBag('appearance', [
-            'avatar_frame' => ['required', Rule::in(['none', ...array_keys(ProfileAppearance::frames())])],
+            'avatar_frame' => ['required', 'string', 'max:24'],
             'profile_cover' => ['nullable', 'prohibited_if:remove_profile_cover,1,true', 'image',
                 'mimes:'.implode(',', $cover['mime_types']), 'max:'.$cover['max_kilobytes'],
                 'dimensions:max_width='.$cover['max_dimension'].',max_height='.$cover['max_dimension']],

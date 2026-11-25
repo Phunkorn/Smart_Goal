@@ -28,13 +28,13 @@
 
 /* ลดจำนวนคอลัมน์ทีละขั้น ไม่ให้การ์ดถูกบีบจนชื่อแผนกถูกตัดด้วย ellipsis */
 @media (max-width: 1280px) {
-    .ws-grid {
+    .ws-grid--departments {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 992px) {
-    .ws-grid {
+    .ws-grid--departments {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
@@ -43,11 +43,6 @@
     .ws-page {
         padding: 1rem;
         gap: 1.25rem;
-    }
-
-    .ws-grid,
-    .ws-grid--boards {
-        grid-template-columns: 1fr;
     }
 
     .ws-board__header {
@@ -138,14 +133,9 @@
         height: 2.75rem;
     }
 
-    .ws-board-card__link {
-        padding-right: 1.1rem;
-    }
-
-    .ws-board-card__actions {
-        position: static;
-        justify-content: flex-end;
-        padding: 0 0.7rem 0.7rem;
+    /* โทรศัพท์: การ์ดแผนกเรียงเดี่ยว ส่วนการ์ดกระดานลดเหลือคอลัมน์เดียวเองจาก minmax() */
+    .ws-grid--departments {
+        grid-template-columns: 1fr;
     }
 
     /*
@@ -174,6 +164,30 @@
  * tooltip ที่ค่อย ๆ จาง
  */
 @media (prefers-reduced-motion: reduce) {
+    .ws-dept-card,
+    .ws-board-card,
+    .ws-board-new,
+    .ws-dept-card__visual,
+    .ws-board-card__visual,
+    .ws-dept-card__arrow,
+    .ws-board-card__arrow {
+        transition: none;
+    }
+
+    .ws-dept-card:hover,
+    .ws-board-card:hover,
+    .ws-board-card:focus-within,
+    .ws-board-new:hover,
+    .ws-board-new:focus-visible {
+        transform: none;
+    }
+
+    .ws-dept-card:hover .ws-dept-card__arrow,
+    .ws-board-card:hover .ws-board-card__arrow,
+    .ws-board-card:focus-within .ws-board-card__arrow {
+        transform: none;
+    }
+
     .wsb-save[data-state="dirty"] i,
     .wsb-save[data-state="saving"] i {
         animation: none;

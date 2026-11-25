@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * เมนูคำสั่ง - popover ไม่ใช่ modal
  *
@@ -182,7 +183,7 @@ export const initMenus = (root, {onBeforeOpen} = {}) => {
         if (current?.panel.contains(event.target) && event.target.closest('button')) {
             close();
         }
-    });
+    }, boardEventOptions(root));
 
     // ใช้ pointerdown ไม่ใช่ click เพราะการลากบนผืนผ้าใบจบที่อื่น เมนูต้องปิดตั้งแต่เริ่มลาก
     doc.addEventListener('pointerdown', (event) => {
@@ -196,7 +197,7 @@ export const initMenus = (root, {onBeforeOpen} = {}) => {
         if (! inside) {
             close();
         }
-    });
+    }, boardEventOptions(doc));
 
     doc.addEventListener('keydown', (event) => {
         if (! current) {
@@ -228,10 +229,10 @@ export const initMenus = (root, {onBeforeOpen} = {}) => {
             event.preventDefault();
             moveFocus(steps[event.key]);
         }
-    });
+    }, boardEventOptions(doc));
 
-    win?.addEventListener('scroll', follow, true);
-    win?.addEventListener('resize', follow);
+    win?.addEventListener('scroll', follow, boardEventOptions(win, true));
+    win?.addEventListener('resize', follow, boardEventOptions(win));
 
     return {
         close,

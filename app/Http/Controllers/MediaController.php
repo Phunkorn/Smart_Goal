@@ -11,6 +11,7 @@ use App\Models\WorkOrderListAttachment;
 use App\Models\WorkOrderUpdateAttachment;
 use App\Models\WorkspaceBoardAttachment;
 use App\Services\TicketPhotoStore;
+use App\Support\ProfileCoverImage;
 use App\Support\ProtectedMedia;
 use App\Support\TaskAttachmentPresenter;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class MediaController extends Controller
     public function profileCover(Request $request, User $user): BinaryFileResponse
     {
         $path = (string) $user->profile_cover;
-        abort_unless(str_starts_with($path, 'profile-covers/'.$user->getKey().'/'), 404);
+        abort_unless(ProfileCoverImage::belongsTo((int) $user->getKey(), $path), 404);
 
         return $this->profileMediaResponse($request, ProtectedMedia::coverAbsolutePath($path), $path);
     }

@@ -19,6 +19,7 @@ const archivePath = join(outputDirectory, `smart-goal-update-${timestamp}.zip`);
 const stagingDirectory = join(tmpdir(), `.smart-goal-deploy-${process.pid}`);
 
 const excludedRootNames = new Set([
+    '.editorconfig',
     '.env',
     '.env.backup',
     '.env.example',
@@ -26,7 +27,9 @@ const excludedRootNames = new Set([
     '.claude',
     '.codex',
     '.git',
+    '.gitattributes',
     '.github',
+    '.gitignore',
     '.idea',
     '.nova',
     '.phpunit.cache',
@@ -35,6 +38,7 @@ const excludedRootNames = new Set([
     '.zed',
     'AGENTS.md',
     'CLAUDE.md',
+    'README.md',
     'auth.json',
     /*
      * 'deploy' คือเครื่องมือกับเอกสารของฝั่งเรา ไม่ใช่โค้ดที่รันบนเซิร์ฟเวอร์
@@ -47,6 +51,7 @@ const excludedRootNames = new Set([
      */
     'deploy',
     'deploy-output',
+    'docs',
     'node_modules',
     'phpunit.xml',
     'storage',
@@ -79,6 +84,10 @@ function shouldCopy(source) {
         return false;
     }
 
+    if (parts.at(-1).endsWith('.log') || pathFromRoot === join('public', 'hot')) {
+        return false;
+    }
+
     if (pathFromRoot === join('bootstrap', 'private-path.php')) {
         return false;
     }
@@ -87,8 +96,18 @@ function shouldCopy(source) {
         return false;
     }
 
+    // Only Vite's optimized, versioned copies belong in the deployment archive.
+    if (pathFromRoot === join('resources', 'Profile') || pathFromRoot === join('resources', 'images', 'profile-frames')) {
+        return false;
+    }
+
     // ฐานข้อมูล SQLite ของเครื่องพัฒนา เซิร์ฟเวอร์ใช้ MySQL และไฟล์นี้มีข้อมูลทดสอบอยู่ข้างใน
     if (pathFromRoot === join('database', 'database.sqlite')) {
+        return false;
+    }
+
+    // Manual database maintenance scripts are run separately from the app update.
+    if (pathFromRoot === join('database', 'queries')) {
         return false;
     }
 

@@ -54,7 +54,12 @@ export const penTool = {
         }
 
         const epsilon = SIMPLIFY_TOLERANCE_PX / camera.scale;
-        const points = simplifyPoints(draft.points, epsilon);
+        let points = simplifyPoints(draft.points, epsilon);
+        // Bounded vector sampling keeps a long gesture valid instead of trapping every later save in 422.
+        if (points.length > 2000) {
+            const last = points.length - 1;
+            points = Array.from({length: 2000}, (_, index) => points[Math.round(index * last / 1999)]);
+        }
 
         return {
             scene: addElement(scene, {

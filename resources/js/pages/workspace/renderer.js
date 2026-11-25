@@ -19,6 +19,7 @@ import {rotationOf} from './rotation.js';
 import {pointsToPathData} from './simplify.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const rendered = new WeakMap();
 
 /** ปรับ transform ของชั้นเวกเตอร์ตามกล้องปัจจุบัน */
 export const applyCamera = (layer, camera) => {
@@ -53,7 +54,11 @@ export const renderElements = (layer, elements, doc = layer.ownerDocument) => {
             previous?.remove();
         }
 
-        applyAttributes(node, element);
+        const signature = JSON.stringify(element);
+        if (rendered.get(node) !== signature) {
+            applyAttributes(node, element);
+            rendered.set(node, signature);
+        }
         existing.delete(element.id);
 
         // จัดลำดับให้ตรงกับฉาก insertBefore กับโหนดที่อยู่ถูกที่แล้วไม่ทำอะไร

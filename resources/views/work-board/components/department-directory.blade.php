@@ -22,6 +22,7 @@
             @forelse($members as $person)
                 @include('work-board.components.member-card', [
                     'person' => $person,
+                    'priorityCover' => $loop->first,
                     'previewUrl' => route($previewRouteName, [$department, $person]),
                 ])
             @empty
@@ -35,42 +36,30 @@
         </div>
     </section>
 
-    <aside class="offcanvas offcanvas-end wb-member-preview-panel"
-        tabindex="-1"
-        id="workBoardMemberPreview"
-        aria-labelledby="workBoardMemberPreviewTitle"
-        data-member-preview-panel>
-        {{--
-            ส่วนหัวของแผง: รูป ชื่อ บทบาทในระบบ แผนก และสรุปบทบาทในโปรเจกต์
-            ช่อง data-preview-header-* ถูกเติมโดย department.js จาก <template data-preview-header>
-            ที่มากับ member-preview.blade.php — เนื้อหามีแหล่งเดียวคือ server ไม่ใช่ข้อความที่ JS ประกอบเอง
-        --}}
-        <div class="offcanvas-header wb-member-preview-panel__header">
-            <div class="wb-member-preview-panel__bar">
-                <span class="wb-member-preview-panel__eyebrow">ภาพรวมงานสมาชิก</span>
-                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="ปิดแผงงานของสมาชิก"></button>
+    <x-account-modal id="workBoardMemberPreview" title="ภาพรวมงานสมาชิก" class="wb-member-preview-modal" data-member-preview-panel>
+        <x-slot:header>
+            <span class="wb-spotlight__avatar" data-preview-header-avatar hidden></span>
+            <div class="wb-spotlight__identity">
+                <h2 class="modal-title wb-spotlight__name" id="workBoardMemberPreviewTitle" data-preview-panel-title>ภาพรวมงานสมาชิก</h2>
+                <div data-preview-header-meta hidden></div>
             </div>
-            <div class="wb-member-preview-panel__heading">
-                <span class="wb-member-preview-panel__avatar" data-preview-header-avatar hidden></span>
-                <div class="wb-member-preview-panel__text">
-                    <h2 class="offcanvas-title" id="workBoardMemberPreviewTitle" data-preview-panel-title>งานของสมาชิก</h2>
-                    <div class="wb-member-preview-panel__meta" data-preview-header-meta hidden></div>
-                </div>
-                <div class="wb-member-preview-panel__action" data-preview-header-action hidden></div>
-            </div>
-        </div>
+            <div data-preview-header-action hidden></div>
+            <button type="button" class="wb-spotlight__icon-button" data-bs-dismiss="modal" aria-label="ปิดภาพรวมงานสมาชิก">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        </x-slot:header>
 
-        <div class="offcanvas-body wb-member-preview-panel__body" aria-live="polite">
-            <div class="wb-preview-state wb-preview-state--loading" data-preview-loading hidden>
+        <div class="modal-body wb-spotlight__body">
+            <div class="wb-preview-state" role="status" data-preview-loading hidden>
                 <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                 <p>กำลังโหลดรายการงาน...</p>
             </div>
 
-            <div class="wb-preview-state wb-preview-state--error" data-preview-error hidden>
+            <div class="wb-preview-state" data-preview-error hidden>
                 <span class="wb-preview-state__icon"><i class="bi bi-exclamation-circle" aria-hidden="true"></i></span>
                 <h3>โหลดรายการงานไม่สำเร็จ</h3>
                 <p>กรุณาลองใหม่อีกครั้ง</p>
-                <button type="button" data-preview-retry>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-preview-retry>
                     <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                     ลองใหม่
                 </button>
@@ -78,5 +67,9 @@
 
             <div data-preview-body hidden></div>
         </div>
-    </aside>
+        <div class="modal-footer wb-spotlight__footer">
+            <span><i class="bi bi-person-lines-fill" aria-hidden="true"></i> ภาพรวมงานสมาชิก</span>
+            <span><kbd>Esc</kbd> ปิดหน้าต่าง</span>
+        </div>
+    </x-account-modal>
 </div>

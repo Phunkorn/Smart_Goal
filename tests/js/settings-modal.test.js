@@ -24,24 +24,31 @@ test('appearance uses the shared multipart flow, keeps the modal busy, and retai
         assert.equal(url, 'https://smartgoal.test/settings/appearance');
         body = options.body;
         return new Promise((done) => { resolve = done; });
-    });
+    }, '', true);
+    assert.equal(ui.doc.getElementById('settingsAppearanceModal'), null);
     await ui.open('settingsAppearanceModal');
+    assert.equal(ui.appearanceLoads, 1);
     const modal = ui.doc.getElementById('settingsAppearanceModal');
-    const select = modal.querySelector('select');
+    const select = modal.querySelector('[data-appearance-frame]');
     select.value = 'gold';
     select.dispatchEvent(new ui.win.Event('change'));
+    const saveButton = modal.querySelector('[type="submit"]');
+    saveButton.focus();
     ui.submit('[data-account-form="appearance"]');
     assert.equal(body.get('avatar_frame'), 'gold');
     assert.equal(body.get('_method'), 'PATCH');
     assert.equal(modal.getAttribute('aria-busy'), 'true');
     ui.win.bootstrap.Modal.getInstance(modal).hide();
     assert.equal(modal.classList.contains('show'), true);
+    saveButton.blur();
     resolve({ok: true, json: async () => ({message: 'saved', appearance: {cover_url: '/new-cover', avatar_frame: 'gold'}})});
     await flush(ui.doc);
     assert.equal(modal.querySelector('[data-profile-cover] img').getAttribute('src'), '/new-cover');
+    assert.equal(ui.doc.activeElement, saveButton);
     ui.win.bootstrap.Modal.getInstance(modal).hide();
     await flush(ui.doc);
     await ui.open('settingsAppearanceModal');
+    assert.equal(ui.appearanceLoads, 1);
     assert.equal(select.value, 'gold');
     assert.equal(modal.querySelector('[data-profile-frame]').dataset.profileFrame, 'gold');
 });
@@ -57,15 +64,23 @@ const flush = async (doc) => {
     }
 };
 
-function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({message: 'saved'})}), telegram = '') {
+function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({message: 'saved'})}), telegram = '', deferAppearance = false) {
     const modal = (id, form) => `<div class="modal fade account-modal" id="${id}" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
         <button data-bs-dismiss="modal" aria-label="close">close</button>${form}</div></div></div>`;
     const feedback = '<div class="alert d-none" data-account-feedback role="status"></div>';
+    const appearanceModal = modal('settingsAppearanceModal', `<form action="/settings/appearance" data-account-form="appearance" data-profile-user="7">${feedback}
+        <input name="_token" type="hidden" value="csrf"><input name="_method" type="hidden" value="PATCH">
+        <input id="settingsProfileCover" name="profile_cover" type="file" data-appearance-cover data-max-bytes="4096" accept="image/png">
+        <input name="remove_profile_cover" type="checkbox" data-appearance-remove>
+        <input type="hidden" id="settingsAvatarFrame" name="avatar_frame" data-appearance-frame data-saved-frame="none" value="none">
+        <div data-profile-cover data-cover-url="/old-cover"><img src="/old-cover"></div><span data-profile-frame="none"></span>
+        <button type="submit">save</button></form>`);
+    let appearanceLoads = 0;
     const dom = new JSDOM(`<!doctype html><html><head><meta name="csrf-token" content="csrf"></head><body>
         <header class="topbar"><div class="dropdown"><button id="topbarAccountTrigger" data-bs-toggle="dropdown">account</button>
         <ul class="dropdown-menu"><li><button class="dropdown-item" data-account-open="settingsProfileModal">profile</button></li>
         <li><button class="dropdown-item" data-account-open="settingsPasswordModal">password</button></li>
-        <li><button class="dropdown-item" data-account-open="settingsAppearanceModal">appearance</button></li>
+        <li><button class="dropdown-item" data-account-open="settingsAppearanceModal" data-account-modal-url="/settings/appearance">appearance</button></li>
         <li><button class="dropdown-item" data-account-open="settingsModal">settings</button></li>
         <li><button class="dropdown-item" data-account-open="accountLogoutModal">logout</button></li></ul></div>
         <span data-account-name>Old</span><span data-account-avatar>Ol</span></header>
@@ -77,13 +92,7 @@ function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({mess
         ${modal('settingsPasswordModal', `<form action="/settings/password" data-account-form="password">${feedback}
             <input name="current_password" type="password"><input name="password" type="password"><input name="password_confirmation" type="password">
             <button type="submit">save</button></form>`)}
-        ${modal('settingsAppearanceModal', `<form action="/settings/appearance" data-account-form="appearance" data-profile-user="7">${feedback}
-            <input name="_token" type="hidden" value="csrf"><input name="_method" type="hidden" value="PATCH">
-            <input id="settingsProfileCover" name="profile_cover" type="file" data-appearance-cover data-max-bytes="4096" accept="image/png">
-            <input name="remove_profile_cover" type="checkbox" data-appearance-remove>
-            <select id="settingsAvatarFrame" name="avatar_frame" data-appearance-frame><option value="none">None</option><option value="gold">Gold</option></select>
-            <div data-profile-cover data-cover-url="/old-cover"><img src="/old-cover"></div><span data-profile-frame="none"></span>
-            <button type="submit">save</button></form>`)}
+        ${deferAppearance ? '' : appearanceModal}
         ${modal('settingsModal', `${feedback}<button data-account-open="settingsPasswordModal">password</button>${telegram ? `<div data-account-telegram>${telegram}</div>` : ''}`)}
         ${modal('accountLogoutModal', '<form action="/logout" method="POST" data-account-logout><input type="hidden" name="_token" value="csrf"><button type="submit">confirm</button></form>')}
         </div></body></html>`, {url: 'https://smartgoal.test/tasks', runScripts: 'outside-only', pretendToBeVisual: true});
@@ -92,7 +101,13 @@ function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({mess
     dom.window.HTMLElement.prototype.getClientRects = () => [{width: 100, height: 30}];
     dom.window.eval(readFileSync(new URL('../../node_modules/bootstrap/dist/js/bootstrap.bundle.js', import.meta.url), 'utf8'));
     const doc = dom.window.document;
-    initializeSettingsPage(doc, dom.window.bootstrap, {fetcher});
+    initializeSettingsPage(doc, dom.window.bootstrap, {fetcher: (url, options) => {
+        if (deferAppearance && url === '/settings/appearance' && !options.method) {
+            appearanceLoads++;
+            return Promise.resolve({ok: true, json: async () => ({html: appearanceModal})});
+        }
+        return fetcher(url, options);
+    }});
     const click = (selector) => doc.querySelector(selector).click();
     const open = async (id) => {
         click('#topbarAccountTrigger');
@@ -100,7 +115,7 @@ function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({mess
         await flush(doc);
     };
     const submit = (selector) => doc.querySelector(selector).dispatchEvent(new dom.window.Event('submit', {bubbles: true, cancelable: true}));
-    return {doc, win: dom.window, click, open, submit};
+    return {doc, win: dom.window, click, open, submit, get appearanceLoads() { return appearanceLoads; }};
 }
 
 test('real Bootstrap dropdown closes outside and on Escape, then opens one modal with focus return', async (t) => {

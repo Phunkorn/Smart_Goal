@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * ต่อสายคัดลอก/วางกับคลิปบอร์ดของระบบ - จุดเดียวของ Ctrl+C / Ctrl+V บนกระดาน
  *
@@ -78,8 +79,8 @@ export const initClipboardEvents = (doc, {canEdit = false, onCopy, getClipboard,
         }
     };
 
-    doc.addEventListener('copy', handleCopy);
-    doc.addEventListener('paste', handlePaste);
+    doc.addEventListener('copy', handleCopy, boardEventOptions(doc));
+    doc.addEventListener('paste', handlePaste, boardEventOptions(doc));
 
     return {
         destroy() {

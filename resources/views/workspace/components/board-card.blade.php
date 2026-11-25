@@ -14,21 +14,27 @@
 
 <article class="ws-board-card" data-workspace-board-card data-board-id="{{ $board->id }}">
     <a class="ws-board-card__link" href="{{ route('workspace.boards.show', $board) }}">
-        <span class="ws-board-card__title" data-board-title>{{ $board->title }}</span>
+        {{-- ภาพประกอบเป็นของตกแต่งชุดเดียวกันทุกกระดาน ไม่โหลดเนื้อหาผืนผ้าใบมาทำตัวอย่าง --}}
+        <span class="ws-board-card__visual" aria-hidden="true"></span>
 
-        <span class="ws-board-card__meta">
-            <span class="ws-chip ws-chip--{{ $visibility['tone'] }}" data-board-visibility-label>
-                <i class="bi {{ $visibility['icon'] }}" aria-hidden="true"></i>
-                {{ $visibility['label'] }}
+        <span class="ws-board-card__body">
+            <span class="ws-board-card__title" data-board-title>{{ $board->title }}</span>
+
+            <span class="ws-board-card__meta">
+                <span class="ws-chip ws-chip--{{ $visibility['tone'] }}" data-board-visibility-label>
+                    <i class="bi {{ $visibility['icon'] }}" aria-hidden="true"></i>
+                    {{ $visibility['label'] }}
+                </span>
+                <i class="bi bi-arrow-up-right ws-board-card__arrow" aria-hidden="true"></i>
             </span>
         </span>
 
         <span class="ws-board-card__footer">
             @if ($board->last_edited_at)
-                แก้ไขล่าสุดโดย {{ $board->lastEditor?->name ?? 'ไม่ทราบผู้แก้ไข' }}
-                · {{ \App\Support\TodayWorkspace::businessNow($board->last_edited_at)->format('d/m/Y H:i') }}
+                <span>แก้ไขล่าสุดโดย {{ $board->lastEditor?->name ?? 'ไม่ทราบผู้แก้ไข' }}</span>
+                <span>{{ \App\Support\TodayWorkspace::businessNow($board->last_edited_at)->format('d/m/Y · H:i') }}</span>
             @else
-                ยังไม่มีใครวาดบนกระดานนี้
+                <span>ยังไม่มีใครวาดบนกระดานนี้</span>
             @endif
         </span>
     </a>

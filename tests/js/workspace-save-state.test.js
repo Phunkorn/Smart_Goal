@@ -277,6 +277,18 @@ test('สถานะบอกได้ว่ายังมีของค้�
     assert.equal(env.scheduler.isDirty(), false);
 });
 
+test('typing while a failed save is waiting does not defeat exponential backoff', async () => {
+    let attempts=0;
+    const env=build({saveImpl:async()=>{attempts++;throw new Error('network');}});
+    env.scheduler.markDirty();await env.clock.advance(DEBOUNCE_MS+1);
+    assert.equal(attempts,1);
+    await env.clock.advance(1000);
+    for(let i=0;i<50;i++)env.scheduler.markDirty();
+    await env.clock.advance(999);assert.equal(attempts,1);
+    await env.clock.advance(1);assert.equal(attempts,2);
+    env.scheduler.stop();
+});
+
 test('การหยุดถาวรยกเลิกตัวตั้งเวลาที่ค้างอยู่', async () => {
     const env = build();
 

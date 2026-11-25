@@ -24,7 +24,10 @@
     <header class="ws-page__header">
         <div>
             <nav class="ws-breadcrumb" aria-label="breadcrumb">
-                <a href="{{ route('workspace.index') }}">กระดานไอเดีย</a>
+                <a class="ws-breadcrumb__back" href="{{ route('workspace.index') }}">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    กระดานไอเดีย
+                </a>
                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 <span>{{ $department->department_name }}</span>
             </nav>
@@ -49,6 +52,13 @@
         @endif
     </header>
 
+    @if ($boards->isNotEmpty())
+        <p class="ws-summary">
+            <strong>กระดานทั้งหมด</strong>
+            <span>{{ $boards->count() }} กระดาน</span>
+        </p>
+    @endif
+
     <div class="ws-grid ws-grid--boards">
         @forelse ($boards as $board)
             @include('workspace.components.board-card', ['board' => $board])
@@ -61,6 +71,18 @@
                 @endif
             </p>
         @endforelse
+
+        {{-- ทางลัดสร้างกระดาน ใช้ hook และปุ่มจัดการเดียวกับปุ่มบนหัวหน้า (board-list.js) --}}
+        @if ($canCreate && $boards->isNotEmpty())
+            <button type="button" class="ws-board-new"
+                data-workspace-create
+                data-department-id="{{ $department->id }}"
+                data-department-name="{{ $department->department_name }}">
+                <span class="ws-board-new__icon" aria-hidden="true"><i class="bi bi-plus-lg"></i></span>
+                <span class="ws-board-new__title">สร้างกระดานใหม่</span>
+                <span class="ws-board-new__hint">เริ่มต้นไอเดียของคุณ</span>
+            </button>
+        @endif
     </div>
 
     @include('workspace.components.board-settings-modal')

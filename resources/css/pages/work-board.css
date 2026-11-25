@@ -1,5 +1,7 @@
 @import '../components/member-card.css';
 @import './work-board/department.css';
+@import './work-board/member-preview.css';
+@import './work-board/directory.css';
 
 .work-board-page {
     --wb-blue: #2563eb;
@@ -47,61 +49,6 @@
 .wb-section-head { margin-bottom: 14px; }
 .wb-section-head h2 { margin: 0; font-size: 18px; font-weight: 750; }
 .wb-section-head p { margin: 3px 0 0; color: var(--wb-muted); font-size: 12px; }
-.wb-department-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.wb-department-card { display: flex; flex-direction: column; gap: 18px; padding: 18px 20px; border: 1px solid var(--wb-line); border-radius: 14px; background: var(--wb-surface); }
-.wb-department-card:hover { border-color: #c8d7ea; }
-.wb-department-card__head { display: flex; align-items: center; gap: 14px; }
-.wb-department-card__identity { min-width: 0; }
-.wb-department-card__identity h3 { overflow: hidden; margin: 0; font-size: 16px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.wb-department-card__identity span { display: block; margin-top: 3px; color: var(--wb-muted); font-size: 11px; }
-.wb-department-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; }
-.wb-department-card__members { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--wb-muted); font-size: 12px; }
-.wb-department-card__members strong { color: var(--wb-ink); font-size: 21px; font-weight: 800; line-height: 1; }
-.wb-department-empty { grid-column: 1 / -1; border: 1px solid var(--wb-line); border-radius: 14px; background: var(--wb-surface); }
-.wb-department-mark {
-    width: 52px;
-    height: 52px;
-    min-width: 52px;
-    min-height: 52px;
-    flex: 0 0 52px;
-
-    display: grid;
-    place-items: center;
-
-    padding: 0;
-    margin: 0;
-
-    border: 1px solid #cbd8ea;
-    border-radius: 12px;
-
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 52px;
-    text-align: center;
-}
-/* Account */
-.wb-dept-blue .wb-department-mark {
-    background: #eaf2ff;
-    border-color: #c7d8f5;
-    color: #315f9e;
-}
-
-/* IT */
-.wb-dept-cyan .wb-department-mark {
-    background: #e5f7fb;
-    border-color: #bfe3ec;
-    color: #18758a;
-}
-
-/* Marketing */
-.wb-dept-purple .wb-department-mark {
-    background: #f1eaff;
-    border-color: #dac9fa;
-    color: #7047b7;
-}
-.wb-detail-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; justify-self: end; min-height: 39px; padding: 8px 14px; border: 1px solid #cfdced; border-radius: 10px; color: var(--wb-blue); background: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.wb-detail-link:hover { border-color: #9dbaf0; background: #f5f9ff; }
-
 .wb-toolbar { display: flex; gap: 10px; margin-bottom: 18px; padding: 12px; border: 1px solid var(--wb-line); border-radius: 14px; background: #fff; box-shadow: 0 4px 18px rgba(31, 57, 92, .04); }
 .wb-toolbar select, .wb-search { min-height: 42px; border: 1px solid #d6e0ed; border-radius: 10px; background: #fff; color: #31415d; font: inherit; font-size: 12px; }
 .wb-toolbar select { min-width: 150px; padding: 0 34px 0 12px; }
@@ -171,7 +118,6 @@
     .wb-overview { display: grid; grid-template-columns: repeat(3, 1fr); overflow: visible; }
     .wb-kpi { min-width: 0; border-bottom: 1px solid var(--wb-line); }
     .wb-overview .wb-summary { grid-column: 1 / -1; overflow-x: auto; }
-    .wb-department-grid { grid-template-columns: 1fr; }
     .wb-toolbar { flex-wrap: wrap; }.wb-search { min-width: 100%; }.wb-toolbar select { flex: 1; }
 }
 
@@ -179,8 +125,5 @@
     .wb-page-head { align-items: flex-start; }.wb-page-head h1 { font-size: 27px; }
     .wb-overview { grid-template-columns: 1fr; }.wb-overview .wb-summary { grid-column: 1; }
     .wb-kpi { border-right: 0; }.wb-summary { min-width: 560px; }
-    .wb-department-card { padding: 16px; }
-    .wb-department-card__foot { flex-direction: column; align-items: flex-start; gap: 14px; }
-    .wb-department-card .wb-detail-link { width: 100%; }
     .wb-profile-card__person { min-width: 290px; }.wb-profile-card .wb-summary { min-width: 560px; }
 }

@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * กล่องสร้าง/แก้ไขกระดาน และคำสั่งที่ใช้ร่วมกันระหว่างหน้ารายการกับหน้าวาด
  *
@@ -126,15 +127,22 @@ export const createBoardModal = (root, {doc, fetchImpl, onSaved}) => {
     };
 
     modal.querySelectorAll('[data-workspace-modal-dismiss]').forEach((button) => {
-        button.addEventListener('click', close);
+        button.addEventListener('click', close, boardEventOptions(button));
     });
 
     // Escape ปิดกล่อง — ผูกที่ document เพราะโฟกัสอาจอยู่บน backdrop ที่ไม่รับ key
     doc.addEventListener('keydown', (event) => {
+        if (event.key === 'Tab' && !modal.hidden) {
+            const controls = Array.from(modal.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]'));
+            const first = controls[0], last = controls[controls.length - 1];
+            if (!modal.contains(doc.activeElement) || (event.shiftKey && doc.activeElement === first) || (!event.shiftKey && doc.activeElement === last)) {
+                event.preventDefault(); (event.shiftKey ? last : first)?.focus();
+            }
+        }
         if (event.key === 'Escape' && ! modal.hidden) {
             close();
         }
-    });
+    }, boardEventOptions(doc));
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -175,7 +183,7 @@ export const createBoardModal = (root, {doc, fetchImpl, onSaved}) => {
         } finally {
             submitButton.disabled = false;
         }
-    });
+    }, boardEventOptions(form));
 
     return {open, close};
 };

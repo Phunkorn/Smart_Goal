@@ -1,579 +1,114 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import {mountDom, click} from './helpers/dom.js';
+import {mountDom} from './helpers/dom.js';
+import {boardMarkup} from './helpers/workspace-board.js';
 import {initAutosave} from '../../resources/js/pages/workspace/autosave.js';
-import {createClient, VersionConflictError} from '../../resources/js/pages/workspace/client.js';
+import {VersionConflictError,createClient} from '../../resources/js/pages/workspace/client.js';
+import {clone,mergeDocuments,applyHistoryDelta,withoutConflicts} from '../../resources/js/pages/workspace/synchronization.js';
+import {createDraftStore} from '../../resources/js/pages/workspace/draft.js';
 
-/*
- * เส้นทางการชนเวอร์ชันแบบครบวงจร
- *
- * นี่คือสัญญาหลักที่ผู้ใช้เลือกไว้ตอนตัดสินใจไม่ทำเรียลไทม์ คนที่บันทึกทีหลัง
- * ต้อง "ถูกบอก" ไม่ใช่ "เขียนทับเงียบ ๆ" และต้องเป็นคนตัดสินใจเองว่าจะทิ้งงาน
- * ที่เพิ่งวาดหรือไม่
- *
- * กติกาที่เทสต์ชุดนี้ล็อกไว้
- * 1. ห้ามรวมงานของสองคนเข้าด้วยกันเอง
- * 2. ห้ามยิงบันทึกด้วยเวอร์ชันเก่าหลังจากรู้แล้วว่าชนกัน
- * 3. การกดยกเลิกต้องไม่ทำให้งานของคนอื่นถูกทับ
- */
-
-const DESIGN = {
-    saveStates: {
-        saved: {label: 'บันทึกแล้ว', icon: 'bi-cloud-check', tone: 'teal'},
-        dirty: {label: 'ยังไม่ได้บันทึก', icon: 'bi-cloud', tone: 'gray'},
-        saving: {label: 'กำลังบันทึก...', icon: 'bi-arrow-repeat', tone: 'blue'},
-        error: {label: 'บันทึกไม่สำเร็จ', icon: 'bi-exclamation-triangle', tone: 'amber'},
-        conflict: {label: 'มีฉบับใหม่กว่า', icon: 'bi-exclamation-octagon', tone: 'amber'},
-    },
-    conflictDialog: {
-        title: 'มีคนอื่นบันทึกกระดานนี้แล้ว',
-        confirm: 'โหลดฉบับล่าสุด',
-        cancel: 'ยังไม่โหลด',
-        warning: 'การโหลดฉบับล่าสุดจะทิ้งสิ่งที่คุณวาดหลังจากนั้น',
-        refreshDirty: 'กระดานนี้มีสิ่งที่ยังไม่ได้บันทึก',
-    },
+const element=(id='a',extra={})=>({id,type:'text',z:1,x:10,y:10,w:100,h:50,text:'old',fontSize:20,color:'#1f2937',...extra});
+const document=(...elements)=>({schema:1,elements});
+const initial=document(element());
+const server=()=>{
+    let data=clone(initial),version=1;const receipts=new Map();const calls=[];
+    return {calls,get:()=>({version,document:clone(data)}),client:{
+        async load(){calls.push('load');return {ok:true,version,document:clone(data)};},
+        async save(batch){calls.push(clone(batch));if(receipts.has(batch.requestId))return {ok:true,request_id:batch.requestId,...thisState()};if(batch.baseVersion!==version)throw new VersionConflictError({version,document:clone(data)});
+            const map=new Map(data.elements.map(e=>[e.id,e]));batch.operations.forEach(op=>op.type==='delete'?map.delete(op.id):map.set(op.id,op.element));data=document(...map.values());version++;receipts.set(batch.requestId,true);return {ok:true,request_id:batch.requestId,...thisState()};},
+    }};
+    function thisState(){return {version,document:clone(data)};}
 };
-
-const markup = () => `<!doctype html><html>
-<head><meta name="csrf-token" content="test-token"></head>
-<body>
-<div data-workspace-board>
-    <span class="wsb-save" data-workspace-save-state data-state="saved">
-        <i class="bi bi-cloud-check"></i>
-        <span data-workspace-save-label>บันทึกแล้ว</span>
-    </span>
-    <button type="button" data-workspace-refresh>รีเฟรช</button>
-</div>
-</body></html>`;
-
-const mount = ({canEdit = true, confirmDialog = true} = {}) => {
-    const dom = mountDom(markup());
-    const swalCalls = [];
-    const replaced = [];
-
-    const swal = {
-        fire: async (config) => {
-            swalCalls.push(config);
-
-            return {isConfirmed: confirmDialog};
-        },
-    };
-
-    return {
-        dom,
-        swalCalls,
-        replaced,
-        swal,
-        indicator: dom.document.querySelector('[data-workspace-save-state]'),
-        refreshButton: dom.document.querySelector('[data-workspace-refresh]'),
-        build: (client, extra = {}) => initAutosave({
-            root: dom.document.querySelector('[data-workspace-board]'),
-            doc: dom.document,
-            design: DESIGN,
-            capabilities: {canEdit},
-            initialVersion: 5,
-            client,
-            swal,
-            getDocument: () => ({schema: 1, elements: []}),
-            onReplaceDocument: (payloadDocument) => replaced.push(payloadDocument),
-            ...extra,
-        }),
-    };
+const mount=(transport,{readOnly=false,data=initial}={})=>{
+    const env=mountDom(boardMarkup());let local=clone(data);const timers=new Map();let serial=0;
+    const sync=initAutosave({root:env.document.querySelector('[data-workspace-board]'),doc:env.document,design:{saveStates:{saved:{label:'บันทึกแล้ว'},dirty:{label:'งานค้าง'}}},initialVersion:1,initialDocument:data,
+        capabilities:{canEdit:!readOnly},client:transport,getDocument:()=>local,onReplaceDocument:d=>{local=clone(d);},setTimeoutImpl:(fn,ms)=>{timers.set(++serial,{fn,ms});return serial;},clearTimeoutImpl:id=>timers.delete(id)});
+    return {...env,sync,timers,get:()=>local,edit:elements=>{local=document(...elements);sync.markDirty();},cleanup:()=>{sync.destroy();env.cleanup();}};
 };
-
-/** client ปลอมที่บันทึกคำขอทั้งหมดไว้ให้ตรวจ */
-const fakeClient = ({saveResult, loadResult} = {}) => {
-    const calls = {save: [], load: 0};
-
-    return {
-        calls,
-        async save(request) {
-            calls.save.push(request);
-
-            const result = typeof saveResult === 'function' ? saveResult(calls.save.length) : saveResult;
-
-            if (result instanceof Error) {
-                throw result;
-            }
-
-            return result || {version: request.baseVersion + 1, saved_at_label: '14:12'};
-        },
-        async load() {
-            calls.load += 1;
-
-            return loadResult || {version: 9, document: {schema: 1, elements: []}, saved_at_label: '14:20'};
-        },
-    };
-};
-
-const conflictError = () => new VersionConflictError({
-    version: 9,
-    saved_by: {name: 'สมชาย ใจดี'},
-    saved_at_label: '14:10',
-    document: {schema: 1, elements: [{id: 'server-1', type: 'pen', z: 1, points: [[0, 0]]}]},
+test('H2: same text conflict preserves local work, prevents unload, and never opens a blocking dialog',async()=>{
+    const remote=server(),a=mount(remote.client),b=mount(remote.client);
+    try{a.edit([element('a',{text:'A'})]);b.edit([element('a',{text:'B'})]);await a.sync.saveNow();await b.sync.saveNow();
+        assert.equal(remote.get().document.elements[0].text,'A');assert.equal(b.get().elements[0].text,'B');assert.equal(b.sync.isDirty(),true);assert.equal(b.sync.conflicts().length,1);
+        const leave=new b.window.Event('beforeunload',{cancelable:true});b.window.dispatchEvent(leave);assert.equal(leave.defaultPrevented,true);
+        await b.sync.refresh();assert.equal(b.get().elements[0].text,'B');b.sync.resolve('local');await b.sync.saveNow();assert.equal(remote.get().document.elements[0].text,'B');
+    }finally{a.cleanup();b.cleanup();}
+});
+for(const clients of [2,5,10])test(`${clients} clients merge distinct objects without dropping edits`,async()=>{
+    const remote=server(),envs=Array.from({length:clients},()=>mount(remote.client));
+    try{envs.forEach((env,i)=>env.edit([element(),element(`new-${i}`,{z:i+2,text:`user-${i}`})]));
+        for(let round=0;round<clients;round++){await Promise.all(envs.map(e=>e.sync.saveNow()));await Promise.all(envs.map(e=>e.sync.refresh()));}
+        assert.equal(remote.get().document.elements.length,clients+1);for(const env of envs){assert.equal(env.get().elements.length,clients+1);assert.equal(env.sync.conflicts().length,0);}
+    }finally{envs.forEach(e=>e.cleanup());}
+});
+test('different properties merge, geometric fields conflict as one group',()=>{
+    const base=initial,mine=document(element('a',{text:'mine'})),remote=document(element('a',{color:'#dc2626'}));
+    const merged=mergeDocuments(base,mine,remote);assert.equal(merged.conflicts.length,0);assert.equal(merged.document.elements[0].text,'mine');assert.equal(merged.document.elements[0].color,'#dc2626');
+    assert.equal(mergeDocuments(base,document(element('a',{x:30})),document(element('a',{w:150}))).conflicts[0].group,'geometry');
+});
+test('delete versus edit never resurrects the deleted ID on automatic save',async()=>{
+    const remote=server(),a=mount(remote.client),b=mount(remote.client);
+    try{a.edit([]);b.edit([element('a',{text:'recover me'})]);await a.sync.saveNow();await b.sync.saveNow();assert.equal(remote.get().document.elements.length,0);assert.equal(b.get().elements[0].text,'recover me');assert.equal(b.sync.conflicts().length,1);
+        b.sync.resolve('local');await b.sync.saveNow();assert.notEqual(remote.get().document.elements[0].id,'a');
+    }finally{a.cleanup();b.cleanup();}
+});
+test('H3: refresh waits for save; edits during flight survive acknowledgement',async()=>{
+    const remote=server();let release;const real=remote.client.save.bind(remote.client);
+    const env=mount({...remote.client,save:batch=>new Promise(resolve=>{release=async()=>resolve(await real(batch));})});
+    try{env.edit([element('a',{text:'first'})]);const pending=env.sync.saveNow();const refresh=env.sync.refresh();env.edit([element('a',{text:'second'})]);await release();await pending;await refresh;
+        assert.equal(env.get().elements[0].text,'second');assert.equal(env.sync.currentVersion(),2);assert.equal(env.sync.isDirty(),true);
+    }finally{env.cleanup();}
+});
+test('stale response and response after destroy cannot replace the current board',async()=>{
+    let resolve;const env=mount({save:async()=>{},load:()=>new Promise(r=>{resolve=r;})});
+    const pending=env.sync.refresh();env.sync.destroy();resolve({version:99,document:document(element('alien'))});await pending;assert.equal(env.get().elements[0].id,'a');env.cleanup();
+});
+test('read-only clients receive automatic updates and never send saves',async()=>{
+    const remote=server(),a=mount(remote.client),viewer=mount(remote.client,{readOnly:true});
+    try{a.edit([element('a',{text:'shared'})]);await a.sync.saveNow();await [...viewer.timers.values()][0].fn();await viewer.sync.refresh();assert.equal(viewer.get().elements[0].text,'shared');assert.equal(remote.calls.filter(c=>typeof c==='object').length,1);}finally{a.cleanup();viewer.cleanup();}
+});
+test('clean hidden tab does not save or schedule polling; visible tab synchronizes',async()=>{
+    const remote=server(),env=mount(remote.client);
+    try{Object.defineProperty(env.document,'hidden',{value:true,configurable:true});env.document.dispatchEvent(new env.window.Event('visibilitychange'));assert.equal(remote.calls.length,0);assert.equal(env.timers.size,0);
+        Object.defineProperty(env.document,'hidden',{value:false});env.document.dispatchEvent(new env.window.Event('visibilitychange'));await env.sync.refresh();assert.ok(remote.calls.includes('load'));}finally{env.cleanup();}
+});
+test('lost response retry uses the identical operation ID without double application',async()=>{
+    const remote=server();let lose=true;const actual=remote.client.save.bind(remote.client);const env=mount({...remote.client,save:async batch=>{const result=await actual(batch);if(lose){lose=false;throw new Error('network');}return result;}});
+    try{env.edit([element(),element('new')]);await env.sync.saveNow();assert.equal(env.sync.isDirty(),true);await env.sync.saveNow();assert.equal(remote.get().version,2);assert.equal(remote.calls[0].requestId,remote.calls[1].requestId);assert.equal(env.sync.isDirty(),false);}finally{env.cleanup();}
+});
+test('undo preserves remote creates and independent property changes',()=>{
+    const before=initial,after=document(element('a',{x:30}));const current=document(element('a',{x:30,color:'#ff0000'}),element('remote'));
+    const undone=applyHistoryDelta(current,after,before);assert.equal(undone.elements.length,2);assert.equal(undone.elements[0].x,10);assert.equal(undone.elements[0].color,'#ff0000');
+    assert.equal(applyHistoryDelta(document(),after,before).elements.length,0);
+});
+test('durable draft expires and is never restored by a different account or board',()=>{
+    const env=mountDom();try{const store=createDraftStore({storage:env.window.localStorage,accountId:1,boardId:7,now:()=>1});store.save({base:initial,local:initial,version:1,conflicts:[]});assert.equal(store.load().accountId,1);
+        assert.equal(createDraftStore({storage:env.window.localStorage,accountId:1,boardId:8}).load(),null);
+        assert.equal(createDraftStore({storage:env.window.localStorage,accountId:2,boardId:7}).load(),null);assert.equal(store.load(),null);
+        store.save({base:initial,local:initial,version:1});assert.equal(createDraftStore({storage:env.window.localStorage,accountId:1,boardId:7,now:()=>8*86400000}).load(),null);
+    }finally{env.cleanup();}
+});
+for(const status of [429,500,403,419])test(`HTTP ${status} classifies retry without clearing pending work`,async()=>{
+    const env=mountDom();try{const client=createClient({routes:{save:'/save'},doc:env.document,fetchImpl:async()=>({ok:false,status,json:async()=>({message:'failed'})})});await assert.rejects(client.save({document:initial,baseVersion:1}),error=>error.status===status && error.retryable===(status===429||status>=500));}finally{env.cleanup();}
+});
+test('HTTP 200 invalid JSON cannot masquerade as saved',async()=>{
+    const env=mountDom();try{const client=createClient({routes:{save:'/save'},doc:env.document,fetchImpl:async()=>({ok:true,status:200,json:async()=>{throw new Error('html');}})});await assert.rejects(client.save({document:initial,baseVersion:1}),/ข้อมูลตอบกลับ/);}finally{env.cleanup();}
+});
+test('timeout rejects a hanging transport and aborts it',async()=>{
+    const env=mountDom();let signal;try{const client=createClient({routes:{save:'/save'},doc:env.document,timeoutMs:5,fetchImpl:async(url,options)=>{signal=options.signal;return new Promise(()=>{});}});await assert.rejects(client.save({document:initial,baseVersion:1}),/ใช้เวลานาน/);assert.equal(signal.aborted,true);}finally{env.cleanup();}
 });
 
-/* ── การบันทึกตามปกติ ────────────────────────────────────────── */
-
-test('การบันทึกส่งเวอร์ชันที่หน้านี้โหลดมา และรับเวอร์ชันใหม่กลับไป', async () => {
-    const env = mount();
-    const client = fakeClient();
-
-    try {
-        const autosave = env.build(client);
-
-        await autosave.saveNow();
-
-        assert.equal(client.calls.save[0].baseVersion, 5);
-        assert.equal(autosave.currentVersion(), 6);
-
-        await autosave.saveNow();
-        assert.equal(client.calls.save[1].baseVersion, 6, 'ครั้งถัดไปต้องใช้เวอร์ชันใหม่');
-    } finally {
-        env.dom.cleanup();
-    }
+test('canonical defaults and numeric normalization do not create a self-conflict during typing',()=>{
+    const base=document(element('a',{text:'sent',lineAligns:{},x:1.234}));
+    const local=document(element('a',{text:'next',lineAligns:{},x:1.234}));
+    const remote=document(element('a',{text:'sent',x:1.23}));
+    const merged=mergeDocuments(base,local,remote);assert.equal(merged.conflicts.length,0);assert.equal(merged.document.elements[0].text,'next');
 });
 
-test('ตัวบอกสถานะสะท้อนสถานะปัจจุบันด้วยข้อความจากเซิร์ฟเวอร์', async () => {
-    const env = mount();
-
-    try {
-        const autosave = env.build(fakeClient());
-
-        assert.equal(env.indicator.dataset.state, 'saved');
-
-        await autosave.saveNow();
-
-        assert.equal(env.indicator.dataset.state, 'saved');
-        assert.equal(
-            env.indicator.querySelector('[data-workspace-save-label]').textContent,
-            'บันทึกแล้ว 14:12',
-            'ต้องต่อท้ายด้วยเวลาที่บันทึกจริงจากเซิร์ฟเวอร์'
-        );
-        assert.equal(env.indicator.querySelector('i').className, 'bi bi-cloud-check');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-/* ── การชนเวอร์ชัน ───────────────────────────────────────────── */
-
-test('การชนเวอร์ชันเปิดกล่องเตือนพร้อมบอกว่าใครบันทึกไว้เมื่อไร', async () => {
-    const env = mount();
-
-    try {
-        const autosave = env.build(fakeClient({saveResult: conflictError()}));
-
-        await autosave.saveNow();
-        await Promise.resolve();
-
-        assert.equal(env.swalCalls.length, 1);
-        assert.equal(env.swalCalls[0].title, DESIGN.conflictDialog.title);
-        assert.match(env.swalCalls[0].text, /สมชาย ใจดี/);
-        assert.match(env.swalCalls[0].text, /14:10/);
-        assert.match(env.swalCalls[0].text, /จะทิ้งสิ่งที่คุณวาด/, 'ต้องบอกผลลัพธ์ให้ชัด ไม่ใช่แค่แจ้งว่าเกิดอะไร');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-/*
- * กู้คืนได้ในคำขอเดียว เพราะเซิร์ฟเวอร์ส่งเนื้อหาฉบับล่าสุดมากับ 409 อยู่แล้ว
- * ไม่ต้องยิง GET ตามอีกรอบขณะที่ผู้ใช้กำลังรออยู่หน้ากล่อง
- */
-test('กดโหลดฉบับล่าสุดแทนเนื้อหาทันทีโดยไม่ยิงคำขอเพิ่ม', async () => {
-    const env = mount({confirmDialog: true});
-    const client = fakeClient({saveResult: conflictError()});
-
-    try {
-        const autosave = env.build(client);
-
-        await autosave.saveNow();
-        await Promise.resolve();
-        await Promise.resolve();
-
-        assert.equal(client.calls.load, 0, 'ต้องใช้เนื้อหาที่มากับ 409 ไม่ยิง GET ซ้ำ');
-        assert.equal(env.replaced.length, 1);
-        assert.equal(env.replaced[0].elements[0].id, 'server-1');
-        assert.equal(autosave.currentVersion(), 9, 'ต้องรับเวอร์ชันใหม่ก่อนเปิดบันทึกอีกครั้ง');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('หลังโหลดฉบับล่าสุดแล้ว การบันทึกครั้งถัดไปใช้เวอร์ชันใหม่', async () => {
-    const env = mount({confirmDialog: true});
-    let attempt = 0;
-    const client = fakeClient({
-        saveResult: () => {
-            attempt += 1;
-
-            return attempt === 1 ? conflictError() : {version: 10, saved_at_label: '14:30'};
-        },
-    });
-
-    try {
-        const autosave = env.build(client);
-
-        await autosave.saveNow();
-        await Promise.resolve();
-        await Promise.resolve();
-
-        await autosave.saveNow();
-
-        assert.equal(client.calls.save[1].baseVersion, 9, 'ห้ามยิงด้วยเวอร์ชันเก่าอีก');
-        assert.equal(env.indicator.dataset.state, 'saved');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-/*
- * กดยกเลิก = หยุดบันทึกอัตโนมัติค้างไว้ เครื่องมือยังใช้ได้เพื่อให้ผู้ใช้คัดลอก
- * งานของตัวเองไว้ก่อน แต่ต้องไม่มีทางเขียนทับงานของคนอื่น
- */
-test('กดยังไม่โหลดทำให้ค้างสถานะชน และไม่แทนเนื้อหา', async () => {
-    const env = mount({confirmDialog: false});
-    const client = fakeClient({saveResult: conflictError()});
-
-    try {
-        const autosave = env.build(client);
-
-        await autosave.saveNow();
-        await Promise.resolve();
-        await Promise.resolve();
-
-        assert.equal(env.replaced.length, 0, 'ห้ามแทนเนื้อหาโดยที่ผู้ใช้ไม่ได้สั่ง');
-        assert.equal(env.indicator.dataset.state, 'conflict');
-        assert.equal(autosave.currentVersion(), 5, 'ยังถือเวอร์ชันเดิมไว้');
-
-        // พยายามบันทึกซ้ำต้องไม่ยิงออกไปอีก
-        autosave.markDirty();
-        await autosave.saveNow();
-
-        assert.equal(client.calls.save.length, 1, 'ห้ามยิงบันทึกซ้ำหลังรู้ว่าชนกัน');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-/* ── ปุ่มรีเฟรช ──────────────────────────────────────────────── */
-
-test('ปุ่มรีเฟรชโหลดเนื้อหาใหม่เมื่อไม่มีอะไรค้าง', async () => {
-    const env = mount();
-    const client = fakeClient();
-
-    try {
-        env.build(client);
-
-        click(env.refreshButton);
-        await Promise.resolve();
-        await Promise.resolve();
-
-        assert.equal(client.calls.load, 1);
-        assert.equal(env.swalCalls.length, 0, 'ไม่มีของค้างก็ไม่ต้องถาม');
-        assert.equal(env.replaced.length, 1);
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('ปุ่มรีเฟรชถามก่อนเมื่อยังมีสิ่งที่ไม่ได้บันทึก', async () => {
-    const env = mount({confirmDialog: false});
-    const client = fakeClient();
-
-    try {
-        const autosave = env.build(client);
-
-        autosave.markDirty();
-        await autosave.refresh();
-
-        assert.equal(env.swalCalls.length, 1);
-        assert.match(env.swalCalls[0].text, /ยังไม่ได้บันทึก/);
-        assert.equal(client.calls.load, 0, 'กดยกเลิกต้องไม่โหลดทับ');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-/* ── ผู้ที่ดูอย่างเดียว ──────────────────────────────────────── */
-
-test('ผู้ที่ดูอย่างเดียวยังรีเฟรชได้ แต่ไม่มีตัวจัดตารางบันทึก', async () => {
-    const env = mount({canEdit: false});
-    const client = fakeClient();
-
-    try {
-        const autosave = env.build(client);
-
-        assert.equal(autosave.scheduler, null);
-
-        click(env.refreshButton);
-        await Promise.resolve();
-        await Promise.resolve();
-
-        assert.equal(client.calls.load, 1);
-        assert.equal(client.calls.save.length, 0);
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-/* ── ตัว client ──────────────────────────────────────────────── */
-
-test('การตอบ 409 ถูกแปลงเป็นข้อผิดพลาดที่แยกออกจาก error ทั่วไป', async () => {
-    const dom = mountDom(markup());
-
-    try {
-        const payload = {version: 9, message: 'ชนกัน'};
-        const client = createClient({
-            routes: {document: '/d', save: '/s'},
-            doc: dom.document,
-            fetchImpl: async () => ({ok: false, status: 409, json: async () => payload}),
-        });
-
-        await assert.rejects(
-            () => client.save({document: {}, baseVersion: 5}),
-            (error) => error.isVersionConflict === true && error.payload.version === 9
-        );
-    } finally {
-        dom.cleanup();
-    }
-});
-
-test('การบันทึกส่งเป็น JSON พร้อม _method และโทเคน CSRF', async () => {
-    const dom = mountDom(markup());
-    const requests = [];
-
-    try {
-        const client = createClient({
-            routes: {document: '/d', save: '/s'},
-            doc: dom.document,
-            fetchImpl: async (url, init) => {
-                requests.push({url, init});
-
-                return {ok: true, status: 200, json: async () => ({ok: true, version: 6})};
-            },
-        });
-
-        await client.save({document: {schema: 1, elements: []}, baseVersion: 5});
-
-        const {init} = requests[0];
-        const body = JSON.parse(init.body);
-
-        assert.equal(init.headers['X-CSRF-TOKEN'], 'test-token');
-        assert.equal(init.headers['Content-Type'], 'application/json');
-        assert.equal(body._method, 'PUT');
-        assert.equal(body.base_version, 5);
-    } finally {
-        dom.cleanup();
-    }
-});
-
-/*
- * เพดาน 64 KB ของ sendBeacon และ fetch แบบ keepalive จะตัดเนื้อหากระดานจริง
- * ทิ้งอย่างเงียบสนิท ตรวจจากไฟล์ต้นฉบับเพราะเป็นข้อห้ามเชิงออกแบบ ไม่ใช่
- * พฤติกรรมที่เรียกออกมาทดสอบได้
- */
-test('การบันทึกไม่ใช้ sendBeacon หรือ keepalive', () => {
-    ['autosave.js', 'client.js', 'save-state.js'].forEach((file) => {
-        const source = fs.readFileSync(`resources/js/pages/workspace/${file}`, 'utf8');
-        const code = source
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/(^|[^:])\/\/.*$/gm, '$1');
-
-        assert.doesNotMatch(code, /sendBeacon/, `${file} ต้องไม่ใช้ sendBeacon`);
-        assert.doesNotMatch(code, /keepalive/, `${file} ต้องไม่ใช้ keepalive`);
-    });
-});
-
-test('การเตือนก่อนออกจากหน้าใช้กลไกของเบราว์เซอร์ ไม่ใช่ confirm()', () => {
-    const source = fs.readFileSync('resources/js/pages/workspace/autosave.js', 'utf8');
-    const code = source
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:])\/\/.*$/gm, '$1');
-
-    assert.doesNotMatch(code, /(^|[^.\w])(alert|confirm|prompt)\s*\(/m);
-    assert.match(code, /beforeunload/);
-});
-
-/* ── ตามฉบับล่าสุดให้ทันเมื่อกลับมาที่หน้า ──────────────────────── */
-
-/*
- * ผู้ใช้คนเดียวที่เปิดกระดานไว้สองแท็บ หรือทิ้งแท็บไว้แล้วไปแก้ที่อื่น จะกลับมา
- * เจอหน้าที่ถือเวอร์ชันเก่า ก่อนแก้ การขีดเส้นแรกจะชนกับงานของตัวเองทันที
- */
-const noTimers = {setTimeoutImpl: () => 1, clearTimeoutImpl: () => {}};
-
-const setVisibility = (dom, state) => {
-    Object.defineProperty(dom.document, 'visibilityState', {configurable: true, get: () => state});
-    dom.document.dispatchEvent(new dom.window.Event('visibilitychange'));
-};
-
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-test('กลับมาที่แท็บโดยไม่มีงานค้าง โหลดฉบับที่ใหม่กว่าเงียบ ๆ แล้วบันทึกต่อจากเวอร์ชันนั้น', async () => {
-    const env = mount();
-    const client = fakeClient();
-
-    try {
-        const autosave = env.build(client, noTimers);
-
-        setVisibility(env.dom, 'visible');
-        await settle();
-
-        assert.equal(client.calls.load, 1);
-        assert.equal(env.replaced.length, 1, 'เนื้อหาต้องถูกแทนด้วยฉบับล่าสุด');
-        assert.equal(env.swalCalls.length, 0, 'ไม่มีงานให้ทิ้ง จึงไม่ต้องถามอะไร');
-        assert.equal(autosave.currentVersion(), 9);
-
-        await autosave.saveNow();
-        assert.equal(client.calls.save[0].baseVersion, 9, 'การบันทึกถัดไปต้องไม่ชนกับเวอร์ชันเก่า');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('กลับมาที่แท็บขณะมีงานค้าง ไม่แตะงานนั้น ปล่อยให้การชนเวอร์ชันถามผู้ใช้ตามเดิม', async () => {
-    const env = mount();
-    const client = fakeClient();
-
-    try {
-        const autosave = env.build(client, noTimers);
-
-        autosave.markDirty();
-        setVisibility(env.dom, 'visible');
-        await settle();
-
-        assert.equal(client.calls.load, 0);
-        assert.equal(env.replaced.length, 0, 'งานที่ยังไม่ได้บันทึกต้องไม่ถูกทิ้ง');
-        assert.equal(autosave.currentVersion(), 5);
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('ถ้าผู้ใช้เริ่มแก้ระหว่างรอคำตอบ ไม่เอาฉบับจากเซิร์ฟเวอร์มาทับ', async () => {
-    const env = mount();
-    let release;
-    const client = {
-        ...fakeClient(),
-        load: () => new Promise((resolve) => {
-            release = () => resolve({version: 9, document: {schema: 1, elements: []}});
-        }),
-    };
-
-    try {
-        const autosave = env.build(client, noTimers);
-        const pending = autosave.catchUp();
-
-        autosave.markDirty();
-        release();
-        await pending;
-
-        assert.equal(env.replaced.length, 0);
-        assert.equal(autosave.currentVersion(), 5);
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('เวอร์ชันบนเซิร์ฟเวอร์ยังเท่าเดิม ไม่แทนเนื้อหาและไม่ล้างประวัติ undo', async () => {
-    const env = mount();
-
-    try {
-        const autosave = env.build(fakeClient({loadResult: {version: 5, document: {schema: 1, elements: []}}}), noTimers);
-
-        await autosave.catchUp();
-
-        assert.equal(env.replaced.length, 0);
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('หน้าที่กู้คืนจาก back/forward cache ตามฉบับล่าสุดให้ทันเช่นกัน', async () => {
-    const env = mount();
-    const client = fakeClient();
-
-    try {
-        env.build(client, noTimers);
-
-        const event = new env.dom.window.Event('pageshow');
-        Object.defineProperty(event, 'persisted', {value: true});
-        env.dom.window.dispatchEvent(event);
-        await settle();
-
-        assert.equal(client.calls.load, 1);
-        assert.equal(env.replaced.length, 1);
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('ออฟไลน์ตอนกลับมาที่แท็บไม่รบกวนผู้ใช้', async () => {
-    const env = mount();
-    const client = {...fakeClient(), load: async () => { throw new Error('offline'); }};
-
-    try {
-        const autosave = env.build(client, noTimers);
-
-        await autosave.catchUp();
-
-        assert.equal(env.swalCalls.length, 0);
-        assert.equal(env.indicator.dataset.state, 'saved');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-/* ── ป้ายสถานะขึ้นเฉพาะตอนที่ผู้ใช้ต้องรู้ ──────────────────────── */
-
-test('บันทึกตามปกติไม่แสดงป้ายสถานะให้รก', async () => {
-    const env = mount();
-
-    try {
-        const autosave = env.build(fakeClient(), noTimers);
-
-        assert.equal(env.indicator.hidden, true, 'ตอนเปิดหน้า');
-
-        autosave.markDirty();
-        assert.equal(env.indicator.hidden, true, 'ระหว่างรอบันทึก');
-
-        await autosave.saveNow();
-        assert.equal(env.indicator.hidden, true, 'หลังบันทึกเสร็จ');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('บันทึกไม่สำเร็จ ป้ายโผล่ขึ้นมาบอกผู้ใช้', async () => {
-    const env = mount();
-
-    try {
-        const autosave = env.build(fakeClient({saveResult: new Error('offline')}), noTimers);
-
-        await autosave.saveNow();
-
-        assert.equal(env.indicator.hidden, false);
-        assert.equal(env.indicator.dataset.state, 'error');
-    } finally {
-        env.dom.cleanup();
-    }
-});
-
-test('มีคนบันทึกแทรก ป้ายโผล่ขึ้นมาค้างไว้จนกว่าจะรีเฟรช', async () => {
-    const env = mount({confirmDialog: false});
-
-    try {
-        const autosave = env.build(fakeClient({saveResult: conflictError()}), noTimers);
-
-        await autosave.saveNow();
-        await Promise.resolve();
-
-        assert.equal(env.indicator.hidden, false);
-        assert.equal(env.indicator.dataset.state, 'conflict');
-    } finally {
-        env.dom.cleanup();
-    }
+test('permanent validation failure retains draft and does not retry merely because polling succeeds',async()=>{
+    let calls=0;const env=mount({load:async()=>({version:1,unchanged:true}),save:async()=>{calls++;throw Object.assign(new Error('invalid document'),{retryable:false,status:422});}});
+    try{env.edit([element('a',{text:'pending'})]);await env.sync.saveNow();await env.sync.refresh();await env.sync.saveNow();
+        // Manual save is explicit; automatic refresh must not enqueue another request.
+        assert.equal(calls,2);assert.equal(env.sync.isDirty(),true);
+        assert.equal(env.document.querySelector('[data-workspace-save-state]').dataset.state,'blocked');
+    }finally{env.cleanup();}
 });

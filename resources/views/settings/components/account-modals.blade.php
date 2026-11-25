@@ -1,7 +1,9 @@
 <div class="settings-page account-settings" data-settings-page data-settings-url="{{ route('settings.index') }}">
     @include('settings.components.profile-modal', ['errors' => request()->routeIs('settings.index') ? $errors : new \Illuminate\Support\ViewErrorBag])
     @include('settings.components.password-modal', ['errors' => request()->routeIs('settings.index') ? $errors : new \Illuminate\Support\ViewErrorBag])
-    @include('settings.components.appearance-modal')
+    @if($errors->getBag('appearance')->any())
+        @include('settings.components.appearance-modal')
+    @endif
 
     {{--
         modal การเชื่อม Telegram — มีเฉพาะการ์ด Telegram (settings.components.telegram-card)

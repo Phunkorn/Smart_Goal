@@ -53,13 +53,13 @@ class WorkBoardTodayOperationsTest extends TestCase
         $this->log(['kind' => 'field', 'title' => 'ติดตั้งเครื่องพิมพ์', 'location' => 'สาขาบางนา']);
     }
 
-    public function test_the_department_head_sees_todays_routine_and_field_work_on_the_member_card(): void
+    public function test_the_department_head_sees_todays_routine_and_field_work_in_the_member_preview(): void
     {
         $response = $this->actingAs($this->head)->get(route('work-board.department', $this->department))->assertOk();
 
-        $response->assertSee('data-member-operations', false)
-            ->assertSee('งานประจำ 1/2')
-            ->assertSee('นอกสถานที่ · สาขาบางนา');
+        $response->assertDontSee('data-member-operations', false)
+            ->assertDontSee('งานประจำ 1/2')
+            ->assertDontSee('นอกสถานที่ · สาขาบางนา');
 
         $members = $response->viewData('members')->keyBy('id');
         // ปิดไปแล้ว 1 จาก 2 = กำลังทำ (กติกาเดียวกับภาพรวมทีมของรายงาน)
@@ -138,13 +138,13 @@ class WorkBoardTodayOperationsTest extends TestCase
         $this->assertNull($members[$this->member->id]->board_operations);
     }
 
-    public function test_admin_sees_the_same_status_on_the_admin_board(): void
+    public function test_admin_sees_operations_in_the_member_preview(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true, 'must_change_password' => false]);
 
         $this->actingAs($admin)->get(route('admin.work-board.department', $this->department))
             ->assertOk()
-            ->assertSee('งานประจำ 1/2');
+            ->assertDontSee('data-member-operations', false);
         $this->actingAs($admin)->get(route('admin.work-board.member.preview', [$this->department, $this->member]))
             ->assertOk()
             ->assertSee('ติดตั้งเครื่องพิมพ์');

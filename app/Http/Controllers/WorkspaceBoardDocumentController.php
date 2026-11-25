@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\RespondsWithTaskResult;
 use App\Models\WorkspaceBoard;
 use App\Services\WorkspaceBoardDocumentService;
 use App\Support\WorkspaceBoardPresenter;
+use App\Support\WorkspaceDesign;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -36,6 +37,12 @@ class WorkspaceBoardDocumentController extends Controller
     {
         Gate::authorize('view', $board);
 
+        $request->validate(['since' => ['nullable', 'integer', 'min:1']]);
+        if ($request->has('since')) {
+            return response()->json(['ok' => true, ...$this->documents->changesSince($board, $request->integer('since'))])
+                ->header('Cache-Control', 'no-store, private');
+        }
+
         $state = $this->documents->currentState($board);
 
         return response()->json([
@@ -60,7 +67,9 @@ class WorkspaceBoardDocumentController extends Controller
         // WorkspaceDocumentValidator ซึ่งรู้จักชนิดของชิ้นงานแต่ละแบบ
         $request->validate([
             'base_version' => ['required', 'integer', 'min:1'],
-            'document' => ['required', 'array'],
+            'document' => ['required_without:operations', 'array'],
+            'operations' => ['required_without:document', 'array', 'max:'.(WorkspaceDesign::MAX_ELEMENTS * 2)],
+            'request_id' => ['required_with:operations', 'uuid'],
         ]);
 
         try {
@@ -69,7 +78,9 @@ class WorkspaceBoardDocumentController extends Controller
                 Auth::user(),
                 $request->input('document'),
                 (int) $request->integer('base_version'),
-                $this->allowedAttachmentIds($board),
+                $request->has('operations') ? [] : $this->allowedAttachmentIds($board),
+                $request->input('request_id'),
+                $request->input('operations'),
             );
         } catch (WorkspaceVersionConflict $conflict) {
             // ส่งเนื้อหาฉบับล่าสุดกลับไปด้วยเลย หน้าจอจะได้กู้คืนได้ในคำขอเดียว

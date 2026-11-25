@@ -10,8 +10,35 @@
    KANBAN UI REFRESH
    ========================================================= */
 
+/*
+ * ภาชนะบอร์ด — ยกขึ้นจากพื้นหลังหน้าด้วยเส้นขอบบางและเงาสองชั้น (เงาติดขอบ + เงาฟุ้งนุ่ม)
+ * ผูกกับ data-view="table" เพราะ .notion-database ใช้ร่วมกับมุมมองตาราง/ปฏิทิน/ประชุม
+ * ที่ไม่ควรเปลี่ยนหน้าตาตามไปด้วย
+ */
+.my-tasks-page .notion-database[data-view="table"] {
+    border-color: #cfd9e7;
+    border-radius: 16px;
+    box-shadow:
+        0 1px 2px rgba(18, 32, 51, .05),
+        0 12px 32px rgba(30, 55, 90, .09);
+}
+
+/*
+ * ตัวแปรของชั้นพื้นผิวทั้งสาม: ภาชนะ (ขาว) → คอลัมน์ (ฟ้าเทาอ่อน) → การ์ด (ขาว)
+ * ความต่างของสีพื้นกับเงาเล็ก ๆ ทำให้เห็นเป็นชั้นโดยไม่ต้องใช้เงาหนา
+ * การ์ดที่ล็อกและตอนวางลากอ้างค่าชุดเดียวกัน จึงไม่มีเงาซ้ำสองที่
+ */
 .my-tasks-page .mytasks-kanban {
-    padding: 20px 24px 28px;
+    --kb-line: #d9e2ee;
+    --kb-column-bg: #f3f6fb;
+    --kb-card-shadow:
+        0 1px 2px rgba(18, 32, 51, .06),
+        0 3px 8px rgba(30, 55, 90, .06);
+    --kb-card-shadow-hover:
+        0 2px 4px rgba(18, 32, 51, .06),
+        0 10px 22px rgba(30, 55, 90, .13);
+    padding: 22px 24px 30px;
+    border-radius: 15px;
     background: #fff;
 }
 
@@ -49,44 +76,83 @@
 }
 
 .my-tasks-page .mytasks-kanban__column {
+    /* สีประจำสถานะ: เส้นบน จุดหน้าชื่อ และป้ายจำนวนอ่านจากตัวแปรเดียวกัน */
+    --kb-accent: #8492a6;
     min-height: 560px;
-    padding: 12px;
-    border: 1px solid #e3e9f1;
-    border-top: 3px solid #8492a6;
-    border-radius: 12px;
-    background: #f7f9fc;
+    padding: 14px 12px 12px;
+    border: 1px solid var(--kb-line);
+    border-top: 3px solid var(--kb-accent);
+    border-radius: 14px;
+    background: var(--kb-column-bg);
+    box-shadow:
+        0 1px 2px rgba(18, 32, 51, .05),
+        0 4px 12px rgba(30, 55, 90, .05);
 }
 
 .my-tasks-page .mytasks-kanban__column > header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 34px;
-    margin: 0 0 10px;
-    padding: 0 2px 8px;
-    color: #26364d;
-    font-size: 13px;
+    gap: 8px;
+    min-height: 38px;
+    margin: 0 0 12px;
+    padding: 0 2px 10px;
+    border-bottom: 1px solid #e2e9f2;
+    color: #16233b;
+    font-size: 14px;
     font-weight: 700;
+    letter-spacing: .005em;
+}
+
+.my-tasks-page .mytasks-kanban__column > header > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.my-tasks-page .mytasks-kanban__column > header > span > i {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    border-radius: 50%;
+    background: var(--kb-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--kb-accent) 18%, #fff);
+}
+
+/* ตัวเลขจำนวนงาน: ป้ายสีอ่อนของสถานะ อ่านเจอเร็วกว่าตัวเลขเปล่า ๆ */
+.my-tasks-page .mytasks-kanban__column > header > b {
+    display: inline-grid;
+    place-items: center;
+    min-width: 28px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--kb-accent) 14%, #fff);
+    color: color-mix(in srgb, var(--kb-accent) 72%, #0f172a);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 
 .my-tasks-page .mytasks-kanban__column.status-progress {
-    border-top-color: #2f73da;
+    --kb-accent: #2f73da;
 }
 
 .my-tasks-page .mytasks-kanban__column.status-review {
-    border-top-color: #8253dc;
+    --kb-accent: #8253dc;
 }
 
 .my-tasks-page .mytasks-kanban__column.status-done {
-    border-top-color: #309466;
+    --kb-accent: #309466;
 }
 
 .my-tasks-page .mytasks-kanban__column.status-paused {
-    border-top-color: #d97706;
+    --kb-accent: #d97706;
 }
 
 .my-tasks-page .mytasks-kanban__column.status-late {
-    border-top-color: #dc3d39;
+    --kb-accent: #dc3d39;
 }
 
 /* CARD */
@@ -94,28 +160,68 @@
 .my-tasks-page .mytasks-kanban__cards {
     display: grid;
     align-content: start;
-    gap: 10px;
+    gap: 12px;
     min-height: 470px;
+}
+
+/*
+ * คอลัมน์ที่ไม่มีการ์ด — โซนเส้นประนุ่ม ๆ แทนพื้นโล่ง
+ * ตัดสินจากการมีการ์ดอยู่จริงใน DOM ด้วย :has() จึงตามการย้ายการ์ดด้วยการลากโดยไม่ต้องมี JS
+ * ข้อความเป็นแค่คำใบ้ ไม่ใช่ข้อมูล และตัวคอนเทนเนอร์ยังเป็นปลายทางการวางเหมือนเดิม
+ */
+.my-tasks-page .mytasks-kanban__cards:not(:has([data-kanban-card])) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 260px;
+    padding: 20px 12px;
+    border: 1.5px dashed #c9d5e5;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .6);
+    color: #8a9ab0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.my-tasks-page .mytasks-kanban__cards:not(:has([data-kanban-card]))::before {
+    content: "\f42d"; /* bi-inbox */
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--kb-accent) 10%, #fff);
+    color: color-mix(in srgb, var(--kb-accent) 70%, #fff);
+    font-family: "bootstrap-icons";
+    font-size: 18px;
+    font-weight: 400;
+}
+
+.my-tasks-page .mytasks-kanban__cards:not(:has([data-kanban-card]))::after {
+    content: "ไม่มีงานในคอลัมน์นี้";
 }
 
 .my-tasks-page .mytasks-kanban__card {
     display: block;
-    padding: 14px;
-    border: 1px solid #dfe6ef;
-    border-left: 1px solid #dfe6ef;
-    border-radius: 10px;
+    padding: 16px 16px 14px;
+    border: 1px solid var(--kb-line);
+    border-left: 1px solid var(--kb-line);
+    border-radius: 12px;
     background: #fff;
-    box-shadow: 0 2px 6px rgba(15, 23, 42, .05);
+    box-shadow: var(--kb-card-shadow);
     transition:
-        transform .15s ease,
-        box-shadow .15s ease,
-        border-color .15s ease;
+        transform .18s ease,
+        box-shadow .18s ease,
+        border-color .18s ease;
 }
 
-.my-tasks-page .mytasks-kanban__card:hover {
-    transform: translateY(-1px);
-    border-color: #c9d6e7;
-    box-shadow: 0 5px 14px rgba(15, 23, 42, .08);
+.my-tasks-page .mytasks-kanban__card:hover,
+.my-tasks-page .mytasks-kanban__card:focus-within {
+    transform: translateY(-2px);
+    border-color: #b9cae0;
+    box-shadow: var(--kb-card-shadow-hover);
 }
 
 .my-tasks-page .mytasks-kanban__open {
@@ -137,18 +243,18 @@
 
 .my-tasks-page .mytasks-kanban__card-head strong {
     min-width: 0;
-    color: #172033;
-    font-size: 14px;
+    color: #101a2e;
+    font-size: 14.5px;
     font-weight: 700;
     line-height: 1.45;
 }
 
 .my-tasks-page .mytasks-kanban__project-name {
     display: block;
-    margin-top: 9px;
+    margin-top: 8px;
     overflow: hidden;
-    color: #64748b;
-    font-size: 11px;
+    color: #5b6b80;
+    font-size: 11.5px;
     line-height: var(--thai-line-height, 1.6);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -158,8 +264,8 @@
     flex: 0 0 auto;
     padding: 4px 7px;
     border-radius: 6px;
-    background: #fff3df;
-    color: #c26a05;
+    background: #fff4e0;
+    color: #b45f04;
     font-size: 10px;
     font-weight: 700;
     line-height: 1.2;
@@ -170,13 +276,19 @@
     align-items: center;
     gap: 6px;
     margin-top: 10px;
-    color: #53647c;
-    font-size: 11px;
+    color: #4a5b73;
+    font-size: 11.5px;
 }
 
+/* ล่าช้า: ป้ายแดงอ่อนขนาดพอดีตัว เด่นพอสังเกตเห็นแต่ไม่ฉูดฉาดทั้งแถว */
 .my-tasks-page .mytasks-kanban__due.is-late {
-    color: #dc2626;
-    font-weight: 600;
+    width: fit-content;
+    max-width: 100%;
+    padding: 3px 9px 3px 7px;
+    border-radius: 7px;
+    background: #fdecec;
+    color: #b42323;
+    font-weight: 650;
 }
 
 .my-tasks-page .mytasks-kanban__date-progress {
@@ -191,8 +303,8 @@
     font-weight: 600;
 }
 
-.my-tasks-page .mytasks-kanban__footer-badges { display: flex; align-items: center; gap: 8px; }
-.my-tasks-page .mytasks-kanban__comments { display: inline-flex; align-items: center; gap: 4px; color: #2563eb; font-size: 11px; }
+.my-tasks-page .mytasks-kanban__footer-badges { display: flex; align-items: center; gap: 6px; }
+.my-tasks-page .mytasks-kanban__comments { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; background: #eaf1ff; color: #1f5bd6; font-size: 11px; }
 .my-tasks-page .mytasks-kanban__comments b { font-weight: 700; }
 
 .my-tasks-page .mytasks-kanban__card footer {
@@ -200,9 +312,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-top: 13px;
-    padding-top: 11px;
-    border-top: 1px solid #eef2f6;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e6edf5;
 }
 
 .my-tasks-page .mytasks-kanban__assignee {
@@ -215,9 +327,9 @@
 .my-tasks-page .mytasks-kanban__avatar {
     display: grid;
     place-items: center;
-    width: 27px;
-    height: 27px;
-    flex: 0 0 27px;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
     overflow: hidden;
     border-radius: 50%;
     background: #2875db;
@@ -225,6 +337,8 @@
     font-size: 9px;
     line-height: var(--thai-line-height, 1.6);
     font-weight: 700;
+    /* วงขอบขาว + เส้นบาง แยกรูปออกจากพื้นการ์ดให้เห็นเป็นหน้าเดี่ยว ๆ */
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px #d5deeb;
 }
 
 /* รูปโปรไฟล์จริงต้องเต็มวงกลม ไม่ใช่ถูกบีบตามสัดส่วนเดิมของไฟล์ */
@@ -237,8 +351,8 @@
 .my-tasks-page .mytasks-kanban__assignee-name {
     overflow: hidden;
     max-width: 120px;
-    color: #40516a;
-    font-size: 11px;
+    color: #34455d;
+    font-size: 11.5px;
     line-height: var(--thai-line-height, 1.6);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -253,12 +367,25 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 6px;
+    padding: 4px 8px;
     border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: #64748b;
+    border-radius: 999px;
+    background: #f1f4f9;
+    color: #5b6b80;
     font-size: 11px;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.my-tasks-page .mytasks-kanban__attachment:hover {
+    background: #e4ebf5;
+    color: #1f3a63;
+}
+
+.my-tasks-page .mytasks-kanban__attachment:focus-visible,
+.my-tasks-page .mytasks-kanban__subtasks:focus-visible,
+.my-tasks-page .mytasks-kanban__open:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
 }
 /*
  * ชิปงานย่อยบนการ์ด — มุมมองนี้ไม่แสดงงานย่อยเป็นการ์ดของตัวเอง
@@ -268,9 +395,9 @@
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    padding: 4px 7px;
+    padding: 4px 8px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 999px;
     font-size: 11px;
     font-weight: 600;
     white-space: nowrap;
@@ -376,6 +503,85 @@
     outline: 3px solid rgba(37, 99, 235, .18);
     outline-offset: 2px;
 }
+
+
+/*
+ * แถวควบคุมเหนือบอร์ด — เก็บทุกคอมโพเนนต์เดิมและพฤติกรรมเดิม ปรับแค่ระยะ เส้นขอบ มุม และสถานะ hover/focus
+ * ผูกกับมุมมองบอร์ดด้วย :has() เพราะแถวนี้อยู่นอก .notion-database แต่ใช้ร่วมกับมุมมองอื่น
+ * (ตาราง/ปฏิทิน/ประชุม) ที่ไม่ควรเปลี่ยนตาม
+ */
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls {
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-viewbar {
+    border-color: #d4deea;
+    border-radius: 12px;
+    background: #e7edf5;
+    box-shadow: inset 0 1px 2px rgba(18, 32, 51, .06);
+}
+
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-viewbar button,
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-viewbar a {
+    border-radius: 9px;
+    transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-viewbar button[aria-selected="true"],
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-viewbar a.active {
+    background: #fff;
+    box-shadow:
+        0 1px 2px rgba(18, 32, 51, .1),
+        0 3px 8px rgba(30, 55, 90, .08);
+}
+
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-viewbar button:focus-visible,
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-viewbar a:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 1px;
+}
+
+/* ตัวกรองในแถว: เส้นขอบ เงาติดขอบ และ hover ชุดเดียวกัน */
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .mytasks-scope__menu > summary,
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-filter {
+    border-color: #d3deeb;
+    border-radius: 10px;
+    background-color: #fff;
+    box-shadow: 0 1px 2px rgba(18, 32, 51, .05);
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .mytasks-scope__menu > summary:hover,
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-filter:hover {
+    border-color: #a9c0e6;
+    background-color: #f8fbff;
+    box-shadow: 0 2px 6px rgba(30, 55, 90, .08);
+}
+
+/*
+ * ปุ่มรองของแถว (คลังโปรเจกต์ / สร้างโปรเจกต์) — เฉพาะจอกว้าง
+ * บนมือถือ views.css ทำให้ปุ่มสร้างเป็นปุ่มหลักสีน้ำเงินเต็มความกว้าง
+ * กฎพื้นขาวตรงนี้จึงต้องไม่ไหลไปทับ ไม่งั้นตัวหนังสือขาวจะจมบนพื้นขาว
+ */
+@media (min-width: 761px) {
+    .my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .mytasks-kanban__button--project {
+        border-color: #d3deeb;
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(18, 32, 51, .05);
+    }
+
+    .my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .mytasks-kanban__button--project:hover {
+        border-color: #a9c0e6;
+        background-color: #f8fbff;
+        box-shadow: 0 2px 6px rgba(30, 55, 90, .08);
+    }
+}
+
+.my-tasks-page:has(.notion-database[data-view="table"]) .mytasks-view-controls .notion-filter:focus-within {
+    border-color: #93b4fa;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
 /* Kanban toolbar: one horizontal control row on desktop. */
 .my-tasks-page .mytasks-kanban__toolbar { display:flex; align-items:center; gap:12px; min-height:52px; margin-bottom:16px; padding:0; }
 .my-tasks-page .mytasks-kanban__project-picker { display:inline-flex; align-items:center; gap:8px; margin:0; color:#42516a; font-size:12px; font-weight:650; white-space:nowrap; }
@@ -479,6 +685,10 @@
     .my-tasks-page .mytasks-kanban__cards {
         gap: 8px;
         min-height: 0;
+    }
+
+    .my-tasks-page .mytasks-kanban__cards:not(:has([data-kanban-card])) {
+        min-height: 150px;
     }
 
     .my-tasks-page .mytasks-kanban__card {
@@ -602,15 +812,15 @@
 .my-tasks-page .mytasks-kanban__priority {
     position: absolute;
     top: -11px;
-    right: -8px;
+    right: 12px;
     z-index: 5;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 5px 9px;
-    border: 1px solid rgba(194, 106, 5, .18);
-    border-radius: 7px;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, .10);
+    padding: 4px 9px;
+    border: 1px solid rgba(180, 95, 4, .2);
+    border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, .08);
     white-space: nowrap;
 }
 
@@ -735,10 +945,10 @@
     align-items: center;
     gap: 6px;
     width: 100%;
-    margin-top: 10px;
-    padding: 7px 10px;
+    margin-top: 12px;
+    padding: 8px 12px;
     border: 1px solid #c9dcfa;
-    border-radius: 7px;
+    border-radius: 9px;
     background: #eef4ff;
     color: #2259a8;
     font-family: inherit;
@@ -758,6 +968,11 @@
 .my-tasks-page button.mytasks-kanban__next:focus-visible {
     border-color: #2563eb;
     background: #dfeaff;
+}
+
+.my-tasks-page button.mytasks-kanban__next:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, .35);
+    outline-offset: 2px;
 }
 
 .my-tasks-page .mytasks-kanban__next::after {
@@ -797,9 +1012,10 @@
     background: #fcfdfe;
 }
 
-.my-tasks-page .mytasks-kanban__card.is-locked:hover {
+.my-tasks-page .mytasks-kanban__card.is-locked:hover,
+.my-tasks-page .mytasks-kanban__card.is-locked:focus-within {
     transform: none;
-    box-shadow: 0 2px 6px rgba(15, 23, 42, .05);
+    box-shadow: var(--kb-card-shadow);
 }
 
 .my-tasks-page .mytasks-kanban__card.is-dragging {
@@ -847,6 +1063,8 @@
 
 @media (prefers-reduced-motion: reduce) {
     .my-tasks-page .mytasks-kanban__card,
+    .my-tasks-page .mytasks-kanban__card:hover,
+    .my-tasks-page .mytasks-kanban__card:focus-within,
     .my-tasks-page .mytasks-kanban__card.is-dragging {
         transform: none;
         transition: none;

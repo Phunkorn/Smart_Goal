@@ -1,266 +1,306 @@
-/*
- * ต่อสายระหว่างตัวจัดตารางบันทึก เซิร์ฟเวอร์ ตัวบอกสถานะ และกล่องเตือน
- *
- * แยกจาก index.js เพราะเป็นเรื่องของ "วงจรชีวิตของการบันทึก" ล้วน ๆ ไม่เกี่ยวกับ
- * การวาด และเพราะเป็นส่วนที่ต้องทดสอบสถานการณ์การชนเวอร์ชันแยกจากการวาด
- *
- * กติกาที่ห้ามละเมิด
- * ---------------------------------------------------------------
- * 1. ห้ามรวมงานของสองคนเข้าด้วยกันเอง (auto-merge) เด็ดขาด
- * 2. ห้ามยิงบันทึกด้วยเวอร์ชันเก่าหลังจากที่รู้แล้วว่าชนกัน
- * 3. ผู้ใช้ต้องเป็นคนตัดสินใจว่าจะทิ้งงานที่เพิ่งวาดหรือไม่ ไม่ใช่โปรแกรม
- */
-
-import {createSaveScheduler} from './save-state.js';
-
-/**
- * สถานะที่ผู้ใช้ต้องเห็น
- *
- * การบันทึกอัตโนมัติที่เป็นปกติไม่ต้องบอกใคร ป้ายที่เปลี่ยนทุกครั้งที่ขีดเส้นเป็น
- * แค่เสียงรบกวน (เจ้าของระบบขอให้เอาออก) จึงแสดงเฉพาะตอนที่ผู้ใช้ต้องรู้หรือ
- * ต้องทำอะไรต่อ คือบันทึกไม่สำเร็จ และมีคนอื่นบันทึกแทรก ส่วนงานค้างตอนปิดหน้า
- * ยังมีกล่องเตือนของเบราว์เซอร์ (beforeunload) คุ้มครองอยู่
- */
-const VISIBLE_SAVE_STATES = ['error', 'conflict'];
-
-export const initAutosave = ({
-    root,
-    doc = root?.ownerDocument || globalThis.document,
-    client,
-    design,
-    capabilities = {},
-    initialVersion = 1,
-    getDocument,
-    onReplaceDocument,
-    swal = globalThis.Swal,
-    now,
-    setTimeoutImpl,
-    clearTimeoutImpl,
-}) => {
-    const indicator = root?.querySelector('[data-workspace-save-state]');
-    const refreshButton = root?.querySelector('[data-workspace-refresh]');
-    const labels = design?.saveStates || {};
-    const dialog = design?.conflictDialog || {};
-
-    let version = initialVersion;
-    let savedAtLabel = null;
-
-    const paint = (state, detail = {}) => {
-        if (detail.saved_at_label) {
-            savedAtLabel = detail.saved_at_label;
-        }
-
-        if (! indicator) {
-            return;
-        }
-
-        const meta = labels[state] || {label: state, icon: 'bi-cloud', tone: 'gray'};
-        const suffix = state === 'saved' && savedAtLabel ? ` ${savedAtLabel}` : '';
-
-        indicator.dataset.state = state;
-        indicator.className = `wsb-save wsb-save--${meta.tone}`;
-        indicator.hidden = ! VISIBLE_SAVE_STATES.includes(state);
-
-        // เขียนด้วย textContent เท่านั้น ไอคอนเป็นโหนดแยกที่สลับคลาสเอา
-        const icon = indicator.querySelector('i');
-        const text = indicator.querySelector('[data-workspace-save-label]');
-
-        if (icon) {
-            icon.className = `bi ${meta.icon}`;
-        }
-
-        if (text) {
-            text.textContent = `${meta.label}${suffix}`;
-        }
-    };
-
-    // handleConflict ถูกประกาศหลังจากนี้ จึงถือไว้ในตัวแปรที่เติมค่าทีหลัง
-    // แทนการอ้างชื่อฟังก์ชันตรง ๆ ซึ่งจะติด temporal dead zone
-    let onConflict = null;
-
-    const scheduler = createSaveScheduler({
-        now,
-        setTimeoutImpl,
-        clearTimeoutImpl,
-        onState: (state, detail) => {
-            paint(state, detail);
-
-            // การชนเวอร์ชันต้องถามผู้ใช้ทันทีที่เกิด ไม่ใช่รอให้เขากดบันทึกเอง
-            // เพราะการบันทึกอัตโนมัติหยุดไปแล้วและเขาอาจวาดต่อไปอีกนานโดยไม่รู้ตัว
-            if (state === 'conflict') {
-                onConflict?.(detail?.error?.payload || {});
-            }
-        },
-        save: async () => {
-            const payload = await client.save({document: getDocument(), baseVersion: version});
-
-            version = payload.version ?? version + 1;
-
-            return payload;
-        },
-    });
-
-    /**
-     * แทนเนื้อหาบนหน้าจอด้วยฉบับล่าสุดจากเซิร์ฟเวอร์
-     *
-     * ต้องรับเวอร์ชันใหม่ก่อนแล้วค่อยเปิดการบันทึกอีกครั้ง มิฉะนั้นการบันทึก
-     * ครั้งถัดไปจะยังถือเวอร์ชันเก่าและชนซ้ำทันที
-     */
-    const adopt = (payload) => {
-        version = payload.version ?? version;
-        savedAtLabel = payload.saved_at_label ?? savedAtLabel;
-        onReplaceDocument?.(payload.document);
-        scheduler.resume();
-    };
-
-    const handleConflict = async (payload) => {
-        const savedBy = payload?.saved_by?.name;
-        const savedAt = payload?.saved_at_label;
-        const detail = [savedBy, savedAt].filter(Boolean).join(' เมื่อ ');
-
-        const result = await swal?.fire({
-            icon: 'warning',
-            title: dialog.title,
-            text: detail ? `${detail}\n${dialog.warning}` : dialog.warning,
-            showCancelButton: true,
-            confirmButtonText: dialog.confirm,
-            cancelButtonText: dialog.cancel,
-        });
-
-        if (result?.isConfirmed) {
-            // ใช้เนื้อหาที่มากับ 409 เลย ไม่ต้องยิง GET ตามอีกรอบขณะที่ผู้ใช้รออยู่
-            adopt(payload);
-
-            return;
-        }
-
-        // ไม่โหลดตอนนี้ = หยุดบันทึกอัตโนมัติค้างไว้ เครื่องมือยังใช้ได้เพื่อให้
-        // ผู้ใช้คัดลอกงานของตัวเองไว้ก่อน แต่จะไม่มีทางเขียนทับงานของคนอื่น
-        paint('conflict');
-    };
-
-    onConflict = handleConflict;
-
-    const refresh = async ({confirmDirty = true} = {}) => {
-        if (confirmDirty && scheduler.isDirty()) {
-            const result = await swal?.fire({
-                icon: 'warning',
-                title: dialog.title,
-                text: dialog.refreshDirty,
-                showCancelButton: true,
-                confirmButtonText: dialog.confirm,
-                cancelButtonText: dialog.cancel,
-            });
-
-            if (! result?.isConfirmed) {
-                return;
-            }
-        }
-
-        try {
-            adopt(await client.load());
-        } catch (error) {
-            await swal?.fire({icon: 'error', title: 'โหลดกระดานไม่สำเร็จ', text: error.message});
-        }
-    };
-
-    refreshButton?.addEventListener('click', () => refresh());
-
-    // ผู้ที่ดูอย่างเดียวไม่มีอะไรให้บันทึก ผูกเฉพาะปุ่มรีเฟรชก็พอ
-    if (capabilities.canEdit !== true) {
-        paint('saved');
-
-        return {refresh, scheduler: null, currentVersion: () => version};
+import { createSaveScheduler } from "./save-state.js";
+import { applyDelta, clone, equal, mergeDocuments, operationsBetween, withoutConflicts } from "./synchronization.js";
+import { createDraftStore } from "./draft.js";
+import { uniqueRequestId } from "./scene.js";
+const initAutosave = ({
+  root,
+  doc = root?.ownerDocument,
+  client,
+  design = {},
+  capabilities = {},
+  initialVersion = 1,
+  initialDocument,
+  getDocument,
+  onReplaceDocument,
+  isInteracting = () => false,
+  isReceivingBlocked = isInteracting,
+  accountId,
+  boardId,
+  now = () => Date.now(),
+  setTimeoutImpl = setTimeout,
+  clearTimeoutImpl = clearTimeout
+} = {}) => {
+  const win = doc.defaultView;
+  let server = clone(initialDocument || getDocument()), version = initialVersion;
+  let conflicts = [], flight = null, pollFlight = null, stopped = false, pollTimer = null, backoff = 3e3, lastActivity = now(), pendingBatch = null, deferred = null;
+  let persistenceError = false;
+  let terminalError = null;
+  let storage;
+  try {
+    storage = win.localStorage;
+  } catch {
+    persistenceError = true;
+  }
+  const drafts = createDraftStore({ storage, accountId, boardId, now, onError: () => {
+    persistenceError = true;
+  } });
+  const indicator = root.querySelector("[data-workspace-save-state]");
+  const recovery = root.querySelector("[data-workspace-recovery]");
+  const listeners = [];
+  const listen = (target, event, handler) => {
+    target?.addEventListener(event, handler);
+    listeners.push(() => target?.removeEventListener(event, handler));
+  };
+  const dirty = () => conflicts.length > 0 || operationsBetween(server, getDocument()).length > 0;
+  const persist = () => {
+    if (dirty() || pendingBatch) drafts.save({ base: server, local: getDocument(), version, conflicts, pendingBatch });
+    else drafts.clear();
+  };
+  const paint = (state) => {
+    if (stopped) return;
+    const actual = win.navigator.onLine === false ? "offline" : terminalError ? "blocked" : conflicts.length ? "conflict" : state;
+    const meta = design.saveStates?.[actual] || { label: actual, icon: "bi-cloud", tone: "gray" };
+    if (indicator) {
+      indicator.hidden = false;
+      indicator.dataset.state = actual;
+      indicator.className = `wsb-save wsb-save--${meta.tone}`;
+      const icon = indicator.querySelector("i"), label = indicator.querySelector("[data-workspace-save-label]");
+      if (icon) icon.className = `bi ${meta.icon}`;
+      if (label) label.textContent = meta.label;
     }
-
-    paint('saved');
-
-    /**
-     * ตามฉบับล่าสุดให้ทันเมื่อกลับมาที่หน้านี้ โดยไม่ถามอะไร
-     *
-     * ผู้ใช้คนเดียวที่เปิดกระดานไว้สองแท็บ หรือทิ้งแท็บไว้แล้วไปแก้ที่อื่น จะกลับ
-     * มาเจอหน้าที่ถือเวอร์ชันเก่า การแก้ครั้งแรกจะชนกับงานของตัวเองทันที การโหลด
-     * ฉบับล่าสุดตอนกลับมาปิดช่องนี้ได้ก่อนเกิด
-     *
-     * ทำเฉพาะตอนที่ไม่มีงานค้างเท่านั้น (ตรวจทั้งก่อนและหลังรอคำตอบ) เพราะไม่มี
-     * อะไรให้ทิ้ง กติกาข้อ 3 ด้านบนจึงไม่ถูกละเมิด ถ้ามีงานค้าง ปล่อยให้กลไกชน
-     * เวอร์ชันเดิมถามผู้ใช้ตามปกติ
-     */
-    let catchingUp = false;
-
-    const catchUp = async () => {
-        if (catchingUp || scheduler.state() !== 'saved') {
-            return;
-        }
-
-        catchingUp = true;
-
-        try {
-            const payload = await client.load();
-
-            if (Number(payload?.version) > version && scheduler.state() === 'saved') {
-                adopt(payload);
+    if (recovery) {
+      recovery.hidden = !conflicts.length && !persistenceError && !terminalError;
+      const message = recovery.querySelector("[data-workspace-recovery-message]");
+      if (message) message.textContent = persistenceError ? "เก็บฉบับสำรองในเครื่องไม่ได้ โปรดดาวน์โหลดงานค้างก่อนออก" : `มี ${conflicts.length} จุดที่แก้ไขพร้อมกัน งานของคุณยังอยู่ในเครื่อง`;
+      if (terminalError && message) message.textContent = terminalError;
+      recovery.querySelectorAll("[data-workspace-resolve]").forEach((button) => {
+        button.disabled = !conflicts.length;
+      });
+    }
+  };
+  const merge = (payload, base = server) => {
+    if (stopped || !Number.isSafeInteger(payload?.version) || payload.version < version) return;
+    if (payload.unchanged) return;
+    const remote = payload.document || (payload.delta ? applyDelta(server, payload.delta) : null);
+    if (!remote) return;
+    const result = mergeDocuments(base, getDocument(), remote);
+    const previous = conflicts;
+    server = clone(remote);
+    version = payload.version;
+    const unique = new Map([...previous, ...result.conflicts].map((c) => [`${c.id}:${c.group}`, c]));
+    conflicts = [...unique.values()].filter((c) => !equal(withoutConflicts(result.document, server, [c]), result.document));
+    onReplaceDocument?.(result.document, { remote: true, previous: base, server: remote });
+    persist();
+    paint(dirty() ? "dirty" : "saved");
+  };
+  const save = async () => {
+    if (stopped || capabilities.canEdit !== true || isInteracting()) return;
+    if (win.navigator.onLine === false) throw Object.assign(new Error("ออฟไลน์"), { retryable: true });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const safe = withoutConflicts(clone(getDocument()), server, conflicts);
+      const operations = operationsBetween(server, safe);
+      if (!operations.length && !pendingBatch) {
+        paint(dirty() ? "conflict" : "saved");
+        return;
+      }
+      if (!pendingBatch) pendingBatch = { baseVersion: version, operations, document: safe, created: operations.filter((op) => op.type === "put" && !server.elements.some((e) => e.id === op.id)).map((op) => op.id), requestId: uniqueRequestId() };
+      const batch = pendingBatch;
+      persist();
+      try {
+        flight = client.save(batch);
+        const payload = await flight;
+        flight = null;
+        if (stopped) return;
+        pendingBatch = null;
+        merge({ ...payload, document: payload.document || batch.document }, batch.document);
+        if (dirty() && operationsBetween(server, withoutConflicts(getDocument(), server, conflicts)).length) scheduler.markDirty();
+        return;
+      } catch (error) {
+        flight = null;
+        if (stopped) return;
+        if (error.isVersionConflict) {
+          pendingBatch = null;
+          merge(error.payload);
+          if (batch.uncertain) {
+            for (const id of batch.created || []) {
+              if (!server.elements.some((e) => e.id === id)) {
+                conflicts.push({ id, group: "object", local: getDocument().elements.find((e) => e.id === id), remote: null });
+              }
             }
-        } catch {
-            // ออฟไลน์ชั่วคราวไม่ใช่เรื่องที่ต้องรบกวนผู้ใช้ การบันทึกครั้งถัดไปจะบอกเอง
-        } finally {
-            catchingUp = false;
+          }
+          persist();
+          continue;
         }
-    };
-
-    // สลับแท็บออกไปคือจังหวะที่คนมักปิดหน้าต่อ ต้องรีบบันทึกให้ทัน
-    // และตอนกลับมาคือจังหวะที่คนอื่น (หรือแท็บอื่น) อาจบันทึกแทรกไปแล้ว
-    doc.addEventListener('visibilitychange', () => {
-        if (doc.visibilityState === 'hidden') {
-            scheduler.flushNow();
-
-            return;
+        if (error.retryable === false) pendingBatch = null;
+        else batch.uncertain = true;
+        persist();
+        throw error;
+      }
+    }
+    throw Object.assign(new Error("กำลังซิงค์การแก้ไขพร้อมกัน"), { retryable: true });
+  };
+  const scheduler = createSaveScheduler({ save, now, setTimeoutImpl, clearTimeoutImpl, onState: (state, detail) => {
+    if (stopped) return;
+    if (detail?.error?.retryable === false) terminalError = detail.error.message;
+    persist();
+    paint(state === "error" && !terminalError ? "reconnecting" : state);
+  } });
+  const markDirty = () => {
+    if (capabilities.canEdit !== true) return;
+    lastActivity = now();
+    persist();
+    if (stopped) return;
+    terminalError = null;
+    if (dirty()) scheduler.markDirty();
+  };
+  const schedulePoll = (delay) => {
+    clearTimeoutImpl(pollTimer);
+    if (stopped || doc.hidden || win.navigator.onLine === false) return;
+    pollTimer = setTimeoutImpl(() => {
+      pollTimer = null;
+      refresh();
+    }, delay);
+    pollTimer?.unref?.();
+  };
+  const refresh = async () => {
+    if (stopped) return;
+    if (flight) {
+      try {
+        await flight;
+      } catch {
+      }
+      if (stopped) return;
+    }
+    if (pollFlight) return pollFlight;
+    if (isReceivingBlocked()) {
+      schedulePoll(3e3);
+      return;
+    }
+    paint("syncing");
+    pollFlight = (async () => {
+      try {
+        const payload = await client.load({ since: version });
+        if (stopped) return;
+        if (isReceivingBlocked()) deferred = payload;
+        else merge(payload);
+        backoff = now() - lastActivity > 3e4 ? 1e4 : 3e3;
+        if (dirty() && capabilities.canEdit === true && !terminalError && scheduler.state() === "saved") scheduler.markDirty();
+        paint(dirty() ? "dirty" : "saved");
+      } catch (error) {
+        backoff = Math.min(6e4, backoff * 2);
+        if (error.retryable === false) terminalError = error.message;
+        paint("error");
+        if (error.retryable === false) {
+          stopped = true;
+          scheduler.stop();
+          clearTimeoutImpl(pollTimer);
         }
-
-        catchUp();
-    });
-
-    // หน้าที่กู้คืนจาก back/forward cache ถือสถานะเดิมทั้งหมดไว้ ต้องตามให้ทันเช่นกัน
-    doc.defaultView?.addEventListener('pageshow', (event) => {
-        if (event.persisted) {
-            catchUp();
-        }
-    });
-
-    /*
-     * เตือนก่อนออกจากหน้าเมื่อยังมีงานค้าง
-     *
-     * preventDefault() ทำให้เบราว์เซอร์แสดงกล่องของตัวเอง ไม่ใช่การเรียก
-     * window.confirm() จึงไม่ขัดกับกติกาใน CLAUDE.md ที่ห้ามใช้กล่องโต้ตอบ
-     * ของเบราว์เซอร์ในโค้ดของเรา
-     *
-     * ตั้งใจไม่ใช้ sendBeacon หรือ fetch แบบ keepalive เพราะทั้งคู่มีเพดาน
-     * ขนาด 64 KB ซึ่งเนื้อหากระดานจริงเกินได้ง่าย และการถูกตัดจะเงียบสนิท
-     */
-    doc.defaultView?.addEventListener('beforeunload', (event) => {
-        if (scheduler.isDirty()) {
-            event.preventDefault();
-            event.returnValue = '';
-        }
-    });
-
-    return {
-        refresh,
-        scheduler,
-        currentVersion: () => version,
-
-        /** เรียกทุกครั้งที่เนื้อหากระดานเปลี่ยน */
-        markDirty: () => scheduler.markDirty(),
-
-        beginGesture: () => scheduler.beginGesture(),
-        endGesture: () => scheduler.endGesture(),
-
-        /** บันทึกทันที (ปุ่มบันทึก) การชนเวอร์ชันถูกจัดการผ่าน onState */
-        saveNow: () => scheduler.flushNow(),
-
-        /** ใช้โดยเทสต์ เส้นทางจริงเรียกผ่าน visibilitychange และ pageshow */
-        catchUp,
-
-        handleConflict,
-    };
+      } finally {
+        pollFlight = null;
+        schedulePoll(backoff);
+      }
+    })();
+    return pollFlight;
+  };
+  listen(root.querySelector("[data-workspace-refresh]"), "click", () => refresh());
+  listen(root, "pointerdown", () => {
+    lastActivity = now();
+  });
+  listen(doc, "visibilitychange", () => {
+    clearTimeoutImpl(pollTimer);
+    persist();
+    if (doc.hidden) {
+      if (dirty()) scheduler.flushNow();
+    } else {
+      refresh();
+    }
+  });
+  listen(win, "online", () => {
+    backoff = 3e3;
+    refresh();
+    if (dirty()) scheduler.markDirty();
+  });
+  listen(win, "offline", () => {
+    clearTimeoutImpl(pollTimer);
+    persist();
+    paint("offline");
+  });
+  listen(win, "pageshow", (event) => {
+    if (event.persisted) refresh();
+  });
+  listen(win, "beforeunload", (event) => {
+    if (dirty()) {
+      persist();
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+  const destroy = () => {
+    persist();
+    stopped = true;
+    scheduler.stop();
+    clearTimeoutImpl(pollTimer);
+    client.destroy?.();
+    listeners.splice(0).forEach((remove) => remove());
+  };
+  listen(win, "pagehide", (event) => {
+    persist();
+    if (!event.persisted) destroy();
+    else clearTimeoutImpl(pollTimer);
+  });
+  const resolve = (choice) => {
+    if (choice === "remote") onReplaceDocument?.(withoutConflicts(getDocument(), server, conflicts), { remote: true });
+    else {
+      const serverIds = new Set(server.elements.map((e) => e.id));
+      const document = clone(getDocument());
+      document.elements.forEach((element) => {
+        if (!serverIds.has(element.id) && conflicts.some((c) => c.id === element.id && c.remote === null)) element.id = `e-${uniqueRequestId()}`;
+      });
+      onReplaceDocument?.(document, { remote: true });
+    }
+    conflicts = [];
+    pendingBatch = null;
+    scheduler.resume();
+    markDirty();
+    paint(dirty() ? "dirty" : "saved");
+  };
+  listen(recovery, "click", (event) => {
+    const button = event.target.closest("[data-workspace-resolve]");
+    if (button) resolve(button.dataset.workspaceResolve);
+    if (event.target.closest("[data-workspace-download]")) {
+      const url = win.URL.createObjectURL(new win.Blob([JSON.stringify({ version, base: server, local: getDocument(), conflicts })], { type: "application/json" }));
+      const link = doc.createElement("a");
+      link.href = url;
+      link.download = "idea-board-draft.json";
+      link.click();
+      win.URL.revokeObjectURL(url);
+    }
+  });
+  const previousDraft = drafts.load();
+  const restored = capabilities.canEdit === true ? previousDraft : null;
+  if (restored) {
+    const result = mergeDocuments(restored.base, restored.local, server);
+    conflicts = [...restored.conflicts || [], ...result.conflicts];
+    pendingBatch = restored.pendingBatch || null;
+    onReplaceDocument?.(result.document, { remote: true });
+    markDirty();
+    if (pendingBatch) scheduler.markDirty();
+  }
+  paint(dirty() ? "dirty" : "saved");
+  schedulePoll(3e3);
+  return {
+    scheduler,
+    refresh,
+    catchUp: refresh,
+    currentVersion: () => version,
+    markDirty,
+    saveNow: () => scheduler.flushNow(),
+    beginGesture: () => scheduler.beginGesture(),
+    endGesture: () => {
+      scheduler.endGesture();
+      if (deferred) {
+        const payload = deferred;
+        deferred = null;
+        merge(payload);
+        if (dirty()) scheduler.markDirty();
+      }
+    },
+    isDirty: dirty,
+    conflicts: () => clone(conflicts),
+    resolve,
+    destroy
+  };
+};
+export {
+  initAutosave
 };

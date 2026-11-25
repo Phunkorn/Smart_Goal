@@ -5,6 +5,46 @@ import {drag, pointerDown, pointerMove, pointerUp, stubStageRect, wheel} from '.
 import {boardMarkup, renderedNodes, rightClick} from './helpers/workspace-board.js';
 import {initBoardEditor} from '../../resources/js/pages/workspace/index.js';
 
+test('H1: Thai text enters the pending save before blur and composition is flushed safely', async () => {
+    const oldFetch = globalThis.fetch;
+    const requests = [];
+    globalThis.fetch = async (url, options) => {
+        const body = JSON.parse(options.body); requests.push(body);
+        return {ok:true,status:200,json:async()=>({ok:true,request_id:body.request_id,version:body.base_version+1,document:{schema:1,elements:body.operations.filter(op=>op.type==='put').map(op=>op.element)}})};
+    };
+    const env = mount({elements:[{id:'note',type:'sticky',z:1,x:50,y:50,w:180,h:180,text:'เดิม',fill:'#fde68a',fontSize:20}],routes:{save:'/isolated/save',document:'/isolated/document'}});
+    try {
+        env.stage.dispatchEvent(new env.dom.window.MouseEvent('dblclick',{clientX:100,clientY:100,bubbles:true}));
+        const node=env.node('note');node.textContent='ไอเดียภาษาไทย';node.dispatchEvent(new env.dom.window.Event('input',{bubbles:true}));
+        assert.equal(env.editor.currentDocument().elements[0].text,'ไอเดียภาษาไทย');
+        assert.equal(env.editor.autosave.isDirty(),true);
+        const leave=new env.dom.window.Event('beforeunload',{cancelable:true});env.dom.window.dispatchEvent(leave);assert.equal(leave.defaultPrevented,true);
+        node.dispatchEvent(new env.dom.window.Event('compositionstart',{bubbles:true}));
+        await env.editor.autosave.saveNow();assert.equal(requests.length,0);
+        node.dispatchEvent(new env.dom.window.Event('compositionend',{bubbles:true}));await env.editor.autosave.saveNow();
+        assert.equal(requests.length,1);assert.equal(requests[0].operations[0].element.text,'ไอเดียภาษาไทย');
+        assert.equal(env.editor.state.editingId,'note');assert.equal(env.node('note'),node);assert.equal(node.textContent,'ไอเดียภาษาไทย');
+    } finally {env.editor.destroy();env.dom.cleanup();globalThis.fetch=oldFetch;}
+});
+
+test('undo a drag that received a deferred remote create preserves the remote object', async () => {
+    const oldFetch=globalThis.fetch;let release;
+    const a={id:'a',type:'rect',z:1,x:50,y:50,w:100,h:100,stroke:'#1f2937',strokeWidth:4,fill:'none'};
+    const b={...a,id:'remote-b',z:2,x:400};
+    globalThis.fetch=()=>new Promise(resolve=>{release=()=>resolve({ok:true,status:200,json:async()=>({ok:true,version:2,document:{schema:1,elements:[a,b]}})});});
+    const env=mount({elements:[a],routes:{save:'/isolated/save',document:'/isolated/document'}});
+    try {
+        const incoming=env.editor.autosave.refresh();
+        pointerDown(env.stage,{x:80,y:80});pointerMove(env.stage,{x:130,y:100});
+        release();await incoming;
+        pointerUp(env.stage,{x:130,y:100});
+        assert.equal(env.editor.currentDocument().elements.length,2);
+        env.editor.runCommand('undo');
+        assert.equal(env.editor.currentDocument().elements.find(e=>e.id==='a').x,50);
+        assert.ok(env.editor.currentDocument().elements.some(e=>e.id==='remote-b'));
+    } finally {env.editor.destroy();env.dom.cleanup();globalThis.fetch=oldFetch;}
+});
+
 /*
  * เส้นทางจริงของหน้าวาด ตั้งแต่การกดเมาส์บนผืนผ้าใบไปจนถึงโหนดที่ปรากฏ
  *

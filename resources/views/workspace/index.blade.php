@@ -26,7 +26,7 @@
         <div>
             <h1 class="ws-page__title">กระดานไอเดีย</h1>
             <p class="ws-page__subtitle">
-                พื้นที่วาดเปล่าสำหรับระดมสมอง แต่ละแผนกมีกระดานของตัวเอง
+                พื้นที่ระดมความคิดและสร้างสรรค์งานร่วมกัน แต่ละแผนกมีกระดานของตัวเอง
                 แผนกอื่นเข้ามาดูได้แต่แก้ไม่ได้
             </p>
         </div>
@@ -50,22 +50,16 @@
         แสดงอยู่ในหน้าของแผนกนั้นเรียงตามเวลาแก้ไขล่าสุดอยู่แล้ว
     --}}
     <section class="ws-section" aria-labelledby="wsDepartmentHeading">
-        <h2 class="ws-section__title" id="wsDepartmentHeading">กระดานตามแผนก</h2>
+        <h2 class="ws-section__title" id="wsDepartmentHeading">พื้นที่ทำงาน</h2>
 
-        <div class="ws-grid">
+        <div class="ws-grid ws-grid--departments">
             @forelse ($summaries as $summary)
                 @php($department = $summary['department'])
-                <a class="ws-dept-card {{ $ownDepartment && $ownDepartment->id === $department->id ? 'ws-dept-card--own' : '' }}"
-                    href="{{ route('workspace.department', $department) }}">
-                    <span class="ws-dept-card__icon" aria-hidden="true"><i class="bi bi-easel"></i></span>
-                    <span class="ws-dept-card__body">
-                        <span class="ws-dept-card__name">{{ $department->department_name }}</span>
-                        <span class="ws-dept-card__count">{{ $summary['board_count'] }} กระดาน</span>
-                    </span>
-                    @if ($ownDepartment && $ownDepartment->id === $department->id)
-                        <span class="ws-badge ws-badge--own">แผนกของฉัน</span>
-                    @endif
-                </a>
+                @include('workspace.components.department-card', [
+                    'department' => $department,
+                    'boardCount' => $summary['board_count'],
+                    'isOwn' => $ownDepartment && $ownDepartment->id === $department->id,
+                ])
             @empty
                 <p class="ws-empty">ยังไม่มีแผนกในระบบ</p>
             @endforelse

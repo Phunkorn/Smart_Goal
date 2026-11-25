@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\RespondsWithTaskResult;
 use App\Models\WorkspaceBoard;
 use App\Models\WorkspaceBoardAttachment;
+use App\Services\WorkspaceAttachmentLifecycle;
 use App\Support\AuditTrail;
 use App\Support\Concerns\ValidatesAttachments;
 use App\Support\ProtectedMedia;
@@ -12,6 +13,7 @@ use App\Support\WorkspaceBoardPresenter;
 use App\Support\WorkspaceDesign;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -51,27 +53,36 @@ class WorkspaceBoardAttachmentController extends Controller
 
         // แล้วค่อยกรองให้แคบลงเหลือเฉพาะรูปที่กระดานรองรับ
         $this->assertImagesOnly($request);
-        $this->assertRoomForMoreImages($board, $request);
-
         $directory = 'workspace-board-attachments/'.$board->id;
-        $stored = $this->collectStoredAttachments($request, 'images', $directory);
+        $stored = [];
         $created = [];
 
         try {
-            foreach ($stored as $file) {
-                $dimensions = $this->dimensionsOf($file['path']);
+            DB::transaction(function () use ($board, $request, $directory, &$stored, &$created): void {
+                WorkspaceBoard::whereKey($board->id)->lockForUpdate()->firstOrFail();
+                $this->assertRoomForMoreImages($board, $request);
+                foreach ($request->file('images') as $upload) {
+                    $size = @getimagesize($upload->getRealPath());
+                    if ($size === false || $size[0] * $size[1] > 40000000 || mb_strlen($upload->getClientOriginalName()) > 255) {
+                        throw ValidationException::withMessages(['images' => 'รูปภาพไม่ถูกต้อง หรือมีความละเอียดเกิน 40 ล้านพิกเซล']);
+                    }
+                    $mime = $upload->getMimeType();
+                    $path = ProtectedMedia::storeAttachment($upload, $directory);
+                    $stored[] = ['path' => $path];
+                    $dimensions = $this->dimensionsOf($path);
 
-                $created[] = WorkspaceBoardAttachment::create([
-                    'workspace_board_id' => $board->id,
-                    'file_path' => $file['path'],
-                    'original_name' => $file['original_name'],
-                    'file_type' => $file['file_type'],
-                    'image_width' => $dimensions['width'],
-                    'image_height' => $dimensions['height'],
-                    'byte_size' => $dimensions['bytes'],
-                    'uploaded_by' => Auth::id(),
-                ]);
-            }
+                    $created[] = WorkspaceBoardAttachment::create([
+                        'workspace_board_id' => $board->id,
+                        'file_path' => $path,
+                        'original_name' => $upload->getClientOriginalName(),
+                        'file_type' => $mime,
+                        'image_width' => $dimensions['width'],
+                        'image_height' => $dimensions['height'],
+                        'byte_size' => $dimensions['bytes'],
+                        'uploaded_by' => Auth::id(),
+                    ]);
+                }
+            });
         } catch (Throwable $exception) {
             // ถ้าเขียนแถวไม่สำเร็จ ต้องไม่ทิ้งไฟล์กำพร้าไว้ใน storage
             // (รูปแบบเดียวกับ WorkLogAttachmentController::store())
@@ -97,18 +108,24 @@ class WorkspaceBoardAttachmentController extends Controller
         // กันการส่ง id ของไฟล์แนบที่อยู่คนละกระดานเข้ามา
         abort_unless((int) $attachment->workspace_board_id === (int) $board->id, 404);
 
-        // เข้าถังขยะก่อน แล้วค่อยลบชั่วคราว ไฟล์จริงยังอยู่บนดิสก์จนกว่าจะลบถาวร
-        // (KeepsFileUntilPurged ลบไฟล์เมื่อ forceDelete() เท่านั้น)
-        AuditTrail::trash($attachment, $request->user(), [
-            'attachment' => $attachment->attributesToArray(),
-            'board' => ['id' => $board->id, 'title' => $board->title],
-        ]);
+        return DB::transaction(function () use ($request, $board, $attachment) {
+            WorkspaceBoard::whereKey($board->id)->lockForUpdate()->firstOrFail();
+            $ids = app(WorkspaceAttachmentLifecycle::class)->references($board->document()->value('document') ?? []);
+            abort_if(in_array((int) $attachment->id, array_map('intval', $ids), true), 409, 'รูปภาพนี้ยังถูกใช้บนกระดาน');
 
-        $attachment->delete();
+            // เข้าถังขยะก่อน แล้วค่อยลบชั่วคราว ไฟล์จริงยังอยู่บนดิสก์จนกว่าจะลบถาวร
+            // (KeepsFileUntilPurged ลบไฟล์เมื่อ forceDelete() เท่านั้น)
+            AuditTrail::trash($attachment, $request->user(), [
+                'attachment' => $attachment->attributesToArray(),
+                'board' => ['id' => $board->id, 'title' => $board->title],
+            ]);
 
-        return $this->jsonOrBack($request, true, 'ลบรูปเรียบร้อย', 200, [
-            'attachment_id' => $attachment->id,
-        ]);
+            $attachment->delete();
+
+            return $this->jsonOrBack($request, true, 'ลบรูปเรียบร้อย', 200, [
+                'attachment_id' => $attachment->id,
+            ]);
+        });
     }
 
     /**
@@ -140,7 +157,7 @@ class WorkspaceBoardAttachmentController extends Controller
     private function assertRoomForMoreImages(WorkspaceBoard $board, Request $request): void
     {
         $incoming = count($request->file('images') ?? []);
-        $existing = $board->attachments()->count();
+        $existing = app(WorkspaceAttachmentLifecycle::class)->quotaCount($board);
 
         if ($existing + $incoming > WorkspaceDesign::MAX_IMAGES) {
             throw ValidationException::withMessages([

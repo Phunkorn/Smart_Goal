@@ -39,6 +39,9 @@ final class WorkspaceBoardPresenter
             return ['schema' => 1, 'elements' => []];
         }
 
+        if (! collect($elements)->contains('type', 'image')) {
+            return ['schema' => 1, 'elements' => array_values($elements)];
+        }
         $attachments = self::attachmentsById($board);
 
         $resolved = collect($elements)

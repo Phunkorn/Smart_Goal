@@ -7,7 +7,7 @@
     text-align: center;
 }
 .settings-page .settings-appearance__preview .sg-profile-cover { height: 200px; }
-.settings-page .settings-appearance__identity { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 44px 12px 14px; }
+.settings-page .settings-appearance__identity { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 50px 12px 14px; }
 .settings-page .settings-appearance__identity .sg-profile-portrait { position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); }
 .settings-page .settings-appearance__avatar { display: grid; place-items: center; width: var(--appearance-avatar-size); height: var(--appearance-avatar-size); overflow: hidden; border-radius: 50%; background: var(--surface-2); color: var(--accent-strong); font-size: 1.2rem; font-weight: 700; }
 .settings-page .settings-appearance__avatar > * { grid-area: 1 / 1; }
@@ -15,6 +15,19 @@
 .settings-page .settings-appearance__identity strong { max-width: 100%; overflow-wrap: anywhere; font-size: .9rem; }
 .settings-page .settings-appearance__identity small { max-width: 100%; overflow-wrap: anywhere; color: var(--text-muted); font-size: .7rem; }
 .settings-page .settings-appearance .form-check-label { font-size: .8rem; }
+.settings-page .settings-appearance__frame {
+    --appearance-avatar-size: 32px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--settings-card-radius);
+}
+.settings-page .settings-appearance__frame-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.settings-page .settings-appearance__frame-text strong { font-size: .8rem; }
+.settings-page .settings-appearance__frame .settings-appearance__avatar { font-size: .72rem; }
 
 @media (max-width: 767.98px) {
     .settings-page .settings-appearance__preview { max-width: 320px; margin-inline: auto; }

@@ -368,9 +368,15 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
     Route::patch('/settings', [SettingsController::class, 'update'])
         ->name('settings.update');
 
+    Route::get('/settings/appearance', [SettingsController::class, 'appearance'])
+        ->name('settings.appearance.show');
+
     Route::patch('/settings/appearance', [SettingsController::class, 'updateAppearance'])
         ->middleware('throttle:20,1')
         ->name('settings.appearance.update');
+
+    Route::get('/settings/appearance/frames', [SettingsController::class, 'appearanceFrames'])
+        ->name('settings.appearance.frames');
 
     Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
         ->middleware('throttle:6,1')
@@ -691,6 +697,7 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
         // อ่านเนื้อหาผืนผ้าใบ — ใช้สิทธิ์ view เพราะคนที่ดูอย่างเดียวก็ต้องเห็นภาพวาด
         Route::get('/boards/{board}/document', [WorkspaceBoardDocumentController::class, 'show'])
+            ->middleware('throttle:90,1,workspace-document-read:')
             ->name('boards.document');
 
         Route::middleware('role:admin,user')->group(function (): void {
@@ -700,9 +707,11 @@ Route::middleware(['auth', 'active', 'password.changed'])->group(function () {
 
             // บันทึกอัตโนมัติ — ใช้สิทธิ์ update ซึ่งเท่ากับ "วาดบนกระดานนี้ได้"
             Route::put('/boards/{board}/document', [WorkspaceBoardDocumentController::class, 'update'])
+                ->middleware('throttle:120,1,workspace-document-write:')
                 ->name('boards.document.save');
 
             Route::post('/boards/{board}/attachments', [WorkspaceBoardAttachmentController::class, 'store'])
+                ->middleware('throttle:20,1,workspace-images:')
                 ->name('boards.attachments.store');
             Route::delete('/boards/{board}/attachments/{attachment}', [WorkspaceBoardAttachmentController::class, 'destroy'])
                 ->name('boards.attachments.destroy');

@@ -340,7 +340,7 @@ class TrashRetention
         if ($model->profile_image) {
             Storage::disk('public')->delete($model->profile_image);
         }
-        ProtectedMedia::deleteAttachment($model->profile_cover);
+        ProfileCoverImage::delete((int) $model->getKey(), $model->profile_cover);
     }
 
     /**

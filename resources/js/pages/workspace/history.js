@@ -12,6 +12,7 @@ export const createHistory = (initial, {limit = 50} = {}) => ({
     entries: [initial],
     index: 0,
     limit,
+    changes: [],
 });
 
 export const canUndo = (history) => history.index > 0;
@@ -26,7 +27,7 @@ export const current = (history) => history.entries[history.index];
  * ทุกครั้งที่มีการแก้หลังจากย้อนกลับ ก้าวที่อยู่ข้างหน้าจะถูกตัดทิ้ง ซึ่งเป็น
  * พฤติกรรมมาตรฐานของ undo/redo ที่ผู้ใช้คุ้นเคยจากโปรแกรมอื่น
  */
-export const push = (history, state) => {
+export const push = (history, state, before = current(history)) => {
     // ไม่บันทึกซ้ำเมื่อสถานะเป็นตัวเดิม เช่นคลิกเปล่าบนพื้นที่ว่างแล้วปล่อย
     // ไม่อย่างนั้นผู้ใช้จะต้องกด undo หลายครั้งกว่าจะเห็นอะไรเปลี่ยน
     if (current(history) === state) {
@@ -40,7 +41,8 @@ export const push = (history, state) => {
         ? entries.slice(entries.length - history.limit)
         : entries;
 
-    return {...history, entries: trimmed, index: trimmed.length - 1};
+    const changes = [...(history.changes || []).slice(0, history.index), {before, after: state}].slice(-(history.limit - 1));
+    return {...history, entries: trimmed, changes, index: trimmed.length - 1};
 };
 
 export const undo = (history) =>

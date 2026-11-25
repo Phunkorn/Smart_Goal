@@ -36,6 +36,15 @@ final class WorkBoardDesign
 
     private const DEPARTMENT_TONES = ['blue', 'teal', 'purple', 'amber', 'cyan', 'rose'];
 
+    /** Presentation aliases only; unknown departments share the default directory artwork. */
+    private const DIRECTORY_THEMES = [
+        'it' => 'technology',
+        'information technology' => 'technology',
+        'เทคโนโลยีสารสนเทศ' => 'technology',
+        'marketing' => 'creative',
+        'การตลาด' => 'creative',
+    ];
+
     public static function statusKey(WorkOrder $job): string
     {
         if ((int) $job->job_status === 5) {
@@ -95,6 +104,11 @@ final class WorkBoardDesign
         $hash = (int) sprintf('%u', crc32(Str::lower($department->department_name)));
 
         return self::DEPARTMENT_TONES[$hash % count(self::DEPARTMENT_TONES)];
+    }
+
+    public static function departmentDirectoryTheme(Department $department): string
+    {
+        return self::DIRECTORY_THEMES[Str::lower(Str::squish($department->department_name))] ?? 'default';
     }
 
     public static function departmentCode(Department $department): string

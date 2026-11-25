@@ -50,17 +50,21 @@
     color: #334155;
 }
 
-/*
- * การ์ดแผนกเรียงสี่คอลัมน์เต็มความกว้าง
- *
- * ของเดิมเป็น auto-fill minmax(15rem, 1fr) บนจอกว้างจึงได้หกถึงเจ็ดคอลัมน์
- * การ์ดแต่ละใบเล็กจนชื่อแผนกกับจำนวนกระดานดูจมหายไปในหน้าที่ว่างทั้งหน้า
- * ตรึงไว้สี่คอลัมน์แล้วลดจำนวนลงตามความกว้างจริงใน responsive.css
- */
 .ws-grid {
     display: grid;
+    gap: 1.25rem;
+}
+
+/*
+ * การ์ดแผนกเรียงสี่คอลัมน์เต็มความกว้าง แล้วลดจำนวนลงตามความกว้างจริงใน
+ * responsive.css ไม่ให้การ์ดเล็กจนชื่อแผนกถูกตัดด้วย ellipsis
+ */
+.ws-grid--departments {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1.15rem;
+}
+
+.ws-grid--boards {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
 }
 
 .ws-empty {
@@ -68,107 +72,181 @@
     margin: 0;
     padding: 2.5rem 1rem;
     border: 1px dashed #cbd5e1;
-    border-radius: 0.85rem;
+    border-radius: var(--radius);
     text-align: center;
     font-size: 0.9rem;
     color: #94a3b8;
 }
 
-/* ── การ์ดแผนก ───────────────────────────────────────────────── */
+.ws-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin: -0.5rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
 
-.ws-dept-card {
+.ws-summary strong {
+    font-weight: 600;
+    color: var(--text);
+}
+
+/*
+ * พื้นผิวร่วมของการ์ดแผนกและการ์ดกระดาน — ขอบ มุมโค้ง เงา และจังหวะ transition
+ * ชุดเดียวกัน หน้าที่สองหน้าจึงขยับเหมือนกันเวลาเอาเมาส์ไปชี้
+ */
+.ws-dept-card,
+.ws-board-card {
+    --ws-card-radius: calc(var(--radius) + 4px);
+    --ws-card-ease: 0.22s ease;
     position: relative;
     display: flex;
-    align-items: center;
-    gap: 1.15rem;
-    min-height: 7.5rem;
-    padding: 1.6rem 1.5rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 1.05rem;
-    background: #ffffff;
-    text-decoration: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--ws-card-radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--ws-card-ease), box-shadow var(--ws-card-ease), transform var(--ws-card-ease);
 }
 
 .ws-dept-card:hover,
-.ws-dept-card:focus-visible {
-    border-color: #bfdbfe;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-    transform: translateY(-1px);
+.ws-board-card:hover,
+.ws-board-card:focus-within {
+    border-color: #b9c9ef;
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
 }
 
-.ws-dept-card--own {
-    border-color: #bfdbfe;
-    background: #f8fbff;
+.ws-dept-card:focus-visible,
+.ws-board-card__link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
-.ws-dept-card__icon {
-    display: grid;
-    place-items: center;
-    width: 3.4rem;
-    height: 3.4rem;
-    flex: 0 0 auto;
-    border-radius: 0.85rem;
-    background: #eff6ff;
-    color: #2563eb;
-    font-size: 1.5rem;
+/* ภาพประกอบ: พื้นฟ้าอ่อนเดียวกันทุกการ์ด ภาพขยายนิดเดียวตอนชี้ */
+.ws-dept-card__visual,
+.ws-board-card__visual {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 9;
+    background-color: #f3f6fd;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: background-size var(--ws-card-ease);
+}
+
+.ws-dept-card__visual {
+    background-image: url('../../../images/workspace/folder.svg');
+    background-size: 62% auto;
+}
+
+.ws-board-card__visual {
+    /* จุดเรียงเป็นตารางจาง ๆ ใต้ภาพ ให้ดูเป็นผืนผ้าใบ */
+    background-image: url('../../../images/workspace/board.svg'), radial-gradient(#d5dcec 1px, transparent 1px);
+    background-position: center, 0 0;
+    background-size: 64% auto, 14px 14px;
+    background-repeat: no-repeat, repeat;
+}
+
+.ws-dept-card:hover .ws-dept-card__visual {
+    background-size: 66% auto;
+}
+
+.ws-board-card:hover .ws-board-card__visual,
+.ws-board-card:focus-within .ws-board-card__visual {
+    background-size: 68% auto, 14px 14px;
+}
+
+/* ── การ์ดแผนก ───────────────────────────────────────────────── */
+
+.ws-dept-card {
+    text-decoration: none;
+    color: inherit;
+}
+
+.ws-dept-card__badge {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--accent-strong);
+    font-size: 0.72rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+}
+
+.ws-dept-card__foot {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.1rem 1.25rem 1.2rem;
 }
 
 .ws-dept-card__body {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.2rem;
 }
 
 .ws-dept-card__name {
     overflow: hidden;
     font-size: 1.05rem;
-    font-weight: 700;
-    color: #0f172a;
+    font-weight: 500;
+    color: var(--text);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .ws-dept-card__count {
-    font-size: 0.88rem;
-    color: #64748b;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.ws-dept-card__arrow,
+.ws-board-card__arrow {
+    flex: 0 0 auto;
+    font-size: 0.85rem;
+    color: #8a96b4;
+    transition: color var(--ws-card-ease), transform var(--ws-card-ease);
+}
+
+.ws-dept-card:hover .ws-dept-card__arrow,
+.ws-board-card:hover .ws-board-card__arrow,
+.ws-board-card:focus-within .ws-board-card__arrow {
+    color: var(--accent);
+    transform: translate(2px, -2px);
 }
 
 /* ── การ์ดกระดาน ─────────────────────────────────────────────── */
 
-.ws-grid--boards {
-    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-}
-
-.ws-board-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.85rem;
-    background: #ffffff;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.ws-board-card:hover,
-.ws-board-card:focus-within {
-    border-color: #bfdbfe;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-}
-
 .ws-board-card__link {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
-    gap: 0.6rem;
-    /* เว้นที่ด้านขวาให้ปุ่มจัดการ ไม่ให้ชื่อกระดานยาว ๆ วิ่งไปอยู่ใต้ปุ่ม */
-    padding: 1.1rem 4.5rem 1.1rem 1.1rem;
     text-decoration: none;
+    color: inherit;
+}
+
+.ws-board-card__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1.1rem 1.25rem 1rem;
 }
 
 .ws-board-card__title {
-    font-weight: 600;
-    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
     /* ชื่อกระดานเป็นข้อความไทยที่ไม่มีเว้นวรรคระหว่างคำ ต้องบังคับให้ตัดกลางคำได้
        ไม่งั้นชื่อยาวคำเดียวจะดันการ์ดจนล้นกริด */
     overflow-wrap: anywhere;
@@ -176,23 +254,84 @@
 
 .ws-board-card__meta {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
+    margin-top: auto;
     font-size: 0.8rem;
-    color: #64748b;
+    color: var(--text-muted);
 }
 
 .ws-board-card__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin: 0 1.25rem;
+    padding: 0.85rem 0 1.1rem;
+    border-top: 1px solid var(--border);
     font-size: 0.78rem;
-    color: #94a3b8;
+    color: var(--text-muted);
     overflow-wrap: anywhere;
 }
 
+/* ปุ่มจัดการลอยที่มุมบนขวาของภาพ ไม่กินที่ในเนื้อการ์ด */
 .ws-board-card__actions {
     position: absolute;
-    top: 0.7rem;
-    right: 0.7rem;
+    top: 0.6rem;
+    right: 0.6rem;
     display: flex;
     gap: 0.25rem;
+}
+
+.ws-board-card__actions .ws-icon-btn {
+    border-color: var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ── ทางลัดสร้างกระดานท้ายตาราง ──────────────────────────────── */
+
+.ws-board-new {
+    display: flex;
+    min-height: 16rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 1.5rem 1rem;
+    border: 1px dashed #c3cde3;
+    border-radius: calc(var(--radius) + 4px);
+    background: var(--surface-2);
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.22s ease, background-color 0.22s ease, transform 0.22s ease;
+}
+
+.ws-board-new:hover,
+.ws-board-new:focus-visible {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    transform: translateY(-2px);
+}
+
+.ws-board-new__icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    font-size: 1.1rem;
+}
+
+.ws-board-new__title {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.ws-board-new__hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
 }

@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * ไอคอนเครื่องมือที่ลอยตามเมาส์บนผืนผ้าใบ
  *
@@ -58,15 +59,15 @@ export const initToolCursor = (stage, badge, {icons = {}, tools = []} = {}) => {
         inside = true;
         place(event);
         sync();
-    });
+    }, boardEventOptions(stage));
 
     const leave = () => {
         inside = false;
         sync();
     };
 
-    stage.addEventListener('pointerleave', leave);
-    stage.addEventListener('pointercancel', leave);
+    stage.addEventListener('pointerleave', leave, boardEventOptions(stage));
+    stage.addEventListener('pointercancel', leave, boardEventOptions(stage));
 
     return {
         /** เรียกทุกครั้งที่เครื่องมือเปลี่ยน (จาก draw() ใน index.js) */

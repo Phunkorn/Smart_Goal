@@ -14,12 +14,16 @@
  * โดยมี 100vh เป็นค่าสำรองสำหรับเบราว์เซอร์รุ่นเก่า
  */
 .ws-board {
+    --wsb-recovery-max-height: 10rem;
     display: flex;
     flex-direction: column;
     min-height: 30rem;
     height: calc(100vh - 64px - 3.5rem);
     height: calc(100dvh - 64px - 3.5rem);
 }
+
+.ws-board .wsb-recovery { max-height: var(--wsb-recovery-max-height); overflow-y: auto; flex: 0 0 auto; }
+.ws-board .wsb-recovery[hidden] { display: none; }
 
 /*
  * โหมดเต็มจอ กล่องหลุดออกจาก .main แล้ว จึงต้องกำหนดความสูงและพื้นหลังเอง

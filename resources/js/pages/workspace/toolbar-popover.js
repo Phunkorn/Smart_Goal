@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * แผงตัวเลือกบนแถบเครื่องมือ (สีทั้งหมด สีโน้ต ความหนาเส้น) - popover ไม่ใช่ modal
  *
@@ -130,14 +131,14 @@ export const initToolbarPopovers = (toolbar, {onBeforeOpen} = {}) => {
         if (current?.panel.contains(event.target) && event.target.closest(CHOICE_SELECTOR)) {
             close();
         }
-    });
+    }, boardEventOptions(toolbar));
 
     // ใช้ pointerdown ไม่ใช่ click เพราะการลากบนผืนผ้าใบจบที่อื่น แผงต้องปิดตั้งแต่เริ่มลาก
     doc.addEventListener('pointerdown', (event) => {
         if (current && ! current.panel.contains(event.target) && ! current.toggle.contains(event.target)) {
             close();
         }
-    });
+    }, boardEventOptions(doc));
 
     /*
      * Escape ปิดแผงก่อน และยกเลิกเหตุการณ์ไว้ keyboard.js จึงไม่ล้างการเลือกชิ้นงาน
@@ -148,10 +149,10 @@ export const initToolbarPopovers = (toolbar, {onBeforeOpen} = {}) => {
             event.preventDefault();
             close({restoreFocus: true});
         }
-    });
+    }, boardEventOptions(doc));
 
-    win?.addEventListener('scroll', follow, true);
-    win?.addEventListener('resize', follow);
+    win?.addEventListener('scroll', follow, boardEventOptions(win, true));
+    win?.addEventListener('resize', follow, boardEventOptions(win));
 
     return {
         close,

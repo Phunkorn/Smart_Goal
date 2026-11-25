@@ -1,11 +1,5 @@
 const DIRECTORY_SELECTOR = '[data-work-board-directory]';
 
-/**
- * สลับแท็บภายในแผง Preview (งานวันนี้ / งานที่ต้องจัดการ / สร้างวันนี้)
- *
- * แผงทั้งหมดถูกวาดมาจาก server แล้ว ที่นี่แค่สลับ hidden กับ aria-selected
- * จึงไม่มีข้อมูลใดถูกดึงหรือคำนวณเพิ่มฝั่ง client
- */
 export function selectPreviewTab(root, key, {focus = false} = {}) {
     const tabs = [...root.querySelectorAll('[data-preview-tab]')];
     const target = tabs.find((tab) => tab.dataset.previewTab === key);
@@ -18,7 +12,6 @@ export function selectPreviewTab(root, key, {focus = false} = {}) {
         const selected = tab === target;
         tab.setAttribute('aria-selected', String(selected));
         tab.tabIndex = selected ? 0 : -1;
-        tab.classList.toggle('is-active', selected);
     });
     root.querySelectorAll('[data-preview-tabpanel]').forEach((panel) => {
         panel.hidden = panel.dataset.previewTabpanel !== key;
@@ -46,7 +39,6 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
     const body = directory.querySelector('[data-preview-body]');
     const title = directory.querySelector('[data-preview-panel-title]');
     const retry = directory.querySelector('[data-preview-retry]');
-    // ช่องในส่วนหัวเป็นตัวเลือก — หน้าที่ไม่มีช่องเหล่านี้ยังโหลดรายการงานได้ตามเดิม
     const headerAvatar = directory.querySelector('[data-preview-header-avatar]');
     const headerMeta = directory.querySelector('[data-preview-header-meta]');
     const headerAction = directory.querySelector('[data-preview-header-action]');
@@ -61,10 +53,10 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
         return null;
     }
     let currentUrl = '';
-    let currentName = '';
     let activeRequest = 0;
     let controller = null;
-    let lastTrigger = null;
+    let shown = false;
+    const defaultTitle = title.textContent;
     const tooltipApi = options.bootstrapApi ?? globalThis.window?.bootstrap;
     const tooltips = [...directory.querySelectorAll('[data-member-preview-trigger][title]')]
         .map((trigger) => tooltipApi?.Tooltip?.getOrCreateInstance(trigger, {placement: 'top', trigger: 'hover focus'}))
@@ -77,12 +69,6 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
         });
     };
 
-    /*
-     * ย้ายส่วนหัวที่ server วาดมา (<template data-preview-header>) ขึ้นไปไว้ใน header ของแผง
-     *
-     * header อยู่นอกพื้นที่เลื่อน ชื่อ บทบาท และแผนกจึงค้างอยู่ด้านบนขณะเลื่อนดูรายการงาน
-     * ทุกครั้งที่โหลดใหม่ช่องจะถูกล้างก่อน (clearHeader) ข้อมูลของคนก่อนจึงไม่ค้าง
-     */
     const fillHeader = () => {
         const template = body.querySelector('template[data-preview-header]');
 
@@ -124,6 +110,14 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
         }
     };
 
+    const selectedTab = () => body.querySelector('[data-preview-tab][aria-selected="true"]');
+
+    const focusSelectedTab = () => {
+        if (shown && panel.ownerDocument.activeElement === panel) {
+            selectedTab()?.focus({preventScroll: true});
+        }
+    };
+
     const load = async (url = currentUrl) => {
         if (!url) {
             return;
@@ -132,7 +126,8 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
         currentUrl = url;
         const requestId = ++activeRequest;
         controller?.abort();
-        controller = new AbortController();
+        const request = new AbortController();
+        controller = request;
         showState('loading');
 
         try {
@@ -143,7 +138,7 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
                     Accept: 'text/html',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                signal: controller.signal,
+                signal: request.signal,
             });
 
             if (!response.ok) {
@@ -152,13 +147,14 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
 
             const html = await response.text();
 
-            if (requestId !== activeRequest || controller.signal.aborted) {
+            if (requestId !== activeRequest || request.signal.aborted) {
                 return;
             }
 
             body.innerHTML = html;
             fillHeader();
             showState('ready');
+            focusSelectedTab();
         } catch (requestError) {
             if (requestId !== activeRequest || requestError?.name === 'AbortError') {
                 return;
@@ -173,12 +169,8 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
 
         if (trigger && directory.contains(trigger)) {
             tooltips.forEach((tooltip) => tooltip.hide());
-            lastTrigger = trigger;
-            currentUrl = trigger.dataset.previewUrl || '';
-            currentName = trigger.dataset.memberName || '';
-            // ชื่อขึ้นทันทีที่กด ส่วนรูป บทบาท และแผนกตามมาเมื่อ server ตอบกลับ (fillHeader)
-            title.textContent = currentName || 'งานของสมาชิก';
-            load(currentUrl);
+            title.textContent = trigger.dataset.memberName || defaultTitle;
+            load(trigger.dataset.previewUrl ?? '');
             return;
         }
 
@@ -192,12 +184,12 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
         const retryButton = event.target.closest?.('[data-preview-retry]');
 
         if (retryButton && directory.contains(retryButton)) {
+            panel.focus({preventScroll: true});
             load(currentUrl);
         }
     };
 
-    // แป้นลูกศรเลื่อนระหว่างแท็บตามแบบแผนของ role="tablist"
-    const handleKeydown = (event) => {
+    const handleTabKeydown = (event) => {
         const current = event.target.closest?.('[data-preview-tab]');
 
         if (!current || !body.contains(current) || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
@@ -215,30 +207,72 @@ export function initializeDepartmentWorkBoard(root = document, options = {}) {
         selectPreviewTab(body, tabs[next].dataset.previewTab, {focus: true});
     };
 
-    const handleHidden = () => {
-        activeRequest += 1;
-        controller?.abort();
-        panel.setAttribute('aria-busy', 'false');
+    const handleKeydown = (event) => {
+        if (!['ArrowUp', 'ArrowDown'].includes(event.key)) {
+            handleTabKeydown(event);
+            return;
+        }
 
-        if (lastTrigger?.isConnected) {
-            lastTrigger.focus();
+        const tab = selectedTab();
+        const results = body.querySelector('[data-preview-tabpanel]:not([hidden])');
+        if (!tab || !results || event.isComposing) return;
+
+        const links = [...results.querySelectorAll('a.wb-spotlight-row[href]')];
+        const index = links.indexOf(event.target);
+        const down = event.key === 'ArrowDown';
+        const next = event.target === tab && down
+            ? links[0] ?? results
+            : index >= 0
+                ? links[index + (down ? 1 : -1)] ?? (down ? null : tab)
+                : null;
+
+        if (next) {
+            event.preventDefault();
+            next.focus();
         }
     };
 
+    const cancelLoad = () => {
+        activeRequest += 1;
+        controller?.abort();
+        controller = null;
+    };
+
+    const handleShown = () => {
+        shown = true;
+        focusSelectedTab();
+    };
+
+    const handleHide = () => {
+        shown = false;
+        cancelLoad();
+    };
+
+    const handleHidden = () => {
+        panel.setAttribute('aria-busy', 'false');
+        body.replaceChildren();
+        body.hidden = true;
+        clearHeader();
+        title.textContent = defaultTitle;
+    };
+
     directory.addEventListener('click', handleClick);
-    directory.addEventListener('keydown', handleKeydown);
-    panel.addEventListener('hidden.bs.offcanvas', handleHidden);
+    panel.addEventListener('keydown', handleKeydown);
+    panel.addEventListener('shown.bs.modal', handleShown);
+    panel.addEventListener('hide.bs.modal', handleHide);
+    panel.addEventListener('hidden.bs.modal', handleHidden);
     directory.dataset.workBoardReady = 'true';
 
     return {
         load,
         destroy() {
             tooltips.forEach((tooltip) => tooltip.dispose());
-            activeRequest += 1;
-            controller?.abort();
+            cancelLoad();
             directory.removeEventListener('click', handleClick);
-            directory.removeEventListener('keydown', handleKeydown);
-            panel.removeEventListener('hidden.bs.offcanvas', handleHidden);
+            panel.removeEventListener('keydown', handleKeydown);
+            panel.removeEventListener('shown.bs.modal', handleShown);
+            panel.removeEventListener('hide.bs.modal', handleHide);
+            panel.removeEventListener('hidden.bs.modal', handleHidden);
             delete directory.dataset.workBoardReady;
         },
     };

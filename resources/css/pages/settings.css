@@ -1,4 +1,5 @@
 @import './settings/base.css';
 @import './settings/appearance.css';
+@import './settings/frame-gallery.css';
 @import './settings/security.css';
 @import './settings/telegram.css';

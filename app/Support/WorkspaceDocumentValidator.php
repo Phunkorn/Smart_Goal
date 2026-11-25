@@ -51,7 +51,7 @@ final class WorkspaceDocumentValidator
         $allowed = array_map('intval', $allowedAttachmentIds);
         $clean = [];
         $seenIds = [];
-        $imageCount = 0;
+        $imageIds = [];
 
         foreach ($elements as $index => $element) {
             $sanitized = self::sanitizeElement($element, $index, $allowed);
@@ -64,13 +64,13 @@ final class WorkspaceDocumentValidator
             $seenIds[$sanitized['id']] = true;
 
             if ($sanitized['type'] === 'image') {
-                $imageCount++;
+                $imageIds[$sanitized['attachmentId']] = true;
             }
 
             $clean[] = $sanitized;
         }
 
-        if ($imageCount > WorkspaceDesign::MAX_IMAGES) {
+        if (count($imageIds) > WorkspaceDesign::MAX_IMAGES) {
             self::reject('กระดานหนึ่งใบแนบรูปได้ไม่เกิน '.WorkspaceDesign::MAX_IMAGES.' รูป');
         }
 

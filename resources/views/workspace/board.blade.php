@@ -17,8 +17,7 @@
     ข้อความไทยทุกคำบนแถบเครื่องมือมาจาก App\Support\WorkspaceDesign ผ่าน Blade
     และ JSON island ไม่ใช่เขียนซ้ำในไฟล์ .js
 
-    ในเฟสนี้การบันทึกยังเป็นการกดปุ่มเอง การบันทึกอัตโนมัติพร้อมการตรวจเวอร์ชัน
-    ฝั่งหน้าจอจะเข้ามาในเฟสถัดไป endpoint ฝั่งเซิร์ฟเวอร์พร้อมแล้ว
+    เริ่มจาก snapshot และรับการแก้ไขเพิ่มผ่าน revision polling โดยไม่ reload หน้า
 --}}
 @php
     $visibility = \App\Support\WorkspaceDesign::visibility($board->visibility);
@@ -27,6 +26,7 @@
     // array literal หลายบรรทัดจะทำให้ Blade แปลงวงเล็บผิดตอน compile
     $boardIsland = [
         'id' => $board->id,
+        'accountId' => auth()->id(),
         'title' => $board->title,
         'visibility' => $board->visibility,
         'departmentId' => $board->department_id,
@@ -152,6 +152,14 @@
     </header>
 
     @include('workspace.components.board-toolbar')
+    <div class="wsb-recovery alert alert-warning mb-0" data-workspace-recovery hidden role="status">
+        <span data-workspace-recovery-message></span>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-workspace-download>ดาวน์โหลดงานค้าง</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-workspace-resolve="local">ใช้การแก้ไขของฉัน / กู้เป็นสำเนา</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-workspace-resolve="remote">ใช้ฉบับล่าสุดเฉพาะจุดขัดแย้ง</button>
+        </div>
+    </div>
     @include('workspace.components.board-stage')
 
     {{-- เมนูคลิกขวาของผืนผ้าใบ ซ่อนไว้จนกว่าจะมีการคลิกขวา (context-menu.js) --}}

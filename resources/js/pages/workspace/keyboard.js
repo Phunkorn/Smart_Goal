@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * ปุ่มลัดบนแป้นพิมพ์ของหน้าวาด
  *
@@ -200,7 +201,7 @@ export const initKeyboardShortcuts = (doc, {
         }
     };
 
-    doc.addEventListener('keydown', handleKeydown);
+    doc.addEventListener('keydown', handleKeydown, boardEventOptions(doc));
 
     return {
         destroy() {

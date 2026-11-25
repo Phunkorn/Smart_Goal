@@ -509,24 +509,26 @@ test('แผงสีเป็น popover แบบ fixed และประก�
  * ป้ายสถานะเคยกระพริบสามสีทุกครั้งที่ขีดเส้น (ยังไม่ได้บันทึก -> กำลังบันทึก -> บันทึกแล้ว)
  * ช่วงหน่วงก่อนบันทึกจึงต้องหน้าตาเดียวกับตอนกำลังบันทึก
  */
-test('ช่วงรอบันทึกกับช่วงกำลังบันทึกแสดงป้ายเดียวกัน', () => {
+test('งานค้างและกำลังบันทึกมีข้อความแยกกันตามสถานะจริง', () => {
     const design = read('app/Support/WorkspaceDesign.php');
     const stateOf = (name) => design.match(new RegExp(`'${name}' => (\\[[^\\]]*\\])`))[1];
 
-    assert.equal(stateOf('dirty'), stateOf('saving'));
+    assert.notEqual(stateOf('dirty'), stateOf('saving'));
+    for (const state of ['syncing', 'offline', 'conflict']) assert.ok(stateOf(state));
 });
 
 /*
- * ป้ายสถานะการบันทึกเริ่มแบบซ่อน autosave.js เปิดเฉพาะตอนบันทึกไม่สำเร็จหรือชนเวอร์ชัน
+ * ป้ายเริ่มซ่อนก่อน initialize; sync แสดงสถานะจริงทุกช่วงโดยไม่ใช้ blocking overlay
  * ต้องประกาศ [hidden] ซ้ำใน CSS เพราะ display: inline-flex ชนะ attribute hidden
  */
-test('ป้ายสถานะการบันทึกเริ่มแบบซ่อน และซ่อนได้จริงใน CSS', () => {
+test('ป้ายเริ่มซ่อนก่อน initialize แล้วแสดงสถานะจริงและ recovery แบบไม่ขวางงาน', () => {
     const board = read(BLADE.board);
     const css = workspaceCss();
 
     assert.match(board, /data-workspace-save-state[^>]*role="status" hidden>/);
     assert.match(css, /\.wsb-save\[hidden\] \{\s*display:\s*none/);
-    assert.match(read(JS.autosave), /VISIBLE_SAVE_STATES = \['error', 'conflict'\]/);
+    assert.match(read(JS.autosave), /indicator.hidden\s*=\s*false/);
+    assert.match(board, /data-workspace-recovery/);
 });
 
 test('ปุ่มบนหัวกระดานมีชื่อใน aria-label เพราะบนโทรศัพท์เหลือแค่ไอคอน', () => {

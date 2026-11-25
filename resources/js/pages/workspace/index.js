@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * ตัวประกอบของหน้าวาด - จุดเดียวที่ถือสถานะจริง
  *
@@ -12,8 +13,7 @@
  *                 |
  *   renderer.js / selection-ui.js         (วาดลง DOM)
  *
- * เฟสนี้ยังใช้ปุ่มบันทึกแบบกดเอง การบันทึกอัตโนมัติและการกันเขียนทับฝั่งหน้าจอ
- * จะเข้ามาในเฟสถัดไปผ่าน save-state.js
+ * autosave.js ประสาน object batches, revision polling และการกู้คืนงานค้าง
  */
 
 import {
@@ -28,6 +28,7 @@ import {
 import {HIT_TOLERANCE_PX, pickTopmost, unionBounds} from './geometry.js';
 import {fitInitialSize, initAttachments} from './attachments.js';
 import {initAutosave} from './autosave.js';
+import {applyHistoryDelta, equal} from './synchronization.js';
 import {confirmDeleteBoard, createBoardModal} from './board-settings.js';
 import {PASTE_OFFSET, copyElements, duplicateElements, pasteFromClipboard} from './clipboard.js';
 import {initClipboardEvents} from './clipboard-events.js';
@@ -82,6 +83,7 @@ export const initBoardEditor = ({
     }
 
     root.dataset.workspaceBoardReady = 'on';
+    root._workspaceEvents = new doc.defaultView.AbortController();
 
     const design = readIsland(doc, 'workspace-design');
     const boardData = readIsland(doc, 'workspace-board');
@@ -179,12 +181,18 @@ export const initBoardEditor = ({
     let notifyDirty = () => {};
     let beginGesture = () => {};
     let endGesture = () => {};
+    let gestureBase = null;
+    let textBase = null;
+    let composing = false;
 
     const viewport = () => ({
         width: stage.clientWidth || 0,
         height: stage.clientHeight || 0,
     });
 
+    let renderedScene = null;
+    let renderedEditingId = null;
+    let contentLayers = [];
     const draw = () => {
         if (previewLayer) {
             applyCamera(previewLayer, state.camera);
@@ -195,10 +203,12 @@ export const initBoardEditor = ({
          * เรียงตามลำดับในเอกสาร ลำดับใน DOM จึงเท่ากับลำดับชั้นที่ผู้ใช้เห็น
          * เส้นที่สั่ง "ขึ้นบนสุด" จึงขึ้นไปอยู่เหนือกระดาษโน้ตได้จริง (ดู layers.js)
          */
-        syncLayers(layersRoot, layerRuns(state.scene.elements), doc).forEach((layer) => {
+        const changed = renderedScene !== state.scene || renderedEditingId !== state.editingId;
+        if (changed) contentLayers = syncLayers(layersRoot, layerRuns(state.scene.elements), doc);
+        contentLayers.forEach((layer) => {
             if (layer.kind === 'overlay') {
                 applyOverlayCamera(layer.node, state.camera);
-                renderOverlay(layer.node, layer.elements, {
+                if (changed) renderOverlay(layer.node, layer.elements, {
                     doc,
                     editable: capabilities.canEdit === true,
                     editingId: state.editingId,
@@ -208,8 +218,9 @@ export const initBoardEditor = ({
             }
 
             applyCamera(layer.node, state.camera);
-            renderElements(layer.node, layer.elements, doc);
+            if (changed) renderElements(layer.node, layer.elements, doc);
         });
+        renderedScene = state.scene; renderedEditingId = state.editingId;
 
         renderPreview(previewLayer, state.preview, doc);
 
@@ -264,11 +275,25 @@ export const initBoardEditor = ({
      * เป็นทางเดียวที่สถานะเปลี่ยนได้ ทำให้มีจุดเดียวที่ต้องดูเวลาสงสัยว่า
      * "ทำไมค่านี้เปลี่ยน" และเป็นจุดเดียวที่ตัดสินว่าเมื่อไรควรบันทึกลงประวัติ
      */
+    const validScene = (next) => {
+        const valid = next.elements.length <= (design.maxElements || 1500)
+            && new Set(next.elements.filter(element => element.type === 'image').map(element => element.attachmentId)).size <= (design.maxImages || 30)
+            && new TextEncoder().encode(JSON.stringify(next)).length <= (design.maxDocumentBytes || 2097152);
+        if (!valid) {
+            state.draft = null; state.preview = null;
+            const status = root.querySelector('[data-workspace-save-state]');
+            if (status) { status.hidden = false; status.dataset.state = 'error'; const label = status.querySelector('[data-workspace-save-label]'); if(label)label.textContent = design.limitMessage || 'ข้อมูลเกินขนาดที่กระดานรองรับ กรุณาแยกเป็นหลายกระดาน'; }
+        }
+        return valid;
+    };
+
     const apply = (patch) => {
         if (! patch) {
             return;
         }
 
+        const previousScene = state.scene;
+        if (patch.scene !== undefined && !validScene(patch.scene)) return;
         if (patch.scene !== undefined) {
             state.scene = patch.scene;
         }
@@ -298,7 +323,8 @@ export const initBoardEditor = ({
         }
 
         if (patch.commit) {
-            past = history.push(past, state.scene);
+            past = history.push(past, state.scene, gestureBase || previousScene);
+            gestureBase = null;
         }
 
         // การเลื่อนกล้องหรือเปลี่ยนการเลือกไม่ใช่การแก้เนื้อหา จึงไม่ต้องบันทึก
@@ -518,8 +544,12 @@ export const initBoardEditor = ({
                     return false;
                 }
 
+                const change = past.changes?.[command === 'undo' ? past.index - 1 : past.index];
+                if (!change) return false;
                 past = command === 'undo' ? history.undo(past) : history.redo(past);
-                state.scene = history.current(past);
+                state.scene = scene.deserialize(applyHistoryDelta(state.scene,
+                    command === 'undo' ? change.after : change.before,
+                    command === 'undo' ? change.before : change.after));
                 state.selection = [];
                 notifyDirty();
                 draw();
@@ -716,12 +746,17 @@ export const initBoardEditor = ({
     const overlay = initOverlayEditing(layersRoot, {
         maxLength: design.maxTextLength || 2000,
         onFocus: (id) => {
+            textBase ||= state.scene;
             if (id && ! state.selection.includes(id)) {
                 state.selection = [id];
                 draw();
             }
         },
         onCommit: (id, text, lineAligns) => {
+            if (textBase) {
+                past = history.push(past, state.scene, textBase);
+                textBase = null;
+            }
             const element = scene.findById(state.scene, id);
 
             // บันทึกลงประวัติเฉพาะเมื่อข้อความหรือการจัดบรรทัดเปลี่ยนจริง การคลิก
@@ -741,6 +776,17 @@ export const initBoardEditor = ({
                 editingId: null,
                 commit: true,
             });
+        },
+        onInput: (id, text, lineAligns) => {
+            const element = scene.findById(state.scene, id);
+            if (element && (!equal(element.text, text) || !equal(element.lineAligns || {}, lineAligns || {}))) {
+                state.scene = scene.updateElement(state.scene, id, {text, lineAligns});
+                notifyDirty();
+            }
+        },
+        onComposition: (active) => {
+            composing = active;
+            if (active) beginGesture(); else endGesture();
         },
     });
 
@@ -762,7 +808,7 @@ export const initBoardEditor = ({
             editingAlign = align;
             draw();
         }
-    });
+    }, boardEventOptions(doc));
 
     /**
      * สลับโหมดเต็มจอของกล่องกระดาน
@@ -790,7 +836,7 @@ export const initBoardEditor = ({
      * ขนาดพื้นที่แสดงผลเปลี่ยนไปตอนเข้าและออกจากเต็มจอ ต้องวาดใหม่เพื่อให้
      * ปุ่มสะท้อนสถานะ และให้การคำนวณ "จัดให้พอดีจอ" ใช้ขนาดใหม่
      */
-    doc.addEventListener('fullscreenchange', () => draw());
+    doc.addEventListener('fullscreenchange', () => draw(), boardEventOptions(doc));
 
     /*
      * รูปภาพถูกอัปโหลดก่อน แล้วค่อยแทรกชิ้นงานที่อ้าง attachmentId ที่เซิร์ฟเวอร์
@@ -880,6 +926,7 @@ export const initBoardEditor = ({
             endGesture();
 
             if (! state.draft) {
+                gestureBase = null;
                 state.gestureStart = null;
 
                 return;
@@ -888,6 +935,7 @@ export const initBoardEditor = ({
             // นิ้วที่สองแตะลงมาระหว่างท่า ให้ทิ้งท่านั้นไปโดยไม่บันทึก
             if (event.cancelled) {
                 apply({draft: null, preview: null});
+                gestureBase = null;
                 state.gestureStart = null;
 
                 return;
@@ -900,6 +948,7 @@ export const initBoardEditor = ({
             })));
 
             state.gestureStart = null;
+            gestureBase = null;
         },
 
         onZoom: ({screenPoint, factor}) => {
@@ -968,7 +1017,7 @@ export const initBoardEditor = ({
             apply({selection: [hit.id], editingId: hit.id});
             overlay?.focus(hit.id);
         }
-    });
+    }, boardEventOptions(stage));
 
     /*
      * เมนูบนแถบเครื่องมือ บนหัวเรื่อง และเมนูคลิกขวา ใช้ menu.js ตัวเดียวกันทั้งหมด
@@ -1034,23 +1083,31 @@ export const initBoardEditor = ({
         design,
         capabilities,
         initialVersion,
+        initialDocument,
+        accountId: boardData.accountId,
+        boardId: boardData.id,
+        isInteracting: () => Boolean(state.draft || composing),
+        isReceivingBlocked: () => Boolean(state.draft || state.editingId || composing),
         client: createClient({routes, doc}),
         getDocument: () => scene.serialize(state.scene),
-        onReplaceDocument: (serverDocument) => {
+        onReplaceDocument: (serverDocument, remoteChange = {}) => {
+            if (remoteChange.previous && remoteChange.server) {
+                if (gestureBase) gestureBase = scene.deserialize(applyHistoryDelta(gestureBase, remoteChange.previous, remoteChange.server));
+                if (textBase) textBase = scene.deserialize(applyHistoryDelta(textBase, remoteChange.previous, remoteChange.server));
+            }
             state.scene = scene.deserialize(serverDocument);
-            state.selection = [];
-            state.editingId = null;
-
-            // ประวัติเดิมอ้างถึงฉากที่ไม่มีอยู่บนเซิร์ฟเวอร์แล้ว การกด undo ต่อ
-            // จะพาผู้ใช้กลับไปหาสถานะที่บันทึกไม่ได้อีกต่อไป
-            past = history.reset(past, state.scene);
-            draw();
+            const ids = new Set(state.scene.elements.map(element => element.id));
+            state.selection = state.selection.filter(id => ids.has(id));
+            if (!ids.has(state.editingId)) state.editingId = null;
+            // Preserve the live contenteditable node/caret across acknowledgements and remote layer changes.
+            // Its latest text is already in scene; reconcile visual layers when editing ends.
+            if (!state.editingId) draw();
         },
     }) : null;
 
     // ให้ apply() แจ้งการเปลี่ยนแปลงไปที่ตัวจัดตารางบันทึก
     notifyDirty = () => autosave?.markDirty?.();
-    beginGesture = () => autosave?.beginGesture?.();
+    beginGesture = () => { gestureBase = state.scene; autosave?.beginGesture?.(); };
     endGesture = () => autosave?.endGesture?.();
 
     /*
@@ -1077,7 +1134,7 @@ export const initBoardEditor = ({
             visibility: boardData.visibility,
             trigger: event.currentTarget,
         });
-    });
+    }, boardEventOptions(root.querySelector('[data-workspace-board-settings]')));
 
     root.querySelector('[data-workspace-board-delete]')?.addEventListener('click', async () => {
         const deleted = await confirmDeleteBoard({
@@ -1090,15 +1147,20 @@ export const initBoardEditor = ({
             // ไม่ใช่ปล่อยค้างไว้บนหน้าที่จะได้ 404 ทันทีที่รีเฟรช
             navigateTo(routes.department);
         }
-    });
+    }, boardEventOptions(root.querySelector('[data-workspace-board-delete]')));
 
     draw();
+
+    doc.defaultView?.addEventListener('pagehide', (event) => {
+        if (!event.persisted) { menus?.close(); toolbar?.closePickers(); root._workspaceEvents.abort(); }
+    }, boardEventOptions(doc));
 
     return {
         state,
         runCommand,
         autosave,
         settingsModal,
+        destroy: () => { autosave?.destroy(); menus?.close(); toolbar?.closePickers(); root._workspaceEvents.abort(); },
         /** ใช้โดยเทสต์และโดยชั้นบันทึกในเฟสถัดไป */
         currentDocument: () => scene.serialize(state.scene),
     };
@@ -1107,5 +1169,5 @@ export const initBoardEditor = ({
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
         initBoardEditor({root: document.querySelector('[data-workspace-board]')});
-    });
+    }, boardEventOptions(document));
 }

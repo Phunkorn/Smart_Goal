@@ -420,25 +420,14 @@ final class WorkspaceDesign
      */
     public const SAVE_STATES = [
         'saved' => ['label' => 'บันทึกแล้ว', 'icon' => 'bi-cloud-check', 'tone' => 'teal'],
-        'dirty' => ['label' => 'กำลังบันทึก...', 'icon' => 'bi-arrow-repeat', 'tone' => 'gray'],
+        'dirty' => ['label' => 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก', 'icon' => 'bi-cloud', 'tone' => 'gray'],
         'saving' => ['label' => 'กำลังบันทึก...', 'icon' => 'bi-arrow-repeat', 'tone' => 'gray'],
         'error' => ['label' => 'บันทึกไม่สำเร็จ จะลองใหม่อัตโนมัติ', 'icon' => 'bi-exclamation-triangle', 'tone' => 'amber'],
-        'conflict' => ['label' => 'มีฉบับใหม่กว่า กดรีเฟรชเพื่อโหลด', 'icon' => 'bi-exclamation-octagon', 'tone' => 'amber'],
-    ];
-
-    /**
-     * ข้อความในกล่องเตือนเมื่อสองคนบันทึกชนกัน
-     *
-     * เป็นจุดที่ผู้ใช้ต้องตัดสินใจว่าจะทิ้งงานที่เพิ่งวาดหรือไม่ ถ้อยคำจึงต้อง
-     * บอกผลลัพธ์ให้ชัด ไม่ใช่แค่แจ้งว่าเกิดอะไรขึ้น
-     */
-    public const CONFLICT_DIALOG = [
-        'title' => 'มีคนอื่นบันทึกกระดานนี้แล้ว',
-        'confirm' => 'โหลดฉบับล่าสุด',
-        'cancel' => 'ยังไม่โหลด',
-        'warning' => 'การโหลดฉบับล่าสุดจะทิ้งสิ่งที่คุณวาดหลังจากนั้น',
-        'suspended' => 'หยุดบันทึกอัตโนมัติไว้แล้ว กดรีเฟรชเมื่อพร้อมโหลดฉบับล่าสุด',
-        'refreshDirty' => 'กระดานนี้มีสิ่งที่ยังไม่ได้บันทึก การโหลดใหม่จะทิ้งไป',
+        'conflict' => ['label' => 'มีงานค้างที่ต้องตรวจสอบ', 'icon' => 'bi-exclamation-octagon', 'tone' => 'amber'],
+        'syncing' => ['label' => 'กำลังซิงค์', 'icon' => 'bi-arrow-repeat', 'tone' => 'gray'],
+        'reconnecting' => ['label' => 'กำลังเชื่อมต่อใหม่ งานค้างยังอยู่', 'icon' => 'bi-arrow-repeat', 'tone' => 'amber'],
+        'blocked' => ['label' => 'บันทึกไม่ได้ กรุณาตรวจสิทธิ์หรือเข้าสู่ระบบใหม่', 'icon' => 'bi-exclamation-triangle', 'tone' => 'amber'],
+        'offline' => ['label' => 'ออฟไลน์ งานค้างยังอยู่ในเครื่อง', 'icon' => 'bi-cloud-slash', 'tone' => 'amber'],
     ];
 
     /**
@@ -487,7 +476,6 @@ final class WorkspaceDesign
             'tools' => self::TOOLS,
             'pointerTools' => self::POINTER_TOOLS,
             'saveStates' => self::SAVE_STATES,
-            'conflictDialog' => self::CONFLICT_DIALOG,
             'defaultTool' => self::DEFAULT_TOOL,
             'elementTypes' => self::ELEMENT_TYPES,
             'visibilities' => self::VISIBILITIES,
@@ -506,6 +494,7 @@ final class WorkspaceDesign
             'paletteColumns' => self::PALETTE_COLUMNS,
             'defaultStickyColor' => self::DEFAULT_STICKY_COLOR,
             'maxElements' => self::MAX_ELEMENTS,
+            'maxDocumentBytes' => self::MAX_DOCUMENT_BYTES,
             'maxTextLength' => self::MAX_TEXT_LENGTH,
             'maxImages' => self::MAX_IMAGES,
             'imageMaxKilobytes' => self::IMAGE_MAX_KILOBYTES,

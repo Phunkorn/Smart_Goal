@@ -140,6 +140,11 @@ class User extends Authenticatable
         return $this->belongsTo(Department::class, 'department_id');
     }
 
+    public function avatarFrame(): BelongsTo
+    {
+        return $this->belongsTo(ProfileFrame::class, 'avatar_frame', 'slug');
+    }
+
     /**
      * แผนกที่ admin อนุญาตให้ผู้ใช้คนนี้ "ดูงาน" ได้ — ใช้กับโหมด custom เท่านั้น
      *

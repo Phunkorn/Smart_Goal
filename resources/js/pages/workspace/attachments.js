@@ -1,3 +1,4 @@
+import {boardEventOptions} from './lifecycle.js';
 /*
  * การแนบรูปภาพลงกระดาน
  *
@@ -116,7 +117,7 @@ export const initAttachments = ({
             // ล้างค่าเพื่อให้เลือกไฟล์เดิมซ้ำได้ ไม่งั้นเบราว์เซอร์จะไม่ยิง change
             // ครั้งที่สองเพราะค่าไม่เปลี่ยน
             input.value = '';
-        });
+        }, boardEventOptions(input));
     }
 
     return {

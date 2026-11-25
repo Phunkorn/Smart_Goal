@@ -12,12 +12,7 @@ use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
- * แผง Preview สมาชิก — บทบาทในโปรเจกต์ และหมวด "สร้างวันนี้"
- *
- *   - บทบาท "หัวหน้าโปรเจกต์ / ผู้เข้าร่วม" มาจาก ProjectRoles เท่านั้น และแสดงกับทุกคนที่มีสิทธิ์
- *     ดูงานใบนั้น (WorkOrderPolicy::view) ไม่ว่าจะเป็น role หรือ visibility scope ใด
- *   - บทบาทในระบบ (หัวหน้าแผนก/พนักงาน) แสดงแยกในส่วนหัว ไม่ปนกับบทบาทในโปรเจกต์
- *   - "สร้างวันนี้" ใช้วันของเวลาไทย และงานหนึ่งใบอยู่ได้หมวดเดียว
+ * Spotlight ของสมาชิกใช้สิทธิ์เดิม และจัดหมวด "สร้างวันนี้" ตามเวลาไทย
  */
 class MemberPreviewProjectRolesTest extends TestCase
 {
@@ -43,7 +38,7 @@ class MemberPreviewProjectRolesTest extends TestCase
         $this->collaborator = $this->employee('ผู้ร่วมงานที่ถูกเชิญ');
     }
 
-    public function test_every_viewer_who_may_view_the_task_sees_its_leader_and_participants(): void
+    public function test_spotlight_omits_project_roles_and_only_links_to_authorized_workspaces(): void
     {
         $task = $this->task('งานที่หัวหน้ามอบหมาย', $this->head, ['created_at' => now()->subDays(3)]);
         $task->collaborators()->attach($this->collaborator->id, ['added_by' => $this->head->id, 'status' => 'accepted']);
@@ -52,41 +47,24 @@ class MemberPreviewProjectRolesTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'department_id' => null, 'is_active' => true, 'must_change_password' => false]);
 
         $routes = [
-            [$this->head, route('work-board.member', [$this->it, $this->member])],
-            [$grantee, route('work-board.member', [$this->it, $this->member])],
-            [$admin, route('admin.work-board.member.preview', [$this->it, $this->member])],
-            // ผู้ร่วมงานเองก็มีสิทธิ์ดูงานใบนี้ จึงเห็นบทบาทเหมือนกัน แม้ไม่มีสิทธิ์พิเศษใด
-            [$this->collaborator, route('work-board.member', [$this->it, $this->member])],
+            [$this->head, route('work-board.member', [$this->it, $this->member]), true],
+            [$grantee, route('work-board.member', [$this->it, $this->member]), true],
+            [$admin, route('admin.work-board.member.preview', [$this->it, $this->member]), true],
+            [$this->collaborator, route('work-board.member', [$this->it, $this->member]), false],
         ];
 
-        foreach ($routes as [$viewer, $url]) {
-            $html = $this->actingAs($viewer)->get($url)->assertOk()->getContent();
-            $card = $this->todaySection($html);
-
-            $this->assertStringContainsString('data-preview-task-people', $card, $viewer->name);
-            $this->assertMatchesRegularExpression('/data-preview-leader.*?<strong>หัวหน้าแผนก IT<\/strong>/s', $card, $viewer->name);
-            $this->assertMatchesRegularExpression('/data-preview-participants="2"/', $card, $viewer->name);
-            // สมาชิกที่ถูกดูเป็นผู้รับผิดชอบ ไม่ใช่ผู้สร้าง จึงเป็น "ผู้เข้าร่วม" ของงานนี้
-            $this->assertStringContainsString('data-preview-member-role="participant"', $card, $viewer->name);
-            $this->assertStringContainsString('data-preview-role-count="participant">1<', $html, $viewer->name);
-            $this->assertStringContainsString('data-preview-role-count="leader">0<', $html, $viewer->name);
+        foreach ($routes as [$viewer, $url, $canOpenWorkspace]) {
+            $html = $this->actingAs($viewer)->get($url)
+                ->assertOk()
+                ->assertSee('งานที่หัวหน้ามอบหมาย')
+                ->assertDontSee('data-preview-task-people', false)
+                ->assertDontSee('data-preview-role-summary', false)
+                ->assertDontSee('ผู้ร่วมงานที่ถูกเชิญ')
+                ->getContent();
+            $today = $this->todaySection($html);
+            $this->assertSame($canOpenWorkspace, str_contains($today, 'data-preview-task-link'), $viewer->name);
+            $this->assertSame($canOpenWorkspace, str_contains($today, 'bi-chevron-right'), $viewer->name);
         }
-    }
-
-    public function test_the_member_who_created_the_task_is_its_project_leader(): void
-    {
-        $this->task('งานที่สมาชิกเปิดเอง', $this->member, ['created_at' => now()->subDay()]);
-
-        $html = $this->actingAs($this->head)
-            ->get(route('work-board.member', [$this->it, $this->member]))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertStringContainsString('data-preview-member-role="leader"', $html);
-        $this->assertStringContainsString('data-preview-role-count="leader">1<', $html);
-        $this->assertStringContainsString('data-preview-role-count="participant">0<', $html);
-        // ผู้สร้างที่มอบหมายให้ตัวเองเป็นหัวหน้าโปรเจกต์ ไม่ใช่ผู้เข้าร่วมของตัวเอง
-        $this->assertStringContainsString('data-preview-participants="0"', $html);
     }
 
     /**
@@ -110,7 +88,7 @@ class MemberPreviewProjectRolesTest extends TestCase
             ->assertDontSee('data-preview-member-role', false)
             ->assertDontSee('data-preview-role-summary', false)
             // บทบาทในระบบของคนที่ถูกดูยังแสดงเหมือนเดิม — เป็นข้อมูลของคน ไม่ใช่ของงาน
-            ->assertSee('wb-member-preview-panel__system-role', false);
+            ->assertSee('wb-spotlight__member-meta', false);
     }
 
     public function test_header_separates_the_system_role_from_project_roles(): void
@@ -123,7 +101,7 @@ class MemberPreviewProjectRolesTest extends TestCase
             ->getContent();
 
         // บทบาทในระบบ • แผนก อยู่บรรทัดเดียวกันเป็นข้อความเรียบ ไม่ใช่ป้ายของบทบาทในโปรเจกต์
-        $this->assertMatchesRegularExpression('/wb-member-preview-panel__system-role">หัวหน้าแผนก<\/span>\s*<span class="wb-member-preview-panel__separator" aria-hidden="true">•<\/span>/', $html);
+        $this->assertMatchesRegularExpression('/wb-spotlight__member-meta">\s*<span>หัวหน้าแผนก<\/span>/', $html);
         $this->assertStringContainsString('<template data-preview-header data-member-name="หัวหน้าแผนก IT">', $html);
         $this->assertStringContainsString('title="แผนก: IT">IT</span>', $html);
     }
@@ -147,7 +125,7 @@ class MemberPreviewProjectRolesTest extends TestCase
         $this->assertStringContainsString('สร้างเวลา 10:00 น.', $created, 'เวลาที่แสดงต้องเป็นเวลาไทย');
         $this->assertStringNotContainsString('โปรเจกต์เมื่อวาน', $created);
         $this->assertStringNotContainsString('โปรเจกต์ที่จัดเก็บแล้ว', $created);
-        $this->assertStringContainsString('data-preview-created-count>1 รายการ<', $html);
+        $this->assertMatchesRegularExpression('/data-preview-tab="created">\s*สร้างวันนี้ <b>1<\/b>/', $html);
     }
 
     /**
@@ -213,13 +191,13 @@ class MemberPreviewProjectRolesTest extends TestCase
         $this->assertStringNotContainsString('งานสร้างและเริ่มวันนี้', $created);
         $this->assertStringNotContainsString('งานเก่าที่ยังทำอยู่', $created);
         // "วันนี้" กับ "สร้างวันนี้" ไม่ซ้ำกัน ส่วน "งานทั้งหมด" เป็นภาพรวมทุกใบจึงมีงานนี้ด้วย
-        $this->assertSame(1, substr_count($created, 'งานเริ่มสัปดาห์หน้า</h5>'));
-        $this->assertSame(1, substr_count($this->panel($html, 'all'), 'งานเริ่มสัปดาห์หน้า</h5>'));
+        $this->assertSame(1, substr_count($created, 'งานเริ่มสัปดาห์หน้า</h4>'));
+        $this->assertSame(1, substr_count($this->panel($html, 'all'), 'งานเริ่มสัปดาห์หน้า</h4>'));
 
         // ตัวนับต้องตรงกับสิ่งที่วาด: วันนี้ 2 งาน / สร้างวันนี้ = 1 โปรเจกต์ + 1 งาน
-        $this->assertStringContainsString('data-preview-task-count>2 งาน<', $html);
+        $this->assertStringContainsString('data-preview-actionable-count>2<', $html);
         $this->assertSame(2, preg_match_all('/data-preview-task(?![-\w])/', $html));
-        $this->assertStringContainsString('data-preview-created-count>2 รายการ<', $html);
+        $this->assertMatchesRegularExpression('/data-preview-tab="created">\s*สร้างวันนี้ <b>2<\/b>/', $html);
         $this->assertSame(1, preg_match_all('/data-preview-created-task(?![-\w])/', $html));
         // การ์ดโปรเจกต์นับเฉพาะงานที่แสดงในแผงนี้ (หนึ่งงานในวันนี้ + หนึ่งงานที่สร้างวันนี้)
         $this->assertMatchesRegularExpression('/data-preview-created-project="'.$project->id.'".*?data-preview-project-task-count>\s*2 งาน/s', $created);
@@ -259,7 +237,7 @@ class MemberPreviewProjectRolesTest extends TestCase
             ->assertSee('วันนี้ไม่มีงานที่ต้องติดตาม')
             ->assertSee('data-preview-created-empty', false)
             ->assertSee('วันนี้ยังไม่มีโปรเจกต์หรืองานใหม่')
-            ->assertDontSee('data-preview-created-count', false)
+            ->assertSee('data-preview-actionable-count>0<', false)
             ->assertDontSee('data-preview-role-summary', false);
     }
 
@@ -308,17 +286,10 @@ class MemberPreviewProjectRolesTest extends TestCase
         $this->assertTrue(strpos($all, 'งานเริ่มเดือนหน้า') < strpos($all, 'งานที่ปิดแล้ว'));
         $this->assertStringContainsString('data-preview-task-timing="done"', $all);
         $this->assertMatchesRegularExpression('/data-preview-tab="all">\s*งานทั้งหมด <b>6<\/b>/', $html);
-        $this->assertStringContainsString('data-preview-all-count>6 งาน<', $html);
-
-        // งานที่เปิดเองแต่ไม่ได้รับผิดชอบ สมาชิกเป็นหัวหน้าโปรเจกต์ของงานนั้น
-        $this->assertMatchesRegularExpression('/งานที่สมาชิกเปิดให้คนอื่นทำ<\/h5>.*?data-preview-member-role="leader"/s', $all);
 
         // ตัวเลขสรุปนับจากชุดเดียวกับแท็บงานทั้งหมด
         $this->assertStringContainsString('data-preview-summary-count="total">6<', $html);
         $this->assertStringContainsString('data-preview-summary-count="done">1<', $html);
-        // บทบาทในส่วนหัว: งานที่ยังไม่ปิด 5 ใบ — สมาชิกเปิดเอง 2 ใบ หัวหน้าเปิด 3 ใบ
-        $this->assertStringContainsString('data-preview-role-count="leader">2<', $html);
-        $this->assertStringContainsString('data-preview-role-count="participant">3<', $html);
 
         // เพื่อนร่วมแผนกที่ไม่ได้อยู่ในงานใดเลย: งานทั้งหมดว่าง และไม่มีตัวเลขสรุป
         $teammate = $this->employee('เพื่อนร่วมแผนก');
@@ -420,6 +391,7 @@ class MemberPreviewProjectRolesTest extends TestCase
         $html = $this->actingAs($grantee)
             ->get(route('work-board.member', [$this->it, $this->member]))
             ->assertOk()
+            ->assertDontSee('workBoardMemberPreviewSearch', false)
             ->getContent();
 
         $this->assertMatchesRegularExpression('/aria-selected="true"[^>]*data-preview-tab="today"/', $html);

@@ -20,6 +20,7 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
     const busy = new Set();
     let opener = trigger;
     let switching = false;
+    let galleryReturn = null;
 
     const feedback = (modal, message, success = false) => {
         const box = modal?.querySelector('[data-account-feedback]');
@@ -27,7 +28,8 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
         box.className = `alert ${success ? 'alert-success' : 'alert-danger'}`;
         box.textContent = message;
     };
-    const lock = (modal) => {
+    const lock = (modal, labelWhileBusy = 'กำลังบันทึก…') => {
+        const focused = root.activeElement;
         busy.add(modal);
         modal.setAttribute('aria-busy', 'true');
         const controls = [...modal.querySelectorAll('button, input:not([type="hidden"]), select, textarea')];
@@ -35,12 +37,15 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
         controls.forEach((control) => { control.disabled = true; });
         const submit = modal.querySelector('[type="submit"]');
         const label = submit?.innerHTML;
-        if (submit) submit.textContent = 'กำลังบันทึก…';
+        if (submit && labelWhileBusy) submit.textContent = labelWhileBusy;
         return () => {
             busy.delete(modal);
             modal.removeAttribute('aria-busy');
             controls.forEach((control, index) => { control.disabled = disabled[index]; });
             if (submit) submit.innerHTML = label;
+            if (modal.classList.contains('show') && modal.contains(focused) && !modal.contains(root.activeElement)) {
+                focused.focus();
+            }
         };
     };
     const show = (element) => bootstrapApi?.Modal?.getOrCreateInstance(element).show();
@@ -55,6 +60,9 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
         if (current === target) return;
         if (! current) opener = source?.closest('.dropdown-menu') ? trigger : (source ?? trigger);
         if (current) {
+            if (target.hasAttribute('data-frame-gallery') && source?.closest('[data-account-form="appearance"]')) {
+                galleryReturn = {modal: current, button: source};
+            }
             switching = true;
             current.addEventListener('hidden.bs.modal', () => {
                 target.addEventListener('shown.bs.modal', () => { switching = false; }, {once: true});
@@ -65,21 +73,80 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
             show(target);
         }
     };
-    root.addEventListener('click', (event) => {
+    root.addEventListener('click', async (event) => {
         const button = event.target.closest('[data-account-open]');
         if (! button) return;
         event.preventDefault();
+        const modalUrl = button.dataset.accountModalUrl;
+        if (modalUrl && !root.getElementById(button.dataset.accountOpen)) {
+            if (switching || busy.size || !bootstrapApi?.Modal) return;
+            const parent = button.closest('.account-modal');
+            if (parent && !parent.classList.contains('show')) return;
+            const errorMessage = button.parentElement.querySelector('[data-account-load-error]');
+            if (errorMessage) errorMessage.textContent = '';
+            const unlock = parent ? lock(parent, null) : () => {
+                busy.delete(button);
+                button.removeAttribute('aria-busy');
+            };
+            if (!parent) {
+                busy.add(button);
+                button.setAttribute('aria-busy', 'true');
+            }
+            let failed = false;
+            try {
+                const response = await fetcher(modalUrl, {
+                    headers: {Accept: 'application/json'},
+                    signal: win.AbortSignal?.timeout?.(15000),
+                });
+                if (!response.ok || response.redirected) throw new Error();
+                const {html} = await response.json();
+                const template = root.createElement('template');
+                template.innerHTML = html;
+                const modal = template.content.firstElementChild;
+                if (modal?.id !== button.dataset.accountOpen || !modal.matches('.account-modal')) throw new Error();
+                await appearance.mount(modal, settings);
+                initializeProfileImagePicker(modal);
+                bindModal(modal);
+            } catch {
+                failed = true;
+            } finally {
+                unlock();
+            }
+            if (failed) {
+                const message = parent ? 'ไม่สามารถโหลดกรอบโปรไฟล์ กรุณาลองอีกครั้ง' : 'โหลดการตกแต่งโปรไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง';
+                if (parent) feedback(parent, message);
+                else if (errorMessage) {
+                    errorMessage.textContent = message;
+                    bootstrapApi.Dropdown?.getOrCreateInstance(trigger)?.show();
+                }
+                button.focus();
+                return;
+            }
+        }
         open(button.dataset.accountOpen, button);
     });
 
-    settings.querySelectorAll('.account-modal').forEach((modal) => {
+    function bindModal(modal) {
         modal.addEventListener('hide.bs.modal', (event) => {
             if (busy.has(modal)) event.preventDefault();
         });
         modal.addEventListener('shown.bs.modal', () => {
-            modal.querySelector('input:not([type="hidden"]), .modal-footer button')?.focus();
+            const initial = modal.querySelector('[data-account-initial-focus], input:not([type="hidden"]), .modal-footer button');
+            initial?.focus();
         });
         modal.addEventListener('hidden.bs.modal', () => {
+            if (modal.hasAttribute('data-frame-gallery') && galleryReturn) {
+                const {modal: parent, button} = galleryReturn;
+                galleryReturn = null;
+                switching = true;
+                parent.addEventListener('shown.bs.modal', () => {
+                    switching = false;
+                    button.focus();
+                }, {once: true});
+                show(parent);
+                return;
+            }
+            if (switching && galleryReturn?.modal === modal) return;
             const form = modal.querySelector('[data-account-form]');
             if (form) {
                 form.reset();
@@ -90,7 +157,8 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
             modal.querySelector('[data-account-feedback]')?.classList.add('d-none');
             if (! switching) (opener?.isConnected ? opener : trigger)?.focus();
         });
-    });
+    }
+    settings.querySelectorAll('.account-modal').forEach(bindModal);
 
     const refreshTelegram = async () => {
         const region = settings.querySelector('[data-account-telegram]');
@@ -226,6 +294,7 @@ function updateIdentity(root, user) {
             const image = root.createElement('img');
             image.alt = '';
             image.dataset.avatarImage = '';
+            image.loading = 'lazy';
             image.src = user.avatar_url;
             avatar.append(image);
         }

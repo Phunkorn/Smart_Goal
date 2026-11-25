@@ -18,7 +18,7 @@ export const DEBOUNCE_MS = 1200;
 export const MAX_WAIT_MS = 5000;
 
 /** ระยะรอก่อนลองใหม่เมื่อบันทึกไม่สำเร็จ */
-export const RETRY_DELAYS_MS = [2000, 5000, 15000];
+export const RETRY_DELAYS_MS = [2000, 4000, 8000, 16000, 30000];
 
 /**
  * @param {object} options
@@ -79,7 +79,7 @@ export const createSaveScheduler = ({
     };
 
     const flush = async () => {
-        if (stopped || state === 'conflict') {
+        if (stopped || state === 'conflict' || (firstDirtyAt === null && ! inFlight)) {
             return;
         }
 
@@ -126,6 +126,8 @@ export const createSaveScheduler = ({
 
             setState('error', {error});
 
+            if (error?.retryable === false) return;
+
             const delay = retryDelaysMs[Math.min(retryIndex, retryDelaysMs.length - 1)];
             retryIndex += 1;
             schedule(delay);
@@ -136,6 +138,9 @@ export const createSaveScheduler = ({
         if (stopped || state === 'conflict') {
             return;
         }
+        // Keep a temporary-failure backoff in place while collecting further keystrokes.
+        // A permanent error has no timer, so a deliberate new edit can schedule a fresh attempt.
+        if (state === 'error' && timer !== null) return;
 
         if (firstDirtyAt === null) {
             firstDirtyAt = now();
@@ -162,7 +167,7 @@ export const createSaveScheduler = ({
         /** สถานะปัจจุบัน ใช้โดยเทสต์และโดยตัวบอกสถานะบนหน้าจอ */
         state: () => state,
 
-        isDirty: () => state === 'dirty' || state === 'error' || inFlight,
+        isDirty: () => state === 'dirty' || state === 'error' || state === 'conflict' || inFlight,
 
         /** มีการแก้เนื้อหา */
         markDirty,

@@ -1,3 +1,10 @@
+<IfModule mod_headers.c>
+    # Only Vite fingerprinted artwork is public. Profile media still revalidates in Laravel.
+    <FilesMatch "-[A-Za-z0-9_-]{8,}\.(webp|png|gif|apng|svg)$">
+        Header set Cache-Control "public, max-age=31536000, immutable" "expr=%{REQUEST_URI} =~ m#(?:^|/)build/assets/#"
+    </FilesMatch>
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes

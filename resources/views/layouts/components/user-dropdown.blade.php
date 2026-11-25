@@ -16,7 +16,11 @@
     <ul class="dropdown-menu dropdown-menu-end topbar-slide-menu topbar-account__menu" id="topbarAccountMenu" aria-labelledby="topbarAccountTrigger">
         <li class="topbar-account__header">เข้าสู่ระบบในชื่อ <strong>{{ $currentUser->username }}</strong></li>
         <li><button type="button" class="dropdown-item" data-account-open="settingsProfileModal"><i class="bi bi-person" aria-hidden="true"></i>แก้ไขโปรไฟล์</button></li>
-        <li><button type="button" class="dropdown-item" data-account-open="settingsAppearanceModal"><i class="bi bi-palette" aria-hidden="true"></i>ตกแต่งโปรไฟล์</button></li>
+        <li>
+            <button type="button" class="dropdown-item" data-account-open="settingsAppearanceModal"
+                data-account-modal-url="{{ route('settings.appearance.show') }}"><i class="bi bi-palette" aria-hidden="true"></i>ตกแต่งโปรไฟล์</button>
+            <small class="d-block px-3 text-danger text-wrap" role="status" data-account-load-error></small>
+        </li>
         <li><button type="button" class="dropdown-item" data-account-open="settingsPasswordModal" data-bs-target="#settingsPasswordModal"><i class="bi bi-key" aria-hidden="true"></i>เปลี่ยนรหัสผ่าน</button></li>
         <li><button type="button" class="dropdown-item" data-account-open="settingsModal"><i class="bi bi-telegram" aria-hidden="true"></i>การเชื่อม Telegram</button></li>
         <li><hr class="dropdown-divider"></li>
