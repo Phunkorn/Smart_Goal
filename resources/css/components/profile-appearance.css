@@ -40,6 +40,17 @@
     pointer-events: none;
 }
 
+/* Keep the existing 36px avatar and control geometry; only the frame overflows. */
+.topbar .topbar-account__portrait {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+}
+
+.topbar .topbar-account__portrait::before { inset: -3px; }
+.topbar .topbar-account__portrait[data-profile-frame="none"]::before { content: none; }
+
 .sg-profile-portrait[data-profile-frame-asset]:not([data-profile-frame-asset=""])::before {
     background: none;
 }

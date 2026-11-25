@@ -1,6 +1,16 @@
--- MySQL / MariaDB. Generated from the profile frame migration and seeder.
--- Run after 2026_11_24_000001_add_profile_appearance_to_users_table on hosts without Artisan.
+-- MySQL / MariaDB. Generated from both profile migrations and the frame seeder.
+-- Select the application database in phpMyAdmin and back it up before importing.
+-- Includes profile_cover + avatar_frame required by the department member directory.
+-- Existing user values and frame records are preserved; an interrupted import can be retried.
 SET NAMES utf8mb4;
+
+SET @ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='profile_cover')=0,
+ 'ALTER TABLE `users` ADD COLUMN `profile_cover` VARCHAR(255) NULL DEFAULT NULL','SELECT 1');
+PREPARE profile_stmt FROM @ddl; EXECUTE profile_stmt; DEALLOCATE PREPARE profile_stmt;
+
+SET @ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='avatar_frame')=0,
+ 'ALTER TABLE `users` ADD COLUMN `avatar_frame` VARCHAR(24) NULL DEFAULT NULL','SELECT 1');
+PREPARE profile_stmt FROM @ddl; EXECUTE profile_stmt; DEALLOCATE PREPARE profile_stmt;
 
 CREATE TABLE IF NOT EXISTS `profile_frames` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -40,6 +50,19 @@ INSERT IGNORE INTO profile_frames (slug, name, animated, asset_path, preview_pat
   ('space-cat', 'แมวอวกาศ', 1, 'animated/space-cat-motion.webp', 'animated/space-cat.webp', 220, 1),
   ('crystal-energy', 'พลังคริสตัล', 1, 'animated/crystal-energy-motion.webp', 'animated/crystal-energy.webp', 230, 1);
 
+SET @profile_batch = (SELECT COALESCE(MAX(batch), 0) + 1 FROM migrations);
+
 INSERT INTO migrations (migration, batch)
-SELECT '2026_11_24_000002_create_profile_frames_table', COALESCE((SELECT MAX(batch) FROM migrations), 0) + 1
+SELECT '2026_11_24_000001_add_profile_appearance_to_users_table', @profile_batch
+WHERE NOT EXISTS (SELECT 1 FROM migrations WHERE migration = '2026_11_24_000001_add_profile_appearance_to_users_table');
+
+INSERT INTO migrations (migration, batch)
+SELECT '2026_11_24_000002_create_profile_frames_table', @profile_batch
 WHERE NOT EXISTS (SELECT 1 FROM migrations WHERE migration = '2026_11_24_000002_create_profile_frames_table');
+
+-- Verification: expect both columns, 23 standard frames, and both migration names.
+-- Avoid a top-level information_schema SELECT in phpMyAdmin's import results.
+SELECT COUNT(*) AS profile_frames_rows FROM profile_frames;
+SELECT migration, batch FROM migrations
+WHERE migration IN ('2026_11_24_000001_add_profile_appearance_to_users_table', '2026_11_24_000002_create_profile_frames_table');
+SHOW COLUMNS FROM `users` WHERE `Field` IN ('profile_cover', 'avatar_frame');

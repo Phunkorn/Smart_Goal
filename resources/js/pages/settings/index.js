@@ -236,7 +236,7 @@ export function initializeSettingsPage(root = document, bootstrapApi = globalThi
         lock(modal);
     });
     initializeProfileImagePicker(root);
-    root.querySelectorAll('[data-account-avatar] img').forEach((image) => {
+    root.querySelectorAll('[data-account-avatar] img:not([data-profile-frame-overlay])').forEach((image) => {
         image.dataset.avatarImage = '';
         if (image.complete && image.naturalWidth === 0) image.remove();
     });
@@ -289,14 +289,16 @@ function fieldErrors(form, errors) {
 function updateIdentity(root, user) {
     root.querySelectorAll('[data-account-name]').forEach((label) => { label.textContent = user.name; });
     root.querySelectorAll('[data-account-avatar]').forEach((avatar) => {
-        avatar.textContent = user.initials;
+        const content = avatar.querySelector('[data-account-avatar-content]') ?? avatar;
+        // Replace identity content only; the shared portrait owns its frame overlay.
+        content.textContent = user.initials;
         if (user.avatar_url) {
             const image = root.createElement('img');
             image.alt = '';
             image.dataset.avatarImage = '';
             image.loading = 'lazy';
             image.src = user.avatar_url;
-            avatar.append(image);
+            content.append(image);
         }
     });
 }

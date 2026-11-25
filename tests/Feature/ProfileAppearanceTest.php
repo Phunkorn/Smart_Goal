@@ -39,7 +39,10 @@ class ProfileAppearanceTest extends TestCase
             $html = $this->actingAs($user)->get(route('settings.index'))->assertOk()->getContent();
             $queries = DB::getQueryLog();
             DB::disableQueryLog();
-            $this->assertEmpty(array_filter($queries, fn ($query) => str_contains($query['query'], 'profile_frames')));
+            $frameQueries = array_values(array_filter($queries, fn ($query) => str_contains($query['query'], 'profile_frames')));
+            $this->assertCount(1, $frameQueries);
+            $this->assertSame(['crystal-energy'], $frameQueries[0]['bindings']);
+            $this->assertStringContainsString('limit 1', $frameQueries[0]['query']);
             $this->assertStringNotContainsString('id="settingsAppearanceModal"', $html);
             $this->assertStringContainsString('data-account-open="settingsAppearanceModal"', $html);
             $this->assertStringNotContainsString('data-frame-option', $html);
@@ -52,6 +55,29 @@ class ProfileAppearanceTest extends TestCase
             foreach ($frames as $frame) {
                 $this->assertStringContainsString('data-frame-slug="'.$frame->slug.'"', $gallery->json('html'));
             }
+        }
+    }
+
+    public function test_topbar_loads_only_the_selected_frame_once_and_reuses_the_relation(): void
+    {
+        foreach ([null, 'gold', 'rainbow-cloud', 'star-orbit'] as $slug) {
+            $user = User::factory()->create(['avatar_frame' => $slug]);
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $html = view('layouts.components.user-dropdown', ['currentUser' => $user])->render();
+            // Rendering again in the same request must reuse Eloquent's loaded relation.
+            view('layouts.components.user-dropdown', ['currentUser' => $user])->render();
+            $queries = array_values(array_filter(DB::getQueryLog(), fn ($query) => str_contains($query['query'], 'profile_frames')));
+            DB::disableQueryLog();
+            $this->assertCount($slug ? 1 : 0, $queries);
+            if ($slug) {
+                $this->assertSame([$slug], $queries[0]['bindings']);
+                $this->assertStringContainsString('limit 1', $queries[0]['query']);
+            }
+            $this->assertStringContainsString('data-profile-frame="'.($slug ?? 'none').'"', $html);
+            $this->assertStringContainsString('data-account-avatar-content', $html);
+            $this->assertStringNotContainsString('data-profile-cover', $html);
+            $this->assertStringNotContainsString('data-frame-option', $html);
         }
     }
 

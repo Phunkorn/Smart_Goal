@@ -1,7 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initializeProfileAppearance} from '../../resources/js/pages/settings/appearance.js';
+import {initializeProfileFrames} from '../../resources/js/components/profile-frames.js';
 import {mountDom} from './helpers/dom.js';
+
+test('shared frame observation is idempotent and releases listeners and animation on teardown', (t) => {
+    const ui = mountDom('<span class="sg-profile-portrait" data-profile-frame="aurora"><img data-profile-frame-overlay hidden></span>');
+    t.after(ui.cleanup);
+    let callback, observes = 0, disconnected = false;
+    ui.window.IntersectionObserver = class {
+        constructor(fn) { callback = fn; }
+        observe() { observes++; }
+        disconnect() { disconnected = true; }
+    };
+    const media = new ui.window.EventTarget();
+    media.matches = false;
+    ui.window.matchMedia = () => media;
+    const controller = initializeProfileFrames(ui.document);
+    controller.observe(ui.document);
+    assert.equal(observes, 1);
+    const portrait = ui.document.querySelector('span');
+    callback([{target: portrait, isIntersecting: true}]);
+    assert.ok(portrait.hasAttribute('data-frame-visible'));
+    controller.destroy();
+    assert.ok(disconnected);
+    assert.equal(portrait.hasAttribute('data-frame-visible'), false);
+    const overlay = portrait.querySelector('img');
+    overlay.src = '/late-load.webp';
+    overlay.dispatchEvent(new ui.window.Event('load'));
+    assert.ok(overlay.hidden, 'disposed load listener must not reveal a stale frame');
+    media.dispatchEvent(new ui.window.Event('change'));
+    controller.observe(ui.document);
+    assert.equal(observes, 1);
+});
 
 function setup(t) {
     const ui = mountDom(`<form data-account-form="appearance" data-profile-user="7">

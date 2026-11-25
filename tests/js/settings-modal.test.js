@@ -44,6 +44,7 @@ test('appearance uses the shared multipart flow, keeps the modal busy, and retai
     resolve({ok: true, json: async () => ({message: 'saved', appearance: {cover_url: '/new-cover', avatar_frame: 'gold'}})});
     await flush(ui.doc);
     assert.equal(modal.querySelector('[data-profile-cover] img').getAttribute('src'), '/new-cover');
+    assert.equal(ui.doc.querySelector('.topbar-account__portrait').dataset.profileFrame, 'gold');
     assert.equal(ui.doc.activeElement, saveButton);
     ui.win.bootstrap.Modal.getInstance(modal).hide();
     await flush(ui.doc);
@@ -83,7 +84,11 @@ function accountUI(t, fetcher = async () => ({ok: true, json: async () => ({mess
         <li><button class="dropdown-item" data-account-open="settingsAppearanceModal" data-account-modal-url="/settings/appearance">appearance</button></li>
         <li><button class="dropdown-item" data-account-open="settingsModal">settings</button></li>
         <li><button class="dropdown-item" data-account-open="accountLogoutModal">logout</button></li></ul></div>
-        <span data-account-name>Old</span><span data-account-avatar>Ol</span></header>
+        <span data-account-name>Old</span>
+        <span class="sg-profile-portrait topbar-account__portrait" data-profile-user="7" data-profile-frame="aurora">
+            <span data-account-avatar><span data-account-avatar-content>Ol</span></span>
+            <img data-profile-frame-overlay hidden alt="">
+        </span></header>
         <main id="outside" tabindex="0">content</main><div class="settings-page" data-settings-page data-settings-url="/settings">
         ${modal('settingsProfileModal', `<form action="/settings" data-account-form="profile">${feedback}
             <input name="_token" type="hidden" value="csrf"><input name="_method" type="hidden" value="PATCH">
@@ -145,6 +150,9 @@ test('profile saves once with multipart CSRF, blocks dismissal while saving, and
     let resolve;
     const requests = [];
     const ui = accountUI(t, (url, options) => { requests.push({url, options}); return new Promise((done) => { resolve = done; }); });
+    const overlay = ui.doc.querySelector('[data-profile-frame-overlay]');
+    assert.ok(overlay);
+    assert.equal(overlay.hasAttribute('data-avatar-image'), false);
     await ui.open('settingsProfileModal');
     ui.doc.querySelector('#settingsName').value = '<New Name>';
     ui.submit('[data-account-form="profile"]');
@@ -159,6 +167,8 @@ test('profile saves once with multipart CSRF, blocks dismissal while saving, and
     assert.equal(ui.doc.querySelector('[data-account-name]').textContent, '<New Name>');
     assert.equal(ui.doc.querySelector('[data-account-name]').children.length, 0);
     assert.match(ui.doc.querySelector('[data-account-avatar] img').src, /avatar\?v=2/);
+    assert.equal(ui.doc.querySelector('[data-profile-frame-overlay]'), overlay);
+    assert.equal(ui.doc.querySelector('.topbar-account__portrait').dataset.profileFrame, 'aurora');
     assert.equal(ui.doc.querySelector('#settingsProfileModal [data-account-feedback]').textContent, 'saved');
     ui.win.bootstrap.Modal.getInstance(ui.doc.getElementById('settingsProfileModal')).hide(); await flush(ui.doc);
     assert.equal(ui.doc.getElementById('settingsName').value, '<New Name>');

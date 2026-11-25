@@ -10,7 +10,9 @@ export function initializeProfileAppearance(root = document) {
     const applyFrame = (region, slug) => {
         const option = frames.get(slug) ?? savedFrames.get(slug);
         const source = option?.querySelector('[data-profile-frame]');
-        region.querySelectorAll('[data-profile-frame]').forEach((portrait) => {
+        const portraits = [...region.querySelectorAll('[data-profile-frame]')];
+        if (region.matches('[data-profile-frame]')) portraits.unshift(region);
+        portraits.forEach((portrait) => {
             if (source || portrait.dataset.profileFrame !== slug) paintFrame(portrait, source, slug);
         });
         const label = region.querySelector('[data-appearance-frame-name]');

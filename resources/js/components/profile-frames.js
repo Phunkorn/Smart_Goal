@@ -2,11 +2,16 @@ export function initializeProfileFrames(root) {
     const win = root.defaultView;
     const reducedMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)');
     const visible = new Set();
+    const observed = new WeakSet();
+    const lifecycle = new win.AbortController();
+    const listenerOptions = {signal: lifecycle.signal};
+    let stopped = false;
     let urls = typeof import.meta.env === 'undefined' ? {} : null;
     let loading;
     const assetUrl = (path) => urls?.[`../../images/profile-frames/${path}`];
 
     const render = (portrait) => {
+        if (stopped) return;
         const overlay = portrait.querySelector('[data-profile-frame-overlay]');
         if (!overlay) return;
         const {profileFrameAsset, profileFramePoster} = portrait.dataset;
@@ -41,13 +46,15 @@ export function initializeProfileFrames(root) {
         });
     });
     const observe = (container) => container.querySelectorAll('.sg-profile-portrait[data-profile-frame]').forEach((portrait) => {
+        if (stopped || observed.has(portrait)) return;
+        observed.add(portrait);
         const overlay = portrait.querySelector('[data-profile-frame-overlay]');
-        overlay?.addEventListener('load', () => { overlay.hidden = !overlay.hasAttribute('src'); });
+        overlay?.addEventListener('load', () => { overlay.hidden = !overlay.hasAttribute('src'); }, listenerOptions);
         overlay?.addEventListener('error', () => {
             const poster = assetUrl(portrait.dataset.profileFramePoster);
             if (poster && overlay.getAttribute('src') !== poster && visible.has(portrait)) overlay.src = poster;
             else overlay.hidden = true;
-        });
+        }, listenerOptions);
         if (observer) observer.observe(portrait);
         else {
             visible.add(portrait);
@@ -56,7 +63,7 @@ export function initializeProfileFrames(root) {
         }
     });
     observe(root);
-    reducedMotion?.addEventListener?.('change', () => visible.forEach(render));
+    reducedMotion?.addEventListener?.('change', () => visible.forEach(render), listenerOptions);
 
     const paint = (portrait, source, slug = source?.dataset.profileFrame ?? 'none') => {
         if (!portrait) return;
@@ -78,5 +85,13 @@ export function initializeProfileFrames(root) {
         });
     };
 
-    return {paint, observe, release};
+    const destroy = () => {
+        if (stopped) return;
+        stopped = true;
+        observer?.disconnect();
+        release(root);
+        lifecycle.abort();
+    };
+    win.addEventListener('pagehide', (event) => { if (!event.persisted) destroy(); }, listenerOptions);
+    return {paint, observe, release, destroy};
 }
