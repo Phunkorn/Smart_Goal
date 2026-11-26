@@ -33,6 +33,7 @@ class ProfileFrameSeeder extends Seeder
         ['space-cat', 'แมวอวกาศ', true, 'animated'],
         ['crystal-energy', 'พลังคริสตัล', true, 'animated'],
         ['enchanted-forest', 'ป่ามนตราเรืองแสง', true, 'animated', 'gif'],
+        ['fantasy-ring', 'แฟนตาซีวงแหวนเรืองแสงสี่จังหวะ', true, 'animated', 'gif'],
     ];
 
     public function run(): void

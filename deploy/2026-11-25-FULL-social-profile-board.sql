@@ -10,7 +10,7 @@
 --   2026_11_23_000001_add_visibility_and_target_department_to_social_posts_table
 --   2026_11_23_000002_create_social_feed_reads_table
 --   2026_11_24_000001_add_profile_appearance_to_users_table
---   2026_11_24_000002_create_profile_frames_table      (+ ข้อมูลกรอบโปรไฟล์ 24 แบบ)
+--   2026_11_24_000002_create_profile_frames_table      (+ ข้อมูลกรอบโปรไฟล์ 25 แบบ)
 --   2026_11_25_000001_add_workspace_collaboration_history
 --
 -- รันซ้ำได้ และรันได้ไม่ว่าฐานจะอยู่รุ่นไหนในช่วงนี้ — ส่วนที่มีอยู่แล้วจะถูกข้ามเอง
@@ -176,7 +176,8 @@ INSERT IGNORE INTO profile_frames (slug, name, animated, asset_path, preview_pat
   ('cyber-neon', 'ไซเบอร์นีออน', 1, 'animated/cyber-neon-motion.webp', 'animated/cyber-neon.webp', 210, 1),
   ('space-cat', 'แมวอวกาศ', 1, 'animated/space-cat-motion.webp', 'animated/space-cat.webp', 220, 1),
   ('crystal-energy', 'พลังคริสตัล', 1, 'animated/crystal-energy-motion.webp', 'animated/crystal-energy.webp', 230, 1),
-  ('enchanted-forest', 'ป่ามนตราเรืองแสง', 1, 'animated/enchanted-forest-motion.gif', 'animated/enchanted-forest.webp', 240, 1);
+  ('enchanted-forest', 'ป่ามนตราเรืองแสง', 1, 'animated/enchanted-forest-motion.gif', 'animated/enchanted-forest.webp', 240, 1),
+  ('fantasy-ring', 'แฟนตาซีวงแหวนเรืองแสงสี่จังหวะ', 1, 'animated/fantasy-ring-motion.gif', 'animated/fantasy-ring.webp', 250, 1);
 
 -- ---------------------------------------------------------------------
 -- 4) Idea Board collaboration history — 2026_11_25_000001
@@ -235,7 +236,7 @@ WHERE NOT EXISTS (SELECT 1 FROM migrations x WHERE x.migration = m.migration)
 ORDER BY m.seq;
 
 -- ---------------------------------------------------------------------
--- 6) ตรวจผล — ควรได้ 9 แถวในผลแรก และ 24 ในผลที่สอง
+-- 6) ตรวจผล — ควรได้ 9 แถวในผลแรก และ 25 ในผลที่สอง
 -- ---------------------------------------------------------------------
 
 SELECT migration, batch FROM migrations

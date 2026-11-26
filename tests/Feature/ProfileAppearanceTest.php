@@ -30,7 +30,7 @@ class ProfileAppearanceTest extends TestCase
     {
         $frames = collect(ProfileAppearance::frames());
         $this->assertCount(15, $frames->where('animated', false));
-        $this->assertCount(9, $frames->where('animated', true));
+        $this->assertCount(10, $frames->where('animated', true));
 
         foreach (['user', 'admin', 'viewer'] as $role) {
             $user = User::factory()->create(['role' => $role, 'avatar_frame' => 'crystal-energy']);
@@ -60,7 +60,7 @@ class ProfileAppearanceTest extends TestCase
 
     public function test_topbar_loads_only_the_selected_frame_once_and_reuses_the_relation(): void
     {
-        foreach ([null, 'gold', 'rainbow-cloud', 'star-orbit', 'enchanted-forest'] as $slug) {
+        foreach ([null, 'gold', 'rainbow-cloud', 'star-orbit', 'enchanted-forest', 'fantasy-ring'] as $slug) {
             $user = User::factory()->create(['avatar_frame' => $slug]);
             DB::flushQueryLog();
             DB::enableQueryLog();
@@ -81,30 +81,32 @@ class ProfileAppearanceTest extends TestCase
         }
     }
 
-    public function test_enchanted_forest_gif_can_be_selected_and_has_a_transparent_static_poster(): void
+    public function test_imported_gifs_can_be_selected_and_have_transparent_static_posters(): void
     {
-        $frame = ProfileFrame::where('slug', 'enchanted-forest')->firstOrFail();
-        $this->assertTrue((bool) $frame->animated);
-        $this->assertSame('animated/enchanted-forest-motion.gif', $frame->asset_path);
-        $this->assertSame('animated/enchanted-forest.webp', $frame->preview_path);
-        $directory = resource_path('images/profile-frames/');
-        $gif = getimagesize($directory.$frame->asset_path);
-        $poster = getimagesize($directory.$frame->preview_path);
-        $this->assertSame([468, 468], array_slice($gif, 0, 2));
-        $this->assertSame('image/gif', $gif['mime']);
-        $this->assertSame('image/webp', $poster['mime']);
-        $this->assertSame(array_slice($gif, 0, 2), array_slice($poster, 0, 2));
-        $image = imagecreatefromwebp($directory.$frame->preview_path);
-        $this->assertSame(127, (imagecolorat($image, 234, 234) >> 24) & 127);
-        imagedestroy($image);
+        foreach (['enchanted-forest' => 468, 'fantasy-ring' => 768] as $slug => $size) {
+            $frame = ProfileFrame::where('slug', $slug)->firstOrFail();
+            $this->assertTrue((bool) $frame->animated);
+            $this->assertSame('animated/'.$slug.'-motion.gif', $frame->asset_path);
+            $this->assertSame('animated/'.$slug.'.webp', $frame->preview_path);
+            $directory = resource_path('images/profile-frames/');
+            $gif = getimagesize($directory.$frame->asset_path);
+            $poster = getimagesize($directory.$frame->preview_path);
+            $this->assertSame([$size, $size], array_slice($gif, 0, 2));
+            $this->assertSame('image/gif', $gif['mime']);
+            $this->assertSame('image/webp', $poster['mime']);
+            $this->assertSame(array_slice($gif, 0, 2), array_slice($poster, 0, 2));
+            $image = imagecreatefromwebp($directory.$frame->preview_path);
+            $this->assertSame(127, (imagecolorat($image, intdiv($size, 2), intdiv($size, 2)) >> 24) & 127);
+            imagedestroy($image);
 
-        $user = User::factory()->create(['must_change_password' => false]);
-        $this->actingAs($user)->patchJson(route('settings.appearance.update'), ['avatar_frame' => $frame->slug])
-            ->assertOk()->assertJsonPath('appearance.avatar_frame', $frame->slug);
-        $this->actingAs($user->fresh())->get(route('settings.index'))->assertOk()
-            ->assertSee('data-profile-frame="enchanted-forest"', false)
-            ->assertSee('data-profile-frame-asset="'.$frame->asset_path.'"', false)
-            ->assertSee('data-profile-frame-poster="'.$frame->preview_path.'"', false);
+            $user = User::factory()->create(['must_change_password' => false]);
+            $this->actingAs($user)->patchJson(route('settings.appearance.update'), ['avatar_frame' => $frame->slug])
+                ->assertOk()->assertJsonPath('appearance.avatar_frame', $frame->slug);
+            $this->actingAs($user->fresh())->get(route('settings.index'))->assertOk()
+                ->assertSee('data-profile-frame="'.$slug.'"', false)
+                ->assertSee('data-profile-frame-asset="'.$frame->asset_path.'"', false)
+                ->assertSee('data-profile-frame-poster="'.$frame->preview_path.'"', false);
+        }
     }
 
     public function test_animated_ring_openings_stay_aligned_with_the_avatar(): void
@@ -160,7 +162,7 @@ class ProfileAppearanceTest extends TestCase
         $this->seed(ProfileFrameSeeder::class);
         $this->seed(ProfileFrameSeeder::class);
 
-        $this->assertDatabaseCount('profile_frames', 24);
+        $this->assertDatabaseCount('profile_frames', 25);
         $this->assertSame('aurora', $user->fresh()->avatar_frame);
         $this->assertFalse($user->fresh()->avatarFrame->is_active);
         $this->assertSame('aurora', ProfileAppearance::frame($user->fresh()));
